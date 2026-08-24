@@ -1,0 +1,117 @@
+name: CI
+
+# TECH.md §16 — "CI: Ephemeral PostgreSQL environment; migrations from empty;
+# RLS tests; full test suite."
+#
+# DP-0: local/CI must exercise REAL PostgreSQL, not SQLite.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # PG-1 — 18.x. A guardrail in tools/ci rejects a 19 beta pin.
+        image: postgres:18.1-alpine
+        env:
+          POSTGRES_DB: tapcrm
+          POSTGRES_USER: tapcrm_migrator
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tapcrm_migrator -d tapcrm"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      MIGRATION_DATABASE_URL: postgres://tapcrm_migrator:postgres@localhost:5432/tapcrm
+      DATABASE_URL: postgres://tapcrm_app:app_test_password@localhost:5432/tapcrm
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: test-secret-at-least-thirty-two-characters
+      JWT_REFRESH_SECRET: different-test-secret-thirty-two-chars
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # RG-I1 / CI-9 — regenerate the registry and diff it. Drift between
+      # AUTHORIZATION.md and the committed code fails the build.
+      - name: Registry drift (CI-9)
+        run: npm run registry:extract -- --check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # DP-1 — migrations run from EMPTY, forward-only.
+      - name: Migrate from empty
+        run: |
+          npm run migrate
+          psql "$MIGRATION_DATABASE_URL" -c "ALTER ROLE tapcrm_app LOGIN PASSWORD 'app_test_password';"
+          psql "$MIGRATION_DATABASE_URL" -c "GRANT CONNECT ON DATABASE tapcrm TO tapcrm_app;"
+
+      - name: Seed
+        run: npm run seed
+
+      # CI-33 — schema scan proves every tenant table has RLS + FORCE RLS and
+      # the app role lacks BYPASSRLS. Asserted against the LIVE schema, not the
+      # migration text, so a policy dropped later is still caught.
+      - name: RLS enforced on every tenant table (CI-33)
+        run: |
+          UNPROTECTED=$(psql "$MIGRATION_DATABASE_URL" -t -A -c "
+            SELECT count(*) FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind IN ('r','p')
+              AND c.relname <> 'organization'
+              AND EXISTS (SELECT 1 FROM pg_attribute a
+                          WHERE a.attrelid = c.oid AND a.attname = 'organization_id'
+                            AND NOT a.attisdropped)
+              AND NOT (c.relrowsecurity AND c.relforcerowsecurity);")
+          echo "tenant tables without RLS+FORCE: $UNPROTECTED"
+          test "$UNPROTECTED" = "0"
+
+          BYPASS=$(psql "$MIGRATION_DATABASE_URL" -t -A -c \
+            "SELECT rolbypassrls FROM pg_roles WHERE rolname='tapcrm_app';")
+          echo "tapcrm_app rolbypassrls: $BYPASS"
+          test "$BYPASS" = "f"
+
+      # AU-2 at the privilege layer — the app role must not be able to rewrite
+      # history, whatever the application code does.
+      - name: Audit is append-only (AU-2)
+        run: |
+          WRITABLE=$(psql "$MIGRATION_DATABASE_URL" -t -A -c "
+            SELECT count(*) FROM information_schema.table_privileges
+            WHERE grantee = 'tapcrm_app' AND table_name LIKE 'audit_entry%'
+              AND privilege_type IN ('UPDATE','DELETE');")
+          echo "audit UPDATE/DELETE grants to app role: $WRITABLE"
+          test "$WRITABLE" = "0"
+
+      - name: Architectural gates (§15)
+        run: npm run ci
+
+      - name: Tests
+        run: npm test

@@ -1,0 +1,3963 @@
+{
+  "actions": [
+    {
+      "action": "access:decide-role-change",
+      "module": "access-management",
+      "resource": "roleChangeRequest",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "requestedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "access:delegate",
+      "module": "access-management",
+      "resource": "user",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "access:request-role-change",
+      "module": "access-management",
+      "resource": "roleChangeRequest",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "access:view",
+      "module": "access-management",
+      "resource": "user",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:close-period",
+      "module": "accounting",
+      "resource": "accountingPeriod",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "lastPostedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:manage-accounts",
+      "module": "accounting",
+      "resource": "ledgerAccount",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:post-journal",
+      "module": "accounting",
+      "resource": "journalEntry",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:reopen-period",
+      "module": "accounting",
+      "resource": "accountingPeriod",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:tax-export",
+      "module": "accounting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:view-ledger",
+      "module": "accounting",
+      "resource": "journalEntry",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:view-statements",
+      "module": "accounting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounts:manage-ownership",
+      "module": "clients",
+      "resource": "account",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounts:view-revenue",
+      "module": "clients",
+      "resource": "account",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "approvals:decide",
+      "module": "approvals",
+      "resource": "approvalRequest",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "requestedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "approvals:delegate",
+      "module": "approvals",
+      "resource": "approvalDelegation",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "attendance:correct",
+      "module": "attendance",
+      "resource": "attendanceCorrection",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "requestedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "attendance:export",
+      "module": "attendance",
+      "resource": "attendanceRecord",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "attendance:request-correction",
+      "module": "attendance",
+      "resource": "attendanceCorrection",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "attendance:view",
+      "module": "attendance",
+      "resource": "attendanceRecord",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "attendance:view-live",
+      "module": "attendance",
+      "resource": "userStatus",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "audit:export",
+      "module": "audit",
+      "resource": "auditEntry",
+      "domain": "derived",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "audit:manage-holds",
+      "module": "audit",
+      "resource": "legalHold",
+      "domain": "derived",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "audit:view",
+      "module": "audit",
+      "resource": "auditEntry",
+      "domain": "derived",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "billing:set-terms",
+      "module": "billing-terms",
+      "resource": "billingTerms",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": false,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "billing:view-terms",
+      "module": "billing-terms",
+      "resource": "billingTerms",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "biometric:manage",
+      "module": "biometric",
+      "resource": "biometricDevice",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "breaks:manage-policy",
+      "module": "break-management",
+      "resource": "breakPolicy",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "breaks:review-breach",
+      "module": "break-management",
+      "resource": "breakBreach",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "userId",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "breaks:view",
+      "module": "break-management",
+      "resource": "breakBreach",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "callbacks:create",
+      "module": "callbacks",
+      "resource": "callback",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "callbacks:edit",
+      "module": "callbacks",
+      "resource": "callback",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "callbacks:view",
+      "module": "callbacks",
+      "resource": "callback",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "changes:assign",
+      "module": "delivery",
+      "resource": "changeRequest",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "changes:classify",
+      "module": "delivery",
+      "resource": "changeRequest",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "raisedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "clients:manage",
+      "module": "clients",
+      "resource": "client",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "clients:manage-requests",
+      "module": "clients",
+      "resource": "clientRequest",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "clients:view",
+      "module": "clients",
+      "resource": "client",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "communication:client-thread",
+      "module": "project-communication",
+      "resource": "message",
+      "domain": "derived",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "communication:view",
+      "module": "project-communication",
+      "resource": "message",
+      "domain": "derived",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:allow-custom-terms",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:approve",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "createdBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:approve-contract",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "createdBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:confirm-payment",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "payment.initiatedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:create",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:edit",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:forecast",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:record-win",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "closedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:view",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "deals:view-commercials",
+      "module": "deals",
+      "resource": "deal",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "delivery:approve",
+      "module": "delivery",
+      "resource": "delivery",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "delivery:share",
+      "module": "delivery",
+      "resource": "delivery",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "delivery:signoff",
+      "module": "delivery",
+      "resource": "delivery",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "deliveredBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "delivery:view",
+      "module": "delivery",
+      "resource": "delivery",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "documents:manage-templates",
+      "module": "documents",
+      "resource": "documentTemplate",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "documents:share-client",
+      "module": "documents",
+      "resource": "document",
+      "domain": "derived",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "documents:upload",
+      "module": "documents",
+      "resource": "document",
+      "domain": "derived",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "documents:view",
+      "module": "documents",
+      "resource": "document",
+      "domain": "derived",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "handoff:confirm",
+      "module": "handoff",
+      "resource": "projectBrief",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "createdBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "handoff:create",
+      "module": "handoff",
+      "resource": "projectBrief",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "handoff:review",
+      "module": "handoff",
+      "resource": "projectBrief",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "confirmedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "handoff:view",
+      "module": "handoff",
+      "resource": "projectBrief",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "handovers:initiate",
+      "module": "handovers",
+      "resource": "handover",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "handovers:receive",
+      "module": "handovers",
+      "resource": "handover",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "handovers:record-disposition",
+      "module": "handovers",
+      "resource": "handover",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "handovers:view",
+      "module": "handovers",
+      "resource": "handover",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "holidays:manage",
+      "module": "holidays",
+      "resource": "holiday",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "holidays:view",
+      "module": "holidays",
+      "resource": "holiday",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "identity:manage-geofence",
+      "module": "identity",
+      "resource": "geofenceLocation",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "identity:unlock-account",
+      "module": "identity",
+      "resource": "user",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "invoicing:create",
+      "module": "invoicing",
+      "resource": "invoice",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "invoicing:credit-note",
+      "module": "invoicing",
+      "resource": "creditNote",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "invoicing:issue",
+      "module": "invoicing",
+      "resource": "invoice",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "createdBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "invoicing:manage-recurring",
+      "module": "invoicing",
+      "resource": "recurringSchedule",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "invoicing:manage-series",
+      "module": "invoicing",
+      "resource": "numberSeries",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "invoicing:send",
+      "module": "invoicing",
+      "resource": "invoice",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "invoicing:view",
+      "module": "invoicing",
+      "resource": "invoice",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leads:create",
+      "module": "leads",
+      "resource": "lead",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leads:edit",
+      "module": "leads",
+      "resource": "lead",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leads:reassign",
+      "module": "leads",
+      "resource": "lead",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leads:view",
+      "module": "leads",
+      "resource": "lead",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leave:acknowledge",
+      "module": "leave",
+      "resource": "leaveRequest",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": true,
+      "initiatorField": "requestedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leave:decide",
+      "module": "leave",
+      "resource": "leaveRequest",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "requestedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leave:manage-types",
+      "module": "leave",
+      "resource": "leaveType",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leave:manage-wfh-standing",
+      "module": "leave",
+      "resource": "leaveRequest",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leave:request",
+      "module": "leave",
+      "resource": "leaveRequest",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leave:request-wfh",
+      "module": "leave",
+      "resource": "leaveRequest",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leave:view",
+      "module": "leave",
+      "resource": "leaveRequest",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "notepad:view-all",
+      "module": "workspace",
+      "resource": "notepad",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": false,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "notices:manage",
+      "module": "workspace",
+      "resource": "notice",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "onboarding:manage",
+      "module": "onboarding",
+      "resource": "onboardingWorkflow",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "org:manage-departments",
+      "module": "organization",
+      "resource": "department",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "org:manage-designations",
+      "module": "organization",
+      "resource": "designation",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "org:manage-positions",
+      "module": "organization",
+      "resource": "position",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "org:manage-teams",
+      "module": "organization",
+      "resource": "team",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "org:view-people",
+      "module": "organization",
+      "resource": "user",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "org:view-policies",
+      "module": "organization",
+      "resource": "position",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "org:view-structure",
+      "module": "organization",
+      "resource": "department",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:approve-bill",
+      "module": "payables",
+      "resource": "vendorBill",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "createdBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:approve-claim",
+      "module": "payables",
+      "resource": "expenseClaim",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": true,
+      "initiatorField": "claimedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:claim",
+      "module": "payables",
+      "resource": "expenseClaim",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:create-bill",
+      "module": "payables",
+      "resource": "vendorBill",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:execute-run",
+      "module": "payables",
+      "resource": "paymentRun",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "approvedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:view",
+      "module": "payables",
+      "resource": "vendorBill",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payments:allocate",
+      "module": "payments",
+      "resource": "receipt",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payments:reconcile",
+      "module": "payments",
+      "resource": "bankReconciliation",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "recordedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payments:record",
+      "module": "payments",
+      "resource": "receipt",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payments:refund",
+      "module": "payments",
+      "resource": "refund",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "requestedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payments:view",
+      "module": "payments",
+      "resource": "receipt",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payroll:manage",
+      "module": "payroll",
+      "resource": "payrollRun",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "payroll:manage-config",
+      "module": "payroll",
+      "resource": "payrollConfig",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "payroll:view",
+      "module": "payroll",
+      "resource": "payslip",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "performance:manage",
+      "module": "performance",
+      "resource": "performanceRecord",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "subjectId",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "performance:view",
+      "module": "performance",
+      "resource": "performanceRecord",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "performance:view-aggregates",
+      "module": "performance",
+      "resource": "performanceRecord",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "projects:manage",
+      "module": "projects",
+      "resource": "project",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "projects:view",
+      "module": "projects",
+      "resource": "project",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "projects:view-financials",
+      "module": "projects",
+      "resource": "project",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "receivables:dun",
+      "module": "receivables",
+      "resource": "invoice",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "receivables:view",
+      "module": "receivables",
+      "resource": "invoice",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "receivables:write-off",
+      "module": "receivables",
+      "resource": "invoice",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "proposedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "renewals:view",
+      "module": "post-closure",
+      "resource": "renewalOpportunity",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "reports:build",
+      "module": "reporting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "reports:export",
+      "module": "reporting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "reports:view",
+      "module": "reporting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "reports:view-financial",
+      "module": "reporting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "reports:view-lifecycle",
+      "module": "reporting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "resources:allocate",
+      "module": "resource-planning",
+      "resource": "allocation",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "resources:override-allocation",
+      "module": "resource-planning",
+      "resource": "allocation",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "resources:view",
+      "module": "resource-planning",
+      "resource": "allocation",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "sheets:manage",
+      "module": "workspace",
+      "resource": "sheet",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "shifts:approve",
+      "module": "shifts",
+      "resource": "shiftRequest",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": true,
+      "initiatorField": "requestedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "shifts:manage",
+      "module": "shifts",
+      "resource": "shift",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "shifts:view",
+      "module": "shifts",
+      "resource": "shift",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "system:manage-integrations",
+      "module": "system-administration",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "system:manage-retention",
+      "module": "system-administration",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "system:manage-settings",
+      "module": "system-administration",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "system:manage-thresholds",
+      "module": "system-administration",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "tasks:assign",
+      "module": "tasks",
+      "resource": "task",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "tasks:log-time",
+      "module": "tasks",
+      "resource": "timeEntry",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "tasks:manage-dependencies",
+      "module": "tasks",
+      "resource": "task",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "tasks:review",
+      "module": "tasks",
+      "resource": "task",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": true,
+      "initiatorField": "assignedTo",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "tasks:update",
+      "module": "tasks",
+      "resource": "task",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "tasks:view",
+      "module": "tasks",
+      "resource": "task",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "territories:manage",
+      "module": "territories",
+      "resource": "territory",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "territories:view",
+      "module": "territories",
+      "resource": "territory",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "users:manage",
+      "module": "employee-directory",
+      "resource": "user",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "users:view",
+      "module": "employee-directory",
+      "resource": "user",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    }
+  ],
+  "bindings": [
+    {
+      "method": "GET",
+      "path": "/api/identity/geofences",
+      "action": "identity:manage-geofence",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/identity/geofences",
+      "action": "identity:manage-geofence",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/identity/geofences/:id",
+      "action": "identity:manage-geofence",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/identity/geofences/:id/assign",
+      "action": "identity:manage-geofence",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/identity/users/:id/unlock",
+      "action": "identity:unlock-account",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/departments",
+      "action": "org:view-structure",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/teams",
+      "action": "org:view-structure",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/ladder/:departmentCode",
+      "action": "org:view-structure",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/chart",
+      "action": "org:view-people",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/positions/:id/holders",
+      "action": "org:view-people",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/positions/:id/policies",
+      "action": "org:view-policies",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/departments",
+      "action": "org:manage-departments",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/org/departments/:id",
+      "action": "org:manage-departments",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/teams",
+      "action": "org:manage-teams",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/org/teams/:id",
+      "action": "org:manage-teams",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/teams/:id/members",
+      "action": "org:manage-teams",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/positions",
+      "action": "org:manage-positions",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/org/positions/:id",
+      "action": "org:manage-positions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/org/positions/:id/policies",
+      "action": "org:manage-positions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/designations",
+      "action": "org:manage-designations",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/designations",
+      "action": "org:manage-designations",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/access/effective/:userId",
+      "action": "access:view",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/access/who-can/:action",
+      "action": "access:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/access/override",
+      "action": "access:delegate",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/access/override/:id",
+      "action": "access:delegate",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/access/role-change-request",
+      "action": "access:request-role-change",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/access/role-change-request/:id/decide",
+      "action": "access:decide-role-change",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit",
+      "action": "audit:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/:id",
+      "action": "audit:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audit/export",
+      "action": "audit:export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/holds",
+      "action": "audit:manage-holds",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/audit/holds",
+      "action": "audit:manage-holds",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/audit/holds/:id",
+      "action": "audit:manage-holds",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/settings",
+      "action": "system:manage-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/system/settings",
+      "action": "system:manage-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/system/feature-flags",
+      "action": "system:manage-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/thresholds",
+      "action": "system:manage-thresholds",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/system/thresholds",
+      "action": "system:manage-thresholds",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/integrations",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/system/integrations/:key",
+      "action": "system:manage-integrations",
+      "resourceParam": "key"
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/retention",
+      "action": "system:manage-retention",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/system/retention",
+      "action": "system:manage-retention",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/users",
+      "action": "users:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/:id",
+      "action": "users:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users",
+      "action": "users:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/users/:id",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/status",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/import",
+      "action": "users:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/onboarding",
+      "action": "onboarding:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/onboarding",
+      "action": "onboarding:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/onboarding/:id/steps/:stepId/complete",
+      "action": "onboarding:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance/live",
+      "action": "attendance:view-live",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance",
+      "action": "attendance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance/:userId/:date",
+      "action": "attendance:view",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/export",
+      "action": "attendance:export",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/corrections",
+      "action": "attendance:correct",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/corrections/:id/approve",
+      "action": "attendance:correct",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/corrections/bulk",
+      "action": "attendance:correct",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/corrections/request",
+      "action": "attendance:request-correction",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/breaks/policies",
+      "action": "breaks:manage-policy",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/breaks/policies",
+      "action": "breaks:manage-policy",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/breaks/policies/:id",
+      "action": "breaks:manage-policy",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/breaks/policies/:id/preview",
+      "action": "breaks:manage-policy",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/breaks/policies/:id/assign",
+      "action": "breaks:manage-policy",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/breaks/breaches/:id/confirm",
+      "action": "breaks:review-breach",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/breaks/breaches/:id/waive",
+      "action": "breaks:review-breach",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/breaks/breaches",
+      "action": "breaks:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/breaks/allowance/me",
+      "action": "breaks:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/breaks/policies/resolve/:userId",
+      "action": "breaks:view",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/shifts",
+      "action": "shifts:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/shifts/assignments",
+      "action": "shifts:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shifts",
+      "action": "shifts:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/shifts/:id",
+      "action": "shifts:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/shifts/assignments",
+      "action": "shifts:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shifts/requests/:id/decide",
+      "action": "shifts:approve",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/biometric/devices",
+      "action": "biometric:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/biometric/devices",
+      "action": "biometric:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/biometric/devices/:serial",
+      "action": "biometric:manage",
+      "resourceParam": "serial"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/biometric/mapping",
+      "action": "biometric:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/biometric/punches",
+      "action": "biometric:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/biometric/punches/replay",
+      "action": "biometric:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves",
+      "action": "leave:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/:id",
+      "action": "leave:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/balances/:userId",
+      "action": "leave:view",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/calendar",
+      "action": "leave:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves",
+      "action": "leave:request",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/leaves/:id",
+      "action": "leave:request",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves/wfh",
+      "action": "leave:request-wfh",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves/wfh/standing",
+      "action": "leave:manage-wfh-standing",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/leaves/wfh/standing/:id",
+      "action": "leave:manage-wfh-standing",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves/:id/acknowledge",
+      "action": "leave:acknowledge",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves/:id/decide",
+      "action": "leave:decide",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/types",
+      "action": "leave:manage-types",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves/types",
+      "action": "leave:manage-types",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/leaves/types/:id",
+      "action": "leave:manage-types",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/holidays",
+      "action": "holidays:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/holidays",
+      "action": "holidays:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/holidays/:id",
+      "action": "holidays:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/payslips/mine",
+      "action": "payroll:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/payslips/:id",
+      "action": "payroll:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/runs",
+      "action": "payroll:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payroll/runs",
+      "action": "payroll:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/payroll/runs/:id",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payroll/runs/:id/publish",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payroll/payslips/:id/revise",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/structures",
+      "action": "payroll:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/payroll/structures/:userId",
+      "action": "payroll:manage",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/config",
+      "action": "payroll:manage-config",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/payroll/config",
+      "action": "payroll:manage-config",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/performance/:userId",
+      "action": "performance:view",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/performance/:userId/kpis",
+      "action": "performance:view-aggregates",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/performance/:userId/reviews",
+      "action": "performance:manage",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/performance/cycles",
+      "action": "performance:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/territories",
+      "action": "territories:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/territories",
+      "action": "territories:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/territories/:id",
+      "action": "territories:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/territories/routing",
+      "action": "territories:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leads",
+      "action": "leads:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leads/:id",
+      "action": "leads:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leads/unrouted",
+      "action": "leads:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads",
+      "action": "leads:create",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads/import",
+      "action": "leads:create",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/leads/:id",
+      "action": "leads:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads/:id/reassign",
+      "action": "leads:reassign",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads/bulk-reassign",
+      "action": "leads:reassign",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/callbacks",
+      "action": "callbacks:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/callbacks/:id",
+      "action": "callbacks:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/callbacks",
+      "action": "callbacks:create",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/callbacks/:id",
+      "action": "callbacks:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/callbacks/:id/outcome",
+      "action": "callbacks:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handovers",
+      "action": "handovers:initiate",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/handovers/targets",
+      "action": "handovers:initiate",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/handovers/:id/accept",
+      "action": "handovers:receive",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handovers/:id/decline",
+      "action": "handovers:receive",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handovers/:id/disposition",
+      "action": "handovers:record-disposition",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/handovers",
+      "action": "handovers:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/handovers/:id",
+      "action": "handovers:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/deals",
+      "action": "deals:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/deals/:id",
+      "action": "deals:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/deals/:id/commercials",
+      "action": "deals:view-commercials",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals",
+      "action": "deals:create",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/deals/:id",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/deals/:id/commercials",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/approve",
+      "action": "deals:approve",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/custom-terms",
+      "action": "deals:allow-custom-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/contract/approve",
+      "action": "deals:approve-contract",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/confirm-payment",
+      "action": "deals:confirm-payment",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/record-win",
+      "action": "deals:record-win",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/deals/wins-to-record",
+      "action": "deals:record-win",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/deals/forecast",
+      "action": "deals:forecast",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/approvals/queue",
+      "action": "approvals:decide",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/approvals/:id/decide",
+      "action": "approvals:decide",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/approvals/delegations",
+      "action": "approvals:delegate",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/approvals/delegations",
+      "action": "approvals:delegate",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/approvals/delegations/:id",
+      "action": "approvals:delegate",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff",
+      "action": "handoff:create",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/:id/revise",
+      "action": "handoff:create",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/handoff/pending-confirmation",
+      "action": "handoff:confirm",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/:id/confirm",
+      "action": "handoff:confirm",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/:id/query-back",
+      "action": "handoff:confirm",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/handoff/feasibility-queue",
+      "action": "handoff:review",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/:id/decide",
+      "action": "handoff:review",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/handoff",
+      "action": "handoff:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/handoff/:id",
+      "action": "handoff:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "action": "projects:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id",
+      "action": "projects:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/:id",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/:id/team",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/:id/archive",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id/profitability",
+      "action": "projects:view-financials",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "action": "tasks:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id",
+      "action": "tasks:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks",
+      "action": "tasks:assign",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/assign",
+      "action": "tasks:assign",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id",
+      "action": "tasks:update",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/transition",
+      "action": "tasks:update",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/comments",
+      "action": "tasks:update",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/review",
+      "action": "tasks:review",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/review-queue",
+      "action": "tasks:review",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/dependencies",
+      "action": "tasks:manage-dependencies",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id/dependencies/:depId",
+      "action": "tasks:manage-dependencies",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/time",
+      "action": "tasks:log-time",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/time/:entryId/approve",
+      "action": "tasks:log-time",
+      "resourceParam": "entryId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resources/capacity",
+      "action": "resources:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/resources/workload",
+      "action": "resources:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/resources/allocate",
+      "action": "resources:allocate",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/resources/:assignmentId/override",
+      "action": "resources:override-allocation",
+      "resourceParam": "assignmentId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/delivery/:projectId/deliver",
+      "action": "delivery:approve",
+      "resourceParam": "projectId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/delivery/:id/share",
+      "action": "delivery:share",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/delivery",
+      "action": "delivery:share",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/delivery/:id",
+      "action": "delivery:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/changes",
+      "action": "delivery:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/delivery/:id/signoff",
+      "action": "delivery:signoff",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/changes/:id/classify",
+      "action": "changes:classify",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/changes",
+      "action": "changes:classify",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/changes/:id/assign",
+      "action": "changes:assign",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/terms/:clientId",
+      "action": "billing:view-terms",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/rate-cards",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/billing/terms/:clientId",
+      "action": "billing:set-terms",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/rate-cards",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/billing/rate-cards/:id",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoices",
+      "action": "invoicing:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoices/:id",
+      "action": "invoicing:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoices",
+      "action": "invoicing:create",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/invoices/:id",
+      "action": "invoicing:create",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/invoices/:id",
+      "action": "invoicing:create",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoices/:id/issue",
+      "action": "invoicing:issue",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoices/:id/send",
+      "action": "invoicing:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoices/:id/credit-note",
+      "action": "invoicing:credit-note",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoices/recurring",
+      "action": "invoicing:manage-recurring",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoices/recurring",
+      "action": "invoicing:manage-recurring",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/invoices/recurring/:id",
+      "action": "invoicing:manage-recurring",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoices/series",
+      "action": "invoicing:manage-series",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoices/series",
+      "action": "invoicing:manage-series",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments",
+      "action": "payments:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/:id",
+      "action": "payments:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments",
+      "action": "payments:record",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/:id/allocate",
+      "action": "payments:allocate",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/:id/refund",
+      "action": "payments:refund",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/reconciliation",
+      "action": "payments:reconcile",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/reconciliation/:id/match",
+      "action": "payments:reconcile",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/aging",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/statement/:clientId",
+      "action": "receivables:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/collections",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/tds",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/receivables/:invoiceId/dun",
+      "action": "receivables:dun",
+      "resourceParam": "invoiceId"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/receivables/dunning-schedule",
+      "action": "receivables:dun",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/receivables/:invoiceId/write-",
+      "action": "receivables:write-off",
+      "resourceParam": "invoiceId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/bills",
+      "action": "payables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/bills/:id",
+      "action": "payables:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/bills",
+      "action": "payables:create-bill",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/payables/bills/:id",
+      "action": "payables:create-bill",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/bills/:id/approve",
+      "action": "payables:approve-bill",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/claims/mine",
+      "action": "payables:claim",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/claims",
+      "action": "payables:claim",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/claims/:id/approve",
+      "action": "payables:approve-claim",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/runs",
+      "action": "payables:execute-run",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/runs",
+      "action": "payables:execute-run",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/runs/:id/execute",
+      "action": "payables:execute-run",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/ledger",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/trial-balance",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/journals",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/journals",
+      "action": "accounting:post-journal",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/journals/:id/reverse",
+      "action": "accounting:post-journal",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/accounts",
+      "action": "accounting:manage-accounts",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/accounts",
+      "action": "accounting:manage-accounts",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/accounting/accounts/:id",
+      "action": "accounting:manage-accounts",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/periods",
+      "action": "accounting:close-period",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/periods/:id/close",
+      "action": "accounting:close-period",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/periods/:id/reopen",
+      "action": "accounting:reopen-period",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/statements/pnl",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/statements/balance-",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/statements/cash-flow",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/tax/gstr1",
+      "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/tax/gstr3b",
+      "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/tax/tds",
+      "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/clients",
+      "action": "clients:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/clients/:id",
+      "action": "clients:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/clients",
+      "action": "clients:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/clients/:id",
+      "action": "clients:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/clients/:id/credentials",
+      "action": "clients:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/clients/:id/credentials",
+      "action": "clients:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clients/requests",
+      "action": "clients:manage-requests",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/clients/requests/:id/respond",
+      "action": "clients:manage-requests",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounts/:clientId/ownership",
+      "action": "accounts:manage-ownership",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounts/:clientId/revenue",
+      "action": "accounts:view-revenue",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/renewals",
+      "action": "renewals:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/communication/tracker",
+      "action": "communication:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id/messages/client",
+      "action": "communication:client-thread",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/:id/messages/client",
+      "action": "communication:client-thread",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/documents",
+      "action": "documents:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/documents/:id",
+      "action": "documents:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/documents",
+      "action": "documents:upload",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/documents/:id/versions",
+      "action": "documents:upload",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/documents/:id/share",
+      "action": "documents:share-client",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/documents/templates",
+      "action": "documents:manage-templates",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/documents/templates",
+      "action": "documents:manage-templates",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports",
+      "action": "reports:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/:key",
+      "action": "reports:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/reports/custom",
+      "action": "reports:build",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/reports/:key/export",
+      "action": "reports:export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/financial/:key",
+      "action": "reports:view-financial",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/lifecycle",
+      "action": "reports:view-lifecycle",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/notices",
+      "action": "notices:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/notices",
+      "action": "notices:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notices/:id",
+      "action": "notices:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/notepads",
+      "action": "notepad:view-all",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/notepads/:userId",
+      "action": "notepad:view-all",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/sheets",
+      "action": "sheets:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/sheets",
+      "action": "sheets:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/workspace/sheets/:id",
+      "action": "sheets:manage",
+      "resourceParam": "id"
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+# =====================================================================
+# TapCRM — local and owned-server topology (TECH.md §16.1, §16.2)
+#
+# DP-0: "Every environment runs PostgreSQL 18.x or a compatible supported
+# version; local/CI must exercise REAL PostgreSQL, not SQLite."
+#
+# Only the reverse proxy is exposed publicly in production (DP-11). The ports
+# published below are for local development; the production compose file
+# removes them and routes through the proxy on the private network.
+# =====================================================================
+
+name: tapcrm
+
+services:
+  postgres:
+    # PG-1: 18.x, latest supported minor. "Do not deploy PostgreSQL 19 beta to
+    # production" — a guardrail in tools/ci checks this pin.
+    image: postgres:18.1-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tapcrm
+      # This is the MIGRATION/ADMIN role — it owns the tables (PG-3).
+      # The application role tapcrm_app is created by migration 0001 and has
+      # NOBYPASSRLS. The two are never the same credential.
+      POSTGRES_USER: tapcrm_migrator
+      POSTGRES_PASSWORD: migrator_dev_password
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    command:
+      - postgres
+      # Fail a query rather than let it hold a pooled connection indefinitely.
+      - -c
+      - statement_timeout=15000
+      # TX-3: transactions are short. A transaction left open by a bug holds
+      # locks that block the invoice-numbering path (§9.1).
+      - -c
+      - idle_in_transaction_session_timeout=30000
+      - -c
+      - log_min_duration_statement=200
+    ports:
+      - '5432:5432'
+    volumes:
+      # §16.1: "Container recreation must never destroy authoritative
+      # application data." Named volume, not a bind mount.
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tapcrm_migrator -d tapcrm']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    # §2.3 — session versions, permission sets, socket fan-out, queue backing.
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    # noeviction, not allkeys-lru: BullMQ job state lives here, and silently
+    # evicting a queued payroll run is worse than refusing the write.
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    # §12 — S3-compatible object storage. Signed URLs only; never a public bucket.
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # -------------------------------------------------------------------
+  # Bucket bootstrap.
+  #
+  # FS-6: statutory artifacts — issued invoices, published payslips — go to a
+  # WRITE-ONCE bucket with object lock. That is A3 at the storage layer, not
+  # only the application layer.
+  # -------------------------------------------------------------------
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/tapcrm-files &&
+      mc mb --ignore-existing --with-lock local/tapcrm-worm &&
+      mc retention set --default COMPLIANCE 7y local/tapcrm-worm &&
+      echo 'buckets ready';
+      "
+    restart: 'no'
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

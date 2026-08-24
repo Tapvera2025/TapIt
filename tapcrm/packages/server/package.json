@@ -1,0 +1,36 @@
+{
+  "name": "@tapcrm/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tapcrm/authz": "*",
+    "@tapcrm/contracts": "*",
+    "argon2": "^0.41.1",
+    "bullmq": "^5.34.2",
+    "express": "^5.0.1",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.1",
+    "jose": "^5.9.6",
+    "kysely": "^0.27.5",
+    "pg": "^8.13.1",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "socket.io": "^4.8.1",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/pg": "^8.11.10",
+    "supertest": "^7.0.0",
+    "@types/supertest": "^6.0.2"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "tapcrm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TapCRM — role-based operating system for a services company. Modular monolith.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "workspaces": [
+    "packages/contracts",
+    "packages/authz",
+    "packages/server",
+    "packages/client"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --force",
+    "clean": "tsc --build --clean && rimraf packages/*/dist",
+    "dev:api": "npm run dev --workspace @tapcrm/server",
+    "dev:web": "npm run dev --workspace @tapcrm/client",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "registry:extract": "tsx tools/extract-registry.ts",
+    "migrate": "tsx tools/migrate.ts up",
+    "migrate:status": "tsx tools/migrate.ts status",
+    "seed": "tsx seeds/index.ts",
+    "ci": "tsx tools/ci/index.ts",
+    "verify": "npm run registry:extract && npm run typecheck && npm run lint && npm run ci && npm run test",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/node": "^22.10.1",
+    "eslint": "^9.15.0",
+    "prettier": "^3.4.1",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.16.0",
+    "vitest": "^2.1.6"
+  }
+}
