@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 147   Bindings: 292
+ * Actions: 147   Bindings: 298
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -2538,8 +2538,14 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/org/chart', action: 'org:view-people', resourceParam: null },
   { method: 'GET', path: '/api/org/positions/:id/holders', action: 'org:view-people', resourceParam: 'id' },
   { method: 'GET', path: '/api/org/positions/:id/policies', action: 'org:view-policies', resourceParam: 'id' },
+  { method: 'GET', path: '/api/org/positions/:id/policy-preview', action: 'org:manage-positions', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/org/positions/:id', action: 'org:manage-positions', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/org/designations/:id', action: 'org:manage-designations', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/org/designations/:id', action: 'org:manage-designations', resourceParam: 'id' },
+  { method: 'POST', path: '/api/org/positions/:id/policy-preview', action: 'org:manage-positions', resourceParam: 'id' },
   { method: 'POST', path: '/api/org/departments', action: 'org:manage-departments', resourceParam: null },
   { method: 'PATCH', path: '/api/org/departments/:id', action: 'org:manage-departments', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/org/departments/:id', action: 'org:manage-departments', resourceParam: 'id' },
   { method: 'POST', path: '/api/org/teams', action: 'org:manage-teams', resourceParam: null },
   { method: 'PATCH', path: '/api/org/teams/:id', action: 'org:manage-teams', resourceParam: 'id' },
   { method: 'POST', path: '/api/org/teams/:id/members', action: 'org:manage-teams', resourceParam: 'id' },

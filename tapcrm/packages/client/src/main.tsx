@@ -1,12 +1,22 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App.js';
+import { BrowserRouter } from 'react-router-dom';
 
-const root = document.getElementById('root');
-if (root === null) throw new Error('#root not found');
+import App from './App';
+import './index.css';
 
-createRoot(root).render(
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  throw new Error(
+    'TapCRM frontend could not find the #root element.',
+  );
+}
+
+createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
 );

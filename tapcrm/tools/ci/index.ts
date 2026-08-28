@@ -81,7 +81,8 @@ const rel = (f: string): string => relative(ROOT, f);
   const ALLOWED = ['platform/dal/pool.ts'];
   let violations = 0;
   for (const file of sourceFiles) {
-    if (ALLOWED.some((a) => file.endsWith(a))) continue;
+    const normalized = file.replace(/\\/g, '/');
+    if (ALLOWED.some((a) => normalized.endsWith(a))) continue;
     const text = read(file);
     if (/from\s+['"]pg['"]|new\s+Pool\s*\(|require\(['"]pg['"]\)/.test(text)) {
       blocking('CI-15', 'CI-15', `${rel(file)} imports the pg driver directly. Use the DAL.`);
@@ -98,7 +99,8 @@ const rel = (f: string): string => relative(ROOT, f);
   const ALLOWED = ['platform/dal/db.ts'];
   let violations = 0;
   for (const file of sourceFiles) {
-    if (ALLOWED.some((a) => file.endsWith(a))) continue;
+    const normalized = file.replace(/\\/g, '/');
+    if (ALLOWED.some((a) => normalized.endsWith(a))) continue;
     if (/set_config\(\s*['"`]app\.organization_id/.test(read(file))) {
       blocking(
         'CI-16',
@@ -224,7 +226,8 @@ const rel = (f: string): string => relative(ROOT, f);
 {
   let violations = 0;
   for (const file of sourceFiles) {
-    if (file.includes('platform/dal/')) continue;
+    const normalized = file.replace(/\\/g, '/');
+    if (normalized.includes('platform/dal/')) continue;
     if (/['"`]BEGIN['"`]|['"`]COMMIT['"`]|['"`]ROLLBACK['"`]/.test(read(file))) {
       blocking(
         'CI-31',
@@ -274,8 +277,9 @@ const rel = (f: string): string => relative(ROOT, f);
 {
   const ALLOWED = ['platform/dal/sql.ts', 'authz/src/scope-resolver.ts', 'platform/authz-adapter.ts'];
   let violations = 0;
-  for (const file of sourceFiles) {
-    if (ALLOWED.some((a) => file.endsWith(a))) continue;
+  for (const file of serverFiles) {
+    const normalized = file.replace(/\\/g, '/');
+    if (ALLOWED.some((a) => normalized.endsWith(a))) continue;
     read(file)
       .split('\n')
       .forEach((line, i) => {

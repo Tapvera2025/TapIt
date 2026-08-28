@@ -26,11 +26,12 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "registry:extract": "tsx tools/extract-registry.ts",
-    "migrate": "tsx tools/migrate.ts up",
-    "migrate:status": "tsx tools/migrate.ts status",
-    "seed": "tsx seeds/index.ts",
-    "ci": "tsx tools/ci/index.ts",
+    "registry:extract": "tsx --env-file=.env tools/extract-registry.ts",
+    "migrate": "tsx --env-file=.env tools/migrate.ts up",
+    "migrate:status": "tsx --env-file=.env tools/migrate.ts status",
+    "seed": "tsx --env-file=.env seeds/index.ts",
+    "add-user": "tsx --env-file=.env tools/add-user.ts",
+    "ci": "tsx --env-file=.env tools/ci/index.ts",
     "verify": "npm run registry:extract && npm run typecheck && npm run lint && npm run ci && npm run test",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
@@ -48,3 +49,4 @@
     "vitest": "^2.1.6"
   }
 }
+

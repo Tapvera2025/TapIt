@@ -1,15 +1,26 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "composite": false,
     "rootDir": "./src",
-    "outDir": "./dist",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "noEmit": false,
-    "types": ["vite/client"]
+    "noEmit": true,
+    "allowImportingTsExtensions": false,
+    "types": [
+      "vite/client"
+    ],
+    "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "references": [{ "path": "../contracts" }]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ]
 }

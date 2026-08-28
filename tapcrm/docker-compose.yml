@@ -37,14 +37,14 @@ services:
       - -c
       - log_min_duration_statement=200
     ports:
-      - '5432:5432'
+      - "127.0.0.1:54331`:5432"
     volumes:
       # §16.1: "Container recreation must never destroy authoritative
       # application data." Named volume, not a bind mount.
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U tapcrm_migrator -d tapcrm']
+      test: ["CMD-SHELL", "pg_isready -U tapcrm_migrator -d tapcrm"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -54,15 +54,22 @@ services:
     # §2.3 — session versions, permission sets, socket fan-out, queue backing.
     image: redis:8-alpine
     restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory-policy",
+        "noeviction",
+      ]
     # noeviction, not allkeys-lru: BullMQ job state lives here, and silently
     # evicting a queued payroll run is worse than refusing the write.
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -76,12 +83,12 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -106,7 +113,7 @@ services:
       mc retention set --default COMPLIANCE 7y local/tapcrm-worm &&
       echo 'buckets ready';
       "
-    restart: 'no'
+    restart: "no"
 
 volumes:
   postgres_data:

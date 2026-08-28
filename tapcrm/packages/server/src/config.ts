@@ -32,8 +32,12 @@ const schema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
 
-  JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
-  JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
+  JWT_ACCESS_SECRET: z
+    .string()
+    .min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
+  JWT_REFRESH_SECRET: z
+    .string()
+    .min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
   // ID-6 — access tokens are short-lived, default 60 minutes.
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
   REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(1_209_600),
@@ -55,7 +59,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const issues = parsed.error.issues
       .map((i) => `  ${i.path.join('.')}: ${i.message}`)
       .join('\n');
-    throw new Error(`Invalid environment configuration:\n${issues}\n\nSee .env.example.`);
+    throw new Error(`Invalid environment configuration:\n${issues}\n\nSee .env`);
   }
 
   cached = parsed.data;
