@@ -360,7 +360,6 @@ async function assertOverrideGrantAllowed(
   }
 }
 
-
 // ?hello
 /* ==================================================================== *
  * Service Functions
@@ -1302,9 +1301,7 @@ async function getApprovalUser(
   const user = rows[0];
 
   if (!user) {
-    throw new NotFoundError(
-      `User "${userId}" not found.`,
-    );
+    throw new NotFoundError(`User "${userId}" not found.`);
   }
 
   return user;
@@ -1334,9 +1331,7 @@ async function getApprovalPosition(
   const position = rows[0];
 
   if (!position) {
-    throw new NotFoundError(
-      `Position "${positionId}" not found.`,
-    );
+    throw new NotFoundError(`Position "${positionId}" not found.`);
   }
 
   return position;
@@ -1421,11 +1416,7 @@ async function assertApprovalBoundary(
     return;
   }
 
-  const ancestor = await isReportingAncestor(
-    ctx,
-    delegate.id,
-    delegator.id,
-  );
+  const ancestor = await isReportingAncestor(ctx, delegate.id, delegator.id);
 
   if (!ancestor) {
     throw new ConflictError(
@@ -1441,9 +1432,7 @@ async function assertApprovalBoundary(
  * A user currently acting as a delegate cannot create another
  * delegation from delegated authority.
  */
-async function assertNotDelegatedAuthority(
-  ctx: RequestContext,
-): Promise<void> {
+async function assertNotDelegatedAuthority(ctx: RequestContext): Promise<void> {
   const rows = await db.query<{ id: string }>(
     ctx,
     sql`
@@ -1478,9 +1467,7 @@ async function getApprovalCapabilities(
   ctx: RequestContext,
   user: ApprovalUser,
 ): Promise<Set<string>> {
-  if (
-    user.accountType === 'super-admin'
-  ) {
+  if (user.accountType === 'super-admin') {
     return new Set(
       Object.values(REGISTRY)
         .filter((definition) => definition.approvalBearing)
@@ -1488,10 +1475,7 @@ async function getApprovalCapabilities(
     );
   }
 
-  if (
-    user.accountType !== 'employee' ||
-    user.positionId === null
-  ) {
+  if (user.accountType !== 'employee' || user.positionId === null) {
     return new Set();
   }
 
@@ -1530,22 +1514,14 @@ async function getApprovalCapabilities(
       .filter((action) => {
         const definition = REGISTRY[action as keyof typeof REGISTRY];
 
-        return (
-          definition !== undefined &&
-          definition.approvalBearing
-        );
+        return definition !== undefined && definition.approvalBearing;
       }),
   );
 
   for (const override of overrides) {
-    const definition =
-      REGISTRY[
-        override.action as keyof typeof REGISTRY
-      ];
+    const definition = REGISTRY[override.action as keyof typeof REGISTRY];
 
-    if (
-      definition?.approvalBearing === true
-    ) {
+    if (definition?.approvalBearing === true) {
       if (override.allowed) {
         result.add(override.action);
       } else {
@@ -1569,15 +1545,11 @@ async function assertApprovalScopeCoverage(
   delegator: ApprovalUser,
   delegate: ApprovalUser,
 ): Promise<void> {
-  if (
-    delegator.accountType === 'super-admin'
-  ) {
+  if (delegator.accountType === 'super-admin') {
     return;
   }
 
-  if (
-    delegator.positionId === null
-  ) {
+  if (delegator.positionId === null) {
     throw new ConflictError(
       'The delegator has no position and therefore no approval policy.',
       'delegation_capability',
@@ -1613,26 +1585,17 @@ async function assertApprovalScopeCoverage(
   );
 
   const delegateMap = new Map(
-    delegatePolicies.map((policy) => [
-      policy.action,
-      policy.scope,
-    ]),
+    delegatePolicies.map((policy) => [policy.action, policy.scope]),
   );
 
   for (const policy of delegatorPolicies) {
-    const definition =
-      REGISTRY[
-        policy.action as keyof typeof REGISTRY
-      ];
+    const definition = REGISTRY[policy.action as keyof typeof REGISTRY];
 
-    if (
-      definition?.approvalBearing !== true
-    ) {
+    if (definition?.approvalBearing !== true) {
       continue;
     }
 
-    const delegateScope =
-      delegateMap.get(policy.action);
+    const delegateScope = delegateMap.get(policy.action);
 
     if (!delegateScope) {
       throw new ConflictError(
@@ -1641,22 +1604,14 @@ async function assertApprovalScopeCoverage(
       );
     }
 
-    if (
-      !isScope(delegateScope) ||
-      !isScope(policy.scope)
-    ) {
+    if (!isScope(delegateScope) || !isScope(policy.scope)) {
       throw new ConflictError(
         `Invalid approval scope for "${policy.action}".`,
         'delegation_scope',
       );
     }
 
-    if (
-      !isWithinCeiling(
-        policy.scope,
-        delegateScope,
-      )
-    ) {
+    if (!isWithinCeiling(policy.scope, delegateScope)) {
       throw new ConflictError(
         `Delegate scope for "${policy.action}" does not cover the delegator's scope.`,
         'delegation_scope',
@@ -1675,30 +1630,17 @@ async function assertApprovalLimitCoverage(
   delegator: ApprovalUser,
   delegate: ApprovalUser,
 ): Promise<ApprovalPosition | null> {
-  if (
-    delegator.positionId === null ||
-    delegate.positionId === null
-  ) {
+  if (delegator.positionId === null || delegate.positionId === null) {
     return null;
   }
 
-  const delegatorPosition =
-    await getApprovalPosition(
-      ctx,
-      delegator.positionId,
-    );
+  const delegatorPosition = await getApprovalPosition(ctx, delegator.positionId);
 
-  const delegatePosition =
-    await getApprovalPosition(
-      ctx,
-      delegate.positionId,
-    );
+  const delegatePosition = await getApprovalPosition(ctx, delegate.positionId);
 
-  const delegatorDeal =
-    delegatorPosition.maxDealValue ?? 0;
+  const delegatorDeal = delegatorPosition.maxDealValue ?? 0;
 
-  const delegateDeal =
-    delegatePosition.maxDealValue ?? 0;
+  const delegateDeal = delegatePosition.maxDealValue ?? 0;
 
   if (delegateDeal < delegatorDeal) {
     throw new ConflictError(
@@ -1707,11 +1649,9 @@ async function assertApprovalLimitCoverage(
     );
   }
 
-  const delegatorDiscount =
-    delegatorPosition.maxDiscountPercent ?? 0;
+  const delegatorDiscount = delegatorPosition.maxDiscountPercent ?? 0;
 
-  const delegateDiscount =
-    delegatePosition.maxDiscountPercent ?? 0;
+  const delegateDiscount = delegatePosition.maxDiscountPercent ?? 0;
 
   if (delegateDiscount < delegatorDiscount) {
     throw new ConflictError(
@@ -1720,10 +1660,7 @@ async function assertApprovalLimitCoverage(
     );
   }
 
-  if (
-    delegatorPosition.allowsCustomTerms &&
-    !delegatePosition.allowsCustomTerms
-  ) {
+  if (delegatorPosition.allowsCustomTerms && !delegatePosition.allowsCustomTerms) {
     throw new ConflictError(
       'Delegate cannot approve custom terms at the delegator authority level.',
       'delegation_limit',
@@ -1805,14 +1742,8 @@ export async function createApprovalDelegation(
   const start = new Date(data.startAt);
   const end = new Date(data.endAt);
 
-  if (
-    Number.isNaN(start.getTime()) ||
-    Number.isNaN(end.getTime())
-  ) {
-    throw new ConflictError(
-      'Invalid delegation dates.',
-      'delegation_time',
-    );
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new ConflictError('Invalid delegation dates.', 'delegation_time');
   }
 
   if (end <= start) {
@@ -1822,87 +1753,44 @@ export async function createApprovalDelegation(
     );
   }
 
-  const maximumDuration =
-    366 * 24 * 60 * 60 * 1000;
+  const maximumDuration = 366 * 24 * 60 * 60 * 1000;
 
-  if (
-    end.getTime() - start.getTime() >
-    maximumDuration
-  ) {
+  if (end.getTime() - start.getTime() > maximumDuration) {
     throw new ConflictError(
       'Approval delegation cannot exceed one year.',
       'delegation_time',
     );
   }
 
-  const delegator =
-    await getApprovalUser(
-      ctx,
-      ctx.principal.id,
-    );
+  const delegator = await getApprovalUser(ctx, ctx.principal.id);
 
-  const delegate =
-    await getApprovalUser(
-      ctx,
-      data.delegateUserId,
-    );
+  const delegate = await getApprovalUser(ctx, data.delegateUserId);
 
-  if (
-    delegator.id === delegate.id
-  ) {
+  if (delegator.id === delegate.id) {
     throw new ConflictError(
       'A user cannot delegate approval authority to themselves.',
       'delegation_boundary',
     );
   }
 
-  await assertApprovalBoundary(
-    ctx,
-    delegator,
-    delegate,
-  );
+  await assertApprovalBoundary(ctx, delegator, delegate);
 
-  await assertApprovalLimitCoverage(
-    ctx,
-    delegator,
-    delegate,
-  );
+  await assertApprovalLimitCoverage(ctx, delegator, delegate);
 
-  await assertApprovalScopeCoverage(
-    ctx,
-    delegator,
-    delegate,
-  );
+  await assertApprovalScopeCoverage(ctx, delegator, delegate);
 
-  const capabilitySet =
-    await getApprovalCapabilities(
-      ctx,
-      delegate,
-    );
+  const capabilitySet = await getApprovalCapabilities(ctx, delegate);
 
-  const delegatorCapabilities =
-    await getApprovalCapabilities(
-      ctx,
-      delegator,
-    );
+  const delegatorCapabilities = await getApprovalCapabilities(ctx, delegator);
 
-  for (
-    const action of delegatorCapabilities
-  ) {
-    const definition =
-      REGISTRY[
-        action as keyof typeof REGISTRY
-      ];
+  for (const action of delegatorCapabilities) {
+    const definition = REGISTRY[action as keyof typeof REGISTRY];
 
-    if (
-      definition?.approvalBearing !== true
-    ) {
+    if (definition?.approvalBearing !== true) {
       continue;
     }
 
-    if (
-      !capabilitySet.has(action)
-    ) {
+    if (!capabilitySet.has(action)) {
       throw new ConflictError(
         `Delegate does not hold required approval capability "${action}".`,
         'delegation_capability',
@@ -1936,33 +1824,21 @@ export async function createApprovalDelegation(
   let discountPercentMax: number | null = null;
   let allowsCustomTerms = false;
 
-  if (
-    delegator.positionId !== null &&
-    delegate.positionId !== null
-  ) {
-    const position =
-      await getApprovalPosition(
-        ctx,
-        delegate.positionId,
-      );
+  if (delegator.positionId !== null && delegate.positionId !== null) {
+    const position = await getApprovalPosition(ctx, delegate.positionId);
 
-    dealValueMax =
-      position.maxDealValue;
+    dealValueMax = position.maxDealValue;
 
-    discountPercentMax =
-      position.maxDiscountPercent;
+    discountPercentMax = position.maxDiscountPercent;
 
-    allowsCustomTerms =
-      position.allowsCustomTerms;
+    allowsCustomTerms = position.allowsCustomTerms;
   }
 
-  const created = await db.transaction(
-    ctx,
-    async (tx) => {
-      const rows = await tx.query<{
-        id: string;
-      }>(
-        sql`
+  const created = await db.transaction(ctx, async (tx) => {
+    const rows = await tx.query<{
+      id: string;
+    }>(
+      sql`
           INSERT INTO approval_delegation (
             organization_id,
             delegator_user_id,
@@ -1987,10 +1863,10 @@ export async function createApprovalDelegation(
           )
           RETURNING id
         `,
-      );
+    );
 
-      await tx.query(
-        sql`
+    await tx.query(
+      sql`
           INSERT INTO audit_outbox (
             organization_id,
             stream,
@@ -2012,25 +1888,17 @@ export async function createApprovalDelegation(
             })}::jsonb
           )
         `,
-      );
-
-      return rows[0]!;
-    },
-  );
-
-  const records =
-    await listApprovalDelegations(ctx);
-
-  const result =
-    records.find(
-      (record) =>
-        record.id === created.id,
     );
+
+    return rows[0]!;
+  });
+
+  const records = await listApprovalDelegations(ctx);
+
+  const result = records.find((record) => record.id === created.id);
 
   if (!result) {
-    throw new Error(
-      'Approval delegation was created but could not be reloaded.',
-    );
+    throw new Error('Approval delegation was created but could not be reloaded.');
   }
 
   return result;
@@ -2067,14 +1935,10 @@ export async function revokeApprovalDelegation(
   const delegation = rows[0];
 
   if (!delegation) {
-    throw new NotFoundError(
-      `Approval delegation "${delegationId}" not found.`,
-    );
+    throw new NotFoundError(`Approval delegation "${delegationId}" not found.`);
   }
 
-  if (
-    delegation.revokedAt !== null
-  ) {
+  if (delegation.revokedAt !== null) {
     throw new ConflictError(
       'Approval delegation has already been revoked.',
       'delegation_state',
@@ -2086,30 +1950,25 @@ export async function revokeApprovalDelegation(
    *
    * The route itself is protected by approvals:delegate.
    */
-  if (
-    !globalAccess(ctx.principal) &&
-    delegation.delegatorUserId !== ctx.principal.id
-  ) {
+  if (!globalAccess(ctx.principal) && delegation.delegatorUserId !== ctx.principal.id) {
     throw new ConflictError(
       'Only the delegator or Super Admin can revoke this approval delegation.',
       'delegation_boundary',
     );
   }
 
-  await db.transaction(
-    ctx,
-    async (tx) => {
-      await tx.query(
-        sql`
+  await db.transaction(ctx, async (tx) => {
+    await tx.query(
+      sql`
           UPDATE approval_delegation
           SET revoked_at = now()
           WHERE organization_id = ${ctx.organizationId}
             AND id = ${delegationId}
         `,
-      );
+    );
 
-      await tx.query(
-        sql`
+    await tx.query(
+      sql`
           INSERT INTO audit_outbox (
             organization_id,
             stream,
@@ -2123,17 +1982,14 @@ export async function revokeApprovalDelegation(
               targetType: 'approvalDelegation',
               targetId: delegationId,
               kind: 'approval-delegation-revoked',
-              delegatorUserId:
-                delegation.delegatorUserId,
-              delegateUserId:
-                delegation.delegateUserId,
+              delegatorUserId: delegation.delegatorUserId,
+              delegateUserId: delegation.delegateUserId,
               reason: reason ?? null,
             })}::jsonb
           )
         `,
-      );
-    },
-  );
+    );
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -2195,39 +2051,25 @@ export interface MePermissionsResponse {
 export async function getMyPermissions(
   ctx: RequestContext,
 ): Promise<MePermissionsResponse> {
-  const principal =
-    await getApprovalUser(
-      ctx,
-      ctx.principal.id,
-    );
+  const principal = await getApprovalUser(ctx, ctx.principal.id);
 
-  let position:
-    MePermissionsResponse['position'] =
-      null;
+  let position: MePermissionsResponse['position'] = null;
 
-  let department:
-    MePermissionsResponse['department'] =
-      null;
+  let department: MePermissionsResponse['department'] = null;
 
-  let team:
-    MePermissionsResponse['team'] =
-      null;
+  let team: MePermissionsResponse['team'] = null;
 
-  const policies: MePermissionsResponse['policies'] =
-    {};
+  const policies: MePermissionsResponse['policies'] = {};
 
   const overrides: string[] = [];
 
-  const approvalLimits =
-    {
-      dealValueMax: null,
-      discountPercentMax: null,
-      allowCustomTerms: false,
-    };
+  const approvalLimits = {
+    dealValueMax: null,
+    discountPercentMax: null,
+    allowCustomTerms: false,
+  };
 
-  if (
-    principal.positionId !== null
-  ) {
+  if (principal.positionId !== null) {
     const rows = await db.query<{
       id: string;
       code: string;
@@ -2260,8 +2102,7 @@ export async function getMyPermissions(
         id: row.id,
         code: row.code,
         name: row.name,
-        organizationalLevel:
-          row.organizationalLevel,
+        organizationalLevel: row.organizationalLevel,
       };
 
       const approvalLimits: {
@@ -2276,9 +2117,7 @@ export async function getMyPermissions(
     }
   }
 
-  if (
-    principal.departmentId !== null
-  ) {
+  if (principal.departmentId !== null) {
     const rows = await db.query<{
       id: string;
       code: string;
@@ -2298,9 +2137,7 @@ export async function getMyPermissions(
     }
   }
 
-  if (
-    principal.teamId !== null
-  ) {
+  if (principal.teamId !== null) {
     const rows = await db.query<{
       id: string;
       name: string;
@@ -2320,20 +2157,16 @@ export async function getMyPermissions(
     }
   }
 
-  if (
-    principal.accountType === 'employee' &&
-    principal.positionId !== null
-  ) {
-    const positionPolicies =
-      await db.query<{
-        action: string;
-        allowed: boolean;
-        scope: string;
-        fields: string[] | null;
-        constraints: string[] | null;
-      }>(
-        ctx,
-        sql`
+  if (principal.accountType === 'employee' && principal.positionId !== null) {
+    const positionPolicies = await db.query<{
+      action: string;
+      allowed: boolean;
+      scope: string;
+      fields: string[] | null;
+      constraints: string[] | null;
+    }>(
+      ctx,
+      sql`
           SELECT
             action,
             allowed,
@@ -2344,30 +2177,26 @@ export async function getMyPermissions(
           WHERE organization_id = ${ctx.organizationId}
             AND position_id = ${principal.positionId}
         `,
-      );
+    );
 
-    for (
-      const policy of positionPolicies
-    ) {
+    for (const policy of positionPolicies) {
       policies[policy.action] = {
         allowed: policy.allowed,
         scope: policy.scope,
         fields: policy.fields,
-        constraints:
-          policy.constraints,
+        constraints: policy.constraints,
       };
     }
 
-    const activeOverrides =
-      await db.query<{
-        action: string;
-        allowed: boolean;
-        scope: string;
-        fields: string[] | null;
-        constraints: string[] | null;
-      }>(
-        ctx,
-        sql`
+    const activeOverrides = await db.query<{
+      action: string;
+      allowed: boolean;
+      scope: string;
+      fields: string[] | null;
+      constraints: string[] | null;
+    }>(
+      ctx,
+      sql`
           SELECT DISTINCT ON (action)
             action,
             allowed,
@@ -2384,32 +2213,23 @@ export async function getMyPermissions(
             )
           ORDER BY action, granted_at DESC
         `,
-      );
+    );
 
-    for (
-      const override of activeOverrides
-    ) {
+    for (const override of activeOverrides) {
       policies[override.action] = {
-        allowed:
-          override.allowed,
-        scope:
-          override.scope,
-        fields:
-          override.fields,
-        constraints:
-          override.constraints,
+        allowed: override.allowed,
+        scope: override.scope,
+        fields: override.fields,
+        constraints: override.constraints,
       };
 
-      overrides.push(
-        override.action,
-      );
+      overrides.push(override.action);
     }
   }
 
-  const subordinateRows =
-    await db.query<{ count: string }>(
-      ctx,
-      sql`
+  const subordinateRows = await db.query<{ count: string }>(
+    ctx,
+    sql`
         WITH RECURSIVE tree AS (
           SELECT id
           FROM app_user
@@ -2429,11 +2249,10 @@ export async function getMyPermissions(
         SELECT COUNT(*)::text AS count
         FROM tree
       `,
-    );
+  );
 
   return {
-    accountType:
-      ctx.principal.accountType,
+    accountType: ctx.principal.accountType,
 
     position,
 
@@ -2443,14 +2262,12 @@ export async function getMyPermissions(
 
     policies,
 
-    overrides:
-      [...new Set(overrides)].sort(),
+    overrides: [...new Set(overrides)].sort(),
 
     approvalLimits,
 
     protectedNotes: {
-      'payroll:view':
-        'Module access does not automatically expose individual payslips.',
+      'payroll:view': 'Module access does not automatically expose individual payslips.',
       'access:view':
         'Employee permission policies and overrides remain subject to access-view authorization.',
     },
@@ -2463,18 +2280,12 @@ export async function getMyPermissions(
         'permissionPolicies',
         'overrides',
       ],
-      payslip: [
-        'monetaryFields',
-      ],
-      deal: [
-        'commercials',
-      ],
+      payslip: ['monetaryFields'],
+      deal: ['commercials'],
     },
 
-    subordinateCount:
-      Number(subordinateRows[0]?.count ?? 0),
+    subordinateCount: Number(subordinateRows[0]?.count ?? 0),
 
-    globalAccess:
-      globalAccess(ctx.principal),
+    globalAccess: globalAccess(ctx.principal),
   };
 }

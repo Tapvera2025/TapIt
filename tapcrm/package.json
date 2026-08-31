@@ -47,6 +47,8 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.16.0",
     "vitest": "^2.1.6"
+  },
+  "dependencies": {
+    "morgan": "^1.12.0"
   }
 }
-

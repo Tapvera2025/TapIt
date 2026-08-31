@@ -1,19 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-} from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import api from './lib/api';
 
-import AppLayout, {
-  type User,
-} from './components/layout/AppLayout';
+import AppLayout, { type User } from './components/layout/AppLayout';
 
 import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
 
 import DashboardPage from './pages/dashboard/DashboardPage';
 
@@ -124,7 +117,7 @@ function App() {
     let cancelled = false;
 
     const bootstrap = async () => {
-      if (location.pathname === '/login') {
+      if (location.pathname === '/login' || location.pathname === '/signup') {
         if (!cancelled) {
           setLoading(false);
         }
@@ -189,6 +182,8 @@ function App() {
   if (!user) {
     return (
       <Routes>
+        <Route path="/signup" element={<SignupPage />} />
+
         <Route
           path="/login"
           element={
@@ -200,10 +195,7 @@ function App() {
           }
         />
 
-        <Route
-          path="*"
-          element={<Navigate to="/login" replace />}
-        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
@@ -211,7 +203,7 @@ function App() {
   /*
    * Authenticated users should not remain on /login.
    */
-  if (location.pathname === '/login') {
+  if (location.pathname === '/login' || location.pathname === '/signup') {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -223,108 +215,49 @@ function App() {
       }}
     >
       <Routes>
-        <Route
-          path="/"
-          element={<Navigate to="/dashboard" replace />}
-        />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        <Route
-          path="/dashboard"
-          element={<DashboardPage user={user} />}
-        />
+        <Route path="/dashboard" element={<DashboardPage user={user} />} />
 
         {/* ORGANIZATION */}
 
-        <Route
-          path="/org"
-          element={<Navigate to="/org/overview" replace />}
-        />
+        <Route path="/org" element={<Navigate to="/org/overview" replace />} />
 
-        <Route
-          path="/org/overview"
-          element={<OrgOverviewPage />}
-        />
+        <Route path="/org/overview" element={<OrgOverviewPage />} />
 
-        <Route
-          path="/org/departments"
-          element={<DepartmentsPage />}
-        />
+        <Route path="/org/departments" element={<DepartmentsPage />} />
 
-        <Route
-          path="/org/teams"
-          element={<TeamsPage />}
-        />
+        <Route path="/org/teams" element={<TeamsPage />} />
 
-        <Route
-          path="/org/positions"
-          element={<PositionsPage />}
-        />
+        <Route path="/org/positions" element={<PositionsPage />} />
 
-        <Route
-          path="/org/designations"
-          element={<DesignationsPage />}
-        />
+        <Route path="/org/designations" element={<DesignationsPage />} />
 
         {/* WORKSPACE */}
 
-        <Route
-          path="/users"
-          element={<UsersDirectoryPage />}
-        />
+        <Route path="/users" element={<UsersDirectoryPage />} />
 
-        <Route
-          path="/customers"
-          element={<CustomersPage />}
-        />
+        <Route path="/customers" element={<CustomersPage />} />
 
-        <Route
-          path="/deals"
-          element={<DealsPage />}
-        />
+        <Route path="/deals" element={<DealsPage />} />
 
-        <Route
-          path="/tasks"
-          element={<TasksPage />}
-        />
+        <Route path="/tasks" element={<TasksPage />} />
 
         {/* ADMINISTRATION */}
 
-        <Route
-          path="/roles"
-          element={<RolesPermissionsPage />}
-        />
+        <Route path="/roles" element={<RolesPermissionsPage />} />
 
-        <Route
-          path="/access-management"
-          element={<AccessManagementPage />}
-        />
+        <Route path="/access-management" element={<AccessManagementPage />} />
 
-        <Route
-          path="/access"
-          element={
-            <Navigate
-              to="/access-management"
-              replace
-            />
-          }
-        />
+        <Route path="/access" element={<Navigate to="/access-management" replace />} />
 
-        <Route
-          path="/security"
-          element={<IdentitySettingsPage />}
-        />
+        <Route path="/security" element={<IdentitySettingsPage />} />
 
-        <Route
-          path="/audit-logs"
-          element={<AuditLogsPage />}
-        />
+        <Route path="/audit-logs" element={<AuditLogsPage />} />
 
         {/* FALLBACK */}
 
-        <Route
-          path="*"
-          element={<Navigate to="/dashboard" replace />}
-        />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AppLayout>
   );

@@ -2,15 +2,18 @@ import type { Request, Response } from 'express';
 import { route } from '../../platform/http/route.js';
 import { RequestValidationError } from '../../platform/http/auth-error.js';
 import {
+  signup,
   login,
   completeMfaChallenge,
   logout,
   refresh,
   me,
+  verifyEmail,
 } from './service.js';
 
 import {
   loginSchema,
+  signupSchema,
   mfaChallengeSchema,
   mfaConfirmSchema,
   forgotPasswordSchema,
@@ -19,6 +22,7 @@ import {
   createGeofenceSchema,
   updateGeofenceSchema,
   assignGeofenceSchema,
+  verifyEmailSchema,
 } from './validation.js';
 
 import {
@@ -105,6 +109,43 @@ export function registerIdentityRoutes(): void {
    * Public Authentication Endpoints
    * ========================================================================= */
 
+  /*
+   * POST /api/auth/signup
+   */
+  route({
+    method: 'POST',
+    path: '/api/auth/signup',
+    public: true,
+    status: 201,
+    handler: async ({ body }) => {
+      const parsed = signupSchema.safeParse(body);
+
+      if (!parsed.success) {
+        throw new RequestValidationError(parsed.error.issues);
+      }
+
+      return signup(parsed.data);
+    },
+  });
+
+  /*
+   * POST /api/auth/verify-email
+   */
+  route({
+    method: 'POST',
+    path: '/api/auth/verify-email',
+    public: true,
+    status: 200,
+    handler: async ({ body }) => {
+      const parsed = verifyEmailSchema.safeParse(body);
+
+      if (!parsed.success) {
+        throw new RequestValidationError(parsed.error.issues);
+      }
+
+      return verifyEmail(parsed.data.token);
+    },
+  });
   /*
    * POST /api/auth/login
    */
@@ -371,10 +412,7 @@ export function registerIdentityRoutes(): void {
     status: 200,
     handler: async ({ ctx }) => {
       return {
-        enrollments: await listUserMfaEnrollments(
-          ctx.organizationId,
-          ctx.principal.id,
-        ),
+        enrollments: await listUserMfaEnrollments(ctx.organizationId, ctx.principal.id),
       };
     },
   });

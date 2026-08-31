@@ -45,6 +45,20 @@ const schema = z.object({
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_BASE_PATH: z.string().default('/api'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  //
+  EMAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
+
+  SMTP_HOST: z.string().optional(),
+
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+
+  SMTP_SECURE: z.coerce.boolean().default(false),
+
+  SMTP_USER: z.string().optional(),
+
+  SMTP_PASSWORD: z.string().optional(),
+
+  SMTP_FROM: z.string().email().optional(),
 });
 
 export type Config = z.infer<typeof schema>;

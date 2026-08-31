@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import argon2 from 'argon2';
 import { loadConfig } from '../../config.js';
 import { bootstrapDb, db, platformDb, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -18,10 +19,20 @@ import {
 } from './token.js';
 
 import { verifyPassword } from './password.js';
-import { checkLoginSecurity, recordLoginFailure, recordLoginSuccess, evaluateSuspiciousLogin } from './security.js';
-import { checkMfaRequirement, verifyMfaFactor, triggerEmailOtp, listUserMfaEnrollments } from './mfa.js';
+import {
+  checkLoginSecurity,
+  recordLoginFailure,
+  recordLoginSuccess,
+  evaluateSuspiciousLogin,
+} from './security.js';
+import {
+  checkMfaRequirement,
+  verifyMfaFactor,
+  triggerEmailOtp,
+  listUserMfaEnrollments,
+} from './mfa.js';
 import { evaluateGeofence } from './geofence.js';
-import type { LoginInput, MfaChallengeInput } from './validation.js';
+import type { LoginInput, MfaChallengeInput, SignupInput } from './validation.js';
 
 export interface RequestMeta {
   readonly ip: string | null;
@@ -47,6 +58,8 @@ interface LoginUserRow {
   sessionVersion: number;
   positionId: string | null;
   mfaRequired: boolean;
+  emailVerifiedAt: Date | null;
+  employmentStatus: string | null;
 }
 
 interface OrganizationRow {
@@ -73,6 +86,23 @@ export type LoginResult =
       availableMethods: readonly string[];
     };
 
+interface SignupUserRow {
+  id: string;
+  organizationId: string;
+  accountType: 'super-admin' | 'employee' | 'client';
+  email: string;
+  fullName: string;
+}
+
+export interface SignupResult {
+  readonly user: SignupUserRow;
+  readonly verificationRequired: false;
+}
+
+function hashVerificationToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
 /**
  * Finds the organization before a RequestContext exists.
  */
@@ -85,7 +115,7 @@ async function resolveOrganization(
     sql`
       SELECT id, code
       FROM organization
-      WHERE code = ${organizationCode}
+      WHERE lower(code) = lower(${organizationCode.trim()})
         AND status = 'active'
       LIMIT 1
     `,
@@ -105,8 +135,8 @@ async function findLoginUser(
     organizationId,
     sql`
       SELECT
-        id,
-        organization_id AS "organizationId",
+        u.id,
+        u.organization_id AS "organizationId",
         account_type AS "accountType",
         email,
         password_hash AS "passwordHash",
@@ -114,11 +144,16 @@ async function findLoginUser(
         full_name AS "fullName",
         session_version AS "sessionVersion",
         position_id AS "positionId",
-        mfa_required AS "mfaRequired"
-      FROM app_user
-      WHERE organization_id = ${organizationId}
-        AND account_type = ${input.accountType}
-        AND email = ${input.email}
+        mfa_required AS "mfaRequired",
+        email_verified_at AS "emailVerifiedAt",
+        ep.employment_status AS "employmentStatus"
+      FROM app_user u
+      LEFT JOIN employee_profile ep
+        ON ep.organization_id = u.organization_id
+       AND ep.user_id = u.id
+      WHERE u.organization_id = ${organizationId}
+        AND u.account_type = ${input.accountType}
+        AND u.email = ${input.email}
       LIMIT 1
     `,
   );
@@ -201,13 +236,123 @@ async function createSessionAndRefreshToken(
   };
 }
 
+export async function signup(input: SignupInput): Promise<SignupResult> {
+  const tokenHash = hashVerificationToken(input.invitationToken);
+
+  const invitation = await platformDb.query<{
+    id: string;
+    organizationId: string;
+    userId: string;
+    email: string;
+    fullName: string;
+  }>(
+    'employee-invitation',
+    'resolve employee invitation',
+    sql`
+      SELECT
+        i.id,
+        i.organization_id AS "organizationId",
+        i.user_id AS "userId",
+        u.email,
+        u.full_name AS "fullName"
+      FROM employee_invitation i
+      INNER JOIN app_user u
+        ON u.organization_id = i.organization_id
+       AND u.id = i.user_id
+      WHERE i.token_hash = ${tokenHash}
+        AND i.accepted_at IS NULL
+        AND i.expires_at > NOW()
+        AND u.account_type = 'employee'
+        AND u.status = 'active'
+      LIMIT 1
+    `,
+  );
+
+  const match = invitation[0];
+  if (!match) {
+    throw new InvalidSessionError();
+  }
+
+  const passwordHash = await argon2.hash(input.password, {
+    type: argon2.argon2id,
+    memoryCost: 65536,
+    timeCost: 3,
+    parallelism: 4,
+  });
+
+  const user = await db.transaction(
+    {
+      organizationId: match.organizationId,
+      principal: {
+        id: match.userId,
+        organizationId: match.organizationId,
+        accountType: 'employee',
+        sessionVersion: 1,
+        positionId: '',
+        departmentId: '',
+        teamId: null,
+        reportsTo: null,
+        organizationalLevel: 1,
+      } as Parameters<typeof db.transaction>[0]['principal'],
+      requestId: `auth:signup:${randomUUID()}`,
+      memo: new Map(),
+      sourceIp: null,
+    },
+    async (tx) => {
+      const created = await tx.one<SignupUserRow>(sql`
+        UPDATE app_user
+        SET
+          full_name = ${input.fullName},
+          password_hash = ${passwordHash},
+          email_verified_at = NOW(),
+          updated_at = NOW()
+        WHERE organization_id = ${match.organizationId}
+          AND id = ${match.userId}
+          AND account_type = 'employee'
+          AND password_hash IS NULL
+        RETURNING
+          id,
+          organization_id AS "organizationId",
+          account_type AS "accountType",
+          email,
+          full_name AS "fullName"
+      `);
+
+      await tx.one(sql`
+        UPDATE employee_profile
+        SET
+          contact = ${input.contact},
+          date_of_birth = ${input.dateOfBirth ?? null},
+          gender = ${input.gender ?? null},
+          updated_at = NOW()
+        WHERE organization_id = ${match.organizationId}
+          AND user_id = ${match.userId}
+        RETURNING id
+      `);
+
+      await tx.one(sql`
+        UPDATE employee_invitation
+        SET accepted_at = NOW()
+        WHERE organization_id = ${match.organizationId}
+          AND id = ${match.id}
+          AND accepted_at IS NULL
+        RETURNING id
+      `);
+
+      return created;
+    },
+  );
+
+  return {
+    user,
+    verificationRequired: false,
+  };
+}
+
 /**
  * Login with brute force check, geofencing, password verification, and MFA routing.
  */
-export async function login(
-  input: LoginInput,
-  meta: RequestMeta,
-): Promise<LoginResult> {
+export async function login(input: LoginInput, meta: RequestMeta): Promise<LoginResult> {
   const organization = await resolveOrganization(input.organizationCode);
   if (organization === null) {
     throw new InvalidCredentialsError();
@@ -231,7 +376,13 @@ export async function login(
 
   const user = await findLoginUser(organization.id, input);
 
-  if (user === null || user.status !== 'active' || user.passwordHash === null) {
+  if (
+    user === null ||
+    user.status !== 'active' ||
+    user.passwordHash === null ||
+    user.emailVerifiedAt === null ||
+    (user.accountType === 'employee' && user.employmentStatus !== 'active')
+  ) {
     await recordLoginFailure(organization.id, input.accountType, input.email, meta.ip);
     throw new InvalidCredentialsError();
   }
@@ -283,7 +434,11 @@ export async function login(
     });
 
     const availableMethods = enrollments.map((e) => e.method);
-    if (!mfaReq.requiresHighAssurance && user.email && !availableMethods.includes('email-otp')) {
+    if (
+      !mfaReq.requiresHighAssurance &&
+      user.email &&
+      !availableMethods.includes('email-otp')
+    ) {
       // Auto-trigger email OTP for low-assurance accounts if configured
       void triggerEmailOtp(user.organizationId, user.id, user.email);
       availableMethods.push('email-otp');
@@ -359,7 +514,9 @@ export async function completeMfaChallenge(
 
   // ID-5a: Privileged positions must use a high-assurance factor
   if (challenge.requiresHighAssurance && input.method === 'email-otp') {
-    throw new Error('Email OTP does not satisfy the high-assurance MFA requirement for privileged accounts.');
+    throw new Error(
+      'Email OTP does not satisfy the high-assurance MFA requirement for privileged accounts.',
+    );
   }
 
   const verified = await verifyMfaFactor(
@@ -653,4 +810,63 @@ export async function me(organizationId: string, userId: string): Promise<AuthUs
   }
 
   return user;
+}
+
+export async function verifyEmail(token: string): Promise<{ verified: true }> {
+  const tokenHash = hashVerificationToken(token);
+
+  const matches = await platformDb.query<{
+    organizationId: string;
+    tokenId: string;
+    userId: string;
+  }>(
+    'email-verification',
+    'verify email token',
+    sql`
+      SELECT
+        organization_id AS "organizationId",
+        id AS "tokenId",
+        user_id AS "userId"
+      FROM email_verification_token
+      WHERE token_hash = ${tokenHash}
+        AND verified_at IS NULL
+        AND expires_at > NOW()
+      LIMIT 1
+    `,
+  );
+
+  const match = matches[0];
+
+  if (match === undefined) {
+    throw new Error('Verification link is invalid or has expired');
+  }
+
+  await platformDb.query(
+    'email-verification',
+    'mark email as verified',
+    sql`
+      UPDATE email_verification_token
+      SET verified_at = NOW()
+      WHERE id = ${match.tokenId}
+        AND organization_id = ${match.organizationId}
+        AND verified_at IS NULL
+    `,
+  );
+
+  await platformDb.query(
+    'email-verification',
+    'mark user email as verified',
+    sql`
+      UPDATE app_user
+      SET email_verified_at = NOW(),
+          updated_at = NOW()
+      WHERE id = ${match.userId}
+        AND organization_id = ${match.organizationId}
+        AND email_verified_at IS NULL
+    `,
+  );
+
+  return {
+    verified: true,
+  };
 }

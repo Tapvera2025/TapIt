@@ -55,8 +55,14 @@ export function validatePasswordPolicy(
 
   if (context?.email) {
     const localPart = context.email.split('@')[0]?.toLowerCase();
-    if (localPart && localPart.length >= 4 && password.toLowerCase().includes(localPart)) {
-      throw new PasswordPolicyViolationError('Password must not contain parts of your email address.');
+    if (
+      localPart &&
+      localPart.length >= 4 &&
+      password.toLowerCase().includes(localPart)
+    ) {
+      throw new PasswordPolicyViolationError(
+        'Password must not contain parts of your email address.',
+      );
     }
   }
 
@@ -225,7 +231,11 @@ export async function resetPasswordWithToken(
   );
 
   const match = tokenMatches[0];
-  if (!match || match.usedAt !== null || new Date(match.expiresAt).getTime() <= Date.now()) {
+  if (
+    !match ||
+    match.usedAt !== null ||
+    new Date(match.expiresAt).getTime() <= Date.now()
+  ) {
     throw new PasswordPolicyViolationError('Invalid or expired password reset token.');
   }
 

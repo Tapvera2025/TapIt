@@ -5,7 +5,7 @@ import express, {
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import cors from 'cors';
-
+import morgan from "morgan";
 import {
   assertResourcePolicyCompleteness,
   registerProtectedConstraints,
@@ -113,6 +113,7 @@ export function buildApp(
    * Security headers.
    */
   app.use(helmet());
+  app.use(morgan("dev"));
 
   /*
    * JSON request parsing.

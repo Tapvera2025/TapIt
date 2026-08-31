@@ -153,10 +153,15 @@ export async function evaluateGeofence(
   }
 
   // ID-16: If location is missing or accuracy is worse than threshold
-  if (!coordinates || typeof coordinates.latitude !== 'number' || typeof coordinates.longitude !== 'number') {
+  if (
+    !coordinates ||
+    typeof coordinates.latitude !== 'number' ||
+    typeof coordinates.longitude !== 'number'
+  ) {
     return {
       allowed: false,
-      reason: 'Location access is required to sign in to your account. Please enable browser location services.',
+      reason:
+        'Location access is required to sign in to your account. Please enable browser location services.',
     };
   }
 
@@ -443,8 +448,8 @@ export async function assignGeofenceLocation(
   organizationId: string,
   locationId: string,
   userId: string,
-  bypassUntil?: string | null  ,
-  bypassReason?: string | null  ,
+  bypassUntil?: string | null,
+  bypassReason?: string | null,
 ): Promise<void> {
   await platformDb.query(
     'health-check',

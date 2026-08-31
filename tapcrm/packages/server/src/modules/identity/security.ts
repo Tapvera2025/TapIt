@@ -22,7 +22,11 @@ const ATTEMPT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 const accountAttempts = new Map<string, AttemptRecord>();
 const ipAttempts = new Map<string, AttemptRecord>();
 
-function getAccountKey(organizationId: string, accountType: string, email: string): string {
+function getAccountKey(
+  organizationId: string,
+  accountType: string,
+  email: string,
+): string {
   return `${organizationId}:${accountType}:${email.trim().toLowerCase()}`;
 }
 
@@ -80,7 +84,10 @@ export async function checkLoginSecurity(
   }
 
   // Calculate progressive delay
-  const attempts = Math.max(accRecord?.count ?? 0, ip ? (ipAttempts.get(ip)?.count ?? 0) : 0);
+  const attempts = Math.max(
+    accRecord?.count ?? 0,
+    ip ? (ipAttempts.get(ip)?.count ?? 0) : 0,
+  );
   let delayMs = 0;
   if (attempts >= 4) {
     delayMs = 2000;
@@ -180,7 +187,11 @@ export async function unlockUserAccount(
   organizationId: string,
   userId: string,
 ): Promise<void> {
-  const rows = await platformDb.query<{ id: string; email: string | null; accountType: string }>(
+  const rows = await platformDb.query<{
+    id: string;
+    email: string | null;
+    accountType: string;
+  }>(
     'health-check',
     'unlock user account',
     sql`

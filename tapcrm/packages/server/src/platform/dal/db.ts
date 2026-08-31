@@ -354,6 +354,8 @@ export type PlatformOperation =
   | 'audit-chain-verification'
   | 'audit-archiving'
   | 'organization-provisioning'
+  | 'employee-invitation'
+  | 'email-verification'
   | 'health-check';
 
 export const platformDb = {

@@ -37,8 +37,8 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
   const navigate = useNavigate();
 
   const [accountType, setAccountType] = useState<AccountType>('super-admin');
-  const [email, setEmail] = useState('admin@tapvera.io');
-  const [password, setPassword] = useState('Admin@Tapvera2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -80,7 +80,7 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
     try {
       setLoading(true);
       const response = await api.post<LoginResponse>('/auth/login', {
-        organizationCode: 'tapvera',
+        organizationCode: import.meta.env['VITE_ORGANIZATION_CODE'] ?? 'tapvera',
         accountType,
         email: email.trim(),
         password,
@@ -138,7 +138,9 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
       }, 300);
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(e.response?.data?.message || 'Invalid or expired 2FA verification code.');
+      setErrorMessage(
+        e.response?.data?.message || 'Invalid or expired 2FA verification code.',
+      );
     } finally {
       setLoading(false);
     }
@@ -179,14 +181,20 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
 
           {/* NOTIFICATIONS */}
           {errorMessage && (
-            <div className="alert alert-error" style={{ padding: '10px 14px', marginBottom: '16px' }}>
+            <div
+              className="alert alert-error"
+              style={{ padding: '10px 14px', marginBottom: '16px' }}
+            >
               <AlertCircleIcon className="alert-icon" size={16} />
               <div style={{ fontSize: '13px' }}>{errorMessage}</div>
             </div>
           )}
 
           {successMessage && (
-            <div className="alert alert-success" style={{ padding: '10px 14px', marginBottom: '16px' }}>
+            <div
+              className="alert alert-success"
+              style={{ padding: '10px 14px', marginBottom: '16px' }}
+            >
               <CheckIcon className="alert-icon" size={16} />
               <div style={{ fontSize: '13px' }}>{successMessage}</div>
             </div>
@@ -209,7 +217,12 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%' }}
+                  disabled={loading}
+                >
                   {loading ? 'Verifying code...' : 'Confirm & Sign in →'}
                 </button>
                 <button
@@ -238,7 +251,9 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
                   onChange={(e) => setAccountType(e.target.value as AccountType)}
                   disabled={loading}
                 >
-                  <option value="super-admin">Super Admin (Root Tenant Administrator)</option>
+                  <option value="super-admin">
+                    Super Admin (Root Tenant Administrator)
+                  </option>
                   <option value="employee">Employee (Staff Member)</option>
                   <option value="client">Client (External Client Account)</option>
                 </select>
@@ -305,6 +320,15 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
               </button>
             </form>
           )}
+
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ width: '100%', marginBottom: '12px' }}
+            onClick={() => navigate('/signup')}
+          >
+            Have an employee invitation? Complete account setup →
+          </button>
 
           {/* FOOTER BADGE */}
           <div className="login-box-footer">

@@ -103,7 +103,11 @@ export function verifyTotpCode(secret: string, code: string): boolean {
 /**
  * Generates OTP Auth URI for QR codes.
  */
-export function generateTotpUri(issuer: string, accountName: string, secret: string): string {
+export function generateTotpUri(
+  issuer: string,
+  accountName: string,
+  secret: string,
+): string {
   return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(accountName)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 }
 
@@ -307,7 +311,7 @@ export async function triggerEmailOtp(
   userId: string,
   email: string,
 ): Promise<void> {
-  const code = (Math.floor(100_000 + Math.random() * 900_000)).toString();
+  const code = Math.floor(100_000 + Math.random() * 900_000).toString();
   const codeHash = createHash('sha256').update(code).digest('hex');
 
   emailOtpStore.set(`${organizationId}:${userId}`, {

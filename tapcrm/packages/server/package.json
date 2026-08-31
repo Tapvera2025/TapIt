@@ -8,6 +8,7 @@
     "build": "tsc --build",
     "dev": "tsx watch --env-file=../../.env src/index.ts",
     "start": "node --env-file=../../.env dist/index.js",
+    "start:docker": "node dist/index.js",
     "test": "vitest run"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "ioredis": "^5.4.1",
     "jose": "^5.9.6",
     "kysely": "^0.27.5",
+    "nodemailer": "^9.0.6",
     "pg": "^8.13.1",
     "pino": "^9.5.0",
     "pino-http": "^10.3.0",
@@ -32,6 +34,8 @@
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
+    "@types/morgan": "^1.9.10",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.11.10",
     "@types/supertest": "^6.0.2",
     "supertest": "^7.0.2"

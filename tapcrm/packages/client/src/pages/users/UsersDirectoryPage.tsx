@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import api from '../../lib/api';
 import {
   UsersIcon,
   SearchIcon,
   RefreshIcon,
   AlertCircleIcon,
-  DepartmentIcon,
-  ShieldIcon,
 } from '../../components/common/Icons';
 
 interface Employee {
   id: string;
+  employeeId: string;
   fullName: string;
   email: string;
+  contact?: string | null;
   positionId: string | null;
   positionCode: string | null;
   positionName: string | null;
@@ -25,116 +25,238 @@ interface Employee {
   designationName: string | null;
   reportsTo: string | null;
   managerName: string | null;
-  missingManager: boolean;
+  employmentStatus: string;
+  accountSetupComplete: boolean;
 }
+interface Department {
+  id: string;
+  code: string;
+  name: string;
+}
+interface Team {
+  id: string;
+  department_id: string;
+  name: string;
+}
+interface Designation {
+  id: string;
+  name: string;
+}
+interface Position {
+  id: string;
+  code: string;
+  name: string;
+}
+
+const emptyForm = {
+  employeeId: '',
+  fullName: '',
+  email: '',
+  contact: '',
+  dateOfBirth: '',
+  gender: '',
+  employmentType: 'full-time',
+  joiningDate: new Date().toISOString().slice(0, 10),
+  departmentId: '',
+  positionId: '',
+  teamId: '',
+  designationId: '',
+  specialization: '',
+  reportsTo: '',
+};
 
 export default function UsersDirectoryPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterDept, setFilterDept] = useState('all');
+  const [success, setSuccess] = useState('');
+  const [search, setSearch] = useState('');
+  const [dept, setDept] = useState('all');
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState(emptyForm);
 
-  const loadData = async () => {
+  const load = async () => {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get<{ success: boolean; data: Employee[] }>('/org/chart');
-      setEmployees(res.data.data || []);
+      const [u, d, t, g] = await Promise.all([
+        api.get('/users'),
+        api.get('/org/departments'),
+        api.get('/org/teams'),
+        api.get('/org/designations'),
+      ]);
+      setEmployees(u.data.data ?? []);
+      setDepartments(d.data.data ?? []);
+      setTeams(t.data.data ?? []);
+      setDesignations(g.data.data ?? []);
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
-      setError(e.response?.data?.message || 'Failed to load user directory.');
+      setError(e.response?.data?.message ?? 'Failed to load employee directory.');
     } finally {
       setLoading(false);
     }
   };
-
   useEffect(() => {
-    void loadData();
+    void load();
   }, []);
+  useEffect(() => {
+    if (!form.departmentId) {
+      setPositions([]);
+      return;
+    }
+    const d = departments.find((x) => x.id === form.departmentId);
+    if (!d) return;
+    void api
+      .get(`/org/ladder/${encodeURIComponent(d.code)}`)
+      .then((r) => setPositions(r.data.data ?? []))
+      .catch(() => setPositions([]));
+  }, [form.departmentId, departments]);
 
-  const departments = [...new Set(employees.map((e) => e.departmentName).filter(Boolean))] as string[];
-
-  const filtered = employees.filter((emp) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      emp.fullName.toLowerCase().includes(term) ||
-      (emp.email && emp.email.toLowerCase().includes(term)) ||
-      (emp.positionName && emp.positionName.toLowerCase().includes(term)) ||
-      (emp.teamName && emp.teamName.toLowerCase().includes(term));
-    const matchesDept = filterDept === 'all' || emp.departmentName === filterDept;
-    return matchesSearch && matchesDept;
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      const r = await api.post('/users', {
+        ...form,
+        contact: form.contact || undefined,
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender: form.gender || undefined,
+        teamId: form.teamId || null,
+        designationId: form.designationId || null,
+        specialization: form.specialization || null,
+        reportsTo: form.reportsTo || null,
+      });
+      setSuccess(
+        `Employee ${r.data.data?.employeeId ?? form.employeeId} created. Invitation email sent.`,
+      );
+      setShowAdd(false);
+      setForm({ ...emptyForm });
+      await load();
+    } catch (err: unknown) {
+      const x = err as { response?: { data?: { message?: string } } };
+      setError(x.response?.data?.message ?? 'Unable to create employee.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const filtered = employees.filter((x) => {
+    const q = search.toLowerCase();
+    return (
+      (!q ||
+        x.fullName.toLowerCase().includes(q) ||
+        x.email.toLowerCase().includes(q) ||
+        x.employeeId.toLowerCase().includes(q) ||
+        String(x.positionName ?? '')
+          .toLowerCase()
+          .includes(q)) &&
+      (dept === 'all' || x.departmentId === dept)
+    );
   });
+  const field = (
+    key: keyof typeof form,
+    label: string,
+    type = 'text',
+    required = false,
+  ) => (
+    <div className="form-group">
+      <label>
+        {label}
+        {required ? ' *' : ''}
+      </label>
+      <input
+        type={type}
+        className="form-control"
+        value={form[key]}
+        onChange={(e) => setForm((v) => ({ ...v, [key]: e.target.value }))}
+        required={required}
+        disabled={saving}
+      />
+    </div>
+  );
 
   return (
     <div className="page-container">
-      {/* HEADER */}
       <div className="page-header">
         <div className="page-header-title">
           <h1>Users & Employee Directory</h1>
           <p>
-            Complete roster of staff members, position assignments, and reporting managers across Tapvera.
+            Manage employee identity, employment assignment and secure account onboarding.
           </p>
         </div>
         <div className="page-header-actions">
-          <button type="button" className="btn btn-secondary" onClick={loadData} disabled={loading}>
-            <RefreshIcon size={16} />
-            <span>Refresh</span>
+          <button
+            className="btn btn-secondary"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            <RefreshIcon size={16} /> Refresh
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              setError('');
+              setSuccess('');
+              setShowAdd(true);
+            }}
+          >
+            + Add Employee
           </button>
         </div>
       </div>
-
       {error && (
         <div className="alert alert-error">
           <AlertCircleIcon className="alert-icon" />
-          <div>
-            <strong>Error</strong>
-            <p>{error}</p>
-          </div>
+          <div>{error}</div>
         </div>
       )}
-
-      {/* FILTER BAR */}
-      <div className="card" style={{ marginBottom: '24px', padding: '16px 20px' }}>
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
-            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+      {success && <div className="alert alert-success">{success}</div>}
+      <div className="card" style={{ marginBottom: 24, padding: 16 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
+            <span
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+              }}
+            >
               <SearchIcon size={16} />
             </span>
             <input
-              type="text"
               className="form-control"
-              style={{ paddingLeft: '36px' }}
-              placeholder="Search by name, email, position title, or team..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ paddingLeft: 36 }}
+              placeholder="Search employee ID, name, email or position..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Department:</label>
-            <select
-              className="form-control"
-              style={{ width: '190px' }}
-              value={filterDept}
-              onChange={(e) => setFilterDept(e.target.value)}
-            >
-              <option value="all">All Departments</option>
-              {departments.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            className="form-control"
+            style={{ width: 220 }}
+            value={dept}
+            onChange={(e) => setDept(e.target.value)}
+          >
+            <option value="all">All Departments</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
-
-      {/* USERS LIST */}
       {loading ? (
         <div className="loading-state">
           <div className="spinner" />
-          <span>Loading staff directory...</span>
+          <span>Loading employee directory...</span>
         </div>
       ) : filtered.length === 0 ? (
         <div className="card">
@@ -143,64 +265,257 @@ export default function UsersDirectoryPage() {
               <UsersIcon size={28} />
             </div>
             <h3>No employees found</h3>
-            <p>No staff records match your search criteria.</p>
+            <p>Create the first employee or change your filters.</p>
           </div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' }}>
-          {filtered.map((emp) => (
-            <div key={emp.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div
-                    style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: 'var(--radius-full)',
-                      background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
-                      color: '#ffffff',
-                      fontWeight: 750,
-                      fontSize: '15px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {emp.fullName
-                      .split(' ')
-                      .filter(Boolean)
-                      .slice(0, 2)
-                      .map((n) => n[0]?.toUpperCase())
-                      .join('')}
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: '15.5px', fontWeight: 700, color: 'var(--text-primary)' }}>{emp.fullName}</h3>
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{emp.email}</p>
-                  </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))',
+            gap: 18,
+          }}
+        >
+          {filtered.map((x) => (
+            <div className="card" key={x.id}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <h3 style={{ fontSize: 16 }}>{x.fullName}</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {x.employeeId} • {x.email}
+                  </p>
                 </div>
-                <span className="badge badge-active">Active</span>
+                <span className="badge">{x.employmentStatus}</span>
               </div>
-
-              <div style={{ padding: '12px', background: 'var(--bg-muted)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12.5px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Department:</span>
-                  <strong>{emp.departmentName || '—'}</strong>
+              <div
+                style={{ fontSize: 13, lineHeight: 1.8, color: 'var(--text-secondary)' }}
+              >
+                <div>
+                  <strong>Department:</strong> {x.departmentName ?? '—'}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Position:</span>
-                  <strong>{emp.positionName || '—'}</strong>
+                <div>
+                  <strong>Position:</strong> {x.positionName ?? '—'}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Team:</span>
-                  <span>{emp.teamName || 'General'}</span>
+                <div>
+                  <strong>Team:</strong> {x.teamName ?? '—'}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Reports To:</span>
-                  <span>{emp.managerName || (emp.missingManager ? '⚠️ Missing' : 'Super Admin')}</span>
+                <div>
+                  <strong>Manager:</strong> {x.managerName ?? '—'}
+                </div>
+                <div>
+                  <strong>Account:</strong>{' '}
+                  {x.accountSetupComplete ? 'Setup complete' : 'Invitation pending'}
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {showAdd && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            zIndex: 1000,
+          }}
+        >
+          <div
+            className="card"
+            style={{ width: 'min(900px,100%)', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 20,
+              }}
+            >
+              <div>
+                <h2>Add Employee</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                  Admin assigns employment and access. The employee sets their password
+                  through the invitation.
+                </p>
+              </div>
+              <button className="btn btn-ghost" onClick={() => setShowAdd(false)}>
+                ✕
+              </button>
+            </div>
+            <form onSubmit={submit}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                {field('employeeId', 'Employee ID', 'text', true)}
+                {field('fullName', 'Full Name', 'text', true)}
+                {field('email', 'Work Email', 'email', true)}
+                {field('contact', 'Contact Number')}
+                {field('dateOfBirth', 'Date of Birth', 'date')}
+                {
+                  <div className="form-group">
+                    <label>Gender</label>
+                    <select
+                      className="form-control"
+                      value={form.gender}
+                      onChange={(e) => setForm((v) => ({ ...v, gender: e.target.value }))}
+                    >
+                      <option value="">Prefer not to say</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="non-binary">Non-binary</option>
+                      <option value="prefer-not-to-say">Prefer not to say</option>
+                    </select>
+                  </div>
+                }
+                {
+                  <div className="form-group">
+                    <label>Department *</label>
+                    <select
+                      className="form-control"
+                      required
+                      value={form.departmentId}
+                      onChange={(e) =>
+                        setForm((v) => ({
+                          ...v,
+                          departmentId: e.target.value,
+                          positionId: '',
+                          teamId: '',
+                        }))
+                      }
+                    >
+                      <option value="">Select department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                }
+                {
+                  <div className="form-group">
+                    <label>Position *</label>
+                    <select
+                      className="form-control"
+                      required
+                      value={form.positionId}
+                      onChange={(e) =>
+                        setForm((v) => ({ ...v, positionId: e.target.value }))
+                      }
+                    >
+                      <option value="">Select position</option>
+                      {positions.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                }
+                {
+                  <div className="form-group">
+                    <label>Team</label>
+                    <select
+                      className="form-control"
+                      value={form.teamId}
+                      onChange={(e) => setForm((v) => ({ ...v, teamId: e.target.value }))}
+                    >
+                      <option value="">No team</option>
+                      {teams
+                        .filter((t) => t.department_id === form.departmentId)
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                }
+                {
+                  <div className="form-group">
+                    <label>Designation</label>
+                    <select
+                      className="form-control"
+                      value={form.designationId}
+                      onChange={(e) =>
+                        setForm((v) => ({ ...v, designationId: e.target.value }))
+                      }
+                    >
+                      <option value="">No designation</option>
+                      {designations.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                }
+                {
+                  <div className="form-group">
+                    <label>Employment Type *</label>
+                    <select
+                      className="form-control"
+                      value={form.employmentType}
+                      onChange={(e) =>
+                        setForm((v) => ({ ...v, employmentType: e.target.value }))
+                      }
+                    >
+                      <option value="full-time">Full-time</option>
+                      <option value="part-time">Part-time</option>
+                      <option value="contract">Contract</option>
+                      <option value="intern">Intern</option>
+                      <option value="temporary">Temporary</option>
+                    </select>
+                  </div>
+                }
+                {field('joiningDate', 'Joining Date', 'date', true)}
+                {field('specialization', 'Specialization')}
+                {
+                  <div className="form-group">
+                    <label>Reporting Manager</label>
+                    <select
+                      className="form-control"
+                      value={form.reportsTo}
+                      onChange={(e) =>
+                        setForm((v) => ({ ...v, reportsTo: e.target.value }))
+                      }
+                    >
+                      <option value="">No manager</option>
+                      {employees
+                        .filter((x) => x.employmentStatus === 'active')
+                        .map((x) => (
+                          <option key={x.id} value={x.id}>
+                            {x.fullName} — {x.positionName ?? ''}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                }
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 10,
+                  marginTop: 20,
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowAdd(false)}
+                >
+                  Cancel
+                </button>
+                <button className="btn btn-primary" disabled={saving}>
+                  {saving ? 'Creating...' : 'Create & Send Invitation'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

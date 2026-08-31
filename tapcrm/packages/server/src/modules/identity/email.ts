@@ -1,4 +1,5 @@
 import { loadConfig } from '../../config.js';
+import nodemailer from 'nodemailer';
 
 export interface EmailMessage {
   readonly to: string;
@@ -14,13 +15,53 @@ export interface EmailSender {
 class ConsoleEmailSender implements EmailSender {
   async send(message: EmailMessage): Promise<void> {
     const config = loadConfig();
+
     if (config.NODE_ENV !== 'test') {
-      console.log(`\n--- [EMAIL SENT] ---`);
+      console.log('\n--- [EMAIL SENT - CONSOLE] ---');
       console.log(`To: ${message.to}`);
       console.log(`Subject: ${message.subject}`);
-      console.log(`Body: \n${message.text}`);
-      console.log(`--------------------\n`);
+      console.log(`Body:\n${message.text}`);
+      console.log('------------------------------\n');
     }
+  }
+}
+
+class SmtpEmailSender implements EmailSender {
+  private readonly transporter;
+
+  constructor() {
+    const config = loadConfig();
+
+    if (
+      !config.SMTP_HOST ||
+      !config.SMTP_PORT ||
+      !config.SMTP_USER ||
+      !config.SMTP_PASSWORD
+    ) {
+      throw new Error('SMTP configuration is incomplete');
+    }
+
+    this.transporter = nodemailer.createTransport({
+      host: config.SMTP_HOST,
+      port: config.SMTP_PORT,
+      secure: config.SMTP_SECURE,
+      auth: {
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASSWORD,
+      },
+    });
+  }
+
+  async send(message: EmailMessage): Promise<void> {
+    const config = loadConfig();
+
+    await this.transporter.sendMail({
+      from: config.SMTP_FROM,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+    });
   }
 }
 
@@ -35,7 +76,14 @@ export function resetEmailSender(): void {
 }
 
 export async function sendEmail(message: EmailMessage): Promise<void> {
-  const sender = customSender ?? new ConsoleEmailSender();
+  const config = loadConfig();
+
+  const sender =
+    customSender ??
+    (config.EMAIL_TRANSPORT === 'smtp'
+      ? new SmtpEmailSender()
+      : new ConsoleEmailSender());
+
   await sender.send(message);
 }
 
@@ -90,7 +138,11 @@ export async function sendEmailVerification(
   organizationCode: string,
 ): Promise<void> {
   const config = loadConfig();
-  const verifyUrl = `${config.CORS_ORIGIN}/verify-email?token=${encodeURIComponent(verificationToken)}&org=${encodeURIComponent(organizationCode)}`;
+
+  const verifyUrl =
+    `${config.CORS_ORIGIN}/verify-email` +
+    `?token=${encodeURIComponent(verificationToken)}` +
+    `&org=${encodeURIComponent(organizationCode)}`;
 
   await sendEmail({
     to: email,
@@ -98,11 +150,36 @@ export async function sendEmailVerification(
     text: [
       'Welcome to TapCRM.',
       '',
-      `Please verify your email address by clicking the link below:`,
+      'Please verify your email address using the link below:',
       verifyUrl,
       '',
-      'Unverified accounts can sign in but cannot receive password reset links.',
+      'This verification link expires in 24 hours.',
+      '',
+      'If you did not create this account, please ignore this email.',
     ].join('\n'),
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>Welcome to TapCRM</h2>
+        <p>Please verify your email address to activate your account.</p>
+        <p>
+          <a
+            href="${verifyUrl}"
+            style="
+              display:inline-block;
+              padding:12px 20px;
+              background:#2563eb;
+              color:#ffffff;
+              text-decoration:none;
+              border-radius:6px;
+            "
+          >
+            Verify Email
+          </a>
+        </p>
+        <p>This link expires in 24 hours.</p>
+        <p>If you did not create this account, you can ignore this email.</p>
+      </div>
+    `,
   });
 }
 
@@ -196,5 +273,37 @@ export async function sendAccountLockedAlert(
       '',
       'Your account will automatically unlock after 15 minutes, or you may contact your Super Admin/HR to release the lock immediately.',
     ].join('\n'),
+  });
+}
+
+/** Sends the one-time employee onboarding invitation. */
+export async function sendEmployeeInvitation(
+  email: string,
+  invitationToken: string,
+  organizationCode: string,
+  expiresHours = 72,
+): Promise<void> {
+  const config = loadConfig();
+  const url = `${config.CORS_ORIGIN}/signup?token=${encodeURIComponent(invitationToken)}&org=${encodeURIComponent(organizationCode)}`;
+
+  await sendEmail({
+    to: email,
+    subject: 'TapCRM — Complete your employee account',
+    text: [
+      'You have been invited to join TapCRM as an employee.',
+      '',
+      `Complete your account using this link (valid for ${expiresHours} hours):`,
+      url,
+      '',
+      'The invitation is single-use. If you were not expecting this, contact your administrator.',
+    ].join('\n'),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6">
+        <h2>Welcome to TapCRM</h2>
+        <p>You have been invited to join your organization as an employee.</p>
+        <p><a href="${url}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">Complete account setup</a></p>
+        <p>This invitation expires in ${expiresHours} hours and can only be used once.</p>
+      </div>
+    `,
   });
 }
