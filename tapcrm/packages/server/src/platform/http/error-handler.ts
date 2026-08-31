@@ -7,6 +7,12 @@ import {
   AmbiguousCommitError,
 } from '../dal/errors.js';
 import { MissingTenantContextError } from '../dal/context.js';
+import {
+  InvalidCredentialsError,
+  InvalidSessionError,
+  MfaRequiredError,
+  RequestValidationError,
+} from './auth-error.js';
 
 /**
  * The single place an error becomes a status code — TECH.md §8.2, §9.8.
@@ -82,6 +88,52 @@ interface Mapped {
 }
 
 function mapError(error: unknown): Mapped {
+  /* ---- Authentication errors: 401 Unauthorized ---- */
+  if (error instanceof InvalidCredentialsError) {
+    return {
+      status: HTTP_STATUS.UNAUTHENTICATED,
+      body: {
+        success: false,
+        code: ERROR_CODES.UNAUTHENTICATED,
+        message: error.message,
+      },
+    };
+  }
+
+  if (error instanceof InvalidSessionError) {
+    return {
+      status: HTTP_STATUS.UNAUTHENTICATED,
+      body: {
+        success: false,
+        code: ERROR_CODES.SESSION_EXPIRED,
+        message: error.message,
+      },
+    };
+  }
+
+  if (error instanceof MfaRequiredError) {
+    return {
+      status: HTTP_STATUS.UNAUTHENTICATED,
+      body: {
+        success: false,
+        code: ERROR_CODES.MFA_REQUIRED,
+        message: error.message,
+      },
+    };
+  }
+
+  if (error instanceof RequestValidationError) {
+    return {
+      status: HTTP_STATUS.BAD_REQUEST,
+      body: {
+        success: false,
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: error.message,
+        details: { issues: error.issues },
+      },
+    };
+  }
+
   /* ---- Authorization: 403, or 404 across a client boundary ---- */
   if (error instanceof AuthorizationError) {
     // A2 / CP-2 — client isolation returns 404, NEVER 403. A 403 would confirm

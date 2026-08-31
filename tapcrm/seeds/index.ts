@@ -33,6 +33,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import argon2 from 'argon2';
 import { PERMISSION_MATRIX, MATRIX_POSITIONS, CARVE_OUTS, type Cell } from './matrix.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -73,6 +74,27 @@ const DEPARTMENTS = [
   // D-6: Finance ships INACTIVE. The department exists in the ladder so that
   // staffing finance later is an activation, not a schema change.
   { code: 'finance', name: 'Finance', kind: 'support', status: 'inactive' },
+] as const;
+
+const TEAMS = [
+  {
+    department: 'development',
+    kind: 'dev-subteam',
+    name: 'Developer Team',
+    leadPosition: 'developer-team-manager',
+  },
+  {
+    department: 'development',
+    kind: 'dev-subteam',
+    name: 'Digital & Marketing',
+    leadPosition: 'digital-marketing-manager',
+  },
+  {
+    department: 'development',
+    kind: 'dev-subteam',
+    name: 'Content Team',
+    leadPosition: 'content-team-manager',
+  },
 ] as const;
 
 interface SeedPosition {
@@ -214,7 +236,9 @@ async function main(): Promise<void> {
     const organizationId = org.rows[0]!.id;
 
     // Tenant context for everything below (TN-6). Transaction-local.
-    await client.query(`SELECT set_config('app.organization_id', $1, true)`, [organizationId]);
+    await client.query(`SELECT set_config('app.organization_id', $1, true)`, [
+      organizationId,
+    ]);
 
     /* -- 6. registry_action (global projection, RG-I3) ------------- */
     // "regenerated on deploy; it is a PROJECTION, NEVER EDITED; a row absent
@@ -234,9 +258,17 @@ async function main(): Promise<void> {
            super_admin_only = EXCLUDED.super_admin_only,
            description = EXCLUDED.description`,
         [
-          a.action, a.module, a.resource, a.domain, a.sensitive, a.approvalBearing,
-          a.initiatorField, a.grantPolicy.positionGrantable, a.grantPolicy.delegationAllowed,
-          a.grantPolicy.superAdminOnly, a.description,
+          a.action,
+          a.module,
+          a.resource,
+          a.domain,
+          a.sensitive,
+          a.approvalBearing,
+          a.initiatorField,
+          a.grantPolicy.positionGrantable,
+          a.grantPolicy.delegationAllowed,
+          a.grantPolicy.superAdminOnly,
+          a.description,
         ],
       );
     }
@@ -270,7 +302,14 @@ async function main(): Promise<void> {
                        organizational_level = EXCLUDED.organizational_level,
                        status = EXCLUDED.status
          RETURNING id`,
-        [organizationId, departmentIds.get(p.department), p.code, p.name, p.level, p.status],
+        [
+          organizationId,
+          departmentIds.get(p.department),
+          p.code,
+          p.name,
+          p.level,
+          p.status,
+        ],
       );
       positionIds.set(p.code, row.rows[0]!.id);
     }
@@ -279,6 +318,32 @@ async function main(): Promise<void> {
       await client.query(
         `UPDATE position SET parent_position_id = $1 WHERE organization_id = $2 AND code = $3`,
         [positionIds.get(p.parent), organizationId, p.code],
+      );
+    }
+    /* -- development teams ------------------------------------------- */
+
+    for (const team of TEAMS) {
+      const departmentId = departmentIds.get(team.department);
+
+      if (!departmentId) {
+        throw new Error(`Missing department for seeded team: ${team.name}`);
+      }
+
+      await client.query(
+        `INSERT INTO team
+       (
+         organization_id,
+         department_id,
+         kind,
+         name,
+         lead_user_id,
+         parent_team_id,
+         shared_visibility
+       )
+     VALUES
+       ($1, $2, $3, $4, NULL, NULL, false)
+     ON CONFLICT DO NOTHING`,
+        [organizationId, departmentId, team.kind, team.name],
       );
     }
 
@@ -356,23 +421,31 @@ async function main(): Promise<void> {
     // §2.1 — Super Admin is NOT a Position: no position, no department, no
     // place in the reporting chain.
     const email = process.env['SEED_SUPERADMIN_EMAIL'] ?? 'admin@tapvera.io';
+    const password = process.env['SEED_SUPERADMIN_PASSWORD'] ?? 'Admin@Tapvera2026!';
+    const passwordHash = await argon2.hash(password, {
+      type: argon2.argon2id,
+      memoryCost: 65536,
+      timeCost: 3,
+      parallelism: 4,
+    });
+
     await client.query(
-      `INSERT INTO app_user (organization_id, account_type, email, full_name, status, mfa_required)
-       VALUES ($1,'super-admin',$2,$3,'active',true)
+      `INSERT INTO app_user (organization_id, account_type, email, password_hash, full_name, status, mfa_required, email_verified_at)
+       VALUES ($1,'super-admin',$2,$3,$4,'active',false, NOW())
        -- The unique index is PARTIAL (WHERE email IS NOT NULL), so the
        -- predicate must be repeated here for PostgreSQL to infer it.
        ON CONFLICT (organization_id, account_type, email) WHERE email IS NOT NULL
-       DO NOTHING`,
-      [organizationId, email, 'Super Admin'],
+       DO UPDATE SET password_hash = EXCLUDED.password_hash, mfa_required = EXCLUDED.mfa_required, email_verified_at = EXCLUDED.email_verified_at`,
+      [organizationId, email, passwordHash, 'Super Admin'],
     );
 
     await client.query('COMMIT');
 
-    console.log(`✓ Seeded organization "${ORG_NAME}"`);
+    console.log(`✓ Seeded organization "${ORG_NAME}" (code: ${ORG_CODE})`);
     console.log(`  ${seed.actions.length} registry actions projected`);
     console.log(`  ${DEPARTMENTS.length} departments · ${POSITIONS.length} positions`);
     console.log(`  ${emittedCount} position_policy rows generated from the §6 matrix`);
-    console.log(`  super-admin: ${email} (ID-4 requires a high-assurance second factor)`);
+    console.log(`  super-admin: ${email} / ${password}`);
 
     if (modulesWithoutActions.size > 0) {
       console.log(

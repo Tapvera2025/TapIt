@@ -9,7 +9,6 @@ export type UserId = string;
 export type TeamId = string;
 export type DepartmentId = string;
 export type PositionId = string;
-
 /**
  * PRD §4.1 / §4.4 — a permission policy is an action plus its reach. An
  * override is a full policy, not a boolean, which is what makes "grant this one
@@ -44,10 +43,6 @@ interface PrincipalBase {
   readonly id: UserId;
   readonly organizationId: OrganizationId;
   readonly accountType: AccountType;
-  /**
-   * ID-7 — incremented by deactivation, password change, role change or
-   * revocation. Compared on every request and every socket handshake (RT-1).
-   */
   readonly sessionVersion: number;
 }
 

@@ -32,8 +32,12 @@ const schema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
 
-  JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
-  JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
+  JWT_ACCESS_SECRET: z
+    .string()
+    .min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
+  JWT_REFRESH_SECRET: z
+    .string()
+    .min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
   // ID-6 — access tokens are short-lived, default 60 minutes.
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
   REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(1_209_600),
@@ -41,6 +45,20 @@ const schema = z.object({
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_BASE_PATH: z.string().default('/api'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  //
+  EMAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
+
+  SMTP_HOST: z.string().optional(),
+
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+
+  SMTP_SECURE: z.coerce.boolean().default(false),
+
+  SMTP_USER: z.string().optional(),
+
+  SMTP_PASSWORD: z.string().optional(),
+
+  SMTP_FROM: z.string().email().optional(),
 });
 
 export type Config = z.infer<typeof schema>;
@@ -55,7 +73,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const issues = parsed.error.issues
       .map((i) => `  ${i.path.join('.')}: ${i.message}`)
       .join('\n');
-    throw new Error(`Invalid environment configuration:\n${issues}\n\nSee .env.example.`);
+    throw new Error(`Invalid environment configuration:\n${issues}\n\nSee .env`);
   }
 
   cached = parsed.data;

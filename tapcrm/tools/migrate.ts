@@ -151,6 +151,29 @@ const command = process.argv[2] ?? 'up';
 const run = command === 'status' ? status : up;
 
 run().catch((error: unknown) => {
-  console.error(`\n✗ ${error instanceof Error ? error.message : String(error)}`);
+  console.error('\n✗ Migration failed');
+
+  console.error('error:', error);
+  console.error('message:', error instanceof Error ? error.message : String(error));
+
+  if (error instanceof Error) {
+    console.error('name:', error.name);
+    console.error('stack:', error.stack);
+  }
+
+  const pgError = error as {
+    code?: string;
+    detail?: string;
+    hint?: string;
+    severity?: string;
+    routine?: string;
+  };
+
+  console.error('code:', pgError.code);
+  console.error('detail:', pgError.detail);
+  console.error('hint:', pgError.hint);
+  console.error('severity:', pgError.severity);
+  console.error('routine:', pgError.routine);
+
   process.exit(1);
 });

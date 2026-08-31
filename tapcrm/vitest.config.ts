@@ -1,7 +1,10 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 
+const repoRoot = process.env.INIT_CWD ?? process.cwd();
+
 export default defineConfig({
+  root: repoRoot,
   test: {
     environment: 'node',
     include: ['packages/**/src/**/*.test.ts'],
@@ -10,8 +13,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@tapcrm/contracts': resolve(__dirname, 'packages/contracts/src/index.ts'),
-      '@tapcrm/authz': resolve(__dirname, 'packages/authz/src/index.ts'),
+      '@tapcrm/contracts': resolve(repoRoot, 'packages/contracts/src/index.ts'),
+      '@tapcrm/authz': resolve(repoRoot, 'packages/authz/src/index.ts'),
     },
   },
 });

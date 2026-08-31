@@ -88,6 +88,41 @@ async function withTenantTransaction<T>(
   }
 }
 
+
+async function withOrganizationTransaction<T>(
+  organizationId: string,
+  fn: (client: PgPoolClient) => Promise<T>,
+): Promise<T> {
+  if (!organizationId) {
+    throw new MissingTenantContextError('organizationId is required');
+  }
+
+  const client = await getPool().connect();
+
+  try {
+    await client.query('BEGIN');
+
+    await client.query(SET_TENANT, [organizationId]);
+
+    const result = await fn(client);
+
+    await client.query('COMMIT');
+
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      client.release(error instanceof Error ? error : new Error(String(error)));
+
+      throw error;
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 /* ==================================================================== *
  * Retry — TECH.md §9.7.1
  * ==================================================================== */
@@ -103,7 +138,10 @@ async function withTenantTransaction<T>(
 const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 25;
 
-async function withRetry<T>(fn: () => Promise<T>, idempotencyKey: string | null): Promise<T> {
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  idempotencyKey: string | null,
+): Promise<T> {
   let lastClassified = classifyDatabaseError(new Error('no attempt made'));
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -160,7 +198,8 @@ function makeTx(client: PgPoolClient): Tx {
     },
     async maybeOne<T>(fragment: SqlFragment): Promise<T | null> {
       const rows = await this.query<T>(fragment);
-      if (rows.length > 1) throw new Error(`Expected at most one row, got ${rows.length}`);
+      if (rows.length > 1)
+        throw new Error(`Expected at most one row, got ${rows.length}`);
       return rows[0] ?? null;
     },
   };
@@ -169,35 +208,38 @@ function makeTx(client: PgPoolClient): Tx {
 export const db: Db = {
   async query<T>(ctx: RequestContext, fragment: SqlFragment): Promise<T[]> {
     return withRetry(
-      () => withTenantTransaction(ctx, async (client) => makeTx(client).query<T>(fragment)),
+      () =>
+        withTenantTransaction(ctx, async (client) =>
+          makeTx(client).query<T>(fragment),
+        ),
       null,
     );
   },
 
   async one<T>(ctx: RequestContext, fragment: SqlFragment): Promise<T> {
     return withRetry(
-      () => withTenantTransaction(ctx, async (client) => makeTx(client).one<T>(fragment)),
+      () =>
+        withTenantTransaction(ctx, async (client) =>
+          makeTx(client).one<T>(fragment),
+        ),
       null,
     );
   },
 
   async maybeOne<T>(ctx: RequestContext, fragment: SqlFragment): Promise<T | null> {
     return withRetry(
-      () => withTenantTransaction(ctx, async (client) => makeTx(client).maybeOne<T>(fragment)),
+      () =>
+        withTenantTransaction(ctx, async (client) =>
+          makeTx(client).maybeOne<T>(fragment),
+        ),
       null,
     );
   },
 
-  /**
-   * TX-1 — every multi-step invariant runs inside ONE explicit transaction.
-   * TX-2 — no HTTP, file write, socket emit or external queue call occurs
-   *        inside it. Write an outbox row and publish after commit.
-   * TX-5 — cross-module façades receive this `tx` so atomic operations share
-   *        one PostgreSQL transaction (MB-2).
-   */
   async transaction<T>(ctx: RequestContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
     return withRetry(
-      () => withTenantTransaction(ctx, async (client) => fn(makeTx(client))),
+      () =>
+        withTenantTransaction(ctx, async (client) => fn(makeTx(client))),
       null,
     );
   },
@@ -276,6 +318,22 @@ export const globalDb = {
   },
 };
 
+export const identityDb = {
+  async transactionForOrganization<T>(
+    organizationId: string,
+    fn: (tx: Tx) => Promise<T>,
+  ): Promise<T> {
+    if (!organizationId) {
+      throw new MissingTenantContextError('identity transaction with no organizationId');
+    }
+
+    return withRetry(
+      () =>
+        withOrganizationTransaction(organizationId, async (client) => fn(makeTx(client))),
+      null,
+    );
+  },
+};
 /* ==================================================================== *
  * platformDb — privileged, cross-tenant
  * ==================================================================== */
@@ -296,6 +354,8 @@ export type PlatformOperation =
   | 'audit-chain-verification'
   | 'audit-archiving'
   | 'organization-provisioning'
+  | 'employee-invitation'
+  | 'email-verification'
   | 'health-check';
 
 export const platformDb = {
@@ -312,7 +372,8 @@ export const platformDb = {
         reason,
       }),
     );
-    const pool = operation === 'migration' || operation === 'seed' ? getMigrationPool() : getPool();
+    const pool =
+      operation === 'migration' || operation === 'seed' ? getMigrationPool() : getPool();
     const result = await pool.query(fragment.sql, [...fragment.parameters]);
     return result.rows as T[];
   },
@@ -330,7 +391,8 @@ export const platformDb = {
         reason,
       }),
     );
-    const pool = operation === 'migration' || operation === 'seed' ? getMigrationPool() : getPool();
+    const pool =
+      operation === 'migration' || operation === 'seed' ? getMigrationPool() : getPool();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');

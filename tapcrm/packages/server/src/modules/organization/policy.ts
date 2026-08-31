@@ -25,6 +25,7 @@ function departmentScoped(
   resourceType: string,
   table: string,
   departmentColumn = 'department_id',
+  domain: 'business' | 'people' = 'business',
 ): ResourcePolicy {
   const predicate = async (
     ctx: PolicyEvaluationContext,
@@ -36,7 +37,10 @@ function departmentScoped(
         const departmentId = await ctx.scope.departmentId(ctx);
         if (departmentId === null) return { ok: false, fragment: MATCH_NOTHING };
         return {
-          ok: resource === null ? true : resource[toCamel(departmentColumn)] === departmentId,
+          ok:
+            resource === null
+              ? true
+              : resource[toCamel(departmentColumn)] === departmentId,
           fragment: {
             sql: `${table}.${departmentColumn} = $1`,
             parameters: [departmentId],
@@ -51,7 +55,8 @@ function departmentScoped(
           ok:
             resource === null
               ? true
-              : typeof resource['teamId'] === 'string' && teams.includes(resource['teamId']),
+              : typeof resource['teamId'] === 'string' &&
+                teams.includes(resource['teamId']),
           fragment: {
             sql: `${table}.team_id = ANY($1::uuid[])`,
             parameters: [teams],
@@ -84,7 +89,7 @@ function departmentScoped(
     // business-domain per AUTHORIZATION.md §6.4; org:view-people is people.
     // The resource's own domain is what the engine checks, and these describe
     // the shape of the company rather than a person's record.
-    domain: 'business',
+    domain,
 
     async check(ctx, _action, resource, scope) {
       return (await predicate(ctx, resource, scope)).ok;
@@ -167,5 +172,56 @@ export function registerOrganizationPolicies(): void {
   registerResourcePolicy(departmentScoped('position', 'position'));
   registerResourcePolicy(departmentScoped('team', 'team'));
   registerResourcePolicy(departmentScoped('designation', 'designation'));
+  registerResourcePolicy(departmentScoped('user', 'app_user', 'department_id', 'people'));
   registerResourcePolicy(roleChangeRequestPolicy);
+  registerResourcePolicy(approvalDelegationPolicy);
 }
+
+const approvalDelegationPolicy: ResourcePolicy = {
+  resourceType: 'approvalDelegation',
+
+  domain: 'business',
+
+  async check(ctx, _action, resource, scope) {
+    switch (scope) {
+      case 'own':
+        return resource['delegatorUserId'] === ctx.principal.id;
+
+      case 'participant':
+        return (
+          resource['delegatorUserId'] === ctx.principal.id ||
+          resource['delegateUserId'] === ctx.principal.id
+        );
+
+      default:
+        return false;
+    }
+  },
+
+  async filter(ctx, _action, scope) {
+    switch (scope) {
+      case 'own':
+        return {
+          sql: 'approval_delegation.delegator_user_id = $1',
+          parameters: [ctx.principal.id],
+        };
+
+      case 'participant':
+        return {
+          sql: '(approval_delegation.delegator_user_id = $1 OR approval_delegation.delegate_user_id = $1)',
+          parameters: [ctx.principal.id],
+        };
+
+      default:
+        return MATCH_NOTHING;
+    }
+  },
+
+  participantFields() {
+    return ['delegatorUserId', 'delegateUserId'];
+  },
+
+  initiatorField() {
+    return null;
+  },
+};

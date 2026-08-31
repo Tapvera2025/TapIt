@@ -2274,6 +2274,36 @@
       "resourceParam": "id"
     },
     {
+      "method": "GET",
+      "path": "/api/org/positions/:id/policy-preview",
+      "action": "org:manage-positions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/org/positions/:id",
+      "action": "org:manage-positions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/org/designations/:id",
+      "action": "org:manage-designations",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/org/designations/:id",
+      "action": "org:manage-designations",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/positions/:id/policy-preview",
+      "action": "org:manage-positions",
+      "resourceParam": "id"
+    },
+    {
       "method": "POST",
       "path": "/api/org/departments",
       "action": "org:manage-departments",
@@ -2281,6 +2311,12 @@
     },
     {
       "method": "PATCH",
+      "path": "/api/org/departments/:id",
+      "action": "org:manage-departments",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
       "path": "/api/org/departments/:id",
       "action": "org:manage-departments",
       "resourceParam": "id"

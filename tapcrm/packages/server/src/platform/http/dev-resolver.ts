@@ -103,6 +103,10 @@ export function installDevPrincipalResolver(): void {
         };
     }
 
-    return { principal, organizationId: row.organizationId };
+    return {
+      principal,
+      organizationId: row.organizationId,
+      sessionId: req.header('x-dev-session-id') ?? '00000000-0000-4000-8000-000000000000',
+    };
   });
 }
