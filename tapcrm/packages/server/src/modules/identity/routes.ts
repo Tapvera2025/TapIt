@@ -1,4 +1,5 @@
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { route } from '../../platform/http/route.js';
 import { RequestValidationError } from '../../platform/http/auth-error.js';
 import {
@@ -23,6 +24,11 @@ import {
   updateGeofenceSchema,
   assignGeofenceSchema,
   verifyEmailSchema,
+  geofenceBypassRequestSchema,
+  serviceAccountCreateSchema,
+  mfaPasskeyOptionsSchema,
+  wfhApprovalSchema,
+  wfhRevokeSchema,
 } from './validation.js';
 
 import {
@@ -50,17 +56,38 @@ import {
   updateGeofenceLocation,
   assignGeofenceLocation,
   getUserGeofenceStatus,
+  requestGeofenceBypass,
+  listGeofenceBypassRequests,
+  decideGeofenceBypass,
+  approveWfhDay,
+  revokeWfhDay,
 } from './geofence.js';
 
 import { unlockUserAccount } from './security.js';
+import {
+  startPasskeyRegistration,
+  finishPasskeyRegistration,
+  startPasskeyAuthentication,
+  finishPasskeyAuthentication,
+  listUserPasskeys,
+  revokePasskey,
+} from './mfa.js';
+import {
+  createServiceAccount,
+  rotateServiceAccountCredential,
+  disableServiceAccount,
+} from './service.js';
+import { verifyMfaChallengeToken } from './token.js';
 
 const ACCESS_COOKIE = 'tapcrm_access';
 const REFRESH_COOKIE = 'tapcrm_refresh';
 
 function requestMeta(req: Request) {
+  const configHeader = process.env.GEOIP_COUNTRY_HEADER || 'x-country-code';
   return {
     ip: req.ip ?? req.socket.remoteAddress ?? null,
     userAgent: req.get('user-agent') ?? null,
+    countryCode: req.get(configHeader)?.trim().toUpperCase() || null,
   };
 }
 
@@ -102,6 +129,51 @@ function clearAuthCookies(res: Response): void {
     sameSite: 'lax',
     path: '/api/auth',
   });
+}
+
+export function identityCsrfMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const safe = ['GET', 'HEAD', 'OPTIONS'];
+  const exempt = [
+    '/api/auth/login',
+    '/api/auth/signup',
+    '/api/auth/verify-email',
+    '/api/auth/forgot-password',
+    '/api/auth/reset-password',
+    '/api/auth/mfa/challenge',
+  ];
+  let token = req.cookies?.tapcrm_csrf as string | undefined;
+  if (!token) {
+    token = randomBytes(32).toString('base64url');
+    res.cookie('tapcrm_csrf', token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
+  if (safe.includes(req.method) || exempt.includes(req.path)) {
+    next();
+    return;
+  }
+  const supplied = req.get('x-csrf-token');
+  if (
+    !supplied ||
+    supplied.length !== token.length ||
+    !timingSafeEqual(Buffer.from(supplied), Buffer.from(token))
+  ) {
+    res
+      .status(403)
+      .json({
+        success: false,
+        error: { code: 'CSRF_FAILED', message: 'CSRF validation failed' },
+      });
+    return;
+  }
+  next();
 }
 
 export function registerIdentityRoutes(): void {
@@ -162,7 +234,7 @@ export function registerIdentityRoutes(): void {
 
       const result = await login(parsed.data, requestMeta(req));
 
-      if (result.mfaRequired) {
+      if (result.mfaRequired === true) {
         return {
           mfaRequired: true,
           mfaToken: result.mfaToken,
@@ -500,6 +572,184 @@ export function registerIdentityRoutes(): void {
       return {
         geofence: await getUserGeofenceStatus(ctx.organizationId, ctx.principal.id),
       };
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/auth/mfa/passkey/options',
+    public: true,
+    status: 200,
+    handler: async ({ body }) => {
+      const parsed = mfaPasskeyOptionsSchema.safeParse(body);
+      if (!parsed.success) throw new RequestValidationError(parsed.error.issues);
+      const challenge = await verifyMfaChallengeToken(parsed.data.mfaToken);
+      if (!challenge) throw new Error('Invalid MFA challenge.');
+      return startPasskeyAuthentication(challenge.org, challenge.sub);
+    },
+  });
+  /* Passkeys — ID-5/ID-5d */
+  route({
+    method: 'POST',
+    path: '/api/auth/passkeys/register/options',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx }) => {
+      const u = await me(ctx.organizationId, ctx.principal.id);
+      return startPasskeyRegistration(
+        ctx.organizationId,
+        ctx.principal.id,
+        u.email ?? '',
+        u.fullName,
+      );
+    },
+  });
+  route({
+    method: 'POST',
+    path: '/api/auth/passkeys/register/verify',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx, body }) => ({
+      result: await finishPasskeyRegistration(
+        ctx.organizationId,
+        ctx.principal.id,
+        body as Parameters<typeof finishPasskeyRegistration>[2],
+      ),
+    }),
+  });
+  route({
+    method: 'GET',
+    path: '/api/auth/passkeys',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx }) => ({
+      passkeys: await listUserPasskeys(ctx.organizationId, ctx.principal.id),
+    }),
+  });
+  route({
+    method: 'DELETE',
+    path: '/api/auth/passkeys/:id',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx, params }) => {
+      await revokePasskey(ctx.organizationId, ctx.principal.id, params['id']!);
+      return { revoked: true };
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/identity/wfh',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx, body }) => {
+      if (ctx.principal.accountType !== 'super-admin')
+        throw new Error('Only Super Admin may approve WFH days.');
+      const p = wfhApprovalSchema.safeParse(body);
+      if (!p.success) throw new RequestValidationError(p.error.issues);
+      await approveWfhDay(
+        ctx.organizationId,
+        p.data.userId,
+        ctx.principal.id,
+        p.data.workDate,
+        p.data.reason,
+      );
+      return { approved: true };
+    },
+  });
+  route({
+    method: 'DELETE',
+    path: '/api/identity/wfh',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx, body }) => {
+      if (ctx.principal.accountType !== 'super-admin')
+        throw new Error('Only Super Admin may revoke WFH days.');
+      const p = wfhRevokeSchema.safeParse(body);
+      if (!p.success) throw new RequestValidationError(p.error.issues);
+      await revokeWfhDay(ctx.organizationId, p.data.userId, p.data.workDate);
+      return { revoked: true };
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/auth/service-accounts/:id/rotate',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx, params }) => {
+      if (ctx.principal.accountType !== 'super-admin')
+        throw new Error('Only Super Admin may rotate service credentials.');
+      return rotateServiceAccountCredential(ctx.organizationId, params['id']!);
+    },
+  });
+  route({
+    method: 'POST',
+    path: '/api/auth/service-accounts/:id/disable',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx, params }) => {
+      if (ctx.principal.accountType !== 'super-admin')
+        throw new Error('Only Super Admin may disable service accounts.');
+      await disableServiceAccount(ctx.organizationId, params['id']!);
+      return { disabled: true };
+    },
+  });
+
+  /* Geofence appeal — ID-15d */
+  route({
+    method: 'POST',
+    path: '/api/auth/geofence/bypass-requests',
+    authOnly: true,
+    status: 201,
+    handler: async ({ ctx, body }) => {
+      const parsed = geofenceBypassRequestSchema.safeParse(body);
+      if (!parsed.success) throw new RequestValidationError(parsed.error.issues);
+      return requestGeofenceBypass(ctx.organizationId, ctx.principal.id, parsed.data);
+    },
+  });
+  route({
+    method: 'GET',
+    path: '/api/auth/geofence/bypass-requests',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx }) => ({
+      requests: await listGeofenceBypassRequests(ctx.organizationId, ctx.principal.id),
+    }),
+  });
+  route({
+    method: 'POST',
+    path: '/api/identity/geofence/bypass-requests/:id/decision',
+    authOnly: true,
+    status: 200,
+    handler: async ({ ctx, params, body }) => {
+      if (ctx.principal.accountType !== 'super-admin')
+        throw new Error('Only Super Admin may decide geofence bypass requests.');
+      const b = body as { approve?: boolean; reason?: string };
+      if (typeof b.approve !== 'boolean' || !b.reason)
+        throw new Error('Decision and reason are required.');
+      return decideGeofenceBypass(
+        ctx.organizationId,
+        params['id']!,
+        ctx.principal.id,
+        b.approve,
+        b.reason,
+      );
+    },
+  });
+
+  /* Service accounts — ID-20. Credential is returned once only. */
+  route({
+    method: 'POST',
+    path: '/api/auth/service-accounts',
+    authOnly: true,
+    status: 201,
+    handler: async ({ ctx, body }) => {
+      if (ctx.principal.accountType !== 'super-admin')
+        throw new Error('Only Super Admin may create service accounts.');
+      const parsed = serviceAccountCreateSchema.safeParse(body);
+      if (!parsed.success) throw new RequestValidationError(parsed.error.issues);
+      return createServiceAccount(ctx.organizationId, ctx.principal.id, parsed.data);
     },
   });
 

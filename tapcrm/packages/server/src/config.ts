@@ -22,6 +22,12 @@ const schema = z.object({
   DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
 
   REDIS_URL: z.string().url(),
+  // ID-15a — application-level encryption key for geofence coordinates.
+  IDENTITY_ENCRYPTION_KEY: z
+    .string()
+    .min(32, 'IDENTITY_ENCRYPTION_KEY must be at least 32 characters'),
+  // ID-10 — optional trusted proxy country header / GeoIP integration.
+  GEOIP_COUNTRY_HEADER: z.string().default('x-country-code'),
 
   S3_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default('us-east-1'),

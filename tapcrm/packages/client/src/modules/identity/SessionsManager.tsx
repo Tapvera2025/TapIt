@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../lib/api';
 
 interface UserSession {
@@ -23,13 +23,15 @@ export default function SessionsManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const hiddenSessionIds = useRef<Set<string>>(new Set());
 
   const loadSessions = async () => {
     try {
       setLoading(true);
       setError('');
       const res = await api.get<ApiResponse<{ sessions: UserSession[] }>>('/auth/sessions');
-      setSessions(res.data.data.sessions || []);
+      const nextSessions = res.data.data.sessions || [];
+      setSessions(nextSessions.filter((session) => !hiddenSessionIds.current.has(session.id)));
     } catch {
       setError('Unable to load active sessions.');
     } finally {
@@ -46,6 +48,8 @@ export default function SessionsManager() {
       setError('');
       setSuccess('');
       await api.delete(`/auth/sessions/${sessionId}`);
+      hiddenSessionIds.current.add(sessionId);
+      setSessions((current) => current.filter((session) => session.id !== sessionId));
       setSuccess('Session revoked successfully.');
       await loadSessions();
     } catch (err: any) {
@@ -59,6 +63,10 @@ export default function SessionsManager() {
       setError('');
       setSuccess('');
       await api.delete('/auth/sessions');
+      sessions
+        .filter((session) => !session.isCurrent)
+        .forEach((session) => hiddenSessionIds.current.add(session.id));
+      setSessions((current) => current.filter((session) => session.isCurrent));
       setSuccess('All other sessions revoked.');
       await loadSessions();
     } catch (err: any) {

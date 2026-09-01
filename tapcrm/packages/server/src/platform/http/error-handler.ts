@@ -7,6 +7,7 @@ import {
   AmbiguousCommitError,
 } from '../dal/errors.js';
 import { MissingTenantContextError } from '../dal/context.js';
+import { PasswordPolicyViolationError } from '../../modules/identity/password.js';
 import {
   InvalidCredentialsError,
   InvalidSessionError,
@@ -122,6 +123,17 @@ function mapError(error: unknown): Mapped {
     };
   }
 
+  if (error instanceof PasswordPolicyViolationError) {
+    return {
+      status: HTTP_STATUS.BAD_REQUEST,
+      body: {
+        success: false,
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: error.message,
+      },
+    };
+  }
+
   if (error instanceof RequestValidationError) {
     return {
       status: HTTP_STATUS.BAD_REQUEST,
@@ -223,7 +235,10 @@ function mapError(error: unknown): Mapped {
   }
 
   /* ---- Defects: deny, but page an engineer ---- */
-  if (error instanceof AuthorizationConfigError || error instanceof MissingTenantContextError) {
+  if (
+    error instanceof AuthorizationConfigError ||
+    error instanceof MissingTenantContextError
+  ) {
     return {
       status: HTTP_STATUS.INTERNAL,
       defect: true,

@@ -1,7 +1,14 @@
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
+import { sendEmailVerification } from './email.js';
 import argon2 from 'argon2';
 import { loadConfig } from '../../config.js';
-import { bootstrapDb, db, platformDb, type Tx } from '../../platform/dal/db.js';
+import {
+  bootstrapDb,
+  db,
+  identityDb,
+  platformDb,
+  type Tx,
+} from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import {
   InvalidCredentialsError,
@@ -24,6 +31,7 @@ import {
   recordLoginFailure,
   recordLoginSuccess,
   evaluateSuspiciousLogin,
+  sendRefreshReuseAlert,
 } from './security.js';
 import {
   checkMfaRequirement,
@@ -37,6 +45,7 @@ import type { LoginInput, MfaChallengeInput, SignupInput } from './validation.js
 export interface RequestMeta {
   readonly ip: string | null;
   readonly userAgent: string | null;
+  readonly countryCode?: string | null;
 }
 
 export interface AuthUser {
@@ -96,7 +105,7 @@ interface SignupUserRow {
 
 export interface SignupResult {
   readonly user: SignupUserRow;
-  readonly verificationRequired: false;
+  readonly verificationRequired: true;
 }
 
 function hashVerificationToken(token: string): string {
@@ -245,6 +254,7 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
     userId: string;
     email: string;
     fullName: string;
+    organizationCode: string;
   }>(
     'employee-invitation',
     'resolve employee invitation',
@@ -254,8 +264,10 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         i.organization_id AS "organizationId",
         i.user_id AS "userId",
         u.email,
-        u.full_name AS "fullName"
+        u.full_name AS "fullName",
+        o.code AS "organizationCode"
       FROM employee_invitation i
+      INNER JOIN organization o ON o.id = i.organization_id
       INNER JOIN app_user u
         ON u.organization_id = i.organization_id
        AND u.id = i.user_id
@@ -272,6 +284,9 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
   if (!match) {
     throw new InvalidSessionError();
   }
+
+  const verificationToken = randomBytes(32).toString('base64url');
+  const verificationHash = hashVerificationToken(verificationToken);
 
   const passwordHash = await argon2.hash(input.password, {
     type: argon2.argon2id,
@@ -304,7 +319,7 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         SET
           full_name = ${input.fullName},
           password_hash = ${passwordHash},
-          email_verified_at = NOW(),
+          email_verified_at = NULL,
           updated_at = NOW()
         WHERE organization_id = ${match.organizationId}
           AND id = ${match.userId}
@@ -339,13 +354,26 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         RETURNING id
       `);
 
+      await tx.one(sql`
+        INSERT INTO email_verification_token (
+          organization_id, user_id, token_hash, expires_at
+        )
+        VALUES (
+          ${match.organizationId}, ${match.userId}, ${verificationHash},
+          NOW() + INTERVAL '24 hours'
+        )
+        RETURNING id
+      `);
+
       return created;
     },
   );
 
+  await sendEmailVerification(user.email, verificationToken, match.organizationCode);
+
   return {
     user,
-    verificationRequired: false,
+    verificationRequired: true,
   };
 }
 
@@ -380,7 +408,6 @@ export async function login(input: LoginInput, meta: RequestMeta): Promise<Login
     user === null ||
     user.status !== 'active' ||
     user.passwordHash === null ||
-    user.emailVerifiedAt === null ||
     (user.accountType === 'employee' && user.employmentStatus !== 'active')
   ) {
     await recordLoginFailure(organization.id, input.accountType, input.email, meta.ip);
@@ -422,9 +449,20 @@ export async function login(input: LoginInput, meta: RequestMeta): Promise<Login
   });
 
   const enrollments = await listUserMfaEnrollments(organization.id, user.id);
-  const hasEnrolledMfa = enrollments.length > 0;
+  const highAssuranceMethods = enrollments.filter((e) => e.assurance === 'high');
+  const hasAcceptableMfa = mfaReq.requiresHighAssurance
+    ? highAssuranceMethods.length > 0
+    : enrollments.length > 0;
 
-  if (hasEnrolledMfa) {
+  if (mfaReq.required && !hasAcceptableMfa) {
+    throw new MfaRequiredError(
+      mfaReq.requiresHighAssurance
+        ? 'High-assurance MFA enrollment is required for this account before sign-in.'
+        : 'MFA enrollment is required for this account before sign-in.',
+    );
+  }
+
+  if (mfaReq.required || enrollments.length > 0) {
     const mfaToken = await signMfaChallengeToken({
       sub: user.id,
       org: user.organizationId,
@@ -453,7 +491,11 @@ export async function login(input: LoginInput, meta: RequestMeta): Promise<Login
   }
 
   // ID-10: Evaluate suspicious login
-  void evaluateSuspiciousLogin(organization.id, user.id, user.email, meta);
+  void evaluateSuspiciousLogin(organization.id, user.id, user.email, {
+    ...meta,
+    latitude: input.coordinates?.latitude ?? null,
+    longitude: input.coordinates?.longitude ?? null,
+  });
 
   const authUser: AuthUser & { sessionVersion: number } = {
     id: user.id,
@@ -676,6 +718,7 @@ export async function refresh(
   if (match.usedAt !== null) {
     // ID-6: Refresh-token reuse detection revokes entire family
     await revokeRefreshFamily(match.organizationId, match.familyId);
+    void sendRefreshReuseAlert(match.email, meta.ip);
     throw new InvalidSessionError();
   }
 
@@ -747,33 +790,28 @@ async function revokeRefreshFamily(
   organizationId: string,
   familyId: string,
 ): Promise<void> {
-  await platformDb.query(
-    'health-check',
-    'revoke refresh token family after reuse detection',
-    sql`
+  await identityDb.transactionForOrganization(organizationId, async (tx) => {
+    await tx.query(sql`
       UPDATE refresh_token
       SET used_at = COALESCE(used_at, NOW())
-      WHERE organization_id = ${organizationId}
-        AND family_id = ${familyId}
-    `,
-  );
+      WHERE organization_id = ${organizationId} AND family_id = ${familyId}
+    `);
+  });
 }
 
 /**
  * Logout - revokes session.
  */
 export async function logout(organizationId: string, sessionId: string): Promise<void> {
-  await platformDb.query(
-    'health-check',
-    'revoke sessions during logout',
-    sql`
+  await identityDb.transactionForOrganization(organizationId, async (tx) => {
+    await tx.query(sql`
       UPDATE session
       SET revoked_at = NOW()
       WHERE organization_id = ${organizationId}
         AND id = ${sessionId}
         AND revoked_at IS NULL
-    `,
-  );
+    `);
+  });
 }
 
 /**
@@ -836,37 +874,148 @@ export async function verifyEmail(token: string): Promise<{ verified: true }> {
   );
 
   const match = matches[0];
+  if (!match) throw new Error('Verification link is invalid or has expired');
 
-  if (match === undefined) {
-    throw new Error('Verification link is invalid or has expired');
-  }
-
-  await platformDb.query(
-    'email-verification',
-    'mark email as verified',
-    sql`
+  await identityDb.transactionForOrganization(match.organizationId, async (tx) => {
+    const consumed = await tx.maybeOne<{ id: string }>(sql`
       UPDATE email_verification_token
       SET verified_at = NOW()
       WHERE id = ${match.tokenId}
         AND organization_id = ${match.organizationId}
         AND verified_at IS NULL
-    `,
-  );
+        AND expires_at > NOW()
+      RETURNING id
+    `);
+    if (!consumed) throw new Error('Verification link is invalid or has expired');
 
-  await platformDb.query(
-    'email-verification',
-    'mark user email as verified',
-    sql`
+    await tx.query(sql`
       UPDATE app_user
-      SET email_verified_at = NOW(),
-          updated_at = NOW()
+      SET email_verified_at = NOW(), updated_at = NOW()
       WHERE id = ${match.userId}
         AND organization_id = ${match.organizationId}
         AND email_verified_at IS NULL
-    `,
-  );
+    `);
+  });
 
-  return {
-    verified: true,
-  };
+  return { verified: true };
+}
+
+/* ========================================================================
+ * ID-20 — Service-account credentials
+ * ======================================================================== */
+import Redis from 'ioredis';
+import { REGISTRY, type Action } from '@tapcrm/contracts';
+
+function serviceCredentialHash(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
+function serviceRedis() {
+  return new Redis(loadConfig().REDIS_URL, {
+    maxRetriesPerRequest: 2,
+    enableOfflineQueue: false,
+  });
+}
+
+export interface ServiceAccountCreateInput {
+  name: string;
+  description?: string;
+  allowedActions: string[];
+  allowedResources: string[];
+  recordFilter?: Record<string, unknown>;
+  ipAllowlist?: string[];
+  expiresAt: string;
+  rateLimitMinute: number;
+  rateLimitDay: number;
+}
+export async function createServiceAccount(
+  organizationId: string,
+  createdBy: string,
+  input: ServiceAccountCreateInput,
+) {
+  const expires = new Date(input.expiresAt);
+  const max = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+  if (Number.isNaN(expires.getTime()) || expires <= new Date() || expires > max)
+    throw new Error(
+      'Service-account expiry must be in the future and no more than 365 days.',
+    );
+  const actions = input.allowedActions.filter((a) =>
+    Object.prototype.hasOwnProperty.call(REGISTRY, a),
+  );
+  if (actions.length !== input.allowedActions.length)
+    throw new Error('One or more service-account actions are not registered.');
+  const secret = `tcrm_sa_${organizationId}_${randomBytes(32).toString('base64url')}`;
+  const prefix = secret.slice(0, 16);
+  const last4 = secret.slice(-4);
+  const hash = serviceCredentialHash(secret);
+  const row = await identityDb.transactionForOrganization(organizationId, (tx) =>
+    tx.one<{ id: string }>(
+      sql`INSERT INTO service_account(organization_id,name,description,allowed_actions,allowed_resources,record_filter,ip_allowlist,expires_at,rate_limit_minute,rate_limit_day,credential_hash,credential_prefix,credential_last4,created_by) VALUES(${organizationId},${input.name},${input.description ?? null},${actions},${input.allowedResources},${input.recordFilter ? JSON.stringify(input.recordFilter) : null}::jsonb,${input.ipAllowlist ?? null},${expires.toISOString()},${input.rateLimitMinute},${input.rateLimitDay},${hash},${prefix},${last4},${createdBy}) RETURNING id`,
+    ),
+  );
+  return { id: row.id, credential: secret, expiresAt: expires.toISOString() };
+}
+export async function authenticateServiceCredential(
+  credential: string,
+  ip: string | null,
+) {
+  if (!credential.startsWith('tcrm_sa_')) return null;
+  const hash = serviceCredentialHash(credential);
+  const parts = credential.split('_');
+  const organizationId = parts[2];
+  if (!organizationId) return null;
+  const rows = await bootstrapDb.readAs<{
+    id: string;
+    organizationId: string;
+    allowedActions: string[];
+    allowedResources: string[];
+    expiresAt: string;
+    ipAllowlist: string[] | null;
+    rateLimitMinute: number;
+    rateLimitDay: number;
+    disabledAt: string | null;
+  }>(
+    organizationId,
+    sql`SELECT id,organization_id AS "organizationId",allowed_actions AS "allowedActions",allowed_resources AS "allowedResources",expires_at AS "expiresAt",ip_allowlist AS "ipAllowlist",rate_limit_minute AS "rateLimitMinute",rate_limit_day AS "rateLimitDay",disabled_at AS "disabledAt" FROM service_account WHERE organization_id=${organizationId} AND credential_hash=${hash} LIMIT 1`,
+  );
+  const sa = rows[0];
+  if (!sa || sa.disabledAt || new Date(sa.expiresAt) <= new Date()) return null;
+  if (sa.ipAllowlist?.length && ip && !sa.ipAllowlist.includes(ip)) return null;
+  if (sa.ipAllowlist?.length && !ip) return null;
+  const r = serviceRedis();
+  const minuteKey = `tapcrm:sa:${sa.id}:m:${Math.floor(Date.now() / 60000)}`;
+  const dayKey = `tapcrm:sa:${sa.id}:d:${new Date().toISOString().slice(0, 10)}`;
+  const m = await r.incr(minuteKey);
+  if (m === 1) await r.expire(minuteKey, 120);
+  const day = await r.incr(dayKey);
+  if (day === 1) await r.expire(dayKey, 172800);
+  if (m > sa.rateLimitMinute || day > sa.rateLimitDay) return null;
+  await platformDb.query(
+    'health-check',
+    'touch service account usage',
+    sql`UPDATE service_account SET last_used_at=NOW() WHERE organization_id=${sa.organizationId} AND id=${sa.id}`,
+  );
+  return sa;
+}
+export async function rotateServiceAccountCredential(
+  organizationId: string,
+  serviceAccountId: string,
+) {
+  const secret = `tcrm_sa_${organizationId}_${randomBytes(32).toString('base64url')}`;
+  const hash = serviceCredentialHash(secret);
+  await identityDb.transactionForOrganization(organizationId, (tx) =>
+    tx.query(
+      sql`UPDATE service_account SET credential_hash=${hash},credential_prefix=${secret.slice(0, 16)},credential_last4=${secret.slice(-4)},last_used_at=NULL WHERE organization_id=${organizationId} AND id=${serviceAccountId} AND disabled_at IS NULL`,
+    ),
+  );
+  return { credential: secret };
+}
+export async function disableServiceAccount(
+  organizationId: string,
+  serviceAccountId: string,
+) {
+  await identityDb.transactionForOrganization(organizationId, (tx) =>
+    tx.query(
+      sql`UPDATE service_account SET disabled_at=NOW() WHERE organization_id=${organizationId} AND id=${serviceAccountId}`,
+    ),
+  );
 }

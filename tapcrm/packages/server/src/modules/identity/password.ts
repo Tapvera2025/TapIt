@@ -1,6 +1,6 @@
 import argon2 from 'argon2';
 import { randomBytes, createHash } from 'node:crypto';
-import { bootstrapDb, platformDb, type Tx } from '../../platform/dal/db.js';
+import { bootstrapDb, identityDb, platformDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { sendPasswordResetEmail } from './email.js';
 
@@ -247,11 +247,8 @@ export async function resetPasswordWithToken(
 
   const newHash = await hashPassword(newPassword);
 
-  // Update password, increment session_version to invalidate all sessions (ID-7), and mark token used
-  await platformDb.query(
-    'health-check',
-    'apply password reset',
-    sql`
+  await identityDb.transactionForOrganization(match.organizationId, async (tx) => {
+    const updated = await tx.maybeOne<{ id: string }>(sql`
       UPDATE app_user
       SET
         password_hash = ${newHash},
@@ -259,18 +256,22 @@ export async function resetPasswordWithToken(
         updated_at = NOW()
       WHERE organization_id = ${match.organizationId}
         AND id = ${match.userId}
-    `,
-  );
+      RETURNING id
+    `);
+    if (!updated) throw new PasswordPolicyViolationError('User not found.');
 
-  await platformDb.query(
-    'health-check',
-    'mark reset token as consumed',
-    sql`
+    const consumed = await tx.maybeOne<{ id: string }>(sql`
       UPDATE password_reset_token
       SET used_at = NOW()
       WHERE id = ${match.id}
-    `,
-  );
+        AND organization_id = ${match.organizationId}
+        AND used_at IS NULL
+        AND expires_at > NOW()
+      RETURNING id
+    `);
+    if (!consumed)
+      throw new PasswordPolicyViolationError('Invalid or expired password reset token.');
+  });
 }
 
 /**
@@ -283,45 +284,43 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<void> {
-  const users = await bootstrapDb.readAs<{
-    passwordHash: string | null;
-    email: string | null;
-    fullName: string;
-  }>(
-    organizationId,
-    sql`
-      SELECT
-        password_hash AS "passwordHash",
-        email,
-        full_name AS "fullName"
-      FROM app_user
-      WHERE organization_id = ${organizationId}
-        AND id = ${userId}
-      LIMIT 1
-    `,
-  );
+  await identityDb.transactionForOrganization(organizationId, async (tx) => {
+    const user = await tx.maybeOne<{
+      id: string;
+      passwordHash: string | null;
+      email: string | null;
+      fullName: string;
+    }>(
+      sql`
+        SELECT
+          id,
+          password_hash AS "passwordHash",
+          email,
+          full_name AS "fullName"
+        FROM app_user
+        WHERE organization_id = ${organizationId}
+          AND id = ${userId}
+        LIMIT 1
+      `,
+    );
 
-  const user = users[0];
-  if (!user || !user.passwordHash) {
-    throw new PasswordPolicyViolationError('User not found.');
-  }
+    if (!user || !user.passwordHash) {
+      throw new PasswordPolicyViolationError('User not found.');
+    }
 
-  const valid = await verifyPassword(user.passwordHash, currentPassword);
-  if (!valid) {
-    throw new PasswordPolicyViolationError('Current password is incorrect.');
-  }
+    const valid = await verifyPassword(user.passwordHash, currentPassword);
+    if (!valid) {
+      throw new PasswordPolicyViolationError('Current password is incorrect.');
+    }
 
-  validatePasswordPolicy(newPassword, {
-    email: user.email,
-    fullName: user.fullName,
-  });
+    validatePasswordPolicy(newPassword, {
+      email: user.email,
+      fullName: user.fullName,
+    });
 
-  const newHash = await hashPassword(newPassword);
+    const newHash = await hashPassword(newPassword);
 
-  await platformDb.query(
-    'health-check',
-    'change password and bump session version',
-    sql`
+    const updated = await tx.query<{ id: string }>(sql`
       UPDATE app_user
       SET
         password_hash = ${newHash},
@@ -329,6 +328,11 @@ export async function changePassword(
         updated_at = NOW()
       WHERE organization_id = ${organizationId}
         AND id = ${userId}
-    `,
-  );
+      RETURNING id
+    `);
+
+    if (updated.length !== 1) {
+      throw new Error('Password update failed.');
+    }
+  });
 }

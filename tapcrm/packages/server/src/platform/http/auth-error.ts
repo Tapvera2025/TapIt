@@ -15,8 +15,8 @@ export class InvalidSessionError extends Error {
 }
 
 export class MfaRequiredError extends Error {
-  constructor() {
-    super('Multi-factor authentication is required');
+  constructor(message = 'Multi-factor authentication is required') {
+    super(message);
 
     this.name = 'MfaRequiredError';
   }

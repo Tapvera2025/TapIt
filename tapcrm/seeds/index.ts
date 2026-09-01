@@ -421,7 +421,7 @@ async function main(): Promise<void> {
     // §2.1 — Super Admin is NOT a Position: no position, no department, no
     // place in the reporting chain.
     const email = process.env['SEED_SUPERADMIN_EMAIL'] ?? 'admin@tapvera.io';
-    const password = process.env['SEED_SUPERADMIN_PASSWORD'] ?? 'Admin@Tapvera2026!';
+    const password = process.env['SEED_SUPERADMIN_PASSWORD'] ?? 'admin@123456';
     const passwordHash = await argon2.hash(password, {
       type: argon2.argon2id,
       memoryCost: 65536,

@@ -1,11 +1,9 @@
-import express, {
-  type Express,
-} from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import cors from 'cors';
-import morgan from "morgan";
+import morgan from 'morgan';
 import {
   assertResourcePolicyCompleteness,
   registerProtectedConstraints,
@@ -15,25 +13,16 @@ import { loadConfig } from './config.js';
 
 import { installAuthz } from './platform/authz-adapter.js';
 
-import {
-  requestContext,
-  requestId,
-} from './platform/http/context.js';
+import { requestContext, requestId } from './platform/http/context.js';
 
 import { installIdentityPrincipalResolver } from './modules/identity/resolver.js';
 
 import { errorHandler } from './platform/http/error-handler.js';
+import { identityCsrfMiddleware } from './modules/identity/routes.js';
 
-import {
-  assertManifest,
-  buildRouter,
-  checkManifest,
-} from './platform/http/router.js';
+import { assertManifest, buildRouter, checkManifest } from './platform/http/router.js';
 
-import {
-  registerAllPolicies,
-  registerAllRoutes,
-} from './modules/index.js';
+import { registerAllPolicies, registerAllRoutes } from './modules/index.js';
 
 export interface BuildOptions {
   readonly strictManifest?: boolean;
@@ -54,9 +43,7 @@ function registerAll(): void {
   registerAllRoutes();
 }
 
-export function buildApp(
-  options: BuildOptions = {},
-): Express {
+export function buildApp(options: BuildOptions = {}): Express {
   const config = loadConfig();
 
   registerAll();
@@ -75,14 +62,12 @@ export function buildApp(
       throw error;
     }
 
-    const missing =
-      (error as Error).message.split('\n').length - 1;
+    const missing = (error as Error).message.split('\n').length - 1;
 
     console.warn(
       JSON.stringify({
         level: 'warn',
-        msg:
-          'AZ-I6b: resource policies incomplete (expected during phased delivery)',
+        msg: 'AZ-I6b: resource policies incomplete (expected during phased delivery)',
         missingCount: missing,
       }),
     );
@@ -96,10 +81,8 @@ export function buildApp(
     JSON.stringify({
       level: 'info',
       msg: 'route manifest',
-      routesRegistered:
-        292 - drift.bindingsWithoutRoute.length,
-      bindingsAwaitingRoutes:
-        drift.bindingsWithoutRoute.length,
+      routesRegistered: 292 - drift.bindingsWithoutRoute.length,
+      bindingsAwaitingRoutes: drift.bindingsWithoutRoute.length,
     }),
   );
 
@@ -113,7 +96,7 @@ export function buildApp(
    * Security headers.
    */
   app.use(helmet());
-  app.use(morgan("dev"));
+  app.use(morgan('dev'));
 
   /*
    * JSON request parsing.
@@ -129,6 +112,9 @@ export function buildApp(
    */
   app.use(cookieParser());
 
+  // ID-19 — cookie-authenticated state changes require a double-submit CSRF token.
+  app.use(identityCsrfMiddleware);
+
   /*
    * CORS.
    *
@@ -138,19 +124,8 @@ export function buildApp(
     cors({
       origin: config.CORS_ORIGIN,
       credentials: true,
-      methods: [
-        'GET',
-        'POST',
-        'PUT',
-        'PATCH',
-        'DELETE',
-        'OPTIONS',
-      ],
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'X-Request-Id',
-      ],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-CSRF-Token'],
     }),
   );
 
@@ -159,27 +134,33 @@ export function buildApp(
   /*
    * Health endpoint.
    *
-   * This intentionally remains /health rather than /api/health because
-   * it is an infrastructure health check.
+   * This is exposed at /health for infrastructure checks, with a /api/health
+   * alias so API-prefixed callers can probe the same status.
    */
-  app.get('/health', (_req, res) => {
+  const healthHandler = (_req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
         status: 'ok',
       },
     });
-  });
+  };
+
+  app.get('/health', healthHandler);
+  app.get('/api/health', healthHandler);
 
   /*
    * Route-manifest health endpoint.
    */
-  app.get('/health/manifest', (_req, res) => {
+  const manifestHealthHandler = (_req: Request, res: Response) => {
     res.json({
       success: true,
       data: checkManifest(),
     });
-  });
+  };
+
+  app.get('/health/manifest', manifestHealthHandler);
+  app.get('/api/health/manifest', manifestHealthHandler);
 
   /*
    * PUBLIC ROUTES

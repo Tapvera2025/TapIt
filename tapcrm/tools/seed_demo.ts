@@ -25,7 +25,7 @@ async function seed() {
     await client.query(`SELECT set_config('app.organization_id', $1, true)`, [orgId]);
 
     // 2. Create Super Admin user
-    const passwordHash = await hashPassword('Admin@Tapvera2026!');
+    const passwordHash = await hashPassword('admin@123456');
     const adminRes = await client.query(
       `SELECT id FROM app_user WHERE organization_id = $1 AND email = 'admin@tapvera.io'`,
       [orgId],

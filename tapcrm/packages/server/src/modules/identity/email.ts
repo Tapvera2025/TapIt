@@ -307,3 +307,31 @@ export async function sendEmployeeInvitation(
     `,
   });
 }
+
+export async function sendSecurityAlert(
+  email: string,
+  subject: string,
+  body: string,
+): Promise<void> {
+  await sendEmail({
+    to: email,
+    subject: `TapCRM Security Alert — ${subject}`,
+    text: [body, `Time: ${new Date().toISOString()}`].join('\n'),
+  });
+}
+
+export async function sendRecoveryCodeUsedAdminAlert(
+  email: string,
+  userEmail: string,
+  ip: string | null,
+): Promise<void> {
+  await sendEmail({
+    to: email,
+    subject: 'TapCRM Security Alert — Recovery Code Used',
+    text: [
+      `A recovery code was consumed for ${userEmail}.`,
+      `Source IP: ${ip ?? 'Unknown'}`,
+      `Time: ${new Date().toISOString()}`,
+    ].join('\n'),
+  });
+}

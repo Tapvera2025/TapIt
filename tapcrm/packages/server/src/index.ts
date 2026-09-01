@@ -23,6 +23,7 @@ const server = app.listen(config.API_PORT, () => {
       basePath: config.API_BASE_PATH,
       env: config.NODE_ENV,
     }),
+    `server is running on port http://localhost:${config.API_PORT}/`
   );
 });
 

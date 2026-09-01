@@ -1,4 +1,6 @@
-import { bootstrapDb, platformDb } from '../../platform/dal/db.js';
+import { randomBytes, createCipheriv, createHash } from 'node:crypto';
+import { bootstrapDb, identityDb, platformDb } from '../../platform/dal/db.js';
+import { loadConfig } from '../../config.js';
 import { sql } from '../../platform/dal/sql.js';
 import { sendGeofenceDenialAlert } from './email.js';
 
@@ -25,6 +27,23 @@ export interface GeofenceAssignmentRecord {
   readonly locationName: string;
   readonly bypassUntil: string | null;
   readonly bypassReason: string | null;
+}
+
+function coordinateKey(): Buffer {
+  return createHash('sha256').update(loadConfig().IDENTITY_ENCRYPTION_KEY).digest();
+}
+function encryptCoordinate(value: number): { ciphertext: string; nonce: string } {
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', coordinateKey(), nonce);
+  const ciphertext = Buffer.concat([
+    cipher.update(String(value), 'utf8'),
+    cipher.final(),
+  ]);
+  const tag = cipher.getAuthTag();
+  return {
+    ciphertext: Buffer.concat([ciphertext, tag]).toString('base64url'),
+    nonce: nonce.toString('base64url'),
+  };
 }
 
 export interface GeofenceEvaluationResult {
@@ -136,12 +155,11 @@ export async function evaluateGeofence(
     const wfhRows = await bootstrapDb.readAs<{ id: string }>(
       organizationId,
       sql`
-        SELECT id
-        FROM attendance_record
+        SELECT user_id AS id
+        FROM approved_wfh_day
         WHERE organization_id = ${organizationId}
           AND user_id = ${user.id}
           AND work_date = ${today}::date
-          AND status IN ('wfh', 'remote')
         LIMIT 1
       `,
     );
@@ -158,6 +176,11 @@ export async function evaluateGeofence(
     typeof coordinates.latitude !== 'number' ||
     typeof coordinates.longitude !== 'number'
   ) {
+    await identityDb.transactionForOrganization(organizationId, (tx) =>
+      tx.query(
+        sql`INSERT INTO geofence_event(organization_id,user_id,allowed,accuracy_metres,distance_band,coordinates_purge_at) VALUES(${organizationId},${user.id},false,NULL,'unknown',NOW()+INTERVAL '90 days')`,
+      ),
+    );
     return {
       allowed: false,
       reason:
@@ -167,6 +190,13 @@ export async function evaluateGeofence(
 
   const accuracy = coordinates.accuracyMetres ?? 50;
   if (accuracy > 300) {
+    const lat = encryptCoordinate(coordinates.latitude);
+    const lon = encryptCoordinate(coordinates.longitude);
+    await identityDb.transactionForOrganization(organizationId, (tx) =>
+      tx.query(
+        sql`INSERT INTO geofence_event(organization_id,user_id,allowed,latitude_ciphertext,longitude_ciphertext,latitude_nonce,longitude_nonce,accuracy_metres,distance_band,coordinates_purge_at) VALUES(${organizationId},${user.id},false,${lat.ciphertext},${lon.ciphertext},${lat.nonce},${lon.nonce},${Math.round(accuracy)},'unknown',NOW()+INTERVAL '90 days')`,
+      ),
+    );
     return {
       allowed: false,
       reason: `Location accuracy is too low (±${Math.round(accuracy)}m). Please connect to GPS or Wi-Fi to sign in.`,
@@ -204,34 +234,21 @@ export async function evaluateGeofence(
   const distanceBand = getDistanceBand(minDistance);
 
   // ID-15a: Record geofence event
-  await platformDb.query(
-    'health-check',
-    'record geofence event',
-    sql`
+  await identityDb.transactionForOrganization(organizationId, async (tx) => {
+    const lat = encryptCoordinate(coordinates.latitude);
+    const lon = encryptCoordinate(coordinates.longitude);
+    await tx.query(sql`
       INSERT INTO geofence_event (
-        organization_id,
-        user_id,
-        allowed,
-        latitude,
-        longitude,
-        accuracy_metres,
-        distance_band,
-        nearest_location_id,
-        coordinates_purge_at
+        organization_id, user_id, allowed, latitude, longitude, latitude_ciphertext,
+        longitude_ciphertext, latitude_nonce, longitude_nonce, accuracy_metres, distance_band,
+        nearest_location_id, coordinates_purge_at
+      ) VALUES (
+        ${organizationId}, ${user.id}, ${insideAnyFence}, NULL, NULL, ${lat.ciphertext},
+        ${lon.ciphertext}, ${lat.nonce}, ${lon.nonce}, ${Math.round(accuracy)}, ${distanceBand},
+        ${nearestLocation?.locationId ?? null}, NOW() + INTERVAL '90 days'
       )
-      VALUES (
-        ${organizationId},
-        ${user.id},
-        ${insideAnyFence},
-        ${coordinates.latitude},
-        ${coordinates.longitude},
-        ${Math.round(accuracy)},
-        ${distanceBand},
-        ${nearestLocation?.locationId ?? null},
-        NOW() + INTERVAL '90 days'
-      )
-    `,
-  );
+    `);
+  });
 
   if (insideAnyFence) {
     return { allowed: true };
@@ -329,19 +346,17 @@ export async function createGeofenceLocation(
     radiusMetres: number;
   },
 ): Promise<GeofenceLocationRecord> {
-  const rows = await platformDb.query<{
-    id: string;
-    organizationId: string;
-    name: string;
-    latitude: string;
-    longitude: string;
-    radiusMetres: number;
-    createdAt: string;
-    updatedAt: string;
-  }>(
-    'health-check',
-    'create geofence location',
-    sql`
+  const rows = await identityDb.transactionForOrganization(organizationId, async (tx) =>
+    tx.query<{
+      id: string;
+      organizationId: string;
+      name: string;
+      latitude: string;
+      longitude: string;
+      radiusMetres: number;
+      createdAt: string;
+      updatedAt: string;
+    }>(sql`
       INSERT INTO geofence_location (
         organization_id,
         name,
@@ -365,9 +380,8 @@ export async function createGeofenceLocation(
         radius_metres AS "radiusMetres",
         created_at AS "createdAt",
         updated_at AS "updatedAt"
-    `,
+    `),
   );
-
   const r = rows[0]!;
   return {
     id: r.id,
@@ -394,19 +408,17 @@ export async function updateGeofenceLocation(
     radiusMetres?: number | undefined;
   },
 ): Promise<GeofenceLocationRecord> {
-  const rows = await platformDb.query<{
-    id: string;
-    organizationId: string;
-    name: string;
-    latitude: string;
-    longitude: string;
-    radiusMetres: number;
-    createdAt: string;
-    updatedAt: string;
-  }>(
-    'health-check',
-    'update geofence location',
-    sql`
+  const rows = await identityDb.transactionForOrganization(organizationId, async (tx) =>
+    tx.query<{
+      id: string;
+      organizationId: string;
+      name: string;
+      latitude: string;
+      longitude: string;
+      radiusMetres: number;
+      createdAt: string;
+      updatedAt: string;
+    }>(sql`
       UPDATE geofence_location
       SET
         name = COALESCE(${input.name ?? null}, name),
@@ -425,9 +437,8 @@ export async function updateGeofenceLocation(
         radius_metres AS "radiusMetres",
         created_at AS "createdAt",
         updated_at AS "updatedAt"
-    `,
+    `),
   );
-
   const r = rows[0]!;
   return {
     id: r.id,
@@ -451,30 +462,24 @@ export async function assignGeofenceLocation(
   bypassUntil?: string | null,
   bypassReason?: string | null,
 ): Promise<void> {
-  await platformDb.query(
-    'health-check',
-    'assign geofence location',
-    sql`
-      INSERT INTO geofence_assignment (
-        organization_id,
-        user_id,
-        location_id,
-        bypass_until,
-        bypass_reason
-      )
-      VALUES (
-        ${organizationId},
-        ${userId},
-        ${locationId},
-        ${bypassUntil ? new Date(bypassUntil) : null},
-        ${bypassReason ?? null}
-      )
+  if (bypassUntil) {
+    const until = new Date(bypassUntil);
+    if (Number.isNaN(until.getTime())) throw new Error('Invalid bypass expiry.');
+    const max = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    if (until.getTime() > max)
+      throw new Error('Temporary geofence bypass cannot exceed 7 days.');
+    if (!bypassReason?.trim())
+      throw new Error('A reason is required for a temporary geofence bypass.');
+  }
+
+  await identityDb.transactionForOrganization(organizationId, async (tx) => {
+    await tx.query(sql`
+      INSERT INTO geofence_assignment (organization_id, user_id, location_id, bypass_until, bypass_reason)
+      VALUES (${organizationId}, ${userId}, ${locationId}, ${bypassUntil ? new Date(bypassUntil) : null}, ${bypassReason?.trim() || null})
       ON CONFLICT (organization_id, user_id, location_id)
-      DO UPDATE SET
-        bypass_until = EXCLUDED.bypass_until,
-        bypass_reason = EXCLUDED.bypass_reason
-    `,
-  );
+      DO UPDATE SET bypass_until = EXCLUDED.bypass_until, bypass_reason = EXCLUDED.bypass_reason
+    `);
+  });
 }
 
 /**
@@ -528,9 +533,14 @@ export async function purgeExpiredGeofenceCoordinates(): Promise<number> {
       WITH purged AS (
         UPDATE geofence_event
         SET latitude = NULL,
-            longitude = NULL
+            longitude = NULL,
+            latitude_ciphertext = NULL,
+            longitude_ciphertext = NULL,
+            coordinate_nonce = NULL,
+            latitude_nonce = NULL,
+            longitude_nonce = NULL
         WHERE coordinates_purge_at <= NOW()
-          AND latitude IS NOT NULL
+          AND (latitude IS NOT NULL OR latitude_ciphertext IS NOT NULL)
         RETURNING id
       )
       SELECT count(*)::text AS count FROM purged
@@ -538,4 +548,115 @@ export async function purgeExpiredGeofenceCoordinates(): Promise<number> {
   );
 
   return parseInt(result[0]?.count ?? '0', 10);
+}
+
+/** ID-15d — user appeal for a denied geofence decision. */
+export async function requestGeofenceBypass(
+  organizationId: string,
+  userId: string,
+  input: {
+    geofenceEventId?: string;
+    reason: string;
+    requestedUntil: string;
+    accuracyMetres?: number;
+  },
+) {
+  const until = new Date(input.requestedUntil);
+  const max = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  if (Number.isNaN(until.getTime()) || until <= new Date() || until > max)
+    throw new Error('Geofence bypass must expire within 7 days.');
+  return identityDb.transactionForOrganization(organizationId, (tx) =>
+    tx.one<{ id: string; status: string }>(
+      sql`INSERT INTO geofence_bypass_request(organization_id,user_id,geofence_event_id,reason,accuracy_metres,requested_until) VALUES(${organizationId},${userId},${input.geofenceEventId ?? null},${input.reason},${input.accuracyMetres ?? null},${until.toISOString()}) RETURNING id,status`,
+    ),
+  );
+}
+export async function listGeofenceBypassRequests(
+  organizationId: string,
+  userId?: string,
+) {
+  return bootstrapDb.readAs(
+    organizationId,
+    sql`SELECT id,user_id AS "userId",geofence_event_id AS "geofenceEventId",reason,accuracy_metres AS "accuracyMetres",status,requested_until AS "requestedUntil",requested_at AS "requestedAt",decided_by AS "decidedBy",decision_reason AS "decisionReason",decided_at AS "decidedAt" FROM geofence_bypass_request WHERE organization_id=${organizationId} ${userId ? sql`AND user_id=${userId}` : sql``} ORDER BY requested_at DESC`,
+  );
+}
+export async function decideGeofenceBypass(
+  organizationId: string,
+  requestId: string,
+  decidedBy: string,
+  approve: boolean,
+  reason: string,
+) {
+  return identityDb.transactionForOrganization(organizationId, async (tx) => {
+    const rows = await tx.query<{
+      userId: string;
+      requestedUntil: string;
+      status: string;
+    }>(
+      sql`SELECT user_id AS "userId",requested_until AS "requestedUntil",status FROM geofence_bypass_request WHERE organization_id=${organizationId} AND id=${requestId} FOR UPDATE`,
+    );
+    const r = rows[0];
+    if (!r || r.status !== 'pending')
+      throw new Error('Bypass request is no longer pending.');
+    await tx.query(
+      sql`UPDATE geofence_bypass_request SET status=${approve ? 'approved' : 'rejected'},decided_by=${decidedBy},decision_reason=${reason},decided_at=NOW() WHERE organization_id=${organizationId} AND id=${requestId}`,
+    );
+    if (approve) {
+      await tx.query(
+        sql`UPDATE geofence_assignment SET bypass_until=LEAST(${r.requestedUntil}::timestamptz,NOW()+INTERVAL '7 days'),bypass_reason=${reason} WHERE organization_id=${organizationId} AND user_id=${r.userId}`,
+      );
+    }
+    return { approved: approve };
+  });
+}
+
+/** ID-15e — identify a likely misconfigured shared office when many users are denied. */
+export async function detectGeofenceMisconfiguration(
+  organizationId: string,
+  windowMinutes = 30,
+  minimumUsers = 5,
+) {
+  const rows = await bootstrapDb.readAs<{
+    locationId: string | null;
+    deniedUsers: string;
+    deniedEvents: string;
+  }>(
+    organizationId,
+    sql`SELECT nearest_location_id AS "locationId",COUNT(DISTINCT user_id)::text AS "deniedUsers",COUNT(*)::text AS "deniedEvents" FROM geofence_event WHERE organization_id=${organizationId} AND allowed=false AND occurred_at>=NOW()-(${windowMinutes}*INTERVAL '1 minute') GROUP BY nearest_location_id HAVING COUNT(DISTINCT user_id)>=${minimumUsers}`,
+  );
+  for (const r of rows) {
+    await identityDb.transactionForOrganization(organizationId, (tx) =>
+      tx.query(
+        sql`INSERT INTO geofence_configuration_alert(organization_id,location_id,window_started_at,window_ended_at,denied_users,denied_events) VALUES(${organizationId},${r.locationId},NOW()-(${windowMinutes}*INTERVAL '1 minute'),NOW(),${Number(r.deniedUsers)},${Number(r.deniedEvents)})`,
+      ),
+    );
+  }
+  return rows;
+}
+
+export async function approveWfhDay(
+  organizationId: string,
+  employeeUserId: string,
+  approvedBy: string,
+  workDate: string,
+  reason: string,
+) {
+  const d = new Date(`${workDate}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) throw new Error('Invalid WFH date.');
+  return identityDb.transactionForOrganization(organizationId, (tx) =>
+    tx.query(
+      sql`INSERT INTO approved_wfh_day(organization_id,user_id,work_date,approved_by,reason) VALUES(${organizationId},${employeeUserId},${workDate}::date,${approvedBy},${reason}) ON CONFLICT(organization_id,user_id,work_date) DO UPDATE SET approved_by=EXCLUDED.approved_by,reason=EXCLUDED.reason,created_at=NOW()`,
+    ),
+  );
+}
+export async function revokeWfhDay(
+  organizationId: string,
+  employeeUserId: string,
+  workDate: string,
+) {
+  await identityDb.transactionForOrganization(organizationId, (tx) =>
+    tx.query(
+      sql`DELETE FROM approved_wfh_day WHERE organization_id=${organizationId} AND user_id=${employeeUserId} AND work_date=${workDate}::date`,
+    ),
+  );
 }

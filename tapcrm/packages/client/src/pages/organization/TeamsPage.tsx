@@ -126,6 +126,11 @@ export default function TeamsPage() {
       return;
     }
 
+    if (createForm.kind === 'sales-pool' && !createForm.parentTeamId) {
+      setError('A sales pool must be assigned to a parent sales team.');
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
@@ -133,7 +138,7 @@ export default function TeamsPage() {
         departmentId: createForm.departmentId,
         kind: createForm.kind,
         name: createForm.name.trim(),
-        parentTeamId: createForm.parentTeamId || null,
+        parentTeamId: createForm.kind === 'sales-pool' ? createForm.parentTeamId || null : null,
         sharedVisibility: createForm.sharedVisibility,
       });
       setCreateModalOpen(false);
@@ -375,7 +380,13 @@ export default function TeamsPage() {
               <select
                 className="form-control"
                 value={createForm.departmentId}
-                onChange={(e) => setCreateForm({ ...createForm, departmentId: e.target.value })}
+                onChange={(e) =>
+                  setCreateForm({
+                    ...createForm,
+                    departmentId: e.target.value,
+                    parentTeamId: '',
+                  })
+                }
                 required
                 disabled={saving}
               >
@@ -392,7 +403,14 @@ export default function TeamsPage() {
               <select
                 className="form-control"
                 value={createForm.kind}
-                onChange={(e) => setCreateForm({ ...createForm, kind: e.target.value as any })}
+                onChange={(e) => {
+                  const kind = e.target.value as 'sales-team' | 'sales-pool' | 'dev-subteam';
+                  setCreateForm((form) => ({
+                    ...form,
+                    kind,
+                    parentTeamId: kind === 'sales-pool' ? form.parentTeamId : '',
+                  }));
+                }}
                 disabled={saving}
               >
                 <option value="dev-subteam">Development Subteam (dev-subteam)</option>
@@ -400,6 +418,34 @@ export default function TeamsPage() {
                 <option value="sales-pool">Sales Pool (sales-pool)</option>
               </select>
             </div>
+
+            {createForm.kind === 'sales-pool' && (
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>Parent Sales Team</label>
+                <select
+                  className="form-control"
+                  value={createForm.parentTeamId}
+                  onChange={(e) => setCreateForm({ ...createForm, parentTeamId: e.target.value })}
+                  disabled={saving}
+                >
+                  <option value="">Select a sales team</option>
+                  {teams
+                    .filter(
+                      (team) =>
+                        team.departmentId === createForm.departmentId &&
+                        team.kind === 'sales-team',
+                    )
+                    .map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                </select>
+                <p style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Sales pools must sit under an existing sales team in the same department.
+                </p>
+              </div>
+            )}
 
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Team Name</label>

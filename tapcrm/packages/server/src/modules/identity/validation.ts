@@ -27,17 +27,10 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-const passwordSchema = z
+export const passwordSchema = z
   .string()
-  .min(12, 'Password must be at least 12 characters')
-  .max(1024, 'Password is too long')
-  .refine((v) => /[A-Z]/.test(v), 'Password must contain at least one uppercase letter')
-  .refine((v) => /[a-z]/.test(v), 'Password must contain at least one lowercase letter')
-  .refine((v) => /\d/.test(v), 'Password must contain at least one number')
-  .refine(
-    (v) => /[^A-Za-z0-9]/.test(v),
-    'Password must contain at least one special character',
-  );
+  .min(12, 'Password must be at least 12 characters long')
+  .max(1024, 'Password is too long');
 
 /** Public signup is invitation completion only. Organization, position and
  * employee ID come from the signed invitation created by an authorized user. */
@@ -74,7 +67,7 @@ export type SignupInput = z.infer<typeof signupSchema>;
 
 export const mfaChallengeSchema = z.object({
   mfaToken: z.string().min(1),
-  method: z.enum(['totp', 'email-otp', 'recovery-code']),
+  method: z.enum(['totp', 'email-otp', 'recovery-code', 'passkey']),
   factorValue: z.string().trim().min(1).max(100),
 });
 export type MfaChallengeInput = z.infer<typeof mfaChallengeSchema>;
@@ -127,3 +120,33 @@ export const assignGeofenceSchema = z.object({
   bypassReason: z.string().max(500).optional().nullable(),
 });
 export type AssignGeofenceInput = z.infer<typeof assignGeofenceSchema>;
+
+export const passkeyRegistrationResponseSchema = z.object({}).passthrough();
+export const passkeyAuthenticationResponseSchema = z.object({}).passthrough();
+export const geofenceBypassRequestSchema = z.object({
+  geofenceEventId: z.string().uuid().optional(),
+  reason: z.string().trim().min(3).max(1000),
+  requestedUntil: z.string().datetime(),
+  accuracyMetres: z.number().int().nonnegative().max(100000).optional(),
+});
+export const serviceAccountCreateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().max(1000).optional(),
+  allowedActions: z.array(z.string().min(1)).min(1).max(100),
+  allowedResources: z.array(z.string().min(1)).min(1).max(100),
+  recordFilter: z.record(z.unknown()).optional(),
+  ipAllowlist: z.array(z.string().min(1)).max(100).optional(),
+  expiresAt: z.string().datetime(),
+  rateLimitMinute: z.number().int().positive().max(100000).default(60),
+  rateLimitDay: z.number().int().positive().max(10000000).default(10000),
+});
+export const mfaPasskeyOptionsSchema = z.object({ mfaToken: z.string().min(1) });
+export const wfhApprovalSchema = z.object({
+  userId: z.string().uuid(),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  reason: z.string().trim().min(3).max(1000),
+});
+export const wfhRevokeSchema = z.object({
+  userId: z.string().uuid(),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import api from '../../lib/api';
 import Modal from '../../components/common/Modal';
 import {
@@ -17,9 +17,12 @@ type Tab = 'sessions' | 'mfa' | 'geofence' | 'password';
 
 interface UserSession {
   id: string;
-  ipAddress: string | null;
+  deviceLabel: string | null;
+  ip: string | null;
+  approxLocation: string | null;
   userAgent: string | null;
   createdAt: string;
+  lastActiveAt: string;
   expiresAt: string;
   isCurrent: boolean;
 }
@@ -36,9 +39,9 @@ interface GeofenceLocation {
   name: string;
   latitude: number;
   longitude: number;
-  radiusMeters: number;
-  enforceAll: boolean;
-  status: string;
+  radiusMetres: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function IdentitySettingsPage() {
@@ -46,6 +49,7 @@ export default function IdentitySettingsPage() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const hiddenSessionIds = useRef<Set<string>>(new Set());
 
   // SESSIONS
   const [sessions, setSessions] = useState<UserSession[]>([]);
@@ -67,8 +71,7 @@ export default function IdentitySettingsPage() {
     name: '',
     latitude: 19.076,
     longitude: 72.8777,
-    radiusMeters: 500,
-    enforceAll: false,
+    radiusMetres: 500,
   });
 
   // PASSWORD
@@ -82,7 +85,10 @@ export default function IdentitySettingsPage() {
     try {
       setLoading(true);
       const res = await api.get<{ success: boolean; data: { sessions: UserSession[] } }>('/auth/sessions');
-      setSessions(res.data.data.sessions || []);
+      const nextSessions = res.data.data.sessions || [];
+      setSessions(
+        nextSessions.filter((session) => !hiddenSessionIds.current.has(session.id)),
+      );
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
       setError(e.response?.data?.message || 'Failed to load active sessions.');
@@ -129,6 +135,8 @@ export default function IdentitySettingsPage() {
     try {
       setError('');
       await api.delete(`/auth/sessions/${sessionId}`);
+      hiddenSessionIds.current.add(sessionId);
+      setSessions((current) => current.filter((session) => session.id !== sessionId));
       setSuccessMessage('Session revoked successfully.');
       await loadSessions();
     } catch {
@@ -140,6 +148,10 @@ export default function IdentitySettingsPage() {
     try {
       setError('');
       await api.delete('/auth/sessions');
+      sessions
+        .filter((session) => !session.isCurrent)
+        .forEach((session) => hiddenSessionIds.current.add(session.id));
+      setSessions((current) => current.filter((session) => session.isCurrent));
       setSuccessMessage('All other active sessions revoked.');
       await loadSessions();
     } catch {
@@ -211,8 +223,7 @@ export default function IdentitySettingsPage() {
         name: geofenceForm.name.trim(),
         latitude: Number(geofenceForm.latitude),
         longitude: Number(geofenceForm.longitude),
-        radiusMeters: Number(geofenceForm.radiusMeters),
-        enforceAll: geofenceForm.enforceAll,
+        radiusMetres: Number(geofenceForm.radiusMetres),
       });
       setCreateGeofenceModal(false);
       setSuccessMessage(`Geofence location "${geofenceForm.name}" created.`);
@@ -373,7 +384,7 @@ export default function IdentitySettingsPage() {
                   </div>
                   <div>
                     <div style={{ fontWeight: 650, fontSize: '14px', color: 'var(--text-primary)' }}>
-                      {sess.userAgent || 'Web Browser'}
+                      {sess.deviceLabel || sess.userAgent || 'Web Browser'}
                       {sess.isCurrent && (
                         <span className="badge badge-success" style={{ marginLeft: '8px' }}>
                           Current Session
@@ -381,7 +392,11 @@ export default function IdentitySettingsPage() {
                       )}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      IP: {sess.ipAddress || '127.0.0.1'} • Signed in: {new Date(sess.createdAt).toLocaleString()}
+                      IP: {sess.ip || 'Unknown'}
+                      {' • '}
+                      Location: {sess.approxLocation || 'Unknown'}
+                      {' • '}
+                      Last active: {new Date(sess.lastActiveAt).toLocaleString()}
                     </div>
                   </div>
                 </div>
@@ -511,8 +526,8 @@ export default function IdentitySettingsPage() {
                     <th>Location Name</th>
                     <th>Coordinates (Lat, Lng)</th>
                     <th>Radius</th>
-                    <th>Scope</th>
-                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Updated At</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -520,15 +535,9 @@ export default function IdentitySettingsPage() {
                     <tr key={geo.id}>
                       <td><strong>{geo.name}</strong></td>
                       <td><code>{geo.latitude.toFixed(4)}, {geo.longitude.toFixed(4)}</code></td>
-                      <td>{geo.radiusMeters} meters</td>
-                      <td>
-                        <span className={`badge ${geo.enforceAll ? 'badge-danger' : 'badge-neutral'}`}>
-                          {geo.enforceAll ? 'All Users' : 'Assigned Only'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="badge badge-active">{geo.status}</span>
-                      </td>
+                      <td>{geo.radiusMetres} meters</td>
+                      <td>{new Date(geo.createdAt).toLocaleDateString()}</td>
+                      <td>{new Date(geo.updatedAt).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -720,8 +729,8 @@ export default function IdentitySettingsPage() {
                 min="50"
                 max="10000"
                 className="form-control"
-                value={geofenceForm.radiusMeters}
-                onChange={(e) => setGeofenceForm({ ...geofenceForm, radiusMeters: parseInt(e.target.value, 10) || 500 })}
+                value={geofenceForm.radiusMetres}
+                onChange={(e) => setGeofenceForm({ ...geofenceForm, radiusMetres: parseInt(e.target.value, 10) || 500 })}
                 required
                 disabled={loading}
               />

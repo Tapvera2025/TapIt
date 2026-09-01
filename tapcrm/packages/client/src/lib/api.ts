@@ -13,3 +13,9 @@ const api = axios.create({
 });
 
 export default api;
+
+api.interceptors.request.use((config) => {
+  const match = document.cookie.match(/(?:^|; )tapcrm_csrf=([^;]+)/);
+  if (match?.[1]) config.headers.set('X-CSRF-Token', decodeURIComponent(match[1]));
+  return config;
+});

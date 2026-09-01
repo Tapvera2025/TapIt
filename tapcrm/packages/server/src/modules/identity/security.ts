@@ -1,6 +1,13 @@
-import { platformDb, bootstrapDb, db } from '../../platform/dal/db.js';
+import { createHash } from 'node:crypto';
+import Redis from 'ioredis';
+import { identityDb, bootstrapDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
-import { sendAccountLockedAlert, sendSuspiciousLoginAlert } from './email.js';
+import { loadConfig } from '../../config.js';
+import {
+  sendAccountLockedAlert,
+  sendSuspiciousLoginAlert,
+  sendSecurityAlert,
+} from './email.js';
 
 export interface LockoutState {
   readonly isLocked: boolean;
@@ -8,212 +15,104 @@ export interface LockoutState {
   readonly delayMs?: number;
 }
 
-interface AttemptRecord {
-  count: number;
-  lastAttemptAt: number;
-  lockedUntil: number | null;
-}
-
 const MAX_FAILED_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-const ATTEMPT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+const LOCKOUT_DURATION_SECONDS = 15 * 60;
+const ATTEMPT_WINDOW_SECONDS = 30 * 60;
+let redis: Redis | null = null;
 
-// In-memory brute force cache per account and per IP
-const accountAttempts = new Map<string, AttemptRecord>();
-const ipAttempts = new Map<string, AttemptRecord>();
-
-function getAccountKey(
-  organizationId: string,
-  accountType: string,
-  email: string,
-): string {
-  return `${organizationId}:${accountType}:${email.trim().toLowerCase()}`;
+function getRedis(): Redis {
+  if (!redis)
+    redis = new Redis(loadConfig().REDIS_URL, {
+      maxRetriesPerRequest: 2,
+      enableOfflineQueue: false,
+    });
+  return redis;
+}
+function accountKey(org: string, type: string, email: string) {
+  return `tapcrm:auth:attempt:account:${org}:${type}:${createHash('sha256').update(email.trim().toLowerCase()).digest('hex')}`;
+}
+function ipKey(ip: string | null) {
+  return `tapcrm:auth:attempt:ip:${ip ?? 'unknown'}`;
+}
+async function state(key: string): Promise<{ count: number; ttl: number }> {
+  const r = getRedis();
+  const count = Number((await r.get(key)) ?? 0);
+  const ttl = Math.max(0, await r.ttl(key));
+  return { count, ttl };
 }
 
-/**
- * ID-9: Checks if an account or IP is currently locked or requires progressive delay.
- */
 export async function checkLoginSecurity(
   organizationId: string,
   accountType: string,
   email: string,
   ip: string | null,
 ): Promise<LockoutState> {
-  const now = Date.now();
-  const accKey = getAccountKey(organizationId, accountType, email);
-
-  // Check DB status for user if locked at account level
-  try {
-    const rows = await bootstrapDb.readAs<{ status: string }>(
-      organizationId,
-      sql`
-        SELECT status
-        FROM app_user
-        WHERE organization_id = ${organizationId}
-          AND account_type = ${accountType}
-          AND email = ${email}
-        LIMIT 1
-      `,
-    );
-
-    if (rows[0]?.status === 'locked') {
-      return { isLocked: true };
-    }
-  } catch {
-    // Continue with in-memory check if DB read fails
-  }
-
-  // Check in-memory account lockout
-  const accRecord = accountAttempts.get(accKey);
-  if (accRecord && accRecord.lockedUntil && accRecord.lockedUntil > now) {
-    return {
-      isLocked: true,
-      remainingSeconds: Math.ceil((accRecord.lockedUntil - now) / 1000),
-    };
-  }
-
-  // Check in-memory IP lockout
-  if (ip) {
-    const ipRecord = ipAttempts.get(ip);
-    if (ipRecord && ipRecord.lockedUntil && ipRecord.lockedUntil > now) {
-      return {
-        isLocked: true,
-        remainingSeconds: Math.ceil((ipRecord.lockedUntil - now) / 1000),
-      };
-    }
-  }
-
-  // Calculate progressive delay
-  const attempts = Math.max(
-    accRecord?.count ?? 0,
-    ip ? (ipAttempts.get(ip)?.count ?? 0) : 0,
-  );
-  let delayMs = 0;
-  if (attempts >= 4) {
-    delayMs = 2000;
-  } else if (attempts >= 3) {
-    delayMs = 1000;
-  } else if (attempts >= 2) {
-    delayMs = 300;
-  }
-
-  return { isLocked: false, delayMs };
+  const [a, i] = await Promise.all([
+    state(accountKey(organizationId, accountType, email)),
+    ip ? state(ipKey(ip)) : Promise.resolve({ count: 0, ttl: 0 }),
+  ]);
+  const count = Math.max(a.count, i.count);
+  if (count >= MAX_FAILED_ATTEMPTS)
+    return { isLocked: true, remainingSeconds: Math.max(a.ttl, i.ttl) };
+  return {
+    isLocked: false,
+    delayMs: count >= 3 ? Math.min(2000, 250 * 2 ** (count - 3)) : 0,
+  };
 }
 
-/**
- * ID-9: Records a failed login attempt and applies progressive delay / lockout.
- */
 export async function recordLoginFailure(
   organizationId: string,
   accountType: string,
   email: string,
   ip: string | null,
 ): Promise<void> {
-  const now = Date.now();
-  const accKey = getAccountKey(organizationId, accountType, email);
-
-  // Update account attempts
-  let accRecord = accountAttempts.get(accKey);
-  if (!accRecord || now - accRecord.lastAttemptAt > ATTEMPT_WINDOW_MS) {
-    accRecord = { count: 1, lastAttemptAt: now, lockedUntil: null };
-  } else {
-    accRecord.count += 1;
-    accRecord.lastAttemptAt = now;
+  const r = getRedis();
+  const keys = [
+    accountKey(organizationId, accountType, email),
+    ...(ip ? [ipKey(ip)] : []),
+  ];
+  for (const key of keys) {
+    const count = await r.incr(key);
+    if (count === 1) await r.expire(key, ATTEMPT_WINDOW_SECONDS);
   }
-
-  if (accRecord.count >= MAX_FAILED_ATTEMPTS) {
-    accRecord.lockedUntil = now + LOCKOUT_DURATION_MS;
-
-    // Send account locked email alert
-    void sendAccountLockedAlert(email, ip);
-
-    // Optionally update user status in DB
-    try {
-      await platformDb.query(
-        'health-check',
-        'lock user account after brute-force attempts',
-        sql`
-          UPDATE app_user
-          SET status = 'locked'
-          WHERE organization_id = ${organizationId}
-            AND account_type = ${accountType}
-            AND email = ${email}
-            AND status = 'active'
-        `,
-      );
-    } catch {
-      // Best effort
+  const current = await state(accountKey(organizationId, accountType, email));
+  if (current.count >= MAX_FAILED_ATTEMPTS) {
+    const rows = await bootstrapDb.readAs<{ id: string; email: string | null }>(
+      organizationId,
+      sql`SELECT id,email FROM app_user WHERE organization_id=${organizationId} AND account_type=${accountType} AND email=${email} LIMIT 1`,
+    );
+    const u = rows[0];
+    if (u) {
+      if (u.email) void sendAccountLockedAlert(u.email, ip);
     }
-  }
-  accountAttempts.set(accKey, accRecord);
-
-  // Update IP attempts
-  if (ip) {
-    let ipRecord = ipAttempts.get(ip);
-    if (!ipRecord || now - ipRecord.lastAttemptAt > ATTEMPT_WINDOW_MS) {
-      ipRecord = { count: 1, lastAttemptAt: now, lockedUntil: null };
-    } else {
-      ipRecord.count += 1;
-      ipRecord.lastAttemptAt = now;
-    }
-
-    if (ipRecord.count >= MAX_FAILED_ATTEMPTS * 2) {
-      ipRecord.lockedUntil = now + LOCKOUT_DURATION_MS;
-    }
-    ipAttempts.set(ip, ipRecord);
   }
 }
-
-/**
- * Resets failed login counters on successful login.
- */
-export function recordLoginSuccess(
-  organizationId: string,
-  accountType: string,
+export async function recordLoginSuccess(
+  _organizationId: string,
+  _accountType: string,
   email: string,
   ip: string | null,
-): void {
-  const accKey = getAccountKey(organizationId, accountType, email);
-  accountAttempts.delete(accKey);
-  if (ip) {
-    ipAttempts.delete(ip);
-  }
+): Promise<void> {
+  const r = getRedis();
+  await r.del(accountKey(_organizationId, _accountType, email));
+  if (ip) await r.del(ipKey(ip));
 }
-
-/**
- * ID-9: Super Admin or HR unlocks a locked account.
- */
 export async function unlockUserAccount(
   organizationId: string,
   userId: string,
 ): Promise<void> {
-  const rows = await platformDb.query<{
-    id: string;
-    email: string | null;
-    accountType: string;
-  }>(
-    'health-check',
-    'unlock user account',
-    sql`
-      UPDATE app_user
-      SET status = 'active'
-      WHERE organization_id = ${organizationId}
-        AND id = ${userId}
-        AND status = 'locked'
-      RETURNING id, email, account_type AS "accountType"
-    `,
+  await identityDb.transactionForOrganization(organizationId, (tx) =>
+    tx.query(
+      sql`UPDATE app_user SET status='active', session_version=session_version+1, updated_at=NOW() WHERE organization_id=${organizationId} AND id=${userId} AND account_type <> 'super-admin'`,
+    ),
   );
-
-  const updated = rows[0];
-  if (updated && updated.email) {
-    const accKey = getAccountKey(organizationId, updated.accountType, updated.email);
-    accountAttempts.delete(accKey);
-  }
 }
 
-/**
- * ID-10: Suspicious sign-in check: checks if device/IP is novel for this user.
- */
+export interface LoginLocation {
+  countryCode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
 export async function evaluateSuspiciousLogin(
   organizationId: string,
   userId: string,
@@ -221,33 +120,77 @@ export async function evaluateSuspiciousLogin(
   meta: {
     ip: string | null;
     userAgent: string | null;
+    countryCode?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
   },
 ): Promise<void> {
-  if (!email || (!meta.ip && !meta.userAgent)) {
-    return;
+  const country = meta.countryCode ?? null;
+  const previous = await bootstrapDb.readAs<{
+    countryCode: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    occurredAt: string;
+    userAgent: string | null;
+  }>(
+    organizationId,
+    sql`SELECT country_code AS "countryCode", latitude::float8, longitude::float8, occurred_at AS "occurredAt", user_agent AS "userAgent" FROM login_security_event WHERE organization_id=${organizationId} AND user_id=${userId} ORDER BY occurred_at DESC LIMIT 1`,
+  );
+  const p = previous[0];
+  let suspicious = false;
+  const reasons: string[] = [];
+  if (p && p.userAgent && meta.userAgent && p.userAgent !== meta.userAgent) {
+    suspicious = true;
+    reasons.push('new device');
   }
-
-  try {
-    const priorSessions = await bootstrapDb.readAs<{ id: string }>(
-      organizationId,
-      sql`
-        SELECT id
-        FROM session
-        WHERE organization_id = ${organizationId}
-          AND user_id = ${userId}
-          AND (ip = ${meta.ip}::inet OR user_agent = ${meta.userAgent})
-        LIMIT 1
-      `,
+  if (p && country && p.countryCode && country !== p.countryCode) {
+    suspicious = true;
+    reasons.push('new country');
+  }
+  if (
+    p &&
+    p.latitude != null &&
+    p.longitude != null &&
+    meta.latitude != null &&
+    meta.longitude != null
+  ) {
+    const km = haversineKm(p.latitude, p.longitude, meta.latitude, meta.longitude);
+    const hours = Math.max(
+      0.1,
+      (Date.now() - new Date(p.occurredAt).getTime()) / 3600000,
     );
-
-    // If no prior session matches IP or user agent, alert user (ID-10)
-    if (priorSessions.length === 0) {
-      void sendSuspiciousLoginAlert(email, {
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-      });
+    if (km / hours > 900) {
+      suspicious = true;
+      reasons.push('improbable travel');
     }
-  } catch {
-    // Non-blocking observability check
   }
+  await identityDb.transactionForOrganization(organizationId, (tx) =>
+    tx.query(
+      sql`INSERT INTO login_security_event(organization_id,user_id,ip,user_agent,country_code,latitude,longitude,suspicious,reason) VALUES(${organizationId},${userId},${meta.ip},${meta.userAgent},${country},${meta.latitude ?? null},${meta.longitude ?? null},${suspicious},${reasons.join(', ') || null})`,
+    ),
+  );
+  if (suspicious && email)
+    void sendSuspiciousLoginAlert(email, {
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+      approxLocation: reasons.join(', ') || 'unusual sign-in',
+    });
+}
+function haversineKm(a: number, b: number, c: number, d: number) {
+  const R = 6371;
+  const p = Math.PI / 180;
+  const x = (c - a) * p,
+    y = (d - b) * p;
+  const q =
+    Math.sin(x / 2) ** 2 + Math.cos(a * p) * Math.cos(c * p) * Math.sin(y / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(q));
+}
+
+export async function sendRefreshReuseAlert(email: string | null, ip: string | null) {
+  if (email)
+    void sendSecurityAlert(
+      email,
+      'Refresh token reuse detected',
+      `A refresh token was replayed and your active refresh-token family was revoked. Source: ${ip ?? 'unknown'}.`,
+    );
 }

@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import type { Action } from '@tapcrm/contracts';
 import { bootstrapDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import {
@@ -8,6 +9,7 @@ import {
 import { verifyAccessToken } from './token.js';
 import { buildPrincipalForResolver } from './resolver-principal.js';
 import { touchSession } from './sessions.js';
+import { authenticateServiceCredential } from './service.js';
 
 interface AuthRow {
   id: string;
@@ -28,6 +30,29 @@ interface AuthRow {
 
 export function installIdentityPrincipalResolver(): void {
   installPrincipalResolver(async (req: Request): Promise<PrincipalResolution | null> => {
+    const authorization = req.get('authorization');
+    if (authorization?.startsWith('Bearer tcrm_sa_')) {
+      const credential = authorization.slice('Bearer '.length).trim();
+      const sa = await authenticateServiceCredential(
+        credential,
+        req.ip ?? req.socket.remoteAddress ?? null,
+      );
+      if (!sa) return null;
+      return {
+        principal: {
+          id: sa.id,
+          organizationId: sa.organizationId,
+          accountType: 'service',
+          sessionVersion: 0,
+          allowedActions: sa.allowedActions as Action[],
+          allowedResources: sa.allowedResources,
+          expiresAt: new Date(sa.expiresAt),
+        },
+        organizationId: sa.organizationId,
+        sessionId: '',
+      };
+    }
+
     const token = req.cookies?.['tapcrm_access'];
 
     if (typeof token !== 'string' || token.length === 0) {

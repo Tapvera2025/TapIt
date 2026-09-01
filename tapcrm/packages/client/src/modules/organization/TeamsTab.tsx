@@ -72,6 +72,12 @@ export default function TeamsTab() {
       setError('Department and Name are required.');
       return;
     }
+
+    if (form.kind === 'sales-pool' && !form.parentTeamId) {
+      setError('A sales pool must be assigned to a parent sales team.');
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
@@ -79,7 +85,7 @@ export default function TeamsTab() {
         departmentId: form.departmentId,
         kind: form.kind,
         name: form.name.trim(),
-        parentTeamId: form.parentTeamId || null,
+        parentTeamId: form.kind === 'sales-pool' ? form.parentTeamId : null,
       });
       setForm({
         departmentId: departments[0]?.id || '',
@@ -121,7 +127,13 @@ export default function TeamsTab() {
               <label>Department</label>
               <select
                 value={form.departmentId}
-                onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    departmentId: e.target.value,
+                    parentTeamId: null,
+                  })
+                }
                 disabled={saving}
               >
                 {departments.map((d) => (
@@ -135,7 +147,14 @@ export default function TeamsTab() {
               <label>Kind</label>
               <select
                 value={form.kind}
-                onChange={(e) => setForm({ ...form, kind: e.target.value as any })}
+                onChange={(e) => {
+                  const kind = e.target.value as 'sales-team' | 'sales-pool' | 'dev-subteam';
+                  setForm((current) => ({
+                    ...current,
+                    kind,
+                    parentTeamId: kind === 'sales-pool' ? current.parentTeamId : null,
+                  }));
+                }}
                 disabled={saving}
               >
                 <option value="dev-subteam">Development Subteam</option>
@@ -143,6 +162,33 @@ export default function TeamsTab() {
                 <option value="sales-pool">Sales Pool</option>
               </select>
             </div>
+
+            {form.kind === 'sales-pool' && (
+              <div className="form-group">
+                <label>Parent Sales Team</label>
+                <select
+                  value={form.parentTeamId ?? ''}
+                  onChange={(e) => setForm({ ...form, parentTeamId: e.target.value })}
+                  disabled={saving}
+                >
+                  <option value="">Select a sales team</option>
+                  {teams
+                    .filter(
+                      (team) =>
+                        team.departmentId === form.departmentId && team.kind === 'sales-team',
+                    )
+                    .map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                </select>
+                <p style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Sales pools must belong to an existing sales team in the same department.
+                </p>
+              </div>
+            )}
+
             <div className="form-group">
               <label>Team Name</label>
               <input
