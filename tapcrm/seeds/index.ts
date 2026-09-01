@@ -34,7 +34,13 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import argon2 from 'argon2';
-import { PERMISSION_MATRIX, MATRIX_POSITIONS, CARVE_OUTS, type Cell } from './matrix.js';
+import {
+  PERMISSION_MATRIX,
+  MATRIX_POSITIONS,
+  CARVE_OUTS,
+  NEVER_AT_OWN_SCOPE,
+  type Cell,
+} from './matrix.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -117,7 +123,7 @@ const POSITIONS: readonly SeedPosition[] = [
   { code: 'sales-head', name: 'Sales Department Head', department: 'sales', level: 90, parent: null, status: 'active', matrixColumn: 'sales-head' },
   { code: 'sales-team-lead', name: 'Sales Team Lead', department: 'sales', level: 70, parent: 'sales-head', status: 'active', matrixColumn: 'sales-team-lead' },
   { code: 'sales-supervisor', name: 'Sales Supervisor', department: 'sales', level: 50, parent: 'sales-team-lead', status: 'active', matrixColumn: 'sales-supervisor' },
-  { code: 'sales-agent', name: 'Sales Agent', department: 'sales', level: 20, parent: 'sales-supervisor', status: 'active', matrixColumn: 'base-employee' },
+  { code: 'sales-agent', name: 'Sales Agent', department: 'sales', level: 20, parent: 'sales-supervisor', status: 'active', matrixColumn: 'sales-agent' },
 
   // Project Delivery — D-5: no head; every PM reports to Super Admin.
   { code: 'project-manager', name: 'Project Manager', department: 'projects', level: 80, parent: null, status: 'active', matrixColumn: 'project-manager' },
@@ -153,6 +159,9 @@ interface EmittedPolicy {
 }
 
 const actionsByModule = new Map<string, RegistryAction[]>();
+
+/** §7.3 — capabilities a matrix cell asked for and only Super Admin may hold. */
+const superAdminOnlyWithheld = new Set<string>();
 for (const action of seed.actions) {
   actionsByModule.set(action.module, [...(actionsByModule.get(action.module) ?? []), action]);
 }
@@ -165,18 +174,28 @@ for (const action of seed.actions) {
  * not a flag on a row. This is why it cannot be bypassed by a handler that
  * forgets a check: THERE IS NO CAPABILITY TO CHECK."
  */
-function expandCell(module: string, cell: Cell, position: string): EmittedPolicy[] {
+interface CellExpansion {
+  readonly policies: EmittedPolicy[];
+  /** Actions a declared rule kept out — a carve-out, or the own-scope rule. */
+  readonly suppressed: string[];
+}
+
+function expandCell(module: string, cell: Cell, position: string): CellExpansion {
   // glob: no rows. Held by accountType, derived, never stored.
   // acct: no rows. Client isolation is A2, before policy resolution.
   // —   : no rows. Absent means denied.
-  if (cell === 'glob' || cell === 'acct' || cell === '—') return [];
+  if (cell === 'glob' || cell === 'acct' || cell === '—') {
+    return { policies: [], suppressed: [] };
+  }
 
   const readOnly = cell.endsWith('*');
   const scope = readOnly ? cell.slice(0, -1) : cell;
   const moduleActions = actionsByModule.get(module) ?? [];
   const excluded = new Set(CARVE_OUTS[position as keyof typeof CARVE_OUTS] ?? []);
+  const administrative = new Set(NEVER_AT_OWN_SCOPE);
 
   const emitted: EmittedPolicy[] = [];
+  const suppressed: string[] = [];
 
   for (const definition of moduleActions) {
     // §7.3 — a module cell NEVER includes a non-position-grantable action.
@@ -187,10 +206,32 @@ function expandCell(module: string, cell: Cell, position: string): EmittedPolicy
     // §7.3 — nor a superAdminOnly action. Those are emitted separately, with
     // an explicit comment, "so a reviewer can see every Super-Admin-granted
     // capability in one place."
-    if (definition.grantPolicy.superAdminOnly) continue;
+    //
+    // Recorded rather than dropped silently, because this is where §6 and the
+    // registry can disagree without anyone noticing: TECH §7.4's own worked
+    // example expands HR's `payroll` = all-ppl to `payroll:view/manage/
+    // manage-config`, and the registry marks the last two superAdminOnly. The
+    // registry wins (TECH §1), so HR reads payslips and Super Admin runs
+    // payroll — but that is a decision somebody should have made on purpose.
+    if (definition.grantPolicy.superAdminOnly) {
+      superAdminOnlyWithheld.add(`${definition.action} (would come from ${module})`);
+      continue;
+    }
 
     // MX-1 — declared carve-outs, e.g. PA-6 keeping tasks:review from a PM.
-    if (excluded.has(definition.action)) continue;
+    if (excluded.has(definition.action)) {
+      suppressed.push(definition.action);
+      continue;
+    }
+
+    // A cell bounded to the holder themselves grants a personal entitlement,
+    // not authority. `payroll` = own means "my own payslip"; expanding it to
+    // every action of the module would also hand out `payroll:manage`. See
+    // NEVER_AT_OWN_SCOPE for the full list and the reasoning.
+    if (scope === 'own' && administrative.has(definition.action)) {
+      suppressed.push(definition.action);
+      continue;
+    }
 
     if (readOnly) {
       // §7.2 says "the module's `:view` action only". Taken literally that
@@ -208,7 +249,7 @@ function expandCell(module: string, cell: Cell, position: string): EmittedPolicy
     emitted.push({ action: definition.action, scope });
   }
 
-  return emitted;
+  return { policies: emitted, suppressed };
 }
 
 /* ------------------------------------------------------------------ *
@@ -361,6 +402,7 @@ async function main(): Promise<void> {
     let emittedCount = 0;
     const emptyCells: string[] = [];
     const modulesWithoutActions = new Set<string>();
+    const inexpressibleCells: string[] = [];
 
     for (const p of POSITIONS) {
       if (p.matrixColumn === null) continue;
@@ -378,7 +420,7 @@ async function main(): Promise<void> {
         const cell = cells[columnIndex];
         if (cell === undefined) continue;
 
-        const policies = expandCell(module, cell, p.matrixColumn);
+        const { policies, suppressed } = expandCell(module, cell, p.matrixColumn);
 
         // MX-2 — "a CI check asserts every matrix cell produces at least one
         // policy row unless the cell is —, glob or acct. A cell that silently
@@ -390,10 +432,24 @@ async function main(): Promise<void> {
         // nothing is a typo in this file.
         if (policies.length === 0 && !['—', 'glob', 'acct'].includes(cell)) {
           const moduleHasActions = (actionsByModule.get(module) ?? []).length > 0;
-          if (moduleHasActions) {
-            emptyCells.push(`${p.code} × ${module} = ${cell}`);
-          } else {
+          if (!moduleHasActions) {
             modulesWithoutActions.add(module);
+          } else if (suppressed.length > 0) {
+            // A THIRD cause, and the most interesting one: the module has
+            // actions, but every one of them is authority this cell was never
+            // meant to grant. `sales-agent × approvals = participant` is the
+            // case — §6 gives an Agent visibility of the approval on their own
+            // deal, and §7.2 gives the decision to their Supervisor, but the
+            // registry has no `approvals:view` for the visibility half. That is
+            // a gap between §6 and AUTHORIZATION.md §6.4, not a typo here, so
+            // it is reported rather than either failing the seed or being
+            // papered over by granting the decision.
+            inexpressibleCells.push(
+              `${p.code} × ${module} = ${cell}  (all ${String(suppressed.length)} action(s) ` +
+                `withheld: ${suppressed.join(', ')})`,
+            );
+          } else {
+            emptyCells.push(`${p.code} × ${module} = ${cell}`);
           }
         }
 
@@ -416,6 +472,8 @@ async function main(): Promise<void> {
           `A cell that silently produces nothing is a typo:\n  ${emptyCells.join('\n  ')}`,
       );
     }
+
+
 
     /* -- 14. super-admin account ----------------------------------- */
     // §2.1 — Super Admin is NOT a Position: no position, no department, no
@@ -446,6 +504,27 @@ async function main(): Promise<void> {
     console.log(`  ${DEPARTMENTS.length} departments · ${POSITIONS.length} positions`);
     console.log(`  ${emittedCount} position_policy rows generated from the §6 matrix`);
     console.log(`  super-admin: ${email} / ${password}`);
+
+    if (superAdminOnlyWithheld.size > 0) {
+      console.log(
+        `\n⚠ §7.3 — ${superAdminOnlyWithheld.size} capability(ies) a §6 cell would have granted\n` +
+          '  are marked superAdminOnly in the registry, so no position holds them. Listed here\n' +
+          '  because §6 and §6.4 disagree about them and the registry wins (TECH §1):\n    ' +
+          [...superAdminOnlyWithheld].sort().join('\n    '),
+      );
+    }
+
+    if (inexpressibleCells.length > 0) {
+      console.log(
+        `\n⚠ MX-2 — ${inexpressibleCells.length} matrix cell(s) cannot be expressed with the\n` +
+          '  current action registry. §6 grants a reach that the registry has no READ action\n' +
+          '  for, so the only actions available are ones the cell was never granting. This is a\n' +
+          '  gap between the two source documents, not a seed defect.\n' +
+          '  Resolve by adding the missing action to AUTHORIZATION.md §6.4, or by correcting\n' +
+          '  the §6 cell:\n    ' +
+          inexpressibleCells.join('\n    '),
+      );
+    }
 
     if (modulesWithoutActions.size > 0) {
       console.log(

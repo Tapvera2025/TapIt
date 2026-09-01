@@ -160,7 +160,7 @@ export function buildRouter(
         break;
 
       default:
-        throw new Error(`Unsupported HTTP method: ${binding.method}`);
+        throw new Error(`Unsupported HTTP method: ${String(binding.method)}`);
     }
   }
 
@@ -257,12 +257,11 @@ function makeHandler(binding: RouteBinding<never, unknown>) {
 
       let resource: Resource | undefined;
 
-      if (
-        definition.resource !== null &&
-        binding.resourceParam !== undefined &&
-        binding.loadResource !== undefined
-      ) {
-        const id = singleParam(req.params[binding.resourceParam]);
+      if (definition.resource !== null && binding.loadResource !== undefined) {
+        const id =
+          binding.resourceParam !== undefined
+            ? singleParam(req.params[binding.resourceParam])
+            : bodyField(req.body, binding.resourceBodyField);
 
         if (id === undefined) {
           throw new NotFoundError(definition.resource);
@@ -310,6 +309,20 @@ function makeHandler(binding: RouteBinding<never, unknown>) {
   };
 }
 
+/**
+ * Reads the resource id out of the request body, for the bindings whose target
+ * is named in the payload rather than the path.
+ *
+ * Deliberately strict about the type: a non-string here becomes a 404 rather
+ * than being coerced into a lookup, because an id the caller controls the shape
+ * of is the last place to be relaxed.
+ */
+function bodyField(body: unknown, field: string | undefined): string | undefined {
+  if (field === undefined || typeof body !== 'object' || body === null) return undefined;
+  const value = (body as Record<string, unknown>)[field];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
 function singleParam(value: string | string[] | undefined): string | undefined {
   if (value === undefined) {
     return undefined;
@@ -334,6 +347,18 @@ function normaliseParams(
   return out;
 }
 
+/**
+ * Keys that hold the records inside a paginated response.
+ *
+ * AZ-I4 — "Serialization happens ONCE, at the response boundary, and EVERY
+ * response passes through it." A handler returning `{ items, total }` used to
+ * get the wrapper's own keys projected while the records inside passed through
+ * untouched, so a field policy on `Deal.commercials` or a payslip would apply
+ * to a single record and not to a list of them. Naming the envelope keys keeps
+ * one serialization path for both shapes.
+ */
+const ENVELOPE_KEYS = ['items', 'records', 'rows', 'results', 'data'] as const;
+
 async function projectResult(
   ctx: RequestContext,
   action: Action,
@@ -344,18 +369,35 @@ async function projectResult(
   }
 
   if (Array.isArray(result)) {
-    return Promise.all(
-      result.map((item) =>
-        typeof item === 'object' && item !== null
-          ? project(ctx, action, item as Record<string, unknown>)
-          : item,
-      ),
-    );
+    return projectMany(ctx, action, result);
   }
 
   if (typeof result === 'object') {
-    return project(ctx, action, result as Record<string, unknown>);
+    const record = result as Record<string, unknown>;
+
+    for (const key of ENVELOPE_KEYS) {
+      const inner = record[key];
+      if (Array.isArray(inner)) {
+        return { ...record, [key]: await projectMany(ctx, action, inner) };
+      }
+    }
+
+    return project(ctx, action, record);
   }
 
   return result;
+}
+
+function projectMany(
+  ctx: RequestContext,
+  action: Action,
+  items: readonly unknown[],
+): Promise<unknown[]> {
+  return Promise.all(
+    items.map((item) =>
+      typeof item === 'object' && item !== null
+        ? project(ctx, action, item as Record<string, unknown>)
+        : item,
+    ),
+  );
 }

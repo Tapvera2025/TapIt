@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Principal } from '@tapcrm/contracts';
 
 /**
@@ -83,5 +84,59 @@ export function createJobContext(input: {
     principal: input.principal,
     requestId: `job:${input.jobName}:${input.runId}`,
     sourceIp: null,
+  });
+}
+
+/**
+ * The context for authentication's own writes — issuing a session, rotating a
+ * refresh token.
+ *
+ * These happen at the moment a principal is being established, so there is no
+ * resolved `Principal` yet: no position, no department, no team. That is a real
+ * gap, and the honest way to fill it is a named factory that says so — not an
+ * object literal cast into shape at the call site with `as`, which is what this
+ * replaces. A forged literal skips every check in `createRequestContext`,
+ * including the one that stops a principal from one organization establishing
+ * context for another (MT-6).
+ *
+ * The principal it builds carries no authority. It exists to satisfy tenancy
+ * and to name an actor in the audit trail. Nothing on this path calls the
+ * authorization engine, because there is no policy question to ask — proving
+ * the password is the whole decision — and if some future change did call it,
+ * absolute constraint A2 would refuse this principal against every resource.
+ * Failing closed is the point.
+ */
+export function createAuthContext(input: {
+  organizationId: string;
+  userId: string;
+  accountType: 'super-admin' | 'employee' | 'client' | 'service';
+  purpose: 'session-issue' | 'session-refresh';
+  sourceIp: string | null;
+}): RequestContext {
+  if (!UUID.test(input.userId)) {
+    throw new MissingTenantContextError(`userId "${input.userId}" is not a UUID`);
+  }
+
+  const principal: Principal =
+    input.accountType === 'super-admin'
+      ? {
+          id: input.userId,
+          organizationId: input.organizationId,
+          sessionVersion: 0,
+          accountType: 'super-admin',
+        }
+      : {
+          id: input.userId,
+          organizationId: input.organizationId,
+          sessionVersion: 0,
+          accountType: 'client',
+          clientId: input.userId,
+        };
+
+  return createRequestContext({
+    organizationId: input.organizationId,
+    principal,
+    requestId: `auth:${input.purpose}:${randomUUID()}`,
+    sourceIp: input.sourceIp,
   });
 }

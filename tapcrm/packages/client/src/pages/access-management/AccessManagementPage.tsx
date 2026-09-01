@@ -264,20 +264,6 @@ const formatDate = (value: string | null | undefined): string => {
   return date.toLocaleDateString();
 };
 
-const formatDateTime = (value: string | null | undefined): string => {
-  if (!value) {
-    return 'N/A';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return 'N/A';
-  }
-
-  return date.toLocaleString();
-};
-
 const isValidDateTime = (value: string): boolean => {
   if (!value) {
     return true;
@@ -527,7 +513,6 @@ export default function AccessManagementPage() {
    */
 
   useEffect(() => {
-    let mounted = true;
 
    const fetchInitialData = async () => {
      try {
@@ -622,10 +607,6 @@ export default function AccessManagementPage() {
    };
 
     void fetchInitialData();
-
-    return () => {
-      mounted = false;
-    };
   }, []);
 
   /*
@@ -2100,7 +2081,7 @@ export default function AccessManagementPage() {
         title="Grant User Permission Override"
         subtitle="Individual overrides replace position defaults for the specified action (PRD §4.4)."
       >
-        <form onSubmit={handleCreateOverride}>
+        <form onSubmit={(event) => { void handleCreateOverride(event); }}>
           <div className="form-grid">
             <div
               className="form-group"
@@ -2277,7 +2258,7 @@ export default function AccessManagementPage() {
         title="Request Employee Role Change"
         subtitle="Submits a position promotion or transfer request to Super Admin."
       >
-        <form onSubmit={handleCreateRoleRequest}>
+        <form onSubmit={(event) => { void handleCreateRoleRequest(event); }}>
           <div className="form-grid">
             <div
               className="form-group"
@@ -2410,7 +2391,7 @@ export default function AccessManagementPage() {
           selectedRequest?.toPositionName || 'Unknown'
         }`}
       >
-        <form onSubmit={handleDecideRequest}>
+        <form onSubmit={(event) => { void handleDecideRequest(event); }}>
           <div className="form-grid">
             <div
               className="form-group"

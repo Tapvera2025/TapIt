@@ -110,7 +110,7 @@ export default function SignupPage() {
               {success}
             </div>
           )}
-          <form onSubmit={submit}>
+          <form onSubmit={(event) => { void submit(event); }}>
             <div className="form-group">
               <label>Full Name</label>
               <input
@@ -237,7 +237,7 @@ export default function SignupPage() {
             type="button"
             className="btn btn-ghost btn-sm"
             style={{ width: '100%' }}
-            onClick={() => navigate('/login')}
+            onClick={() => { void navigate('/login'); }}
           >
             ← Back to Login
           </button>

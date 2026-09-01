@@ -5,7 +5,7 @@ import { sql } from '../../platform/dal/sql.js';
 import type { RequestContext } from '../../platform/dal/context.js';
 import type { Resource } from '@tapcrm/authz';
 import { RequestValidationError } from '../../platform/http/auth-error.js';
-import { ConflictError, NotFoundError } from '../../platform/http/error-handler.js';
+import { ConflictError } from '../../platform/http/error-handler.js';
 import { z } from 'zod';
 import { buildPositionImpactPreview } from './impact.js';
 
@@ -215,11 +215,35 @@ async function loadResource(
  * Reads
  * ==================================================================== */
 
+
+/**
+ * The ladder is addressed by department CODE, not id — D-1 makes the code
+ * immutable precisely so it can be used as a stable handle in a URL.
+ */
+async function loadDepartmentByCode(
+  ctx: RequestContext,
+  code: string,
+): Promise<Resource | null> {
+  const row = await db.maybeOne<Record<string, unknown>>(
+    ctx,
+    sql`
+      SELECT id, organization_id, code, name, kind, status
+      FROM department
+      WHERE organization_id = ${ctx.organizationId}
+        AND code = ${code}
+      LIMIT 1
+    `,
+  );
+  return row === null ? null : { ...row, type: 'department', id: String(row['id']) };
+}
+
 export function registerOrganizationRoutes(): void {
   route({
     method: 'GET',
     path: '/api/org/departments',
     action: 'org:view-structure',
+    // AZ-2 — the handler builds its WHERE from visibilityFilter().
+    collection: true,
     handler: async ({ ctx }) => {
       const filter = await visibilityFilter(ctx, 'org:view-structure', 'department');
 
@@ -246,6 +270,7 @@ export function registerOrganizationRoutes(): void {
     method: 'GET',
     path: '/api/org/teams',
     action: 'org:view-structure',
+    collection: true,
     handler: async ({ ctx }) => {
       const filter = await visibilityFilter(ctx, 'org:view-structure', 'team');
 
@@ -274,6 +299,8 @@ export function registerOrganizationRoutes(): void {
     method: 'GET',
     path: '/api/org/ladder/:departmentCode',
     action: 'org:view-structure',
+    resourceParam: 'departmentCode',
+    loadResource: loadDepartmentByCode,
     handler: async ({ ctx, params }) => {
       const filter = await visibilityFilter(ctx, 'org:view-structure', 'position');
 
@@ -326,6 +353,7 @@ export function registerOrganizationRoutes(): void {
     method: 'GET',
     path: '/api/org/chart',
     action: 'org:view-people',
+    collection: true,
     handler: async ({ ctx }) => {
       const filter = await visibilityFilter(ctx, 'org:view-people', 'user');
 
@@ -436,6 +464,7 @@ export function registerOrganizationRoutes(): void {
     method: 'GET',
     path: '/api/org/designations',
     action: 'org:manage-designations',
+    collection: true,
     handler: async ({ ctx }) => {
       return db.query(
         ctx,
@@ -462,6 +491,7 @@ export function registerOrganizationRoutes(): void {
     method: 'POST',
     path: '/api/org/departments',
     action: 'org:manage-departments',
+    creates: true,
     handler: async ({ ctx, body }) => {
       const input = parseBody(departmentCreateSchema, body);
 
@@ -600,6 +630,7 @@ export function registerOrganizationRoutes(): void {
     method: 'POST',
     path: '/api/org/teams',
     action: 'org:manage-teams',
+    creates: true,
     handler: async ({ ctx, body }) => {
       const input = parseBody(teamCreateSchema, body);
 
@@ -822,6 +853,7 @@ export function registerOrganizationRoutes(): void {
     method: 'POST',
     path: '/api/org/positions',
     action: 'org:manage-positions',
+    creates: true,
     handler: async ({ ctx, body }) => {
       const input = parseBody(positionCreateSchema, body);
 
@@ -1229,6 +1261,7 @@ export function registerOrganizationRoutes(): void {
     method: 'POST',
     path: '/api/org/designations',
     action: 'org:manage-designations',
+    creates: true,
     handler: async ({ ctx, body }) => {
       const input = parseBody(designationCreateSchema, body);
 

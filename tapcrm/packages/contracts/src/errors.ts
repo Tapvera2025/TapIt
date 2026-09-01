@@ -19,9 +19,16 @@ export const ERROR_CODES = {
   UNAUTHENTICATED: 'UNAUTHENTICATED',
   SESSION_EXPIRED: 'SESSION_EXPIRED',
   SESSION_VERSION_STALE: 'SESSION_VERSION_STALE',
+  /** ID-4 — prove the factor you already hold. */
   MFA_REQUIRED: 'MFA_REQUIRED',
+  /** ID-4 — a factor is mandatory for this account and none is enrolled yet. */
+  MFA_ENROLMENT_REQUIRED: 'MFA_ENROLMENT_REQUIRED',
+  /** ID-5a — an email code does not satisfy a privileged position. */
+  MFA_ASSURANCE_TOO_LOW: 'MFA_ASSURANCE_TOO_LOW',
   // 403 — "not you"
   FORBIDDEN: 'FORBIDDEN',
+  /** ID-16 / ID-15d — refused on location, and appealable. */
+  GEOFENCE_DENIED: 'GEOFENCE_DENIED',
   // 404 — CP-2: client isolation returns 404, never 403. A 403 would confirm
   // that the record exists, which is itself a disclosure across the boundary.
   NOT_FOUND: 'NOT_FOUND',

@@ -202,7 +202,7 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
 
           {mfaStep ? (
             /* MFA CHALLENGE */
-            <form onSubmit={handleMfaSubmit}>
+            <form onSubmit={(event) => { void handleMfaSubmit(event); }}>
               <div className="form-group" style={{ marginBottom: '18px' }}>
                 <label>Authenticator or Recovery Code</label>
                 <input
@@ -241,7 +241,7 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
             </form>
           ) : (
             /* REGULAR LOGIN FORM */
-            <form onSubmit={handleLoginSubmit}>
+            <form onSubmit={(event) => { void handleLoginSubmit(event); }}>
               {/* ACCOUNT TYPE */}
               <div className="form-group" style={{ marginBottom: '16px' }}>
                 <label>Account Role</label>
@@ -325,7 +325,7 @@ export default function LoginPage({ onLoginSuccess }: { onLoginSuccess?: () => v
             type="button"
             className="btn btn-ghost btn-sm"
             style={{ width: '100%', marginBottom: '12px' }}
-            onClick={() => navigate('/signup')}
+            onClick={() => { void navigate('/signup'); }}
           >
             Have an employee invitation? Complete account setup →
           </button>

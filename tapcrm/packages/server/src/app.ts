@@ -20,6 +20,14 @@ import {
   requestId,
 } from './platform/http/context.js';
 
+import { csrfProtection } from './platform/http/csrf.js';
+
+import { rateLimiters } from './platform/http/rate-limit.js';
+
+import { connectionScope } from './platform/http/connection-scope.js';
+
+import { assertCounterStoreIsShared } from './platform/security/counters.js';
+
 import { installIdentityPrincipalResolver } from './modules/identity/resolver.js';
 
 import { errorHandler } from './platform/http/error-handler.js';
@@ -58,6 +66,11 @@ export function buildApp(
   options: BuildOptions = {},
 ): Express {
   const config = loadConfig();
+
+  // ID-9 / SE-5 — a deployment whose brute-force counters are per-process must
+  // fail to start rather than serve traffic with a control that only appears to
+  // work.
+  assertCounterStoreIsShared();
 
   registerAll();
 
@@ -157,6 +170,12 @@ export function buildApp(
   app.use(requestId);
 
   /*
+   * SE-5 — "Rate limiting on authentication, export, bulk and search
+   * endpoints." Mounted before the routers so a flood never reaches a handler.
+   */
+  app.use(rateLimiters());
+
+  /*
    * Health endpoint.
    *
    * This intentionally remains /health rather than /api/health because
@@ -203,6 +222,20 @@ export function buildApp(
    * RequestContext.
    */
   app.use(requestContext);
+
+  /*
+   * ID-19 — "If session authentication uses cookies, CSRF protection is
+   * mandatory on every state-changing request." Placed after authentication so
+   * an unauthenticated request is refused as unauthenticated rather than as a
+   * CSRF failure, and before the routes so no handler can be reached without
+   * passing it.
+   */
+  app.use(csrfProtection);
+
+  /*
+   * One pooled connection per request, taken on first database use.
+   */
+  app.use(connectionScope);
 
   /*
    * Authenticated + business-authorized routes.

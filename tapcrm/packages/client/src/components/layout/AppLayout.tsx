@@ -249,7 +249,7 @@ const getInitials = (name: string): string => {
    * Navigate and close mobile sidebar.
    */
   const navigateTo = (path: string) => {
-    navigate(path);
+    void navigate(path);
     setMobileSidebarOpen(false);
   };
 

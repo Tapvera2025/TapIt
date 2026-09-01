@@ -7,11 +7,17 @@ import {
   AmbiguousCommitError,
 } from '../dal/errors.js';
 import { MissingTenantContextError } from '../dal/context.js';
+import { EmptyWriteError, TenantSurfaceViolationError } from '../dal/db.js';
 import {
+  AccountLockedError,
+  AssuranceTooLowError,
+  GeofenceDeniedError,
   InvalidCredentialsError,
   InvalidSessionError,
+  MfaEnrolmentRequiredError,
   MfaRequiredError,
   RequestValidationError,
+  TooManyAttemptsError,
 } from './auth-error.js';
 
 /**
@@ -111,6 +117,65 @@ function mapError(error: unknown): Mapped {
     };
   }
 
+  /* ---- ID-9 — barred, with an honest Retry-After ---- */
+  if (error instanceof AccountLockedError || error instanceof TooManyAttemptsError) {
+    return {
+      status: HTTP_STATUS.RATE_LIMITED,
+      headers: { 'Retry-After': String(error.retryAfterSeconds) },
+      body: {
+        success: false,
+        code: ERROR_CODES.RATE_LIMITED,
+        message: error.message,
+        details: { retryAfterSeconds: error.retryAfterSeconds },
+      },
+    };
+  }
+
+  /* ---- ID-4 — a factor is required and none is enrolled ---- */
+  if (error instanceof MfaEnrolmentRequiredError) {
+    return {
+      status: HTTP_STATUS.UNAUTHENTICATED,
+      body: {
+        success: false,
+        code: ERROR_CODES.MFA_ENROLMENT_REQUIRED,
+        message: error.message,
+        // The client needs both to render the enrolment step: the token that
+        // authorises it, and whether a low-assurance factor would be accepted.
+        details: {
+          enrolmentToken: error.enrolmentToken,
+          requiresHighAssurance: error.requiresHighAssurance,
+        },
+      },
+    };
+  }
+
+  /* ---- ID-5a — the offered factor is not strong enough ---- */
+  if (error instanceof AssuranceTooLowError) {
+    return {
+      status: HTTP_STATUS.UNAUTHENTICATED,
+      body: {
+        success: false,
+        code: ERROR_CODES.MFA_ASSURANCE_TOO_LOW,
+        message: error.message,
+      },
+    };
+  }
+
+  /* ---- ID-16 — "denied with a specific, actionable message" ---- */
+  if (error instanceof GeofenceDeniedError) {
+    return {
+      status: HTTP_STATUS.FORBIDDEN,
+      body: {
+        success: false,
+        code: ERROR_CODES.GEOFENCE_DENIED,
+        message: error.message,
+        // ID-15d — a denial is appealable, so the response says so rather than
+        // leaving the person at a dead end.
+        details: { appealable: true },
+      },
+    };
+  }
+
   if (error instanceof MfaRequiredError) {
     return {
       status: HTTP_STATUS.UNAUTHENTICATED,
@@ -119,6 +184,33 @@ function mapError(error: unknown): Mapped {
         code: ERROR_CODES.MFA_REQUIRED,
         message: error.message,
       },
+    };
+  }
+
+  /* ---- A write that should have changed something and did not ---- */
+  if (error instanceof EmptyWriteError) {
+    // Almost always a lost race (the row was already revoked, consumed or
+    // deleted by a concurrent request), which is a 409 for the caller: refetch
+    // and re-apply. It is logged as a defect too, because the other cause —
+    // missing tenant context — looks identical from here and must not stay
+    // invisible.
+    return {
+      status: HTTP_STATUS.CONFLICT,
+      defect: true,
+      body: {
+        success: false,
+        code: ERROR_CODES.CONFLICT,
+        message: 'That item has already changed. Reload and try again.',
+      },
+    };
+  }
+
+  /* ---- MT-5 — a cross-tenant surface aimed at tenant data ---- */
+  if (error instanceof TenantSurfaceViolationError) {
+    return {
+      status: HTTP_STATUS.INTERNAL,
+      defect: true,
+      body: { success: false, code: ERROR_CODES.INTERNAL_ERROR, message: 'Internal error' },
     };
   }
 

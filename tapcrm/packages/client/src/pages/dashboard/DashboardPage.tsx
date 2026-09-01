@@ -1,16 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  UsersIcon,
-  DealsIcon,
-  TasksIcon,
   TeamsIcon,
   DepartmentIcon,
   PositionLadderIcon,
   ShieldIcon,
-  CheckIcon,
   ChevronRightIcon,
-  PlusIcon,
 } from '../../components/common/Icons';
 import type { User } from '../../components/layout/AppLayout';
 
@@ -140,7 +135,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
               type="button"
               className="btn btn-secondary"
               style={{ justifyContent: 'space-between', padding: '12px 16px' }}
-              onClick={() => navigate('/org/departments')}
+              onClick={() => { void navigate('/org/departments'); }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <DepartmentIcon size={18} />
@@ -153,7 +148,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
               type="button"
               className="btn btn-secondary"
               style={{ justifyContent: 'space-between', padding: '12px 16px' }}
-              onClick={() => navigate('/org/teams')}
+              onClick={() => { void navigate('/org/teams'); }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <TeamsIcon size={18} />
@@ -166,7 +161,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
               type="button"
               className="btn btn-secondary"
               style={{ justifyContent: 'space-between', padding: '12px 16px' }}
-              onClick={() => navigate('/org/positions')}
+              onClick={() => { void navigate('/org/positions'); }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <PositionLadderIcon size={18} />
@@ -179,7 +174,7 @@ export default function DashboardPage({ user }: DashboardPageProps) {
               type="button"
               className="btn btn-secondary"
               style={{ justifyContent: 'space-between', padding: '12px 16px' }}
-              onClick={() => navigate('/security')}
+              onClick={() => { void navigate('/security'); }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <ShieldIcon size={18} />

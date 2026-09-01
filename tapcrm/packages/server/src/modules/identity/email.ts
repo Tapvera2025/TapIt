@@ -276,6 +276,35 @@ export async function sendAccountLockedAlert(
   });
 }
 
+/**
+ * ID-6 — "Refresh-token reuse detection revokes the whole family AND ALERTS THE
+ * USER."
+ *
+ * The alert is half the control. Killing the family stops the attacker; telling
+ * the person is what turns a silent revocation into something they can act on —
+ * change the password, check the device, tell someone. Without it the user
+ * experiences a mysterious sign-out and shrugs.
+ */
+export async function sendRefreshReuseAlert(
+  email: string,
+  ip: string | null,
+): Promise<void> {
+  await sendEmail({
+    to: email,
+    subject: 'TapCRM security alert — your session was ended',
+    text: [
+      'We ended one of your TapCRM sessions because an old sign-in token was used again.',
+      '',
+      `Source address: ${ip ?? 'unknown'}`,
+      `Time: ${new Date().toISOString()}`,
+      '',
+      'This usually means a browser or app retried an expired request, and no action is needed.',
+      'If you did not expect it, change your password and review your active devices in',
+      'Security settings.',
+    ].join('\n'),
+  });
+}
+
 /** Sends the one-time employee onboarding invitation. */
 export async function sendEmployeeInvitation(
   email: string,

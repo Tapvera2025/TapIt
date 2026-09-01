@@ -1,4 +1,5 @@
-import { bootstrapDb, platformDb } from '../../platform/dal/db.js';
+import { globalAccess, type AccountType } from '@tapcrm/contracts';
+import { identityDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { sendGeofenceDenialAlert } from './email.js';
 
@@ -75,20 +76,23 @@ export async function evaluateGeofence(
   organizationId: string,
   user: {
     id: string;
-    accountType: string;
+    accountType: AccountType;
     email: string | null;
     fullName: string;
   },
   coordinates: GeofenceCoordinateInput | null | undefined,
   meta: { ip: string | null },
 ): Promise<GeofenceEvaluationResult> {
-  // ID-17: Super Admin accounts are never geofenced
-  if (user.accountType === 'super-admin') {
+  // ID-17 — "Super Admin accounts are never geofenced. Locking out the root
+  // principal must not be possible." Asked through the derived predicate rather
+  // than by comparing the account type, so there is one answer to what a root
+  // principal is (§4.7).
+  if (globalAccess({ accountType: user.accountType })) {
     return { allowed: true };
   }
 
   // Check if user has any assigned geofence locations
-  const assignments = await bootstrapDb.readAs<{
+  const assignments = await identityDb.read<{
     locationId: string;
     name: string;
     latitude: string;
@@ -133,7 +137,7 @@ export async function evaluateGeofence(
   // ID-18b: Check if employee has an approved Work From Home (WFH) arrangement for today
   try {
     const today = new Date().toISOString().split('T')[0];
-    const wfhRows = await bootstrapDb.readAs<{ id: string }>(
+    const wfhRows = await identityDb.read<{ id: string }>(
       organizationId,
       sql`
         SELECT id
@@ -204,9 +208,8 @@ export async function evaluateGeofence(
   const distanceBand = getDistanceBand(minDistance);
 
   // ID-15a: Record geofence event
-  await platformDb.query(
-    'health-check',
-    'record geofence event',
+  await identityDb.execute(
+    organizationId,
     sql`
       INSERT INTO geofence_event (
         organization_id,
@@ -240,7 +243,7 @@ export async function evaluateGeofence(
   // ID-15: Send alert to admins on denial
   const outsideBy = Math.max(0, minDistance - (nearestLocation?.radiusMetres ?? 0));
   try {
-    const adminRows = await bootstrapDb.readAs<{ email: string }>(
+    const adminRows = await identityDb.read<{ email: string }>(
       organizationId,
       sql`
         SELECT email
@@ -278,7 +281,7 @@ export async function evaluateGeofence(
 export async function listGeofenceLocations(
   organizationId: string,
 ): Promise<GeofenceLocationRecord[]> {
-  const rows = await bootstrapDb.readAs<{
+  const rows = await identityDb.read<{
     id: string;
     organizationId: string;
     name: string;
@@ -329,7 +332,7 @@ export async function createGeofenceLocation(
     radiusMetres: number;
   },
 ): Promise<GeofenceLocationRecord> {
-  const rows = await platformDb.query<{
+  const rows = await identityDb.read<{
     id: string;
     organizationId: string;
     name: string;
@@ -339,8 +342,7 @@ export async function createGeofenceLocation(
     createdAt: string;
     updatedAt: string;
   }>(
-    'health-check',
-    'create geofence location',
+    organizationId,
     sql`
       INSERT INTO geofence_location (
         organization_id,
@@ -394,7 +396,7 @@ export async function updateGeofenceLocation(
     radiusMetres?: number | undefined;
   },
 ): Promise<GeofenceLocationRecord> {
-  const rows = await platformDb.query<{
+  const rows = await identityDb.read<{
     id: string;
     organizationId: string;
     name: string;
@@ -404,8 +406,7 @@ export async function updateGeofenceLocation(
     createdAt: string;
     updatedAt: string;
   }>(
-    'health-check',
-    'update geofence location',
+    organizationId,
     sql`
       UPDATE geofence_location
       SET
@@ -451,9 +452,8 @@ export async function assignGeofenceLocation(
   bypassUntil?: string | null,
   bypassReason?: string | null,
 ): Promise<void> {
-  await platformDb.query(
-    'health-check',
-    'assign geofence location',
+  await identityDb.execute(
+    organizationId,
     sql`
       INSERT INTO geofence_assignment (
         organization_id,
@@ -489,7 +489,7 @@ export async function getUserGeofenceStatus(
   bypassUntil: string | null;
   retentionDays: number;
 }> {
-  const rows = await bootstrapDb.readAs<{
+  const rows = await identityDb.read<{
     name: string;
     radiusMetres: number;
     bypassUntil: string | null;
@@ -518,24 +518,33 @@ export async function getUserGeofenceStatus(
 }
 
 /**
- * ID-15a: Purges coordinates older than 90 days.
+ * ID-15a — "Reported coordinates are retained for 90 days and then deleted; the
+ * derived decision (allowed / denied, with distance band) is retained for the
+ * audit period."
+ *
+ * The decision survives because it is evidence; the coordinates do not, because
+ * they are location data about a person and the stated purpose was a single
+ * access check (DP-3). So this nulls the coordinates and keeps the row.
+ *
+ * Takes an organization rather than sweeping globally. TN-9 / JB-3: "Background
+ * jobs construct a context PER ORGANIZATION. A job iterating organizations does
+ * so explicitly; it never runs with an absent tenant context." A retention
+ * sweep without one would touch nothing and report success, which for a
+ * data-protection control is the worst possible outcome — the obligation looks
+ * discharged and the data is still there.
  */
-export async function purgeExpiredGeofenceCoordinates(): Promise<number> {
-  const result = await platformDb.query<{ count: string }>(
-    'health-check',
-    'purge expired coordinates',
+export async function purgeExpiredGeofenceCoordinates(
+  organizationId: string,
+): Promise<number> {
+  return identityDb.execute(
+    organizationId,
     sql`
-      WITH purged AS (
-        UPDATE geofence_event
-        SET latitude = NULL,
-            longitude = NULL
-        WHERE coordinates_purge_at <= NOW()
-          AND latitude IS NOT NULL
-        RETURNING id
-      )
-      SELECT count(*)::text AS count FROM purged
+      UPDATE geofence_event
+      SET latitude = NULL,
+          longitude = NULL
+      WHERE organization_id = ${organizationId}
+        AND coordinates_purge_at <= now()
+        AND latitude IS NOT NULL
     `,
   );
-
-  return parseInt(result[0]?.count ?? '0', 10);
 }

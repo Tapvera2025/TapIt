@@ -1,3 +1,16 @@
+/**
+ * What starting a TOTP enrolment returns.
+ *
+ * ID-5c — "Recovery codes are issued ONCE at enrolment." They appear in this
+ * response and nowhere else, which is why the screen has to show them before it
+ * moves on.
+ */
+interface MfaEnrolmentStart {
+  secret?: string;
+  uri?: string;
+  recoveryCodes?: string[];
+}
+
 import React, { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import Modal from '../../components/common/Modal';
@@ -5,8 +18,6 @@ import {
   ShieldIcon,
   KeyIcon,
   PinIcon,
-  UsersIcon,
-  RefreshIcon,
   AlertCircleIcon,
   CheckIcon,
   TrashIcon,
@@ -53,11 +64,7 @@ export default function IdentitySettingsPage() {
   // MFA
   const [mfaEnrollments, setMfaEnrollments] = useState<MfaEnrollment[]>([]);
   const [enrollModalOpen, setEnrollModalOpen] = useState(false);
-  const [enrollData, setEnrollData] = useState<{
-    secret?: string;
-    uri?: string;
-    recoveryCodes?: string[];
-  } | null>(null);
+  const [enrollData, setEnrollData] = useState<MfaEnrolmentStart | null>(null);
   const [confirmCode, setConfirmCode] = useState('');
 
   // GEOFENCE
@@ -152,7 +159,9 @@ export default function IdentitySettingsPage() {
     try {
       setError('');
       setLoading(true);
-      const res = await api.post<{ success: boolean; data: any }>('/auth/mfa/enroll');
+      const res = await api.post<{ success: boolean; data: MfaEnrolmentStart }>(
+        '/auth/mfa/enroll',
+      );
       setEnrollData(res.data.data);
       setConfirmCode('');
       setEnrollModalOpen(true);
@@ -337,7 +346,7 @@ export default function IdentitySettingsPage() {
             <button
               type="button"
               className="btn btn-sm btn-danger"
-              onClick={handleRevokeOtherSessions}
+              onClick={() => { void handleRevokeOtherSessions(); }}
               disabled={loading || sessions.length <= 1}
             >
               Revoke All Other Sessions
@@ -390,7 +399,7 @@ export default function IdentitySettingsPage() {
                   <button
                     type="button"
                     className="btn btn-sm btn-danger"
-                    onClick={() => handleRevokeSession(sess.id)}
+                    onClick={() => { void handleRevokeSession(sess.id); }}
                   >
                     <TrashIcon size={14} />
                     <span>Revoke</span>
@@ -415,7 +424,7 @@ export default function IdentitySettingsPage() {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={handleStartEnrollment}
+              onClick={() => { void handleStartEnrollment(); }}
               disabled={loading}
             >
               <PlusIcon size={16} />
@@ -463,7 +472,7 @@ export default function IdentitySettingsPage() {
                   <button
                     type="button"
                     className="btn btn-sm btn-danger"
-                    onClick={() => handleRevokeMfa(enr.id)}
+                    onClick={() => { void handleRevokeMfa(enr.id); }}
                   >
                     <TrashIcon size={14} />
                     <span>Revoke</span>
@@ -550,7 +559,7 @@ export default function IdentitySettingsPage() {
             </div>
           </div>
 
-          <form onSubmit={handleChangePassword}>
+          <form onSubmit={(event) => { void handleChangePassword(event); }}>
             <div className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
               <div className="form-group">
                 <label>Current Password</label>
@@ -612,7 +621,7 @@ export default function IdentitySettingsPage() {
         subtitle="Scan the QR key or manually enter secret into your authenticator application."
         maxWidth="md"
       >
-        <form onSubmit={handleConfirmMfa}>
+        <form onSubmit={(event) => { void handleConfirmMfa(event); }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ padding: '14px', background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-md)' }}>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Manual Setup Key:</div>
@@ -672,7 +681,7 @@ export default function IdentitySettingsPage() {
         title="Add Geofenced Location"
         subtitle="Specify center coordinates and boundary radius in meters."
       >
-        <form onSubmit={handleCreateGeofence}>
+        <form onSubmit={(event) => { void handleCreateGeofence(event); }}>
           <div className="form-grid">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Location Name</label>

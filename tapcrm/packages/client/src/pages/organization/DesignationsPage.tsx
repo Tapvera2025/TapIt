@@ -168,7 +168,7 @@ export default function DesignationsPage() {
           </p>
         </div>
         <div className="page-header-actions">
-          <button type="button" className="btn btn-secondary" onClick={loadDesignations} disabled={loading}>
+          <button type="button" className="btn btn-secondary" onClick={() => { void loadDesignations(); }} disabled={loading}>
             <RefreshIcon size={16} />
             <span>Refresh</span>
           </button>
@@ -283,7 +283,7 @@ export default function DesignationsPage() {
         title="Add New Designation"
         subtitle="Create a title and define applicable specializations."
       >
-        <form onSubmit={handleCreateSubmit}>
+        <form onSubmit={(event) => { void handleCreateSubmit(event); }}>
           <div className="form-grid">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Designation Title</label>
@@ -337,7 +337,7 @@ export default function DesignationsPage() {
         title={`Edit Designation: ${selectedDesig?.name}`}
         subtitle="Update designation title and skill specializations."
       >
-        <form onSubmit={handleEditSubmit}>
+        <form onSubmit={(event) => { void handleEditSubmit(event); }}>
           <div className="form-grid">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Designation Title</label>
@@ -406,7 +406,7 @@ export default function DesignationsPage() {
           <button
             type="button"
             className="btn btn-danger"
-            onClick={handleDeleteSubmit}
+            onClick={() => { void handleDeleteSubmit(); }}
             disabled={saving}
           >
             {saving ? 'Deleting...' : 'Delete Designation'}

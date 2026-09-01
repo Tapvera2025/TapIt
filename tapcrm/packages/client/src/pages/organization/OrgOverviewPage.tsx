@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import {
-  ChartIcon,
   DepartmentIcon,
   TeamsIcon,
   PositionLadderIcon,
@@ -89,7 +88,7 @@ export default function OrgOverviewPage() {
           </p>
         </div>
         <div className="page-header-actions">
-          <button type="button" className="btn btn-secondary" onClick={loadData} disabled={loading}>
+          <button type="button" className="btn btn-secondary" onClick={() => { void loadData(); }} disabled={loading}>
             <RefreshIcon size={16} />
             <span>Refresh</span>
           </button>

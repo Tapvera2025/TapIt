@@ -1,3 +1,6 @@
+/** T-1 / T-2 — the three organizational unit kinds. */
+export type TeamKind = 'sales-team' | 'sales-pool' | 'dev-subteam';
+
 import React, { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import Modal from '../../components/common/Modal';
@@ -14,7 +17,7 @@ import {
 interface Team {
   id: string;
   departmentId: string;
-  kind: 'sales-team' | 'sales-pool' | 'dev-subteam';
+  kind: TeamKind;
   name: string;
   leadUserId: string | null;
   parentTeamId: string | null;
@@ -55,7 +58,7 @@ export default function TeamsPage() {
   // Forms
   const [createForm, setCreateForm] = useState<{
     departmentId: string;
-    kind: 'sales-team' | 'sales-pool' | 'dev-subteam';
+    kind: TeamKind;
     name: string;
     parentTeamId: string;
     sharedVisibility: boolean;
@@ -68,7 +71,7 @@ export default function TeamsPage() {
   });
 
   const [editForm, setEditForm] = useState<{
-    kind: 'sales-team' | 'sales-pool' | 'dev-subteam';
+    kind: TeamKind;
     name: string;
     sharedVisibility: boolean;
   }>({
@@ -233,7 +236,7 @@ export default function TeamsPage() {
           </p>
         </div>
         <div className="page-header-actions">
-          <button type="button" className="btn btn-secondary" onClick={loadData} disabled={loading}>
+          <button type="button" className="btn btn-secondary" onClick={() => { void loadData(); }} disabled={loading}>
             <RefreshIcon size={16} />
             <span>Refresh</span>
           </button>
@@ -368,7 +371,7 @@ export default function TeamsPage() {
         title="Add New Team"
         subtitle="Create an organizational sub-team, sales group, or pool."
       >
-        <form onSubmit={handleCreateSubmit}>
+        <form onSubmit={(event) => { void handleCreateSubmit(event); }}>
           <div className="form-grid">
             <div className="form-group">
               <label>Department</label>
@@ -392,7 +395,7 @@ export default function TeamsPage() {
               <select
                 className="form-control"
                 value={createForm.kind}
-                onChange={(e) => setCreateForm({ ...createForm, kind: e.target.value as any })}
+                onChange={(e) => setCreateForm({ ...createForm, kind: e.target.value as TeamKind })}
                 disabled={saving}
               >
                 <option value="dev-subteam">Development Subteam (dev-subteam)</option>
@@ -450,7 +453,7 @@ export default function TeamsPage() {
         title={`Edit Team: ${selectedTeam?.name}`}
         subtitle="Update team configuration and lateral access."
       >
-        <form onSubmit={handleEditSubmit}>
+        <form onSubmit={(event) => { void handleEditSubmit(event); }}>
           <div className="form-grid">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Team Name</label>
@@ -469,7 +472,7 @@ export default function TeamsPage() {
               <select
                 className="form-control"
                 value={editForm.kind}
-                onChange={(e) => setEditForm({ ...editForm, kind: e.target.value as any })}
+                onChange={(e) => setEditForm({ ...editForm, kind: e.target.value as TeamKind })}
                 disabled={saving}
               >
                 <option value="dev-subteam">Development Subteam</option>
@@ -515,7 +518,7 @@ export default function TeamsPage() {
         subtitle="Select employees in this department to assign to the team."
         maxWidth="lg"
       >
-        <form onSubmit={handleMembersSubmit}>
+        <form onSubmit={(event) => { void handleMembersSubmit(event); }}>
           <div style={{ maxHeight: '360px', overflowY: 'auto', marginBottom: '16px' }}>
             {employees.length === 0 ? (
               <div className="empty-state" style={{ padding: '24px' }}>

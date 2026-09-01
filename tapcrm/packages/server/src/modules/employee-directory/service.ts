@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
+import { visibilityFilter } from '@tapcrm/authz';
 import { db, platformDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { RequestContext } from '../../platform/dal/context.js';
@@ -292,8 +293,11 @@ export async function createEmployee(ctx: RequestContext, input: CreateEmployeeI
   });
 
   const organization = await platformDb.query<{ code: string }>(
-    'organization-provisioning',
-    'load organization code for employee invitation',
+    {
+      operation: 'organization-lookup',
+      reason: 'load the organization code for an employee invitation email',
+      tables: ['organization'],
+    },
     sql`
       SELECT code
       FROM organization
@@ -316,10 +320,32 @@ export async function createEmployee(ctx: RequestContext, input: CreateEmployeeI
   };
 }
 
-export async function listEmployees(ctx: RequestContext) {
-  return db.query(
-    ctx,
-    sql`
+/**
+ * The scoped employee directory.
+ *
+ * AZ-2 — "List endpoints build their filter from the scope BEFORE querying. No
+ * endpoint fetches broadly and rejects rows afterwards." The visibility
+ * predicate goes into the WHERE clause, so a caller with `team` scope reads
+ * their team's rows and the database never materialises anyone else's.
+ *
+ * The previous version read the whole tenant, ran a second query for the ids
+ * the caller could see, and intersected the two in memory — which reads every
+ * employee record on every call and makes pagination return short pages.
+ *
+ * AZ-4 — the count comes from the same predicate as the list, so it can never
+ * reveal the existence of a row the caller cannot open.
+ */
+export async function listEmployees(
+  ctx: RequestContext,
+  options: { limit: number; page: number },
+) {
+  const filter = await visibilityFilter(ctx, 'users:view', 'user');
+  const offset = (options.page - 1) * options.limit;
+
+  const [rows, totals] = await Promise.all([
+    db.query(
+      ctx,
+      sql`
       SELECT
         u.id,
         ep.employee_id AS "employeeId",
@@ -361,9 +387,27 @@ export async function listEmployees(ctx: RequestContext) {
        AND manager.id = u.reports_to
       WHERE u.organization_id = ${ctx.organizationId}
         AND u.account_type = 'employee'
+        AND ${filter}
       ORDER BY ep.employee_id, u.full_name
+      LIMIT ${options.limit} OFFSET ${offset}
     `,
-  );
+    ),
+    db.one<{ total: string }>(
+      ctx,
+      sql`
+        SELECT count(*)::text AS total
+        FROM app_user u
+        JOIN employee_profile ep
+          ON ep.organization_id = u.organization_id
+         AND ep.user_id = u.id
+        WHERE u.organization_id = ${ctx.organizationId}
+          AND u.account_type = 'employee'
+          AND ${filter}
+      `,
+    ),
+  ]);
+
+  return { items: rows, total: Number(totals.total), page: options.page, limit: options.limit };
 }
 
 export async function getEmployee(ctx: RequestContext, userId: string) {

@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { route } from '../../platform/http/route.js';
+import { pagination } from '../../platform/http/envelope.js';
 import { RequestValidationError } from '../../platform/http/auth-error.js';
 import { sql } from '../../platform/dal/sql.js';
 import { db } from '../../platform/dal/db.js';
-import { visibilityFilter, type Resource } from '@tapcrm/authz';
+import type { Resource } from '@tapcrm/authz';
 import {
   createEmployee,
   getEmployee,
@@ -86,12 +87,29 @@ function parse<TSchema extends z.ZodTypeAny>(
   return p.data;
 }
 
+/**
+ * Loads one employee for the object-level check (AZ-1).
+ *
+ * Selects every field `UserPolicy` reads. The previous version fetched only id,
+ * account type, name and email, so `resource.departmentId` was always
+ * undefined and the department-scope check could never pass — which fails
+ * closed, but leaves the endpoint dead for everyone below Super Admin and looks
+ * like a permissions problem rather than a missing column.
+ */
 async function loadUser(ctx: RequestContext, id: string): Promise<Resource | null> {
-  const row = await db.maybeOne(
+  const row = await db.maybeOne<Record<string, unknown>>(
     ctx,
-    sql`SELECT id,organization_id,account_type,full_name,email FROM app_user WHERE organization_id=${ctx.organizationId} AND id=${id} AND account_type='employee' LIMIT 1`,
+    sql`
+      SELECT id, organization_id, account_type, department_id, team_id, reports_to,
+             position_id, full_name, email, status
+      FROM app_user
+      WHERE organization_id = ${ctx.organizationId}
+        AND id = ${id}
+        AND account_type = 'employee'
+      LIMIT 1
+    `,
   );
-  return row ? { ...row, type: 'user', id } : null;
+  return row === null ? null : { ...row, type: 'user', id };
 }
 
 export function registerEmployeeDirectoryRoutes(): void {
@@ -99,18 +117,9 @@ export function registerEmployeeDirectoryRoutes(): void {
     method: 'GET',
     path: '/api/users',
     action: 'users:view',
-    handler: async ({ ctx }) => {
-      const filter = await visibilityFilter(ctx, 'users:view', 'user');
-      const rows = await listEmployees(ctx);
-      // The service query is tenant-scoped; apply the authorization visibility
-      // predicate again to the actual user ids before returning them.
-      const allowed = await db.query<{ id: string }>(
-        ctx,
-        sql`SELECT id FROM app_user WHERE organization_id=${ctx.organizationId} AND account_type='employee' AND ${filter}`,
-      );
-      const ids = new Set(allowed.map((x) => x.id));
-      return rows.filter((r) => ids.has(String((r as Record<string, unknown>)['id'])));
-    },
+    // AZ-2 — the scope predicate goes into the WHERE clause, in the service.
+    collection: true,
+    handler: async ({ ctx, query }) => listEmployees(ctx, pagination(query)),
   });
 
   route({
@@ -126,6 +135,7 @@ export function registerEmployeeDirectoryRoutes(): void {
     method: 'POST',
     path: '/api/users',
     action: 'users:manage',
+    creates: true,
     handler: async ({ ctx, body }) => createEmployee(ctx, parse(createSchema, body)),
   });
 

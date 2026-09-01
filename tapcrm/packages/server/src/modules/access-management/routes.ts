@@ -83,6 +83,29 @@ async function loadAccessResource(
   };
 }
 
+/**
+ * Loads the person a delegation is aimed at, for the object-level check.
+ *
+ * `access:delegate` names the `user` resource, and §4.6's boundary constraint
+ * is a statement about that user: they must sit inside the actor's own scope.
+ * Running it through the engine is what AZ-1 asks for — the service checks
+ * still stand, but they are no longer the only thing standing.
+ */
+async function loadTargetUser(ctx: RequestContext, id: string): Promise<Resource | null> {
+  const row = await db.maybeOne<Record<string, unknown>>(
+    ctx,
+    sql`
+      SELECT id, organization_id, account_type, department_id, team_id, reports_to,
+             position_id, full_name, email, status
+      FROM app_user
+      WHERE organization_id = ${ctx.organizationId}
+        AND id = ${id}
+      LIMIT 1
+    `,
+  );
+  return row === null ? null : { ...row, type: 'user', id };
+}
+
 export function registerAccessRoutes(): void {
   /* ================================================================== *
    * Current User Permissions
@@ -129,6 +152,10 @@ export function registerAccessRoutes(): void {
     path: '/api/access/who-can/:action',
 
     action: 'access:view',
+
+    // AM-5 — "'Who can see payroll?' must be answerable in one query."
+    // The :action param names a capability, not a user, so this is a set.
+    collection: true,
 
     async handler({ ctx, params }) {
       const action = params['action']!;
@@ -187,6 +214,11 @@ export function registerAccessRoutes(): void {
 
     action: 'access:delegate',
 
+    // The target user is named in the payload, so the object-level check reads
+    // it from there rather than from the path (the manifest fixes the path).
+    resourceBodyField: 'userId',
+    loadResource: loadTargetUser,
+
     status: 201,
 
     async handler({ ctx, body }) {
@@ -238,6 +270,8 @@ export function registerAccessRoutes(): void {
     path: '/api/access/role-change-request',
 
     action: 'access:request-role-change',
+
+    creates: true,
 
     status: 201,
 
@@ -307,6 +341,8 @@ export function registerAccessRoutes(): void {
 
     action: 'approvals:delegate',
 
+    collection: true,
+
     async handler({ ctx }) {
       return listApprovalDelegations(ctx);
     },
@@ -317,6 +353,8 @@ export function registerAccessRoutes(): void {
     path: '/api/approvals/delegations',
 
     action: 'approvals:delegate',
+
+    creates: true,
 
     status: 201,
 

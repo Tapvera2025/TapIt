@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
-import { bootstrapDb, platformDb } from '../../platform/dal/db.js';
+import { globalAccess, type AccountType } from '@tapcrm/contracts';
+import { identityDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { sendEmailOtp, sendRecoveryCodeUsedAlert } from './email.js';
 
@@ -132,29 +133,60 @@ export function hashRecoveryCode(code: string): string {
 }
 
 /**
- * ID-4 & ID-5a: Checks if an account requires MFA and if privileged positions require High assurance.
+ * The policies ID-4 names as privileged.
+ *
+ *   "Multi-factor authentication is available to all users and REQUIRED for
+ *    Super Admin and for any position holding payroll, access-management or
+ *    system-administration policy."
+ *
+ * Enumerated rather than matched by module prefix, because two actions in those
+ * modules are held by everybody and are not administrative:
+ * `access:request-role-change` is the employee side of AM-12 ("HR and managers
+ * can REQUEST a position change"), and `payroll:view` is how a person opens
+ * their own payslip. Prefix-matching either of them would require a security
+ * key of every employee in the company, which is how a control acquires a
+ * reputation for being obstructive and then acquires an exception.
+ *
+ * `org:` is absent for the same reason: `org:view-structure` is held by every
+ * branch head and reading an org chart is not privileged.
+ */
+const PRIVILEGED_ACTIONS = [
+  'payroll:manage',
+  'payroll:manage-config',
+  'access:delegate',
+  'access:view',
+  'access:decide-role-change',
+  'system:manage-integrations',
+  'system:manage-retention',
+  'system:manage-settings',
+  'system:manage-thresholds',
+] as const;
+
+/**
+ * ID-4 / ID-5a — does this account need a second factor, and does it need a
+ * strong one?
+ *
+ * `requiresHighAssurance` is the ID-5a half: "Email OTP does not satisfy the
+ * ID-4 requirement, because the email account is itself a credential that can
+ * be compromised — an OTP delivered to a compromised mailbox is not a second
+ * factor, it is the same factor twice."
  */
 export async function checkMfaRequirement(
   organizationId: string,
   user: {
     id: string;
-    accountType: string;
+    accountType: AccountType;
     positionId?: string | null;
     mfaRequired?: boolean;
   },
 ): Promise<{ required: boolean; requiresHighAssurance: boolean }> {
-  // Super admin always requires high assurance MFA (ID-4)
-  if (user.accountType === 'super-admin') {
+  // The root administrative principal, always, with a strong factor.
+  if (globalAccess({ accountType: user.accountType })) {
     return { required: true, requiresHighAssurance: true };
   }
 
-  if (user.mfaRequired) {
-    return { required: true, requiresHighAssurance: false };
-  }
-
-  // Check if position holds privileged policies (payroll, access-management, etc.)
-  if (user.positionId) {
-    const privilegedRows = await bootstrapDb.readAs<{ action: string }>(
+  if (user.positionId !== null && user.positionId !== undefined) {
+    const privileged = await identityDb.readOne<{ action: string }>(
       organizationId,
       sql`
         SELECT action
@@ -162,18 +194,24 @@ export async function checkMfaRequirement(
         WHERE organization_id = ${organizationId}
           AND position_id = ${user.positionId}
           AND allowed = true
-          AND (
-            action LIKE 'payroll:%'
-            OR action LIKE 'access:%'
-            OR action LIKE 'org:%'
-          )
+          AND action = ANY(${[...PRIVILEGED_ACTIONS]}::text[])
+          -- Reach, not just the verb. An administrative action bounded to the
+          -- holder themselves is a personal entitlement, not authority over
+          -- anyone else, and ID-4 is about authority.
+          AND scope <> 'own'
         LIMIT 1
       `,
     );
 
-    if (privilegedRows.length > 0) {
+    if (privileged !== null) {
       return { required: true, requiresHighAssurance: true };
     }
+  }
+
+  // An individually-required factor, without the high-assurance obligation that
+  // only attaches to privileged positions (ID-5b).
+  if (user.mfaRequired === true) {
+    return { required: true, requiresHighAssurance: false };
   }
 
   return { required: false, requiresHighAssurance: false };
@@ -186,7 +224,7 @@ export async function listUserMfaEnrollments(
   organizationId: string,
   userId: string,
 ): Promise<MfaEnrollmentRecord[]> {
-  const rows = await bootstrapDb.readAs<{
+  const rows = await identityDb.read<{
     id: string;
     method: MfaMethod;
     assurance: MfaAssurance;
@@ -246,9 +284,8 @@ export async function confirmTotpEnrollment(
   }
 
   // Insert enrollment
-  await platformDb.query(
-    'health-check',
-    'enroll totp mfa',
+  await identityDb.execute(
+    organizationId,
     sql`
       INSERT INTO mfa_enrollment (
         organization_id,
@@ -272,9 +309,8 @@ export async function confirmTotpEnrollment(
   // Store hashed recovery codes (ID-5c)
   for (const rc of recoveryCodes) {
     const hash = hashRecoveryCode(rc);
-    await platformDb.query(
-      'health-check',
-      'store mfa recovery code',
+    await identityDb.execute(
+    organizationId,
       sql`
         INSERT INTO mfa_recovery_code (
           organization_id,
@@ -291,9 +327,8 @@ export async function confirmTotpEnrollment(
   }
 
   // Update app_user.mfa_required = true
-  await platformDb.query(
-    'health-check',
-    'mark user mfa enabled',
+  await identityDb.execute(
+    organizationId,
     sql`
       UPDATE app_user
       SET mfa_required = true
@@ -333,7 +368,7 @@ export async function verifyMfaFactor(
   ip: string | null,
 ): Promise<{ verified: boolean; assurance: MfaAssurance }> {
   if (method === 'totp') {
-    const enrollments = await bootstrapDb.readAs<{ id: string; secretRef: string }>(
+    const enrollments = await identityDb.read<{ id: string; secretRef: string }>(
       organizationId,
       sql`
         SELECT id, secret_ref AS "secretRef"
@@ -347,9 +382,8 @@ export async function verifyMfaFactor(
 
     for (const enr of enrollments) {
       if (verifyTotpCode(enr.secretRef, factorValue)) {
-        await platformDb.query(
-          'health-check',
-          'update mfa last used',
+        await identityDb.execute(
+    organizationId,
           sql`UPDATE mfa_enrollment SET last_used_at = NOW() WHERE id = ${enr.id}`,
         );
         return { verified: true, assurance: 'high' };
@@ -376,9 +410,8 @@ export async function verifyMfaFactor(
   if (method === 'recovery-code') {
     const inputHash = hashRecoveryCode(factorValue);
 
-    const matches = await platformDb.query<{ id: string; userEmail: string | null }>(
-      'health-check',
-      'verify mfa recovery code',
+    const matches = await identityDb.read<{ id: string; userEmail: string | null }>(
+      organizationId,
       sql`
         UPDATE mfa_recovery_code
         SET used_at = NOW()
@@ -412,9 +445,8 @@ export async function revokeMfaEnrollment(
   userId: string,
   enrollmentId: string,
 ): Promise<void> {
-  await platformDb.query(
-    'health-check',
-    'revoke mfa enrollment',
+  await identityDb.execute(
+    organizationId,
     sql`
       UPDATE mfa_enrollment
       SET revoked_at = NOW()

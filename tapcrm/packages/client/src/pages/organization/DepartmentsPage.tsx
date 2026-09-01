@@ -175,7 +175,7 @@ export default function DepartmentsPage() {
           </p>
         </div>
         <div className="page-header-actions">
-          <button type="button" className="btn btn-secondary" onClick={loadDepartments} disabled={loading}>
+          <button type="button" className="btn btn-secondary" onClick={() => { void loadDepartments(); }} disabled={loading}>
             <RefreshIcon size={16} />
             <span>Refresh</span>
           </button>
@@ -263,7 +263,7 @@ export default function DepartmentsPage() {
                       <button
                         type="button"
                         className="btn btn-sm btn-secondary"
-                        onClick={() => handleToggleStatus(dept)}
+                        onClick={() => { void handleToggleStatus(dept); }}
                         title={dept.status === 'active' ? 'Deactivate Department' : 'Activate Department'}
                       >
                         {dept.status === 'active' ? 'Deactivate' : 'Activate'}
@@ -303,7 +303,7 @@ export default function DepartmentsPage() {
         title="Add New Department"
         subtitle="Create a new functional business unit in the organization hierarchy."
       >
-        <form onSubmit={handleCreateSubmit}>
+        <form onSubmit={(event) => { void handleCreateSubmit(event); }}>
           <div className="form-grid">
             <div className="form-group">
               <label>
@@ -371,7 +371,7 @@ export default function DepartmentsPage() {
         title={`Edit Department: ${selectedDept?.name}`}
         subtitle={`Code: ${selectedDept?.code}`}
       >
-        <form onSubmit={handleEditSubmit}>
+        <form onSubmit={(event) => { void handleEditSubmit(event); }}>
           <div className="form-grid">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Department Name</label>
@@ -444,7 +444,7 @@ export default function DepartmentsPage() {
           <button
             type="button"
             className="btn btn-danger"
-            onClick={handleDeleteSubmit}
+            onClick={() => { void handleDeleteSubmit(); }}
             disabled={saving}
           >
             {saving ? 'Deleting...' : 'Delete Department'}

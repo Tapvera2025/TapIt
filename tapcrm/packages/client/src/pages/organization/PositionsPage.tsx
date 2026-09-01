@@ -1,3 +1,6 @@
+/** A position is either staffable or retired; OR-5 forbids deleting one in use. */
+export type PositionStatus = 'active' | 'inactive';
+
 import React, { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import Modal from '../../components/common/Modal';
@@ -20,7 +23,7 @@ interface Position {
   organizationalLevel: number;
   parentPositionId: string | null;
   isSeeded: boolean;
-  status: 'active' | 'inactive';
+  status: PositionStatus;
   maxDealValue: string | null;
   maxDiscountPercent: number | null;
   allowsCustomTerms: boolean;
@@ -96,7 +99,7 @@ export default function PositionsPage() {
     maxDealValue: '',
     maxDiscountPercent: '',
     allowsCustomTerms: false,
-    status: 'active' as 'active' | 'inactive',
+    status: 'active' as PositionStatus,
   });
 
   const loadDepartments = async () => {
@@ -280,7 +283,7 @@ export default function PositionsPage() {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => loadLadder(selectedDeptCode)}
+            onClick={() => { void loadLadder(selectedDeptCode); }}
             disabled={loading}
           >
             <RefreshIcon size={16} />
@@ -397,7 +400,7 @@ export default function PositionsPage() {
                     <button
                       type="button"
                       className="btn btn-sm btn-ghost"
-                      onClick={() => handleOpenHolders(pos)}
+                      onClick={() => { void handleOpenHolders(pos); }}
                       title="View Active Holders"
                     >
                       <UsersIcon size={13} />
@@ -421,7 +424,7 @@ export default function PositionsPage() {
                       <button
                         type="button"
                         className="btn btn-sm btn-secondary"
-                        onClick={() => handleOpenPolicies(pos)}
+                        onClick={() => { void handleOpenPolicies(pos); }}
                         title="Inspect RBAC Policies"
                       >
                         <ShieldIcon size={14} />
@@ -451,7 +454,7 @@ export default function PositionsPage() {
         title={`Add Custom Position in ${currentDepartment?.name || 'Department'}`}
         subtitle="Custom positions inherit the authority ladder and must report to a higher level."
       >
-        <form onSubmit={handleCreateSubmit}>
+        <form onSubmit={(event) => { void handleCreateSubmit(event); }}>
           <div className="form-grid">
             <div className="form-group">
               <label>Position Code</label>
@@ -575,7 +578,7 @@ export default function PositionsPage() {
         title={`Configure Position: ${selectedPosition?.name}`}
         subtitle={selectedPosition?.isSeeded ? 'Seeded position (Identity is locked, approval limits configurable)' : 'Custom position'}
       >
-        <form onSubmit={handleEditSubmit}>
+        <form onSubmit={(event) => { void handleEditSubmit(event); }}>
           <div className="form-grid">
             <div className="form-group">
               <label>Position Title</label>
@@ -593,7 +596,7 @@ export default function PositionsPage() {
               <select
                 className="form-control"
                 value={editForm.status}
-                onChange={(e) => setEditForm({ ...editForm, status: e.target.value as any })}
+                onChange={(e) => setEditForm({ ...editForm, status: e.target.value as PositionStatus })}
                 disabled={saving}
               >
                 <option value="active">Active</option>
@@ -707,7 +710,7 @@ export default function PositionsPage() {
           <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
             Granted Actions: <strong>{positionPolicies.length}</strong>
           </span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={handlePreviewPolicies}>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => { void handlePreviewPolicies(); }}>
             Preview Access Impact
           </button>
         </div>

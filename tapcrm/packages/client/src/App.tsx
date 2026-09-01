@@ -146,7 +146,7 @@ function App() {
     const authenticatedUser = await checkAuth();
 
     if (authenticatedUser) {
-      navigate('/dashboard', {
+      void navigate('/dashboard', {
         replace: true,
       });
     }
@@ -163,7 +163,7 @@ function App() {
     } finally {
       setUser(null);
 
-      navigate('/login', {
+      void navigate('/login', {
         replace: true,
       });
     }

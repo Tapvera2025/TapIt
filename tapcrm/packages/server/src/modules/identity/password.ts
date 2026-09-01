@@ -1,7 +1,8 @@
 import argon2 from 'argon2';
-import { randomBytes, createHash } from 'node:crypto';
-import { bootstrapDb, platformDb, type Tx } from '../../platform/dal/db.js';
+import { identityDb, platformDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
+import { hashToken, mintScopedToken, parseScopedToken } from './token.js';
+import { revokeAllUserSessions } from './sessions.js';
 import { sendPasswordResetEmail } from './email.js';
 
 const MIN_PASSWORD_LENGTH = 12;
@@ -99,109 +100,110 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
   }
 }
 
-/**
- * Hash raw token for DB storage.
- */
-export function hashResetToken(rawToken: string): string {
-  return createHash('sha256').update(rawToken).digest('hex');
-}
+/** Kept as a named export because the reset routes and tests both refer to it. */
+export const hashResetToken = hashToken;
 
 /**
- * ID-11 / ID-12: Initiates a password reset.
- * An unverified account can sign in but CANNOT receive password resets (ID-12).
+ * ID-11 / ID-12 — starts a password reset.
+ *
+ * Returns without doing anything when the organization, the account or the
+ * verification state does not line up. That silence is deliberate: telling a
+ * caller "no such account" turns this endpoint into an account-enumeration
+ * oracle, and the requirement to send a reset does not include a requirement to
+ * confirm who exists.
+ *
+ * ID-12: "An unverified account can sign in but cannot receive password
+ * resets." The reset arrives by email, so an unverified address is exactly the
+ * address that must not receive one.
  */
 export async function requestPasswordReset(
   organizationCode: string,
   accountType: 'super-admin' | 'employee' | 'client',
   email: string,
 ): Promise<void> {
-  // Find organization
-  const orgs = await platformDb.query<{ id: string; code: string }>(
-    'organization-provisioning',
-    'find organization for password reset',
+  // `organization` is the tenant root and carries no tenant policy — it is the
+  // one table that has to be readable before an organization is known.
+  const organizations = await platformDb.query<{ id: string; code: string }>(
+    {
+      operation: 'organization-lookup',
+      reason: 'resolve organization code for a password reset',
+      tables: ['organization'],
+    },
     sql`
       SELECT id, code
       FROM organization
-      WHERE code = ${organizationCode}
+      WHERE lower(code) = lower(${organizationCode.trim()})
         AND status = 'active'
       LIMIT 1
     `,
   );
 
-  const org = orgs[0];
-  if (!org) {
-    // Deliberately do not reveal if org exists
-    return;
-  }
+  const organization = organizations[0];
+  if (organization === undefined) return;
 
-  // Find user in tenant
-  const users = await bootstrapDb.readAs<{
+  const user = await identityDb.readOne<{
     id: string;
     email: string | null;
     status: string;
     emailVerifiedAt: string | null;
   }>(
-    org.id,
+    organization.id,
     sql`
-      SELECT id, email, status, email_verified_at AS "emailVerifiedAt"
+      SELECT id, email, status, email_verified_at
       FROM app_user
-      WHERE organization_id = ${org.id}
+      WHERE organization_id = ${organization.id}
         AND account_type = ${accountType}
         AND email = ${email}
       LIMIT 1
     `,
   );
 
-  const user = users[0];
-  if (!user || user.status !== 'active' || !user.email) {
-    return;
-  }
+  if (user === null || user.status !== 'active' || user.email === null) return;
+  if (user.emailVerifiedAt === null) return;
 
-  // ID-12: An unverified account cannot receive password resets
-  if (!user.emailVerifiedAt) {
-    return;
-  }
+  const token = mintScopedToken(organization.id);
 
-  // Generate secure random reset token
-  const rawToken = randomBytes(32).toString('base64url');
-  const tokenHash = hashResetToken(rawToken);
-
-  // Store in password_reset_token table
-  await platformDb.query(
-    'health-check',
-    'create password reset token',
+  await identityDb.mustExecute(
+    organization.id,
     sql`
-      INSERT INTO password_reset_token (
-        organization_id,
-        user_id,
-        token_hash,
-        expires_at
-      )
+      INSERT INTO password_reset_token (organization_id, user_id, token_hash, expires_at)
       VALUES (
-        ${org.id},
+        ${organization.id},
         ${user.id},
-        ${tokenHash},
-        NOW() + (${RESET_TOKEN_TTL_MINUTES} * INTERVAL '1 minute')
+        ${token.hash},
+        now() + (${RESET_TOKEN_TTL_MINUTES} * INTERVAL '1 minute')
       )
     `,
+    'password reset token',
   );
 
-  // Send email (ID-11)
-  await sendPasswordResetEmail(user.email, rawToken, org.code);
+  await sendPasswordResetEmail(user.email, token.raw, organization.code);
 }
 
 /**
- * ID-11: Consumes a password reset token and sets new password.
- * Increments session_version (ID-7), invalidating all existing sessions.
+ * ID-11 — consumes a reset token and sets the new password.
+ *
+ * "Using it invalidates all existing sessions." That is done here rather than
+ * left to a background sweep: a password is reset precisely when the old one is
+ * believed compromised, and a session that outlives the reset by even a minute
+ * defeats the point of resetting.
+ *
+ * The whole thing is one transaction. A password changed without the token
+ * being consumed leaves a live reset link; a token consumed without the
+ * password changing locks the user out of their own recovery.
  */
 export async function resetPasswordWithToken(
   rawToken: string,
   newPassword: string,
 ): Promise<void> {
-  const tokenHash = hashResetToken(rawToken);
+  const scope = parseScopedToken(rawToken);
+  if (scope === null) {
+    throw new PasswordPolicyViolationError('Invalid or expired password reset token.');
+  }
 
-  // Look up token across tenants using bootstrap query
-  const tokenMatches = await platformDb.query<{
+  const tokenHash = hashToken(rawToken);
+
+  const match = await identityDb.readOne<{
     id: string;
     organizationId: string;
     userId: string;
@@ -210,67 +212,66 @@ export async function resetPasswordWithToken(
     email: string | null;
     fullName: string;
   }>(
-    'health-check',
-    'verify password reset token',
+    scope.organizationId,
     sql`
       SELECT
         prt.id,
-        prt.organization_id AS "organizationId",
-        prt.user_id AS "userId",
-        prt.expires_at AS "expiresAt",
-        prt.used_at AS "usedAt",
+        prt.organization_id,
+        prt.user_id,
+        prt.expires_at,
+        prt.used_at,
         u.email,
-        u.full_name AS "fullName"
+        u.full_name
       FROM password_reset_token prt
       INNER JOIN app_user u
-        ON u.id = prt.user_id
-       AND u.organization_id = prt.organization_id
-      WHERE prt.token_hash = ${tokenHash}
+        ON u.organization_id = prt.organization_id
+       AND u.id = prt.user_id
+      WHERE prt.organization_id = ${scope.organizationId}
+        AND prt.token_hash = ${tokenHash}
       LIMIT 1
     `,
   );
 
-  const match = tokenMatches[0];
   if (
-    !match ||
+    match === null ||
     match.usedAt !== null ||
     new Date(match.expiresAt).getTime() <= Date.now()
   ) {
     throw new PasswordPolicyViolationError('Invalid or expired password reset token.');
   }
 
-  // Validate new password against policy
-  validatePasswordPolicy(newPassword, {
-    email: match.email,
-    fullName: match.fullName,
-  });
-
+  validatePasswordPolicy(newPassword, { email: match.email, fullName: match.fullName });
   const newHash = await hashPassword(newPassword);
 
-  // Update password, increment session_version to invalidate all sessions (ID-7), and mark token used
-  await platformDb.query(
-    'health-check',
-    'apply password reset',
-    sql`
-      UPDATE app_user
-      SET
-        password_hash = ${newHash},
-        session_version = session_version + 1,
-        updated_at = NOW()
-      WHERE organization_id = ${match.organizationId}
-        AND id = ${match.userId}
-    `,
-  );
+  await identityDb.transaction(match.organizationId, async (tx) => {
+    // Consume the token first, and require it to have been unconsumed. Two
+    // requests racing on the same link means exactly one of them proceeds.
+    await tx.mustExecute(
+      sql`
+        UPDATE password_reset_token
+        SET used_at = now()
+        WHERE organization_id = ${match.organizationId}
+          AND id = ${match.id}
+          AND used_at IS NULL
+      `,
+      'password reset token',
+    );
 
-  await platformDb.query(
-    'health-check',
-    'mark reset token as consumed',
-    sql`
-      UPDATE password_reset_token
-      SET used_at = NOW()
-      WHERE id = ${match.id}
-    `,
-  );
+    await tx.mustExecute(
+      sql`
+        UPDATE app_user
+        SET password_hash = ${newHash},
+            updated_at = now()
+        WHERE organization_id = ${match.organizationId}
+          AND id = ${match.userId}
+      `,
+      `password for user ${match.userId}`,
+    );
+  });
+
+  // ID-7 — every session dies, and the version bump kills access tokens that
+  // are already in flight.
+  await revokeAllUserSessions(match.organizationId, match.userId, 'password-change');
 }
 
 /**
@@ -283,7 +284,7 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<void> {
-  const users = await bootstrapDb.readAs<{
+  const users = await identityDb.read<{
     passwordHash: string | null;
     email: string | null;
     fullName: string;
@@ -318,17 +319,19 @@ export async function changePassword(
 
   const newHash = await hashPassword(newPassword);
 
-  await platformDb.query(
-    'health-check',
-    'change password and bump session version',
+  await identityDb.mustExecute(
+    organizationId,
     sql`
       UPDATE app_user
-      SET
-        password_hash = ${newHash},
-        session_version = session_version + 1,
-        updated_at = NOW()
+      SET password_hash = ${newHash},
+          updated_at = now()
       WHERE organization_id = ${organizationId}
         AND id = ${userId}
     `,
+    `password for user ${userId}`,
   );
+
+  // ID-7 — a password change invalidates every session, here as everywhere
+  // else, through the one implementation that also kills the refresh tokens.
+  await revokeAllUserSessions(organizationId, userId, 'password-change');
 }

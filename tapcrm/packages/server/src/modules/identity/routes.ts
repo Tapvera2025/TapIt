@@ -40,7 +40,7 @@ import {
 
 import {
   listUserSessions,
-  revokeSingleSession,
+  revokeSession,
   revokeOtherSessions,
 } from './sessions.js';
 
@@ -53,6 +53,12 @@ import {
 } from './geofence.js';
 
 import { unlockUserAccount } from './security.js';
+import { loadConfig } from '../../config.js';
+import type { Resource } from '@tapcrm/authz';
+import { db } from '../../platform/dal/db.js';
+import { sql } from '../../platform/dal/sql.js';
+import type { RequestContext } from '../../platform/dal/context.js';
+import { clearCsrfToken, issueCsrfToken } from '../../platform/http/csrf.js';
 
 const ACCESS_COOKIE = 'tapcrm_access';
 const REFRESH_COOKIE = 'tapcrm_refresh';
@@ -64,17 +70,27 @@ function requestMeta(req: Request) {
   };
 }
 
+/**
+ * Sets the session cookies, and the CSRF token that has to accompany them.
+ *
+ * `secure` comes from validated configuration rather than a raw `process.env`
+ * read: a deployment that forgets to set NODE_ENV should fail loudly at boot,
+ * not silently ship session cookies over plaintext.
+ *
+ * The refresh cookie is scoped to `/api/auth` so it is not attached to every
+ * request in the product. The access token is what ordinary requests carry; a
+ * credential that can mint new sessions should travel as rarely as possible.
+ */
 function setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
-  const accessMaxAge = 60 * 60 * 1000;
-  const refreshMaxAge = 14 * 24 * 60 * 60 * 1000;
-  const secure = process.env['NODE_ENV'] === 'production';
+  const config = loadConfig();
+  const secure = config.NODE_ENV === 'production';
 
   res.cookie(ACCESS_COOKIE, accessToken, {
     httpOnly: true,
     secure,
     sameSite: 'lax',
     path: '/',
-    maxAge: accessMaxAge,
+    maxAge: config.ACCESS_TOKEN_TTL_SECONDS * 1000,
   });
 
   res.cookie(REFRESH_COOKIE, refreshToken, {
@@ -82,12 +98,18 @@ function setAuthCookies(res: Response, accessToken: string, refreshToken: string
     secure,
     sameSite: 'lax',
     path: '/api/auth',
-    maxAge: refreshMaxAge,
+    maxAge: config.REFRESH_TOKEN_TTL_SECONDS * 1000,
   });
+
+  // ID-19 — the double-submit half of the CSRF control. Issued alongside the
+  // session because it is only meaningful while one exists.
+  issueCsrfToken(res);
 }
 
 function clearAuthCookies(res: Response): void {
-  const secure = process.env['NODE_ENV'] === 'production';
+  const secure = loadConfig().NODE_ENV === 'production';
+
+  clearCsrfToken(res);
 
   res.clearCookie(ACCESS_COOKIE, {
     httpOnly: true,
@@ -102,6 +124,51 @@ function clearAuthCookies(res: Response): void {
     sameSite: 'lax',
     path: '/api/auth',
   });
+}
+
+
+/**
+ * Loaders for the object-level check (AZ-1).
+ *
+ * Every field a ResourcePolicy reads has to be selected here. A loader that
+ * omits `department_id` produces a resource whose department is `undefined`,
+ * which fails the scope check for everyone — safe, but the endpoint is then
+ * dead for every principal below Super Admin, and it fails in a way that looks
+ * like a permissions misconfiguration rather than a missing column.
+ */
+async function loadGeofenceLocation(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const row = await db.maybeOne<Record<string, unknown>>(
+    ctx,
+    sql`
+      SELECT id, organization_id, name, radius_metres
+      FROM geofence_location
+      WHERE organization_id = ${ctx.organizationId}
+        AND id = ${id}
+      LIMIT 1
+    `,
+  );
+  return row === null ? null : { ...row, type: 'geofenceLocation', id };
+}
+
+async function loadUserForIdentity(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const row = await db.maybeOne<Record<string, unknown>>(
+    ctx,
+    sql`
+      SELECT id, organization_id, account_type, department_id, team_id, reports_to,
+             full_name, email, status
+      FROM app_user
+      WHERE organization_id = ${ctx.organizationId}
+        AND id = ${id}
+      LIMIT 1
+    `,
+  );
+  return row === null ? null : { ...row, type: 'user', id };
 }
 
 export function registerIdentityRoutes(): void {
@@ -301,7 +368,7 @@ export function registerIdentityRoutes(): void {
     handler: async ({ ctx, req, res }) => {
       const sessionId = req.authSessionId;
       if (sessionId) {
-        await logout(ctx.organizationId, sessionId);
+        await logout(ctx.organizationId, ctx.principal.id, sessionId);
       }
 
       clearAuthCookies(res);
@@ -372,7 +439,7 @@ export function registerIdentityRoutes(): void {
         throw new Error('Session ID is required');
       }
 
-      await revokeSingleSession(ctx.organizationId, ctx.principal.id, sessionId);
+      await revokeSession(ctx.organizationId, ctx.principal.id, sessionId, 'user-requested');
 
       return {
         revoked: true,
@@ -514,6 +581,8 @@ export function registerIdentityRoutes(): void {
     method: 'GET',
     path: '/api/identity/geofences',
     action: 'identity:manage-geofence',
+    // ID-14 — locations are shared references, listed as a set.
+    collection: true,
     status: 200,
     handler: async ({ ctx }) => {
       return {
@@ -529,6 +598,7 @@ export function registerIdentityRoutes(): void {
     method: 'POST',
     path: '/api/identity/geofences',
     action: 'identity:manage-geofence',
+    creates: true,
     status: 201,
     handler: async ({ ctx, body }) => {
       const parsed = createGeofenceSchema.safeParse(body);
@@ -551,6 +621,8 @@ export function registerIdentityRoutes(): void {
     method: 'PATCH',
     path: '/api/identity/geofences/:id',
     action: 'identity:manage-geofence',
+    resourceParam: 'id',
+    loadResource: loadGeofenceLocation,
     status: 200,
     handler: async ({ ctx, params, body }) => {
       const locationId = params['id'];
@@ -582,6 +654,8 @@ export function registerIdentityRoutes(): void {
     method: 'POST',
     path: '/api/identity/geofences/:id/assign',
     action: 'identity:manage-geofence',
+    resourceParam: 'id',
+    loadResource: loadGeofenceLocation,
     status: 200,
     handler: async ({ ctx, params, body }) => {
       const locationId = params['id'];
@@ -615,6 +689,8 @@ export function registerIdentityRoutes(): void {
     method: 'POST',
     path: '/api/identity/users/:id/unlock',
     action: 'identity:unlock-account',
+    resourceParam: 'id',
+    loadResource: loadUserForIdentity,
     status: 200,
     handler: async ({ ctx, params }) => {
       const userId = params['id'];

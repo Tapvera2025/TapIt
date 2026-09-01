@@ -347,7 +347,7 @@ export default function UsersDirectoryPage() {
                 ✕
               </button>
             </div>
-            <form onSubmit={submit}>
+            <form onSubmit={(event) => { void submit(event); }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 {field('employeeId', 'Employee ID', 'text', true)}
                 {field('fullName', 'Full Name', 'text', true)}

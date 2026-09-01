@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   RolesIcon,
-  ShieldIcon,
   CheckIcon,
 } from '../../components/common/Icons';
 

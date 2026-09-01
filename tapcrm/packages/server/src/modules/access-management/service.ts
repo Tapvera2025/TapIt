@@ -1467,7 +1467,10 @@ async function getApprovalCapabilities(
   ctx: RequestContext,
   user: ApprovalUser,
 ): Promise<Set<string>> {
-  if (user.accountType === 'super-admin') {
+  // §4.7 — globalAccess is derived in exactly one place. Comparing the account
+  // type here would be a second implementation of the same question, and two
+  // implementations eventually disagree.
+  if (globalAccess({ accountType: user.accountType })) {
     return new Set(
       Object.values(REGISTRY)
         .filter((definition) => definition.approvalBearing)
@@ -1545,7 +1548,7 @@ async function assertApprovalScopeCoverage(
   delegator: ApprovalUser,
   delegate: ApprovalUser,
 ): Promise<void> {
-  if (delegator.accountType === 'super-admin') {
+  if (globalAccess({ accountType: delegator.accountType })) {
     return;
   }
 
@@ -2063,7 +2066,13 @@ export async function getMyPermissions(
 
   const overrides: string[] = [];
 
-  const approvalLimits = {
+  // SA-1 — "Approval thresholds are configured per position: maximum deal
+  // value, maximum discount percentage, whether custom contract terms are
+  // permitted." Reported here because this endpoint answers "what may I do",
+  // and a Sales principal's ceiling is part of that answer. NF-13 asks every
+  // denial to explain what is missing; a limit nobody can see is a denial
+  // waiting to be mysterious.
+  let approvalLimits: MePermissionsResponse['approvalLimits'] = {
     dealValueMax: null,
     discountPercentMax: null,
     allowCustomTerms: false,
@@ -2105,14 +2114,13 @@ export async function getMyPermissions(
         organizationalLevel: row.organizationalLevel,
       };
 
-      const approvalLimits: {
-        dealValueMax: string | null;
-        discountPercentMax: string | null;
-        allowCustomTerms: boolean;
-      } = {
-        dealValueMax: null,
-        discountPercentMax: null,
-        allowCustomTerms: false,
+      // The query above already fetched these; the previous version declared a
+      // second, shadowing `approvalLimits` full of nulls and threw the real
+      // values away, so every position reported no limits at all.
+      approvalLimits = {
+        dealValueMax: row.maxDealValue,
+        discountPercentMax: row.maxDiscountPercent,
+        allowCustomTerms: row.allowsCustomTerms,
       };
     }
   }

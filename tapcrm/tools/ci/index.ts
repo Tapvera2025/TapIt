@@ -74,6 +74,23 @@ const moduleFiles = serverFiles.filter((f) => f.includes('/src/modules/'));
 const read = (f: string): string => readFileSync(f, 'utf8');
 const rel = (f: string): string => relative(ROOT, f);
 
+/**
+ * Removes comments before pattern-matching.
+ *
+ * These checks are greps, and a grep that fires on the doc comment EXPLAINING
+ * the rule is worse than no grep: the first thing a team does with a gate that
+ * cries wolf is learn to skim past it, and by then the real findings are
+ * skimmed past too. Every check below that scans for a code pattern runs
+ * against this, not the raw text.
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .split('\n')
+    .map((line) => (line.trimStart().startsWith('//') ? '' : line.replace(/\/\/.*$/, '')))
+    .join('\n');
+}
+
 /* ================================================================== *
  * CI-15 — no module imports the raw pool or creates its own connection
  * ================================================================== */
@@ -101,7 +118,7 @@ const rel = (f: string): string => relative(ROOT, f);
   for (const file of sourceFiles) {
     const normalized = file.replace(/\\/g, '/');
     if (ALLOWED.some((a) => normalized.endsWith(a))) continue;
-    if (/set_config\(\s*['"`]app\.organization_id/.test(read(file))) {
+    if (/set_config\(\s*['"`]app\.organization_id/.test(stripComments(read(file)))) {
       blocking(
         'CI-16',
         'TN-6',
@@ -112,6 +129,115 @@ const rel = (f: string): string => relative(ROOT, f);
     }
   }
   if (violations === 0) ok('CI-16  tenant context set only in the DAL');
+}
+
+/* ================================================================== *
+ * TN-LIST — the tenant-table list matches the migrations
+ *
+ * `platform/dal/tenant-tables.ts` is what stops a cross-tenant surface from
+ * reaching tenant data. It is a hand-maintained list, so it is only as good as
+ * its agreement with the schema — and a table that is RLS-protected but missing
+ * from the list is a table `platformDb` will happily accept, where the RLS
+ * policy then matches nothing and the statement silently succeeds.
+ * ================================================================== */
+{
+  const declared = new Set<string>();
+  const listFile = resolve(ROOT, 'packages/server/src/platform/dal/tenant-tables.ts');
+  if (existsSync(listFile)) {
+    const body = read(listFile).split('GLOBAL_TABLES')[0] ?? '';
+    for (const match of body.matchAll(/^\s*'([a-z_]+)',$/gm)) {
+      declared.add(match[1] as string);
+    }
+  }
+
+  const protectedTables = new Set<string>();
+  for (const file of walk(resolve(ROOT, 'migrations'), ['.sql'])) {
+    const text = read(file);
+    for (const match of text.matchAll(/apply_tenant_rls\(\s*'([a-z_]+)'\s*\)/g)) {
+      protectedTables.add(match[1] as string);
+    }
+    for (const match of text.matchAll(/ALTER TABLE (\w+)\s+ENABLE ROW LEVEL SECURITY/gi)) {
+      protectedTables.add((match[1] as string).toLowerCase());
+    }
+  }
+
+  const missing = [...protectedTables].filter((t) => !declared.has(t)).sort();
+  const stale = [...declared].filter((t) => !protectedTables.has(t)).sort();
+
+  if (missing.length > 0) {
+    blocking(
+      'TN-LIST',
+      'MT-5',
+      `TENANT_OWNED_TABLES is missing ${String(missing.length)} RLS-protected table(s): ` +
+        `${missing.join(', ')}. A cross-tenant surface would accept them and silently match no rows.`,
+    );
+  }
+  if (stale.length > 0) {
+    blocking(
+      'TN-LIST',
+      'MT-5',
+      `TENANT_OWNED_TABLES names ${String(stale.length)} table(s) no migration protects: ` +
+        `${stale.join(', ')}.`,
+    );
+  }
+  if (missing.length === 0 && stale.length === 0) {
+    ok(`TN-LIST tenant table list matches the schema (${String(protectedTables.size)} tables)`);
+  }
+}
+
+/* ================================================================== *
+ * TN-SURFACE — platformDb never declares a tenant-owned table
+ *
+ * The DAL refuses these at runtime. This catches them at build time, which is
+ * where a developer wants to find out.
+ * ================================================================== */
+{
+  let violations = 0;
+  for (const file of serverFiles) {
+    if (file.endsWith('platform/dal/db.ts')) continue;
+    const text = stripComments(read(file));
+    for (const match of text.matchAll(/tables:\s*\[([^\]]*)\]/g)) {
+      const named = [...(match[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1] as string);
+      const tenantOwned = named.filter((t) => !['organization', 'schema_migrations', 'country', 'currency'].includes(t));
+      if (tenantOwned.length > 0) {
+        blocking(
+          'TN-SURFACE',
+          'MT-5',
+          `${rel(file)} points a cross-tenant call at tenant-owned table(s): ` +
+            `${tenantOwned.join(', ')}. Use \`db\` with a RequestContext, or \`identityDb\`.`,
+        );
+        violations += 1;
+      }
+    }
+  }
+  if (violations === 0) ok('TN-SURFACE cross-tenant calls name only global tables');
+}
+
+/* ================================================================== *
+ * ID-DAL — the pre-authentication surface stays in identity
+ *
+ * `identityDb` exists because authentication has to read `app_user` before a
+ * principal exists. That is a narrow, named exception. Feature code reaching
+ * for it would be feature code running without a principal, which is the
+ * authorization engine bypassed rather than satisfied.
+ * ================================================================== */
+{
+  let violations = 0;
+  for (const file of sourceFiles) {
+    const normalized = file.replace(/\\/g, '/');
+    if (normalized.includes('/src/modules/identity/')) continue;
+    if (normalized.endsWith('platform/dal/db.ts')) continue;
+    if (/\bidentityDb\b/.test(stripComments(read(file)))) {
+      blocking(
+        'ID-DAL',
+        'TN-5',
+        `${rel(file)} uses identityDb. That surface exists only for authentication, before a ` +
+          'principal exists. Everything else goes through `db` with a RequestContext.',
+      );
+      violations += 1;
+    }
+  }
+  if (violations === 0) ok('ID-DAL  pre-auth DAL confined to the identity module');
 }
 
 /* ================================================================== *
@@ -143,22 +269,40 @@ const rel = (f: string): string => relative(ROOT, f);
  * ================================================================== */
 {
   let violations = 0;
-  for (const file of sourceFiles) {
-    const text = read(file);
-    // An ASSIGNMENT to a globalAccess field, not a call to the derive function.
-    if (/globalAccess\s*[:=]\s*(true|false|[a-z_$][\w$]*\s*[;,])/i.test(text)) {
-      const isDefinition = file.endsWith('contracts/src/principal.ts');
-      if (!isDefinition) {
-        blocking(
-          'globalAccess',
-          '§4.7',
-          `${rel(file)} assigns a globalAccess field. It has no storage and no lookup — ` +
-            '"a boolean on a record is a boolean somebody can set."',
-        );
-        violations += 1;
-      }
+
+  // The thing §4.7 forbids is STORAGE: "No column, no policy, no override, no
+  // delegation path, no interface control. A boolean on a record is a boolean
+  // somebody can set." So the check looks for the two shapes that would create
+  // one — a database column, and a hard-coded literal in code — and does not
+  // object to a value computed by calling the derive function, which is the
+  // only sanctioned way to obtain it.
+  for (const file of walk(resolve(ROOT, 'migrations'), ['.sql'])) {
+    if (/\bglobal_access\b/.test(read(file))) {
+      blocking(
+        'globalAccess',
+        '§4.7',
+        `${rel(file)} declares a global_access column. globalAccess is derived from account ` +
+          'type and has no storage: a column is a value somebody can set.',
+      );
+      violations += 1;
     }
   }
+
+  for (const file of sourceFiles) {
+    if (file.endsWith('contracts/src/principal.ts')) continue;
+    const text = stripComments(read(file));
+    // A hard-coded literal, never a call: `globalAccess(p)` is the derivation.
+    if (/globalAccess\s*[:=]\s*(true|false)\b/.test(text)) {
+      blocking(
+        'globalAccess',
+        '§4.7',
+        `${rel(file)} assigns globalAccess a literal. It is derived from account type — ` +
+          'call globalAccess(principal) rather than deciding it here.',
+      );
+      violations += 1;
+    }
+  }
+
   if (violations === 0) ok('glob   globalAccess is derived, never stored');
 }
 
@@ -167,10 +311,19 @@ const rel = (f: string): string => relative(ROOT, f);
  * ================================================================== */
 {
   let violations = 0;
-  for (const file of moduleFiles) {
-    const text = read(file);
-    if (!/\bfilter\s*\(/.test(text)) continue;
-    // A filter implementation whose default branch returns an empty fragment.
+
+  // Scoped to files that actually register a ResourcePolicy. The previous
+  // version matched any `filter(` — including `rows.filter(...)` and
+  // `users.filter(...)` — so three of its findings were Array.prototype and
+  // the check spent its credibility on noise.
+  const policyFiles = moduleFiles.filter((file) =>
+    /registerResourcePolicy\s*\(/.test(stripComments(read(file))),
+  );
+
+  for (const file of policyFiles) {
+    const text = stripComments(read(file));
+
+    // A `filter` implementation whose default branch returns an empty fragment.
     if (/default:\s*\n?\s*return\s*\{\s*sql:\s*['"`]\s*['"`]/.test(text)) {
       blocking(
         'CI-23',
@@ -180,17 +333,21 @@ const rel = (f: string): string => relative(ROOT, f);
       );
       violations += 1;
     }
-    if (/\bfilter\s*\(/.test(text) && !/MATCH_NOTHING/.test(text)) {
+
+    if (!/MATCH_NOTHING/.test(text)) {
       blocking(
         'CI-23',
         'AZ-I2',
-        `${rel(file)} implements filter() without referencing MATCH_NOTHING. Every deny ` +
-          'path must compile to a provably false predicate.',
+        `${rel(file)} registers a ResourcePolicy but never references MATCH_NOTHING. ` +
+          'Every deny path must compile to a provably false predicate.',
       );
       violations += 1;
     }
   }
-  if (violations === 0) ok('CI-23  deny filters compile to explicit FALSE');
+
+  if (violations === 0) {
+    ok(`CI-23  deny filters compile to explicit FALSE (${String(policyFiles.length)} policy files)`);
+  }
 }
 
 /* ================================================================== *
@@ -284,12 +441,19 @@ const rel = (f: string): string => relative(ROOT, f);
       .split('\n')
       .forEach((line, i) => {
         if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
-        // A template literal containing SQL keywords AND an interpolation, that
+        // A template literal that both interpolates and looks like a query, and
         // is not tagged with the `sql` tag.
-        if (
-          /(?<!sql)`[^`]*\b(SELECT|INSERT|UPDATE|DELETE|WHERE|FROM)\b[^`]*\$\{/i.test(line) &&
-          !/sql`/.test(line)
-        ) {
+        //
+        // TWO keywords, not one. A single `WHERE` or `FROM` turns up constantly
+        // in ordinary English — including in the error messages that explain
+        // these very rules — and a check that fires on prose is a check people
+        // learn to skip past.
+        const template = /(?<!sql)`[^`]*\$\{[^`]*`/.exec(line)?.[0] ?? '';
+        const keywords = new Set(
+          [...template.matchAll(/\b(SELECT|INSERT INTO|UPDATE|DELETE FROM|WHERE|FROM|JOIN|VALUES|RETURNING)\b/gi)]
+            .map((m) => m[0].toUpperCase()),
+        );
+        if (template !== '' && keywords.size >= 2 && !/sql`/.test(line)) {
           blocking(
             'CI-20',
             'T-7',

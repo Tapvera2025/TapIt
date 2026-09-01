@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { bootstrapDb } from '../../platform/dal/db.js';
+import { identityDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import {
   installPrincipalResolver,
@@ -40,7 +40,7 @@ export function installIdentityPrincipalResolver(): void {
       return null;
     }
 
-    const rows = await bootstrapDb.readAs<AuthRow>(
+    const rows = await identityDb.read<AuthRow>(
       payload.org,
       sql`
         SELECT

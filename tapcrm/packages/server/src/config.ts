@@ -22,6 +22,10 @@ const schema = z.object({
   DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
 
   REDIS_URL: z.string().url(),
+  // ID-9 / SE-5 — brute-force counters and rate limits must be shared across
+  // replicas and survive a deploy. `memory` is a single-process fallback for
+  // local work only, and is refused in production at boot.
+  SECURITY_COUNTER_STORE: z.enum(['redis', 'memory']).default('redis'),
 
   S3_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default('us-east-1'),
