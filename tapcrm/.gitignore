@@ -1,0 +1,21 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+.vitest/
+
+# Secrets never enter the repo (TECH.md DP-3, "Secrets" under §16.1)
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+npm-debug.log*
+
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+/tmp/
+/.cache/

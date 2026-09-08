@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --app-background: #f7faf9;
+  --app-foreground: #14201f;
+  --app-surface: #ffffff;
+  --app-border: #d8e3e0;
+  --app-muted: #60736f;
+  --app-accent: #0f9f8b;
+  color-scheme: light;
+}
+
+:root.dark {
+  --app-background: #0b1016;
+  --app-foreground: #edf4f4;
+  --app-surface: #121a23;
+  --app-border: #263542;
+  --app-muted: #8fa2ab;
+  --app-accent: #39d6bd;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+  --color-app-background: var(--app-background);
+  --color-app-foreground: var(--app-foreground);
+  --color-app-surface: var(--app-surface);
+  --color-app-border: var(--app-border);
+  --color-app-muted: var(--app-muted);
+  --color-app-accent: var(--app-accent);
+}
+
+body {
+  background: var(--app-background);
+  color: var(--app-foreground);
+}
