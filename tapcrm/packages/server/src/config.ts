@@ -55,8 +55,7 @@ const schema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   CLIENT_ORIGIN: z.string().url().default('http://localhost:5173'),
   // 
-  EMAIL_TRANSPORT: z.enum(['console', 'smtp', 'webhook']).default('console'),
-  INVITATION_EMAIL_WEBHOOK_URL: z.union([z.string().url(), z.literal('')]).optional(),
+  EMAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
   SMTP_SECURE: z.coerce.boolean().default(false),

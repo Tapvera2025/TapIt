@@ -166,7 +166,6 @@ services:
       CORS_ORIGIN: http://localhost:5173
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
       EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-console}
-      INVITATION_EMAIL_WEBHOOK_URL: ${INVITATION_EMAIL_WEBHOOK_URL:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
