@@ -1,5 +1,10 @@
 import { registerOrganizationPolicies } from './organization/policy.js';
 import { registerOrganizationRoutes } from './organization/routes.js';
+import { registerEmployeePolicies } from './employee/policy.js';
+import { registerEmployeeRoutes } from './employee/routes.js';
+import { registerGeofencePolicies } from './identity/geofence/policy.js';
+import { registerGeofenceRoutes } from './identity/geofence/routes.js';
+import { registerIdentityRoutes } from './identity/routes.js';
 
 /**
  * The module registry.
@@ -14,8 +19,13 @@ import { registerOrganizationRoutes } from './organization/routes.js';
  */
 export function registerAllPolicies(): void {
   registerOrganizationPolicies();
+  registerEmployeePolicies();
+  registerGeofencePolicies();
 }
 
 export function registerAllRoutes(): void {
+  registerIdentityRoutes();
   registerOrganizationRoutes();
+  registerEmployeeRoutes();
+  registerGeofenceRoutes();
 }

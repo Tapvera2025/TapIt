@@ -27,6 +27,9 @@ const schema = z.object({
   // replicas and survive a deploy. `memory` is a single-process fallback for
   // local work only, and is refused in production at boot.
   SECURITY_COUNTER_STORE: z.enum(['redis', 'memory']).default('redis'),
+  // Optional header written by a trusted edge IP-geolocation provider. Empty
+  // means country signals remain unavailable rather than client-controlled.
+  TRUSTED_IP_COUNTRY_HEADER: z.string().trim().default(''),
 
   S3_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default('us-east-1'),

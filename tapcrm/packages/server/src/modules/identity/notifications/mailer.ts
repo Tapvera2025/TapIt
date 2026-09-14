@@ -6,6 +6,8 @@ export interface EmailMessage {
   readonly subject: string;
   readonly text: string;
   readonly html?: string;
+  /** Sensitive bodies must never be printed by the development console sender. */
+  readonly sensitive?: boolean;
 }
 
 export interface EmailSender {
@@ -20,7 +22,7 @@ class ConsoleEmailSender implements EmailSender {
     console.log('\n--- [EMAIL SENT - CONSOLE] ---');
     console.log(`To: ${message.to}`);
     console.log(`Subject: ${message.subject}`);
-    console.log(`Body:\n${message.text}`);
+    console.log(message.sensitive ? 'Body: [sensitive content omitted]' : `Body:\n${message.text}`);
     console.log('------------------------------\n');
   }
 }

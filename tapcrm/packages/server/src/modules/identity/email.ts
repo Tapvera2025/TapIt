@@ -3,7 +3,7 @@
 export { sendEmail, setEmailSender, resetEmailSender } from './notifications/mailer.js';
 export type { EmailMessage, EmailSender } from './notifications/mailer.js';
 
-export { sendAdminInvitation, sendEmployeeInvitation } from './notifications/invitation-email.js';
+export { sendAdminInvitation, sendEmployeeInvitation, sendEmployeeCredentials } from './notifications/invitation-email.js';
 export type { AdminInvitationEmail } from './notifications/invitation-email.js';
 
 export {
@@ -19,4 +19,4 @@ export {
   sendRefreshReuseAlert,
 } from './notifications/security-email.js';
 
-export { sendGeofenceDenialAlert } from './notifications/geofence-email.js';
+export { sendGeofenceDenialAlert, sendGeofenceConfigurationAlert } from './notifications/geofence-email.js';

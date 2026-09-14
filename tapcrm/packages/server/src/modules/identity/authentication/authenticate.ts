@@ -11,7 +11,7 @@ export async function resolvePrincipal(req: Request) {
   const claims = await verifyIdentityAccessToken(header.slice(7).trim());
   const rows = await bootstrapDb.readAs<IdentityUser>(claims.organizationId, sql`
     SELECT u.id, u.organization_id, u.account_type, u.email, u.password_hash, u.status,
-           o.status AS organization_status, u.session_version, u.full_name,
+           o.status AS organization_status, u.session_version, u.must_change_password, u.locked_until, u.full_name,
            u.position_id, u.department_id, u.team_id, u.reports_to, u.client_id, u.geofence_required, p.organizational_level
     FROM app_user u LEFT JOIN position p ON p.id = u.position_id
     JOIN organization o ON o.id = u.organization_id
@@ -20,7 +20,10 @@ export async function resolvePrincipal(req: Request) {
       AND s.session_version = u.session_version AND s.revoked_at IS NULL AND s.expires_at > now()
   `);
   const user = rows[0];
-  if (!user || user.status !== 'active' || user.sessionVersion !== claims.sessionVersion) throw new IdentityAuthenticationError('IDENTITY_SESSION_EXPIRED');
+  if (!user || user.status !== 'active' || user.sessionVersion !== claims.sessionVersion || user.accountType !== claims.accountType) throw new IdentityAuthenticationError('IDENTITY_SESSION_EXPIRED');
+  if (user.organizationStatus !== 'active') throw new IdentityAuthenticationError('IDENTITY_ORGANIZATION_SUSPENDED');
+  if (user.lockedUntil && user.lockedUntil > new Date()) throw new IdentityAuthenticationError('IDENTITY_ACCOUNT_LOCKED', undefined, 429);
+  if (user.mustChangePassword) throw new IdentityAuthenticationError('IDENTITY_PASSWORD_CHANGE_REQUIRED');
   await db.transaction(
     createIdentityContext(user, `identity:session:${claims.sessionId}`),
     (tx) => tx.query(sql`

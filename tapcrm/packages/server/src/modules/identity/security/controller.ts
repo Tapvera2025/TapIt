@@ -9,7 +9,7 @@ export async function requestPasswordResetController(req: Request, res: Response
 }
 
 export async function resetPasswordController(req: Request, res: Response): Promise<void> {
-  const body = z.object({ token: z.string().min(20), password: z.string().min(12).max(200) }).parse(req.body ?? {});
-  await resetPassword(body.token, body.password);
+  const body = z.object({ token: z.string().min(20), password: z.string().min(12).max(200), organizationCode: z.string().trim().min(2).max(32) }).parse(req.body ?? {});
+  await resetPassword(body.token, body.password, body.organizationCode);
   res.status(200).json({ success: true, data: { reset: true } });
 }
