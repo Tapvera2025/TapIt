@@ -7,7 +7,7 @@ import { sql } from '../../../platform/dal/sql.js';
 import { createIdentityContext, type IdentityUser } from '../authentication/principal.js';
 import { findUserById } from '../repository.js';
 
-export async function enforceGeofencedLogin(input: { organizationId: string; userId: string; accountType: string; user: IdentityUser; latitude?: number; longitude?: number; accuracyMetres?: number | null }) {
+export async function enforceGeofencedLogin(input: { organizationId: string; userId: string; accountType: string; user: IdentityUser; latitude?: number; longitude?: number; accuracyMetres?: number | null; ip?: string | null }) {
   if (input.accountType === 'super-admin') return;
   const exception = await db.transaction(createIdentityContext(input.user, `identity:geofence-exception:${input.userId}`), async (tx) => {
     const wfh = await tx.maybeOne<{ id: string }>(sql`
@@ -32,7 +32,7 @@ export async function enforceGeofencedLogin(input: { organizationId: string; use
     accuracyMetres: input.accuracyMetres ?? null,
   }));
   if (!result.accuracyAccepted) throw new IdentityValidationError('IDENTITY_LOCATION_ACCURACY_TOO_LOW', 'Location accuracy is too low. Move to an area with a clearer location signal and try again.');
-  if (!result.allowed) throw new IdentityValidationError('IDENTITY_LOCATION_NOT_ALLOWED', 'Sign-in is outside your assigned locations.');
+  if (!result.allowed) throw new IdentityValidationError('IDENTITY_LOCATION_NOT_ALLOWED', 'Sign-in is outside your assigned locations. You may request a one-time administrative review.');
   return result;
 }
 
@@ -47,4 +47,12 @@ export async function geofenceNotice(organizationId: string, userId: string) {
   if (!user) throw new IdentityValidationError('IDENTITY_USER_NOT_FOUND', 'Identity user not found');
   const locations = await db.transaction(createIdentityContext(user, `identity:geofence-notice:${userId}`), (tx) => getUserGeofenceNotice(tx, organizationId, userId));
   return { retentionDays: 90, locations };
+}
+
+export async function submitGeofenceAppeal(input: { organizationId: string; userId: string; latitude: number; longitude: number; accuracyMetres: number | null; reason: string }) {
+  const user = await findUserById(input.userId, input.organizationId);
+  if (!user) throw new IdentityValidationError('IDENTITY_USER_NOT_FOUND', 'Identity user not found');
+  if (user.accountType === 'super-admin') throw new IdentityValidationError('IDENTITY_SUPER_ADMIN_NOT_GEOFENCED', 'Super Admin accounts are never geofenced');
+  if (!user.geofenceRequired) throw new IdentityValidationError('IDENTITY_GEOFENCE_NOT_REQUIRED', 'Geofencing is not enabled for this account');
+  return db.transaction(createIdentityContext(user, `identity:geofence-appeal:${input.userId}`), (tx) => createBypassRequest(tx, input));
 }

@@ -2232,6 +2232,18 @@
       "resourceParam": "id"
     },
     {
+      "method": "GET",
+      "path": "/api/identity/geofence-appeals",
+      "action": "identity:manage-geofence",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/identity/geofence-appeals/:id/decide",
+      "action": "identity:manage-geofence",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/identity/users/:id/unlock",
       "action": "identity:unlock-account",

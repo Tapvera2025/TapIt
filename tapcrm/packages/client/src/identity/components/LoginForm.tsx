@@ -1,23 +1,40 @@
 import { useState } from 'react';
-import { identityLogin, type IdentityUser } from '../api/authApi.js';
+import { identityLogin, IdentityApiError, type IdentityLoginResult, type GeolocationInput } from '../api/authApi.js';
 
-export function LoginForm({ onSuccess }: { onSuccess: (user: IdentityUser) => void }) {
+export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result: IdentityLoginResult) => void; onForgotPassword: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [location, setLocation] = useState<GeolocationInput | undefined>();
+
+  function requestLocation(): Promise<GeolocationInput> {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('This browser does not support location access.')); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracyMetres: Math.ceil(position.coords.accuracy) }),
+        () => reject(new Error('Location permission is required for this account. Allow location access in your browser and try again.')),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      );
+    });
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError('');
     try {
-      const result = await identityLogin(email, password);
-      if (result.user.accountType !== 'super-admin') {
-        throw new Error('This login is for company Super Admin accounts.');
+      let result: IdentityLoginResult;
+      try {
+        result = await identityLogin(email, password, location);
+      } catch (cause) {
+        if (!(cause instanceof IdentityApiError) || cause.code !== 'IDENTITY_LOCATION_REQUIRED') throw cause;
+        const currentLocation = await requestLocation();
+        setLocation(currentLocation);
+        result = await identityLogin(email, password, currentLocation);
       }
-      onSuccess(result.user);
+      onSuccess(result);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Company login failed');
     } finally {
@@ -33,7 +50,7 @@ export function LoginForm({ onSuccess }: { onSuccess: (user: IdentityUser) => vo
       </div>
       <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-app-accent">Company workspace</p>
       <h1 className="font-display text-[clamp(30px,7vw,42px)] font-bold leading-none tracking-[-0.05em]">Welcome back.</h1>
-      <p className="mt-3 text-sm leading-6 text-app-muted">Sign in as your company Super Admin to continue to your workspace.</p>
+      <p className="mt-3 text-sm leading-6 text-app-muted">Sign in with your company account to continue to your workspace.</p>
       <label className="mt-7 block">
         <span className="mb-2 block text-xs font-semibold text-app-muted">Email address</span>
         <input className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="admin@company.com" required />
@@ -70,6 +87,7 @@ export function LoginForm({ onSuccess }: { onSuccess: (user: IdentityUser) => vo
       <button className="mt-6 block w-full rounded-[10px] bg-app-accent px-4 py-3 font-bold text-[#061412] transition hover:-translate-y-px hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={busy}>
         {busy ? 'Signing in...' : 'Sign in to company workspace'}
       </button>
+      <button type="button" className="mx-auto mt-4 block border-0 bg-transparent p-0 text-xs font-semibold text-app-accent hover:underline" onClick={onForgotPassword}>Forgot password?</button>
       {error && <p className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-[#d86b6b]" role="alert">{error}</p>}
       <p className="mt-6 text-center text-xs text-app-muted">Platform administrators sign in through the separate Master Admin portal.</p>
     </form>

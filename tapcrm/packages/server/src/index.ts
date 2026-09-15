@@ -1,6 +1,8 @@
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { closePools } from './platform/dal/pool.js';
+import { purgeAllExpiredGeofenceCoordinates } from './modules/identity/geofence/privacy.js';
+import { startBackgroundJobs, stopBackgroundJobs } from './platform/jobs.js';
 
 /**
  * Entry point.
@@ -26,6 +28,19 @@ const server = app.listen(config.API_PORT, () => {
   );
 });
 
+let geofenceRetentionTimer: NodeJS.Timeout | null = null;
+void startBackgroundJobs().catch((error: unknown) => {
+  // Keep local development safe if Redis is temporarily unavailable. The
+  // durable scheduler is used whenever the existing Redis service is healthy.
+  console.error(JSON.stringify({ level: 'error', msg: 'background jobs unavailable; using local retention fallback', error: String(error) }));
+  geofenceRetentionTimer = setInterval(() => {
+    void purgeAllExpiredGeofenceCoordinates().catch((purgeError: unknown) => {
+      console.error(JSON.stringify({ level: 'error', msg: 'geofence coordinate purge failed', error: String(purgeError) }));
+    });
+  }, 24 * 60 * 60 * 1000);
+  geofenceRetentionTimer.unref();
+});
+
 // DP-10 — "an unhealthy application container must not silently remain in
 // service." Anything unhandled here is a defect; exit and let the orchestrator
 // restart rather than serving from an unknown state.
@@ -39,6 +54,7 @@ let shuttingDown = false;
 function shutdown(code: number): void {
   if (shuttingDown) return;
   shuttingDown = true;
+  if (geofenceRetentionTimer) clearInterval(geofenceRetentionTimer);
 
   const forced = setTimeout(() => {
     console.error(JSON.stringify({ level: 'fatal', msg: 'graceful shutdown timed out' }));
@@ -48,6 +64,7 @@ function shutdown(code: number): void {
 
   server.close(() => {
     void closePools().finally(() => {
+      void stopBackgroundJobs();
       clearTimeout(forced);
       process.exit(code);
     });

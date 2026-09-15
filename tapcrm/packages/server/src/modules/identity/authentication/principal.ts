@@ -10,6 +10,8 @@ export interface IdentityUser {
   passwordHash: string | null;
   status: string;
   organizationStatus: 'active' | 'suspended';
+  mustChangePassword: boolean;
+  lockedUntil: Date | null;
   sessionVersion: number;
   positionId: string | null;
   departmentId: string | null;

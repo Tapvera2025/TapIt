@@ -27,6 +27,9 @@ const schema = z.object({
   // replicas and survive a deploy. `memory` is a single-process fallback for
   // local work only, and is refused in production at boot.
   SECURITY_COUNTER_STORE: z.enum(['redis', 'memory']).default('redis'),
+  // Optional header written by a trusted edge IP-geolocation provider. Empty
+  // means country signals remain unavailable rather than client-controlled.
+  TRUSTED_IP_COUNTRY_HEADER: z.string().trim().default(''),
 
   S3_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default('us-east-1'),
@@ -52,8 +55,7 @@ const schema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   CLIENT_ORIGIN: z.string().url().default('http://localhost:5173'),
   // 
-  EMAIL_TRANSPORT: z.enum(['console', 'smtp', 'webhook']).default('console'),
-  INVITATION_EMAIL_WEBHOOK_URL: z.union([z.string().url(), z.literal('')]).optional(),
+  EMAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
   SMTP_SECURE: z.coerce.boolean().default(false),

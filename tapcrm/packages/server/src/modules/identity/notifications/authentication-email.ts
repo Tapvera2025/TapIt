@@ -8,6 +8,7 @@ export async function sendPasswordResetEmail(email: string, resetToken: string, 
     to: email,
     subject: 'TapCRM — Password Reset Request',
     text: ['You requested a password reset for your TapCRM account.', '', 'Click the link below to set a new password (valid for 30 minutes):', resetUrl, '', 'If you did not request this, please contact your administrator immediately.', 'Using this link will invalidate all your existing active sessions.'].join('\n'),
+    sensitive: true,
   });
 }
 

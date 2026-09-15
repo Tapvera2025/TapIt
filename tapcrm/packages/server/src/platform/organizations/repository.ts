@@ -100,22 +100,51 @@ export async function getOrganization(id: string) {
 }
 
 export async function deleteOrganization(id: string) {
-  return platformDb.maybeOne<{ id: string }>(
+  return platformDb.transaction(
     'organization-provisioning',
-    'soft delete customer organization from platform list',
-    sql`UPDATE organization SET status = 'suspended', deleted_at = now() WHERE id = ${id} AND deleted_at IS NULL RETURNING id`,
+    'soft delete customer organization and invalidate tenant sessions',
+    async (tx) => {
+      const deleted = await tx.maybeOne<{ id: string }>(sql`
+        UPDATE organization
+        SET status = 'suspended', deleted_at = now()
+        WHERE id = ${id} AND deleted_at IS NULL
+        RETURNING id
+      `);
+      if (!deleted) return null;
+      await invalidateOrganizationSessions(tx, id);
+      return deleted;
+    },
   );
 }
 
 export async function updateStatus(id: string, status: 'active' | 'suspended') {
-  return platformDb.one<OrganizationRow>(
+  return platformDb.transaction(
     'organization-provisioning',
-    'change organization status',
-    sql`
-    UPDATE organization SET status = ${status} WHERE id = ${id}
-    RETURNING id, code, name, timezone, currency, status, created_at, updated_at, legal_company_name, company_type, industry, website, company_email, owner_full_name, owner_designation, owner_email, owner_mobile, owner_alternate_number, primary_phone, alternate_phone, support_email, address_line_1, address_line_2, city, state, country, postal_code, gstin, pan, registration_number
-  `,
+    `change organization status to ${status}`,
+    async (tx) => {
+      const updated = await tx.one<OrganizationRow>(sql`
+        UPDATE organization SET status = ${status}
+        WHERE id = ${id}
+        RETURNING id, code, name, timezone, currency, status, created_at, updated_at, legal_company_name, company_type, industry, website, company_email, owner_full_name, owner_designation, owner_email, owner_mobile, owner_alternate_number, primary_phone, alternate_phone, support_email, address_line_1, address_line_2, city, state, country, postal_code, gstin, pan, registration_number
+      `);
+      if (status === 'suspended') await invalidateOrganizationSessions(tx, id);
+      return updated;
+    },
   );
+}
+
+/** Suspension is a tenant-wide authority change, so invalidate every user. */
+async function invalidateOrganizationSessions(tx: Tx, organizationId: string): Promise<void> {
+  await tx.query(sql`
+    UPDATE app_user
+    SET session_version = session_version + 1
+    WHERE organization_id = ${organizationId}
+  `);
+  await tx.query(sql`
+    UPDATE session
+    SET revoked_at = now()
+    WHERE organization_id = ${organizationId} AND revoked_at IS NULL
+  `);
 }
 
 export async function updateOrganization(

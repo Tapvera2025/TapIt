@@ -36,6 +36,35 @@ const loadDepartment =
 export function registerOrganizationRoutes(): void {
   route({
     method: 'GET',
+    path: '/api/org/ladder/:departmentCode',
+    action: 'org:view-structure',
+    module: 'organization',
+    handler: async ({ ctx, params }) => {
+      const department = await db.maybeOne<{ id: string; code: string; name: string }>(ctx, sql`
+        SELECT id, code, name FROM department
+        WHERE organization_id = ${ctx.organizationId} AND code = ${params['departmentCode']} AND status = 'active'
+      `);
+      if (!department) return { department: null, positions: [], teams: [] };
+      const [positions, teams] = await Promise.all([
+        db.query(ctx, sql`
+          SELECT id, code, name, organizational_level
+          FROM position
+          WHERE organization_id = ${ctx.organizationId} AND department_id = ${department.id} AND status = 'active'
+          ORDER BY organizational_level, name
+        `),
+        db.query(ctx, sql`
+          SELECT id, name, kind
+          FROM team
+          WHERE organization_id = ${ctx.organizationId} AND department_id = ${department.id}
+          ORDER BY name
+        `),
+      ]);
+      return { department, positions, teams };
+    },
+  });
+
+  route({
+    method: 'GET',
     path: '/api/org/departments',
     action: 'org:view-structure',
     module: 'organization',

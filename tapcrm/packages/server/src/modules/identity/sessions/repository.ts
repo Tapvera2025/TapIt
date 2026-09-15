@@ -8,11 +8,12 @@ export async function createSession(tx: Tx, input: {
   deviceLabel: string | null;
   ip: string | null;
   userAgent: string | null;
+  countryCode?: string | null;
   expiresAt: Date;
 }) {
   return tx.one<{ id: string }>(sql`
-    INSERT INTO session(organization_id, user_id, session_version, device_label, ip, user_agent, expires_at)
-    VALUES (${input.organizationId}, ${input.userId}, ${input.sessionVersion}, ${input.deviceLabel}, ${input.ip}, ${input.userAgent}, ${input.expiresAt})
+    INSERT INTO session(organization_id, user_id, session_version, device_label, ip, user_agent, country_code, expires_at)
+    VALUES (${input.organizationId}, ${input.userId}, ${input.sessionVersion}, ${input.deviceLabel}, ${input.ip}, ${input.userAgent}, ${input.countryCode ?? null}, ${input.expiresAt})
     RETURNING id
   `);
 }
@@ -45,18 +46,21 @@ export async function revokeRefreshFamily(tx: Tx, organizationId: string, family
   `);
 }
 
-export async function listActiveSessions(tx: Tx, organizationId: string, userId: string) {
+export async function listActiveSessions(tx: Tx, organizationId: string, userId: string, currentSessionId: string) {
   return tx.query<{
     id: string;
     deviceLabel: string | null;
     approxLocation: string | null;
     ip: string | null;
+    countryCode: string | null;
+    userAgent: string | null;
     createdAt: Date;
     lastActiveAt: Date;
+    expiresAt: Date;
     current: boolean;
   }>(sql`
-    SELECT id, device_label, approx_location, ip, created_at, last_active_at,
-           false AS current
+    SELECT id, device_label, approx_location, ip, country_code, user_agent, created_at,
+           last_active_at, expires_at, id = ${currentSessionId} AS current
     FROM session
     WHERE organization_id = ${organizationId}
       AND user_id = ${userId}

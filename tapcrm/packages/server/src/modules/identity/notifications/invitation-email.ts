@@ -40,3 +40,25 @@ export async function sendEmployeeInvitation(email: string, invitationToken: str
     html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Welcome to TapCRM</h2><p>You have been invited to join your organization as an employee.</p><p><a href="${url}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">Complete account setup</a></p><p>This invitation expires in ${expiresHours} hours and can only be used once.</p></div>`,
   });
 }
+
+export async function sendEmployeeCredentials(input: { to: string; fullName: string; temporaryPassword: string }): Promise<void> {
+  const config = loadConfig();
+  const loginUrl = `${config.CORS_ORIGIN}/login`;
+  const safeName = escapeHtml(input.fullName);
+  const safeEmail = escapeHtml(input.to);
+  const safePassword = escapeHtml(input.temporaryPassword);
+  await sendEmail({
+    to: input.to,
+    subject: 'TapCRM — Your employee account credentials',
+    text: [
+      `Welcome to TapCRM, ${input.fullName}.`, '',
+      `Login URL: ${loginUrl}`,
+      `Email: ${input.to}`,
+      `Temporary Password: ${input.temporaryPassword}`, '',
+      'This is a temporary password. You will be required to change it after your first login.',
+      'If you were not expecting this account, contact your organization administrator.',
+    ].join('\n'),
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Welcome to TapCRM</h2><p>Your employee account is ready, ${safeName}.</p><p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a><br><strong>Email:</strong> ${safeEmail}<br><strong>Temporary Password:</strong> ${safePassword}</p><p>This is a temporary password. You will be required to change it after your first login.</p></div>`,
+    sensitive: true,
+  });
+}

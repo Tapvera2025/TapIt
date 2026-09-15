@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 147   Bindings: 292
+ * Actions: 147   Bindings: 294
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -2531,6 +2531,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/identity/geofences', action: 'identity:manage-geofence', resourceParam: null },
   { method: 'PATCH', path: '/api/identity/geofences/:id', action: 'identity:manage-geofence', resourceParam: 'id' },
   { method: 'POST', path: '/api/identity/geofences/:id/assign', action: 'identity:manage-geofence', resourceParam: 'id' },
+  { method: 'GET', path: '/api/identity/geofence-appeals', action: 'identity:manage-geofence', resourceParam: null },
+  { method: 'POST', path: '/api/identity/geofence-appeals/:id/decide', action: 'identity:manage-geofence', resourceParam: null },
   { method: 'POST', path: '/api/identity/users/:id/unlock', action: 'identity:unlock-account', resourceParam: 'id' },
   { method: 'GET', path: '/api/org/departments', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/teams', action: 'org:view-structure', resourceParam: null },
