@@ -43,6 +43,7 @@ export interface OrganizationLadder {
 
 export interface OrganizationDesignation {
   id: string;
+  departmentId: string;
   name: string;
   specializations: string[];
   status: string;

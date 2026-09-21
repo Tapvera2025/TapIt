@@ -85,9 +85,21 @@ export function EmployeesPage(): React.JSX.Element {
       .catch(() => setError('Unable to load positions for this department.'));
   }, [form.departmentId, departments]);
 
+  // Root positions on the ladder are the ones whose parent is Super Admin —
+  // the tree API only puts roots at the top level, so an id in this set means
+  // the position has no in-org manager and reports to the Super Admin.
+  const rootPositionIds = new Set((ladder?.positions ?? []).map((p) => p.id));
+  const isRootPosition = form.positionId !== '' && rootPositionIds.has(form.positionId);
+
   useEffect(() => {
-    if (!form.departmentId || !form.positionId) {
+    // Root positions have exactly one possible manager (the Super Admin),
+    // resolved server-side by findEffectiveManager when reports_to is null.
+    // Skip the fetch entirely and clear any stale selection.
+    if (!form.departmentId || !form.positionId || isRootPosition) {
       setReportingManagers([]);
+      if (isRootPosition && form.reportsTo !== '') {
+        setForm((current) => ({ ...current, reportsTo: '' }));
+      }
       return;
     }
     void getCompanyReportingManagers(
@@ -107,7 +119,23 @@ export function EmployeesPage(): React.JSX.Element {
   );
   const positionOptions = flattenPositions(ladder?.positions ?? []);
   function setDepartment(departmentId: string): void {
-    setForm({ ...form, departmentId, positionId: '', teamId: '', reportsTo: '' });
+    // If the currently selected designation doesn't belong to the new
+    // department, drop it (and its specialization) so the form doesn't
+    // submit a mismatched pair.
+    const currentDesignation = designations.find(
+      (item) => item.id === form.designationId,
+    );
+    const keepDesignation =
+      currentDesignation && currentDesignation.departmentId === departmentId;
+    setForm({
+      ...form,
+      departmentId,
+      positionId: '',
+      teamId: '',
+      reportsTo: '',
+      designationId: keepDesignation ? form.designationId : '',
+      specialization: keepDesignation ? form.specialization : '',
+    });
     setLadder(null);
   }
   useEffect(() => {
@@ -244,10 +272,38 @@ export function EmployeesPage(): React.JSX.Element {
             <Select
               label="Designation (optional)"
               value={form.designationId}
-              onChange={(value) =>
-                setForm({ ...form, designationId: value, specialization: '' })
-              }
-              options={designations.map((item) => ({ value: item.id, label: item.name }))}
+              onChange={(value) => {
+                // Filter/auto-fill: picking a designation without a department
+                // yet also selects the designation's department. If a
+                // department is already chosen and the designation belongs to
+                // a different one, keep the department (the option list is
+                // already filtered so this branch should be unreachable in
+                // normal use).
+                const chosen = designations.find((item) => item.id === value);
+                setForm((current) => ({
+                  ...current,
+                  designationId: value,
+                  specialization: '',
+                  departmentId:
+                    chosen && current.departmentId === ''
+                      ? chosen.departmentId
+                      : current.departmentId,
+                  // If the department changed as a side effect, clear
+                  // position/team/reportsTo the same way setDepartment does.
+                  ...(chosen && current.departmentId === ''
+                    ? { positionId: '', teamId: '', reportsTo: '' }
+                    : {}),
+                }));
+                if (chosen && form.departmentId === '') {
+                  setLadder(null);
+                }
+              }}
+              options={designations
+                .filter(
+                  (item) =>
+                    form.departmentId === '' || item.departmentId === form.departmentId,
+                )
+                .map((item) => ({ value: item.id, label: item.name }))}
             />
             {designation && (
               <Select
@@ -260,18 +316,25 @@ export function EmployeesPage(): React.JSX.Element {
                 }))}
               />
             )}
-            <Select
-              label="Reporting manager (optional)"
-              value={form.reportsTo}
-              onChange={(value) => setForm({ ...form, reportsTo: value })}
-              options={reportingManagers.map((item) => ({
-                value: item.id,
-                label:
-                  item.accountType === 'super-admin'
-                    ? `${item.fullName} (Company Super Admin)`
-                    : item.fullName,
-              }))}
-            />
+            {isRootPosition ? (
+              <div className="rounded-xl border border-app-border bg-app-background p-4 text-xs text-app-muted">
+                This position reports directly to the Company Super Admin. No reporting
+                manager is required.
+              </div>
+            ) : (
+              <Select
+                label="Reporting manager (optional)"
+                value={form.reportsTo}
+                onChange={(value) => setForm({ ...form, reportsTo: value })}
+                options={reportingManagers.map((item) => ({
+                  value: item.id,
+                  label:
+                    item.accountType === 'super-admin'
+                      ? `${item.fullName} (Company Super Admin)`
+                      : item.fullName,
+                }))}
+              />
+            )}
             {form.positionId && (
               <section className="rounded-xl border border-app-border bg-app-background p-4 md:col-span-2">
                 <p className="text-sm font-semibold">Access preview</p>

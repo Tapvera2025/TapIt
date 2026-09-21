@@ -65,10 +65,10 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
       VALUES (${POS_LEAD}, ${ORG}, ${DEPT}, 'LEAD', 'Team Lead', 50),
              (${POS_AGENT}, ${ORG}, ${DEPT}, 'AGENT', 'Agent', 20)`);
     await asOwner('create test users', sql`
-      INSERT INTO app_user (id, organization_id, account_type, email, full_name, position_id, department_id)
-      VALUES (${LEAD}, ${ORG}, 'employee', ${`lead-${LEAD}@t.io`}, 'Lead', ${POS_LEAD}, ${DEPT}),
-             (${AGENT}, ${ORG}, 'employee', ${`agent-${AGENT}@t.io`}, 'Agent', ${POS_AGENT}, ${DEPT}),
-             (${OUTSIDER}, ${ORG}, 'employee', ${`out-${OUTSIDER}@t.io`}, 'Outsider', ${POS_AGENT}, ${DEPT})`);
+      INSERT INTO app_user (id, organization_id, account_type, employee_id, email, full_name, position_id, department_id)
+      VALUES (${LEAD}, ${ORG}, 'employee', 'EMP-00001', ${`lead-${LEAD}@t.io`}, 'Lead', ${POS_LEAD}, ${DEPT}),
+             (${AGENT}, ${ORG}, 'employee', 'EMP-00002', ${`agent-${AGENT}@t.io`}, 'Agent', ${POS_AGENT}, ${DEPT}),
+             (${OUTSIDER}, ${ORG}, 'employee', 'EMP-00003', ${`out-${OUTSIDER}@t.io`}, 'Outsider', ${POS_AGENT}, ${DEPT})`);
     // The lead may delegate across the department and holds leads:view there.
     await asOwner('grant lead their position policies', sql`
       INSERT INTO position_policy (organization_id, position_id, action, allowed, scope)

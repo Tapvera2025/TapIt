@@ -5,8 +5,10 @@ import { hashIdentityPassword } from '../identity/password/service.js';
 import { sendEmployeeCredentials } from '../identity/notifications/invitation-email.js';
 import { validateManagerAssignment } from '../organization/reporting/service.js';
 import {
+  allocateEmployeeId,
   createEmployee,
   emailExists,
+  employeeIdExists,
   enqueueEmployeeAudit,
   findDepartment,
   findDesignation,
@@ -93,8 +95,26 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
       });
     }
 
+    // ED-3 — allocate or accept the caller's override. A caller supplying an
+    // ID (typically an HR migration from a legacy HRMS) still gets uniqueness
+    // checked at the app layer so we return 409 instead of a raw constraint
+    // violation.
+    let employeeId: string;
+    if (input.employeeId !== undefined) {
+      if (await employeeIdExists(tx, ctx.organizationId, input.employeeId)) {
+        throw new IdentityConflictError(
+          'IDENTITY_EMPLOYEE_ID_ALREADY_USED',
+          'Employee ID is already in use',
+        );
+      }
+      employeeId = input.employeeId;
+    } else {
+      employeeId = await allocateEmployeeId(tx, ctx.organizationId);
+    }
+
     const employee = await createEmployee(tx, {
       organizationId: ctx.organizationId,
+      employeeId,
       email,
       fullName: input.fullName.trim(),
       passwordHash,

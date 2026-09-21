@@ -51,7 +51,7 @@ export async function listReportingManagerOptions(
     ), reporting_subtree AS (
       SELECT id
       FROM app_user
-      WHERE organization_id = ${ctx.organizationId} AND id = ${subjectUserId}
+      WHERE organization_id = ${ctx.organizationId} AND id = ${subjectUserId}::uuid
       UNION ALL
       SELECT child.id
       FROM app_user child

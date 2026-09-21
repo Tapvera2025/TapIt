@@ -57,6 +57,7 @@ export const addTeamMemberSchema = z.object({
 });
 
 export const createDesignationSchema = z.object({
+  departmentId: z.string().uuid(),
   name: z.string().trim().min(1).max(160),
   specializations: z
     .array(z.string().trim().min(1).max(160))
@@ -67,6 +68,7 @@ export const createDesignationSchema = z.object({
 
 export const updateDesignationSchema = z
   .object({
+    departmentId: z.string().uuid().optional(),
     name: z.string().trim().min(1).max(160).optional(),
     specializations: z.array(z.string().trim().min(1).max(160)).max(50).optional(),
     status: designationStatus.optional(),
@@ -116,8 +118,12 @@ const positionPolicySchema = z.object({
   action: z.string().min(1),
   allowed: z.boolean(),
   scope: z.enum(['own', 'participant', 'pool', 'team', 'department', 'all-people']),
-  fields: z.array(z.string().min(1)).max(100).optional(),
-  constraints: z.array(z.string().min(1)).max(100).optional(),
+  // The GET endpoint returns null for empty fields/constraints (nullable in
+  // the DB). Accept both null and undefined so the client can round-trip the
+  // exact response shape without stripping nulls first. The service
+  // normalises both to null before writing.
+  fields: z.array(z.string().min(1)).max(100).nullish(),
+  constraints: z.array(z.string().min(1)).max(100).nullish(),
 });
 
 export const updatePositionPoliciesSchema = z
