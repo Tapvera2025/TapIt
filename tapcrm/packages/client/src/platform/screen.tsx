@@ -55,6 +55,12 @@ interface CreatedInvitation {
   invitationUrl?: string;
   delivery: string;
 }
+interface AdminPasswordReset {
+  email: string;
+  expiresAt: string;
+  resetUrl?: string;
+  delivery: string;
+}
 interface Entitlement {
   key: string;
   name: string;
@@ -443,6 +449,30 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       await loadInvitations();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Invitation resend failed');
+    } finally {
+      setInvitationActionId(null);
+    }
+  }
+
+  async function sendAdminPasswordReset(invitation: Invitation) {
+    const confirmed = window.confirm(
+      `Send a password reset email to ${invitation.adminEmail}? Their current password stays valid until they follow the link and pick a new one.`,
+    );
+    if (!confirmed) return;
+    setInvitationActionId(invitation.id);
+    setMessage('');
+    try {
+      const result = await api<AdminPasswordReset>(
+        `/platform/organizations/${invitation.organizationId}/admin/reset-password`,
+        { method: 'POST' },
+      );
+      setInvitationPreview(
+        result.resetUrl ? { id: invitation.id, invitationUrl: result.resetUrl } : null,
+      );
+      setViewInvitationId(invitation.id);
+      setMessage(`A password reset link was sent to ${invitation.adminEmail}.`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Password reset failed');
     } finally {
       setInvitationActionId(null);
     }
@@ -1052,6 +1082,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           ) : invitations.map((invitation) => {
             const canResend = (invitation.status === 'PENDING' || invitation.status === 'EXPIRED') && invitation.companyStatus === 'active';
             const canRevoke = invitation.status === 'PENDING';
+            const canResetPassword = invitation.status === 'ACCEPTED' && invitation.companyStatus === 'active';
             return (
               <article className="grid grid-cols-[minmax(190px,1.2fr)_auto_minmax(300px,1.5fr)_auto] items-start gap-[15px] border-t border-app-border py-[17px] max-[850px]:grid-cols-1" key={invitation.id}>
                 <div>
@@ -1072,6 +1103,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                   </button>
                   {canResend && <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-[9px] py-[7px] text-[11px] text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => void resendInvitation(invitation)} disabled={invitationActionId === invitation.id}>
                     {invitationActionId === invitation.id ? 'Resending…' : 'Resend Invitation'}
+                  </button>}
+                  {canResetPassword && <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-[9px] py-[7px] text-[11px] text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => void sendAdminPasswordReset(invitation)} disabled={invitationActionId === invitation.id}>
+                    {invitationActionId === invitation.id ? 'Sending…' : 'Send password reset'}
                   </button>}
                   {canRevoke && <button type="button" className="rounded-[9px] border border-[#ff8d8d]/30 bg-transparent px-[9px] py-[7px] text-[11px] text-app-danger hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55" onClick={() => void revokeInvitation(invitation)} disabled={invitationActionId === invitation.id}>
                     {invitationActionId === invitation.id ? 'Revoking…' : 'Revoke'}

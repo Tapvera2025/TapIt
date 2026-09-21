@@ -1,10 +1,12 @@
 import { visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../../platform/dal/context.js';
-import { db } from '../../../platform/dal/db.js';
+import { db, type Tx } from '../../../platform/dal/db.js';
 import { enqueueOrganizationAudit } from '../repository.js';
+import { findDepartment } from '../departments/repository.js';
 import {
   OrganizationConflictError,
   OrganizationNotFoundError,
+  OrganizationValidationError,
   ORGANIZATION_ERROR_CODES,
 } from '../errors.js';
 import type { CreateDesignationInput, UpdateDesignationInput } from '../validators.js';
@@ -17,6 +19,20 @@ import {
   updateDesignation,
   type DesignationRecord,
 } from './repository.js';
+
+async function assertActiveDepartment(
+  tx: Tx,
+  organizationId: string,
+  departmentId: string,
+): Promise<void> {
+  const department = await findDepartment(tx, organizationId, departmentId);
+  if (!department || department.status !== 'active') {
+    throw new OrganizationValidationError(
+      ORGANIZATION_ERROR_CODES.DESIGNATION_DEPARTMENT_INVALID,
+      'Department is invalid or inactive',
+    );
+  }
+}
 
 export function normalizeSpecializations(values: readonly string[]): string[] {
   const normalized: string[] = [];
@@ -50,6 +66,7 @@ export async function createDesignation(
   input: CreateDesignationInput,
 ): Promise<DesignationRecord> {
   return db.transaction(ctx, async (tx) => {
+    await assertActiveDepartment(tx, ctx.organizationId, input.departmentId);
     if (await findDesignationByName(tx, ctx.organizationId, input.name))
       throw new OrganizationConflictError(
         ORGANIZATION_ERROR_CODES.DESIGNATION_NAME_EXISTS,
@@ -57,6 +74,7 @@ export async function createDesignation(
       );
     const designation = await insertDesignation(tx, {
       organizationId: ctx.organizationId,
+      departmentId: input.departmentId,
       name: input.name,
       specializations: normalizeSpecializations(input.specializations),
     });
@@ -90,6 +108,7 @@ export async function updateDesignationById(
       );
     }
     const next = {
+      departmentId: input.departmentId ?? before.departmentId,
       name: input.name ?? before.name,
       specializations:
         input.specializations === undefined
@@ -97,6 +116,9 @@ export async function updateDesignationById(
           : normalizeSpecializations(input.specializations),
       status: input.status ?? before.status,
     };
+    if (input.departmentId !== undefined && input.departmentId !== before.departmentId) {
+      await assertActiveDepartment(tx, ctx.organizationId, input.departmentId);
+    }
     if (await findDesignationByName(tx, ctx.organizationId, next.name, id)) {
       throw new OrganizationConflictError(
         ORGANIZATION_ERROR_CODES.DESIGNATION_NAME_EXISTS,

@@ -65,10 +65,58 @@ export async function findManager(
   `);
 }
 
+export async function employeeIdExists(
+  tx: Tx,
+  organizationId: string,
+  employeeId: string,
+): Promise<boolean> {
+  const row = await tx.maybeOne<{ id: string }>(sql`
+    SELECT id FROM app_user
+    WHERE organization_id = ${organizationId}
+      AND account_type = 'employee'
+      AND employee_id = ${employeeId}
+  `);
+  return row !== null;
+}
+
+/**
+ * ED-3 — Allocate the next auto-generated employee ID for the organization.
+ *
+ * Locks the organization row FOR UPDATE, reads the current counter, formats
+ * the ID as `<prefix>-<5-digit zero-padded number>`, and advances the counter.
+ * The lock serialises concurrent allocations on the same organization; gaps
+ * from rolled-back allocations are acceptable (this is not statutory
+ * numbering).
+ *
+ * The format widens naturally when the counter passes 99999 — lpad only pads,
+ * so `EMP-100000` is emitted as-is.
+ */
+export async function allocateEmployeeId(
+  tx: Tx,
+  organizationId: string,
+): Promise<string> {
+  const row = await tx.one<{ prefix: string; nextNumber: string }>(sql`
+    SELECT employee_id_prefix AS prefix,
+           employee_id_next_number::text AS next_number
+    FROM organization
+    WHERE id = ${organizationId}
+    FOR UPDATE
+  `);
+  const nextNumber = BigInt(row.nextNumber);
+  const formatted = `${row.prefix}-${nextNumber.toString().padStart(5, '0')}`;
+  await tx.query(sql`
+    UPDATE organization
+    SET employee_id_next_number = ${(nextNumber + 1n).toString()}::bigint
+    WHERE id = ${organizationId}
+  `);
+  return formatted;
+}
+
 export async function createEmployee(
   tx: Tx,
   input: {
     organizationId: string;
+    employeeId: string;
     email: string;
     fullName: string;
     passwordHash: string;
@@ -82,22 +130,23 @@ export async function createEmployee(
 ) {
   return tx.one<{
     id: string;
+    employeeId: string;
     email: string;
     fullName: string;
     accountType: 'employee';
     status: string;
   }>(sql`
     INSERT INTO app_user(
-      organization_id, account_type, email, password_hash, status, email_verified_at,
+      organization_id, account_type, employee_id, email, password_hash, status, email_verified_at,
       department_id, position_id, team_id, designation_id, specialization,
       reports_to, full_name, must_change_password
     )
     VALUES (
-      ${input.organizationId}, 'employee', ${input.email}, ${input.passwordHash}, 'active', now(),
+      ${input.organizationId}, 'employee', ${input.employeeId}, ${input.email}, ${input.passwordHash}, 'active', now(),
       ${input.departmentId}, ${input.positionId}, ${input.teamId}, ${input.designationId},
       ${input.specialization}, ${input.reportsTo}, ${input.fullName}, true
     )
-    RETURNING id, email, full_name, account_type, status
+    RETURNING id, employee_id, email, full_name, account_type, status
   `);
 }
 

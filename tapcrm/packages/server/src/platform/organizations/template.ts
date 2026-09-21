@@ -87,6 +87,7 @@ export const TEAM_LEAD_POSITION_CODES = {
 export interface OrganizationTemplateDesignation {
   readonly code: string;
   readonly name: string;
+  readonly department: string;
   readonly specializations: readonly string[];
   readonly moduleKeys: readonly string[];
 }
@@ -326,18 +327,21 @@ export const ORGANIZATION_TEMPLATE: OrganizationTemplate = {
     {
       code: 'developer',
       name: 'Developer',
+      department: 'development',
       specializations: ['Frontend', 'Backend', 'Full-stack', 'QA / Tester'],
       moduleKeys: DEVELOPMENT_MODULES,
     },
     {
       code: 'marketing-executive',
       name: 'Marketing Executive',
+      department: 'sales',
       specializations: ['SEO', 'Ads / PPC', 'Social Media', 'Analytics'],
       moduleKeys: DEVELOPMENT_MODULES,
     },
     {
       code: 'content-writer',
       name: 'Content Writer',
+      department: 'sales',
       specializations: ['Web Copy', 'Blog', 'Technical', 'Ad Copy'],
       moduleKeys: DEVELOPMENT_MODULES,
     },

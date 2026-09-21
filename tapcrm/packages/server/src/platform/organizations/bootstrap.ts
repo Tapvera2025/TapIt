@@ -115,6 +115,8 @@ export async function bootstrapOrganization(
   }
 
   for (const definition of template.designations) {
+    const departmentId = departmentIds.get(definition.department);
+    if (!departmentId) continue;
     const existing = await tx.maybeOne<{ id: string; isSeeded: boolean }>(sql`
       SELECT id, is_seeded FROM designation
       WHERE organization_id = ${organizationId}
@@ -127,8 +129,8 @@ export async function bootstrapOrganization(
     }
     if (!existing) {
       await tx.query(sql`
-        INSERT INTO designation (organization_id, name, specializations, status, is_seeded, seed_code)
-        VALUES (${organizationId}, ${definition.name}, ${definition.specializations}, 'active', true, ${definition.code})
+        INSERT INTO designation (organization_id, department_id, name, specializations, status, is_seeded, seed_code)
+        VALUES (${organizationId}, ${departmentId}, ${definition.name}, ${[...definition.specializations]}, 'active', true, ${definition.code})
       `);
     }
   }

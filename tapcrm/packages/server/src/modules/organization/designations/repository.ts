@@ -6,6 +6,7 @@ import { sql } from '../../../platform/dal/sql.js';
 export interface DesignationRecord {
   id: string;
   organizationId: string;
+  departmentId: string;
   name: string;
   specializations: string[];
   status: 'active' | 'inactive';
@@ -19,7 +20,7 @@ export async function listDesignations(
   return db.query<DesignationRecord>(
     ctx,
     sql`
-    SELECT id, organization_id, name, specializations, status, is_seeded
+    SELECT id, organization_id, department_id, name, specializations, status, is_seeded
     FROM designation WHERE organization_id = ${ctx.organizationId} AND ${filter} ORDER BY name
   `,
   );
@@ -32,7 +33,7 @@ export async function findDesignationByName(
   excludeId?: string,
 ): Promise<DesignationRecord | null> {
   return tx.maybeOne<DesignationRecord>(sql`
-    SELECT id, organization_id, name, specializations, status, is_seeded FROM designation
+    SELECT id, organization_id, department_id, name, specializations, status, is_seeded FROM designation
     WHERE organization_id = ${organizationId} AND lower(name) = lower(${name})
       AND id <> COALESCE(${excludeId ?? null}, id)
   `);
@@ -44,7 +45,7 @@ export async function findDesignation(
   id: string,
 ): Promise<DesignationRecord | null> {
   return tx.maybeOne<DesignationRecord>(sql`
-    SELECT id, organization_id, name, specializations, status, is_seeded
+    SELECT id, organization_id, department_id, name, specializations, status, is_seeded
     FROM designation
     WHERE organization_id = ${organizationId} AND id = ${id}
   `);
@@ -52,12 +53,17 @@ export async function findDesignation(
 
 export async function insertDesignation(
   tx: Tx,
-  input: { organizationId: string; name: string; specializations: string[] },
+  input: {
+    organizationId: string;
+    departmentId: string;
+    name: string;
+    specializations: string[];
+  },
 ): Promise<DesignationRecord> {
   return tx.one<DesignationRecord>(sql`
-    INSERT INTO designation (organization_id, name, specializations)
-    VALUES (${input.organizationId}, ${input.name}, ${input.specializations})
-    RETURNING id, organization_id, name, specializations, status, is_seeded
+    INSERT INTO designation (organization_id, department_id, name, specializations)
+    VALUES (${input.organizationId}, ${input.departmentId}, ${input.name}, ${input.specializations})
+    RETURNING id, organization_id, department_id, name, specializations, status, is_seeded
   `);
 }
 
@@ -66,6 +72,7 @@ export async function updateDesignation(
   input: {
     organizationId: string;
     id: string;
+    departmentId: string;
     name: string;
     specializations: string[];
     status: 'active' | 'inactive';
@@ -73,9 +80,12 @@ export async function updateDesignation(
 ): Promise<DesignationRecord> {
   return tx.one<DesignationRecord>(sql`
     UPDATE designation
-    SET name = ${input.name}, specializations = ${input.specializations}, status = ${input.status}
+    SET department_id = ${input.departmentId},
+        name = ${input.name},
+        specializations = ${input.specializations},
+        status = ${input.status}
     WHERE organization_id = ${input.organizationId} AND id = ${input.id}
-    RETURNING id, organization_id, name, specializations, status, is_seeded
+    RETURNING id, organization_id, department_id, name, specializations, status, is_seeded
   `);
 }
 
@@ -83,7 +93,7 @@ export async function loadDesignationResource(ctx: RequestContext, id: string) {
   const row = await db.maybeOne<DesignationRecord>(
     ctx,
     sql`
-    SELECT id, organization_id, name, specializations, status, is_seeded
+    SELECT id, organization_id, department_id, name, specializations, status, is_seeded
     FROM designation
     WHERE organization_id = ${ctx.organizationId} AND id = ${id}
   `,

@@ -43,6 +43,7 @@ export interface CompanyDepartment {
 }
 export interface CompanyDesignation {
   id: string;
+  departmentId: string;
   name: string;
   specializations: string[];
   status: string;
