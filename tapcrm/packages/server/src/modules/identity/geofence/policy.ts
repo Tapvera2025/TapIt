@@ -1,4 +1,4 @@
-import { registerResourcePolicy, type ResourcePolicy, type Resource } from '@tapcrm/authz';
+import { MATCH_NOTHING, registerResourcePolicy, type ResourcePolicy, type Resource } from '@tapcrm/authz';
 
 const policy: ResourcePolicy = {
   resourceType: 'geofenceLocation',
@@ -10,7 +10,7 @@ const policy: ResourcePolicy = {
   async filter(ctx, _action, scope) {
     return scope === 'all-people'
       ? { sql: 'geofence_location.organization_id = $1', parameters: [ctx.organizationId] }
-      : { sql: '1 = 0', parameters: [] };
+      : MATCH_NOTHING;
   },
   participantFields() { return []; },
   initiatorField() { return null; },

@@ -25,10 +25,16 @@ export interface IdentityUser {
 
 export function toPrincipal(user: IdentityUser): Principal {
   const base = { id: user.id, organizationId: user.organizationId, sessionVersion: user.sessionVersion };
-  if (user.accountType === 'super-admin') return { ...base, accountType: 'super-admin' };
-  if (user.accountType === 'client') return { ...base, accountType: 'client', clientId: user.clientId ?? '' };
-  if (user.accountType === 'service') return { ...base, accountType: 'service', allowedActions: [], allowedResources: [], expiresAt: new Date(0) };
-  return { ...base, accountType: 'employee', positionId: user.positionId ?? '', departmentId: user.departmentId ?? '', teamId: user.teamId, reportsTo: user.reportsTo, organizationalLevel: user.organizationalLevel ?? 0 };
+  switch (user.accountType) {
+    case 'super-admin':
+      return { ...base, accountType: 'super-admin' };
+    case 'client':
+      return { ...base, accountType: 'client', clientId: user.clientId ?? '' };
+    case 'service':
+      return { ...base, accountType: 'service', allowedActions: [], allowedResources: [], expiresAt: new Date(0) };
+    case 'employee':
+      return { ...base, accountType: 'employee', positionId: user.positionId ?? '', departmentId: user.departmentId ?? '', teamId: user.teamId, reportsTo: user.reportsTo, organizationalLevel: user.organizationalLevel ?? 0 };
+  }
 }
 
 export function createIdentityContext(
