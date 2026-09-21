@@ -34,6 +34,9 @@ class SmtpEmailSender implements EmailSender {
     const config = loadConfig();
     if (!config.SMTP_HOST || !config.SMTP_PORT || !config.SMTP_USER || !config.SMTP_PASSWORD)
       throw new Error('SMTP configuration is incomplete');
+    // A made-up fallback sender would send real mail from an address nobody owns.
+    if (!config.SMTP_FROM?.trim())
+      throw new Error('SMTP_FROM is required when SMTP is configured');
 
     this.transporter = nodemailer.createTransport({
       host: config.SMTP_HOST,
@@ -46,7 +49,7 @@ class SmtpEmailSender implements EmailSender {
   async send(message: EmailMessage): Promise<void> {
     const config = loadConfig();
     await this.transporter.sendMail({
-      from: config.SMTP_FROM?.trim() || 'no-reply@tapcrm.local',
+      from: config.SMTP_FROM?.trim(),
       to: message.to,
       subject: message.subject,
       text: message.text,

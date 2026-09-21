@@ -1,0 +1,12 @@
+-- =====================================================================
+-- 0033 — Remove the well-known runtime-role password
+--
+-- Migration 0008 gave tapcrm_app LOGIN with a password that is written in this
+-- repository. Migrations are forward-only, so 0008 cannot be edited and still
+-- runs first on every fresh database; this one removes the password again.
+--
+-- The real password is set from the environment, after migrating, by
+--   npm run db:app-password        (reads POSTGRES_APP_PASSWORD)
+-- Run the two back to back: between them the role cannot log in with a password.
+-- =====================================================================
+ALTER ROLE tapcrm_app PASSWORD NULL;

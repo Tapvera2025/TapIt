@@ -1,4 +1,5 @@
 import { createOpaqueToken, hashToken } from '../auth/crypto.js';
+import { loadConfig } from '../../config.js';
 import { getOrganization } from '../organizations/service.js';
 import { platformDb, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -46,7 +47,7 @@ export async function deliverInvitation(input: {
   token: string;
   expiresAt: Date;
 }) {
-  const base = process.env['CLIENT_ORIGIN'] ?? 'http://localhost:5173';
+  const base = loadConfig().CLIENT_ORIGIN;
   const invitationUrl = `${base}/accept-invitation?token=${encodeURIComponent(input.token)}`;
   let delivery: 'email' | 'development-log' | 'failed';
   try {

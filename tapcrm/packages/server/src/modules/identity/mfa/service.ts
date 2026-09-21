@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { globalAccess, type AccountType } from '@tapcrm/contracts';
 import { sql } from '../../../platform/dal/sql.js';
 import type { Tx } from '../../../platform/dal/db.js';
 import { hashRecoveryCode, issueRecoveryCodes } from './recovery.js';
@@ -6,8 +7,8 @@ import { hashRecoveryCode, issueRecoveryCodes } from './recovery.js';
 export type Assurance = 'high' | 'low';
 export type MfaMethod = 'passkey' | 'totp' | 'email-otp' | 'recovery-code';
 
-export function requiresHighAssurance(accountType: string, holdsPrivilegedPolicy: boolean): boolean {
-  return accountType === 'super-admin' || holdsPrivilegedPolicy;
+export function requiresHighAssurance(accountType: AccountType, holdsPrivilegedPolicy: boolean): boolean {
+  return globalAccess({ accountType }) || holdsPrivilegedPolicy;
 }
 
 export async function positionRequiresHighAssurance(tx: Tx, userId: string): Promise<boolean> {

@@ -3,6 +3,7 @@ import { loadConfig } from './config.js';
 import { closePools } from './platform/dal/pool.js';
 import { purgeAllExpiredGeofenceCoordinates } from './modules/identity/geofence/privacy.js';
 import { startBackgroundJobs, stopBackgroundJobs } from './platform/jobs.js';
+import { startAuditDrainer, stopAuditDrainer } from './modules/audit/drainer.js';
 
 /**
  * Entry point.
@@ -27,6 +28,10 @@ const server = app.listen(config.API_PORT, () => {
     }),
   );
 });
+
+// AU-I1 — business transactions only write the outbox; this chains it. It needs
+// PostgreSQL only, so unlike the job queue below it does not depend on Redis.
+startAuditDrainer();
 
 let geofenceRetentionTimer: NodeJS.Timeout | null = null;
 void startBackgroundJobs().catch((error: unknown) => {
@@ -63,7 +68,8 @@ function shutdown(code: number): void {
   forced.unref();
 
   server.close(() => {
-    void closePools().finally(() => {
+    // Let an in-flight audit batch commit before the pool is drained.
+    void stopAuditDrainer().then(closePools).finally(() => {
       void stopBackgroundJobs();
       clearTimeout(forced);
       process.exit(code);

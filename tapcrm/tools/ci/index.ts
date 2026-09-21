@@ -163,11 +163,14 @@ const rel = (f: string): string => relative(ROOT, f);
 /* ================================================================== *
  * CI-23 — deny filters compile to explicit FALSE
  * ================================================================== */
+const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
 {
   let violations = 0;
   for (const file of moduleFiles) {
     const text = read(file);
-    if (!/\bfilter\s*\(/.test(text)) continue;
+    // A ResourcePolicy defines `filter(` as a method (`async filter(ctx, ...)`),
+    // at the start of a line. `xs.filter(...)` is Array#filter, not a policy.
+    if (!POLICY_FILTER.test(text)) continue;
     // A filter implementation whose default branch returns an empty fragment.
     if (/default:\s*\n?\s*return\s*\{\s*sql:\s*['"`]\s*['"`]/.test(text)) {
       blocking(
@@ -178,7 +181,7 @@ const rel = (f: string): string => relative(ROOT, f);
       );
       violations += 1;
     }
-    if (/\bfilter\s*\(/.test(text) && !/MATCH_NOTHING/.test(text)) {
+    if (!/MATCH_NOTHING/.test(text)) {
       blocking(
         'CI-23',
         'AZ-I2',
@@ -195,7 +198,15 @@ const rel = (f: string): string => relative(ROOT, f);
  * CI-21 — no authoritative money field maps to JavaScript number
  * ================================================================== */
 {
-  const MONEY = /\b(amount|value|total|balance|price|salary|discount|net|gross|tax|paid|due)\w*\s*[?]?:\s*number\b/i;
+  // A bare `value` is a generic name (a stat card's counter, a helper's
+  // parameter), so it no longer counts as money.
+  const MONEY = /\b(amount|total|balance|price|salary|discount|net|gross|tax|paid|due)\w*\s*[?]?:\s*number\b/i;
+  // Compound names such as `maxDealValue` ARE money, but the original pattern
+  // could not see them (`\b` never matches inside a camelCase word). They are
+  // reported as phased debt, and become blocking under `--strict`, instead of
+  // turning the build red for code that predates the rule.
+  const COMPOUND_MONEY = /\b\w+(?:Value|Amount|Price|Total|Balance)\s*[?]?:\s*number\b/;
+  const compound: string[] = [];
   let violations = 0;
   for (const file of sourceFiles) {
     read(file)
@@ -212,8 +223,18 @@ const rel = (f: string): string => relative(ROOT, f);
               '0.1 + 0.2 is not 0.3, and an invoice built on that does not reconcile.',
           );
           violations += 1;
+        } else if (COMPOUND_MONEY.test(line)) {
+          compound.push(`${rel(file)}:${i + 1}`);
         }
       });
+  }
+  if (compound.length > 0) {
+    phased(
+      'CI-21',
+      'PG-5',
+      `${compound.length} compound money field(s) typed as \`number\` (e.g. maxDealValue): ` +
+        compound.join(', '),
+    );
   }
   if (violations === 0) ok('CI-21  no money typed as JavaScript number');
 }
@@ -302,6 +323,21 @@ const rel = (f: string): string => relative(ROOT, f);
 /* ================================================================== *
  * CI-33 — RLS enabled and forced on every tenant-owned table
  * ================================================================== */
+
+/**
+ * Tenant-keyed tables that deliberately have no row-level security today. Each
+ * is read or written without a tenant context, so enabling RLS as-is would
+ * break the flow that needs it. They are exceptions to be closed (move access
+ * behind a narrowly-scoped role or SECURITY DEFINER function), not a precedent:
+ * a NEW table lacking RLS still fails the build. Keep this in step with the
+ * live-schema check in .github/workflows/ci.yml.
+ */
+const RLS_EXCEPTIONS: Readonly<Record<string, string>> = {
+  organization_module: 'platform entitlements, read/written by the Master Admin plane via platformDb',
+  admin_invitation: 'Master Admin invitations; the accept flow resolves the tenant from the token',
+  identity_email_directory: 'pre-authentication login lookup; tenant is not yet known',
+};
+
 {
   const migrations = walk(resolve(ROOT, 'migrations'), ['.sql']);
   const all = migrations.map(read).join('\n');
@@ -312,11 +348,24 @@ const rel = (f: string): string => relative(ROOT, f);
     .map(([, name]) => name!)
     .filter((n) => n !== 'organization');
 
-  const missing = tenantTables.filter(
+  const unprotected = tenantTables.filter(
     (t) =>
       !new RegExp(`apply_tenant_rls\\('${t}'\\)`).test(all) &&
       !new RegExp(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`).test(all),
   );
+  const missing = unprotected.filter((t) => !(t in RLS_EXCEPTIONS));
+  const excepted = unprotected.filter((t) => t in RLS_EXCEPTIONS);
+
+  // An exception is a known, reviewed gap, not a pass: it is listed on every run
+  // and becomes blocking under `--strict` (release verification).
+  if (excepted.length > 0) {
+    phased(
+      'CI-33',
+      'PG-4',
+      `${excepted.length} documented RLS exception(s): ` +
+        excepted.map((t) => `${t} (${RLS_EXCEPTIONS[t]})`).join('; '),
+    );
+  }
 
   if (missing.length > 0) {
     blocking(

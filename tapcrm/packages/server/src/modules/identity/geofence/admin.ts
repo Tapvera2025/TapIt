@@ -1,3 +1,4 @@
+import { globalAccess, type AccountType } from '@tapcrm/contracts';
 import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
@@ -62,11 +63,11 @@ export async function assignManagedLocation(ctx: RequestContext, locationId: str
     const location = await tx.maybeOne<{ id: string }>(sql`
       SELECT id FROM geofence_location WHERE organization_id = ${ctx.organizationId} AND id = ${locationId}
     `);
-    const user = await tx.maybeOne<{ id: string; accountType: string }>(sql`
+    const user = await tx.maybeOne<{ id: string; accountType: AccountType }>(sql`
       SELECT id, account_type FROM app_user WHERE organization_id = ${ctx.organizationId} AND id = ${input.userId}
     `);
     if (!location || !user) throw new IdentityNotFoundError('IDENTITY_GEOFENCE_TARGET_NOT_FOUND', 'Geofence location or user not found');
-    if (user.accountType === 'super-admin') throw new IdentityValidationError('IDENTITY_SUPER_ADMIN_NOT_GEOFENCED', 'Super Admin accounts are never geofenced');
+    if (globalAccess(user)) throw new IdentityValidationError('IDENTITY_SUPER_ADMIN_NOT_GEOFENCED', 'Super Admin accounts are never geofenced');
     return setAssignment(tx, { organizationId: ctx.organizationId, locationId, ...input });
   });
 }

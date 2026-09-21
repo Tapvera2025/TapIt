@@ -3,7 +3,7 @@ import { sendEmail } from './mailer.js';
 
 export async function sendPasswordResetEmail(email: string, resetToken: string, organizationCode: string): Promise<void> {
   const config = loadConfig();
-  const resetUrl = `${config.CORS_ORIGIN}/reset-password?token=${encodeURIComponent(resetToken)}&org=${encodeURIComponent(organizationCode)}`;
+  const resetUrl = `${config.CLIENT_ORIGIN}/reset-password?token=${encodeURIComponent(resetToken)}&org=${encodeURIComponent(organizationCode)}`;
   await sendEmail({
     to: email,
     subject: 'TapCRM — Password Reset Request',
@@ -22,7 +22,7 @@ export async function sendEmailOtp(email: string, otpCode: string): Promise<void
 
 export async function sendEmailVerification(email: string, verificationToken: string, organizationCode: string): Promise<void> {
   const config = loadConfig();
-  const verifyUrl = `${config.CORS_ORIGIN}/verify-email?token=${encodeURIComponent(verificationToken)}&org=${encodeURIComponent(organizationCode)}`;
+  const verifyUrl = `${config.CLIENT_ORIGIN}/verify-email?token=${encodeURIComponent(verificationToken)}&org=${encodeURIComponent(organizationCode)}`;
   await sendEmail({
     to: email,
     subject: 'TapCRM — Verify your email address',

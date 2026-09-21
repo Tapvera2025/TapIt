@@ -87,6 +87,9 @@ jobs:
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = 'public' AND c.relkind IN ('r','p')
               AND c.relname <> 'organization'
+              -- Documented exceptions; keep in step with RLS_EXCEPTIONS in
+              -- tools/ci/index.ts. Any OTHER table lacking RLS still fails.
+              AND c.relname NOT IN ('organization_module', 'admin_invitation', 'identity_email_directory')
               AND EXISTS (SELECT 1 FROM pg_attribute a
                           WHERE a.attrelid = c.oid AND a.attname = 'organization_id'
                             AND NOT a.attisdropped)
@@ -115,3 +118,19 @@ jobs:
 
       - name: Tests
         run: npm test
+
+      # The audit drainer runs against REAL PostgreSQL through the runtime role,
+      # so RLS, the append-only grants and the stream row lock are exercised. It
+      # uses its own database because the test refuses any name lacking "test",
+      # and it re-applies the app-role password afterwards because migration 0008
+      # resets it cluster-wide.
+      - name: Audit drainer integration tests
+        env:
+          TAPCRM_INTEGRATION_DB: '1'
+          MIGRATION_DATABASE_URL: postgres://tapcrm_migrator:postgres@localhost:5432/tapcrm_test
+          DATABASE_URL: postgres://tapcrm_app:app_test_password@localhost:5432/tapcrm_test
+        run: |
+          psql "postgres://tapcrm_migrator:postgres@localhost:5432/tapcrm" -c "CREATE DATABASE tapcrm_test;"
+          npm run migrate
+          psql "$MIGRATION_DATABASE_URL" -c "ALTER ROLE tapcrm_app LOGIN PASSWORD 'app_test_password';"
+          npx vitest run packages/server/src/modules/audit/drainer.integration.test.ts
