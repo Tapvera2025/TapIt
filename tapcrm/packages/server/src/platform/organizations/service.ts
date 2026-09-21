@@ -1,4 +1,5 @@
 import { PlatformConflictError, PlatformNotFoundError } from '../errors.js';
+import { loadConfig } from '../../config.js';
 import { validateSelectedModules } from '../modules/service.js';
 import * as moduleRepo from '../modules/repository.js';
 import { createInvitationRecord, deliverInvitation } from '../invitations/service.js';
@@ -120,7 +121,7 @@ export async function createOrganization(
       },
     );
 
-    const base = process.env['CLIENT_ORIGIN'] ?? 'http://localhost:5173';
+    const base = loadConfig().CLIENT_ORIGIN;
     const invitationUrl = `${base}/accept-invitation?token=${encodeURIComponent(result.invitation.token)}`;
     let delivery: 'email' | 'development-log' | 'failed';
     try {

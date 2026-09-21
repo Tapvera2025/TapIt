@@ -29,6 +29,7 @@
     "registry:extract": "tsx tools/extract-registry.ts",
     "migrate": "tsx tools/migrate.ts up",
     "migrate:status": "tsx tools/migrate.ts status",
+    "db:app-password": "tsx tools/set-app-role-password.ts",
     "seed": "tsx seeds/index.ts",
     "ci": "tsx tools/ci/index.ts",
     "verify": "npm run registry:extract && npm run typecheck && npm run lint && npm run ci && npm run test",

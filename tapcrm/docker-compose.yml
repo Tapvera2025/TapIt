@@ -5,8 +5,16 @@
 # version; local/CI must exercise REAL PostgreSQL, not SQLite."
 #
 # Only the reverse proxy is exposed publicly in production (DP-11). The ports
-# published below are for local development; the production compose file
+# published below are for local development, bound to 127.0.0.1 so a laptop's
+# databases are not reachable from the network; the production compose file
 # removes them and routes through the proxy on the private network.
+#
+# CONFIGURATION: every credential, secret, origin and port comes from `.env`
+# (see .env.example). Secrets use `${VAR:?message}` and have NO default, so a
+# missing one stops `docker compose` with a message instead of quietly using a
+# value that is written in this repository. What stays literal is only the
+# compose-internal wiring (service hostnames such as `postgres` and `redis`) and
+# the fixed role name `tapcrm_app`, which the migrations create.
 # =====================================================================
 
 name: tapcrm
@@ -18,12 +26,12 @@ services:
     image: postgres:18.1-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: tapcrm
+      POSTGRES_DB: ${POSTGRES_DB:-tapcrm}
       # This is the MIGRATION/ADMIN role — it owns the tables (PG-3).
       # The application role tapcrm_app is created by migration 0001 and has
       # NOBYPASSRLS. The two are never the same credential.
-      POSTGRES_USER: tapcrm_migrator
-      POSTGRES_PASSWORD: migrator_dev_password
+      POSTGRES_USER: ${POSTGRES_MIGRATOR_USER:-tapcrm_migrator}
+      POSTGRES_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD:?Set POSTGRES_MIGRATOR_PASSWORD in .env}
       POSTGRES_INITDB_ARGS: '--data-checksums'
     command:
       - postgres
@@ -37,14 +45,14 @@ services:
       - -c
       - log_min_duration_statement=200
     ports:
-      - '5432:5432'
+      - '127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432'
     volumes:
       # §16.1: "Container recreation must never destroy authoritative
       # application data." Named volume, not a bind mount.
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U tapcrm_migrator -d tapcrm']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_MIGRATOR_USER:-tapcrm_migrator} -d ${POSTGRES_DB:-tapcrm}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -58,7 +66,7 @@ services:
     # noeviction, not allkeys-lru: BullMQ job state lives here, and silently
     # evicting a queued payroll run is worse than refusing the write.
     ports:
-      - '6379:6379'
+      - '127.0.0.1:${REDIS_HOST_PORT:-6379}:6379'
     volumes:
       - redis_data:/data
     healthcheck:
@@ -73,11 +81,13 @@ services:
     restart: unless-stopped
     command: server /data --console-address ':9001'
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      # The S3 credentials the API uses are MinIO's root credentials in this
+      # local stack, so there is one pair to set.
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '127.0.0.1:${MINIO_API_HOST_PORT:-9000}:9000'
+      - '127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001'
     volumes:
       - minio_data:/data
     healthcheck:
@@ -98,12 +108,17 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      S3_BUCKET: ${S3_BUCKET:-tapcrm-files}
+      S3_BUCKET_WORM: ${S3_BUCKET_WORM:-tapcrm-worm}
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin &&
-      mc mb --ignore-existing local/tapcrm-files &&
-      mc mb --ignore-existing --with-lock local/tapcrm-worm &&
-      mc retention set --default COMPLIANCE 7y local/tapcrm-worm &&
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/$$S3_BUCKET &&
+      mc mb --ignore-existing --with-lock local/$$S3_BUCKET_WORM &&
+      mc retention set --default COMPLIANCE 7y local/$$S3_BUCKET_WORM &&
       echo 'buckets ready';
       "
     restart: 'no'
@@ -116,11 +131,14 @@ services:
       context: .
       dockerfile: packages/server/Dockerfile
     environment:
-      MIGRATION_DATABASE_URL: postgres://tapcrm_migrator:migrator_dev_password@postgres:5432/tapcrm
+      MIGRATION_DATABASE_URL: postgres://${POSTGRES_MIGRATOR_USER:-tapcrm_migrator}:${POSTGRES_MIGRATOR_PASSWORD:?Set POSTGRES_MIGRATOR_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-tapcrm}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in .env}
     depends_on:
       postgres:
         condition: service_healthy
-    command: ['npm', 'run', 'migrate']
+    # Migration 0033 clears the password 0008 hard-coded; the real one is set
+    # straight after, from the environment. Together, on every start.
+    command: ['sh', '-c', 'npm run migrate && npm run db:app-password']
     restart: 'no'
 
   platform-admin:
@@ -128,12 +146,12 @@ services:
       context: .
       dockerfile: packages/server/Dockerfile
     environment:
-      MIGRATION_DATABASE_URL: postgres://tapcrm_migrator:migrator_dev_password@postgres:5432/tapcrm
+      MIGRATION_DATABASE_URL: postgres://${POSTGRES_MIGRATOR_USER:-tapcrm_migrator}:${POSTGRES_MIGRATOR_PASSWORD:?Set POSTGRES_MIGRATOR_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-tapcrm}
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-master@tapvera.io}
       PLATFORM_ADMIN_NAME: ${PLATFORM_ADMIN_NAME:-Tapvera Master Admin}
       # No default: a known password on the most privileged account is a
-      # vulnerability. Set it in .env (see .env.example); the script refuses to run without it.
-      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
+      # vulnerability. The script also refuses a short or retired value.
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?Set PLATFORM_ADMIN_PASSWORD in .env}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -147,26 +165,35 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
-      DATABASE_URL: postgres://tapcrm_app:app_dev_password@postgres:5432/tapcrm
-      MIGRATION_DATABASE_URL: postgres://tapcrm_migrator:migrator_dev_password@postgres:5432/tapcrm
+      # The API connects as the runtime role only. It is deliberately NOT given
+      # MIGRATION_DATABASE_URL: the process that serves requests must not hold
+      # the credential that owns the schema (PG-3, TECH 4.2.1).
+      DATABASE_URL: postgres://tapcrm_app:${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-tapcrm}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
       DATABASE_STATEMENT_TIMEOUT_MS: ${DATABASE_STATEMENT_TIMEOUT_MS:-15000}
       REDIS_URL: redis://redis:6379
+      SECURITY_COUNTER_STORE: ${SECURITY_COUNTER_STORE:-redis}
+      TRUSTED_IP_COUNTRY_HEADER: ${TRUSTED_IP_COUNTRY_HEADER:-}
+      IDENTITY_DEV_BYPASS: ${IDENTITY_DEV_BYPASS:-false}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-tapcrm-files}
       S3_BUCKET_WORM: ${S3_BUCKET_WORM:-tapcrm-worm}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-tapcrm_local_access_secret_please_change_32}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-tapcrm_local_refresh_secret_please_change_32}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env (32+ characters)}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env (32+ characters)}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-3600}
       REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-1209600}
-      API_PORT: 4000
+      AUDIT_DRAINER_ENABLED: ${AUDIT_DRAINER_ENABLED:-true}
+      AUDIT_DRAIN_INTERVAL_MS: ${AUDIT_DRAIN_INTERVAL_MS:-5000}
+      AUDIT_DRAIN_BATCH_SIZE: ${AUDIT_DRAIN_BATCH_SIZE:-200}
+      API_PORT: ${API_PORT:-4000}
+      # The web client proxies /api; changing the base path means changing it there too.
       API_BASE_PATH: /api
-      CORS_ORIGIN: http://localhost:5173
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:?Set CLIENT_ORIGIN in .env (the web app's public URL)}
       EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-console}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -181,10 +208,13 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      # Without this the API can start before the schema exists.
+      migrate:
+        condition: service_completed_successfully
     ports:
-      - '4000:4000'
+      - '127.0.0.1:${API_PORT:-4000}:${API_PORT:-4000}'
     healthcheck:
-      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:' + process.env.API_PORT + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -196,13 +226,13 @@ services:
       dockerfile: packages/client/Dockerfile
     environment:
       VITE_HOST: 0.0.0.0
-      VITE_API_PROXY_TARGET: http://server:4000
+      VITE_API_PROXY_TARGET: http://server:${API_PORT:-4000}
     depends_on:
       server:
         condition: service_healthy
     command: ['npm', 'run', 'dev', '--workspace', '@tapcrm/client', '--', '--host', '0.0.0.0']
     ports:
-      - '5173:5173'
+      - '127.0.0.1:${WEB_PORT:-5173}:5173'
 
 volumes:
   postgres_data:

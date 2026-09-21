@@ -15,7 +15,8 @@ what is missing.
 nvm use                 # Node 24 (TECH.md §2.3)
 npm install
 cp .env.example .env    # never commit this file
-# edit .env: set PLATFORM_ADMIN_PASSWORD (12+ characters) before the first start
+# edit .env: every `replace-me` value is a secret to generate (openssl rand -hex 32).
+# docker compose refuses to start until they are all set; nothing is defaulted.
 
 docker compose up --build
 ```
@@ -24,6 +25,13 @@ The Compose stack starts PostgreSQL, Redis, MinIO, the API, and the Vite client.
 It also runs migrations and creates the Master Admin account **if it does not
 already exist**. Open `http://localhost:5173/platform/login` and sign in with
 `PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD` from `.env`.
+
+The database roles are configured from `.env` too: compose starts Postgres with
+`POSTGRES_MIGRATOR_PASSWORD`, then runs the migrations and sets the runtime
+role's password from `POSTGRES_APP_PASSWORD` (`npm run db:app-password`). If you
+already have a compose Postgres volume from before this change, its roles keep
+their old passwords: either set the same values in `.env`, or recreate it once
+with `docker compose down -v` (this deletes local data).
 
 Restarting the stack never changes an existing Master Admin. To replace its
 password deliberately (this also revokes its sessions), update `.env` and run:

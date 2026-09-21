@@ -12,7 +12,7 @@ export async function sendAdminInvitation(input: AdminInvitationEmail): Promise<
   const config = loadConfig();
   const organizationName = escapeHtml(input.organizationName);
   const safeInvitationUrl = escapeHtml(input.invitationUrl);
-  const safeOrigin = escapeHtml(config.CORS_ORIGIN);
+  const safeOrigin = escapeHtml(config.CLIENT_ORIGIN);
   await sendEmail({
     to: input.to,
     subject: 'TapCRM — Company Admin Invitation',
@@ -28,7 +28,7 @@ export async function sendAdminInvitation(input: AdminInvitationEmail): Promise<
 
 export async function sendEmployeeInvitation(email: string, invitationToken: string, organizationCode: string, expiresHours = 72): Promise<void> {
   const config = loadConfig();
-  const url = `${config.CORS_ORIGIN}/signup?token=${encodeURIComponent(invitationToken)}&org=${encodeURIComponent(organizationCode)}`;
+  const url = `${config.CLIENT_ORIGIN}/signup?token=${encodeURIComponent(invitationToken)}&org=${encodeURIComponent(organizationCode)}`;
   await sendEmail({
     to: email,
     subject: 'TapCRM — Complete your employee account',
@@ -43,7 +43,7 @@ export async function sendEmployeeInvitation(email: string, invitationToken: str
 
 export async function sendEmployeeCredentials(input: { to: string; fullName: string; initialPassword: string }): Promise<void> {
   const config = loadConfig();
-  const loginUrl = `${config.CORS_ORIGIN}/login`;
+  const loginUrl = `${config.CLIENT_ORIGIN}/login`;
   const safeName = escapeHtml(input.fullName);
   const safeEmail = escapeHtml(input.to);
   const safePassword = escapeHtml(input.initialPassword);
