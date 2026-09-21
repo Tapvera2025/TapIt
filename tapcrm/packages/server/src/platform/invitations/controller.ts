@@ -1,6 +1,10 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { createInvitation, resendInvitation } from './service.js';
+import {
+  createInvitation,
+  resendInvitation,
+  sendAdminPasswordReset,
+} from './service.js';
 import { listInvitations, revokeInvitation } from './service.js';
 import { pagination, success } from '../http/envelope.js';
 
@@ -22,6 +26,14 @@ export async function resendAdmin(req: Request, res: Response) {
     organizationId: String(req.params['id'] ?? ''),
     email: body.email,
     createdBy: req.platformCtx!.principal.platformUserId,
+  });
+  res.status(200).json({ success: true, data: result });
+}
+
+export async function resetAdminPassword(req: Request, res: Response) {
+  const result = await sendAdminPasswordReset({
+    organizationId: String(req.params['id'] ?? ''),
+    actorId: req.platformCtx!.principal.platformUserId,
   });
   res.status(200).json({ success: true, data: result });
 }

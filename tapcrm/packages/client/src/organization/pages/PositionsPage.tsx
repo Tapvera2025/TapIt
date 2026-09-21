@@ -217,6 +217,7 @@ export function PositionsPage(): React.JSX.Element {
       );
       setMessage('Position policies saved.');
       setPolicyImpact(null);
+      setSelectedPolicyPosition(null);
     } catch (cause) {
       setError(cause);
     } finally {

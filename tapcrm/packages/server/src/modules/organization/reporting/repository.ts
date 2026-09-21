@@ -43,7 +43,7 @@ export async function listReportingManagerOptions(
     ), reporting_subtree AS (
       SELECT id
       FROM app_user
-      WHERE organization_id = ${ctx.organizationId} AND id = ${subjectUserId}
+      WHERE organization_id = ${ctx.organizationId} AND id = ${subjectUserId}::uuid
       UNION ALL
       SELECT child.id
       FROM app_user child
@@ -54,7 +54,7 @@ export async function listReportingManagerOptions(
     FROM app_user u
     WHERE u.organization_id = ${ctx.organizationId}
       AND u.status = 'active'
-      AND (${subjectUserId} IS NULL OR u.id NOT IN (SELECT id FROM reporting_subtree))
+      AND (${subjectUserId}::uuid IS NULL OR u.id NOT IN (SELECT id FROM reporting_subtree))
       AND (
         (
           u.account_type = 'super-admin'
