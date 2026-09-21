@@ -90,10 +90,15 @@ export function EmployeesPage(): React.JSX.Element {
       setReportingManagers([]);
       return;
     }
-    void getCompanyReportingManagers(form.departmentId, form.positionId)
+    void getCompanyReportingManagers(
+      form.departmentId,
+      form.positionId,
+      undefined,
+      form.teamId || undefined,
+    )
       .then(setReportingManagers)
       .catch(() => setError('Unable to load reporting managers.'));
-  }, [form.departmentId, form.positionId]);
+  }, [form.departmentId, form.positionId, form.teamId]);
 
   const departmentTeams = teams.filter((team) => team.departmentId === form.departmentId);
   const designation = designations.find((item) => item.id === form.designationId);

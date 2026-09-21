@@ -20,6 +20,7 @@ export function registerEmployeeRoutes(): void {
           query['subjectUserId'] === undefined
             ? null
             : z.string().uuid().parse(query['subjectUserId']),
+          query['teamId'] === undefined ? null : z.string().uuid().parse(query['teamId']),
         );
       }
       return (await getOrganizationChart(ctx)).people;

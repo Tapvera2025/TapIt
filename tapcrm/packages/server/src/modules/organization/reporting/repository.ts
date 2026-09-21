@@ -27,19 +27,27 @@ export async function listReportingManagerOptions(
   departmentId: string,
   positionId: string,
   subjectUserId: string | null = null,
+  teamId: string | null = null,
 ): Promise<ReportingManagerOption[]> {
   return db.query<ReportingManagerOption>(
     ctx,
     sql`
     WITH RECURSIVE position_chain AS (
-      SELECT id, parent_position_id
-      FROM position
-      WHERE organization_id = ${ctx.organizationId} AND id = ${positionId}
+      SELECT parent.id
+      FROM position child
+      JOIN position parent
+        ON parent.organization_id = child.organization_id
+       AND parent.id = child.parent_position_id
+       AND parent.status = 'active'
+      WHERE child.organization_id = ${ctx.organizationId}
+        AND child.id = ${positionId}
       UNION ALL
-      SELECT parent.id, parent.parent_position_id
+      SELECT parent.parent_position_id
       FROM position parent
-      JOIN position_chain child ON child.parent_position_id = parent.id
+      JOIN position_chain child ON child.id = parent.id
       WHERE parent.organization_id = ${ctx.organizationId}
+        AND parent.status = 'active'
+        AND parent.parent_position_id IS NOT NULL
     ), reporting_subtree AS (
       SELECT id
       FROM app_user
@@ -54,7 +62,7 @@ export async function listReportingManagerOptions(
     FROM app_user u
     WHERE u.organization_id = ${ctx.organizationId}
       AND u.status = 'active'
-      AND (${subjectUserId} IS NULL OR u.id NOT IN (SELECT id FROM reporting_subtree))
+      AND (${subjectUserId}::uuid IS NULL OR u.id NOT IN (SELECT id FROM reporting_subtree))
       AND (
         (
           u.account_type = 'super-admin'
@@ -69,6 +77,7 @@ export async function listReportingManagerOptions(
           u.account_type = 'employee'
           AND u.department_id = ${departmentId}
           AND u.position_id IN (SELECT id FROM position_chain)
+          AND (${teamId}::uuid IS NULL OR u.team_id = ${teamId}::uuid)
           AND EXISTS (
             SELECT 1
             FROM position manager_position
@@ -105,14 +114,20 @@ export async function isPositionAncestor(
 ): Promise<boolean> {
   const rows = await tx.query<{ id: string }>(sql`
     WITH RECURSIVE position_chain AS (
-      SELECT id, parent_position_id, ARRAY[id] AS path
-      FROM position
-      WHERE organization_id = ${organizationId} AND id = ${subjectPositionId}
+      SELECT parent.id, parent.parent_position_id, ARRAY[child.id] AS path
+      FROM position child
+      JOIN position parent
+        ON parent.organization_id = child.organization_id
+       AND parent.id = child.parent_position_id
+       AND parent.status = 'active'
+      WHERE child.organization_id = ${organizationId}
+        AND child.id = ${subjectPositionId}
       UNION ALL
       SELECT parent.id, parent.parent_position_id, child.path || parent.id
       FROM position parent
       JOIN position_chain child ON child.parent_position_id = parent.id
       WHERE parent.organization_id = ${organizationId}
+        AND parent.status = 'active'
         AND NOT parent.id = ANY(child.path)
     )
     SELECT id FROM position_chain WHERE id = ${managerPositionId} LIMIT 1
@@ -122,8 +137,9 @@ export async function isPositionAncestor(
 
 /**
  * Resolves the employee's effective manager without changing reports_to.
- * Explicit valid relationships win; an unassigned/invalid root employee falls
- * back to the active Super Admin in the same organization.
+ * Explicit valid relationships win. Otherwise, an employee inherits the
+ * reporting line from the active holder of the true parent position, or from
+ * the organization's active Super Admin when the position is a root.
  */
 export async function findEffectiveManager(
   tx: Tx,
@@ -155,6 +171,32 @@ export async function findEffectiveManager(
   }
 
   if (subject.positionId === null) return null;
+  const parentManager = await tx.maybeOne<ReportingUser>(sql`
+    SELECT manager.id, manager.full_name, manager.organization_id,
+           (manager.account_type = 'employee') AS is_employee,
+           (manager.account_type = 'super-admin') AS is_super_admin,
+           manager.status, manager.department_id, manager.team_id,
+           manager.position_id, manager.reports_to
+    FROM position subject_position
+    JOIN position parent_position
+      ON parent_position.organization_id = subject_position.organization_id
+     AND parent_position.id = subject_position.parent_position_id
+     AND parent_position.status = 'active'
+    JOIN app_user manager
+      ON manager.organization_id = subject_position.organization_id
+     AND manager.position_id = parent_position.id
+     AND manager.account_type = 'employee'
+     AND manager.status = 'active'
+     AND manager.department_id = subject.department_id
+     AND (subject.team_id IS NULL OR manager.team_id = subject.team_id)
+    WHERE subject_position.organization_id = ${organizationId}
+      AND subject_position.id = ${subject.positionId}
+      AND subject_position.status = 'active'
+    ORDER BY manager.id
+    LIMIT 1
+  `);
+  if (parentManager) return parentManager;
+
   const rootPosition = await tx.maybeOne<{ id: string }>(sql`
     SELECT id FROM position
     WHERE organization_id = ${organizationId}
