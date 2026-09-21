@@ -131,7 +131,9 @@ services:
       MIGRATION_DATABASE_URL: postgres://tapcrm_migrator:migrator_dev_password@postgres:5432/tapcrm
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-master@tapvera.io}
       PLATFORM_ADMIN_NAME: ${PLATFORM_ADMIN_NAME:-Tapvera Master Admin}
-      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-master_admin_dev_password}
+      # No default: a known password on the most privileged account is a
+      # vulnerability. Set it in .env (see .env.example); the script refuses to run without it.
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -178,8 +180,6 @@ services:
       redis:
         condition: service_healthy
       minio-init:
-        condition: service_completed_successfully
-      platform-admin:
         condition: service_completed_successfully
     ports:
       - '4000:4000'

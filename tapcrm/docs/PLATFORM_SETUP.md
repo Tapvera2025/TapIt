@@ -19,7 +19,7 @@ export PLATFORM_ADMIN_PASSWORD="replace-with-a-strong-12-plus-character-password
 npm run platform:admin
 ```
 
-The command hashes the password with Argon2id and creates/updates the `MASTER_ADMIN` platform account.
+The command hashes the password with Argon2id and creates the `MASTER_ADMIN` platform account. If the account already exists it is left unchanged; to replace the password (which also revokes its sessions), run `npm run platform:admin:reset`.
 
 ## 3. Start API and web client
 

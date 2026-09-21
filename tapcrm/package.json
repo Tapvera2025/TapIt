@@ -36,7 +36,8 @@
     "docker:up:build": "docker compose up --build",
     "docker:down": "docker compose down",
     "docker:reset": "docker compose down -v",
-    "platform:admin": "tsx tools/create-platform-admin.ts"
+    "platform:admin": "tsx tools/create-platform-admin.ts",
+    "platform:admin:reset": "tsx tools/create-platform-admin.ts --reset-password"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
