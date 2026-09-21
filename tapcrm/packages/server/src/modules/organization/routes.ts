@@ -1,66 +1,92 @@
-import { visibilityFilter } from '@tapcrm/authz';
 import { route } from '../../platform/http/route.js';
-import { db } from '../../platform/dal/db.js';
-import { sql } from '../../platform/dal/sql.js';
-import type { RequestContext } from '../../platform/dal/context.js';
-import type { Resource } from '@tapcrm/authz';
+import {
+  addTeamMember,
+  createDepartment,
+  createDesignation,
+  createTeam,
+  listDepartments,
+  listDesignations,
+  loadDesignationResource,
+  updateDesignationById,
+  listTeams,
+  updateDepartment,
+  updateTeam,
+  loadDepartmentResource,
+  loadTeamResource,
+} from './controller.js';
+import {
+  createPosition,
+  previewCreatePosition,
+  getPositionHolders,
+  getPositionLadder,
+  getPositionPolicies,
+  loadPositionResource,
+  previewPositionPolicies,
+  updatePositionPolicies,
+  updatePositionById,
+} from './positions/service.js';
+import { getOrganizationChart } from './chart/service.js';
+import {
+  confirmManagerReassignmentSubtree,
+  previewManagerReassignment,
+  previewManagerReassignmentSubtree,
+  reassignManager,
+} from './reporting/service.js';
+import { loadReportingUserResource } from './reporting/repository.js';
+import {
+  addTeamMemberSchema,
+  createDepartmentSchema,
+  createDesignationSchema,
+  updateDesignationSchema,
+  createTeamSchema,
+  createPositionSchema,
+  updateDepartmentSchema,
+  updateTeamSchema,
+  updatePositionSchema,
+  updatePositionPoliciesSchema,
+  confirmManagerReassignmentSchema,
+  managerReassignmentSchema,
+} from './validators.js';
 
-/**
- * `organization` route bindings — TECH.md §8.3.
- *
- * Binding declarations only. No authorization logic appears here: API-1 says a
- * handler that calls `authorize` itself fails review, because the framework
- * already did it (router.ts step 3).
- *
- * The paths below come from AUTHORIZATION.md §6.5 verbatim. Changing one makes
- * the boot-time manifest check fail (RM-1), which is the intent — §6.5 says the
- * method-to-action mapping "is the authorization contract, and changing it
- * changes who can do what."
- *
- * ⚠ SCAFFOLD: this module binds the read routes to prove the pipeline end to
- * end. The remaining `organization` bindings from §6.5, and the other four
- * Foundation modules, are still to be implemented — `npm run ci` reports
- * exactly which.
- */
-
-const loadDepartment =
-  (table: string) =>
-  async (ctx: RequestContext, id: string): Promise<Resource | null> => {
-    const row = await db.maybeOne<Record<string, unknown>>(
-      ctx,
-      sql`SELECT * FROM department WHERE id = ${id}`,
-    );
-    return row === null ? null : { ...row, type: table, id };
-  };
-
+/** Organization route bindings. Authorization is performed by the shared router. */
 export function registerOrganizationRoutes(): void {
   route({
-    method: 'GET',
-    path: '/api/org/ladder/:departmentCode',
-    action: 'org:view-structure',
-    module: 'organization',
-    handler: async ({ ctx, params }) => {
-      const department = await db.maybeOne<{ id: string; code: string; name: string }>(ctx, sql`
-        SELECT id, code, name FROM department
-        WHERE organization_id = ${ctx.organizationId} AND code = ${params['departmentCode']} AND status = 'active'
-      `);
-      if (!department) return { department: null, positions: [], teams: [] };
-      const [positions, teams] = await Promise.all([
-        db.query(ctx, sql`
-          SELECT id, code, name, organizational_level
-          FROM position
-          WHERE organization_id = ${ctx.organizationId} AND department_id = ${department.id} AND status = 'active'
-          ORDER BY organizational_level, name
-        `),
-        db.query(ctx, sql`
-          SELECT id, name, kind
-          FROM team
-          WHERE organization_id = ${ctx.organizationId} AND department_id = ${department.id}
-          ORDER BY name
-        `),
-      ]);
-      return { department, positions, teams };
+    method: 'POST',
+    path: '/api/users/:id/manager-reassignment',
+    action: 'users:manage',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: loadReportingUserResource,
+    handler: async ({ ctx, params, body }) =>
+      reassignManager(ctx, params['id']!, managerReassignmentSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/users/:id/manager-reassignment/preview',
+    action: 'users:manage',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: loadReportingUserResource,
+    handler: async ({ ctx, params, body }) => {
+      const input = managerReassignmentSchema.parse(body);
+      return input.operation === 'individual'
+        ? previewManagerReassignment(ctx, params['id']!, input)
+        : previewManagerReassignmentSubtree(ctx, params['id']!, input);
     },
+  });
+  route({
+    method: 'POST',
+    path: '/api/users/:id/manager-reassignment/confirm',
+    action: 'users:manage',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: loadReportingUserResource,
+    handler: async ({ ctx, params, body }) =>
+      confirmManagerReassignmentSubtree(
+        ctx,
+        params['id']!,
+        confirmManagerReassignmentSchema.parse(body),
+      ),
   });
 
   route({
@@ -68,17 +94,26 @@ export function registerOrganizationRoutes(): void {
     path: '/api/org/departments',
     action: 'org:view-structure',
     module: 'organization',
-    handler: async ({ ctx }) => {
-      // AZ-2 — the filter is built from the scope BEFORE the query runs.
-      // "No endpoint fetches broadly and rejects rows afterwards."
-      const filter = await visibilityFilter(ctx, 'org:view-structure', 'department');
-      return db.query(ctx, sql`
-        SELECT id, code, name, kind, status
-        FROM department
-        WHERE ${filter}
-        ORDER BY code
-      `);
-    },
+    handler: async ({ ctx }) => listDepartments(ctx),
+  });
+  route({
+    method: 'POST',
+    path: '/api/org/departments',
+    action: 'org:manage-departments',
+    module: 'organization',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      createDepartment(ctx, createDepartmentSchema.parse(body)),
+  });
+  route({
+    method: 'PATCH',
+    path: '/api/org/departments/:id',
+    action: 'org:manage-departments',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadDepartmentResource,
+    handler: async ({ ctx, params, body }) =>
+      updateDepartment(ctx, params['id']!, updateDepartmentSchema.parse(body)),
   });
 
   route({
@@ -86,57 +121,149 @@ export function registerOrganizationRoutes(): void {
     path: '/api/org/teams',
     action: 'org:view-structure',
     module: 'organization',
-    handler: async ({ ctx }) => {
-      const filter = await visibilityFilter(ctx, 'org:view-structure', 'team');
-      return db.query(ctx, sql`
-        SELECT id, name, kind, department_id, parent_team_id, lead_user_id
-        FROM team
-        WHERE ${filter}
-        ORDER BY name
-      `);
-    },
+    handler: async ({ ctx }) => listTeams(ctx),
+  });
+  route({
+    method: 'GET',
+    path: '/api/org/chart',
+    action: 'org:view-structure',
+    module: 'organization',
+    handler: async ({ ctx }) => getOrganizationChart(ctx),
+  });
+  route({
+    method: 'POST',
+    path: '/api/org/teams',
+    action: 'org:manage-teams',
+    module: 'organization',
+    status: 201,
+    handler: async ({ ctx, body }) => createTeam(ctx, createTeamSchema.parse(body)),
+  });
+  route({
+    method: 'PATCH',
+    path: '/api/org/teams/:id',
+    action: 'org:manage-teams',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadTeamResource,
+    handler: async ({ ctx, params, body }) =>
+      updateTeam(ctx, params['id']!, updateTeamSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/org/teams/:id/members',
+    action: 'org:manage-teams',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadTeamResource,
+    handler: async ({ ctx, params, body }) =>
+      addTeamMember(ctx, params['id']!, addTeamMemberSchema.parse(body)),
   });
 
   route({
     method: 'GET',
-    path: '/api/org/chart',
-    action: 'org:view-people',
+    path: '/api/org/designations',
+    action: 'org:manage-designations',
     module: 'organization',
-    handler: async ({ ctx }) => {
-      const filter = await visibilityFilter(ctx, 'org:view-people', 'user');
-      // OR-3 — "renders the actual reporting graph from reportsTo, not the
-      // position ladder, and HIGHLIGHTS USERS WITH NO MANAGER SET."
-      return db.query(ctx, sql`
-        SELECT u.id, u.full_name, u.position_id, u.department_id, u.team_id,
-               u.reports_to,
-               (u.reports_to IS NULL AND u.account_type = 'employee') AS missing_manager
-        FROM app_user u
-        WHERE u.account_type = 'employee'
-          AND u.status = 'active'
-          AND ${filter}
-        ORDER BY u.full_name
-      `);
-    },
+    handler: async ({ ctx }) => listDesignations(ctx),
+  });
+  route({
+    method: 'POST',
+    path: '/api/org/designations',
+    action: 'org:manage-designations',
+    module: 'organization',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      createDesignation(ctx, createDesignationSchema.parse(body)),
+  });
+  route({
+    method: 'PATCH',
+    path: '/api/org/designations/:id',
+    action: 'org:manage-designations',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadDesignationResource,
+    handler: async ({ ctx, params, body }) =>
+      updateDesignationById(ctx, params['id']!, updateDesignationSchema.parse(body)),
   });
 
   route({
-    method: 'PATCH',
-    path: '/api/org/departments/:id',
-    action: 'org:manage-departments',
+    method: 'GET',
+    path: '/api/org/ladder/:departmentCode',
+    action: 'org:view-structure',
+    module: 'organization',
+    handler: async ({ ctx, params }) => getPositionLadder(ctx, params['departmentCode']!),
+  });
+  route({
+    method: 'GET',
+    path: '/api/org/positions/:id/holders',
+    action: 'org:view-people',
     module: 'organization',
     resourceParam: 'id',
-    loadResource: loadDepartment('department'),
-    handler: async ({ ctx, params, body }) => {
-      const { name } = body as { name?: string };
-      // D-1 — "Department.code is IMMUTABLE. Renaming changes the display name
-      // only." The statement below cannot touch `code`, which is why the rule
-      // holds without a guard clause anyone could forget.
-      return db.one(ctx, sql`
-        UPDATE department
-        SET name = COALESCE(${name ?? null}, name)
-        WHERE id = ${params['id']}
-        RETURNING id, code, name, kind, status
-      `);
-    },
+    loadResource: loadPositionResource,
+    handler: async ({ ctx, params }) => getPositionHolders(ctx, params['id']!),
+  });
+  route({
+    method: 'GET',
+    path: '/api/org/positions/:id/policies',
+    action: 'org:view-policies',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadPositionResource,
+    handler: async ({ ctx, params }) => getPositionPolicies(ctx, params['id']!),
+  });
+  route({
+    method: 'POST',
+    path: '/api/org/positions',
+    action: 'org:manage-positions',
+    module: 'organization',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      createPosition(ctx, createPositionSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/org/positions/preview',
+    action: 'org:manage-positions',
+    module: 'organization',
+    handler: async ({ ctx, body }) =>
+      previewCreatePosition(ctx, createPositionSchema.parse(body)),
+  });
+  route({
+    method: 'PATCH',
+    path: '/api/org/positions/:id',
+    action: 'org:manage-positions',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadPositionResource,
+    handler: async ({ ctx, params, body }) =>
+      updatePositionById(ctx, params['id']!, updatePositionSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/org/positions/:id/policies/preview',
+    action: 'org:manage-positions',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadPositionResource,
+    handler: async ({ ctx, params, body }) =>
+      previewPositionPolicies(
+        ctx,
+        params['id']!,
+        updatePositionPoliciesSchema.parse(body),
+      ),
+  });
+  route({
+    method: 'PUT',
+    path: '/api/org/positions/:id/policies',
+    action: 'org:manage-positions',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadPositionResource,
+    handler: async ({ ctx, params, body }) =>
+      updatePositionPolicies(
+        ctx,
+        params['id']!,
+        updatePositionPoliciesSchema.parse(body),
+      ),
   });
 }

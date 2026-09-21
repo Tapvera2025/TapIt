@@ -3,6 +3,7 @@ import { getPool, getMigrationPool, type PgPoolClient } from './pool.js';
 import type { RequestContext } from './context.js';
 import { MissingTenantContextError } from './context.js';
 import { camelizeRows } from './mapping.js';
+import { sql } from './sql.js';
 import {
   classifyDatabaseError,
   RetryExhaustedError,
@@ -35,6 +36,18 @@ export interface Db {
   one<T>(ctx: RequestContext, fragment: SqlFragment): Promise<T>;
   maybeOne<T>(ctx: RequestContext, fragment: SqlFragment): Promise<T | null>;
   transaction<T>(ctx: RequestContext, fn: (tx: Tx) => Promise<T>): Promise<T>;
+}
+
+/**
+ * Establish tenant context inside a transaction that created its tenant root.
+ * This remains in the DAL so application services cannot set a pooled-session
+ * setting directly (TN-6).
+ */
+export async function setTenantContext(tx: Tx, organizationId: string): Promise<void> {
+  if (!organizationId) throw new MissingTenantContextError('tenant context is empty');
+  await tx.query(sql`
+    SELECT set_config('app.organization_id', ${organizationId}, true)
+  `);
 }
 
 /* ==================================================================== *

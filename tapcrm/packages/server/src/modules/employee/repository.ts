@@ -15,7 +15,12 @@ export async function findDepartment(tx: Tx, organizationId: string, id: string)
   `);
 }
 
-export async function findPosition(tx: Tx, organizationId: string, id: string, departmentId: string) {
+export async function findPosition(
+  tx: Tx,
+  organizationId: string,
+  id: string,
+  departmentId: string,
+) {
   return tx.maybeOne<{ id: string }>(sql`
     SELECT id FROM position
     WHERE organization_id = ${organizationId} AND id = ${id}
@@ -23,7 +28,12 @@ export async function findPosition(tx: Tx, organizationId: string, id: string, d
   `);
 }
 
-export async function findTeam(tx: Tx, organizationId: string, id: string, departmentId: string) {
+export async function findTeam(
+  tx: Tx,
+  organizationId: string,
+  id: string,
+  departmentId: string,
+) {
   return tx.maybeOne<{ id: string }>(sql`
     SELECT id FROM team
     WHERE organization_id = ${organizationId} AND id = ${id} AND department_id = ${departmentId}
@@ -31,12 +41,22 @@ export async function findTeam(tx: Tx, organizationId: string, id: string, depar
 }
 
 export async function findDesignation(tx: Tx, organizationId: string, id: string) {
-  return tx.maybeOne<{ id: string }>(sql`
-    SELECT id FROM designation WHERE organization_id = ${organizationId} AND id = ${id}
+  return tx.maybeOne<{
+    id: string;
+    status: 'active' | 'inactive';
+    specializations: string[];
+  }>(sql`
+    SELECT id, status, specializations FROM designation
+    WHERE organization_id = ${organizationId} AND id = ${id}
   `);
 }
 
-export async function findManager(tx: Tx, organizationId: string, id: string, departmentId: string) {
+export async function findManager(
+  tx: Tx,
+  organizationId: string,
+  id: string,
+  departmentId: string,
+) {
   return tx.maybeOne<{ id: string }>(sql`
     SELECT id FROM app_user
     WHERE organization_id = ${organizationId} AND id = ${id}

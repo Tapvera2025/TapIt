@@ -3,9 +3,10 @@ import { validateSelectedModules } from '../modules/service.js';
 import * as moduleRepo from '../modules/repository.js';
 import { createInvitationRecord, deliverInvitation } from '../invitations/service.js';
 import * as invitationRepo from '../invitations/repository.js';
-import { platformDb } from '../../platform/dal/db.js';
+import { platformDb, setTenantContext } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { sendAdminInvitation } from '../../modules/identity/notifications/invitation-email.js';
+import { bootstrapOrganization } from './bootstrap.js';
 import * as organizationRepo from './repository.js';
 import type { OrganizationProfileUpdate } from './repository.js';
 
@@ -83,6 +84,10 @@ export async function createOrganization(
         VALUES (${input.name}, ${input.code.toUpperCase()}, ${input.legalCompanyName}, ${input.companyType}, ${input.industry}, ${input.website}, ${input.companyEmail}, ${input.ownerFullName}, ${input.ownerDesignation}, ${input.adminEmail}, ${input.ownerMobile}, ${input.ownerAlternateNumber}, ${input.primaryPhone}, ${input.alternatePhone}, ${input.supportEmail}, ${input.addressLine1}, ${input.addressLine2}, ${input.city}, ${input.state}, ${input.country}, ${input.postalCode}, ${input.gstin}, ${input.pan}, ${input.registrationNumber}, ${input.timezone}, ${input.currency.toUpperCase()})
         RETURNING id, code, name, timezone, currency, status, created_at, updated_at, legal_company_name, company_type, industry, website, company_email, owner_full_name, owner_designation, owner_email, owner_mobile, owner_alternate_number, primary_phone, alternate_phone, support_email, address_line_1, address_line_2, city, state, country, postal_code, gstin, pan, registration_number
       `);
+        // The transaction began before the organization existed, so establish
+        // tenant context immediately after inserting the tenant root. This is
+        // required for RLS-protected bootstrap and invitation rows below.
+        await setTenantContext(tx, org.id);
         const all = await moduleRepo.listModules();
         const selectedIds = new Set(modules.map((m) => m.id));
         const queue = [...selectedIds];
@@ -101,6 +106,11 @@ export async function createOrganization(
             sql`INSERT INTO organization_module(organization_id, module_id, status, enabled_at, enabled_by) VALUES (${org.id}, ${m.id}, 'enabled', now(), ${actorId}) ON CONFLICT (organization_id, module_id) DO NOTHING`,
           );
         }
+        await bootstrapOrganization(
+          tx,
+          org.id,
+          toEnable.map((module) => module.key),
+        );
         const invitation = await createInvitationRecord(tx, {
           organizationId: org.id,
           email: input.adminEmail,
@@ -232,7 +242,7 @@ export async function updateOrganization(
           if (activeAdminEmailChanged)
             await organizationRepo.updateActiveSuperAdminEmail(tx, id, newEmail);
         } else if (ownerEmailChanged) {
-            const pendingInvitation = await tx.maybeOne<{ email: string }>(sql`
+          const pendingInvitation = await tx.maybeOne<{ email: string }>(sql`
               SELECT email
               FROM admin_invitation
               WHERE organization_id = ${id} AND accepted_at IS NULL AND revoked_at IS NULL
@@ -240,16 +250,16 @@ export async function updateOrganization(
               LIMIT 1
               FOR UPDATE
             `);
-            await invitationRepo.revokePendingInTransaction(
-              tx,
-              id,
-              pendingInvitation?.email ?? currentEmail,
-            );
-            invitation = await createInvitationRecord(tx, {
-              organizationId: id,
-              email: newEmail,
-              createdBy: actorId,
-            });
+          await invitationRepo.revokePendingInTransaction(
+            tx,
+            id,
+            pendingInvitation?.email ?? currentEmail,
+          );
+          invitation = await createInvitationRecord(tx, {
+            organizationId: id,
+            email: newEmail,
+            createdBy: actorId,
+          });
         }
 
         const profile: OrganizationProfileUpdate = {
@@ -298,14 +308,17 @@ export async function updateOrganization(
         id: result.invitation.row.id,
         email: result.invitation.row.email,
         expiresAt: result.invitation.expiresAt,
-        invitationUrl: process.env['NODE_ENV'] === 'production' ? undefined : delivery.invitationUrl,
+        invitationUrl:
+          process.env['NODE_ENV'] === 'production' ? undefined : delivery.invitationUrl,
         delivery: delivery.delivery,
       };
     }
     return { organization: result.organization, invitation: invitationDelivery };
   } catch (error) {
     if (error instanceof Error && (error as { code?: string }).code === '23505')
-      throw new PlatformConflictError('Organization code or another unique value already exists');
+      throw new PlatformConflictError(
+        'Organization code or another unique value already exists',
+      );
     throw error;
   }
 }

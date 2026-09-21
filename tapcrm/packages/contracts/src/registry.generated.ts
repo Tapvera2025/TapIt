@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 147   Bindings: 294
+ * Actions: 147   Bindings: 300
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -2537,7 +2537,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/org/departments', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/teams', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/ladder/:departmentCode', action: 'org:view-structure', resourceParam: null },
-  { method: 'GET', path: '/api/org/chart', action: 'org:view-people', resourceParam: null },
+  { method: 'GET', path: '/api/org/chart', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/positions/:id/holders', action: 'org:view-people', resourceParam: 'id' },
   { method: 'GET', path: '/api/org/positions/:id/policies', action: 'org:view-policies', resourceParam: 'id' },
   { method: 'POST', path: '/api/org/departments', action: 'org:manage-departments', resourceParam: null },
@@ -2546,10 +2546,13 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/org/teams/:id', action: 'org:manage-teams', resourceParam: 'id' },
   { method: 'POST', path: '/api/org/teams/:id/members', action: 'org:manage-teams', resourceParam: 'id' },
   { method: 'POST', path: '/api/org/positions', action: 'org:manage-positions', resourceParam: null },
+  { method: 'POST', path: '/api/org/positions/preview', action: 'org:manage-positions', resourceParam: null },
   { method: 'PATCH', path: '/api/org/positions/:id', action: 'org:manage-positions', resourceParam: 'id' },
+  { method: 'POST', path: '/api/org/positions/:id/policies/preview', action: 'org:manage-positions', resourceParam: 'id' },
   { method: 'PUT', path: '/api/org/positions/:id/policies', action: 'org:manage-positions', resourceParam: 'id' },
   { method: 'GET', path: '/api/org/designations', action: 'org:manage-designations', resourceParam: null },
   { method: 'POST', path: '/api/org/designations', action: 'org:manage-designations', resourceParam: null },
+  { method: 'PATCH', path: '/api/org/designations/:id', action: 'org:manage-designations', resourceParam: 'id' },
   { method: 'GET', path: '/api/access/effective/:userId', action: 'access:view', resourceParam: 'userId' },
   { method: 'GET', path: '/api/access/who-can/:action', action: 'access:view', resourceParam: null },
   { method: 'POST', path: '/api/access/override', action: 'access:delegate', resourceParam: null },
@@ -2575,6 +2578,9 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/users/:id', action: 'users:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/users', action: 'users:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/users/:id', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/manager-reassignment', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/manager-reassignment/preview', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/manager-reassignment/confirm', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/status', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/import', action: 'users:manage', resourceParam: null },
   { method: 'GET', path: '/api/onboarding', action: 'onboarding:manage', resourceParam: null },

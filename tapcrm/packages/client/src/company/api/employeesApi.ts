@@ -3,6 +3,8 @@ import { identityRequest } from '../../identity/api/authApi.js';
 export interface CreateEmployeeInput {
   email: string;
   fullName: string;
+  password: string;
+  confirmPassword: string;
   departmentId: string;
   positionId: string;
   teamId?: string;

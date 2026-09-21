@@ -42,12 +42,17 @@ export interface ManifestDrift {
   readonly bindingsWithoutRoute: readonly string[];
   readonly actionsWithoutBinding: readonly string[];
   readonly duplicateRoutes: readonly string[];
+  readonly actionMismatches: readonly string[];
+  readonly resourceMismatches: readonly string[];
 }
 
 export function checkManifest(): ManifestDrift {
   const declared = registeredBindings();
   const declaredKeys = new Set(declared.map((b) => `${b.method} ${b.path}`));
   const manifestKeys = new Set(BINDINGS.map((b) => `${b.method} ${b.path}`));
+  const manifestByKey = new Map(
+    BINDINGS.map((binding) => [`${binding.method} ${binding.path}`, binding]),
+  );
 
   const duplicates: string[] = [];
   const seen = new Set<string>();
@@ -58,6 +63,25 @@ export function checkManifest(): ManifestDrift {
   }
 
   const boundActions = new Set<Action>(declared.map((b) => b.action));
+  const actionMismatches: string[] = [];
+  const resourceMismatches: string[] = [];
+  for (const binding of declared) {
+    const key = `${binding.method} ${binding.path}`;
+    const manifest = manifestByKey.get(key);
+    if (!manifest) continue;
+    if (manifest.action !== binding.action) {
+      actionMismatches.push(
+        `${key}: registered action ${binding.action}, manifest action ${manifest.action}`,
+      );
+    }
+    const registeredResourceParam = binding.resourceParam ?? null;
+    if (manifest.resourceParam !== registeredResourceParam) {
+      resourceMismatches.push(
+        `${key}: registered resourceParam ${registeredResourceParam ?? 'null'}, ` +
+          `manifest resourceParam ${manifest.resourceParam ?? 'null'}`,
+      );
+    }
+  }
 
   return {
     // A route the code registers that AUTHORIZATION.md §6.5 does not know about.
@@ -69,6 +93,8 @@ export function checkManifest(): ManifestDrift {
       .filter((a) => !boundActions.has(a))
       .sort(),
     duplicateRoutes: duplicates.sort(),
+    actionMismatches: actionMismatches.sort(),
+    resourceMismatches: resourceMismatches.sort(),
   };
 }
 
@@ -95,6 +121,18 @@ export function assertManifest(options: { strict?: boolean } = {}): ManifestDrif
     fatal.push(
       `RM-2: ${drift.duplicateRoutes.length} route(s) registered twice. §6.2 makes ` +
         `method+path the authorization key:\n    ${drift.duplicateRoutes.join('\n    ')}`,
+    );
+  }
+  if (drift.actionMismatches.length > 0) {
+    fatal.push(
+      `RM-3: ${drift.actionMismatches.length} route action mismatch(es) between ` +
+        `registered routes and the authorization manifest:\n    ${drift.actionMismatches.join('\n    ')}`,
+    );
+  }
+  if (drift.resourceMismatches.length > 0) {
+    fatal.push(
+      `RM-4: ${drift.resourceMismatches.length} route resource mismatch(es) between ` +
+        `registered routes and the authorization manifest:\n    ${drift.resourceMismatches.join('\n    ')}`,
     );
   }
   if (options.strict === true && drift.bindingsWithoutRoute.length > 0) {
