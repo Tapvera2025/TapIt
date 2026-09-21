@@ -1,3 +1,4 @@
+import { BrandLogo } from '../ui/BrandLogo.js';
 import { useEffect, useState } from 'react';
 import { api, clearTokens, saveTokens, updateOrganization } from './api.js';
 import { ModuleToggleModal } from './ModuleToggleModal.js';
@@ -289,9 +290,8 @@ export function PlatformLogin({ onLogin }: { onLogin: () => void }) {
         }}
         className="w-full max-w-[430px] rounded-[18px] border border-app-border bg-app-surface p-10 shadow-2xl max-[560px]:px-[22px] max-[560px]:py-[30px]"
       >
-        <div className="brand-lockup">
-          <span className="brand-mark">T</span>
-          <span>TapCRM</span>
+        <div className="mb-6">
+          <BrandLogo className="w-[200px]" />
         </div>
         <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Control panel</p>
         <h1 className="mt-6 text-4xl">Welcome back.</h1>
@@ -337,10 +337,10 @@ export function PlatformLogin({ onLogin }: { onLogin: () => void }) {
             </svg>
           </button>
         </div>
-        <button className="mt-[22px] w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-[#061412] transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60" disabled={busy}>
+        <button className="mt-[22px] w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        {error && <p className="mt-3 text-[13px] text-[#ff8d8d]">{error}</p>}
+        {error && <p className="mt-3 text-[13px] text-app-danger">{error}</p>}
       </form>
       <ThemeToggle floating />
     </main>
@@ -711,12 +711,12 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   });
 
   return (
-    <main className="min-h-screen bg-app-background px-5 pb-16 pt-[34px] text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(57,214,189,0.09),transparent_28rem)] max-[560px]:px-[15px] max-[560px]:pb-[45px] max-[560px]:pt-6">
+    <main className="min-h-screen bg-app-background px-5 pb-16 pt-[34px] text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)] max-[560px]:px-[15px] max-[560px]:pb-[45px] max-[560px]:pt-6">
+      <div className="mx-auto mb-5 max-w-[1320px] min-[561px]:hidden"><BrandLogo className="w-[180px]" /></div>
       <header className="mx-auto flex max-w-[1320px] items-start justify-between gap-7 max-[560px]:gap-3">
         <div className="flex items-start gap-[22px] max-[560px]:gap-[13px]">
           <div className="hidden items-center gap-2.5 font-display text-[17px] font-bold tracking-[-0.03em] text-app-muted min-[561px]:flex">
-            <span className="grid size-[30px] place-items-center rounded-[10px] bg-app-accent text-[16px] text-[#071514] shadow-[0_0_24px_rgba(57,214,189,0.25)]">T</span>
-            <span>TapCRM</span>
+            <BrandLogo className="w-[200px]" />
           </div>
           <div>
             <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Master Admin</p>
@@ -861,9 +861,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             {formStep > 0 && <button type="button" className="shrink-0 rounded-[9px] border border-app-border bg-app-surface px-4 py-2.5 text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => setFormStep((step) => step - 1)} disabled={busy}>Back</button>}
             {formMode === 'edit' && <button type="button" className="shrink-0 rounded-[9px] border border-app-border bg-app-surface px-4 py-2.5 text-app-foreground transition hover:border-app-accent hover:text-app-accent" onClick={cancelEdit} disabled={busy}>Cancel</button>}
             {formStep < (formMode === 'edit' ? 5 : 6) ? (
-              <button type="button" className="w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-[#061412] transition hover:-translate-y-px hover:brightness-110" onClick={goNext}>Next</button>
+              <button type="button" className="w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110" onClick={goNext}>Next</button>
             ) : (
-              <button type="button" className="w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-[#061412] transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60" onClick={() => void create()} disabled={busy}>
+              <button type="button" className="w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60" onClick={() => void create()} disabled={busy}>
                 {busy ? (formMode === 'edit' ? 'Saving…' : 'Creating…') : formMode === 'edit' ? 'Save Changes' : 'Create Company & Invite Admin'}
               </button>
             )}
@@ -932,7 +932,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg border border-[#ff8d8d]/30 bg-transparent px-2.5 py-[7px] text-[11px] text-[#ff8d8d] hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55"
+                  className="rounded-lg border border-[#ff8d8d]/30 bg-transparent px-2.5 py-[7px] text-[11px] text-app-danger hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55"
                   onClick={() => setPendingCompanyAction({ type: 'delete', org: o })}
                   disabled={deletingId === o.id || statusChangingId === o.id}
                 >
@@ -957,7 +957,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                 })}
               </div>
               <details className="mt-[15px] ml-[46px] text-xs text-app-muted max-[560px]:ml-0">
-                <summary className="cursor-pointer text-app-accent hover:text-[#63e4d0]">View company details</summary>
+                <summary className="cursor-pointer text-app-accent hover:text-app-accent">View company details</summary>
                 <div className="mt-[14px] grid gap-4">
                   <div>
                     <h3 className="mb-2 font-display text-xs font-semibold uppercase tracking-[0.03em] text-app-foreground">Company Information</h3>
@@ -1059,7 +1059,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                   <small className="mt-1 block text-[11px] text-app-muted">{invitation.companyCode} · {invitation.adminName}</small>
                   <span className="mt-1 block text-[11px] text-app-muted">{invitation.adminEmail}</span>
                 </div>
-                <span className={`rounded-full border px-2 py-1.5 text-[10px] font-bold tracking-[0.04em] ${invitation.status === 'PENDING' ? 'border-app-accent/35 bg-app-accent/10 text-orange-400' : invitation.status === 'ACCEPTED' ? 'border-[#8dd7ff]/30 text-[#8dd7ff]' : invitation.status === 'EXPIRED' ? 'border-[#f5c56b]/35 text-[#f5c56b]' : 'border-[#ff8d8d]/30 text-[#ff8d8d]'}`}>{invitation.status}</span>
+                <span className={`rounded-full border px-2 py-1.5 text-[10px] font-bold tracking-[0.04em] ${invitation.status === 'PENDING' ? 'border-app-accent/35 bg-app-accent/10 text-orange-400' : invitation.status === 'ACCEPTED' ? 'border-[#8dd7ff]/30 text-[#8dd7ff]' : invitation.status === 'EXPIRED' ? 'border-[#f5c56b]/35 text-[#f5c56b]' : 'border-[#ff8d8d]/30 text-app-danger'}`}>{invitation.status}</span>
                 <div className="grid grid-cols-4 gap-[9px] text-[11px] text-app-muted max-[560px]:grid-cols-2">
                   <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Created</b>{formatDate(invitation.createdAt)}</span>
                   <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Expires</b>{formatDate(invitation.expiresAt)}</span>
@@ -1073,7 +1073,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                   {canResend && <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-[9px] py-[7px] text-[11px] text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => void resendInvitation(invitation)} disabled={invitationActionId === invitation.id}>
                     {invitationActionId === invitation.id ? 'Resending…' : 'Resend Invitation'}
                   </button>}
-                  {canRevoke && <button type="button" className="rounded-[9px] border border-[#ff8d8d]/30 bg-transparent px-[9px] py-[7px] text-[11px] text-[#ff8d8d] hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55" onClick={() => void revokeInvitation(invitation)} disabled={invitationActionId === invitation.id}>
+                  {canRevoke && <button type="button" className="rounded-[9px] border border-[#ff8d8d]/30 bg-transparent px-[9px] py-[7px] text-[11px] text-app-danger hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55" onClick={() => void revokeInvitation(invitation)} disabled={invitationActionId === invitation.id}>
                     {invitationActionId === invitation.id ? 'Revoking…' : 'Revoke'}
                   </button>}
                 </div>

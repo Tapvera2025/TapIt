@@ -1,3 +1,31 @@
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const envFile = resolve(ROOT, '.env');
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let val = trimmed.slice(eq + 1).trim();
+    // Strip a matching pair of surrounding quotes so `NAME="Foo Bar"` yields
+    // `Foo Bar`, not the literal `"Foo Bar"` — dotenv, docker compose and
+    // shells all do this; a hand-rolled reader that skips it stores quotes as
+    // part of the value.
+    if (val.length >= 2) {
+      const first = val[0];
+      if ((first === '"' || first === "'") && val[val.length - 1] === first) {
+        val = val.slice(1, -1);
+      }
+    }
+    if (!(key in process.env)) process.env[key] = val;
+  }
+}
+
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { closePools } from './platform/dal/pool.js';

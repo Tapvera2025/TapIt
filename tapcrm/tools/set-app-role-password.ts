@@ -9,7 +9,24 @@
  * migration. Idempotent: it is safe to run on every deploy, and it is also how a
  * password is rotated. Runs as the migration/admin role (PG-3).
  */
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const envFile = resolve(ROOT, '.env');
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const val = trimmed.slice(eq + 1).trim();
+    if (!(key in process.env)) process.env[key] = val;
+  }
+}
 
 const RETIRED_PASSWORDS = new Set(['app_dev_password']);
 const MIN_LENGTH = 16;

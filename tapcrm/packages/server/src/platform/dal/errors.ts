@@ -24,6 +24,7 @@ export type FailureClass =
   | 'connection_failure'
   | 'statement_timeout'
   | 'insufficient_privilege'
+  | 'invalid_input'
   | 'unclassified';
 
 export interface ClassifiedFailure {
@@ -112,6 +113,15 @@ const SQLSTATE: Record<string, Omit<ClassifiedFailure, 'sqlState' | 'message'>> 
     status: HTTP_STATUS.FORBIDDEN,
     code: ERROR_CODES.FORBIDDEN,
     engineeringDefect: true,
+  },
+  // A malformed value the driver couldn't cast — the common case is a bad
+  // UUID on a route param. Client input, not a server defect, so 400 not 500.
+  '22P02': {
+    failureClass: 'invalid_input',
+    retryable: false,
+    status: HTTP_STATUS.BAD_REQUEST,
+    code: ERROR_CODES.MALFORMED_REQUEST,
+    engineeringDefect: false,
   },
 };
 

@@ -18,6 +18,7 @@ cp .env.example .env    # never commit this file
 # edit .env: every `replace-me` value is a secret to generate (openssl rand -hex 32).
 # docker compose refuses to start until they are all set; nothing is defaulted.
 
+npm run doctor          # preflight: Node, Docker, .env, ports, argon2 — run first
 docker compose up --build
 ```
 
