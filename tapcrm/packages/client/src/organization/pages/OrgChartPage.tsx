@@ -45,7 +45,7 @@ export function OrgChartPage(): React.JSX.Element {
             <p><span className="font-semibold text-app-foreground">Reports to:</span> {person.reportsToName ?? (person.reportsTo ? 'Unavailable' : '—')}</p>
             {person.designationName && <p><span className="font-semibold text-app-foreground">Designation:</span> {person.designationName}</p>}
             {person.specialization && <p><span className="font-semibold text-app-foreground">Specialization:</span> {person.specialization}</p>}
-            {person.missingManager && <p className="text-[#d86b6b]">Missing or invalid manager</p>}
+            {person.missingManager && <p className="text-app-danger">Missing or invalid manager</p>}
           </div>
         </div>
         <div className="mt-2 space-y-2">

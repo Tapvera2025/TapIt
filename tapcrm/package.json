@@ -32,6 +32,7 @@
     "db:app-password": "tsx tools/set-app-role-password.ts",
     "seed": "tsx seeds/index.ts",
     "ci": "tsx tools/ci/index.ts",
+    "doctor": "tsx tools/doctor.ts",
     "verify": "npm run registry:extract && npm run typecheck && npm run lint && npm run ci && npm run test",
     "docker:up": "docker compose up -d",
     "docker:up:build": "docker compose up --build",

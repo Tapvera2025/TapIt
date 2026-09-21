@@ -1,40 +1,361 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --app-background: #f7faf9;
-  --app-foreground: #14201f;
+  --app-background: #f5f5f4;
+  --app-foreground: #17232f;
   --app-surface: #ffffff;
-  --app-border: #d8e3e0;
-  --app-muted: #60736f;
-  --app-accent: #0f9f8b;
+  --app-surface-raised: #faf9f7;
+  --app-border: #e5e7e9;
+  --app-muted: #64717d;
+  --app-accent: #b94c0c;
+  --app-on-accent: #28180c;
+  --app-gradient: linear-gradient(110deg, #f58236, #ffb366);
+  --app-card-gradient: linear-gradient(135deg, #ffffff, #fdfdfc);
+  --app-shadow: 0 3px 12px #17232f05, 0 1px 3px #17232f04;
+  --app-success: #20865c;
+  --app-danger: #b83c42;
   color-scheme: light;
 }
 
 :root.dark {
-  --app-background: #0b1016;
-  --app-foreground: #edf4f4;
-  --app-surface: #121a23;
-  --app-border: #263542;
-  --app-muted: #8fa2ab;
-  --app-accent: #39d6bd;
+  --app-background: #0d151d;
+  --app-foreground: #f0f3f6;
+  --app-surface: #141e27;
+  --app-surface-raised: #1b2630;
+  --app-border: #28333d;
+  --app-muted: #a4afbb;
+  --app-accent: #f7a04f;
+  --app-on-accent: #28180c;
+  --app-gradient: linear-gradient(110deg, #df8232, #f5ac58);
+  --app-card-gradient: linear-gradient(135deg, #17212a, #111b24);
+  --app-shadow: 0 4px 18px #00000012, inset 0 1px 0 #ffffff03;
+  --app-success: #76dba6;
+  --app-danger: #f08b90;
   color-scheme: dark;
 }
 
 @theme inline {
   --font-sans: 'DM Sans', sans-serif;
-  --font-display: 'Space Grotesk', sans-serif;
+  --font-display: 'DM Sans', sans-serif;
   --color-app-background: var(--app-background);
   --color-app-foreground: var(--app-foreground);
   --color-app-surface: var(--app-surface);
+  --color-app-surface-raised: var(--app-surface-raised);
   --color-app-border: var(--app-border);
   --color-app-muted: var(--app-muted);
   --color-app-accent: var(--app-accent);
+  --color-app-on-accent: var(--app-on-accent);
+  --color-app-success: var(--app-success);
+  --color-app-danger: var(--app-danger);
 }
 
-body {
-  background: var(--app-background);
-  color: var(--app-foreground);
+@layer base {
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--app-background);
+    color: var(--app-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 15%, transparent);
+  }
+  input,
+  select,
+  textarea {
+    accent-color: var(--app-accent);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--app-muted);
+    opacity: 0.75;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    background: var(--app-surface-raised);
+  }
+  th,
+  td {
+    padding: 14px 16px;
+    text-align: left;
+  }
+  td {
+    border-bottom: 1px solid var(--app-border);
+  }
+  tbody tr:hover {
+    background: color-mix(in srgb, var(--app-accent) 4%, transparent);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--app-accent) 25%, transparent);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--app-border) transparent;
+  }
+}
+
+@layer components {
+  .ui-card {
+    min-width: 0;
+    border: 1px solid var(--app-border);
+    border-radius: 16px;
+    background: var(--app-card-gradient);
+    box-shadow: var(--app-shadow);
+  }
+  .page-heading {
+    padding: 22px 24px;
+    border: 1px solid var(--app-border);
+    border-radius: 16px;
+    background: var(--app-card-gradient);
+    box-shadow: var(--app-shadow);
+  }
+  .ui-primary {
+    background: var(--app-gradient);
+    color: var(--app-on-accent);
+    border: 1px solid #f5a35e55;
+    box-shadow: 0 3px 8px #da77251a;
+  }
+  .ui-primary:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+  .ui-dialog {
+    position: fixed;
+    margin: auto;
+    max-height: 90dvh;
+    width: min(42rem, calc(100% - 2rem));
+    overflow-y: auto;
+    padding: 24px;
+    border: 1px solid var(--app-border);
+    border-radius: 18px;
+    background: var(--app-surface);
+    color: var(--app-foreground);
+    box-shadow: 0 24px 80px #0004;
+  }
+  .ui-dialog::backdrop {
+    background: #080e17a6;
+    backdrop-filter: blur(4px);
+  }
+  .workspace-sidebar {
+    background: var(--app-card-gradient);
+  }
+
+  .sidebar-decoration {
+    position: relative;
+    overflow: hidden;
+    padding: 24px 16px 18px;
+    margin-top: 20px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, transparent, #ef92321a);
+  }
+  .sidebar-decoration::before {
+    content: '';
+    position: absolute;
+    width: 200px;
+    height: 110px;
+    border: 24px solid #ee963015;
+    border-radius: 50%;
+    transform: rotate(-35deg);
+    right: -65px;
+    bottom: -40px;
+    pointer-events: none;
+  }
+}
+
+/* Existing feature screens share these tokens while adopting the UI primitives. */
+.bg-app-accent {
+  background-image: var(--app-gradient);
+}
+:is(section, article, form, div, button).bg-app-surface:is(.rounded-2xl, .rounded-xl) {
+  background-image: var(--app-card-gradient);
+  box-shadow: var(--app-shadow);
+}
+nav button[aria-current='page'] {
+  position: relative;
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  color: var(--app-accent);
+}
+nav button[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 4px;
+  background: var(--app-gradient);
+}
+@media (max-width: 640px) {
+  .page-heading {
+    padding: 18px;
+  }
+  th,
+  td {
+    padding: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes bar-enter {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes ring-enter {
+  from {
+    stroke-dasharray: 0 100;
+  }
+  to {
+    stroke-dasharray: var(--ring-value) 100;
+  }
+}
+.chart-bar {
+  background: linear-gradient(0deg, #e98a37, #ffb35f);
+  box-shadow:
+    0 -8px 0 #f4a34b22,
+    0 -16px 0 #f4a34b12;
+  transform-origin: bottom;
+  animation: bar-enter 650ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--chart-delay, 0ms);
+  transition: filter 180ms ease;
+}
+.chart-bar:hover {
+  filter: brightness(1.12);
+}
+.chart-ring {
+  animation: ring-enter 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.chart-progress {
+  transform-origin: left;
+  animation: bar-enter-horizontal 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  transition: width 350ms ease;
+}
+@keyframes bar-enter-horizontal {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.dashboard-content > div {
+  animation: card-enter 350ms ease both;
+}
+.dashboard-content > div:nth-child(2) {
+  animation-delay: 70ms;
+}
+.dashboard-content > div:nth-child(3) {
+  animation-delay: 140ms;
+}
+.ui-dialog[open] {
+  animation: card-enter 180ms ease-out;
+}
+button,
+a {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+button:active:not(:disabled),
+a.ui-primary:active {
+  transform: translateY(1px) scale(0.985);
+}
+.metric-card {
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+.metric-card:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 35%, var(--app-border));
+  box-shadow: 0 6px 20px #e9893010;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Transparent brand artwork. The overlay targets only the CRM letter bounds. */
+.crm-brand {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+  vertical-align: middle;
+  line-height: 0;
+}
+.crm-brand img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.crm-brand .crm-brand-wordmark {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  /* Source image is 1981 × 793; exclude the orange cloud and Tapvera lettering. */
+  clip-path: inset(48.5% 4.25% 27% 67.3%);
+  filter: brightness(0) invert(1);
+}
+.dark .crm-brand .crm-brand-wordmark {
+  opacity: 1;
 }

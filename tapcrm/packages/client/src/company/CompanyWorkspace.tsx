@@ -31,11 +31,11 @@ export function CompanyWorkspace({
     return (
       <div className="grid min-h-screen place-items-center bg-app-background p-6 text-center text-app-foreground">
         <div>
-          <p className="text-[#d86b6b]">{error}</p>
+          <p className="text-app-danger">{error}</p>
           <button
             type="button"
             onClick={onLogout}
-            className="mt-4 rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-[#061412]"
+            className="mt-4 rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent"
           >
             Return to login
           </button>
@@ -85,7 +85,7 @@ export function CompanyWorkspace({
   ) : pathname === '/company/geofencing' ? (
     <GeofencingPage onBack={() => onNavigate('/company/dashboard')} />
   ) : (
-    <DashboardPage identity={identity} />
+    <DashboardPage identity={identity} onNavigate={onNavigate} />
   );
   return (
     <CompanyLayout

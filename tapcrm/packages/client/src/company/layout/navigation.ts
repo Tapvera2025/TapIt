@@ -21,10 +21,18 @@ export const companyNavigation: CompanyNavGroup[] = [
     label: 'Organization',
     items: [
       { label: 'Overview', path: '/company/organization', icon: 'grid' },
-      { label: 'Departments', path: '/company/organization/departments', icon: '◆' },
+      {
+        label: 'Departments',
+        path: '/company/organization/departments',
+        icon: 'building',
+      },
       { label: 'Teams', path: '/company/organization/teams', icon: 'users' },
-      { label: 'Positions', path: '/company/organization/positions', icon: '◆' },
-      { label: 'Designations', path: '/company/organization/designations', icon: '◆' },
+      { label: 'Positions', path: '/company/organization/positions', icon: 'briefcase' },
+      {
+        label: 'Designations',
+        path: '/company/organization/designations',
+        icon: 'briefcase',
+      },
       { label: 'Reporting', path: '/company/organization/reporting', icon: 'users' },
       { label: 'Org Chart', path: '/company/organization/org-chart', icon: 'grid' },
     ],
