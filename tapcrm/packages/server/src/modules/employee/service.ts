@@ -1,50 +1,96 @@
-import { randomInt } from 'node:crypto';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { IdentityConflictError, IdentityValidationError } from '../identity/errors.js';
 import { hashIdentityPassword } from '../identity/password/service.js';
 import { sendEmployeeCredentials } from '../identity/notifications/invitation-email.js';
+import { validateManagerAssignment } from '../organization/reporting/service.js';
 import {
   createEmployee,
   emailExists,
   enqueueEmployeeAudit,
   findDepartment,
   findDesignation,
-  findManager,
   findPosition,
   findTeam,
 } from './repository.js';
 import type { CreateEmployeeInput } from './validators.js';
 
-const TEMPORARY_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-
-function generateTemporaryPassword(length = 24): string {
-  return Array.from({ length }, () => TEMPORARY_PASSWORD_ALPHABET[randomInt(TEMPORARY_PASSWORD_ALPHABET.length)]).join('');
-}
-
 export async function provisionEmployee(ctx: RequestContext, input: CreateEmployeeInput) {
   const email = input.email.trim().toLowerCase();
-  const temporaryPassword = generateTemporaryPassword();
-  const passwordHash = await hashIdentityPassword(temporaryPassword);
+  const passwordHash = await hashIdentityPassword(input.password);
 
   const result = await db.transaction(ctx, async (tx) => {
     if (await emailExists(tx, email)) {
-      throw new IdentityConflictError('IDENTITY_EMAIL_ALREADY_REGISTERED', 'Email is already registered');
+      throw new IdentityConflictError(
+        'IDENTITY_EMAIL_ALREADY_REGISTERED',
+        'Email is already registered',
+      );
     }
-    if (!await findDepartment(tx, ctx.organizationId, input.departmentId)) {
-      throw new IdentityValidationError('IDENTITY_DEPARTMENT_INVALID', 'Department is invalid or inactive');
+    if (!(await findDepartment(tx, ctx.organizationId, input.departmentId))) {
+      throw new IdentityValidationError(
+        'IDENTITY_DEPARTMENT_INVALID',
+        'Department is invalid or inactive',
+      );
     }
-    if (!await findPosition(tx, ctx.organizationId, input.positionId, input.departmentId)) {
-      throw new IdentityValidationError('IDENTITY_POSITION_INVALID', 'Position is invalid, inactive, or belongs to another department');
+    if (
+      !(await findPosition(tx, ctx.organizationId, input.positionId, input.departmentId))
+    ) {
+      throw new IdentityValidationError(
+        'IDENTITY_POSITION_INVALID',
+        'Position is invalid, inactive, or belongs to another department',
+      );
     }
-    if (input.teamId && !await findTeam(tx, ctx.organizationId, input.teamId, input.departmentId)) {
-      throw new IdentityValidationError('IDENTITY_TEAM_INVALID', 'Team is invalid or belongs to another department');
+    if (
+      input.teamId &&
+      !(await findTeam(tx, ctx.organizationId, input.teamId, input.departmentId))
+    ) {
+      throw new IdentityValidationError(
+        'IDENTITY_TEAM_INVALID',
+        'Team is invalid or belongs to another department',
+      );
     }
-    if (input.designationId && !await findDesignation(tx, ctx.organizationId, input.designationId)) {
-      throw new IdentityValidationError('IDENTITY_DESIGNATION_INVALID', 'Designation does not belong to this organization');
+    const designation = input.designationId
+      ? await findDesignation(tx, ctx.organizationId, input.designationId)
+      : null;
+    if (input.designationId && !designation) {
+      throw new IdentityValidationError(
+        'IDENTITY_DESIGNATION_INVALID',
+        'Designation does not belong to this organization',
+      );
     }
-    if (input.reportsTo && !await findManager(tx, ctx.organizationId, input.reportsTo, input.departmentId)) {
-      throw new IdentityValidationError('IDENTITY_MANAGER_INVALID', 'Reports-to employee is invalid or belongs to another department');
+    if (designation !== null && designation.status !== 'active') {
+      throw new IdentityValidationError(
+        'IDENTITY_DESIGNATION_INACTIVE',
+        'Designation is inactive',
+      );
+    }
+    if (input.specialization && !designation) {
+      throw new IdentityValidationError(
+        'IDENTITY_SPECIALIZATION_INVALID',
+        'Specialization requires a designation',
+      );
+    }
+    if (
+      input.specialization &&
+      designation &&
+      !designation.specializations.some(
+        (value) =>
+          value.toLocaleLowerCase() === input.specialization!.trim().toLocaleLowerCase(),
+      )
+    ) {
+      throw new IdentityValidationError(
+        'IDENTITY_SPECIALIZATION_INVALID',
+        'Specialization is not configured for the designation',
+      );
+    }
+    if (input.reportsTo) {
+      await validateManagerAssignment(tx, {
+        organizationId: ctx.organizationId,
+        subjectUserId: null,
+        subjectDepartmentId: input.departmentId,
+        subjectPositionId: input.positionId,
+        managerUserId: input.reportsTo,
+      });
     }
 
     const employee = await createEmployee(tx, {
@@ -76,7 +122,7 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
   await sendEmployeeCredentials({
     to: result.email,
     fullName: result.fullName,
-    temporaryPassword,
+    initialPassword: input.password,
   });
 
   return {

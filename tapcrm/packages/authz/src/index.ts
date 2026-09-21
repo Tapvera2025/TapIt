@@ -9,7 +9,7 @@
  * is either a type, a registration helper used at boot, or a test utility.
  */
 
-export { authorize, visibilityFilter, project, configureAuthz, holdsPolicy } from './engine.js';
+export { authorize, visibilityFilter, project, configureAuthz, holdsPolicy, effectivePolicy } from './engine.js';
 
 export { AuthorizationError, AuthorizationConfigError } from './errors.js';
 

@@ -58,6 +58,13 @@ export class IdentityValidationError extends ApplicationError {
   }
 }
 
+export class IdentityServiceUnavailableError extends ApplicationError {
+  constructor(code: string, message: string) {
+    super(message, 503, code);
+    this.name = 'IdentityServiceUnavailableError';
+  }
+}
+
 export class IdentityConflictError extends ApplicationError {
   constructor(code: string, message: string) {
     super(message, 409, code);

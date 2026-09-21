@@ -310,6 +310,15 @@ async function resolvePolicy(
   return set.policies[action] ?? null;
 }
 
+/** Returns the already-resolved policy for ceiling validation by domain services. */
+export async function effectivePolicy(
+  ctx: AuthzContext,
+  action: Action,
+): Promise<PermissionPolicy | null> {
+  if (globalAccess(ctx.principal)) return null;
+  return resolvePolicy(ctx, action);
+}
+
 async function heldActions(ctx: AuthzContext): Promise<ReadonlySet<Action>> {
   const set = await requirePorts().policies.resolveSet(ctx);
   const held = new Set<Action>();

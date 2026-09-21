@@ -41,12 +41,12 @@ export async function sendEmployeeInvitation(email: string, invitationToken: str
   });
 }
 
-export async function sendEmployeeCredentials(input: { to: string; fullName: string; temporaryPassword: string }): Promise<void> {
+export async function sendEmployeeCredentials(input: { to: string; fullName: string; initialPassword: string }): Promise<void> {
   const config = loadConfig();
   const loginUrl = `${config.CORS_ORIGIN}/login`;
   const safeName = escapeHtml(input.fullName);
   const safeEmail = escapeHtml(input.to);
-  const safePassword = escapeHtml(input.temporaryPassword);
+  const safePassword = escapeHtml(input.initialPassword);
   await sendEmail({
     to: input.to,
     subject: 'TapCRM — Your employee account credentials',
@@ -54,11 +54,11 @@ export async function sendEmployeeCredentials(input: { to: string; fullName: str
       `Welcome to TapCRM, ${input.fullName}.`, '',
       `Login URL: ${loginUrl}`,
       `Email: ${input.to}`,
-      `Temporary Password: ${input.temporaryPassword}`, '',
+      `Initial Password: ${input.initialPassword}`, '',
       'This is a temporary password. You will be required to change it after your first login.',
       'If you were not expecting this account, contact your organization administrator.',
     ].join('\n'),
-    html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Welcome to TapCRM</h2><p>Your employee account is ready, ${safeName}.</p><p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a><br><strong>Email:</strong> ${safeEmail}<br><strong>Temporary Password:</strong> ${safePassword}</p><p>This is a temporary password. You will be required to change it after your first login.</p></div>`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Welcome to TapCRM</h2><p>Your employee account is ready, ${safeName}.</p><p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a><br><strong>Email:</strong> ${safeEmail}<br><strong>Initial Password:</strong> ${safePassword}</p><p>This is an initial password. You will be required to change it after your first login.</p></div>`,
     sensitive: true,
   });
 }

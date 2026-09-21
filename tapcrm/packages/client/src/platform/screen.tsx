@@ -642,14 +642,12 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     const actionKey = `${org.id}:${group.key}`;
     setModuleActionKey(actionKey);
     try {
-      await Promise.all(
-        group.moduleKeys.map((key) =>
-          api(
-            `/platform/organizations/${org.id}/modules/${encodeURIComponent(key)}/${currentlyEnabled ? 'disable' : 'enable'}`,
-            { method: 'POST' },
-          ),
-        ),
-      );
+      for (const key of group.moduleKeys) {
+        await api(
+          `/platform/organizations/${org.id}/modules/${encodeURIComponent(key)}/${currentlyEnabled ? 'disable' : 'enable'}`,
+          { method: 'POST' },
+        );
+      }
       setMessage(`${group.label} ${currentlyEnabled ? 'disabled' : 'enabled'} for ${org.name}`);
       await load();
       return true;

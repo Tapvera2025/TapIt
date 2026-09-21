@@ -2270,7 +2270,7 @@
     {
       "method": "GET",
       "path": "/api/org/chart",
-      "action": "org:view-people",
+      "action": "org:view-structure",
       "resourceParam": null
     },
     {
@@ -2322,8 +2322,20 @@
       "resourceParam": null
     },
     {
+      "method": "POST",
+      "path": "/api/org/positions/preview",
+      "action": "org:manage-positions",
+      "resourceParam": null
+    },
+    {
       "method": "PATCH",
       "path": "/api/org/positions/:id",
+      "action": "org:manage-positions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/positions/:id/policies/preview",
       "action": "org:manage-positions",
       "resourceParam": "id"
     },
@@ -2344,6 +2356,12 @@
       "path": "/api/org/designations",
       "action": "org:manage-designations",
       "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/org/designations/:id",
+      "action": "org:manage-designations",
+      "resourceParam": "id"
     },
     {
       "method": "GET",
@@ -2492,6 +2510,24 @@
     {
       "method": "PATCH",
       "path": "/api/users/:id",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/manager-reassignment",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/manager-reassignment/preview",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/manager-reassignment/confirm",
       "action": "users:manage",
       "resourceParam": "id"
     },

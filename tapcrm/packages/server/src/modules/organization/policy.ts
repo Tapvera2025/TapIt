@@ -47,13 +47,15 @@ function departmentScoped(
       case 'team': {
         const teams = [...(await ctx.scope.teamIds(ctx))];
         if (teams.length === 0) return { ok: false, fragment: MATCH_NOTHING };
+        const teamColumn = resourceType === 'team' ? 'id' : 'team_id';
         return {
           ok:
             resource === null
               ? true
-              : typeof resource['teamId'] === 'string' && teams.includes(resource['teamId']),
+              : typeof (resourceType === 'team' ? resource['id'] : resource['teamId']) === 'string' &&
+                teams.includes((resourceType === 'team' ? resource['id'] : resource['teamId']) as string),
           fragment: {
-            sql: `${table}.team_id = ANY($1::uuid[])`,
+            sql: `${table}.${teamColumn} = ANY($1::uuid[])`,
             parameters: [teams],
           },
         };
@@ -103,6 +105,24 @@ function departmentScoped(
     },
   };
 }
+
+/** Designations are organization-wide configuration, not department-owned records. */
+const designationPolicy: ResourcePolicy = {
+  resourceType: 'designation',
+  domain: 'business',
+  async check(ctx, _action, resource) {
+    return resource['organizationId'] === ctx.organizationId;
+  },
+  async filter() {
+    return { sql: 'TRUE', parameters: [] };
+  },
+  participantFields() {
+    return [];
+  },
+  initiatorField() {
+    return null;
+  },
+};
 
 /** `role_change_request` — the module's one approval-bearing resource. */
 const roleChangeRequestPolicy: ResourcePolicy = {
@@ -166,6 +186,6 @@ export function registerOrganizationPolicies(): void {
   registerResourcePolicy(departmentScoped('department', 'department', 'id'));
   registerResourcePolicy(departmentScoped('position', 'position'));
   registerResourcePolicy(departmentScoped('team', 'team'));
-  registerResourcePolicy(departmentScoped('designation', 'designation'));
+  registerResourcePolicy(designationPolicy);
   registerResourcePolicy(roleChangeRequestPolicy);
 }
