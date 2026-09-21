@@ -78,7 +78,7 @@ export function ModuleToggleModal({
           </button>
           <button
             type="button"
-            className={`rounded-[9px] px-4 py-2.5 text-sm font-bold text-[#061412] transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60 ${actionClass}`}
+            className={`rounded-[9px] px-4 py-2.5 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60 ${actionClass}`}
             onClick={onConfirm}
             disabled={busy}
           >

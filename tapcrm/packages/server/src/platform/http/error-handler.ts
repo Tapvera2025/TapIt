@@ -90,7 +90,36 @@ interface Mapped {
   defect?: boolean;
 }
 
+/**
+ * Express body-parser rejects unparseable input by throwing an error carrying
+ * `type: 'entity.parse.failed'` (JSON) or `entity.too.large`. Left uncaught it
+ * reaches the default handler and returns 500, which reads as a server bug for
+ * a client mistake. Map it to 400 with the code the taxonomy already reserves.
+ */
+function isBodyParserError(
+  error: unknown,
+): error is Error & { type: string; status?: number } {
+  if (typeof error !== 'object' || error === null || !('type' in error)) return false;
+  const { type } = error;
+  return typeof type === 'string' && type.startsWith('entity.');
+}
+
 function mapError(error: unknown): Mapped {
+  if (isBodyParserError(error))
+    return {
+      status: HTTP_STATUS.BAD_REQUEST,
+      body: {
+        success: false,
+        code: ERROR_CODES.MALFORMED_REQUEST,
+        message:
+          error.type === 'entity.parse.failed'
+            ? 'Request body is not valid JSON'
+            : error.type === 'entity.too.large'
+              ? 'Request body exceeds the 1MB limit'
+              : `Request body rejected: ${error.type}`,
+      },
+    };
+
   if (error instanceof PlatformAuthenticationError)
     return {
       status: HTTP_STATUS.UNAUTHENTICATED,

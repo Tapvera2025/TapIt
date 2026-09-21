@@ -1,3 +1,45 @@
-export function CompanyHeader({ title, onMenu, onLogout }: { title: string; onMenu: () => void; onLogout: () => void }): React.JSX.Element {
-  return <header className="flex items-center justify-between border-b border-app-border bg-app-background/85 px-5 py-4 backdrop-blur md:px-8"><div className="flex items-center gap-3"><button type="button" onClick={onMenu} className="rounded-lg border border-app-border px-3 py-2 text-sm md:hidden" aria-label="Open navigation">☰</button><div><p className="font-display text-xl font-bold">{title}</p><p className="text-xs text-app-muted">Company Workspace</p></div></div><button type="button" onClick={onLogout} className="rounded-lg border border-app-border px-3 py-2 text-xs font-bold text-app-muted hover:border-app-accent hover:text-app-accent">Log out</button></header>;
+import { ThemeToggle } from '../../theme/ThemeToggle.js';
+import { Icon } from '../../ui/Icon.js';
+
+export function CompanyHeader({
+  title,
+  onMenu,
+  onLogout,
+}: {
+  title: string;
+  onMenu: () => void;
+  onLogout: () => void;
+}): React.JSX.Element {
+  return (
+    <header className="ui-card mx-4 mt-4 flex shrink-0 items-center justify-between gap-3 px-4 py-3 md:mx-8 md:mt-5 md:px-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onMenu}
+          className="rounded-lg border border-app-border p-2 md:hidden"
+          aria-label="Open navigation"
+        >
+          <Icon name="menu" />
+        </button>
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-app-muted">
+            Company workspace
+          </p>
+          <p className="truncate text-sm font-semibold">{title}</p>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <ThemeToggle />
+        <button
+          type="button"
+          onClick={onLogout}
+          className="rounded-lg border border-app-border p-2.5 text-app-muted hover:text-app-accent"
+          aria-label="Log out"
+          title="Log out"
+        >
+          <Icon name="logout" />
+        </button>
+      </div>
+    </header>
+  );
 }

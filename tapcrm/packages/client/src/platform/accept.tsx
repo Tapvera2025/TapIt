@@ -1,3 +1,4 @@
+import { BrandLogo } from '../ui/BrandLogo.js';
 import { useState } from 'react';
 
 export function AcceptInvitation() {
@@ -28,12 +29,11 @@ export function AcceptInvitation() {
     }
   }
   return (
-    <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_15%_20%,rgba(57,214,189,0.12),transparent_28rem)] bg-app-background px-4 py-8 font-sans text-app-foreground">
+    <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_15%_20%,rgba(244,139,60,0.12),transparent_28rem)] bg-app-background px-4 py-8 font-sans text-app-foreground">
       <section className="grid min-h-[570px] w-full max-w-[910px] overflow-hidden rounded-[20px] border border-app-border bg-app-surface shadow-2xl min-[701px]:grid-cols-[minmax(280px,0.86fr)_minmax(360px,1.14fr)] max-[700px]:min-h-0">
-        <aside className="flex flex-col bg-[linear-gradient(150deg,#172b35,#102027_66%,#132d2c)] px-[25px] py-[25px] min-[701px]:p-[34px] min-[701px]:min-h-0 max-[700px]:min-h-[255px]">
+        <aside className="flex flex-col bg-[linear-gradient(150deg,#1c2730,#101820_66%,#34271e)] px-[25px] py-[25px] min-[701px]:p-[34px] min-[701px]:min-h-0 max-[700px]:min-h-[255px]">
           <div className="flex items-center gap-2.5 font-display text-[17px] font-bold tracking-[-0.03em] text-[#edf4f4]">
-            <span className="grid size-[34px] place-items-center rounded-[10px] bg-app-accent font-display text-[19px] font-bold text-[#071514] shadow-[0_0_24px_rgba(57,214,189,0.25)]">T</span>
-            <span>TapCRM</span>
+            <BrandLogo className="w-[200px]" />
           </div>
           <div className="my-auto max-[700px]:mt-[42px] max-[700px]:mb-0">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Company workspace</p>
@@ -48,25 +48,25 @@ export function AcceptInvitation() {
         <div className="self-center px-[25px] py-[34px] min-[701px]:px-[clamp(30px,6vw,78px)] min-[701px]:py-[58px]">
           {success ? (
             <div className="max-w-[390px]">
-              <span className="mb-[25px] grid size-[52px] place-items-center rounded-2xl bg-app-accent text-[28px] font-bold text-[#071514]">✓</span>
+              <span className="mb-[25px] grid size-[52px] place-items-center rounded-2xl bg-app-accent text-[28px] font-bold text-app-on-accent">✓</span>
               <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">You&apos;re all set</p>
               <h2 className="font-display text-[37px] font-bold tracking-[-0.05em]">Account created.</h2>
               <p className="mt-3 text-sm leading-[1.6] text-app-muted">You can now sign in to your company CRM with your new administrator account.</p>
-              <a className="mt-[27px] block w-full rounded-[9px] bg-app-accent px-4 py-[13px] text-center font-bold text-[#061412] no-underline transition hover:-translate-y-px hover:brightness-110" href="/">Go to sign in</a>
+              <a className="mt-[27px] block w-full rounded-[9px] bg-app-accent px-4 py-[13px] text-center font-bold text-app-on-accent no-underline transition hover:-translate-y-px hover:brightness-110" href="/">Go to sign in</a>
             </div>
           ) : (
             <>
               <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Admin invitation</p>
               <h2 className="font-display text-[clamp(28px,4vw,37px)] font-bold tracking-[-0.05em]">Complete your account</h2>
               <p className="mb-8 mt-3 text-sm leading-[1.55] text-app-muted">Enter your details below to activate your company administrator access.</p>
-              {!token && <p className="mt-[18px] text-[13px] leading-[1.5] text-[#ff8d8d]">This invitation link is missing its access token.</p>}
+              {!token && <p className="mt-[18px] text-[13px] leading-[1.5] text-app-danger">This invitation link is missing its access token.</p>}
               <form onSubmit={(e) => { void submit(e); }}>
                 <label className="mt-[19px] block">
-                  <span className="mb-2 block text-xs font-semibold text-[#a9b9be]">Full name</span>
+                  <span className="mb-2 block text-xs font-semibold text-app-muted">Full name</span>
                   <input className="block w-full rounded-[9px] border border-app-border bg-app-background px-3.5 py-[13px] text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="name" placeholder="Your full name" />
                 </label>
                 <label className="mt-[19px] block">
-                  <span className="mb-2 block text-xs font-semibold text-[#a9b9be]">Create password</span>
+                  <span className="mb-2 block text-xs font-semibold text-app-muted">Create password</span>
                   <span className="relative block">
                     <input className="block w-full rounded-[9px] border border-app-border bg-app-background px-3.5 py-[13px] pr-12 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type={showPassword ? 'text' : 'password'} minLength={12} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" placeholder="At least 12 characters" />
                     <button
@@ -95,11 +95,11 @@ export function AcceptInvitation() {
                   </span>
                 </label>
                 <p className="mt-3 flex items-center gap-[7px] text-[11px] text-app-muted"><span className="grid size-4 place-items-center rounded-full border border-app-accent text-[10px] text-app-accent">i</span> Use at least 12 characters for a secure password.</p>
-                <button className="mt-[27px] block w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-[#061412] transition hover:-translate-y-px hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55" type="submit" disabled={busy || !token}>
+                <button className="mt-[27px] block w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55" type="submit" disabled={busy || !token}>
                   {busy ? 'Creating account…' : 'Create Admin Account'}
                 </button>
               </form>
-              {message && <p className="mt-[18px] text-[13px] leading-[1.5] text-[#ff8d8d]" aria-live="polite">{message}</p>}
+              {message && <p className="mt-[18px] text-[13px] leading-[1.5] text-app-danger" aria-live="polite">{message}</p>}
             </>
           )}
         </div>

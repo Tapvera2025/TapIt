@@ -1,3 +1,4 @@
+import { BrandLogo } from './ui/BrandLogo.js';
 import { useEffect, useState } from 'react';
 import { PlatformDashboard, PlatformLogin } from './platform/screen.js';
 import { AcceptInvitation } from './platform/accept.js';
@@ -189,7 +190,7 @@ export function App(): React.JSX.Element {
   }
   return (
     <main style={{ fontFamily: 'system-ui', padding: 32 }}>
-      <h1>TapCRM</h1>
+      <h1><BrandLogo className="mb-6 w-[240px]" /></h1>
       <p>
         Open <a href="/platform/login">/platform/login</a> for Master Admin.
       </p>

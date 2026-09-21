@@ -23,7 +23,13 @@ export function CompanyLayout({
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
-    <div className="flex h-screen overflow-hidden bg-app-background text-app-foreground">
+    <div className="flex h-dvh overflow-hidden bg-app-background text-app-foreground">
+      <a
+        href="#main-content"
+        className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
+      >
+        Skip to content
+      </a>
       <CompanySidebar
         pathname={pathname}
         identity={identity}
@@ -48,7 +54,9 @@ export function CompanyLayout({
           onMenu={() => setSidebarOpen(true)}
           onLogout={onLogout}
         />
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</main>
+        <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          {children}
+        </main>
       </div>
     </div>
   );

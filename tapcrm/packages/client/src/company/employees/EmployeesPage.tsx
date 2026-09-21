@@ -154,7 +154,7 @@ export function EmployeesPage(): React.JSX.Element {
   return (
     <div className="p-5 md:p-8">
       <div className="mx-auto max-w-7xl">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="page-heading flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">
               People
@@ -169,7 +169,7 @@ export function EmployeesPage(): React.JSX.Element {
           <button
             type="button"
             onClick={() => setShowCreate((open) => !open)}
-            className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-[#061412]"
+            className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent"
           >
             {showCreate ? 'Close form' : 'Create employee'}
           </button>
@@ -180,7 +180,7 @@ export function EmployeesPage(): React.JSX.Element {
           </p>
         )}
         {error && (
-          <p className="mt-5 rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-4 text-sm text-[#d86b6b]">
+          <p className="mt-5 rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-4 text-sm text-app-danger">
             {error}
           </p>
         )}
@@ -303,7 +303,7 @@ export function EmployeesPage(): React.JSX.Element {
             <button
               type="submit"
               disabled={busy}
-              className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-[#061412] disabled:opacity-50 md:col-span-2"
+              className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent disabled:opacity-50 md:col-span-2"
             >
               {busy ? 'Creating...' : 'Create employee and send credentials'}
             </button>

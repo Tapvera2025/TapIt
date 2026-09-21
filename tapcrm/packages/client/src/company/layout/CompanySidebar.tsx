@@ -1,3 +1,5 @@
+import { BrandLogo } from '../../ui/BrandLogo.js';
+import { Icon } from '../../ui/Icon.js';
 import { companyNavigation } from './navigation.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
@@ -41,11 +43,11 @@ export function CompanySidebar({
         ];
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 flex h-screen min-h-0 w-64 flex-col border-r border-app-border bg-app-surface px-4 py-5 transition-transform md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
+      className={`workspace-sidebar fixed inset-y-0 left-0 z-40 flex h-dvh min-h-0 w-64 flex-col border-r border-app-border bg-app-surface px-4 py-5 transition-transform md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
     >
       <div className="flex shrink-0 items-center justify-between px-3">
         <div>
-          <p className="font-display text-xl font-bold tracking-[-0.04em]">TAPCRM</p>
+          <BrandLogo className="w-[176px]" />
           <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">
             Company Workspace
           </p>
@@ -74,6 +76,7 @@ export function CompanySidebar({
                 <button
                   type="button"
                   onClick={() => setOrganizationOpen((openState) => !openState)}
+                  aria-expanded={organizationOpen}
                   className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.16em] ${activeChild ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
                 >
                   <span>Organization</span>
@@ -89,6 +92,13 @@ export function CompanySidebar({
                   {group.items.map((item) => (
                     <button
                       key={item.path}
+                      aria-current={
+                        pathname === item.path ||
+                        (item.path !== '/company/organization' &&
+                          pathname.startsWith(`${item.path}/`))
+                          ? 'page'
+                          : undefined
+                      }
                       type="button"
                       onClick={() => {
                         onNavigate(item.path);
@@ -96,7 +106,7 @@ export function CompanySidebar({
                       }}
                       className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${pathname === item.path || (item.path !== '/company/organization' && pathname.startsWith(`${item.path}/`)) ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
                     >
-                      <NavIcon name={item.icon} />
+                      <Icon name={item.icon} />
                       <span>{item.label}</span>
                     </button>
                   ))}
@@ -105,6 +115,14 @@ export function CompanySidebar({
             </div>
           );
         })}
+        <div className="sidebar-decoration">
+          <p className="text-sm font-medium leading-5">
+            Work smarter.
+            <br />
+            Grow together.
+          </p>
+          <div className="mt-3 h-1 w-10 rounded-full bg-app-accent" />
+        </div>
       </nav>
       <div className="shrink-0 border-t border-app-border pt-4">
         <div className="mb-4 px-3">
@@ -121,21 +139,11 @@ export function CompanySidebar({
         <button
           type="button"
           onClick={onLogout}
-          className="mt-3 w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-[#d86b6b] hover:bg-[#d86b6b]/10"
+          className="mt-3 w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-app-danger hover:bg-[#d86b6b]/10"
         >
           Log out
         </button>
       </div>
     </aside>
-  );
-}
-
-function NavIcon({ name }: { name: string }): React.JSX.Element {
-  const glyph =
-    name === 'users' ? '♟' : name === 'monitor' ? '▣' : name === 'pin' ? '⌖' : '◆';
-  return (
-    <span className="grid size-5 place-items-center text-sm" aria-hidden="true">
-      {glyph}
-    </span>
   );
 }
