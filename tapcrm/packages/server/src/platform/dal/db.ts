@@ -320,6 +320,7 @@ export type PlatformOperation =
   | 'migration'
   | 'seed'
   | 'retention-enforcement'
+  | 'audit-drain'
   | 'audit-chain-verification'
   | 'audit-archiving'
   | 'organization-provisioning'

@@ -5,7 +5,7 @@ import {
   registerProtectedConstraints,
 } from '@tapcrm/authz';
 import { loadConfig } from './config.js';
-import { installAuthz } from './platform/authz-adapter.js';
+import { auditFlushMiddleware, installAuthz } from './platform/authz-adapter.js';
 import { requestContext, requestId } from './platform/http/context.js';
 import { installDevPrincipalResolver } from './platform/http/dev-resolver.js';
 import { errorHandler } from './platform/http/error-handler.js';
@@ -120,6 +120,7 @@ export function buildApp(options: BuildOptions = {}): Express {
 
   // Pipeline step 1. Everything below it has a RequestContext or never runs.
   app.use(config.API_BASE_PATH, requestContext);
+  app.use(config.API_BASE_PATH, auditFlushMiddleware);
   app.use(buildRouter());
 
   app.use(errorHandler);

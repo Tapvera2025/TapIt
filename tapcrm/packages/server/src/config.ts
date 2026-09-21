@@ -50,6 +50,12 @@ const schema = z.object({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
   REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(1_209_600),
 
+  // §9.5.1 — the audit writer. A string enum rather than z.coerce.boolean(),
+  // which would read the string "false" as true.
+  AUDIT_DRAINER_ENABLED: z.enum(['true', 'false']).default('true'),
+  AUDIT_DRAIN_INTERVAL_MS: z.coerce.number().int().min(100).default(5_000),
+  AUDIT_DRAIN_BATCH_SIZE: z.coerce.number().int().min(1).max(1_000).default(200),
+
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_BASE_PATH: z.string().default('/api'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),

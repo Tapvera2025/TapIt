@@ -22,6 +22,7 @@ import {
 import { db } from './dal/db.js';
 import { sql } from './dal/sql.js';
 import type { RequestContext } from './dal/context.js';
+import type { NextFunction, Request, Response } from 'express';
 
 /**
  * Wires the authorization engine to PostgreSQL.
@@ -283,6 +284,30 @@ export async function flushAudit(ctx: RequestContext): Promise<void> {
       })}::jsonb)
     `);
   }
+}
+
+/**
+ * Registers the after-response flush for the access stream. Errors are logged
+ * and swallowed: the response has already been sent, and a failed audit write
+ * must not surface as an unhandled rejection that stops the process.
+ */
+export function auditFlushMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const ctx = req.ctx;
+  if (ctx) {
+    res.on('finish', () => {
+      flushAudit(ctx).catch((error: unknown) => {
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            msg: 'access audit flush failed',
+            requestId: ctx.requestId,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      });
+    });
+  }
+  next();
 }
 
 /* ==================================================================== *
