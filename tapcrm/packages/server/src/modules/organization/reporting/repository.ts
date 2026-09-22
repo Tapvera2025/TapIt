@@ -77,7 +77,14 @@ export async function listReportingManagerOptions(
           u.account_type = 'employee'
           AND u.department_id = ${departmentId}
           AND u.position_id IN (SELECT id FROM position_chain)
-          AND (${teamId}::uuid IS NULL OR u.team_id = ${teamId}::uuid)
+          -- A department-level manager (normally a department head) may not
+          -- belong to a team. Team-specific managers must still match the
+          -- selected team so peers are not offered as reporting managers.
+          AND (
+            ${teamId}::uuid IS NULL
+            OR u.team_id = ${teamId}::uuid
+            OR u.team_id IS NULL
+          )
           AND EXISTS (
             SELECT 1
             FROM position manager_position
@@ -188,7 +195,11 @@ export async function findEffectiveManager(
      AND manager.account_type = 'employee'
      AND manager.status = 'active'
      AND manager.department_id = subject.department_id
-     AND (subject.team_id IS NULL OR manager.team_id = subject.team_id)
+     AND (
+       subject.team_id IS NULL
+       OR manager.team_id = subject.team_id
+       OR manager.team_id IS NULL
+     )
     WHERE subject_position.organization_id = ${organizationId}
       AND subject_position.id = ${subject.positionId}
       AND subject_position.status = 'active'

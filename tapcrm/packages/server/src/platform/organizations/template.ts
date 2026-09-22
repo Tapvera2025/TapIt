@@ -334,14 +334,14 @@ export const ORGANIZATION_TEMPLATE: OrganizationTemplate = {
     {
       code: 'marketing-executive',
       name: 'Marketing Executive',
-      department: 'sales',
+      department: 'development',
       specializations: ['SEO', 'Ads / PPC', 'Social Media', 'Analytics'],
       moduleKeys: DEVELOPMENT_MODULES,
     },
     {
       code: 'content-writer',
       name: 'Content Writer',
-      department: 'sales',
+      department: 'development',
       specializations: ['Web Copy', 'Blog', 'Technical', 'Ad Copy'],
       moduleKeys: DEVELOPMENT_MODULES,
     },
