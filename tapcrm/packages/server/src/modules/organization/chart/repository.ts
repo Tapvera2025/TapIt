@@ -74,6 +74,7 @@ export async function listChartRows(
       JOIN position parent_position
         ON parent_position.organization_id = child_position.organization_id
        AND parent_position.id = child_position.parent_position_id
+       AND parent_position.status = 'active'
       JOIN app_user manager_position_holder
         ON manager_position_holder.organization_id = child_position.organization_id
        AND manager_position_holder.position_id = parent_position.id
@@ -83,23 +84,37 @@ export async function listChartRows(
        AND (u.team_id IS NULL OR manager_position_holder.team_id = u.team_id)
       WHERE child_position.organization_id = u.organization_id
         AND child_position.id = u.position_id
+        AND child_position.status = 'active'
     ) effective ON u.reports_to IS NULL
     LEFT JOIN LATERAL (
       WITH RECURSIVE position_chain AS (
-        SELECT id, parent_position_id, ARRAY[id] AS path
-        FROM position
-        WHERE organization_id = u.organization_id AND id = u.position_id
+        SELECT parent.id, parent.parent_position_id, ARRAY[u.position_id, parent.id] AS path
+        FROM position child
+        JOIN position parent
+          ON parent.organization_id = child.organization_id
+         AND parent.id = child.parent_position_id
+         AND parent.status = 'active'
+        WHERE child.organization_id = u.organization_id
+          AND child.id = u.position_id
         UNION ALL
         SELECT parent.id, parent.parent_position_id, child.path || parent.id
         FROM position parent
         JOIN position_chain child ON child.parent_position_id = parent.id
         WHERE parent.organization_id = u.organization_id
+          AND parent.status = 'active'
           AND NOT parent.id = ANY(child.path)
       )
       SELECT true AS is_valid
       FROM position_chain
       WHERE id = manager.position_id
         AND manager.department_id = u.department_id
+        AND EXISTS (
+          SELECT 1
+          FROM position manager_position
+          WHERE manager_position.organization_id = u.organization_id
+            AND manager_position.id = manager.position_id
+            AND manager_position.status = 'active'
+        )
       LIMIT 1
     ) manager_check ON manager.account_type = 'employee'
     LEFT JOIN LATERAL (

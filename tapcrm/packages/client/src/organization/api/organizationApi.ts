@@ -91,9 +91,14 @@ export const organizationApi = {
       body: JSON.stringify(body),
     }),
   chart: () => request<OrganizationChart>('/api/org/chart'),
-  reportingManagers: (departmentId: string, positionId: string, subjectUserId?: string) =>
+  reportingManagers: (
+    departmentId: string,
+    positionId: string,
+    subjectUserId?: string,
+    teamId?: string,
+  ) =>
     request<ReportingManagerCandidate[]>(
-      `/api/users?departmentId=${encodeURIComponent(departmentId)}&positionId=${encodeURIComponent(positionId)}${subjectUserId ? `&subjectUserId=${encodeURIComponent(subjectUserId)}` : ''}`,
+      `/api/users?departmentId=${encodeURIComponent(departmentId)}&positionId=${encodeURIComponent(positionId)}${subjectUserId ? `&subjectUserId=${encodeURIComponent(subjectUserId)}` : ''}${teamId ? `&teamId=${encodeURIComponent(teamId)}` : ''}`,
     ),
   previewManagerReassignment: (
     userId: string,

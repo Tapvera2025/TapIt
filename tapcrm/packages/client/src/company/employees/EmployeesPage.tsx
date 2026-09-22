@@ -102,14 +102,15 @@ export function EmployeesPage(): React.JSX.Element {
       }
       return;
     }
-    void getCompanyReportingManagers(form.departmentId, form.positionId)
+    void getCompanyReportingManagers(
+      form.departmentId,
+      form.positionId,
+      undefined,
+      form.teamId || undefined,
+    )
       .then(setReportingManagers)
       .catch(() => setError('Unable to load reporting managers.'));
-    // isRootPosition and form.reportsTo intentionally not in deps: the guard
-    // above already gates on isRootPosition, and reportsTo changes don't need
-    // to re-run the fetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.departmentId, form.positionId, isRootPosition]);
+  }, [form.departmentId, form.positionId, form.teamId]);
 
   const departmentTeams = teams.filter((team) => team.departmentId === form.departmentId);
   const designation = designations.find((item) => item.id === form.designationId);

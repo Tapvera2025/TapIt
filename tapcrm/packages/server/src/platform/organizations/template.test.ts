@@ -32,6 +32,7 @@ describe('organization starter template', () => {
       'Marketing Executive',
       'Content Writer',
     ]);
+    expect(template.designations.every((designation) => designation.department === 'development')).toBe(true);
     expect(template.teams.map((team) => team.name)).toEqual([
       'Developer Team',
       'Digital & Marketing',
