@@ -11,7 +11,10 @@ export interface CompanyNavGroup {
 export const companyNavigation: CompanyNavGroup[] = [
   {
     label: 'Overview',
-    items: [{ label: 'Dashboard', path: '/company/dashboard', icon: 'grid' }],
+    items: [
+      { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
+      { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+    ],
   },
   {
     label: 'People',

@@ -6,6 +6,7 @@ import { EmployeesPage } from './employees/EmployeesPage.js';
 import { SessionsPage } from '../identity/pages/SessionsPage.js';
 import { GeofencingPage } from '../identity/pages/GeofencingPage.js';
 import { OrganizationWorkspace } from '../organization/index.js';
+import { TasksPage } from './tasks/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -61,7 +62,9 @@ export function CompanyWorkspace({
         ? 'Sessions & Devices'
         : pathname === '/company/geofencing'
           ? 'Geofencing'
-          : 'Dashboard';
+          : pathname === '/company/tasks'
+            ? 'Tasks'
+            : 'Dashboard';
   const content = isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
   ) : pathname === '/company/sessions' ? (
@@ -69,6 +72,8 @@ export function CompanyWorkspace({
       onBack={() => onNavigate('/company/dashboard')}
       onSignedOut={onLogout}
     />
+  ) : pathname === '/company/tasks' ? (
+    <TasksPage />
   ) : !isSuperAdmin ? (
     <div className="grid min-h-[60vh] place-items-center p-6 text-center">
       <div>

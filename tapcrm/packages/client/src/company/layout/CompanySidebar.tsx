@@ -32,7 +32,10 @@ export function CompanySidebar({
       : [
           {
             label: 'Overview',
-            items: [{ label: 'Dashboard', path: '/company/dashboard', icon: 'grid' }],
+            items: [
+              { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
+              { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+            ],
           },
           {
             label: 'Identity & Access',
@@ -125,7 +128,7 @@ export function CompanySidebar({
         </div>
       </nav>
       <div className="shrink-0 border-t border-app-border pt-4">
-        <div className="mb-4 px-3">
+        <div className="mb-4 hidden px-3 md:block">
           <ThemeToggle />
         </div>
         <p className="truncate px-3 text-sm font-bold">{identity.fullName}</p>

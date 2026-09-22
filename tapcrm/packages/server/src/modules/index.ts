@@ -5,6 +5,8 @@ import { registerEmployeeRoutes } from './employee/routes.js';
 import { registerGeofencePolicies } from './identity/geofence/policy.js';
 import { registerGeofenceRoutes } from './identity/geofence/routes.js';
 import { registerIdentityRoutes } from './identity/routes.js';
+import { registerTasksPolicies } from './tasks/policy.js';
+import { registerTasksRoutes } from './tasks/routes.js';
 
 /**
  * The module registry.
@@ -21,6 +23,7 @@ export function registerAllPolicies(): void {
   registerOrganizationPolicies();
   registerEmployeePolicies();
   registerGeofencePolicies();
+  registerTasksPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -28,4 +31,6 @@ export function registerAllRoutes(): void {
   registerOrganizationRoutes();
   registerEmployeeRoutes();
   registerGeofenceRoutes();
+  registerTasksRoutes();
 }
+
