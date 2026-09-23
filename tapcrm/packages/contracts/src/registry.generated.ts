@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 147   Bindings: 300
+ * Actions: 147   Bindings: 304
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -2555,9 +2555,13 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/org/designations/:id', action: 'org:manage-designations', resourceParam: 'id' },
   { method: 'GET', path: '/api/access/effective/:userId', action: 'access:view', resourceParam: 'userId' },
   { method: 'GET', path: '/api/access/who-can/:action', action: 'access:view', resourceParam: null },
+  { method: 'GET', path: '/api/access/delegation-options/:userId', action: 'access:delegate', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/access/overrides', action: 'access:view', resourceParam: null },
   { method: 'POST', path: '/api/access/override', action: 'access:delegate', resourceParam: null },
   { method: 'DELETE', path: '/api/access/override/:id', action: 'access:delegate', resourceParam: 'id' },
   { method: 'POST', path: '/api/access/role-change-request', action: 'access:request-role-change', resourceParam: null },
+  { method: 'GET', path: '/api/access/role-change-request-access', action: 'access:request-role-change', resourceParam: null },
+  { method: 'GET', path: '/api/access/role-change-requests', action: 'access:view', resourceParam: null },
   { method: 'POST', path: '/api/access/role-change-request/:id/decide', action: 'access:decide-role-change', resourceParam: 'id' },
   { method: 'GET', path: '/api/audit', action: 'audit:view', resourceParam: null },
   { method: 'GET', path: '/api/audit/:id', action: 'audit:view', resourceParam: 'id' },

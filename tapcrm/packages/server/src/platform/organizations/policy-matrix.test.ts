@@ -10,6 +10,7 @@ import {
 const position = ORGANIZATION_TEMPLATE.positions.find(
   (item) => item.code === 'dev-dept-head',
 )!;
+const hrPosition = ORGANIZATION_TEMPLATE.positions.find((item) => item.code === 'hr')!;
 
 const registry: RegistryActionDefinition[] = [
   {
@@ -33,6 +34,18 @@ const registry: RegistryActionDefinition[] = [
   {
     action: 'projects:view',
     module: 'projects',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'access:request-role-change',
+    module: 'access-management',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'access:view',
+    module: 'access-management',
     positionGrantable: true,
     superAdminOnly: false,
   },
@@ -145,5 +158,25 @@ describe('default tenant position policies', () => {
       new Map([['dev-dept-head', 'position-new']]),
     );
     expect(rows.size).toBe(count);
+  });
+
+  it('provisions the role-change request only for HR, not Access Explorer', async () => {
+    const { tx, rows } = fakeTx();
+    await provisionDefaultPositionPolicies(
+      tx,
+      'org-hr',
+      ['access-management'],
+      [hrPosition, position],
+      new Map([
+        ['hr', 'position-hr'],
+        ['dev-dept-head', 'position-manager'],
+      ]),
+    );
+
+    expect(rows.get('org-hr:position-hr:access:request-role-change')).toMatchObject({
+      scope: 'department',
+    });
+    expect(rows.has('org-hr:position-hr:access:view')).toBe(false);
+    expect(rows.has('org-hr:position-manager:access:request-role-change')).toBe(false);
   });
 });

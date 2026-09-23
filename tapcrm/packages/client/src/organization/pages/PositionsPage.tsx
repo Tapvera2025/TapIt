@@ -1,4 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  ACTIONS,
+  REGISTRY,
+  actionDescription,
+  actionScopes,
+  actionScreens,
+  moduleTitle,
+  protectedCapabilityReason,
+  type Action,
+  type ModuleName,
+} from '@tapcrm/contracts';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,
@@ -179,7 +190,22 @@ export function PositionsPage(): React.JSX.Element {
     setPolicyImpact(null);
     setError(null);
     try {
-      setPolicies(await organizationApi.positionPolicies(position.id));
+      const persisted = await organizationApi.positionPolicies(position.id);
+      const byAction = new Map(persisted.map((policy) => [policy.action, policy]));
+      setPolicies(
+        ACTIONS.map((action) => {
+          const definition = REGISTRY[action];
+          return (
+            byAction.get(action) ?? {
+              action,
+              allowed: false,
+              scope: actionScopes(definition)[0] ?? 'own',
+              fields: null,
+              constraints: null,
+            }
+          );
+        }),
+      );
     } catch (cause) {
       setError(cause);
     }
@@ -499,44 +525,73 @@ function PolicyEditor({
   impact: PolicyImpactPreview | null;
   busy: boolean;
 }): React.JSX.Element {
+  const grouped = new Map<string, Array<{ policy: PositionPolicy; index: number }>>();
+  policies.forEach((policy, index) => {
+    const definition = REGISTRY[policy.action as Action];
+    if (!definition) return;
+    const group = grouped.get(definition.module) ?? [];
+    group.push({ policy, index });
+    grouped.set(definition.module, group);
+  });
   return (
     <div>
-      <div className="space-y-3">
-        {policies.length === 0 && (
-          <p className="text-sm text-app-muted">No position policies are configured.</p>
-        )}
-        {policies.map((policy, index) => (
-          <div
-            key={`${policy.action}-${index}`}
-            className="rounded-lg border border-app-border p-3"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="font-semibold">{policy.action}</span>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={policy.allowed}
-                  onChange={(event) => onChange(index, { allowed: event.target.checked })}
-                />{' '}
-                Allowed
-              </label>
+      <div className="space-y-6">
+        {[...grouped.entries()].map(([moduleName, entries]) => (
+          <section key={moduleName}>
+            <h3 className="font-display text-lg font-bold">
+              {moduleTitle(moduleName as ModuleName)}
+            </h3>
+            <div className="mt-3 space-y-3">
+              {entries.map(({ policy, index }) => {
+                const definition = REGISTRY[policy.action as Action];
+                const locked = protectedCapabilityReason(definition);
+                const scopes = actionScopes(definition);
+                return (
+                  <div
+                    key={`${policy.action}-${index}`}
+                    className="rounded-lg border border-app-border p-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{policy.action}</p>
+                        <p className="mt-1 text-sm text-app-muted">
+                          {actionDescription(definition)}
+                        </p>
+                        <p className="mt-1 text-xs text-app-muted">
+                          Screens: {actionScreens(definition).join(', ')}
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={policy.allowed}
+                          disabled={locked !== null}
+                          onChange={(event) =>
+                            onChange(index, { allowed: event.target.checked })
+                          }
+                        />{' '}
+                        {locked ? 'Locked' : 'Allowed'}
+                      </label>
+                    </div>
+                    {locked && (
+                      <p className="mt-2 rounded-md bg-app-background p-2 text-xs text-app-danger">
+                        🔒 {locked}
+                      </p>
+                    )}
+                    <div className="mt-3">
+                      <Select
+                        label="Scope"
+                        value={policy.scope}
+                        disabled={locked !== null}
+                        onChange={(value) => onChange(index, { scope: value })}
+                        options={scopes.map((value) => ({ value, label: value }))}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="mt-3">
-              <Select
-                label="Scope"
-                value={policy.scope}
-                onChange={(value) => onChange(index, { scope: value })}
-                options={[
-                  'own',
-                  'participant',
-                  'pool',
-                  'team',
-                  'department',
-                  'all-people',
-                ].map((value) => ({ value, label: value }))}
-              />
-            </div>
-          </div>
+          </section>
         ))}
       </div>
       {impact && (

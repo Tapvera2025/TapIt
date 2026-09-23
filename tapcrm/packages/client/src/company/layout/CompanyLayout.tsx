@@ -7,6 +7,7 @@ export function CompanyLayout({
   identity,
   organizationName,
   accountType,
+  canRequestRoleChange,
   title,
   onNavigate,
   onLogout,
@@ -16,6 +17,7 @@ export function CompanyLayout({
   identity: { fullName: string; email: string };
   organizationName: string | null;
   accountType: string;
+  canRequestRoleChange: boolean;
   title: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -35,6 +37,7 @@ export function CompanyLayout({
         identity={identity}
         organizationName={organizationName}
         accountType={accountType}
+        canRequestRoleChange={canRequestRoleChange}
         onNavigate={onNavigate}
         onLogout={onLogout}
         open={sidebarOpen}
