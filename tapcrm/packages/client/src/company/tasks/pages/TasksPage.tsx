@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Notice, Page } from '../../../ui/components.js';
+import { getCompanyIdentity } from '../../api/companyApi.js';
 import {
   assignTask,
   createTask,
@@ -16,16 +17,33 @@ import type {
   Task,
   TaskListQuery,
   TaskStatus,
+  TaskViewScope,
   UpdateTaskInput,
 } from '../types/index.js';
 
-export function TasksPage(): React.JSX.Element {
-  const [query, setQuery] = useState<TaskListQuery>({
+export interface TasksPageProps {
+  readonly isSuperAdmin?: boolean | undefined;
+  readonly currentUserId?: string | undefined;
+}
+
+export function TasksPage({
+  isSuperAdmin: propIsSuperAdmin,
+  currentUserId: propCurrentUserId,
+}: TasksPageProps = {}): React.JSX.Element {
+  const [isSuperAdmin, setIsSuperAdmin] = useState(propIsSuperAdmin ?? false);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(
+    propCurrentUserId,
+  );
+  const [viewScope, setViewScope] = useState<TaskViewScope>('my_tasks');
+
+  const [query, setQuery] = useState<TaskListQuery>(() => ({
     page: 1,
     pageSize: 20,
     sortBy: 'createdAt',
     sortOrder: 'desc',
-  });
+    assigneeId:
+      propIsSuperAdmin && propCurrentUserId ? propCurrentUserId : undefined,
+  }));
   const [data, setData] = useState<PaginatedTasks | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -38,6 +56,49 @@ export function TasksPage(): React.JSX.Element {
     error?: boolean;
     message: string;
   } | null>(null);
+
+  // Resolve identity if not passed as prop
+  useEffect(() => {
+    if (propIsSuperAdmin !== undefined) {
+      setIsSuperAdmin(propIsSuperAdmin);
+      setCurrentUserId(propCurrentUserId);
+      return;
+    }
+    let cancelled = false;
+    void getCompanyIdentity()
+      .then((ident) => {
+        if (!cancelled) {
+          setIsSuperAdmin(ident.user.accountType === 'super-admin');
+          setCurrentUserId(ident.user.id);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [propIsSuperAdmin, propCurrentUserId]);
+
+  // Synchronize assigneeId with viewScope when identity resolves
+  useEffect(() => {
+    if (isSuperAdmin && currentUserId && viewScope === 'my_tasks') {
+      setQuery((prev) => {
+        if (prev.assigneeId === currentUserId) return prev;
+        return {
+          ...prev,
+          assigneeId: currentUserId,
+        };
+      });
+    }
+  }, [isSuperAdmin, currentUserId, viewScope]);
+
+  function handleViewScopeChange(nextScope: TaskViewScope) {
+    setViewScope(nextScope);
+    setQuery((prev) => ({
+      ...prev,
+      assigneeId: nextScope === 'my_tasks' ? currentUserId : undefined,
+      page: 1,
+    }));
+  }
 
   const fetchTasks = useCallback(
     async (overrideQuery?: TaskListQuery) => {
@@ -191,7 +252,11 @@ export function TasksPage(): React.JSX.Element {
     <Page
       eyebrow="Overview"
       title="Tasks"
-      description="Collaborate, organize, and monitor tasks across all company departments and teams."
+      description={
+        isSuperAdmin && viewScope === 'all_employee_tasks'
+          ? 'Collaborate, organize, and monitor tasks across all company departments and teams (Viewing All Employee Tasks).'
+          : 'Collaborate, organize, and monitor tasks across all company departments and teams.'
+      }
       action={
         <Button
           type="button"
@@ -225,6 +290,9 @@ export function TasksPage(): React.JSX.Element {
           query={query}
           onQueryChange={(nextQuery) => setQuery(nextQuery)}
           disabled={loading}
+          isSuperAdmin={isSuperAdmin}
+          viewScope={viewScope}
+          onViewScopeChange={handleViewScopeChange}
         />
 
         {/* Error state with retry */}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Empty, Loading } from '../../../ui/components.js';
-import type { Task, TaskListProps, TaskStatus } from '../types/index.js';
+import type { TaskListProps, TaskStatus } from '../types/index.js';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskStatusBadge.js';
 
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
@@ -11,14 +11,14 @@ const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
 };
 
 const TRANSITION_LABELS: Record<TaskStatus, string> = {
-  pending: 'Set Pending',
-  in_progress: 'Start Progress',
-  completed: 'Mark Completed',
-  cancelled: 'Cancel Task',
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
 };
 
 function formatDate(dateValue: string | null): string {
-  if (!dateValue) return 'No due date';
+  if (!dateValue) return '';
   try {
     const d = new Date(dateValue);
     if (isNaN(d.getTime())) return dateValue;
@@ -76,71 +76,58 @@ export function TaskList({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {tasks.map((task) => {
         const isBusy = transitioningTaskId === task.id;
         const availableTransitions = VALID_TRANSITIONS[task.status] ?? [];
-        const isOverdue =
-          task.dueDate &&
-          task.status !== 'completed' &&
-          task.status !== 'cancelled' &&
-          new Date(task.dueDate).getTime() < Date.now();
 
         return (
           <article
             key={task.id}
-            className="rounded-xl border border-app-border bg-app-surface p-4 transition hover:border-app-accent/40 shadow-sm"
+            className="rounded-lg border border-app-border bg-app-surface p-4 transition-colors hover:border-app-border/80 shadow-xs"
           >
-            {/* Header: Title, Priority, Status, and Actions */}
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex-1 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-display text-base font-bold text-app-foreground">
-                    {task.title}
-                  </h3>
-                  <TaskPriorityBadge priority={task.priority} />
-                  <TaskStatusBadge status={task.status} />
-                  {isOverdue && (
-                    <span className="rounded bg-rose-500/15 px-2 py-0.5 text-[11px] font-bold text-rose-600 dark:text-rose-400">
-                      Overdue
-                    </span>
-                  )}
-                </div>
+            {/* 1. Header: Task Title on left, Status & Actions on right */}
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1 min-w-0 pr-2">
+                <h3 className="font-semibold text-sm sm:text-base text-app-foreground leading-snug break-words">
+                  {task.title}
+                </h3>
 
+                {/* 2. Description directly below title */}
                 {task.description && (
-                  <p className="line-clamp-2 text-xs text-app-muted">
+                  <p className="mt-1.5 text-xs text-app-muted line-clamp-2 leading-relaxed">
                     {task.description}
                   </p>
                 )}
               </div>
 
-              {/* Quick action buttons */}
-              <div className="flex flex-wrap items-center gap-1.5 self-start pt-1 sm:pt-0">
+              {/* Status and Actions cluster */}
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start">
+                <TaskStatusBadge status={task.status} />
+
                 {/* Status Transition Select */}
                 {availableTransitions.length > 0 && (
-                  <div className="relative">
-                    <select
-                      disabled={isBusy}
-                      value=""
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          void handleTransition(
-                            task.id,
-                            e.target.value as TaskStatus,
-                          );
-                        }
-                      }}
-                      className="rounded-lg border border-app-border bg-app-background px-2 py-1 text-xs font-semibold text-app-foreground outline-none hover:border-app-accent focus:border-app-accent disabled:opacity-50"
-                      aria-label="Change task status"
-                    >
-                      <option value="">Move to...</option>
-                      {availableTransitions.map((status) => (
-                        <option key={status} value={status}>
-                          {TRANSITION_LABELS[status] ?? status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <select
+                    disabled={isBusy}
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        void handleTransition(
+                          task.id,
+                          e.target.value as TaskStatus,
+                        );
+                      }
+                    }}
+                    className="h-7 rounded border border-app-border bg-app-surface px-2 text-xs text-app-muted hover:text-app-foreground hover:border-app-accent/60 outline-none transition cursor-pointer disabled:opacity-50"
+                    aria-label="Change task status"
+                  >
+                    <option value="">Move status ▾</option>
+                    {availableTransitions.map((status) => (
+                      <option key={status} value={status}>
+                        {TRANSITION_LABELS[status] ?? status}
+                      </option>
+                    ))}
+                  </select>
                 )}
 
                 {/* Edit Button */}
@@ -149,7 +136,7 @@ export function TaskList({
                     type="button"
                     disabled={isBusy}
                     onClick={() => onEditTask(task)}
-                    className="rounded-lg border border-app-border bg-app-surface px-2.5 py-1 text-xs font-semibold text-app-foreground hover:border-app-accent hover:bg-app-background"
+                    className="h-7 rounded border border-app-border bg-app-surface px-2.5 text-xs font-medium text-app-foreground hover:bg-app-surface-raised hover:border-app-accent/60 transition disabled:opacity-50"
                     aria-label={`Edit task ${task.title}`}
                   >
                     Edit
@@ -162,7 +149,7 @@ export function TaskList({
                     type="button"
                     disabled={isBusy}
                     onClick={() => onAssignTask(task)}
-                    className="rounded-lg border border-app-border bg-app-surface px-2.5 py-1 text-xs font-semibold text-app-foreground hover:border-app-accent hover:bg-app-background"
+                    className="h-7 rounded border border-app-border bg-app-surface px-2.5 text-xs font-medium text-app-foreground hover:bg-app-surface-raised hover:border-app-accent/60 transition disabled:opacity-50"
                     aria-label={`Manage assignees for ${task.title}`}
                   >
                     Assign
@@ -178,49 +165,46 @@ export function TaskList({
               </div>
             )}
 
-            {/* Footer Metadata: Due Date, Project, Assignees, Created */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-app-border/50 pt-2.5 text-xs text-app-muted">
-              {/* Due Date & Project */}
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-semibold">Due:</span>
-                  <span
-                    className={
-                      isOverdue ? 'font-bold text-rose-600 dark:text-rose-400' : ''
-                    }
-                  >
-                    {formatDate(task.dueDate)}
+            {/* 3. Metadata Row: Priority · Project · Created */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-app-muted">
+              <TaskPriorityBadge priority={task.priority} />
+
+              {task.projectId && (
+                <>
+                  <span className="text-app-muted/40" aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1 font-mono text-[11px]">
+                    Project: {task.projectId.slice(0, 8)}...
                   </span>
-                </div>
+                </>
+              )}
 
-                {task.projectId && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-semibold">Project:</span>
-                    <span className="font-mono text-[11px]">
-                      {task.projectId.slice(0, 8)}...
-                    </span>
-                  </div>
-                )}
-              </div>
+              {task.createdAt && (
+                <>
+                  <span className="text-app-muted/40" aria-hidden="true">·</span>
+                  <span className="text-[11px]">
+                    Created {formatDate(task.createdAt)}
+                  </span>
+                </>
+              )}
+            </div>
 
-              {/* Assignees (Multi-employee rendered together in single row) */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="font-semibold">Assigned:</span>
-                {task.assignees.length === 0 ? (
-                  <span className="italic text-app-muted">Unassigned</span>
-                ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {task.assignees.map((assignee) => (
-                      <span
-                        key={assignee.id}
-                        className="inline-flex items-center rounded-md border border-app-border bg-app-background px-2 py-0.5 text-[11px] font-medium text-app-foreground"
-                      >
-                        {assignee.fullName}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {/* 4. Assignment Row: Created by: Rahul Roy → Assigned to: Amit Das, Rohan */}
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-app-border/40 pt-2.5 text-xs text-app-muted">
+              <span className="text-app-muted">Created by:</span>
+              <span className="font-medium text-app-foreground">
+                {task.createdByName || 'Unknown'}
+              </span>
+
+              <span className="mx-1 text-app-muted/50" aria-hidden="true">→</span>
+
+              <span className="text-app-muted">Assigned to:</span>
+              {task.assignees.length === 0 ? (
+                <span className="italic text-app-muted/80">Unassigned</span>
+              ) : (
+                <span className="font-medium text-app-foreground">
+                  {task.assignees.map((assignee) => assignee.fullName).join(', ')}
+                </span>
+              )}
             </div>
           </article>
         );

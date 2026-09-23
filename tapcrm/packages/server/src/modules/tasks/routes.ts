@@ -4,6 +4,7 @@ import {
   assignTask,
   createTask,
   getTask,
+  listTaskAssignees,
   listTasks,
   loadTaskResource,
   transitionTask,
@@ -12,6 +13,7 @@ import {
 import {
   assignTaskSchema,
   createTaskSchema,
+  taskAssigneesQuerySchema,
   taskListQuerySchema,
   transitionTaskSchema,
   updateTaskSchema,
@@ -31,6 +33,15 @@ export function registerTasksRoutes(): void {
     module: 'tasks',
     handler: async ({ ctx, query }) =>
       listTasks(ctx, taskListQuerySchema.parse(query)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/tasks/assignees',
+    action: 'tasks:assign',
+    module: 'tasks',
+    handler: async ({ ctx, query }) =>
+      listTaskAssignees(ctx, taskAssigneesQuerySchema.parse(query)),
   });
 
   route({

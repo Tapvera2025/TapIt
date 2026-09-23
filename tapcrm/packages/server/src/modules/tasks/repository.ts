@@ -5,6 +5,8 @@ import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type {
   Task,
+  TaskAssignableUser,
+  TaskAssigneesQuery,
   TaskListQuery,
   TaskPriority,
   TaskStatus,
@@ -20,6 +22,7 @@ interface TaskDbRow {
   status: TaskStatus;
   dueDate: Date | null;
   createdBy: string;
+  createdByName?: string | null;
   createdAt: Date;
   updatedAt: Date;
   assignees: Array<{
@@ -41,6 +44,7 @@ function mapTaskRow(row: TaskDbRow): Task {
     status: row.status,
     dueDate: row.dueDate ? new Date(row.dueDate) : null,
     createdBy: row.createdBy,
+    createdByName: row.createdByName ?? null,
     createdAt: new Date(row.createdAt),
     updatedAt: new Date(row.updatedAt),
     assignees: (row.assignees ?? []).map((a) => ({
@@ -135,6 +139,7 @@ const TASK_SELECT = sql`
     t.status,
     t.due_date,
     t.created_by,
+    creator.full_name AS "createdByName",
     t.created_at,
     t.updated_at,
     COALESCE(
@@ -152,6 +157,7 @@ const TASK_SELECT = sql`
       '[]'::json
     ) AS assignees
   FROM task t
+  LEFT JOIN app_user creator ON creator.id = t.created_by AND creator.organization_id = t.organization_id
 `;
 
 const UUID_REGEX =
@@ -381,3 +387,111 @@ export async function enqueueTaskAudit(
     )
   `);
 }
+
+export interface AssignableUsersScope {
+  readonly kind: 'all' | 'department' | 'team' | 'pool' | 'own' | 'none';
+  readonly departmentId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly poolMemberIds?: readonly string[];
+  readonly isProjectManager?: boolean;
+}
+
+export async function isPrincipalProjectManager(
+  ctx: RequestContext,
+): Promise<boolean> {
+  if (ctx.principal.accountType !== 'employee' || !ctx.principal.positionId) {
+    return false;
+  }
+  const row = await db.maybeOne<{ code: string; deptCode: string | null }>(
+    ctx,
+    sql`
+      SELECT pos.code, d.code AS "deptCode"
+      FROM position pos
+      LEFT JOIN department d ON d.organization_id = pos.organization_id AND d.id = pos.department_id
+      WHERE pos.organization_id = ${ctx.organizationId} AND pos.id = ${ctx.principal.positionId}
+    `,
+  );
+  return row?.code === 'project-manager' || row?.deptCode === 'projects';
+}
+
+export async function findAssignableUsers(
+  ctx: RequestContext,
+  scope: AssignableUsersScope,
+  query: TaskAssigneesQuery,
+): Promise<readonly TaskAssignableUser[]> {
+  if (scope.kind === 'none') {
+    return [];
+  }
+
+  const whereClauses: SqlFragment[] = [
+    sql`u.organization_id = ${ctx.organizationId}`,
+    sql`u.status = 'active'`,
+    sql`u.account_type IN ('employee', 'super-admin')`,
+  ];
+
+  if (scope.kind === 'department') {
+    if (!scope.departmentId) return [];
+    whereClauses.push(
+      sql`(u.department_id = ${scope.departmentId} OR u.id = ${ctx.principal.id})`,
+    );
+  } else if (scope.kind === 'team') {
+    if (!scope.teamIds || scope.teamIds.length === 0) return [];
+    whereClauses.push(
+      sql`(u.team_id = ANY(${scope.teamIds}::uuid[]) OR u.id = ${ctx.principal.id})`,
+    );
+  } else if (scope.kind === 'pool') {
+    if (!scope.poolMemberIds || scope.poolMemberIds.length === 0) return [];
+    whereClauses.push(sql`u.id = ANY(${scope.poolMemberIds}::uuid[])`);
+  } else if (scope.kind === 'own') {
+    if (scope.isProjectManager) {
+      // PRD §3.7.1 PA-1 & TK-8: Project Manager directs delivery across development sub-teams
+      whereClauses.push(sql`(d.code = 'development' OR u.id = ${ctx.principal.id})`);
+    } else if (scope.departmentId) {
+      // Regular IC / Base Employee: can assign to department peers/collaborators + self
+      whereClauses.push(
+        sql`(u.department_id = ${scope.departmentId} OR u.id = ${ctx.principal.id})`,
+      );
+    } else {
+      // Fallback: own user record
+      whereClauses.push(sql`u.id = ${ctx.principal.id}`);
+    }
+  }
+
+  if (query.search?.trim()) {
+    const pattern = `%${query.search.trim()}%`;
+    whereClauses.push(sql`(u.full_name ILIKE ${pattern} OR u.email ILIKE ${pattern})`);
+  }
+
+  const rows = await db.query<{
+    id: string;
+    fullName: string;
+    email: string | null;
+    departmentName: string | null;
+    positionName: string | null;
+  }>(
+    ctx,
+    sql`
+      SELECT
+        u.id,
+        u.full_name AS "fullName",
+        u.email,
+        d.name AS "departmentName",
+        pos.name AS "positionName"
+      FROM app_user u
+      LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
+      LEFT JOIN position pos ON pos.organization_id = u.organization_id AND pos.id = u.position_id
+      WHERE ${sql.join(whereClauses, ' AND ')}
+      ORDER BY u.full_name ASC
+      LIMIT 100
+    `,
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    email: r.email ?? null,
+    departmentName: r.departmentName ?? null,
+    positionName: r.positionName ?? null,
+  }));
+}
+

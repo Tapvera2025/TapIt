@@ -50,7 +50,7 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
   }
 
   const ctxA1 = () => ctxFor(orgA, userA1);
-  const ctxA2 = () => ctxFor(orgA, userA2);
+  const _ctxA2 = () => ctxFor(orgA, userA2);
   const ctxB1 = () => ctxFor(orgB, userB1);
 
   const deptA = randomUUID();

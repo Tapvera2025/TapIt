@@ -14,6 +14,15 @@ export interface TaskAssignee {
   readonly assignedAt: string | Date;
 }
 
+export interface TaskAssignableUser {
+  readonly id: string;
+  readonly fullName: string;
+  readonly email?: string | null | undefined;
+  readonly departmentName?: string | null | undefined;
+  readonly positionName?: string | null | undefined;
+}
+
+
 export interface Task {
   readonly id: string;
   readonly organizationId: string;
@@ -24,6 +33,7 @@ export interface Task {
   readonly status: TaskStatus;
   readonly dueDate: string | null;
   readonly createdBy: string;
+  readonly createdByName?: string | null | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly assignees: readonly TaskAssignee[];
@@ -95,10 +105,15 @@ export interface TaskAssignModalProps {
   readonly onClose: () => void;
 }
 
+export type TaskViewScope = 'my_tasks' | 'all_employee_tasks';
+
 export interface TaskFiltersProps {
   readonly query: TaskListQuery;
   readonly onQueryChange: (nextQuery: TaskListQuery) => void;
   readonly disabled?: boolean | undefined;
+  readonly isSuperAdmin?: boolean | undefined;
+  readonly viewScope?: TaskViewScope | undefined;
+  readonly onViewScopeChange?: ((scope: TaskViewScope) => void) | undefined;
 }
 
 export interface TaskListProps {
@@ -123,4 +138,6 @@ export interface TaskAssigneePickerProps {
   readonly selectedAssigneeIds: readonly string[];
   readonly onChange: (assigneeIds: string[]) => void;
   readonly disabled?: boolean | undefined;
+  readonly projectId?: string | undefined;
 }
+

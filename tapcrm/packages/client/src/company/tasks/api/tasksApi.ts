@@ -4,6 +4,7 @@ import type {
   CreateTaskInput,
   PaginatedTasks,
   Task,
+  TaskAssignableUser,
   TaskListQuery,
   TransitionTaskInput,
   UpdateTaskInput,
@@ -162,4 +163,29 @@ export async function assignTask(
   });
 }
 
+export async function getTaskAssignees(params?: {
+  projectId?: string | undefined;
+  search?: string | undefined;
+}): Promise<TaskAssignableUser[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.projectId?.trim()) {
+    searchParams.set('projectId', params.projectId.trim());
+  }
+  if (params?.search?.trim()) {
+    searchParams.set('search', params.search.trim());
+  }
+  const qs = searchParams.toString();
+  const endpoint = qs ? `/api/tasks/assignees?${qs}` : '/api/tasks/assignees';
+
+  return identityRequest<TaskAssignableUser[]>(endpoint, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+    },
+  });
+}
+
 export { identityRequest };
+

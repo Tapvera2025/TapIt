@@ -1,16 +1,17 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import {
-  getCompanyEmployees,
-  type CompanyEmployee,
-} from '../../api/companyApi.js';
-import type { TaskAssigneePickerProps } from '../types/index.js';
+import { getTaskAssignees } from '../api/tasksApi.js';
+import type {
+  TaskAssignableUser,
+  TaskAssigneePickerProps,
+} from '../types/index.js';
 
 export function TaskAssigneePicker({
   selectedAssigneeIds,
   onChange,
   disabled = false,
+  projectId,
 }: TaskAssigneePickerProps): React.JSX.Element {
-  const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
+  const [assignees, setAssignees] = useState<TaskAssignableUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,14 +25,14 @@ export function TaskAssigneePicker({
       try {
         setLoading(true);
         setLoadError(null);
-        const data = await getCompanyEmployees();
+        const data = await getTaskAssignees({ projectId });
         if (!cancelled) {
-          setEmployees(data);
+          setAssignees(data);
         }
       } catch (err) {
         if (!cancelled) {
           setLoadError(
-            err instanceof Error ? err.message : 'Failed to load employees',
+            err instanceof Error ? err.message : 'Failed to load assignees',
           );
         }
       } finally {
@@ -45,7 +46,7 @@ export function TaskAssigneePicker({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -63,17 +64,17 @@ export function TaskAssigneePicker({
     };
   }, []);
 
-  const employeeMap = useMemo(() => {
-    const map = new Map<string, CompanyEmployee>();
-    for (const emp of employees) {
+  const assigneeMap = useMemo(() => {
+    const map = new Map<string, TaskAssignableUser>();
+    for (const emp of assignees) {
       map.set(emp.id, emp);
     }
     return map;
-  }, [employees]);
+  }, [assignees]);
 
-  const availableEmployees = useMemo(() => {
+  const availableAssignees = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return employees.filter((emp) => {
+    return assignees.filter((emp) => {
       if (selectedAssigneeIds.includes(emp.id)) return false;
       if (!term) return true;
       return (
@@ -82,7 +83,7 @@ export function TaskAssigneePicker({
         (emp.departmentName && emp.departmentName.toLowerCase().includes(term))
       );
     });
-  }, [employees, selectedAssigneeIds, searchTerm]);
+  }, [assignees, selectedAssigneeIds, searchTerm]);
 
   function handleAdd(id: string) {
     if (!selectedAssigneeIds.includes(id)) {
@@ -98,30 +99,30 @@ export function TaskAssigneePicker({
   return (
     <div ref={containerRef} className="relative w-full">
       <label className="text-xs font-semibold text-app-muted">
-        <span className="mb-2 block">Assign To (Multiple)</span>
+        <span className="mb-1.5 block">Assign To (Multiple)</span>
       </label>
 
       {/* Selected Employee Pills */}
       {selectedAssigneeIds.length > 0 && (
         <div
-          className="mb-2 flex flex-wrap gap-1.5"
+          className="mb-2 flex flex-wrap gap-1"
           aria-label="Selected assignees"
         >
           {selectedAssigneeIds.map((id) => {
-            const emp = employeeMap.get(id);
-            const displayName = emp?.fullName ?? `Employee (${id.slice(0, 8)})`;
+            const emp = assigneeMap.get(id);
+            const displayName = emp?.fullName ?? `Assignee (${id.slice(0, 8)})`;
 
             return (
               <span
                 key={id}
-                className="inline-flex items-center gap-1.5 rounded-md border border-app-border bg-app-surface-raised px-2.5 py-1 text-xs font-medium text-app-foreground"
+                className="inline-flex items-center gap-1 rounded border border-app-border bg-app-surface px-2 py-0.5 text-xs text-app-foreground"
               >
                 <span>{displayName}</span>
                 {!disabled && (
                   <button
                     type="button"
                     onClick={() => handleRemove(id)}
-                    className="grid size-4 place-items-center rounded hover:bg-app-danger/10 hover:text-app-danger"
+                    className="grid size-3.5 place-items-center rounded text-app-muted hover:text-app-danger"
                     aria-label={`Remove ${displayName}`}
                   >
                     ×
@@ -140,10 +141,10 @@ export function TaskAssigneePicker({
           disabled={disabled}
           placeholder={
             loading
-              ? 'Loading employees...'
+              ? 'Loading assignees...'
               : selectedAssigneeIds.length === 0
-                ? 'Type name to search and assign employees...'
-                : 'Add another employee...'
+                ? 'Type name to search and assign...'
+                : 'Add another assignee...'
           }
           value={searchTerm}
           onChange={(e) => {
@@ -151,14 +152,14 @@ export function TaskAssigneePicker({
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
+          className="h-8.5 w-full rounded-md border border-app-border bg-app-background px-3 text-xs text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
           aria-autocomplete="list"
           aria-controls={listboxId}
           aria-expanded={isOpen}
         />
 
         {loading && (
-          <div className="absolute right-3 top-2.5 text-xs text-app-muted">
+          <div className="absolute right-3 top-2 text-xs text-app-muted">
             Loading...
           </div>
         )}
@@ -175,16 +176,18 @@ export function TaskAssigneePicker({
         <ul
           id={listboxId}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-app-border bg-app-surface shadow-lg outline-none"
+          className="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-md border border-app-border bg-app-surface shadow-md outline-none"
         >
-          {availableEmployees.length === 0 ? (
-            <li className="px-3 py-2.5 text-xs text-app-muted">
-              {employees.length === 0
-                ? 'No employees available in organization'
-                : 'No matching unassigned employees'}
+          {availableAssignees.length === 0 ? (
+            <li className="px-3 py-2 text-xs text-app-muted">
+              {loadError
+                ? `Error: ${loadError}`
+                : assignees.length === 0
+                  ? 'No assignable employees found in your scope'
+                  : 'No matching unassigned employees'}
             </li>
           ) : (
-            availableEmployees.map((emp) => (
+            availableAssignees.map((emp) => (
               <li
                 key={emp.id}
                 role="option"
@@ -197,9 +200,9 @@ export function TaskAssigneePicker({
                     handleAdd(emp.id);
                   }
                 }}
-                className="cursor-pointer border-b border-app-border/40 px-3 py-2 text-xs transition last:border-b-0 hover:bg-app-accent/10 hover:text-app-accent focus:bg-app-accent/10 focus:text-app-accent"
+                className="cursor-pointer border-b border-app-border/30 px-3 py-1.5 text-xs transition last:border-b-0 hover:bg-app-accent/5 hover:text-app-accent focus:bg-app-accent/5 focus:text-app-accent"
               >
-                <div className="font-semibold text-app-foreground">
+                <div className="font-medium text-app-foreground">
                   {emp.fullName}
                 </div>
                 <div className="text-[11px] text-app-muted">

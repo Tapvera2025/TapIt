@@ -73,7 +73,7 @@ export function CompanyWorkspace({
       onSignedOut={onLogout}
     />
   ) : pathname === '/company/tasks' ? (
-    <TasksPage />
+    <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
   ) : !isSuperAdmin ? (
     <div className="grid min-h-[60vh] place-items-center p-6 text-center">
       <div>

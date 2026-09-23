@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PolicyEvaluationContext, ScopeResolverPort } from '@tapcrm/authz';
+import type { PolicyEvaluationContext } from '@tapcrm/authz';
 import type { Scope } from '@tapcrm/contracts';
 import { taskPolicy } from './policy.js';
 

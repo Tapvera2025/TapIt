@@ -85,8 +85,15 @@ export const taskListQuerySchema = z
     },
   );
 
+export const taskAssigneesQuerySchema = z.object({
+  projectId: z.string().uuid('Invalid project ID format').optional(),
+  search: z.string().trim().max(100).optional(),
+});
+
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 export type TransitionTaskInput = z.infer<typeof transitionTaskSchema>;
 export type AssignTaskInput = z.infer<typeof assignTaskSchema>;
 export type TaskListQueryInput = z.infer<typeof taskListQuerySchema>;
+export type TaskAssigneesQueryInput = z.infer<typeof taskAssigneesQuerySchema>;
+

@@ -7,6 +7,9 @@ export function TaskFilters({
   query,
   onQueryChange,
   disabled = false,
+  isSuperAdmin = false,
+  viewScope = 'my_tasks',
+  onViewScopeChange,
 }: TaskFiltersProps): React.JSX.Element {
   const [searchInput, setSearchInput] = useState(query.search ?? '');
 
@@ -83,6 +86,48 @@ export function TaskFilters({
 
   return (
     <div className="space-y-4 rounded-xl border border-app-border bg-app-surface p-4 text-app-foreground shadow-sm">
+      {/* Super Admin Task Scope Selector */}
+      {isSuperAdmin && (
+        <div className="flex flex-col gap-2 border-b border-app-border/60 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-app-muted">Scope:</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onViewScopeChange?.('my_tasks')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  viewScope === 'my_tasks'
+                    ? 'bg-app-accent text-white shadow-sm'
+                    : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent/60'
+                }`}
+                aria-pressed={viewScope === 'my_tasks'}
+              >
+                My Tasks
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onViewScopeChange?.('all_employee_tasks')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  viewScope === 'all_employee_tasks'
+                    ? 'bg-app-accent text-white shadow-sm'
+                    : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent/60'
+                }`}
+                aria-pressed={viewScope === 'all_employee_tasks'}
+              >
+                All Employee Tasks
+              </button>
+            </div>
+          </div>
+          {viewScope === 'all_employee_tasks' && (
+            <span className="inline-flex items-center rounded-md bg-app-accent/10 px-2 py-0.5 text-[11px] font-medium text-app-accent">
+              Super Admin View • Organization-wide
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Top row: Search and Sorting */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         {/* Search input with clear button */}

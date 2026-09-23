@@ -7,7 +7,7 @@ describe('Task routes manifest alignment', () => {
   beforeEach(() => __resetRoutes());
   afterEach(() => __resetRoutes());
 
-  it('registers the 6 core task routes without any manifest mismatch or unknown routes', () => {
+  it('registers the core task routes without any manifest mismatch or unknown routes', () => {
     registerTasksRoutes();
 
     const drift = checkManifest();

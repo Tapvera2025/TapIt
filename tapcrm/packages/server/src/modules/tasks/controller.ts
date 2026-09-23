@@ -3,6 +3,7 @@ import {
   assignTask,
   createTask,
   getTask,
+  listTaskAssignees,
   listTasks,
   loadTaskResource,
   transitionTask,
@@ -11,6 +12,7 @@ import {
 import type {
   AssignTaskInput,
   CreateTaskInput,
+  TaskAssigneesQueryInput,
   TaskListQueryInput,
   TransitionTaskInput,
   UpdateTaskInput,
@@ -26,6 +28,7 @@ export {
   assignTask,
   createTask,
   getTask,
+  listTaskAssignees,
   listTasks,
   loadTaskResource,
   transitionTask,
@@ -41,6 +44,10 @@ export type TaskController = {
     ctx: RequestContext,
     query: TaskListQueryInput,
   ) => ReturnType<typeof listTasks>;
+  readonly listTaskAssignees: (
+    ctx: RequestContext,
+    query: TaskAssigneesQueryInput,
+  ) => ReturnType<typeof listTaskAssignees>;
   readonly createTask: (
     ctx: RequestContext,
     input: CreateTaskInput,
@@ -69,5 +76,7 @@ export type TaskControllerInputs = {
   transition: TransitionTaskInput;
   assign: AssignTaskInput;
   query: TaskListQueryInput;
+  assigneesQuery: TaskAssigneesQueryInput;
   context: RequestContext;
 };
+

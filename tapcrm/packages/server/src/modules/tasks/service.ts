@@ -1,5 +1,7 @@
 import type { Resource } from '@tapcrm/authz';
-import { visibilityFilter } from '@tapcrm/authz';
+import { effectivePolicy, visibilityFilter } from '@tapcrm/authz';
+import { globalAccess } from '@tapcrm/contracts';
+import { scopeResolver } from '../../platform/authz-adapter.js';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import {
@@ -9,19 +11,27 @@ import {
 } from './errors.js';
 import {
   enqueueTaskAudit,
+  findAssignableUsers,
   findTaskById,
   findTaskByIdTx,
   insertTaskAssignees,
   insertTaskRow,
+  isPrincipalProjectManager,
   listTasksWithFilter,
   replaceTaskAssignees,
   updateTaskRow,
   validateAssigneeIds,
 } from './repository.js';
-import type { PaginatedTasks, Task, TaskStatus } from './types.js';
+import type {
+  PaginatedTasks,
+  Task,
+  TaskAssignableUser,
+  TaskStatus,
+} from './types.js';
 import type {
   AssignTaskInput,
   CreateTaskInput,
+  TaskAssigneesQueryInput,
   TaskListQueryInput,
   TransitionTaskInput,
   UpdateTaskInput,
@@ -305,3 +315,52 @@ export async function assignTask(
     return updated;
   });
 }
+
+export async function listTaskAssignees(
+  ctx: RequestContext,
+  query: TaskAssigneesQueryInput,
+): Promise<readonly TaskAssignableUser[]> {
+  // 1. Super Admin: full tenant access
+  if (globalAccess(ctx.principal)) {
+    return findAssignableUsers(ctx, { kind: 'all' }, query);
+  }
+
+  // 2. Resolve caller's effective policy on tasks:assign
+  const policy = await effectivePolicy(ctx, 'tasks:assign');
+  if (!policy || !policy.allowed) {
+    return [];
+  }
+
+  // 3. Determine scope
+  if (policy.scope === 'all-people') {
+    return findAssignableUsers(ctx, { kind: 'all' }, query);
+  }
+
+  if (policy.scope === 'department') {
+    const departmentId = await scopeResolver.departmentId(ctx);
+    return findAssignableUsers(ctx, { kind: 'department', departmentId }, query);
+  }
+
+  if (policy.scope === 'team') {
+    const teamIds = [...(await scopeResolver.teamIds(ctx))];
+    return findAssignableUsers(ctx, { kind: 'team', teamIds }, query);
+  }
+
+  if (policy.scope === 'pool') {
+    const poolMemberIds = [...(await scopeResolver.poolMemberIds(ctx))];
+    return findAssignableUsers(ctx, { kind: 'pool', poolMemberIds }, query);
+  }
+
+  if (policy.scope === 'own' || policy.scope === 'participant') {
+    const isProjectManager = await isPrincipalProjectManager(ctx);
+    const departmentId = await scopeResolver.departmentId(ctx);
+    return findAssignableUsers(
+      ctx,
+      { kind: 'own', isProjectManager, departmentId },
+      query,
+    );
+  }
+
+  return [];
+}
+

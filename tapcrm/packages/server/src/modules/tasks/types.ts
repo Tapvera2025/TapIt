@@ -23,6 +23,7 @@ export interface Task {
   readonly status: TaskStatus;
   readonly dueDate: Date | null;
   readonly createdBy: string;
+  readonly createdByName?: string | null | undefined;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly assignees: readonly TaskAssignee[];
@@ -50,3 +51,17 @@ export interface PaginatedTasks {
   readonly pageSize: number; // limit
   readonly totalPages: number; // count
 }
+
+export interface TaskAssignableUser {
+  readonly id: string;
+  readonly fullName: string;
+  readonly email: string | null;
+  readonly departmentName: string | null;
+  readonly positionName: string | null;
+}
+
+export interface TaskAssigneesQuery {
+  readonly projectId?: string | undefined;
+  readonly search?: string | undefined;
+}
+

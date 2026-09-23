@@ -117,8 +117,24 @@ export function TaskForm({
       title={mode === 'edit' ? 'Edit Task' : 'Create Task'}
       onClose={onClose}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         {errorMessage && <Notice error>{errorMessage}</Notice>}
+
+        {mode === 'edit' && initialTask && (
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-app-border/40 pb-3 text-xs text-app-muted">
+            <span>Created by:</span>
+            <span className="font-medium text-app-foreground">
+              {initialTask.createdByName || 'Unknown'}
+            </span>
+            <span className="mx-1 text-app-muted/50" aria-hidden="true">→</span>
+            <span>Assigned to:</span>
+            <span className="font-medium text-app-foreground">
+              {initialTask.assignees.length > 0
+                ? initialTask.assignees.map((a) => a.fullName).join(', ')
+                : 'Unassigned'}
+            </span>
+          </div>
+        )}
 
         {/* Title */}
         <label className="block text-xs font-semibold text-app-muted">
@@ -205,6 +221,7 @@ export function TaskForm({
             selectedAssigneeIds={assigneeIds}
             onChange={setAssigneeIds}
             disabled={isBusy}
+            projectId={projectId || undefined}
           />
         )}
 
@@ -270,13 +287,28 @@ export function TaskAssignModal({
 
   return (
     <Modal title={`Manage Assignees — ${task.title}`} onClose={onClose}>
-      <form onSubmit={handleAssign} className="space-y-4">
+      <form onSubmit={(e) => void handleAssign(e)} className="space-y-4">
         {errorMessage && <Notice error>{errorMessage}</Notice>}
+
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-app-border/40 pb-3 text-xs text-app-muted">
+          <span>Created by:</span>
+          <span className="font-medium text-app-foreground">
+            {task.createdByName || 'Unknown'}
+          </span>
+          <span className="mx-1 text-app-muted/50" aria-hidden="true">→</span>
+          <span>Current Assignees:</span>
+          <span className="font-medium text-app-foreground">
+            {task.assignees.length > 0
+              ? task.assignees.map((a) => a.fullName).join(', ')
+              : 'Unassigned'}
+          </span>
+        </div>
 
         <TaskAssigneePicker
           selectedAssigneeIds={assigneeIds}
           onChange={setAssigneeIds}
           disabled={submitting}
+          projectId={task.projectId || undefined}
         />
 
         <div className="mt-6 flex justify-end gap-3 border-t border-app-border pt-4">
