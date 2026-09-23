@@ -24,12 +24,17 @@ const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
 const migrationUrl = process.env['MIGRATION_DATABASE_URL'] ?? '';
 
 const ORG = randomUUID();
+const OTHER_ORG_FOR_TEAM = randomUUID();
 const DEPT = randomUUID();
 const OTHER_DEPT = randomUUID();
+const OTHER_ORG_DEPT = randomUUID();
 const POS_LEAD = randomUUID();
 const POS_AGENT = randomUUID();
 const POS_HR = randomUUID();
 const POS_OTHER = randomUUID();
+const TEAM_SALES = randomUUID();
+const TEAM_OTHER = randomUUID();
+const OTHER_ORG_TEAM = randomUUID();
 const LEAD = randomUUID();
 const AGENT = randomUUID();
 const OUTSIDER = randomUUID();
@@ -76,18 +81,30 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
 
     await asOwner('create test organization', sql`
       INSERT INTO organization (id, code, name) VALUES (${ORG}, ${`AM${ORG.slice(0, 6)}`}, 'Access Test')`);
+    await asOwner('create foreign test organization', sql`
+      INSERT INTO organization (id, code, name) VALUES (${OTHER_ORG_FOR_TEAM}, ${`AMX${OTHER_ORG_FOR_TEAM.slice(0, 5)}`}, 'Foreign Access Test')`);
     await asOwner('create test department', sql`
       INSERT INTO department (id, organization_id, code, name, kind)
       VALUES (${DEPT}, ${ORG}, 'SALES', 'Sales', 'sales')`);
     await asOwner('create second test department', sql`
       INSERT INTO department (id, organization_id, code, name, kind)
       VALUES (${OTHER_DEPT}, ${ORG}, 'OTHER', 'Other', 'other')`);
+    await asOwner('create foreign team', sql`
+      INSERT INTO department (id, organization_id, code, name, kind)
+      VALUES (${OTHER_ORG_DEPT}, ${OTHER_ORG_FOR_TEAM}, 'FOREIGN', 'Foreign', 'other')`);
     await asOwner('create test positions', sql`
       INSERT INTO position (id, organization_id, department_id, code, name, organizational_level)
       VALUES (${POS_LEAD}, ${ORG}, ${DEPT}, 'LEAD', 'Team Lead', 50),
              (${POS_AGENT}, ${ORG}, ${DEPT}, 'AGENT', 'Agent', 20),
              (${POS_HR}, ${ORG}, ${DEPT}, 'hr', 'HR', 90),
              (${POS_OTHER}, ${ORG}, ${OTHER_DEPT}, 'OTHER', 'Other', 20)`);
+    await asOwner('create test teams', sql`
+      INSERT INTO team (id, organization_id, department_id, kind, name)
+      VALUES (${TEAM_SALES}, ${ORG}, ${DEPT}, 'sales-team', 'Sales Team'),
+             (${TEAM_OTHER}, ${ORG}, ${OTHER_DEPT}, 'sales-team', 'Other Team')`);
+    await asOwner('create foreign organization team', sql`
+      INSERT INTO team (id, organization_id, department_id, kind, name)
+      VALUES (${OTHER_ORG_TEAM}, ${OTHER_ORG_FOR_TEAM}, ${OTHER_ORG_DEPT}, 'sales-team', 'Foreign Team')`);
     await asOwner('create test users', sql`
       INSERT INTO app_user (id, organization_id, account_type, employee_id, email, full_name, position_id, department_id)
       VALUES (${LEAD}, ${ORG}, 'employee', 'EMP-00001', ${`lead-${LEAD}@t.io`}, 'Lead', ${POS_LEAD}, ${DEPT}),
@@ -99,6 +116,12 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     await asOwner('set reporting relationship', sql`
       UPDATE app_user SET reports_to = ${HR}
       WHERE organization_id = ${ORG} AND id = ${AGENT}`);
+    await asOwner('set test employee teams', sql`
+      UPDATE app_user SET team_id = CASE
+        WHEN id = ${AGENT} THEN ${TEAM_SALES}
+        WHEN id = ${OUTSIDER} THEN ${TEAM_OTHER}
+        ELSE team_id END
+      WHERE organization_id = ${ORG}`);
     // The lead may delegate across the department and holds leads:view there.
     await asOwner('grant lead their position policies', sql`
       INSERT INTO position_policy (organization_id, position_id, action, allowed, scope)
@@ -106,6 +129,12 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
              (${ORG}, ${POS_LEAD}, 'leads:view', true, 'department'),
              (${ORG}, ${POS_HR}, 'access:request-role-change', true, 'department'),
              (${ORG}, ${POS_HR}, 'users:view', true, 'all-people')`);
+    await asOwner('seed role-change regression overrides', sql`
+      INSERT INTO user_override
+        (organization_id, user_id, action, allowed, scope, reason, granted_by)
+      VALUES
+        (${ORG}, ${HR}, 'users:view', true, 'department',
+         'Regression: restrict HR target scope', ${SUPER})`);
   });
 
   afterAll(async () => {
@@ -120,7 +149,11 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     await asOwner('remove directory rows', sql`DELETE FROM identity_email_directory WHERE organization_id = ${ORG}`);
     await asOwner('remove role change requests', sql`DELETE FROM role_change_request WHERE organization_id = ${ORG}`);
     await asOwner('remove test users', sql`DELETE FROM app_user WHERE organization_id = ${ORG}`);
+    await asOwner('remove test teams', sql`DELETE FROM team WHERE organization_id = ${ORG}`);
     await asOwner('remove test organization', sql`DELETE FROM organization WHERE id = ${ORG}`);
+    await asOwner('remove foreign test team', sql`DELETE FROM team WHERE organization_id = ${OTHER_ORG_FOR_TEAM}`);
+    await asOwner('remove foreign test department', sql`DELETE FROM department WHERE organization_id = ${OTHER_ORG_FOR_TEAM}`);
+    await asOwner('remove foreign test organization', sql`DELETE FROM organization WHERE id = ${OTHER_ORG_FOR_TEAM}`);
     await closePools();
   });
 
@@ -270,22 +303,53 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
   });
 
   it('routes role changes through Super Admin and clears overrides atomically (AM-8/12/13)', async () => {
+    await expect(requestRoleChange(ctxFor(AGENT, POS_AGENT, 20), {
+      subjectUserId: OUTSIDER,
+      toPositionId: POS_OTHER,
+      reason: 'Normal employees cannot submit role-change requests',
+    })).rejects.toThrow(/No policy|not allow/i);
+
     await expect(requestRoleChange(leadCtx(), {
       subjectUserId: AGENT,
       toPositionId: POS_LEAD,
       reason: 'Managers must not submit role-change requests',
     })).rejects.toThrow(/No policy|not allow/i);
 
-    const crossDepartmentRequest = await requestRoleChange(hrCtx(), {
+    await asOwner('delegate role-change action to manager', sql`
+      INSERT INTO user_override
+        (organization_id, user_id, action, allowed, scope, reason, granted_by)
+      VALUES (${ORG}, ${LEAD}, 'access:request-role-change', true, 'department',
+              'Regression: delegated role-change action', ${SUPER})`);
+    await expect(requestRoleChange(leadCtx(), {
+      subjectUserId: AGENT,
+      toPositionId: POS_LEAD,
+      reason: 'Delegated action still cannot bypass HR-only rule',
+    })).rejects.toMatchObject({ code: 'ACCESS_ROLE_CHANGE_REQUESTER_NOT_HR' });
+
+    await expect(requestRoleChange(hrCtx(), {
+      subjectUserId: AGENT,
+      toPositionId: POS_OTHER,
+      requestedTeamId: TEAM_SALES,
+      reason: 'The requested team belongs to another department',
+    })).rejects.toMatchObject({ code: 'ACCESS_ROLE_CHANGE_TEAM_INVALID' });
+
+    await expect(requestRoleChange(hrCtx(), {
+      subjectUserId: AGENT,
+      toPositionId: POS_LEAD,
+      requestedTeamId: OTHER_ORG_TEAM,
+      reason: 'A team from another organization must be rejected',
+    })).rejects.toMatchObject({ code: 'ACCESS_ROLE_CHANGE_TEAM_INVALID' });
+
+    const beforePending = await asOwner('read employee before pending request', sql`
+      SELECT position_id AS "positionId", department_id AS "departmentId",
+             team_id AS "teamId", reports_to AS "reportsTo"
+      FROM app_user WHERE organization_id = ${ORG} AND id = ${AGENT}`);
+
+    await expect(requestRoleChange(hrCtx(), {
       subjectUserId: OUTSIDER,
       toPositionId: POS_OTHER,
       reason: 'HR may request changes across the organization',
-    });
-    expect(crossDepartmentRequest.status).toBe('pending');
-    await expect(decideRoleChange(superCtx(), crossDepartmentRequest.id, {
-      approved: false,
-      reason: 'Scope validation test request',
-    })).resolves.toMatchObject({ status: 'rejected' });
+    })).rejects.toThrow(/No policy|not allow/i);
 
     await expect(requestRoleChange(hrCtx(), {
       subjectUserId: HR_OTHER,
@@ -296,9 +360,15 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     const request = await requestRoleChange(hrCtx(), {
       subjectUserId: AGENT,
       toPositionId: POS_LEAD,
+      requestedTeamId: TEAM_SALES,
       reason: 'Promotion approved by management',
     });
     expect(request.status).toBe('pending');
+    const duringPending = await asOwner('verify employee unchanged while pending', sql`
+      SELECT position_id AS "positionId", department_id AS "departmentId",
+             team_id AS "teamId", reports_to AS "reportsTo"
+      FROM app_user WHERE organization_id = ${ORG} AND id = ${AGENT}`);
+    expect(duringPending[0]).toEqual(beforePending[0]);
     const decision = await decideRoleChange(superCtx(), request.id, {
       approved: true,
       reason: 'Super Admin approval',
@@ -306,11 +376,12 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     expect(decision.status).toBe('approved');
     const user = await asOwner('verify role change', sql`
       SELECT position_id AS "positionId", department_id AS "departmentId",
-             reports_to AS "reportsTo", session_version AS "sessionVersion"
+             team_id AS "teamId", reports_to AS "reportsTo", session_version AS "sessionVersion"
       FROM app_user WHERE organization_id = ${ORG} AND id = ${AGENT}`);
     expect(user[0]).toMatchObject({
       positionId: POS_LEAD,
       departmentId: DEPT,
+      teamId: TEAM_SALES,
       reportsTo: HR,
     });
     const resolved = await effectivePolicy(promotedAgentCtx(), 'leads:view');

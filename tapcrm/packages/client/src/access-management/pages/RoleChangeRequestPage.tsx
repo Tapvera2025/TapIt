@@ -28,13 +28,21 @@ interface RolePosition {
   departmentId: string;
   departmentName: string;
 }
+interface RoleTeam {
+  id: string;
+  name: string;
+  departmentId: string;
+  departmentName: string;
+}
 
 export function RoleChangeRequestPage(): React.JSX.Element {
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
   const [positions, setPositions] = useState<RolePosition[]>([]);
+  const [teams, setTeams] = useState<RoleTeam[]>([]);
   const [currentUserId, setCurrentUserId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [positionId, setPositionId] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState('');
   const [reportingManagerId, setReportingManagerId] = useState('');
   const [reportingManagers, setReportingManagers] = useState<CompanyReportingManager[]>([]);
   const [reportingManagersLoading, setReportingManagersLoading] = useState(false);
@@ -59,6 +67,7 @@ export function RoleChangeRequestPage(): React.JSX.Element {
           departments.map((department) => getCompanyLadder(department.code)),
         );
         const flattened: RolePosition[] = [];
+        const flattenedTeams: RoleTeam[] = [];
         const visit = (
           items: CompanyLadderPosition[],
           department: CompanyDepartment,
@@ -73,16 +82,29 @@ export function RoleChangeRequestPage(): React.JSX.Element {
             visit(position.children ?? [], department);
           }
         };
-        departments.forEach((department, index) =>
-          visit(ladders[index]?.positions ?? [], department),
-        );
+        departments.forEach((department, index) => {
+          visit(ladders[index]?.positions ?? [], department);
+          for (const team of ladders[index]?.teams ?? []) {
+            flattenedTeams.push({
+              id: team.id,
+              name: team.name,
+              departmentId: department.id,
+              departmentName: department.name,
+            });
+          }
+        });
         setPositions(flattened);
+        setTeams(flattenedTeams);
       })
       .catch(setError)
       .finally(() => setLoading(false));
   }, []);
 
   const selectedEmployee = employees.find((employee) => employee.id === employeeId);
+  const selectedPosition = positions.find((position) => position.id === positionId);
+  const availableTeams = selectedPosition
+    ? teams.filter((team) => team.departmentId === selectedPosition.departmentId)
+    : [];
   const selectableEmployees = employees.filter(
     (employee) => employee.id !== currentUserId,
   );
@@ -99,11 +121,12 @@ export function RoleChangeRequestPage(): React.JSX.Element {
       targetPosition.departmentId,
       targetPosition.id,
       employeeId,
+      selectedTeamId || undefined,
     )
       .then(setReportingManagers)
       .catch(() => setReportingManagers([]))
       .finally(() => setReportingManagersLoading(false));
-  }, [employeeId, positionId, positions]);
+  }, [employeeId, positionId, positions, selectedTeamId]);
 
   const submit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -114,12 +137,15 @@ export function RoleChangeRequestPage(): React.JSX.Element {
     void requestRoleChange({
       subjectUserId: employeeId,
       toPositionId: positionId,
+      requestedTeamId:
+        availableTeams.some((team) => team.id === selectedTeamId) ? selectedTeamId : null,
       requestedReportsTo: reportingManagerId || null,
       reason,
     })
       .then(() => {
         setEmployeeId('');
         setPositionId('');
+        setSelectedTeamId('');
         setReportingManagerId('');
         setReason('');
         setMessage('Position-change request submitted for Super Admin approval.');
@@ -157,9 +183,10 @@ export function RoleChangeRequestPage(): React.JSX.Element {
             <Select
               label="Employee"
               value={employeeId}
-              onChange={(value) => {
-                setEmployeeId(value);
-                setPositionId('');
+      onChange={(value) => {
+        setEmployeeId(value);
+        setPositionId('');
+        setSelectedTeamId('');
               }}
               options={selectableEmployees.map((employee) => ({
                 value: employee.id,
@@ -211,7 +238,10 @@ export function RoleChangeRequestPage(): React.JSX.Element {
             <Select
               label="Requested position"
               value={positionId}
-              onChange={setPositionId}
+              onChange={(value) => {
+                setPositionId(value);
+                setSelectedTeamId('');
+              }}
               options={positions.map((position) => ({
                 value: position.id,
                 label: `${position.name} · ${position.departmentName}`,
@@ -219,9 +249,19 @@ export function RoleChangeRequestPage(): React.JSX.Element {
               required
               disabled={submitting}
             />
+            <Select
+              label="Requested team (optional)"
+              value={selectedTeamId}
+              onChange={setSelectedTeamId}
+              options={availableTeams.map((team) => ({
+                value: team.id,
+                label: `${team.name} · ${team.departmentName}`,
+              }))}
+              disabled={submitting || !positionId}
+            />
             <Field
               label="Requested department"
-              value={positions.find((position) => position.id === positionId)?.departmentName ?? 'Select a position'}
+              value={selectedPosition?.departmentName ?? 'Select a position'}
               onChange={() => undefined}
               disabled
             />

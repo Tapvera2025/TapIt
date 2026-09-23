@@ -105,6 +105,8 @@ export interface RoleChangeRequestRecord {
   toPositionName: string | null;
   requestedReportsTo: string | null;
   requestedReportsToName: string | null;
+  requestedTeamId: string | null;
+  requestedTeamName: string | null;
   requestedBy: string;
   requesterName: string;
   reason: string;
@@ -275,6 +277,8 @@ export async function listRoleChangeRequests(
            to_position.name AS "toPositionName",
            r.requested_reports_to AS "requestedReportsTo",
            requested_manager.full_name AS "requestedReportsToName",
+           r.requested_team_id AS "requestedTeamId",
+           requested_team.name AS "requestedTeamName",
            r.requested_by AS "requestedBy",
            requester.full_name AS "requesterName",
            r.reason,
@@ -294,6 +298,9 @@ export async function listRoleChangeRequests(
     LEFT JOIN app_user requested_manager
       ON requested_manager.organization_id = r.organization_id
      AND requested_manager.id = r.requested_reports_to
+    LEFT JOIN team requested_team
+      ON requested_team.organization_id = r.organization_id
+     AND requested_team.id = r.requested_team_id
     WHERE r.organization_id = ${ctx.organizationId}
       AND (${status} = 'all' OR r.status = ${status})
     ORDER BY r.requested_at DESC, r.id DESC
@@ -326,6 +333,7 @@ export async function createRoleChangeRequest(
     fromPositionId: string | null;
     toPositionId: string;
     requestedBy: string;
+    requestedTeamId: string | null;
     requestedReportsTo: string | null;
     reason: string;
   },
@@ -333,9 +341,10 @@ export async function createRoleChangeRequest(
   return tx.one<{ id: string }>(sql`
     INSERT INTO role_change_request
       (organization_id, subject_user_id, from_position_id, to_position_id, requested_by,
-       requested_reports_to, reason)
+       requested_reports_to, requested_team_id, reason)
     VALUES (${input.organizationId}, ${input.subjectUserId}, ${input.fromPositionId},
-            ${input.toPositionId}, ${input.requestedBy}, ${input.requestedReportsTo}, ${input.reason})
+            ${input.toPositionId}, ${input.requestedBy}, ${input.requestedReportsTo},
+            ${input.requestedTeamId}, ${input.reason})
     RETURNING id
   `);
 }
@@ -350,16 +359,25 @@ export async function lockRoleChangeRequest(
   fromPositionId: string | null;
   toPositionId: string;
   requestedBy: string;
+  requestedTeamId: string | null;
+  currentDepartmentId: string | null;
+  currentTeamId: string | null;
   status: 'pending' | 'approved' | 'rejected';
   reason: string;
   requestedReportsTo: string | null;
 } | null> {
   return tx.maybeOne(sql`
-    SELECT id, subject_user_id AS "subjectUserId", from_position_id AS "fromPositionId",
-           to_position_id AS "toPositionId", requested_by AS "requestedBy",
-           requested_reports_to AS "requestedReportsTo", status, reason
-    FROM role_change_request
-    WHERE organization_id = ${organizationId} AND id = ${requestId}
+    SELECT r.id, r.subject_user_id AS "subjectUserId", r.from_position_id AS "fromPositionId",
+           r.to_position_id AS "toPositionId", r.requested_by AS "requestedBy",
+           r.requested_reports_to AS "requestedReportsTo",
+           r.requested_team_id AS "requestedTeamId",
+           subject.department_id AS "currentDepartmentId",
+           subject.team_id AS "currentTeamId", r.status, r.reason
+    FROM role_change_request r
+    JOIN app_user subject
+      ON subject.organization_id = r.organization_id
+     AND subject.id = r.subject_user_id
+    WHERE r.organization_id = ${organizationId} AND r.id = ${requestId}
     FOR UPDATE
   `);
 }
@@ -382,6 +400,7 @@ export async function applyRoleChange(
   userId: string,
   positionId: string,
   departmentId: string,
+  teamId: string | null,
   requestedReportsTo: string | null,
 ): Promise<{ id: string }> {
   // Do not bind a nullable UUID in the unchanged case. PostgreSQL cannot
@@ -394,7 +413,7 @@ export async function applyRoleChange(
     UPDATE app_user
     SET position_id = ${positionId},
         department_id = ${departmentId},
-        team_id = NULL,
+        team_id = ${teamId},
         ${reportsToAssignment},
         session_version = session_version + 1
     WHERE organization_id = ${organizationId}

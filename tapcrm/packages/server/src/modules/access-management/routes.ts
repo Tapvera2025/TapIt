@@ -31,6 +31,7 @@ const overrideSchema = z.object({
 const roleChangeRequestSchema = z.object({
   subjectUserId: z.string().uuid(),
   toPositionId: z.string().uuid(),
+  requestedTeamId: z.string().uuid().nullable().optional().transform((value) => value ?? null),
   requestedReportsTo: z.string().uuid().nullable().optional().transform((value) => value ?? null),
   reason: z.string(),
 });

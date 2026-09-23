@@ -500,11 +500,18 @@ function RoleChangeReviewPanel({
                     <span>Team: {employee.team?.name ?? 'Not assigned'}</span>
                     <span>Reports to: {employee.reportsTo?.name ?? 'Not assigned'}</span>
                     <span>
+                      Requested team: {request.requestedTeam?.name ?? 'Preserve current team'}
+                    </span>
+                    <span>
                       Requested reports to: {request.requestedReportsTo?.name ?? 'Unchanged'}
                     </span>
                   </div>
                 ) : null;
               })()}
+              <p className="mt-1 text-xs text-app-muted">
+                Requested team: {request.requestedTeam?.name ?? 'Preserve current team'} ·{' '}
+                Requested reports to: {request.requestedReportsTo?.name ?? 'Preserve current manager'}
+              </p>
               <p className="mt-1 text-xs text-app-muted">
                 Requested by {request.requestedBy.fullName} · Reason: {request.reason}
               </p>

@@ -20,6 +20,7 @@ import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { userResource } from '../identity/security/unlock.js';
 import { validateManagerAssignment } from '../organization/reporting/service.js';
+import { findTeam } from '../organization/teams/repository.js';
 import { assertDelegationAllowed } from './delegation.js';
 import { ACCESS_ERROR_CODES, AccessNotFoundError, AccessValidationError } from './errors.js';
 import {
@@ -52,6 +53,7 @@ export interface RoleChangeRequestView {
   readonly fromPosition: { readonly id: string; readonly name: string | null } | null;
   readonly toPosition: { readonly id: string; readonly name: string | null };
   readonly requestedReportsTo: { readonly id: string; readonly name: string | null } | null;
+  readonly requestedTeam: { readonly id: string; readonly name: string | null } | null;
   readonly requestedBy: { readonly id: string; readonly fullName: string };
   readonly reason: string;
   readonly status: RoleChangeRequestRecord['status'];
@@ -70,6 +72,9 @@ function roleChangeRequestView(row: RoleChangeRequestRecord): RoleChangeRequestV
     toPosition: { id: row.toPositionId, name: row.toPositionName },
     requestedReportsTo: row.requestedReportsTo
       ? { id: row.requestedReportsTo, name: row.requestedReportsToName }
+      : null,
+    requestedTeam: row.requestedTeamId
+      ? { id: row.requestedTeamId, name: row.requestedTeamName }
       : null,
     requestedBy: { id: row.requestedBy, fullName: row.requesterName },
     reason: row.reason,
@@ -637,8 +642,39 @@ export async function revokeOverride(
 export interface RoleChangeRequestInput {
   readonly subjectUserId: string;
   readonly toPositionId: string;
+  readonly requestedTeamId?: string | null;
   readonly requestedReportsTo?: string | null;
   readonly reason: string;
+}
+
+async function resolveRoleChangeTeam(
+  tx: Parameters<typeof findTeam>[0],
+  organizationId: string,
+  departmentId: string,
+  requestedTeamId: string | null,
+  currentDepartmentId: string | null,
+  currentTeamId: string | null,
+): Promise<string | null> {
+  if (requestedTeamId === null && currentDepartmentId !== departmentId) {
+    throw new AccessValidationError(
+      ACCESS_ERROR_CODES.ROLE_CHANGE_TEAM_REQUIRED,
+      'A requested team is required when the new department differs from the current department',
+    );
+  }
+  const teamId = requestedTeamId ?? currentTeamId;
+  if (teamId === null) return null;
+  const team = await findTeam(tx, organizationId, teamId);
+  if (team === null || team.departmentId !== departmentId) {
+    throw new AccessValidationError(
+      requestedTeamId === null
+        ? ACCESS_ERROR_CODES.ROLE_CHANGE_TEAM_REQUIRED
+        : ACCESS_ERROR_CODES.ROLE_CHANGE_TEAM_INVALID,
+      requestedTeamId === null
+        ? 'A requested team is required when the new department differs from the current team'
+        : 'The requested team must belong to the requested department in this organization',
+    );
+  }
+  return team.id;
 }
 
 export async function getRoleChangeRequests(
@@ -681,10 +717,12 @@ export async function requestRoleChange(
       positionCode: string | null;
       accountType: string;
       departmentId: string | null;
+      teamId: string | null;
     }>(sql`
       SELECT u.id, u.position_id AS "positionId", p.code AS "positionCode",
              u.account_type AS "accountType",
-             u.department_id AS "departmentId"
+             u.department_id AS "departmentId",
+             u.team_id AS "teamId"
       FROM app_user u
       LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
       WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${input.subjectUserId} AND u.status = 'active'
@@ -694,35 +732,53 @@ export async function requestRoleChange(
       throw new AccessValidationError(ACCESS_ERROR_CODES.ROLE_CHANGE_POSITION_INVALID, 'The role-change user or position is invalid');
     }
 
-    // The canonical HR position may submit requests for every other employee
-    // position, including HR Executive, but one HR holder must not submit a
-    // role-change request for another holder of the same HR position.
+    // The route/action check is the first authorization layer. A delegated
+    // action is not sufficient: role-change submission is an HR-only business
+    // invariant enforced against the canonical position model.
+    await authorize(ctx, 'access:request-role-change');
     const requester = await tx.maybeOne<{ positionCode: string | null }>(sql`
       SELECT p.code AS "positionCode"
       FROM app_user u
       LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
       WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${ctx.principal.id}
     `);
+    if (requester?.positionCode !== 'hr') {
+      throw new AccessValidationError(
+        ACCESS_ERROR_CODES.ROLE_CHANGE_REQUESTER_NOT_HR,
+        'Only an employee holding the HR position can submit a role-change request',
+      );
+    }
+    // The canonical HR position may submit requests for every other employee
+    // position, including HR Executive, but one HR holder must not submit a
+    // role-change request for another holder of the same HR position.
     if (requester?.positionCode === 'hr' && subject.positionCode === 'hr') {
       throw new AccessValidationError(
         ACCESS_ERROR_CODES.ROLE_CHANGE_HR_TARGET_FORBIDDEN,
         'An HR employee cannot request a role change for another HR employee',
       );
     }
+    const teamId = await resolveRoleChangeTeam(
+      tx,
+      ctx.organizationId,
+      position.departmentId,
+      input.requestedTeamId ?? null,
+      subject.departmentId,
+      subject.teamId,
+    );
     await validateManagerAssignment(tx, {
       organizationId: ctx.organizationId,
       subjectUserId: subject.id,
       subjectDepartmentId: position.departmentId,
       subjectPositionId: position.id,
+      subjectTeamId: teamId,
       managerUserId: input.requestedReportsTo ?? null,
     });
 
-    // The route-level action check has no target resource, so repeat the
-    // capability check here for direct service callers. Then authorize the
+    // The route-level action check has no target resource, so the capability
+    // check above also protects direct service callers. Then authorize the
     // submitted employee as the canonical people resource. HR's users:view
     // policy is all-people, which permits targets across this organization;
     // the target ID is never trusted merely because the request action exists.
-    await authorize(ctx, 'access:request-role-change');
     const targetUser = await userResource(ctx, subject.id);
     if (targetUser === null) {
       throw new AccessValidationError(ACCESS_ERROR_CODES.USER_NOT_FOUND, 'User not found');
@@ -735,6 +791,7 @@ export async function requestRoleChange(
       fromPositionId: subject.positionId,
       toPositionId: input.toPositionId,
       requestedBy: ctx.principal.id,
+      requestedTeamId: input.requestedTeamId ?? null,
       requestedReportsTo: input.requestedReportsTo ?? null,
       reason,
     });
@@ -745,6 +802,7 @@ export async function requestRoleChange(
       after: {
         requestId: created.id,
         positionId: input.toPositionId,
+        teamId: input.requestedTeamId ?? subject.teamId,
         reportsTo: input.requestedReportsTo ?? null,
       },
       reason,
@@ -790,11 +848,20 @@ export async function decideRoleChange(
     if (position === null || position.status !== 'active') {
       throw new AccessValidationError(ACCESS_ERROR_CODES.ROLE_CHANGE_POSITION_INVALID, 'Target position is invalid or inactive');
     }
+    const teamId = await resolveRoleChangeTeam(
+      tx,
+      ctx.organizationId,
+      position.departmentId,
+      request.requestedTeamId,
+      request.currentDepartmentId,
+      request.currentTeamId,
+    );
     await validateManagerAssignment(tx, {
       organizationId: ctx.organizationId,
       subjectUserId: request.subjectUserId,
       subjectDepartmentId: position.departmentId,
       subjectPositionId: position.id,
+      subjectTeamId: teamId,
       managerUserId: request.requestedReportsTo,
     });
     await applyRoleChange(
@@ -803,6 +870,7 @@ export async function decideRoleChange(
       request.subjectUserId,
       position.id,
       position.departmentId,
+      teamId,
       request.requestedReportsTo,
     );
     const cleared = await clearActiveOverridesForPositionChange(tx, ctx.organizationId, request.subjectUserId);
@@ -822,6 +890,7 @@ export async function decideRoleChange(
       before: { positionId: request.fromPositionId, requestId },
       after: {
         positionId: request.toPositionId,
+        teamId,
         reportsTo: request.requestedReportsTo,
         overridesCleared: cleared.length,
       },

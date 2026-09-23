@@ -96,6 +96,7 @@ export interface RoleChangeRequest {
   fromPosition: { id: string; name: string | null } | null;
   toPosition: { id: string; name: string | null };
   requestedReportsTo: { id: string; name: string | null } | null;
+  requestedTeam: { id: string; name: string | null } | null;
   requestedBy: { id: string; fullName: string };
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -160,6 +161,7 @@ export function getRoleChangeRequestAccess(): Promise<{ canRequest: true }> {
 export function requestRoleChange(input: {
   subjectUserId: string;
   toPositionId: string;
+  requestedTeamId: string | null;
   requestedReportsTo: string | null;
   reason: string;
 }): Promise<{ id: string; status: 'pending' }> {
