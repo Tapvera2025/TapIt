@@ -11,7 +11,7 @@ import {
 
 describe('canonical action presentation metadata', () => {
   it('provides catalogue presentation data for every registered action', () => {
-    expect(ACTIONS).toHaveLength(147);
+    expect(ACTIONS).toHaveLength(148);
     for (const action of ACTIONS) {
       const definition = REGISTRY[action];
       expect(actionDescription(definition)).not.toBe('');
@@ -30,9 +30,10 @@ describe('canonical action presentation metadata', () => {
   });
 
   it('explains protected position-policy capabilities', () => {
-    expect(protectedCapabilityReason(REGISTRY['users:manage'])).toContain(
+    expect(protectedCapabilityReason(REGISTRY['access:delegate'])).toContain(
       'Super Admin',
     );
+    expect(protectedCapabilityReason(REGISTRY['users:manage'])).toBeNull();
     expect(protectedCapabilityReason(REGISTRY['leads:view'])).toBeNull();
   });
 

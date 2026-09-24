@@ -47,6 +47,7 @@
 | `identity:unlock-account` | identity | user | people | yes | no | — | yes | no | no |
 | `org:view-structure` | organization | department | business | no | no | — | yes | yes | no |
 | `org:view-people` | organization | user | people | no | no | — | yes | yes | no |
+| `org:view-designations` | organization | designation | business | no | no | — | yes | yes | no |
 | `org:view-policies` | organization | position | business | yes | no | — | yes | no | no |
 | `org:manage-departments` | organization | department | business | yes | no | — | yes | no | yes |
 | `org:manage-teams` | organization | team | business | yes | no | — | yes | no | no |
@@ -64,7 +65,7 @@
 | `system:manage-integrations` | system-administration | — | business | yes | no | — | yes | no | yes |
 | `system:manage-retention` | system-administration | — | business | yes | no | — | yes | no | yes |
 | `users:view` | employee-directory | user | people | no | no | — | yes | yes | no |
-| `users:manage` | employee-directory | user | people | yes | no | — | yes | no | yes |
+| `users:manage` | employee-directory | user | people | yes | no | — | yes | no | no |
 | `onboarding:manage` | onboarding | onboardingWorkflow | people | no | no | — | yes | yes | no |
 | `attendance:view-live` | attendance | userStatus | people | no | no | — | yes | yes | no |
 | `attendance:view` | attendance | attendanceRecord | people | no | no | — | yes | yes | no |
@@ -228,7 +229,7 @@ changes who can do what.
 | PATCH | /api/org/positions/:id | `org:manage-positions` | id |
 | POST | /api/org/positions/:id/policies/preview | `org:manage-positions` | id |
 | PUT | /api/org/positions/:id/policies | `org:manage-positions` | id |
-| GET | /api/org/designations | `org:manage-designations` | — |
+| GET | /api/org/designations | `org:view-designations` | — |
 | POST | /api/org/designations | `org:manage-designations` | — |
 | PATCH | /api/org/designations/:id | `org:manage-designations` | id |
 | GET | /api/access/effective/:userId | `access:view` | userId |

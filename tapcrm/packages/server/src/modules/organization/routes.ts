@@ -162,7 +162,7 @@ export function registerOrganizationRoutes(): void {
   route({
     method: 'GET',
     path: '/api/org/designations',
-    action: 'org:manage-designations',
+    action: 'org:view-designations',
     module: 'organization',
     handler: async ({ ctx }) => listDesignations(ctx),
   });

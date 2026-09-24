@@ -98,7 +98,12 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
 };
 
 export const CARVE_OUTS: Readonly<Partial<Record<MatrixPosition, readonly string[]>>> = {
-  hr: ['access:view', 'org:view-policies'],
+  // HR can inspect position policies for the employee access preview, but it
+  // still does not receive broad Access Management visibility.
+  hr: ['access:view'],
+  // HR Executive may read people records but does not receive the protected
+  // employee-account management capability.
+  'hr-executive': ['users:manage'],
   'project-manager': ['tasks:review', 'org:view-policies', 'org:view-people'],
   'sales-head': ['org:view-policies'],
   'dev-dept-head': ['org:view-policies'],

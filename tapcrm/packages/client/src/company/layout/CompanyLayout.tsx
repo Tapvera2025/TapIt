@@ -9,6 +9,7 @@ export function CompanyLayout({
   accountType,
   canRequestRoleChange,
   canViewAudit,
+  canViewEmployees,
   title,
   onNavigate,
   onLogout,
@@ -20,6 +21,7 @@ export function CompanyLayout({
   accountType: string;
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
+  canViewEmployees: boolean;
   title: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -41,6 +43,7 @@ export function CompanyLayout({
         accountType={accountType}
         canRequestRoleChange={canRequestRoleChange}
         canViewAudit={canViewAudit}
+        canViewEmployees={canViewEmployees}
         onNavigate={onNavigate}
         onLogout={onLogout}
         open={sidebarOpen}
