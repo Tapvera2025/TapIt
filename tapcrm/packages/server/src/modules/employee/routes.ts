@@ -23,7 +23,10 @@ export function registerEmployeeRoutes(): void {
           query['teamId'] === undefined ? null : z.string().uuid().parse(query['teamId']),
         );
       }
-      return (await getOrganizationChart(ctx)).people;
+      // The employee directory is authorized by users:view. The organization
+      // chart keeps its separate org:view-people visibility contract, while
+      // this directory must honor HR's all-people employee-directory policy.
+      return (await getOrganizationChart(ctx, 'users:view')).people;
     },
   });
   route({

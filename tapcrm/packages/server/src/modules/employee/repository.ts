@@ -159,6 +159,7 @@ export async function enqueueEmployeeAudit(
     targetId: string;
     requestId: string;
     sourceIp: string | null;
+    after: unknown;
   },
 ): Promise<void> {
   await tx.query(sql`
@@ -171,6 +172,9 @@ export async function enqueueEmployeeAudit(
         actorType: input.actorType,
         targetType: 'user',
         targetId: input.targetId,
+        before: null,
+        after: input.after,
+        reason: null,
         requestId: input.requestId,
         sourceIp: input.sourceIp,
       })}::jsonb

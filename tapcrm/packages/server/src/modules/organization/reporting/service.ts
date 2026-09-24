@@ -33,6 +33,7 @@ export async function validateManagerAssignment(
     subjectUserId: string | null;
     subjectDepartmentId: string;
     subjectPositionId: string;
+    subjectTeamId?: string | null;
     managerUserId: string | null;
   },
 ): Promise<void> {
@@ -59,6 +60,17 @@ export async function validateManagerAssignment(
     throw new OrganizationValidationError(
       ORGANIZATION_ERROR_CODES.REPORTING_MANAGER_INVALID,
       'Reports-to manager must belong to the same department',
+    );
+  }
+  if (
+    input.subjectTeamId !== undefined &&
+    input.subjectTeamId !== null &&
+    manager.teamId !== null &&
+    manager.teamId !== input.subjectTeamId
+  ) {
+    throw new OrganizationValidationError(
+      ORGANIZATION_ERROR_CODES.REPORTING_MANAGER_INVALID,
+      'Reports-to manager must belong to the requested team or be a department-level manager',
     );
   }
   if (

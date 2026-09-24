@@ -638,6 +638,8 @@ export async function updatePositionPolicies(
       resourceId: positionId,
       before,
       after,
+      stream: 'access',
+      reason: 'Position access policy changed',
     });
     return after;
   });

@@ -2376,6 +2376,18 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/access/delegation-options/:userId",
+      "action": "access:delegate",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/access/overrides",
+      "action": "access:view",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/access/override",
       "action": "access:delegate",
@@ -2394,6 +2406,18 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/access/role-change-request-access",
+      "action": "access:request-role-change",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/access/role-change-requests",
+      "action": "access:view",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/access/role-change-request/:id/decide",
       "action": "access:decide-role-change",
@@ -2402,6 +2426,12 @@
     {
       "method": "GET",
       "path": "/api/audit",
+      "action": "audit:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/integrity",
       "action": "audit:view",
       "resourceParam": null
     },
@@ -2420,6 +2450,12 @@
     {
       "method": "GET",
       "path": "/api/audit/holds",
+      "action": "audit:manage-holds",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/hold-targets",
       "action": "audit:manage-holds",
       "resourceParam": null
     },

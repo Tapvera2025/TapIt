@@ -3,11 +3,19 @@ import { Redis } from 'ioredis';
 import { randomUUID } from 'node:crypto';
 import { loadConfig } from '../config.js';
 import { purgeAllExpiredGeofenceCoordinates } from '../modules/identity/geofence/privacy.js';
+import { markExpiredOverrides } from '../modules/access-management/repository.js';
+import { platformDb } from './dal/db.js';
+import { sql } from './dal/sql.js';
+import { runDailyAuditIntegrityVerification } from '../modules/audit/integrity.js';
+import { runAuditRetention } from '../modules/audit/archive.js';
 
 /** Queue integration point for transactional email/outbox delivery. */
 export const PLATFORM_JOBS = {
   SEND_ADMIN_INVITATION: 'platform.send-admin-invitation',
   PURGE_GEOFENCE_COORDINATES: 'identity.purge-geofence-coordinates',
+  AUDIT_EXPIRED_ACCESS_OVERRIDES: 'access.audit-expired-overrides',
+  AUDIT_CHAIN_VERIFICATION: 'audit.chain-verification',
+  AUDIT_RETENTION: 'audit.retention',
 } as const;
 
 const RETENTION_QUEUE = 'tapcrm.identity.retention';
@@ -26,6 +34,15 @@ export async function startBackgroundJobs(): Promise<void> {
     if (job.name === PLATFORM_JOBS.PURGE_GEOFENCE_COORDINATES) {
       await purgeAllExpiredGeofenceCoordinates();
     }
+    if (job.name === PLATFORM_JOBS.AUDIT_EXPIRED_ACCESS_OVERRIDES) {
+      await auditExpiredAccessOverrides();
+    }
+    if (job.name === PLATFORM_JOBS.AUDIT_CHAIN_VERIFICATION) {
+      await runDailyAuditIntegrityVerification();
+    }
+    if (job.name === PLATFORM_JOBS.AUDIT_RETENTION) {
+      await runAuditRetention();
+    }
   }, { connection });
   worker.on('failed', (job, error) => {
     console.error(JSON.stringify({ level: 'error', msg: 'background job failed', job: job?.name, error: String(error) }));
@@ -35,6 +52,62 @@ export async function startBackgroundJobs(): Promise<void> {
     { every: 24 * 60 * 60 * 1000 },
     { name: PLATFORM_JOBS.PURGE_GEOFENCE_COORDINATES, data: { runId: randomUUID() } },
   );
+  await queue.upsertJobScheduler(
+    'access-override-expiry-audit',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: PLATFORM_JOBS.AUDIT_EXPIRED_ACCESS_OVERRIDES, data: { runId: randomUUID() } },
+  );
+  await queue.upsertJobScheduler(
+    'audit-chain-verification',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: PLATFORM_JOBS.AUDIT_CHAIN_VERIFICATION, data: { runId: randomUUID() } },
+  );
+  await queue.upsertJobScheduler(
+    'audit-retention',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: PLATFORM_JOBS.AUDIT_RETENTION, data: { runId: randomUUID() }, opts: { attempts: 3, backoff: { type: 'exponential', delay: 60_000 } } },
+  );
+}
+
+/**
+ * Maintenance only. `authz-adapter` excludes expired rows at read time; this
+ * job merely records an idempotent expiry event for review/audit purposes.
+ */
+async function auditExpiredAccessOverrides(): Promise<void> {
+  const organizations = await platformDb.query<{ id: string }>(
+    'retention-enforcement',
+    'find organizations for access override expiry audit',
+    sql`SELECT id FROM organization WHERE status <> 'deleted'`,
+  );
+  await Promise.all(organizations.map(({ id }) => platformDb.transactionForOrganization(
+    id,
+    'retention-enforcement',
+    'audit expired access overrides',
+    async (tx) => {
+      const expired = await markExpiredOverrides(tx);
+      for (const override of expired) {
+        await tx.query(sql`
+          INSERT INTO audit_outbox (organization_id, stream, payload)
+          VALUES (${id}, 'activity', ${JSON.stringify({
+            action: 'access.override_expired',
+            actorId: null,
+            actorType: 'service',
+            targetType: 'user',
+            targetId: override.userId,
+            before: {
+              overrideId: override.id,
+              action: override.action,
+              allowed: override.allowed,
+              scope: override.scope,
+              expiresAt: override.expiresAt.toISOString(),
+            },
+            after: null,
+            reason: override.reason,
+          })}::jsonb)
+        `);
+      }
+    },
+  )));
 }
 
 export async function stopBackgroundJobs(): Promise<void> {

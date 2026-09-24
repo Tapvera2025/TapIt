@@ -18,11 +18,30 @@ export async function issueServiceCredential(input: { organizationId: string; se
     },
     requestId: `identity:service-credential:${input.serviceAccountId}`,
   });
-  await db.transaction(context, (tx) => tx.query(sql`
-    UPDATE service_account
-    SET credential_hash = ${hashToken(credential).toString('hex')}, last_used_at = NULL
-    WHERE organization_id = ${input.organizationId} AND id = ${input.serviceAccountId} AND disabled_at IS NULL AND expires_at >= ${input.expiresAt}
-  `).then(() => undefined));
+  await db.transaction(context, async (tx) => {
+    const updated = await tx.query<{ id: string }>(sql`
+      UPDATE service_account
+      SET credential_hash = ${hashToken(credential).toString('hex')}, last_used_at = NULL
+      WHERE organization_id = ${input.organizationId} AND id = ${input.serviceAccountId} AND disabled_at IS NULL AND expires_at >= ${input.expiresAt}
+      RETURNING id
+    `);
+    if (updated.length === 0) return;
+    await tx.query(sql`
+      INSERT INTO audit_outbox (organization_id, stream, payload)
+      VALUES (${input.organizationId}, 'access', ${JSON.stringify({
+        action: 'identity.service_credential_issued',
+        actorId: input.serviceAccountId,
+        actorType: 'service',
+        targetType: 'serviceAccount',
+        targetId: input.serviceAccountId,
+        before: null,
+        after: { expiresAt: input.expiresAt.toISOString() },
+        reason: null,
+        requestId: `identity:service-credential:${input.serviceAccountId}`,
+        sourceIp: null,
+      })}::jsonb)
+    `);
+  });
   return credential;
 }
 
