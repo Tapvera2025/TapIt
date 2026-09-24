@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ACTIONS,
   REGISTRY,
+  actionTitle,
   actionDescription,
   actionScopes,
   actionScreens,
@@ -33,5 +34,10 @@ describe('canonical action presentation metadata', () => {
       'Super Admin',
     );
     expect(protectedCapabilityReason(REGISTRY['leads:view'])).toBeNull();
+  });
+
+  it('formats audit event names that are not registry actions', () => {
+    expect(actionTitle('employee.updated')).toBe('Employee Updated');
+    expect(actionTitle('audit.retention_deleted')).toBe('Audit Retention Deleted');
   });
 });

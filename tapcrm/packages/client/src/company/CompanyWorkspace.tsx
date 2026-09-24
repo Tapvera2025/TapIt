@@ -9,6 +9,8 @@ import { OrganizationWorkspace } from '../organization/index.js';
 import { AccessExplorerPage } from '../access-management/pages/AccessExplorerPage.js';
 import { RoleChangeRequestPage } from '../access-management/pages/RoleChangeRequestPage.js';
 import { getRoleChangeRequestAccess } from '../access-management/api/accessApi.js';
+import { getAuditEntries } from '../audit/api/auditApi.js';
+import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -22,6 +24,7 @@ export function CompanyWorkspace({
   const [identity, setIdentity] = useState<CompanyIdentity | null>(null);
   const [error, setError] = useState('');
   const [canRequestRoleChange, setCanRequestRoleChange] = useState(false);
+  const [canViewAudit, setCanViewAudit] = useState(false);
   useEffect(() => {
     void getCompanyIdentity()
       .then((nextIdentity) => {
@@ -30,6 +33,9 @@ export function CompanyWorkspace({
           void getRoleChangeRequestAccess()
             .then(() => setCanRequestRoleChange(true))
             .catch(() => setCanRequestRoleChange(false));
+          void getAuditEntries({ limit: 1 })
+            .then(() => setCanViewAudit(true))
+            .catch(() => setCanViewAudit(false));
         }
       })
       .catch((cause) =>
@@ -66,6 +72,7 @@ export function CompanyWorkspace({
       pathname.startsWith('/company/organization/'));
   const isAccess = pathname === '/company/access';
   const isRoleChangeRequest = pathname === '/company/role-change-request';
+  const isAudit = pathname === '/company/audit';
   const title = isOrganization
     ? 'Organization'
     : pathname === '/company/employees'
@@ -76,6 +83,8 @@ export function CompanyWorkspace({
           ? 'Access Explorer'
           : isRoleChangeRequest
             ? 'Request Role Change'
+            : isAudit
+              ? 'Audit Log'
             : pathname === '/company/geofencing'
               ? 'Geofencing'
               : 'Dashboard';
@@ -85,6 +94,8 @@ export function CompanyWorkspace({
     <AccessExplorerPage />
   ) : isRoleChangeRequest && !isSuperAdmin ? (
     <RoleChangeRequestPage />
+  ) : isAudit && (isSuperAdmin || canViewAudit) ? (
+    <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />
   ) : pathname === '/company/sessions' ? (
     <SessionsPage
       onBack={() => onNavigate('/company/dashboard')}
@@ -115,6 +126,7 @@ export function CompanyWorkspace({
       organizationName={identity.organization?.name ?? null}
       accountType={identity.user.accountType}
       canRequestRoleChange={canRequestRoleChange}
+      canViewAudit={canViewAudit}
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}

@@ -208,7 +208,7 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     });
     const rows = await db.query<{ payload: Record<string, unknown> }>(
       leadCtx(),
-      sql`SELECT payload FROM audit_outbox WHERE organization_id = ${ORG} AND stream = 'activity'`,
+      sql`SELECT payload FROM audit_outbox WHERE organization_id = ${ORG} AND stream = 'access'`,
     );
     expect(rows.map((row) => row.payload['action'])).toContain('access.override_superseded');
   });
@@ -216,7 +216,7 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
   it('writes an audit record for the grant (AM-13)', async () => {
     const rows = await db.query<{ payload: Record<string, unknown> }>(
       leadCtx(),
-      sql`SELECT payload FROM audit_outbox WHERE organization_id = ${ORG} AND stream = 'activity'`,
+      sql`SELECT payload FROM audit_outbox WHERE organization_id = ${ORG} AND stream = 'access'`,
     );
     const actions = rows.map((r) => r.payload['action']);
     expect(actions).toContain('access.override_granted');
@@ -393,7 +393,7 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     expect(active).toHaveLength(0);
     const audits = await db.query<{ payload: Record<string, unknown> }>(
       leadCtx(),
-      sql`SELECT payload FROM audit_outbox WHERE organization_id = ${ORG} AND stream = 'activity'`,
+      sql`SELECT payload FROM audit_outbox WHERE organization_id = ${ORG} AND stream = 'access'`,
     );
     const actions = audits.map((row) => row.payload['action']);
     expect(actions).toEqual(expect.arrayContaining([

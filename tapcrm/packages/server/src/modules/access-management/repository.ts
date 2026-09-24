@@ -668,7 +668,7 @@ export async function clearActiveOverridesForPositionChange(
   `);
 }
 
-/** AM-13 — one audit row per write, chained by the drainer after commit. */
+/** AM-13 — one access-stream audit row per access write, chained by the drainer after commit. */
 export async function enqueueAccessAudit(
   tx: Tx,
   ctx: RequestContext,
@@ -682,7 +682,7 @@ export async function enqueueAccessAudit(
 ): Promise<void> {
   await tx.query(sql`
     INSERT INTO audit_outbox (organization_id, stream, payload)
-    VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({
+    VALUES (${ctx.organizationId}, 'access', ${JSON.stringify({
       action: input.action,
       actorId: ctx.principal.id,
       actorType: ctx.principal.accountType,

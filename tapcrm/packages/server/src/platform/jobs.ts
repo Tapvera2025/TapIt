@@ -6,12 +6,16 @@ import { purgeAllExpiredGeofenceCoordinates } from '../modules/identity/geofence
 import { markExpiredOverrides } from '../modules/access-management/repository.js';
 import { platformDb } from './dal/db.js';
 import { sql } from './dal/sql.js';
+import { runDailyAuditIntegrityVerification } from '../modules/audit/integrity.js';
+import { runAuditRetention } from '../modules/audit/archive.js';
 
 /** Queue integration point for transactional email/outbox delivery. */
 export const PLATFORM_JOBS = {
   SEND_ADMIN_INVITATION: 'platform.send-admin-invitation',
   PURGE_GEOFENCE_COORDINATES: 'identity.purge-geofence-coordinates',
   AUDIT_EXPIRED_ACCESS_OVERRIDES: 'access.audit-expired-overrides',
+  AUDIT_CHAIN_VERIFICATION: 'audit.chain-verification',
+  AUDIT_RETENTION: 'audit.retention',
 } as const;
 
 const RETENTION_QUEUE = 'tapcrm.identity.retention';
@@ -33,6 +37,12 @@ export async function startBackgroundJobs(): Promise<void> {
     if (job.name === PLATFORM_JOBS.AUDIT_EXPIRED_ACCESS_OVERRIDES) {
       await auditExpiredAccessOverrides();
     }
+    if (job.name === PLATFORM_JOBS.AUDIT_CHAIN_VERIFICATION) {
+      await runDailyAuditIntegrityVerification();
+    }
+    if (job.name === PLATFORM_JOBS.AUDIT_RETENTION) {
+      await runAuditRetention();
+    }
   }, { connection });
   worker.on('failed', (job, error) => {
     console.error(JSON.stringify({ level: 'error', msg: 'background job failed', job: job?.name, error: String(error) }));
@@ -46,6 +56,16 @@ export async function startBackgroundJobs(): Promise<void> {
     'access-override-expiry-audit',
     { every: 24 * 60 * 60 * 1000 },
     { name: PLATFORM_JOBS.AUDIT_EXPIRED_ACCESS_OVERRIDES, data: { runId: randomUUID() } },
+  );
+  await queue.upsertJobScheduler(
+    'audit-chain-verification',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: PLATFORM_JOBS.AUDIT_CHAIN_VERIFICATION, data: { runId: randomUUID() } },
+  );
+  await queue.upsertJobScheduler(
+    'audit-retention',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: PLATFORM_JOBS.AUDIT_RETENTION, data: { runId: randomUUID() }, opts: { attempts: 3, backoff: { type: 'exponential', delay: 60_000 } } },
   );
 }
 

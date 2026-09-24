@@ -25,6 +25,9 @@ const envBoolean = (fallback: boolean) =>
     return value;
   }, z.boolean({ invalid_type_error: 'must be true or false' }).default(fallback));
 
+const optionalEnvString = (schema: z.ZodOptional<z.ZodString>) =>
+  z.preprocess((value) => typeof value === 'string' && value.trim() === '' ? undefined : value, schema);
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   IDENTITY_DEV_BYPASS: envBoolean(false),
@@ -55,6 +58,11 @@ const schema = z.object({
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_FORCE_PATH_STYLE: envBoolean(true),
+  AUDIT_ARCHIVE_ENCRYPTION_KEY: z.string().optional(),
+  AUDIT_ARCHIVE_KEY_ID: optionalEnvString(z.string().trim().min(1).optional()),
+  // JSON object of historical archive key IDs to base64-encoded 32-byte keys.
+  // The active key above remains the only key used for new archives.
+  AUDIT_ARCHIVE_KEYRING_JSON: optionalEnvString(z.string().trim().min(2).optional()),
 
   JWT_ACCESS_SECRET: z
     .string()
@@ -115,6 +123,9 @@ function productionProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
   }
   if (config.SECURITY_COUNTER_STORE === 'memory') {
     problems.push('SECURITY_COUNTER_STORE=memory is single-process; use redis (ID-9, SE-5)');
+  }
+  if (!config.AUDIT_ARCHIVE_ENCRYPTION_KEY || !config.AUDIT_ARCHIVE_KEY_ID) {
+    problems.push('AUDIT_ARCHIVE_ENCRYPTION_KEY and AUDIT_ARCHIVE_KEY_ID must be managed separately in production');
   }
   return problems;
 }

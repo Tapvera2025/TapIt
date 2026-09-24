@@ -114,6 +114,27 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
   return body.data;
 }
 
+/** Authenticated non-JSON response for user-facing downloads. */
+export async function identityDownload(path: string, init: RequestInit = {}): Promise<Blob> {
+  const token = getIdentityAccessToken();
+  if (!token) {
+    redirectToIdentityLogin();
+    throw new IdentityApiError('Your login session has expired', 'IDENTITY_SESSION_EXPIRED', 401);
+  }
+  const request = (accessToken: string) => fetch(path, {
+    ...init,
+    headers: { authorization: `Bearer ${accessToken}`, ...(init.body ? { 'content-type': 'application/json' } : {}), ...(init.headers ?? {}) },
+  });
+  let response = await request(token);
+  if (response.status === 401 && await refreshIdentityTokens()) response = await request(getIdentityAccessToken()!);
+  if (response.status === 401) redirectToIdentityLogin();
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { message?: string; code?: string };
+    throw new IdentityApiError(body.message ?? 'Download failed', body.code ?? 'IDENTITY_REQUEST_FAILED', response.status);
+  }
+  return response.blob();
+}
+
 export async function identityLogout(): Promise<void> {
   const accessToken = getIdentityAccessToken();
   try {

@@ -132,6 +132,12 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
       targetId: employee.id,
       requestId: ctx.requestId,
       sourceIp: ctx.sourceIp,
+      after: {
+        employeeId: employee.employeeId,
+        email: employee.email,
+        fullName: employee.fullName,
+        status: employee.status,
+      },
     });
     return employee;
   });

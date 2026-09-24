@@ -2414,7 +2414,7 @@
     {
       "method": "GET",
       "path": "/api/access/role-change-requests",
-      "action": "access:decide-role-change",
+      "action": "access:view",
       "resourceParam": null
     },
     {
@@ -2426,6 +2426,12 @@
     {
       "method": "GET",
       "path": "/api/audit",
+      "action": "audit:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/integrity",
       "action": "audit:view",
       "resourceParam": null
     },
@@ -2444,6 +2450,12 @@
     {
       "method": "GET",
       "path": "/api/audit/holds",
+      "action": "audit:manage-holds",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/hold-targets",
       "action": "audit:manage-holds",
       "resourceParam": null
     },

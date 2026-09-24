@@ -54,6 +54,7 @@ export const companyNavigation: CompanyNavGroup[] = [
       { label: 'Sessions & Devices', path: '/company/sessions', icon: 'monitor' },
       { label: 'Geofencing', path: '/company/geofencing', icon: 'pin', requiredAction: 'identity:manage-geofence' },
       { label: 'Access Explorer', path: '/company/access', icon: 'shield', requiredAction: 'access:view' },
+      { label: 'Audit Log', path: '/company/audit', icon: 'clipboard', requiredAction: 'audit:view' },
     ],
   },
 ];

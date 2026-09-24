@@ -10,10 +10,10 @@ import { SCOPES } from './scope.js';
  * permission catalogue: authorization, action identity, module ownership and
  * protected-capability flags remain owned by registry.generated.ts.
  */
-export function actionTitle(action: Action): string {
-  return action
-    .split(':')[1]!
-    .split('-')
+export function actionTitle(action: string): string {
+  const name = action.includes(':') ? action.slice(action.indexOf(':') + 1) : action;
+  return name
+    .split(/[._-]/g)
     .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
