@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { getCompanyIdentity, type CompanyIdentity } from './api/companyApi.js';
+import {
+  getCompanyEmployees,
+  getCompanyIdentity,
+  type CompanyIdentity,
+} from './api/companyApi.js';
 import { CompanyLayout } from './layout/CompanyLayout.js';
 import { DashboardPage } from './dashboard/DashboardPage.js';
 import { EmployeesPage } from './employees/EmployeesPage.js';
@@ -25,11 +29,23 @@ export function CompanyWorkspace({
   const [error, setError] = useState('');
   const [canRequestRoleChange, setCanRequestRoleChange] = useState(false);
   const [canViewAudit, setCanViewAudit] = useState(false);
+  const [canViewEmployees, setCanViewEmployees] = useState(false);
+  const [employeesAccessChecked, setEmployeesAccessChecked] = useState(false);
   useEffect(() => {
     void getCompanyIdentity()
       .then((nextIdentity) => {
         setIdentity(nextIdentity);
-        if (nextIdentity.user.accountType === 'employee') {
+        if (nextIdentity.user.accountType === 'super-admin') {
+          setCanViewEmployees(true);
+          setEmployeesAccessChecked(true);
+        } else if (nextIdentity.user.accountType === 'employee') {
+          // The API is the source of truth for employee-directory access. This
+          // probe only controls navigation; EmployeesPage still uses the same
+          // endpoints and the server remains authoritative for every action.
+          void getCompanyEmployees()
+            .then(() => setCanViewEmployees(true))
+            .catch(() => setCanViewEmployees(false))
+            .finally(() => setEmployeesAccessChecked(true));
           void getRoleChangeRequestAccess()
             .then(() => setCanRequestRoleChange(true))
             .catch(() => setCanRequestRoleChange(false));
@@ -73,9 +89,10 @@ export function CompanyWorkspace({
   const isAccess = pathname === '/company/access';
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
+  const isEmployees = pathname === '/company/employees';
   const title = isOrganization
     ? 'Organization'
-    : pathname === '/company/employees'
+    : isEmployees
       ? 'Employees'
       : pathname === '/company/sessions'
         ? 'Sessions & Devices'
@@ -101,6 +118,8 @@ export function CompanyWorkspace({
       onBack={() => onNavigate('/company/dashboard')}
       onSignedOut={onLogout}
     />
+  ) : isEmployees && (isSuperAdmin || (employeesAccessChecked && canViewEmployees)) ? (
+    <EmployeesPage />
   ) : !isSuperAdmin ? (
     <div className="grid min-h-[60vh] place-items-center p-6 text-center">
       <div>
@@ -112,8 +131,6 @@ export function CompanyWorkspace({
         </p>
       </div>
     </div>
-  ) : pathname === '/company/employees' ? (
-    <EmployeesPage />
   ) : pathname === '/company/geofencing' ? (
     <GeofencingPage onBack={() => onNavigate('/company/dashboard')} />
   ) : (
@@ -127,6 +144,7 @@ export function CompanyWorkspace({
       accountType={identity.user.accountType}
       canRequestRoleChange={canRequestRoleChange}
       canViewAudit={canViewAudit}
+      canViewEmployees={canViewEmployees}
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}

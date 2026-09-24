@@ -34,9 +34,10 @@ Verified against the codebase on 21 Sep 2026, not assumed.
 | `subordinateIds` | scope resolver | Exists |
 | Audit outbox → hash-chained `audit_entry` | `modules/audit/drainer.ts` | Built 21 Sep; this is the first module whose writes will be chained |
 
-**Registry facts.** `access:delegate` and `users:manage` both declare
-`superAdminOnly: true, delegationAllowed: false`. Root of trust is therefore
-already expressed in data and only needs enforcing.
+**Registry facts.** `access:delegate` declares `superAdminOnly: true` and
+`users:manage` declares `superAdminOnly: false, delegationAllowed: false`.
+The seeded HR position receives `users:manage` through the employee-directory
+position policy; delegation remains unavailable for both capabilities.
 `access:decide-role-change` declares `initiatorField: 'requestedBy'`, matching
 `role_change_request.requested_by`.
 
@@ -94,7 +95,7 @@ POST /api/access/override
 
 | Constraint | Rule | Implementation |
 | --- | --- | --- |
-| Root of trust | `access:delegate` and `users:manage` grantable only by Super Admin | Read `REGISTRY[action].grantPolicy`; refuse when `superAdminOnly` or `!delegationAllowed` and the actor is not Super Admin |
+| Root of trust | `access:delegate` is grantable only by Super Admin; `users:manage` is seeded for HR but never grantable by delegation | Read `REGISTRY[action].grantPolicy`; refuse when `superAdminOnly` or `!delegationAllowed` and the actor is not Super Admin |
 | Ceiling | Cannot grant an action, or a wider scope, than the actor holds | `effectivePolicy(ctx, action)` must exist and be `allowed`; `isWithinCeiling(granted, held)`; granted `fields` must be a subset of the actor's |
 | Boundary | The target must be inside the actor's own scope | Reuse `userPolicy.check()` rather than writing a second reachability rule |
 | Seniority | Target's level strictly lower than the actor's | `target.organizationalLevel < actor.organizationalLevel` |

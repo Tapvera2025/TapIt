@@ -1411,6 +1411,21 @@
       "description": ""
     },
     {
+      "action": "org:view-designations",
+      "module": "organization",
+      "resource": "designation",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "org:view-people",
       "module": "organization",
       "resource": "user",
@@ -2186,7 +2201,7 @@
       "grantPolicy": {
         "positionGrantable": true,
         "delegationAllowed": false,
-        "superAdminOnly": true
+        "superAdminOnly": false
       },
       "description": ""
     },
@@ -2348,7 +2363,7 @@
     {
       "method": "GET",
       "path": "/api/org/designations",
-      "action": "org:manage-designations",
+      "action": "org:view-designations",
       "resourceParam": null
     },
     {
