@@ -393,6 +393,7 @@ changes who can do what.
 | GET | /api/projects/:id/profitability | `projects:view-financials` | id |
 | GET | /api/tasks | `tasks:view` | — |
 | GET | /api/tasks/:id | `tasks:view` | id |
+| GET | /api/tasks/assignees | `tasks:assign` | — |
 | POST | /api/tasks | `tasks:assign` | — |
 | POST | /api/tasks/:id/assign | `tasks:assign` | id |
 | PATCH | /api/tasks/:id | `tasks:update` | id |

@@ -8,6 +8,8 @@ import { registerIdentityRoutes } from './identity/routes.js';
 import { registerAccessManagementRoutes } from './access-management/routes.js';
 import { registerAuditPolicies } from './audit/policy.js';
 import { registerAuditRoutes } from './audit/routes.js';
+import { registerTasksPolicies } from './tasks/policy.js';
+import { registerTasksRoutes } from './tasks/routes.js';
 
 /**
  * The module registry.
@@ -25,6 +27,7 @@ export function registerAllPolicies(): void {
   registerEmployeePolicies();
   registerGeofencePolicies();
   registerAuditPolicies();
+  registerTasksPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -34,4 +37,6 @@ export function registerAllRoutes(): void {
   registerEmployeeRoutes();
   registerGeofenceRoutes();
   registerAuditRoutes();
+  registerTasksRoutes();
 }
+

@@ -15,6 +15,7 @@ import { RoleChangeRequestPage } from '../access-management/pages/RoleChangeRequ
 import { getRoleChangeRequestAccess } from '../access-management/api/accessApi.js';
 import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
+import { TasksPage } from './tasks/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -104,7 +105,9 @@ export function CompanyWorkspace({
               ? 'Audit Log'
             : pathname === '/company/geofencing'
               ? 'Geofencing'
-              : 'Dashboard';
+              : pathname === '/company/tasks'
+                ? 'Tasks'
+                : 'Dashboard';
   const content = isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
   ) : isAccess && isSuperAdmin ? (
@@ -120,6 +123,8 @@ export function CompanyWorkspace({
     />
   ) : isEmployees && (isSuperAdmin || (employeesAccessChecked && canViewEmployees)) ? (
     <EmployeesPage />
+  ) : pathname === '/company/tasks' ? (
+    <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
   ) : !isSuperAdmin ? (
     <div className="grid min-h-[60vh] place-items-center p-6 text-center">
       <div>

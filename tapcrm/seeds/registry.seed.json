@@ -3345,6 +3345,12 @@
       "resourceParam": "id"
     },
     {
+      "method": "GET",
+      "path": "/api/tasks/assignees",
+      "action": "tasks:assign",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/tasks",
       "action": "tasks:assign",
