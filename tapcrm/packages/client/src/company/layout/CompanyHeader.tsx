@@ -1,14 +1,17 @@
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { Icon } from '../../ui/Icon.js';
+import { NotificationBell } from '../../notifications/NotificationBell.js';
 
 export function CompanyHeader({
   title,
   onMenu,
   onLogout,
+  onNavigate,
 }: {
   title: string;
   onMenu: () => void;
   onLogout: () => void;
+  onNavigate: (path: string) => void;
 }): React.JSX.Element {
   return (
     <header className="ui-card mx-4 mt-4 flex shrink-0 items-center justify-between gap-3 px-4 py-3 md:mx-8 md:mt-5 md:px-5">
@@ -29,6 +32,7 @@ export function CompanyHeader({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        <NotificationBell onNavigate={onNavigate} />
         <ThemeToggle />
         <button
           type="button"

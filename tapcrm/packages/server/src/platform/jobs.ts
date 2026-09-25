@@ -8,6 +8,7 @@ import { platformDb } from './dal/db.js';
 import { sql } from './dal/sql.js';
 import { runDailyAuditIntegrityVerification } from '../modules/audit/integrity.js';
 import { runAuditRetention } from '../modules/audit/archive.js';
+import { pruneExpired } from '../modules/notifications/repository.js';
 
 /** Queue integration point for transactional email/outbox delivery. */
 export const PLATFORM_JOBS = {
@@ -16,6 +17,7 @@ export const PLATFORM_JOBS = {
   AUDIT_EXPIRED_ACCESS_OVERRIDES: 'access.audit-expired-overrides',
   AUDIT_CHAIN_VERIFICATION: 'audit.chain-verification',
   AUDIT_RETENTION: 'audit.retention',
+  NOTIFICATION_RETENTION: 'notifications.retention',
 } as const;
 
 const RETENTION_QUEUE = 'tapcrm.identity.retention';
@@ -43,6 +45,9 @@ export async function startBackgroundJobs(): Promise<void> {
     if (job.name === PLATFORM_JOBS.AUDIT_RETENTION) {
       await runAuditRetention();
     }
+    if (job.name === PLATFORM_JOBS.NOTIFICATION_RETENTION) {
+      await pruneExpiredNotifications();
+    }
   }, { connection });
   worker.on('failed', (job, error) => {
     console.error(JSON.stringify({ level: 'error', msg: 'background job failed', job: job?.name, error: String(error) }));
@@ -61,6 +66,11 @@ export async function startBackgroundJobs(): Promise<void> {
     'audit-chain-verification',
     { every: 24 * 60 * 60 * 1000 },
     { name: PLATFORM_JOBS.AUDIT_CHAIN_VERIFICATION, data: { runId: randomUUID() } },
+  );
+  await queue.upsertJobScheduler(
+    'notification-retention',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: PLATFORM_JOBS.NOTIFICATION_RETENTION, data: { runId: randomUUID() } },
   );
   await queue.upsertJobScheduler(
     'audit-retention',
@@ -108,6 +118,18 @@ async function auditExpiredAccessOverrides(): Promise<void> {
       }
     },
   )));
+}
+
+/** NT-8: expired notifications are pruned; the delivery log deliberately outlives them. */
+async function pruneExpiredNotifications(): Promise<void> {
+  const organizations = await platformDb.query<{ id: string }>(
+    'retention-enforcement',
+    'find organizations for notification pruning',
+    sql`SELECT id FROM organization WHERE status <> 'deleted'`,
+  );
+  for (const { id } of organizations) {
+    await platformDb.transactionForOrganization(id, 'retention-enforcement', 'prune expired notifications', (tx) => pruneExpired(tx, id));
+  }
 }
 
 export async function stopBackgroundJobs(): Promise<void> {

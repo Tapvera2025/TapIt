@@ -80,6 +80,11 @@ const schema = z.object({
   AUDIT_DRAIN_INTERVAL_MS: z.coerce.number().int().min(100).default(5_000),
   AUDIT_DRAIN_BATCH_SIZE: z.coerce.number().int().min(1).max(1_000).default(200),
 
+  // Notification engine. Dispatcher drains notification_outbox; the socket layer
+  // is a best-effort signal on top of the persisted rows.
+  NOTIFICATION_DISPATCHER_ENABLED: z.enum(['true', 'false']).default('true'),
+  NOTIFICATION_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(100).default(2_000),
+
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_BASE_PATH: z.string().default('/api'),
   // Not enforced today: there is no CORS middleware, and the web app reaches the

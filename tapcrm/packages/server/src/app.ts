@@ -13,6 +13,7 @@ import { assertManifest, buildRouter, checkManifest } from './platform/http/rout
 import { registerAllPolicies, registerAllRoutes } from './modules/index.js';
 import { buildPlatformRouter } from './platform/routes.js';
 import { registerIdentityPublicRoutes } from './modules/identity/index.js';
+import { registerNotificationRoutes } from './modules/notifications/routes.js';
 import { Router } from 'express';
 
 /**
@@ -97,6 +98,7 @@ export function buildApp(options: BuildOptions = {}): Express {
 
   const publicIdentity = Router();
   registerIdentityPublicRoutes(publicIdentity);
+  registerNotificationRoutes(publicIdentity);
   if (config.IDENTITY_DEV_BYPASS) {
     if (config.NODE_ENV === 'production') {
       throw new Error('IDENTITY_DEV_BYPASS must not be enabled in production');

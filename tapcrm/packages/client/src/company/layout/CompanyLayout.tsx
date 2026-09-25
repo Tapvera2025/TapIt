@@ -62,6 +62,7 @@ export function CompanyLayout({
           title={title}
           onMenu={() => setSidebarOpen(true)}
           onLogout={onLogout}
+          onNavigate={onNavigate}
         />
         <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {children}

@@ -13,6 +13,12 @@ export default defineConfig({
         target: process.env['VITE_API_PROXY_TARGET'] ?? 'http://localhost:4000',
         changeOrigin: true,
       },
+      // Notification engine realtime signal. ws: true upgrades the connection.
+      '/socket.io': {
+        target: process.env['VITE_API_PROXY_TARGET'] ?? 'http://localhost:4000',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
   build: { outDir: 'dist', sourcemap: true },

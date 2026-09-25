@@ -321,6 +321,7 @@ export type PlatformOperation =
   | 'seed'
   | 'retention-enforcement'
   | 'audit-drain'
+  | 'notification-dispatch'
   | 'audit-chain-verification'
   | 'audit-retention'
   | 'audit-archiving'
