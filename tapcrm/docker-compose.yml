@@ -77,7 +77,7 @@ services:
 
   minio:
     # §12 — S3-compatible object storage. Signed URLs only; never a public bucket.
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     restart: unless-stopped
     command: server /data --console-address ':9001'
     environment:
@@ -104,7 +104,7 @@ services:
   # only the application layer.
   # -------------------------------------------------------------------
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     depends_on:
       minio:
         condition: service_healthy
