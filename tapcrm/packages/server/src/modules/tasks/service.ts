@@ -10,6 +10,13 @@ import {
   TaskValidationError,
 } from './errors.js';
 import {
+  changedTaskFields,
+  notifyTaskAssigned,
+  notifyTaskStatusChanged,
+  notifyTaskUnassigned,
+  notifyTaskUpdated,
+} from './notifications.js';
+import {
   enqueueTaskAudit,
   findAssignableUsers,
   findTaskById,
@@ -142,6 +149,13 @@ export async function createTask(
       },
     });
 
+    await notifyTaskAssigned(
+      tx,
+      ctx,
+      { id, title: input.title, priority: input.priority, dueDate: input.dueDate ?? null },
+      uniqueAssigneeIds,
+    );
+
     const created = await findTaskByIdTx(tx, ctx.organizationId, id);
     if (!created) {
       throw new Error('Failed to load task immediately after creation');
@@ -221,6 +235,8 @@ export async function updateTask(
       },
     });
 
+    await notifyTaskUpdated(tx, ctx, existing, changedTaskFields(existing, input));
+
     const updated = await findTaskByIdTx(tx, ctx.organizationId, id);
     if (!updated) {
       throw new TaskNotFoundError();
@@ -255,6 +271,8 @@ export async function transitionTask(
       before: { status: existing.status },
       after: { status: input.status, notes: input.notes ?? null },
     });
+
+    await notifyTaskStatusChanged(tx, ctx, existing, input.status);
 
     const updated = await findTaskByIdTx(tx, ctx.organizationId, id);
     if (!updated) {
@@ -307,6 +325,22 @@ export async function assignTask(
       before: { assigneeIds: existing.assignees.map((a) => a.id) },
       after: { assigneeIds: uniqueAssigneeIds },
     });
+
+    // Only the DIFFERENCE is news: re-saving the same list notifies nobody.
+    const before = new Set(existing.assignees.map((a) => a.id));
+    const after = new Set(uniqueAssigneeIds);
+    await notifyTaskAssigned(
+      tx,
+      ctx,
+      existing,
+      uniqueAssigneeIds.filter((userId) => !before.has(userId)),
+    );
+    await notifyTaskUnassigned(
+      tx,
+      ctx,
+      existing,
+      [...before].filter((userId) => !after.has(userId)),
+    );
 
     const updated = await findTaskByIdTx(tx, ctx.organizationId, id);
     if (!updated) {

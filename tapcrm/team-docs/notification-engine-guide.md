@@ -6,7 +6,6 @@
 >
 > This guide describes the code as merged to `main` (migration `0050`). If the
 > code and this guide ever disagree, **the code wins** — and please fix the guide.
-> A shorter reference version lives in [`docs/NOTIFICATIONS.md`](../docs/NOTIFICATIONS.md).
 
 ---
 
@@ -16,7 +15,7 @@
 2. [Words you will see](#2-words-you-will-see)
 3. [The big picture](#3-the-big-picture)
 4. [Send your first notification (5 steps)](#4-send-your-first-notification-5-steps)
-5. [A real example: notify people when a task is assigned](#5-a-real-example-notify-people-when-a-task-is-assigned)
+5. [A real example: the Tasks module (copy this pattern)](#5-a-real-example-the-tasks-module-copy-this-pattern)
 6. [Everything `notify()` accepts](#6-everything-notify-accepts)
 7. [How it is built — the components](#7-how-it-is-built--the-components)
 8. [Life of one notification, step by step](#8-life-of-one-notification-step-by-step)
@@ -134,7 +133,7 @@ and add your type to `NOTIFICATION_TYPES`:
 ```ts
 export const NOTIFICATION_TYPES = {
   SYSTEM_TEST: 'system.test',
-  TASK_ASSIGNED: 'task.assigned',      // ← yours: '<module>.<event>'
+  LEAVE_APPROVED: 'leave.approved',    // ← yours: '<module>.<event>'
 } as const;
 ```
 
@@ -151,14 +150,14 @@ import { notify, NOTIFICATION_TYPES } from '../notifications/facade.js';
 
 ```ts
 await db.transaction(ctx, async (tx) => {
-  await doYourNormalWork(tx);                       // your feature
+  await approveLeave(tx, leaveId);                  // your feature
 
   await notify(tx, ctx, {                           // the notification
-    type: NOTIFICATION_TYPES.TASK_ASSIGNED,
-    audience: { users: [assigneeId] },
-    title: 'You were assigned a task',
-    body: 'Prepare the Q4 report',
-    link: `/company/tasks`,
+    type: NOTIFICATION_TYPES.LEAVE_APPROVED,
+    audience: { users: [employeeId] },
+    title: 'Your leave was approved',
+    body: '12–14 Oct',
+    link: '/company/leave',
   });
 });
 ```
@@ -172,41 +171,73 @@ That is the whole job. Everything else in this guide is explanation.
 
 ---
 
-## 5. A real example: notify people when a task is assigned
+## 5. A real example: the Tasks module (copy this pattern)
 
-`assignTask` in
-[`modules/tasks/service.ts`](../packages/server/src/modules/tasks/service.ts) already
-replaces a task's assignees inside a transaction and writes an audit entry. Here is
-how you would notify **only the people who were newly added**.
-*(This is an illustration — it is not wired in yet. Whoever owns Tasks can add it.)*
+The Tasks module is fully wired to the engine and is the **reference implementation**.
+Read these two files side by side:
 
-```ts
-// Which of the new assignees were NOT already on the task?
-const alreadyAssigned = new Set(existing.assignees.map((a) => a.id));
-const newlyAssigned = uniqueAssigneeIds.filter((id) => !alreadyAssigned.has(id));
+- [`modules/tasks/notifications.ts`](../packages/server/src/modules/tasks/notifications.ts) —
+  *what to say and to whom* (all the notification decisions live here)
+- [`modules/tasks/service.ts`](../packages/server/src/modules/tasks/service.ts) —
+  the business logic, with **one small call** added per operation
 
-// ... inside db.transaction(ctx, async (tx) => { ... }), after the audit entry:
-if (newlyAssigned.length > 0) {
-  await notify(tx, ctx, {
-    type: NOTIFICATION_TYPES.TASK_ASSIGNED,
-    priority: 'operational',                 // someone needs to do something
-    audience: { users: newlyAssigned },
-    title: 'You were assigned a task',
-    body: existing.title,
-    link: '/company/tasks',
-    metadata: { taskId: id },
-  });
-}
-```
+### The pattern
 
-Things to notice:
+1. **One `notifications.ts` per module.** It is the only file that knows what each
+   business event means to a human: who hears about it, and what the message says.
+   The header comment of the Tasks one has a table of every rule.
+2. **`service.ts` makes one call** right after its own work and audit entry, **inside
+   the same transaction**:
 
-- It is **inside** the transaction, so if `replaceTaskAssignees` throws, no
-  notification exists.
-- The person doing the assigning is removed from the audience automatically (they
-  are the *actor*). Assigning a task to yourself will not notify you.
-- `metadata` holds a small id (`taskId`), never the whole task.
-- We only notify *new* assignees — re-saving the same list does not spam people.
+   ```ts
+   await enqueueTaskAudit(tx, ctx, { action: 'task.updated', ... });          // existing
+   await notifyTaskUpdated(tx, ctx, existing, changedTaskFields(existing, input)); // new
+   ```
+3. **The helper file talks to the engine only through `notifications/facade.js`.**
+4. **Register the types** in `NOTIFICATION_TYPES` (done: `task.assigned`,
+   `task.unassigned`, `task.updated`, `task.status_changed`, `task.completed`).
+
+### What each Task operation does
+
+| Operation | Who is notified | Type | Priority |
+|---|---|---|---|
+| Create task | The assignees | `task.assigned` | operational |
+| Assign (replace list) — someone **added** | Just the added people | `task.assigned` | operational |
+| Assign — someone **removed** | Just the removed people | `task.unassigned` | informational |
+| Update details | Current assignees, and only if a field **really changed** | `task.updated` | informational |
+| Change status | Creator + assignees | `task.status_changed` | informational |
+| Mark completed | Creator + assignees | `task.completed` | informational |
+| Read (list / get) | **Nobody** — reading never notifies | – | – |
+| Delete | *The Tasks module has no delete operation.* Cancelling is a status change, covered above. | – | – |
+
+In every case **the person who did the action is not notified about it.**
+
+### Small decisions worth copying
+
+- **Only the difference is news.** Re-saving the same assignee list, or saving a form
+  without editing anything, notifies nobody. `changedTaskFields()` compares against
+  the stored task instead of trusting "was the field sent".
+- **Skip `notify()` when the audience would be empty.** `recipients()` removes the
+  actor and duplicates first; if nobody is left, no outbox row is written.
+- **`operational` only for "you now have work".** Being assigned is operational;
+  "someone edited it" is not.
+- **Say *what* changed, not the new values** ("changed: priority, due date"). The
+  notification is a pointer, not a copy of the record.
+- **`metadata: { taskId }`** carries the id so a future page can deep-link to the
+  exact task; `link` is the in-app page (`/company/tasks`) for now.
+- **Long titles are clipped** so a 255-character task title cannot break the
+  notification limits.
+
+### How it is tested (copy this too)
+
+- [`tasks/notifications.test.ts`](../packages/server/src/modules/tasks/notifications.test.ts) —
+  fast unit tests with the engine mocked: who is in the audience, actor excluded,
+  nothing sent when nothing changed, message content.
+- The **`notifications`** block at the bottom of
+  [`tasks/tasks.integration.test.ts`](../packages/server/src/modules/tasks/tasks.integration.test.ts) —
+  end-to-end against a real database: do the action, run the dispatcher, then check
+  who actually received what — including that a **failed operation leaves no
+  notification behind**.
 
 ---
 
@@ -739,26 +770,26 @@ Be aware of these so you don't assume they exist:
 - **A full "all notifications" page.** Today there is only the header dropdown.
 - **Per-record audience checks.** `holders` checks the permission, not the reach over
   one specific record (see section 6).
-- **No feature calls `notify()` yet.** The engine is ready; wiring it into Tasks,
-  Leave, Leads, etc. is the work you'll be doing.
+- **Only Tasks is wired so far.** The engine is ready for every other module (Leave,
+  Leads, Attendance…). Follow the Tasks pattern in section 5.
 
 ---
 
 ## 19. Cheat sheet
 
 ```ts
-// 1. types.ts:   TASK_ASSIGNED: 'task.assigned'
+// 1. types.ts:   LEAVE_APPROVED: 'leave.approved'
 // 2. In your service, INSIDE db.transaction:
 import { notify, NOTIFICATION_TYPES } from '../notifications/facade.js';
 
 await notify(tx, ctx, {
-  type: NOTIFICATION_TYPES.TASK_ASSIGNED,
-  priority: 'operational',                // or 'informational' (default)
-  audience: { users: [bobId] },           // or positions / departments / holders
-  title: 'You were assigned a task',
-  body: 'Prepare the Q4 report',
-  link: '/company/tasks',                 // in-app path only
-  metadata: { taskId: id },               // small ids only
+  type: NOTIFICATION_TYPES.LEAVE_APPROVED,
+  priority: 'informational',              // or 'operational' if they must act
+  audience: { users: [employeeId] },      // or positions / departments / holders
+  title: 'Your leave was approved',
+  body: '12–14 Oct',
+  link: '/company/leave',                 // in-app path only
+  metadata: { leaveId },                  // small ids only
 });
 ```
 

@@ -10,6 +10,13 @@ import { ACTIONS } from '@tapcrm/contracts';
  */
 export const NOTIFICATION_TYPES = {
   SYSTEM_TEST: 'system.test',
+
+  // tasks (see modules/tasks/notifications.ts for who receives each)
+  TASK_ASSIGNED: 'task.assigned',
+  TASK_UNASSIGNED: 'task.unassigned',
+  TASK_UPDATED: 'task.updated',
+  TASK_STATUS_CHANGED: 'task.status_changed',
+  TASK_COMPLETED: 'task.completed',
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
