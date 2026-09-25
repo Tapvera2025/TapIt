@@ -7,6 +7,7 @@ import { SessionsPage } from '../identity/pages/SessionsPage.js';
 import { GeofencingPage } from '../identity/pages/GeofencingPage.js';
 import { OrganizationWorkspace } from '../organization/index.js';
 import { TasksPage } from './tasks/index.js';
+import { RecruitmentWorkspace } from './recruitment/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -50,23 +51,39 @@ export function CompanyWorkspace({
       </div>
     );
   const isSuperAdmin = identity.user.accountType === 'super-admin';
+  const isHr =
+    isSuperAdmin ||
+    (identity.user.accountType === 'employee' &&
+      (identity.user.departmentCode?.toLowerCase().includes('hr') ||
+        identity.user.departmentName?.toLowerCase().includes('human resources') ||
+        identity.user.departmentName?.toLowerCase().includes('people') ||
+        identity.user.positionCode?.toLowerCase().startsWith('hr')));
+
   const isOrganization =
     isSuperAdmin &&
     (pathname === '/company/organization' ||
       pathname.startsWith('/company/organization/'));
+  const isRecruitment =
+    (pathname === '/company/recruitment' ||
+      pathname.startsWith('/company/recruitment/')) &&
+    isHr;
   const title = isOrganization
     ? 'Organization'
-    : pathname === '/company/employees'
-      ? 'Employees'
-      : pathname === '/company/sessions'
-        ? 'Sessions & Devices'
-        : pathname === '/company/geofencing'
-          ? 'Geofencing'
-          : pathname === '/company/tasks'
-            ? 'Tasks'
-            : 'Dashboard';
+    : isRecruitment
+      ? 'Recruitment'
+      : pathname === '/company/employees'
+        ? 'Employees'
+        : pathname === '/company/sessions'
+          ? 'Sessions & Devices'
+          : pathname === '/company/geofencing'
+            ? 'Geofencing'
+            : pathname === '/company/tasks'
+              ? 'Tasks'
+              : 'Dashboard';
   const content = isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
+  ) : isRecruitment ? (
+    <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />
   ) : pathname === '/company/sessions' ? (
     <SessionsPage
       onBack={() => onNavigate('/company/dashboard')}
@@ -74,6 +91,21 @@ export function CompanyWorkspace({
     />
   ) : pathname === '/company/tasks' ? (
     <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
+  ) : pathname === '/company/employees' ? (
+    isHr ? (
+      <EmployeesPage />
+    ) : (
+      <div className="grid min-h-[60vh] place-items-center p-6 text-center">
+        <div>
+          <h1 className="font-display text-2xl font-bold">
+            Access Restricted
+          </h1>
+          <p className="mt-2 text-sm text-app-muted">
+            Employee directory is restricted to authorized HR personnel.
+          </p>
+        </div>
+      </div>
+    )
   ) : !isSuperAdmin ? (
     <div className="grid min-h-[60vh] place-items-center p-6 text-center">
       <div>
@@ -85,8 +117,6 @@ export function CompanyWorkspace({
         </p>
       </div>
     </div>
-  ) : pathname === '/company/employees' ? (
-    <EmployeesPage />
   ) : pathname === '/company/geofencing' ? (
     <GeofencingPage onBack={() => onNavigate('/company/dashboard')} />
   ) : (

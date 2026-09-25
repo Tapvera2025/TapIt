@@ -1,7 +1,18 @@
 import { identityRequest } from '../../identity/api/authApi.js';
 
 export interface CompanyIdentity {
-  user: { id: string; email: string; fullName: string; accountType: string };
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    accountType: string;
+    departmentId?: string | null;
+    departmentCode?: string | null;
+    departmentName?: string | null;
+    positionId?: string | null;
+    positionCode?: string | null;
+    positionName?: string | null;
+  };
   organization: { id: string; code: string; name: string; status: string } | null;
 }
 export interface CompanyEmployee {

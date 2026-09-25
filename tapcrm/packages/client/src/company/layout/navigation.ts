@@ -1,7 +1,13 @@
+export interface CompanyNavSubItem {
+  label: string;
+  path: string;
+}
+
 export interface CompanyNavItem {
   label: string;
   path: string;
   icon: string;
+  children?: CompanyNavSubItem[];
 }
 export interface CompanyNavGroup {
   label: string;
@@ -18,7 +24,23 @@ export const companyNavigation: CompanyNavGroup[] = [
   },
   {
     label: 'People',
-    items: [{ label: 'Employees', path: '/company/employees', icon: 'users' }],
+    items: [
+      { label: 'Employees', path: '/company/employees', icon: 'users' },
+      {
+        label: 'Recruitment',
+        path: '/company/recruitment',
+        icon: 'briefcase',
+        children: [
+          { label: 'Overview', path: '/company/recruitment' },
+          { label: 'Requisitions', path: '/company/recruitment/requisitions' },
+          { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
+          { label: 'Candidates', path: '/company/recruitment/candidates' },
+          { label: 'Interviews', path: '/company/recruitment/interviews' },
+          { label: 'Offers', path: '/company/recruitment/offers' },
+          { label: 'Joining', path: '/company/recruitment/joining' },
+        ],
+      },
+    ],
   },
   {
     label: 'Organization',

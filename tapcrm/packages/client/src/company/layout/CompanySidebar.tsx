@@ -1,6 +1,6 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
-import { companyNavigation } from './navigation.js';
+import { companyNavigation, type CompanyNavGroup } from './navigation.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
 
@@ -15,7 +15,14 @@ export function CompanySidebar({
   onClose,
 }: {
   pathname: string;
-  identity: { fullName: string; email: string };
+  identity: {
+    fullName: string;
+    email: string;
+    accountType?: string;
+    departmentCode?: string | null;
+    departmentName?: string | null;
+    positionCode?: string | null;
+  };
   organizationName: string | null;
   accountType: string;
   onNavigate: (path: string) => void;
@@ -26,9 +33,57 @@ export function CompanySidebar({
   const [organizationOpen, setOrganizationOpen] = useState(
     pathname.startsWith('/company/organization'),
   );
-  const navigation =
-    accountType === 'super-admin'
-      ? companyNavigation
+  const [recruitmentOpen, setRecruitmentOpen] = useState(
+    pathname.startsWith('/company/recruitment'),
+  );
+
+  const isSuperAdmin = accountType === 'super-admin';
+  const isHr =
+    isSuperAdmin ||
+    (accountType === 'employee' &&
+      (identity.departmentCode?.toLowerCase().includes('hr') ||
+        identity.departmentName?.toLowerCase().includes('human resources') ||
+        identity.departmentName?.toLowerCase().includes('people') ||
+        identity.positionCode?.toLowerCase().startsWith('hr')));
+
+  const navigation: CompanyNavGroup[] = isSuperAdmin
+    ? companyNavigation
+    : isHr
+      ? [
+          {
+            label: 'Overview',
+            items: [
+              { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
+              { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+            ],
+          },
+          {
+            label: 'People',
+            items: [
+              { label: 'Employees', path: '/company/employees', icon: 'users' },
+              {
+                label: 'Recruitment',
+                path: '/company/recruitment',
+                icon: 'briefcase',
+                children: [
+                  { label: 'Overview', path: '/company/recruitment' },
+                  { label: 'Requisitions', path: '/company/recruitment/requisitions' },
+                  { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
+                  { label: 'Candidates', path: '/company/recruitment/candidates' },
+                  { label: 'Interviews', path: '/company/recruitment/interviews' },
+                  { label: 'Offers', path: '/company/recruitment/offers' },
+                  { label: 'Joining', path: '/company/recruitment/joining' },
+                ],
+              },
+            ],
+          },
+          {
+            label: 'Identity & Access',
+            items: [
+              { label: 'Sessions & Devices', path: '/company/sessions', icon: 'monitor' },
+            ],
+          },
+        ]
       : [
           {
             label: 'Overview',
@@ -92,27 +147,80 @@ export function CompanySidebar({
               )}
               {(!isOrganization || organizationOpen) && (
                 <div className="mt-2 space-y-1">
-                  {group.items.map((item) => (
-                    <button
-                      key={item.path}
-                      aria-current={
-                        pathname === item.path ||
-                        (item.path !== '/company/organization' &&
-                          pathname.startsWith(`${item.path}/`))
-                          ? 'page'
-                          : undefined
-                      }
-                      type="button"
-                      onClick={() => {
-                        onNavigate(item.path);
-                        onClose();
-                      }}
-                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${pathname === item.path || (item.path !== '/company/organization' && pathname.startsWith(`${item.path}/`)) ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
-                    >
-                      <Icon name={item.icon} />
-                      <span>{item.label}</span>
-                    </button>
-                  ))}
+                  {group.items.map((item) => {
+                    const isRecruitmentItem = item.label === 'Recruitment';
+                    const isItemActive =
+                      pathname === item.path ||
+                      (item.path !== '/company/organization' &&
+                        pathname.startsWith(`${item.path}/`));
+                    const showChildren =
+                      item.children &&
+                      (recruitmentOpen || pathname.startsWith(item.path));
+
+                    return (
+                      <div key={item.path}>
+                        <button
+                          aria-current={isItemActive ? 'page' : undefined}
+                          type="button"
+                          onClick={() => {
+                            if (isRecruitmentItem) {
+                              setRecruitmentOpen((prev) => !prev);
+                            }
+                            onNavigate(item.path);
+                            onClose();
+                          }}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
+                            isItemActive
+                              ? 'bg-app-accent/15 text-app-accent'
+                              : 'text-app-muted hover:bg-app-background hover:text-app-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Icon name={item.icon} />
+                            <span>{item.label}</span>
+                          </div>
+                          {item.children && (
+                            <span
+                              aria-hidden="true"
+                              className="text-xs text-app-muted"
+                            >
+                              {showChildren ? '▾' : '▸'}
+                            </span>
+                          )}
+                        </button>
+
+                        {item.children &&
+                          (recruitmentOpen || pathname.startsWith(item.path)) && (
+                            <div className="ml-7 mt-1 space-y-1 border-l border-app-border pl-2">
+                            {item.children.map((sub) => {
+                              const isSubActive =
+                                sub.path === '/company/recruitment'
+                                  ? pathname === '/company/recruitment'
+                                  : pathname === sub.path ||
+                                    pathname.startsWith(`${sub.path}/`);
+                              return (
+                                <button
+                                  key={sub.path}
+                                  type="button"
+                                  onClick={() => {
+                                    onNavigate(sub.path);
+                                    onClose();
+                                  }}
+                                  className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-xs transition ${
+                                    isSubActive
+                                      ? 'bg-app-accent/15 font-bold text-app-accent'
+                                      : 'text-app-muted hover:bg-app-background hover:text-app-foreground'
+                                  }`}
+                                >
+                                  {sub.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
