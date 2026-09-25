@@ -5,6 +5,7 @@ import {
   actionDescription,
   actionScopes,
   actionScreens,
+  isPositionPolicyGrantable,
   moduleTitle,
   protectedCapabilityReason,
   type Action,
@@ -224,7 +225,7 @@ export function PositionsPage(): React.JSX.Element {
       setPolicyImpact(
         await organizationApi.previewPositionPolicies(
           selectedPolicyPosition.id,
-          policies.map(stripPolicy),
+          positionPolicyPayload(policies),
         ),
       );
     } catch (cause) {
@@ -239,7 +240,7 @@ export function PositionsPage(): React.JSX.Element {
     try {
       await organizationApi.updatePositionPolicies(
         selectedPolicyPosition.id,
-        policies.map(stripPolicy),
+        positionPolicyPayload(policies),
       );
       setMessage('Position policies saved.');
       setPolicyImpact(null);
@@ -442,6 +443,14 @@ export function PositionsPage(): React.JSX.Element {
       )}
     </Page>
   );
+}
+function positionPolicyPayload(policies: PositionPolicy[]) {
+  return policies.flatMap((policy) => {
+    const definition = REGISTRY[policy.action as Action];
+    return definition && isPositionPolicyGrantable(definition)
+      ? [stripPolicy(policy)]
+      : [];
+  });
 }
 function stripPolicy(policy: PositionPolicy) {
   return {

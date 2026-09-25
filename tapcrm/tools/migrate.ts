@@ -126,6 +126,43 @@ async function up(): Promise<void> {
       await client.query('BEGIN');
       try {
         await client.query(migration.sql);
+        if (migration.version === '0048_intern_positions') {
+          const { reconcileInternPositions } = await import(
+            '../packages/server/src/platform/organizations/bootstrap.js'
+          );
+          const organizations = await client.query<{
+            id: string;
+            moduleKeys: string[];
+          }>(`
+            SELECT o.id,
+                   COALESCE(
+                     array_agg(m.key ORDER BY m.key)
+                       FILTER (WHERE om.status = 'enabled' AND m.key IS NOT NULL),
+                     ARRAY[]::text[]
+                   ) AS "moduleKeys"
+            FROM organization o
+            LEFT JOIN organization_module om ON om.organization_id = o.id
+            LEFT JOIN module m ON m.id = om.module_id
+            GROUP BY o.id
+          `);
+          const tx = {
+            query: async <T>(fragment: { sql: string; parameters: readonly unknown[] }) =>
+              (await client.query<T>(fragment.sql, [...fragment.parameters])).rows,
+            one: async <T>(fragment: { sql: string; parameters: readonly unknown[] }) => {
+              const rows = (await client.query<T>(fragment.sql, [...fragment.parameters])).rows;
+              if (rows.length !== 1) throw new Error(`Expected one row, got ${rows.length}`);
+              return rows[0]!;
+            },
+            maybeOne: async <T>(fragment: { sql: string; parameters: readonly unknown[] }) => {
+              const rows = (await client.query<T>(fragment.sql, [...fragment.parameters])).rows;
+              if (rows.length > 1) throw new Error(`Expected at most one row, got ${rows.length}`);
+              return rows[0] ?? null;
+            },
+          };
+          for (const organization of organizations.rows) {
+            await reconcileInternPositions(tx, organization.id, organization.moduleKeys);
+          }
+        }
         await client.query(
           'INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)',
           [migration.version, migration.checksum],

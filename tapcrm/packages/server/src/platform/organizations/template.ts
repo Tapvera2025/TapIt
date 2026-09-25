@@ -73,6 +73,14 @@ export type StarterMatrixPosition =
   | 'base-employee'
   | 'client';
 
+/** Seeded intern positions added to every applicable organization template. */
+export const INTERN_POSITION_CODES = [
+  'developer-intern',
+  'content-intern',
+  'marketing-executive-intern',
+  'hr-intern',
+] as const;
+
 /** Canonical seeded position codes eligible to lead each supported team kind. */
 export const TEAM_LEAD_POSITION_CODES = {
   'sales-team': ['sales-team-lead', 'sales-supervisor'],
@@ -301,6 +309,42 @@ export const ORGANIZATION_TEMPLATE: OrganizationTemplate = {
       department: 'development',
       level: 25,
       parent: 'content-team-manager',
+      status: 'active',
+      matrixColumn: 'base-employee',
+    },
+    {
+      code: 'developer-intern',
+      name: 'Developer Intern',
+      department: 'development',
+      level: 10,
+      parent: 'developer-team-manager',
+      status: 'active',
+      matrixColumn: 'base-employee',
+    },
+    {
+      code: 'content-intern',
+      name: 'Content Intern',
+      department: 'development',
+      level: 10,
+      parent: 'content-team-manager',
+      status: 'active',
+      matrixColumn: 'base-employee',
+    },
+    {
+      code: 'marketing-executive-intern',
+      name: 'Marketing Executive Intern',
+      department: 'development',
+      level: 10,
+      parent: 'digital-marketing-manager',
+      status: 'active',
+      matrixColumn: 'base-employee',
+    },
+    {
+      code: 'hr-intern',
+      name: 'HR Intern',
+      department: 'hr',
+      level: 10,
+      parent: 'hr',
       status: 'active',
       matrixColumn: 'base-employee',
     },
