@@ -6,6 +6,7 @@ import {
   actionDescription,
   actionScopes,
   actionScreens,
+  isPositionPolicyGrantable,
   protectedCapabilityReason,
 } from './index.js';
 
@@ -35,6 +36,18 @@ describe('canonical action presentation metadata', () => {
     );
     expect(protectedCapabilityReason(REGISTRY['users:manage'])).toBeNull();
     expect(protectedCapabilityReason(REGISTRY['leads:view'])).toBeNull();
+    expect(isPositionPolicyGrantable(REGISTRY['access:decide-role-change'])).toBe(false);
+    expect(isPositionPolicyGrantable(REGISTRY['billing:set-terms'])).toBe(false);
+    expect(isPositionPolicyGrantable(REGISTRY['users:view'])).toBe(true);
+
+    for (const action of ACTIONS) {
+      const definition = REGISTRY[action];
+      const locked =
+        !definition.grantPolicy.positionGrantable ||
+        definition.grantPolicy.superAdminOnly;
+      expect(isPositionPolicyGrantable(definition)).toBe(!locked);
+      expect(protectedCapabilityReason(definition) !== null).toBe(locked);
+    }
   });
 
   it('formats audit event names that are not registry actions', () => {

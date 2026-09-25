@@ -30,9 +30,7 @@ export function actionDescription(definition: ActionDefinition<Action>): string 
   const sourceDescription = definition.description.trim();
   if (sourceDescription) return sourceDescription;
   const resource = definition.resource
-    ? definition.resource
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/[-_]/g, ' ')
+    ? definition.resource.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ')
     : `${moduleTitle(definition.module)} data`;
   return `${actionTitle(definition.action)} ${resource.toLowerCase()}.`;
 }
@@ -63,14 +61,29 @@ export function actionScopes(definition: ActionDefinition<Action>): Scope[] {
   return [...SCOPES];
 }
 
+/**
+ * Position policies may grant only actions that are both explicitly
+ * position-grantable and not reserved for the Super Admin authorization path.
+ * This is derived from the canonical registry and is shared by the UI and
+ * server-side policy validation.
+ */
+export function isPositionPolicyGrantable(definition: ActionDefinition<Action>): boolean {
+  return (
+    definition.grantPolicy.positionGrantable && !definition.grantPolicy.superAdminOnly
+  );
+}
+
 export function protectedCapabilityReason(
   definition: ActionDefinition<Action>,
 ): string | null {
-  if (!definition.grantPolicy.positionGrantable) {
+  if (!isPositionPolicyGrantable(definition)) {
+    if (
+      definition.grantPolicy.positionGrantable &&
+      definition.grantPolicy.superAdminOnly
+    ) {
+      return 'Protected: Super Admin only.';
+    }
     return 'Protected: this capability is Super Admin only and cannot be granted by a position policy.';
-  }
-  if (definition.grantPolicy.superAdminOnly) {
-    return 'Protected: Super Admin only.';
   }
   return null;
 }
