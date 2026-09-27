@@ -1,4 +1,5 @@
 import type { Resource } from '@tapcrm/authz';
+import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -6,7 +7,7 @@ import { makeLeaveTypeResource } from './policy.js';
 import { createLeaveType, listLeaveTypes, updateLeaveType } from './service.js';
 import { createLeaveTypeSchema, updateLeaveTypeSchema } from './validators.js';
 
-async function loadLeaveType(ctx: any, id: string): Promise<Resource | null> {
+async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource | null> {
   const row = await db.maybeOne<{ id: string; organizationId: string }>(
     ctx, sql`SELECT id, organization_id AS "organizationId" FROM leave_type WHERE id = ${id}`,
   );

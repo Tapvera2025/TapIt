@@ -1,5 +1,5 @@
 import type { Action } from '@tapcrm/contracts';
-import { MATCH_NOTHING, registerResourcePolicy, visibilityFilter, type ResourcePolicy } from '@tapcrm/authz';
+import { isMatchNothing, MATCH_NOTHING, registerResourcePolicy, visibilityFilter, type ResourcePolicy } from '@tapcrm/authz';
 import type { PolicyEvaluationContext } from '@tapcrm/authz';
 import type { Scope } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
@@ -37,7 +37,7 @@ const leaveRequestPolicy: ResourcePolicy = {
     if (ctx.principal.id === subjectId) return true;
 
     const fragment = await visibilityFilter(ctx as unknown as RequestContext, action, 'leaveRequest');
-    if (fragment === MATCH_NOTHING) return false;
+    if (isMatchNothing(fragment)) return false;
     const row = await db.maybeOne<{ ok: boolean }>(
       ctx as unknown as RequestContext,
       sql`SELECT TRUE AS ok FROM (
