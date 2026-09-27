@@ -8,6 +8,29 @@ import { registerIdentityRoutes } from './identity/routes.js';
 import { registerAccessManagementRoutes } from './access-management/routes.js';
 import { registerAuditPolicies } from './audit/policy.js';
 import { registerAuditRoutes } from './audit/routes.js';
+import { registerShiftPolicies } from './shifts/policy.js';
+import { registerShiftRoutes } from './shifts/routes.js';
+import { registerHolidayPolicies } from './holidays/policy.js';
+import { registerHolidayRoutes } from './holidays/routes.js';
+import { registerIdentityJobs } from './identity/jobs.js';
+import { registerAccessManagementJobs } from './access-management/jobs.js';
+import { registerAuditJobs } from './audit/jobs.js';
+import { registerAttendanceJobs } from './attendance/jobs.js';
+import { registerAttendancePolicies } from './attendance/policy.js';
+import { registerAttendanceRoutes } from './attendance/routes.js';
+import {
+  registerBiometricJobs,
+  registerBiometricPolicies,
+  registerBiometricRoutes,
+} from './biometric/index.js';
+import {
+  registerLiveStatusJobs,
+  registerLiveStatusPolicies,
+  registerLiveStatusProjector,
+  registerLiveStatusRoutes,
+  registerStatusChannel,
+} from './live-status/index.js';
+import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from './leave/index.js';
 
 /**
  * The module registry.
@@ -25,6 +48,14 @@ export function registerAllPolicies(): void {
   registerEmployeePolicies();
   registerGeofencePolicies();
   registerAuditPolicies();
+  registerShiftPolicies();
+  registerHolidayPolicies();
+  registerAttendancePolicies();
+  registerLiveStatusPolicies();
+  registerStatusChannel();
+  registerLiveStatusProjector();
+  registerBiometricPolicies();
+  registerLeavePolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -34,4 +65,25 @@ export function registerAllRoutes(): void {
   registerEmployeeRoutes();
   registerGeofenceRoutes();
   registerAuditRoutes();
+  registerShiftRoutes();
+  registerHolidayRoutes();
+  registerAttendanceRoutes();
+  registerLiveStatusRoutes();
+  registerBiometricRoutes();
+  registerLeaveRoutes();
+}
+
+let jobsRegistered = false;
+
+/** Background jobs (attendance design §5.4). Called once, before `startJobs`. */
+export function registerAllJobs(): void {
+  if (jobsRegistered) return;
+  jobsRegistered = true;
+  registerIdentityJobs();
+  registerAccessManagementJobs();
+  registerAuditJobs();
+  registerAttendanceJobs();
+  registerLiveStatusJobs();
+  registerBiometricJobs();
+  registerLeaveJobs();
 }

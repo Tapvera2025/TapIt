@@ -1,7 +1,9 @@
 // packages/server/src/modules/leave/rules.test.ts
 import { describe, expect, it } from 'vitest';
-import type { LeaveHalf } from '@tapcrm/contracts';
+import type { DateOnly, LeaveHalf } from '@tapcrm/contracts';
 import { balanceAvailable, daysConsumed, overlayKindForDay } from './rules.js';
+
+const d = (s: string) => s as DateOnly;
 
 describe('daysConsumed', () => {
   // Single-day cases
@@ -46,24 +48,24 @@ describe('balanceAvailable', () => {
 
 describe('overlayKindForDay', () => {
   it('middle day → leave-full', () =>
-    expect(overlayKindForDay('2026-10-02', '2026-10-01', '2026-10-03', 'second', 'first'))
+    expect(overlayKindForDay(d('2026-10-02'), d('2026-10-01'), d('2026-10-03'), 'second', 'first'))
       .toBe('leave-full'));
   it('first day, from_half=second → leave-second-half', () =>
-    expect(overlayKindForDay('2026-10-01', '2026-10-01', '2026-10-03', 'second', 'full'))
+    expect(overlayKindForDay(d('2026-10-01'), d('2026-10-01'), d('2026-10-03'), 'second', 'full'))
       .toBe('leave-second-half'));
   it('first day multi-day, from_half=first → leave-full', () =>
-    expect(overlayKindForDay('2026-10-01', '2026-10-01', '2026-10-03', 'first', 'full'))
+    expect(overlayKindForDay(d('2026-10-01'), d('2026-10-01'), d('2026-10-03'), 'first', 'full'))
       .toBe('leave-full'));
   it('last day, to_half=first → leave-first-half', () =>
-    expect(overlayKindForDay('2026-10-03', '2026-10-01', '2026-10-03', 'full', 'first'))
+    expect(overlayKindForDay(d('2026-10-03'), d('2026-10-01'), d('2026-10-03'), 'full', 'first'))
       .toBe('leave-first-half'));
   it('single day full → leave-full', () =>
-    expect(overlayKindForDay('2026-10-01', '2026-10-01', '2026-10-01', 'full', 'full'))
+    expect(overlayKindForDay(d('2026-10-01'), d('2026-10-01'), d('2026-10-01'), 'full', 'full'))
       .toBe('leave-full'));
   it('single day first → leave-first-half', () =>
-    expect(overlayKindForDay('2026-10-01', '2026-10-01', '2026-10-01', 'first', 'full'))
+    expect(overlayKindForDay(d('2026-10-01'), d('2026-10-01'), d('2026-10-01'), 'first', 'full'))
       .toBe('leave-first-half'));
   it('single day second → leave-second-half', () =>
-    expect(overlayKindForDay('2026-10-01', '2026-10-01', '2026-10-01', 'second', 'full'))
+    expect(overlayKindForDay(d('2026-10-01'), d('2026-10-01'), d('2026-10-01'), 'second', 'full'))
       .toBe('leave-second-half'));
 });
