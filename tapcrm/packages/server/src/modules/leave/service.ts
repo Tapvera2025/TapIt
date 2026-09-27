@@ -232,3 +232,71 @@ export async function getLeaveCalendar(ctx: RequestContext, query: CalendarQuery
     return events;
   });
 }
+
+export async function submitWfh(ctx: RequestContext, body: SubmitWfhBody): Promise<LeaveRequestSummary> {
+  return db.transaction(ctx, async (tx) => {
+    if (body.toDate < body.fromDate)
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_DATES, 'toDate must be >= fromDate');
+    if (body.fromDate.slice(0, 4) !== body.toDate.slice(0, 4))
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.CROSS_YEAR,
+        'Cross-year WFH requests are not supported.');
+
+    const leaveType = await repo.findLeaveTypeById(tx, body.leaveTypeId);
+    if (!leaveType || !leaveType.isActive || leaveType.kind !== 'attendance-mode')
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_KIND, 'Not a WFH leave type');
+
+    await AttendanceFacade.lockPerson(tx, ctx.principal.id);
+    const overlaps = await repo.findActiveOverlappingRequests(
+      tx, ctx.principal.id, body.fromDate as DateOnly, body.toDate as DateOnly,
+      { conflictKinds: ['absence', 'attendance-mode'] },
+    );
+    if (overlaps.length > 0)
+      throw new LeaveConflictError(LEAVE_ERROR_CODES.OVERLAP, 'Overlaps an existing request',
+        { conflictId: overlaps[0]!.id });
+
+    const orgId = await repo.currentOrganizationId(tx);
+    const row = await repo.insertLeaveRequest(tx, {
+      organizationId: orgId, userId: ctx.principal.id,
+      leaveTypeId: body.leaveTypeId, kind: 'attendance-mode',
+      fromDate: body.fromDate as DateOnly, toDate: body.toDate as DateOnly,
+      fromHalf: 'full', toHalf: 'full', daysConsumed: 0,
+      reason: body.reason, requestedBy: ctx.principal.id,
+      recurrenceType: null, recurrenceEnd: null,
+    });
+    return toRequestSummary(row, '', leaveType.name);
+  });
+}
+
+export async function submitStandingWfh(ctx: RequestContext, body: SubmitStandingWfhBody): Promise<LeaveRequestSummary> {
+  return db.transaction(ctx, async (tx) => {
+    if (body.recurrenceEnd < body.fromDate)
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_DATES, 'recurrenceEnd must be >= fromDate');
+    if (body.fromDate.slice(0, 4) !== body.recurrenceEnd.slice(0, 4))
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.CROSS_YEAR,
+        'Standing WFH may not span calendar years. Submit one per year.');
+
+    const leaveType = await repo.findLeaveTypeById(tx, body.leaveTypeId);
+    if (!leaveType || !leaveType.isActive || leaveType.kind !== 'attendance-mode')
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_KIND, 'Not a WFH leave type');
+
+    await AttendanceFacade.lockPerson(tx, ctx.principal.id);
+    const overlaps = await repo.findActiveOverlappingRequests(
+      tx, ctx.principal.id, body.fromDate as DateOnly, body.recurrenceEnd as DateOnly,
+      { conflictKinds: ['absence', 'attendance-mode'] },
+    );
+    if (overlaps.length > 0)
+      throw new LeaveConflictError(LEAVE_ERROR_CODES.OVERLAP, 'Overlaps an existing request',
+        { conflictId: overlaps[0]!.id });
+
+    const orgId = await repo.currentOrganizationId(tx);
+    const row = await repo.insertLeaveRequest(tx, {
+      organizationId: orgId, userId: ctx.principal.id,
+      leaveTypeId: body.leaveTypeId, kind: 'attendance-mode',
+      fromDate: body.fromDate as DateOnly, toDate: body.recurrenceEnd as DateOnly,
+      fromHalf: 'full', toHalf: 'full', daysConsumed: 0,
+      reason: body.reason, requestedBy: ctx.principal.id,
+      recurrenceType: 'daily', recurrenceEnd: body.recurrenceEnd as DateOnly,
+    });
+    return toRequestSummary(row, '', leaveType.name);
+  });
+}

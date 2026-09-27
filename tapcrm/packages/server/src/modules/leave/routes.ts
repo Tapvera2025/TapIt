@@ -4,8 +4,8 @@ import { db } from '../../platform/dal/db.js';
 import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
 import { makeLeaveTypeResource, makeLeaveRequestResource } from './policy.js';
-import { createLeaveType, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getLeaveCalendar, getLeaveRequest, listLeaveRequests, submitLeave } from './service.js';
-import { createLeaveTypeSchema, updateLeaveTypeSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, submitLeaveSchema } from './validators.js';
+import { createLeaveType, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getLeaveCalendar, getLeaveRequest, listLeaveRequests, submitLeave, submitWfh, submitStandingWfh } from './service.js';
+import { createLeaveTypeSchema, updateLeaveTypeSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema } from './validators.js';
 
 async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource | null> {
   const row = await db.maybeOne<{ id: string; organizationId: string }>(
@@ -46,6 +46,13 @@ export function registerLeaveRoutes(): void {
   route({ method: 'POST', path: '/api/leaves', action: 'leave:request', module: 'leave',
     handler: async ({ ctx, body }) => submitLeave(ctx, submitLeaveSchema.parse(body)) });
   route({ method: 'DELETE', path: '/api/leaves/:id', action: 'leave:request', module: 'leave',
+    resourceParam: 'id', loadResource: loadLeaveRequest,
+    handler: async ({ ctx, params }) => cancelLeave(ctx, params['id']!) });
+  route({ method: 'POST', path: '/api/leaves/wfh', action: 'leave:request-wfh', module: 'leave',
+    handler: async ({ ctx, body }) => submitWfh(ctx, submitWfhSchema.parse(body)) });
+  route({ method: 'POST', path: '/api/leaves/wfh/standing', action: 'leave:manage-wfh-standing', module: 'leave',
+    handler: async ({ ctx, body }) => submitStandingWfh(ctx, submitStandingWfhSchema.parse(body)) });
+  route({ method: 'DELETE', path: '/api/leaves/wfh/standing/:id', action: 'leave:manage-wfh-standing', module: 'leave',
     resourceParam: 'id', loadResource: loadLeaveRequest,
     handler: async ({ ctx, params }) => cancelLeave(ctx, params['id']!) });
 }
