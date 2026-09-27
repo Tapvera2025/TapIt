@@ -52,6 +52,9 @@ CREATE TABLE leave_request (
   CHECK ((recurrence_type IS NULL) = (recurrence_end IS NULL)),
   CHECK (recurrence_end IS NULL OR recurrence_end >= to_date),
   CHECK (decided_by IS NULL OR decided_by <> requested_by),
+  CHECK ((acknowledged_by IS NULL) = (acknowledged_at IS NULL)),
+  CHECK ((decided_by IS NULL) = (decided_at IS NULL)),
+  CHECK ((revoked_by IS NULL) = (revoked_at IS NULL)),
   FOREIGN KEY (organization_id, user_id) REFERENCES app_user (organization_id, id),
   FOREIGN KEY (organization_id, requested_by)   REFERENCES app_user (organization_id, id),
   FOREIGN KEY (organization_id, acknowledged_by) REFERENCES app_user (organization_id, id),
@@ -89,6 +92,7 @@ CREATE TABLE leave_balance_entry (
   period_year      smallint NOT NULL,
   created_at       timestamptz NOT NULL DEFAULT now(),
   UNIQUE (organization_id, id),
+  CHECK (kind NOT IN ('consumption', 'reversal') OR leave_request_id IS NOT NULL),
   FOREIGN KEY (organization_id, user_id) REFERENCES app_user (organization_id, id),
   FOREIGN KEY (organization_id, leave_type_id) REFERENCES leave_type (organization_id, id),
   FOREIGN KEY (organization_id, user_id, leave_request_id)

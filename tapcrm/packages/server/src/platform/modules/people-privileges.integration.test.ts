@@ -64,6 +64,7 @@ describe.skipIf(!enabled)('People table privileges for the app role (PostgreSQL)
       SELECT table_name, string_agg(privilege_type, ',' ORDER BY privilege_type) AS privileges
       FROM information_schema.table_privileges
       WHERE grantee = 'tapcrm_app' AND table_name = ANY(${Object.keys(EXPECTED)}::text[])
+        AND table_schema = 'public'
         AND privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
       GROUP BY table_name`,
     );
