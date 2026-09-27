@@ -232,8 +232,8 @@ export async function insertBalanceEntry(
   tx: Tx,
   input: {
     organizationId: string; userId: string; leaveTypeId: string;
-    kind: 'consumption' | 'reversal'; units: number;
-    leaveRequestId: string; periodYear: number;
+    kind: 'opening' | 'accrual' | 'consumption' | 'reversal'; units: number;
+    leaveRequestId: string | null; periodYear: number;
   },
 ): Promise<void> {
   await tx.query(sql`
@@ -257,7 +257,10 @@ export async function upsertWfhDay(
     VALUES
       (${input.organizationId}, ${input.userId}, ${input.workDate},
        ${input.reason}, ${input.approvedBy}, ${input.leaveRequestId})
-    ON CONFLICT (organization_id, user_id, work_date) DO NOTHING
+    ON CONFLICT (organization_id, user_id, work_date) DO UPDATE
+      SET reason = EXCLUDED.reason,
+          approved_by = EXCLUDED.approved_by,
+          leave_request_id = EXCLUDED.leave_request_id
   `);
 }
 
@@ -271,11 +274,11 @@ export async function deleteWfhDaysByRequest(
 }
 
 export async function deleteWfhDayByRequestAndDate(
-  tx: Tx, userId: string, leaveRequestId: string, workDate: DateOnly,
+  tx: Tx, organizationId: string, userId: string, leaveRequestId: string, workDate: DateOnly,
 ): Promise<void> {
   await tx.query(sql`
     DELETE FROM work_from_home_day
-    WHERE user_id = ${userId} AND leave_request_id = ${leaveRequestId} AND work_date = ${workDate}
+    WHERE organization_id = ${organizationId} AND user_id = ${userId} AND leave_request_id = ${leaveRequestId} AND work_date = ${workDate}
   `);
 }
 
@@ -289,6 +292,7 @@ export async function existsWfhDay(tx: Tx, userId: string, workDate: DateOnly): 
 export async function findActiveStandingWfhRequests(
   tx: Tx, asOf: DateOnly,
 ): Promise<{ id: string; userId: string; fromDate: DateOnly; recurrenceEnd: DateOnly; reason: string; decidedBy: string }[]> {
+  // Called per-org inside a transaction that has app.organization_id set — RLS scopes the result.
   return tx.query(sql`
     SELECT id, user_id AS "userId",
            from_date::text AS "fromDate", recurrence_end::text AS "recurrenceEnd",
