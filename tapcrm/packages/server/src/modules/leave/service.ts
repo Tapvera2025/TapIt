@@ -151,10 +151,8 @@ export async function listLeaveRequests(ctx: RequestContext, query: ListQuery): 
       ...(query.after !== undefined && { after: query.after }),
       limit: query.limit,
     }, visibility);
-    return Promise.all(rows.map(async (r) => {
-      const lt = await repo.findLeaveTypeById(tx, r.leaveTypeId);
-      return toRequestSummary(r, '', lt?.name ?? '');
-    }));
+    const typeMap = new Map((await repo.listLeaveTypes(tx)).map(t => [t.id, t]));
+    return rows.map(r => toRequestSummary(r, '', typeMap.get(r.leaveTypeId)?.name ?? ''));
   });
 }
 
@@ -162,6 +160,8 @@ export async function getBalances(ctx: RequestContext, userId: string, query: Ba
   return db.transaction(ctx, async (tx) => {
     const scopeFilter = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
     if (!isMatchNothing(scopeFilter)) {
+      // The leaveRequest policy filter only references user_id, requested_by,
+      // acknowledged_by, decided_by — all present in this synthetic row.
       const allowed = await tx.maybeOne<{ ok: boolean }>(sql`
         SELECT TRUE AS ok
         FROM (
@@ -219,9 +219,10 @@ export async function getLeaveCalendar(ctx: RequestContext, query: CalendarQuery
     const scopeFilter = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
     if (isMatchNothing(scopeFilter)) return [];
     const rows = await repo.listLeaveRequests(tx, { userId, fromDate, toDate, limit: 500 }, scopeFilter);
+    const typeMap = new Map((await repo.listLeaveTypes(tx)).map(t => [t.id, t]));
     const events: LeaveCalendarEvent[] = [];
     for (const r of rows.filter(r => r.status !== 'cancelled')) {
-      const lt = await repo.findLeaveTypeById(tx, r.leaveTypeId);
+      const lt = typeMap.get(r.leaveTypeId);
       for (let d = r.fromDate; d <= r.toDate; d = addDays(d, 1)) {
         if (d >= fromDate && d <= toDate)
           events.push({ date: d, kind: r.kind, status: r.status as any,
