@@ -386,7 +386,7 @@ export async function decideLeave(
       if (row.status !== 'approved')
         throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_STATUS, 'Only approved requests can be revoked');
 
-      await AttendanceFacade.removeOverlays(tx, 'leave', id);
+      await AttendanceFacade.removeOverlays(tx, row.kind === 'absence' ? 'leave' : 'wfh', id);
       await repo.deleteWfhDaysByRequest(tx, orgId, id);
 
       const leaveType = await repo.findLeaveTypeById(tx, row.leaveTypeId);
@@ -414,8 +414,7 @@ export async function decideLeave(
         kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
         outcome: 'revoked', daysConsumed: row.daysConsumed,
       });
-      const lt = await repo.findLeaveTypeById(tx, updated.leaveTypeId);
-      return toRequestSummary(updated, '', lt?.name ?? '');
+      return toRequestSummary(updated, '', leaveType?.name ?? '');
     }
 
     if (body.decision === 'rejected') {
@@ -467,7 +466,7 @@ export async function decideLeave(
         const resolved = await CalendarFacade.dayType(tx, row.userId, date);
         if (resolved.type !== 'working') continue;
         const overlayKind = overlayKindForDay(date, row.fromDate, row.toDate,
-          row.fromHalf as any, row.toHalf as any);
+          row.fromHalf, row.toHalf);
         await AttendanceFacade.applyOverlay(tx, {
           sourceKind: 'leave', sourceId: id,
           userId: row.userId, workDate: date, kind: overlayKind,
@@ -501,7 +500,6 @@ export async function decideLeave(
       kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
       outcome: 'approved', daysConsumed: row.daysConsumed,
     });
-    const lt = await repo.findLeaveTypeById(tx, updated.leaveTypeId);
-    return toRequestSummary(updated, '', lt?.name ?? '');
+    return toRequestSummary(updated, '', leaveType?.name ?? '');
   });
 }
