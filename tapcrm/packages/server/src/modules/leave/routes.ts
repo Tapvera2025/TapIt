@@ -4,8 +4,8 @@ import { db } from '../../platform/dal/db.js';
 import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
 import { makeLeaveTypeResource, makeLeaveRequestResource } from './policy.js';
-import { createLeaveType, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getLeaveCalendar, getLeaveRequest, listLeaveRequests, submitLeave, submitWfh, submitStandingWfh, acknowledgeLeave } from './service.js';
-import { createLeaveTypeSchema, updateLeaveTypeSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema } from './validators.js';
+import { createLeaveType, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getLeaveCalendar, getLeaveRequest, listLeaveRequests, submitLeave, submitWfh, submitStandingWfh, acknowledgeLeave, decideLeave } from './service.js';
+import { createLeaveTypeSchema, updateLeaveTypeSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
 
 async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource | null> {
   const row = await db.maybeOne<{ id: string; organizationId: string }>(
@@ -58,4 +58,7 @@ export function registerLeaveRoutes(): void {
   route({ method: 'POST', path: '/api/leaves/:id/acknowledge', action: 'leave:acknowledge', module: 'leave',
     resourceParam: 'id', loadResource: loadLeaveRequest,
     handler: async ({ ctx, params }) => acknowledgeLeave(ctx, params['id']!) });
+  route({ method: 'POST', path: '/api/leaves/:id/decide', action: 'leave:decide', module: 'leave',
+    resourceParam: 'id', loadResource: loadLeaveRequest,
+    handler: async ({ ctx, params, body }) => decideLeave(ctx, params['id']!, decideSchema.parse(body)) });
 }

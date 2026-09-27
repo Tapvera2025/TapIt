@@ -12,9 +12,10 @@ import {
   LEAVE_ERROR_CODES,
   LeaveConflictError, LeaveForbiddenError, LeaveNotFoundError, LeaveTypeNotFoundError, LeaveValidationError,
 } from './errors.js';
-import { daysConsumed, balanceAvailable } from './rules.js';
+import { recordLeaveDecided } from './events.js';
+import { daysConsumed, balanceAvailable, overlayKindForDay } from './rules.js';
 import * as repo from './repository.js';
-import type { CreateLeaveTypeBody, UpdateLeaveTypeBody, SubmitLeaveBody, SubmitWfhBody, SubmitStandingWfhBody, ListQuery, BalanceQuery, CalendarQuery } from './validators.js';
+import type { CreateLeaveTypeBody, UpdateLeaveTypeBody, SubmitLeaveBody, SubmitWfhBody, SubmitStandingWfhBody, ListQuery, BalanceQuery, CalendarQuery, DecideBody } from './validators.js';
 
 export function toLeaveTypeDto(row: repo.LeaveTypeRow): LeaveTypeDto {
   return {
@@ -321,6 +322,184 @@ export async function acknowledgeLeave(
       status: 'acknowledged',
       acknowledgedBy: ctx.principal.id,
       acknowledgedAt: now,
+    });
+    const lt = await repo.findLeaveTypeById(tx, updated.leaveTypeId);
+    return toRequestSummary(updated, '', lt?.name ?? '');
+  });
+}
+
+/**
+ * WFH-7 persistent precedence rule. Must be called after any event that changes
+ * absence or WFH approval state for a date. The caller's transaction must have
+ * already committed the status change so the queries here see current state.
+ *
+ *   approved absence on date  → WFH overlay/day must not exist
+ *   approved WFH, no absence  → WFH overlay/day must exist (if working day)
+ *   neither                   → WFH overlay/day must not exist
+ */
+export async function reconcileWfhForDate(
+  tx: Tx,
+  userId: string,
+  date: DateOnly,
+  orgId: string,
+  clock: Clock = systemClock,
+): Promise<void> {
+  await AttendanceFacade.lockPerson(tx, userId);
+  const hasAbsence  = !!(await repo.findApprovedAbsenceForDate(tx, userId, date));
+  const approvedWfh = await repo.findApprovedWfhOverlapping(tx, userId, date, date);
+
+  if (hasAbsence || approvedWfh.length === 0) {
+    for (const wfh of approvedWfh) {
+      await AttendanceFacade.removeOverlayForDate(tx, userId, wfh.id, date, clock);
+      await repo.deleteWfhDayByRequestAndDate(tx, orgId, userId, wfh.id, date);
+    }
+    return;
+  }
+  const resolved = await CalendarFacade.dayType(tx, userId, date);
+  if (resolved.type !== 'working') return;
+  for (const wfh of approvedWfh) {
+    if (await repo.existsWfhDay(tx, userId, date)) continue;
+    await AttendanceFacade.applyOverlay(tx, {
+      sourceKind: 'wfh', sourceId: wfh.id, userId, workDate: date, kind: 'wfh',
+    });
+    await repo.upsertWfhDay(tx, {
+      organizationId: orgId, userId, workDate: date,
+      reason: wfh.reason, approvedBy: wfh.decidedBy!, leaveRequestId: wfh.id,
+    });
+  }
+}
+
+export async function decideLeave(
+  ctx: RequestContext, id: string, body: DecideBody, clock: Clock = systemClock,
+): Promise<LeaveRequestSummary> {
+  return db.transaction(ctx, async (tx) => {
+    const seed = await repo.findLeaveRequestById(tx, id);
+    if (!seed) throw new LeaveNotFoundError();
+    await AttendanceFacade.lockPerson(tx, seed.userId);
+    const row = await repo.findLeaveRequestForUpdate(tx, id);
+    if (!row) throw new LeaveNotFoundError();
+
+    const orgId = await repo.currentOrganizationId(tx);
+    const now   = clock.now();
+
+    if (body.decision === 'revoked') {
+      if (row.status !== 'approved')
+        throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_STATUS, 'Only approved requests can be revoked');
+
+      await AttendanceFacade.removeOverlays(tx, 'leave', id);
+      await repo.deleteWfhDaysByRequest(tx, orgId, id);
+
+      const leaveType = await repo.findLeaveTypeById(tx, row.leaveTypeId);
+      if (leaveType?.enforcement && row.kind === 'absence' && row.daysConsumed > 0) {
+        await repo.insertBalanceEntry(tx, {
+          organizationId: orgId, userId: row.userId, leaveTypeId: row.leaveTypeId,
+          kind: 'reversal', units: row.daysConsumed,
+          leaveRequestId: id, periodYear: parseInt(row.fromDate.slice(0, 4)),
+        });
+      }
+
+      const updated = await repo.updateLeaveRequestStatus(tx, id, {
+        status: 'cancelled',
+        revokedBy: ctx.principal.id, revokedAt: now,
+      });
+
+      if (row.kind === 'absence') {
+        for (let date = row.fromDate; date <= row.toDate; date = addDays(date, 1)) {
+          await reconcileWfhForDate(tx, row.userId, date, orgId, clock);
+        }
+      }
+
+      await recordLeaveDecided(tx, orgId, {
+        requestId: id, userId: row.userId, leaveTypeId: row.leaveTypeId,
+        kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
+        outcome: 'revoked', daysConsumed: row.daysConsumed,
+      });
+      const lt = await repo.findLeaveTypeById(tx, updated.leaveTypeId);
+      return toRequestSummary(updated, '', lt?.name ?? '');
+    }
+
+    if (body.decision === 'rejected') {
+      if (row.status !== 'acknowledged')
+        throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_STATUS,
+          `Cannot reject a request in status '${row.status}'`);
+      if (row.requestedBy === ctx.principal.id)
+        throw new LeaveForbiddenError(LEAVE_ERROR_CODES.SELF_DECIDE, 'Cannot decide your own request (A1)');
+      const updated = await repo.updateLeaveRequestStatus(tx, id, {
+        status: 'rejected', decidedBy: ctx.principal.id, decidedAt: now,
+        ...(body.decisionNote !== undefined && { decisionNote: body.decisionNote }),
+      });
+      await recordLeaveDecided(tx, orgId, {
+        requestId: id, userId: row.userId, leaveTypeId: row.leaveTypeId,
+        kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
+        outcome: 'rejected', daysConsumed: 0,
+      });
+      const lt = await repo.findLeaveTypeById(tx, updated.leaveTypeId);
+      return toRequestSummary(updated, '', lt?.name ?? '');
+    }
+
+    // decision === 'approved'
+    if (row.status !== 'acknowledged')
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_STATUS,
+        `Cannot approve a request in status '${row.status}'`);
+    if (row.requestedBy === ctx.principal.id)
+      throw new LeaveForbiddenError(LEAVE_ERROR_CODES.SELF_DECIDE, 'Cannot decide your own request (A1)');
+
+    const leaveType = await repo.findLeaveTypeById(tx, row.leaveTypeId);
+
+    if (leaveType?.enforcement && row.kind === 'absence' && row.daysConsumed > 0) {
+      const year    = parseInt(row.fromDate.slice(0, 4));
+      const entries = await repo.getBalanceEntries(tx, row.userId, row.leaveTypeId, year);
+      if (balanceAvailable(entries) < row.daysConsumed) {
+        throw new LeaveValidationError(LEAVE_ERROR_CODES.INSUFFICIENT_BALANCE,
+          'Insufficient balance at approval time (may have changed since submission)');
+      }
+    }
+
+    const today = await organizationToday(tx);
+
+    const updated = await repo.updateLeaveRequestStatus(tx, id, {
+      status: 'approved', decidedBy: ctx.principal.id, decidedAt: now,
+      ...(body.decisionNote !== undefined && { decisionNote: body.decisionNote }),
+    });
+
+    if (row.kind === 'absence') {
+      for (let date = row.fromDate; date <= row.toDate; date = addDays(date, 1)) {
+        const resolved = await CalendarFacade.dayType(tx, row.userId, date);
+        if (resolved.type !== 'working') continue;
+        const overlayKind = overlayKindForDay(date, row.fromDate, row.toDate,
+          row.fromHalf as any, row.toHalf as any);
+        await AttendanceFacade.applyOverlay(tx, {
+          sourceKind: 'leave', sourceId: id,
+          userId: row.userId, workDate: date, kind: overlayKind,
+          paid: leaveType?.paidLeave ?? null,
+        });
+        await reconcileWfhForDate(tx, row.userId, date, orgId, clock);
+      }
+      if (leaveType?.enforcement && row.daysConsumed > 0) {
+        await repo.insertBalanceEntry(tx, {
+          organizationId: orgId, userId: row.userId, leaveTypeId: row.leaveTypeId,
+          kind: 'consumption', units: row.daysConsumed,
+          leaveRequestId: id, periodYear: parseInt(row.fromDate.slice(0, 4)),
+        });
+      }
+    } else {
+      const isStanding = row.recurrenceType === 'daily';
+      const rangeEnd   = isStanding
+        ? (row.recurrenceEnd! < addDays(today, 60) ? row.recurrenceEnd! : addDays(today, 60))
+        : row.toDate;
+      const rangeStart = isStanding
+        ? (row.fromDate > today ? row.fromDate : today)
+        : row.fromDate;
+
+      for (let date = rangeStart; date <= rangeEnd; date = addDays(date, 1)) {
+        await reconcileWfhForDate(tx, row.userId, date, orgId, clock);
+      }
+    }
+
+    await recordLeaveDecided(tx, orgId, {
+      requestId: id, userId: row.userId, leaveTypeId: row.leaveTypeId,
+      kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
+      outcome: 'approved', daysConsumed: row.daysConsumed,
     });
     const lt = await repo.findLeaveTypeById(tx, updated.leaveTypeId);
     return toRequestSummary(updated, '', lt?.name ?? '');
