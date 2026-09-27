@@ -1,6 +1,6 @@
 // packages/server/src/modules/leave/rules.test.ts
 import { describe, expect, it } from 'vitest';
-import type { DateOnly, LeaveHalf } from '@tapcrm/contracts';
+import type { DateOnly, LeaveHalf as _LeaveHalf } from '@tapcrm/contracts';
 import { balanceAvailable, daysConsumed, overlayKindForDay } from './rules.js';
 
 const d = (s: string) => s as DateOnly;

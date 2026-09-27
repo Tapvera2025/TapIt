@@ -114,7 +114,7 @@ describe('submitStandingWfhSchema', () => {
   });
 
   it('requires recurrenceEnd', () => {
-    const { recurrenceEnd, ...withoutRecurrence } = validInput;
+    const { recurrenceEnd: _recurrenceEnd, ...withoutRecurrence } = validInput;
     expect(submitStandingWfhSchema.safeParse(withoutRecurrence).success).toBe(false);
   });
 

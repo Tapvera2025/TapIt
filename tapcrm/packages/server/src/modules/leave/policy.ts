@@ -36,7 +36,7 @@ const leaveRequestPolicy: ResourcePolicy = {
     if (!subjectId) return false;
     if (ctx.principal.id === subjectId) return true;
 
-    const fragment = await visibilityFilter(ctx as unknown as RequestContext, action, 'leaveRequest');
+    const fragment = await visibilityFilter(ctx, action, 'leaveRequest');
     if (isMatchNothing(fragment)) return false;
     const row = await db.maybeOne<{ ok: boolean }>(
       ctx as unknown as RequestContext,

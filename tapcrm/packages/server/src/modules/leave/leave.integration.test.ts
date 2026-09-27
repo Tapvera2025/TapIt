@@ -10,7 +10,7 @@ import { sql } from '../../platform/dal/sql.js';
 import { createTestContext } from '../../platform/test-helpers.js';
 import { advanceStandingWfhForDate } from './jobs.js';
 import {
-  acknowledgeLeave, decideLeave, reconcileWfhForDate,
+  acknowledgeLeave, decideLeave, reconcileWfhForDate as _reconcileWfhForDate,
   submitLeave, submitStandingWfh, submitWfh,
 } from './service.js';
 

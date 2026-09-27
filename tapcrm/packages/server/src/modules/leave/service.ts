@@ -29,8 +29,8 @@ function toRequestSummary(row: repo.LeaveRequestRow, userFullName: string, typeN
   return {
     id: row.id, userId: row.userId, userFullName, leaveTypeId: row.leaveTypeId, leaveTypeName: typeName,
     kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
-    fromHalf: row.fromHalf as any, toHalf: row.toHalf as any,
-    daysConsumed: row.daysConsumed, reason: row.reason, status: row.status as any,
+    fromHalf: row.fromHalf, toHalf: row.toHalf,
+    daysConsumed: row.daysConsumed, reason: row.reason, status: row.status,
     requestedBy: row.requestedBy,
     acknowledgedAt: row.acknowledgedAt, decidedAt: row.decidedAt, decisionNote: row.decisionNote,
     revokedAt: row.revokedAt,
@@ -226,7 +226,7 @@ export async function getLeaveCalendar(ctx: RequestContext, query: CalendarQuery
       const lt = typeMap.get(r.leaveTypeId);
       for (let d = r.fromDate; d <= r.toDate; d = addDays(d, 1)) {
         if (d >= fromDate && d <= toDate)
-          events.push({ date: d, kind: r.kind, status: r.status as any,
+          events.push({ date: d, kind: r.kind, status: r.status,
             leaveTypeName: lt?.name ?? '', requestId: r.id });
       }
     }

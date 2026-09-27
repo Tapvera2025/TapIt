@@ -1,5 +1,6 @@
 // packages/server/src/modules/leave/repository.ts
 import type { DateOnly } from '@tapcrm/contracts';
+import type { SqlFragment } from '@tapcrm/authz';
 import type { Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { BalanceEntry } from './rules.js';
@@ -185,7 +186,7 @@ export async function updateLeaveRequestStatus(
 export async function listLeaveRequests(
   tx: Tx,
   filter: { userId?: string; status?: string; fromDate?: DateOnly; toDate?: DateOnly; after?: string; limit: number },
-  visibility: import('@tapcrm/authz').SqlFragment,
+  visibility: SqlFragment,
 ): Promise<LeaveRequestRow[]> {
   return tx.query<LeaveRequestRow>(sql`
     SELECT ${REQUEST_COLS}

@@ -11,7 +11,7 @@ async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource 
   const row = await db.maybeOne<{ id: string; organizationId: string }>(
     ctx, sql`SELECT id, organization_id AS "organizationId" FROM leave_type WHERE id = ${id}`,
   );
-  return row ? makeLeaveTypeResource(row.id, row.organizationId) as unknown as Resource : null;
+  return row ? makeLeaveTypeResource(row.id, row.organizationId) : null;
 }
 
 export function registerLeaveRoutes(): void {
@@ -30,7 +30,7 @@ export function registerLeaveRoutes(): void {
                FROM leave_request WHERE id = ${id}`,
     );
     return row
-      ? makeLeaveRequestResource(row.id, row.organizationId, row.userId, row.requestedBy) as unknown as Resource
+      ? makeLeaveRequestResource(row.id, row.organizationId, row.userId, row.requestedBy)
       : null;
   }
 
