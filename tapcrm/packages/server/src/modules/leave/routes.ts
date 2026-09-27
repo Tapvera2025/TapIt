@@ -3,9 +3,9 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
-import { makeLeaveTypeResource } from './policy.js';
-import { createLeaveType, listLeaveTypes, updateLeaveType } from './service.js';
-import { createLeaveTypeSchema, updateLeaveTypeSchema } from './validators.js';
+import { makeLeaveTypeResource, makeLeaveRequestResource } from './policy.js';
+import { createLeaveType, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getLeaveCalendar, getLeaveRequest, listLeaveRequests, submitLeave } from './service.js';
+import { createLeaveTypeSchema, updateLeaveTypeSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, submitLeaveSchema } from './validators.js';
 
 async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource | null> {
   const row = await db.maybeOne<{ id: string; organizationId: string }>(
@@ -22,4 +22,30 @@ export function registerLeaveRoutes(): void {
   route({ method: 'PUT',  path: '/api/leaves/types/:id', action: 'leave:manage-types', module: 'leave',
     resourceParam: 'id', loadResource: loadLeaveType,
     handler: async ({ ctx, params, body }) => updateLeaveType(ctx, params['id']!, updateLeaveTypeSchema.parse(body)) });
+
+  async function loadLeaveRequest(ctx: RequestContext, id: string): Promise<Resource | null> {
+    const row = await db.maybeOne<{ id: string; organizationId: string; userId: string; requestedBy: string }>(
+      ctx, sql`SELECT id, organization_id AS "organizationId",
+               user_id AS "userId", requested_by AS "requestedBy"
+               FROM leave_request WHERE id = ${id}`,
+    );
+    return row
+      ? makeLeaveRequestResource(row.id, row.organizationId, row.userId, row.requestedBy) as unknown as Resource
+      : null;
+  }
+
+  route({ method: 'GET', path: '/api/leaves', action: 'leave:view', module: 'leave',
+    handler: async ({ ctx, query }) => listLeaveRequests(ctx, listQuerySchema.parse(query)) });
+  route({ method: 'GET', path: '/api/leaves/calendar', action: 'leave:view', module: 'leave',
+    handler: async ({ ctx, query }) => getLeaveCalendar(ctx, calendarQuerySchema.parse(query)) });
+  route({ method: 'GET', path: '/api/leaves/balances/:userId', action: 'leave:view', module: 'leave',
+    handler: async ({ ctx, params, query }) => getBalances(ctx, params['userId']!, balanceQuerySchema.parse(query)) });
+  route({ method: 'GET', path: '/api/leaves/:id', action: 'leave:view', module: 'leave',
+    resourceParam: 'id', loadResource: loadLeaveRequest,
+    handler: async ({ ctx, params }) => getLeaveRequest(ctx, params['id']!) });
+  route({ method: 'POST', path: '/api/leaves', action: 'leave:request', module: 'leave',
+    handler: async ({ ctx, body }) => submitLeave(ctx, submitLeaveSchema.parse(body)) });
+  route({ method: 'DELETE', path: '/api/leaves/:id', action: 'leave:request', module: 'leave',
+    resourceParam: 'id', loadResource: loadLeaveRequest,
+    handler: async ({ ctx, params }) => cancelLeave(ctx, params['id']!) });
 }

@@ -1,15 +1,39 @@
-import type { LeaveTypeDto } from '@tapcrm/contracts';
+import type { LeaveTypeDto, LeaveRequestSummary, LeaveBalanceDto, LeaveCalendarEvent, DateOnly } from '@tapcrm/contracts';
+import { isMatchNothing, visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
-import { LEAVE_ERROR_CODES, LeaveTypeNotFoundError, LeaveValidationError } from './errors.js';
+import type { Tx } from '../../platform/dal/db.js';
+import { sql } from '../../platform/dal/sql.js';
+import { organizationToday } from '../../platform/organization-time.js';
+import { addDays, systemClock, type Clock } from '../../platform/time.js';
+import * as AttendanceFacade from '../attendance/facade.js';
+import * as CalendarFacade from '../holidays/facade.js';
+import {
+  LEAVE_ERROR_CODES,
+  LeaveConflictError, LeaveForbiddenError, LeaveNotFoundError, LeaveTypeNotFoundError, LeaveValidationError,
+} from './errors.js';
+import { daysConsumed, balanceAvailable } from './rules.js';
 import * as repo from './repository.js';
-import type { CreateLeaveTypeBody, UpdateLeaveTypeBody } from './validators.js';
+import type { CreateLeaveTypeBody, UpdateLeaveTypeBody, SubmitLeaveBody, SubmitWfhBody, SubmitStandingWfhBody, ListQuery, BalanceQuery, CalendarQuery } from './validators.js';
 
 export function toLeaveTypeDto(row: repo.LeaveTypeRow): LeaveTypeDto {
   return {
     id: row.id, code: row.code, name: row.name, kind: row.kind,
     accrualDays: row.accrualDays, enforcement: row.enforcement,
     paidLeave: row.paidLeave, isActive: row.isActive,
+  };
+}
+
+function toRequestSummary(row: repo.LeaveRequestRow, userFullName: string, typeName: string): LeaveRequestSummary {
+  return {
+    id: row.id, userId: row.userId, userFullName, leaveTypeId: row.leaveTypeId, leaveTypeName: typeName,
+    kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
+    fromHalf: row.fromHalf as any, toHalf: row.toHalf as any,
+    daysConsumed: row.daysConsumed, reason: row.reason, status: row.status as any,
+    requestedBy: row.requestedBy,
+    acknowledgedAt: row.acknowledgedAt, decidedAt: row.decidedAt, decisionNote: row.decisionNote,
+    revokedAt: row.revokedAt,
+    recurrenceType: row.recurrenceType, recurrenceEnd: row.recurrenceEnd, createdAt: row.createdAt,
   };
 }
 
@@ -40,5 +64,170 @@ export async function updateLeaveType(ctx: RequestContext, id: string, body: Upd
     if (body.paidLeave !== undefined) patch.paidLeave = body.paidLeave;
     if (body.isActive !== undefined) patch.isActive = body.isActive;
     return toLeaveTypeDto(await repo.updateLeaveType(tx, id, patch));
+  });
+}
+
+export async function submitLeave(ctx: RequestContext, body: SubmitLeaveBody): Promise<LeaveRequestSummary> {
+  return db.transaction(ctx, async (tx) => {
+    if (body.fromDate.slice(0, 4) !== body.toDate.slice(0, 4)) {
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.CROSS_YEAR,
+        'Cross-year leave requests are not supported. Submit two separate requests.');
+    }
+    if (body.toDate < body.fromDate) {
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_DATES, 'toDate must be >= fromDate');
+    }
+
+    const leaveType = await repo.findLeaveTypeById(tx, body.leaveTypeId);
+    if (!leaveType || !leaveType.isActive || leaveType.kind !== 'absence') {
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_KIND, 'Leave type not found or not an absence type');
+    }
+
+    await AttendanceFacade.lockPerson(tx, ctx.principal.id);
+
+    const overlaps = await repo.findActiveOverlappingRequests(
+      tx, ctx.principal.id, body.fromDate as DateOnly, body.toDate as DateOnly,
+      { conflictKinds: ['absence'] },
+    );
+    if (overlaps.length > 0) {
+      throw new LeaveConflictError(LEAVE_ERROR_CODES.OVERLAP, 'Overlaps an existing absence request',
+        { conflictId: overlaps[0]!.id });
+    }
+
+    const [fromDayType, toDayType] = await Promise.all([
+      CalendarFacade.dayType(tx, ctx.principal.id, body.fromDate as DateOnly),
+      CalendarFacade.dayType(tx, ctx.principal.id, body.toDate as DateOnly),
+    ]);
+    const firstDayIsWorking = fromDayType.type === 'working';
+    const lastDayIsWorking  = toDayType.type  === 'working';
+    const isSingleDay       = body.fromDate === body.toDate;
+    const workingDayCount   = await CalendarFacade.leaveDays(tx, ctx.principal.id, body.fromDate as DateOnly, body.toDate as DateOnly);
+    const consumed = daysConsumed(
+      workingDayCount, body.fromHalf, body.toHalf,
+      firstDayIsWorking, lastDayIsWorking, isSingleDay,
+    );
+
+    if (leaveType.enforcement && consumed > 0) {
+      const year = parseInt(body.fromDate.slice(0, 4));
+      const entries = await repo.getBalanceEntries(tx, ctx.principal.id, body.leaveTypeId, year);
+      const available = balanceAvailable(entries);
+      if (available < consumed) {
+        throw new LeaveValidationError(LEAVE_ERROR_CODES.INSUFFICIENT_BALANCE,
+          `Insufficient balance: ${available} days available, ${consumed} requested`);
+      }
+    }
+
+    const orgId = await repo.currentOrganizationId(tx);
+    const row = await repo.insertLeaveRequest(tx, {
+      organizationId: orgId, userId: ctx.principal.id,
+      leaveTypeId: body.leaveTypeId, kind: 'absence',
+      fromDate: body.fromDate as DateOnly, toDate: body.toDate as DateOnly,
+      fromHalf: body.fromHalf, toHalf: body.toHalf,
+      daysConsumed: consumed, reason: body.reason,
+      requestedBy: ctx.principal.id,
+      recurrenceType: null, recurrenceEnd: null,
+    });
+    return toRequestSummary(row, '', leaveType.name);
+  });
+}
+
+export async function getLeaveRequest(ctx: RequestContext, id: string): Promise<LeaveRequestSummary> {
+  return db.transaction(ctx, async (tx) => {
+    const row = await repo.findLeaveRequestById(tx, id);
+    if (!row) throw new LeaveNotFoundError();
+    const lt = await repo.findLeaveTypeById(tx, row.leaveTypeId);
+    return toRequestSummary(row, '', lt?.name ?? '');
+  });
+}
+
+export async function listLeaveRequests(ctx: RequestContext, query: ListQuery): Promise<LeaveRequestSummary[]> {
+  return db.transaction(ctx, async (tx) => {
+    const visibility = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
+    if (isMatchNothing(visibility)) return [];
+    const rows = await repo.listLeaveRequests(tx, {
+      ...(query.userId !== undefined && { userId: query.userId }),
+      ...(query.status !== undefined && { status: query.status }),
+      ...(query.fromDate !== undefined && { fromDate: query.fromDate as DateOnly }),
+      ...(query.toDate !== undefined && { toDate: query.toDate as DateOnly }),
+      ...(query.after !== undefined && { after: query.after }),
+      limit: query.limit,
+    }, visibility);
+    return Promise.all(rows.map(async (r) => {
+      const lt = await repo.findLeaveTypeById(tx, r.leaveTypeId);
+      return toRequestSummary(r, '', lt?.name ?? '');
+    }));
+  });
+}
+
+export async function getBalances(ctx: RequestContext, userId: string, query: BalanceQuery): Promise<LeaveBalanceDto[]> {
+  return db.transaction(ctx, async (tx) => {
+    const scopeFilter = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
+    if (!isMatchNothing(scopeFilter)) {
+      const allowed = await tx.maybeOne<{ ok: boolean }>(sql`
+        SELECT TRUE AS ok
+        FROM (
+          SELECT ${userId}::uuid AS user_id,
+                 NULL::uuid AS requested_by,
+                 NULL::uuid AS acknowledged_by,
+                 NULL::uuid AS decided_by
+        ) t
+        WHERE ${scopeFilter}
+      `);
+      if (!allowed)
+        throw new LeaveForbiddenError(LEAVE_ERROR_CODES.FORBIDDEN, 'Not authorized to view this user\'s balances');
+    } else {
+      throw new LeaveForbiddenError(LEAVE_ERROR_CODES.FORBIDDEN, 'Not authorized to view this user\'s balances');
+    }
+
+    const types = await repo.listLeaveTypes(tx);
+    return Promise.all(
+      types.filter(t => t.isActive && t.kind === 'absence').map(async (t) => {
+        const entries = await repo.getBalanceEntries(tx, userId, t.id, query.year);
+        const opening  = entries.filter(e => e.kind === 'opening').reduce((s, e) => s + e.units, 0);
+        const accrued  = entries.filter(e => e.kind === 'accrual').reduce((s, e) => s + e.units, 0);
+        const consumed = entries.filter(e => e.kind === 'consumption').reduce((s, e) => s + e.units, 0);
+        const reversed = entries.filter(e => e.kind === 'reversal').reduce((s, e) => s + e.units, 0);
+        return { leaveTypeId: t.id, leaveTypeName: t.name, opening, accrued, consumed,
+          available: opening + accrued - consumed + reversed };
+      }),
+    );
+  });
+}
+
+export async function cancelLeave(ctx: RequestContext, id: string): Promise<void> {
+  await db.transaction(ctx, async (tx) => {
+    const seed = await repo.findLeaveRequestById(tx, id);
+    if (!seed) throw new LeaveNotFoundError();
+    await AttendanceFacade.lockPerson(tx, seed.userId);
+    const row = await repo.findLeaveRequestForUpdate(tx, id);
+    if (!row) throw new LeaveNotFoundError();
+    if (row.requestedBy !== ctx.principal.id)
+      throw new LeaveForbiddenError(LEAVE_ERROR_CODES.FORBIDDEN, 'Only your own requests can be cancelled');
+    if (row.status !== 'pending')
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_STATUS,
+        'Only pending requests can be cancelled; use decide/revoke for approved requests');
+    await repo.updateLeaveRequestStatus(tx, id, { status: 'cancelled' });
+  });
+}
+
+export async function getLeaveCalendar(ctx: RequestContext, query: CalendarQuery): Promise<LeaveCalendarEvent[]> {
+  return db.transaction(ctx, async (tx) => {
+    const userId   = query.userId ?? ctx.principal.id;
+    const pad      = (n: number) => String(n).padStart(2, '0');
+    const fromDate = `${query.year}-${pad(query.month)}-01` as DateOnly;
+    const lastDay  = new Date(query.year, query.month, 0).getDate();
+    const toDate   = `${query.year}-${pad(query.month)}-${pad(lastDay)}` as DateOnly;
+    const scopeFilter = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
+    if (isMatchNothing(scopeFilter)) return [];
+    const rows = await repo.listLeaveRequests(tx, { userId, fromDate, toDate, limit: 500 }, scopeFilter);
+    const events: LeaveCalendarEvent[] = [];
+    for (const r of rows.filter(r => r.status !== 'cancelled')) {
+      const lt = await repo.findLeaveTypeById(tx, r.leaveTypeId);
+      for (let d = r.fromDate; d <= r.toDate; d = addDays(d, 1)) {
+        if (d >= fromDate && d <= toDate)
+          events.push({ date: d, kind: r.kind, status: r.status as any,
+            leaveTypeName: lt?.name ?? '', requestId: r.id });
+      }
+    }
+    return events;
   });
 }
