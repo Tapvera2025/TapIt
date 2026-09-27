@@ -300,3 +300,29 @@ export async function submitStandingWfh(ctx: RequestContext, body: SubmitStandin
     return toRequestSummary(row, '', leaveType.name);
   });
 }
+
+export async function acknowledgeLeave(
+  ctx: RequestContext, id: string, clock: Clock = systemClock,
+): Promise<LeaveRequestSummary> {
+  return db.transaction(ctx, async (tx) => {
+    // Stable lock ordering: read id→userId without locking, then advisory lock, then FOR UPDATE.
+    const seed = await repo.findLeaveRequestById(tx, id);
+    if (!seed) throw new LeaveNotFoundError();
+    await AttendanceFacade.lockPerson(tx, seed.userId);
+    const row = await repo.findLeaveRequestForUpdate(tx, id);
+    if (!row) throw new LeaveNotFoundError();
+    if (row.requestedBy === ctx.principal.id)
+      throw new LeaveForbiddenError(LEAVE_ERROR_CODES.SELF_ACKNOWLEDGE, 'Cannot acknowledge your own request (A1)');
+    if (row.status !== 'pending')
+      throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_STATUS,
+        `Cannot acknowledge a request in status '${row.status}'`);
+    const now = clock.now();
+    const updated = await repo.updateLeaveRequestStatus(tx, id, {
+      status: 'acknowledged',
+      acknowledgedBy: ctx.principal.id,
+      acknowledgedAt: now,
+    });
+    const lt = await repo.findLeaveTypeById(tx, updated.leaveTypeId);
+    return toRequestSummary(updated, '', lt?.name ?? '');
+  });
+}
