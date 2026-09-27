@@ -21,3 +21,7 @@ export * from './registry.generated.js';
 export * from './actionMetadata.js';
 export * from './principal.js';
 export * from './platform.js';
+export * from './people.js';
+export * from './presence.js';
+export * from './biometric.js';
+export * from './leave.js';
