@@ -35,6 +35,7 @@ import {
   registerStatusChannel,
 } from './live-status/index.js';
 import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from './leave/index.js';
+import { registerBreakJobs } from './break-management/jobs.js';
 
 /**
  * Port initialization — MUST be called before registerAllPolicies, registerAllRoutes,
@@ -107,4 +108,5 @@ export function registerAllJobs(): void {
   registerLiveStatusJobs();
   registerBiometricJobs();
   registerLeaveJobs();
+  registerBreakJobs();
 }

@@ -337,3 +337,151 @@ export async function currentOrganizationId(tx: Tx): Promise<string> {
   `);
   return row.v;
 }
+
+// ── Evaluator helpers (Task 5) ────────────────────────────────────────────────
+
+import type { CandidateRule } from './rules.js';
+
+/**
+ * Load all penalty rules for a given policy version, ordered by ordinal.
+ */
+export async function loadRulesForVersion(
+  tx: Tx,
+  organizationId: string,
+  policyVersionId: string,
+): Promise<CandidateRule[]> {
+  return tx.query<CandidateRule>(sql`
+    SELECT id AS "ruleId", ordinal, condition, occurrence_window AS "occurrenceWindow",
+           occurrence_count AS "occurrenceCount", consequence,
+           minutes, amount, auto_apply AS "autoApply"
+    FROM break_penalty_rule
+    WHERE organization_id = ${organizationId}
+      AND policy_version_id = ${policyVersionId}
+    ORDER BY ordinal
+  `);
+}
+
+export interface CurrentBreachAnswer {
+  id: string;
+  answerFingerprint: string;
+  status: string;
+  confirmedBy: string | null;
+  confirmedAt: Date | null;
+  waivedBy: string | null;
+  waivedAt: Date | null;
+  autoApplied: boolean;
+  suppressionReason: string | null;
+  explanation: string | null;
+}
+
+/**
+ * Load the current breach answer for a given attendance record.
+ * "Current" means status in (pending | confirmed | waived | advisory | suppressed).
+ */
+export async function currentBreachAnswer(
+  tx: Tx,
+  organizationId: string,
+  attendanceRecordId: string,
+): Promise<CurrentBreachAnswer | null> {
+  return tx.maybeOne<CurrentBreachAnswer>(sql`
+    SELECT id, answer_fingerprint AS "answerFingerprint", status,
+           confirmed_by AS "confirmedBy", confirmed_at AS "confirmedAt",
+           waived_by AS "waivedBy", waived_at AS "waivedAt",
+           auto_applied AS "autoApplied",
+           suppression_reason AS "suppressionReason",
+           explanation
+    FROM break_breach
+    WHERE organization_id = ${organizationId}
+      AND attendance_record_id = ${attendanceRecordId}
+      AND status IN ('pending', 'confirmed', 'waived', 'advisory', 'suppressed')
+    LIMIT 1
+  `);
+}
+
+/**
+ * Count qualifying occurrence days in a window for a given rule.
+ * Waived still counts; suppressed and superseded do not.
+ * excludeRecordId is used to avoid double-counting the current record being inserted.
+ */
+export async function countOccurrences(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  ruleId: string,
+  windowStart: DateOnly,
+  windowEnd: DateOnly,
+  excludeRecordId: string,
+): Promise<number> {
+  const row = await tx.one<{ count: string }>(sql`
+    SELECT COUNT(*) AS count
+    FROM break_breach
+    WHERE organization_id = ${organizationId}
+      AND user_id = ${userId}
+      AND matched_rule_id = ${ruleId}
+      AND status IN ('pending', 'confirmed', 'waived')
+      AND work_date >= ${windowStart}
+      AND work_date <= ${windowEnd}
+      AND attendance_record_id != ${excludeRecordId}
+  `);
+  return Number(row.count);
+}
+
+export interface BreachInsert {
+  organizationId: string;
+  userId: string;
+  attendanceRecordId: string;
+  workDate: DateOnly;
+  policyVersionId: string;
+  matchedRuleId: string | null;
+  occurrenceNumber: number | null;
+  measuredTotalMinutes: number;
+  measuredSingleMinutes: number;
+  measuredCount: number;
+  evidenceFingerprint: string;
+  answerFingerprint: string;
+  calculationVersion: number;
+  status: 'pending' | 'confirmed' | 'advisory' | 'suppressed';
+  suppressionReason: 'leave' | 'holiday' | null;
+  autoApplied: boolean;
+  confirmedAt: Date | null;
+}
+
+/**
+ * Insert a new break_breach row and return its generated id.
+ */
+export async function insertBreach(
+  tx: Tx,
+  breach: BreachInsert,
+): Promise<string> {
+  const row = await tx.one<{ id: string }>(sql`
+    INSERT INTO break_breach (
+      organization_id, user_id, attendance_record_id, work_date,
+      policy_version_id, matched_rule_id, occurrence_number,
+      measured_total_minutes, measured_single_minutes, measured_count,
+      evidence_fingerprint, answer_fingerprint, calculation_version,
+      status, suppression_reason, auto_applied, confirmed_at
+    ) VALUES (
+      ${breach.organizationId}, ${breach.userId}, ${breach.attendanceRecordId}, ${breach.workDate},
+      ${breach.policyVersionId}, ${breach.matchedRuleId}, ${breach.occurrenceNumber},
+      ${breach.measuredTotalMinutes}, ${breach.measuredSingleMinutes}, ${breach.measuredCount},
+      ${breach.evidenceFingerprint}, ${breach.answerFingerprint}, ${breach.calculationVersion},
+      ${breach.status}, ${breach.suppressionReason}, ${breach.autoApplied}, ${breach.confirmedAt}
+    )
+    RETURNING id
+  `);
+  return row.id;
+}
+
+/**
+ * Mark a breach as superseded (status transition, no delete).
+ */
+export async function supersedeBreach(
+  tx: Tx,
+  breachId: string,
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE break_breach
+    SET status = 'superseded', updated_at = now()
+    WHERE id = ${breachId}
+  `);
+}
