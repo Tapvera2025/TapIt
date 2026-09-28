@@ -38,6 +38,8 @@ import {
 import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from './leave/index.js';
 import { registerBreakJobs } from './break-management/jobs.js';
 import { registerPayrollJobs } from './payroll/facade.js';
+import { registerPayrollPolicies } from './payroll/policy.js';
+import { registerPayrollRoutes } from './payroll/routes.js';
 
 /**
  * Port initialization — MUST be called before registerAllPolicies, registerAllRoutes,
@@ -79,6 +81,7 @@ export function registerAllPolicies(): void {
   registerBiometricPolicies();
   registerLeavePolicies();
   registerBreakPolicies();
+  registerPayrollPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -95,6 +98,7 @@ export function registerAllRoutes(): void {
   registerBiometricRoutes();
   registerLeaveRoutes();
   registerBreakManagementRoutes();
+  registerPayrollRoutes();
 }
 
 let jobsRegistered = false;

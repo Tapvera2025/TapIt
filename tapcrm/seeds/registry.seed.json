@@ -2995,6 +2995,54 @@
     },
     {
       "method": "GET",
+      "path": "/api/payroll/cycle",
+      "action": "payroll:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/runs/:id",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/runs/:id/employees",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/runs/:id/drifts",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payroll/runs/:id/drifts/:driftId/remediate",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payroll/inputs",
+      "action": "payroll:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/payroll/inputs/:id/revoke",
+      "action": "payroll:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/payslips/:id/document",
+      "action": "payroll:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
       "path": "/api/performance/:userId",
       "action": "performance:view",
       "resourceParam": "userId"

@@ -13,6 +13,9 @@ import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
 import { EmployeeBreakView } from './breaks/EmployeeBreakView.js';
 import { BreachQueuePage } from './breaks/BreachQueuePage.js';
+import { PayrollCyclePage } from './payroll/PayrollCyclePage.js';
+import { MyPayslipsPage } from './payroll/MyPayslipsPage.js';
+import { RunsPage } from './payroll/RunsPage.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -76,6 +79,9 @@ export function CompanyWorkspace({
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
   const isBreachQueue = pathname === '/company/breaks/queue';
+  const isPayrollCycle = pathname === '/company/payroll/cycle';
+  const isMyPayslips = pathname === '/company/payroll/my-payslips';
+  const isPayrollRuns = pathname === '/company/payroll/runs';
   const title = isOrganization
     ? 'Organization'
     : pathname === '/company/employees'
@@ -90,6 +96,12 @@ export function CompanyWorkspace({
               ? 'Audit Log'
             : isBreachQueue
               ? 'Break Breach Queue'
+            : isPayrollCycle
+              ? 'Payroll Cycle'
+            : isMyPayslips
+              ? 'My Payslips'
+            : isPayrollRuns
+              ? 'Payroll Runs'
             : pathname === '/company/geofencing'
               ? 'Geofencing'
               : 'Dashboard';
@@ -103,6 +115,12 @@ export function CompanyWorkspace({
     <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />
   ) : isBreachQueue && isSuperAdmin ? (
     <BreachQueuePage />
+  ) : isPayrollCycle ? (
+    <PayrollCyclePage />
+  ) : isMyPayslips ? (
+    <MyPayslipsPage />
+  ) : isPayrollRuns && isSuperAdmin ? (
+    <RunsPage />
   ) : pathname === '/company/sessions' ? (
     <SessionsPage
       onBack={() => onNavigate('/company/dashboard')}

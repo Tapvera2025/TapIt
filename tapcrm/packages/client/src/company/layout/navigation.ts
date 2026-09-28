@@ -63,6 +63,13 @@ export const companyNavigation: CompanyNavGroup[] = [
       { label: 'Break Queue', path: '/company/breaks/queue', icon: 'clock', requiredAction: 'breaks:review-breach' as Action },
     ],
   },
+  {
+    label: 'Payroll',
+    items: [
+      { label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text', requiredAction: 'payroll:view' as Action },
+      { label: 'Payroll Runs', path: '/company/payroll/runs', icon: 'dollar-sign', requiredAction: 'payroll:manage' as Action },
+    ],
+  },
 ];
 
 /**

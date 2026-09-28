@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 149   Bindings: 309
+ * Actions: 149   Bindings: 317
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -2687,6 +2687,14 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PUT', path: '/api/payroll/structures/:userId', action: 'payroll:manage', resourceParam: 'userId' },
   { method: 'GET', path: '/api/payroll/config', action: 'payroll:manage-config', resourceParam: null },
   { method: 'PUT', path: '/api/payroll/config', action: 'payroll:manage-config', resourceParam: null },
+  { method: 'GET', path: '/api/payroll/cycle', action: 'payroll:view', resourceParam: null },
+  { method: 'GET', path: '/api/payroll/runs/:id', action: 'payroll:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payroll/runs/:id/employees', action: 'payroll:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payroll/runs/:id/drifts', action: 'payroll:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payroll/runs/:id/drifts/:driftId/remediate', action: 'payroll:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payroll/inputs', action: 'payroll:manage', resourceParam: null },
+  { method: 'PATCH', path: '/api/payroll/inputs/:id/revoke', action: 'payroll:manage', resourceParam: null },
+  { method: 'GET', path: '/api/payroll/payslips/:id/document', action: 'payroll:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/performance/:userId', action: 'performance:view', resourceParam: 'userId' },
   { method: 'GET', path: '/api/performance/:userId/kpis', action: 'performance:view-aggregates', resourceParam: 'userId' },
   { method: 'POST', path: '/api/performance/:userId/reviews', action: 'performance:manage', resourceParam: 'userId' },
