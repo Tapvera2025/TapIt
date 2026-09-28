@@ -1141,6 +1141,28 @@ export async function findEffectiveEvent(
   `);
 }
 
+/** Page of records overdue for auto-close, keyed by (close_due_at, id). */
+export async function closeDueRecords(
+  tx: Tx,
+  now: Date,
+  after: { closeDueAt: Date; id: string } | null,
+  limit: number,
+): Promise<{ id: string; userId: string; workDate: DateOnly; closeDueAt: Date; inputVersion: number }[]> {
+  return tx.query<{ id: string; userId: string; workDate: DateOnly; closeDueAt: Date; inputVersion: number }>(sql`
+    SELECT id, user_id AS "userId", work_date::text AS "workDate",
+           close_due_at AS "closeDueAt", input_version AS "inputVersion"
+    FROM attendance_record
+    WHERE state = 'open'
+      AND close_due_at <= ${now}
+      AND (
+        ${after === null}::boolean
+        OR (close_due_at, id) > (${after?.closeDueAt ?? now}::timestamptz, ${after?.id ?? ''}::uuid)
+      )
+    ORDER BY close_due_at, id
+    LIMIT ${limit}
+  `);
+}
+
 /** Returns true if this record has at least one void auto-out (append-only evidence of a retired assumed departure). */
 export async function hasRetiredAutoOut(
   tx: Tx,
