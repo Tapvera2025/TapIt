@@ -1,5 +1,7 @@
 import { registerBreakPolicyResolver } from './attendance/facade.js';
 import { breakPolicyResolverImpl } from './break-management/resolver-service.js';
+import { registerBreakPolicies } from './break-management/policy.js';
+import { registerBreakManagementRoutes } from './break-management/routes.js';
 import { registerOrganizationPolicies } from './organization/policy.js';
 import { registerOrganizationRoutes } from './organization/routes.js';
 import { registerEmployeePolicies } from './employee/policy.js';
@@ -46,7 +48,7 @@ import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from '.
  */
 export function initializePorts(): void {
   registerBreakPolicyResolver(breakPolicyResolverImpl);
-  // Task 6: registerBreakDeductionWriter(new BreakDeductionWriterImpl())
+  // Task 6: registerBreakDeductionWriter(breakDeductionWriterImpl)
 }
 
 /**
@@ -73,6 +75,7 @@ export function registerAllPolicies(): void {
   registerLiveStatusProjector();
   registerBiometricPolicies();
   registerLeavePolicies();
+  registerBreakPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -88,6 +91,7 @@ export function registerAllRoutes(): void {
   registerLiveStatusRoutes();
   registerBiometricRoutes();
   registerLeaveRoutes();
+  registerBreakManagementRoutes();
 }
 
 let jobsRegistered = false;
