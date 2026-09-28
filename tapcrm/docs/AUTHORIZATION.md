@@ -191,6 +191,19 @@
 | `notices:manage` | workspace | notice | business | no | no | — | yes | yes | no |
 | `notepad:view-all` | workspace | notepad | people | yes | no | — | no | no | yes |
 | `sheets:manage` | workspace | sheet | business | no | no | — | yes | yes | no |
+| `recruitment:view-metrics` | recruitment | — | business | no | no | — | yes | yes | no |
+| `recruitment:view-requisitions` | recruitment | jobRequisition | business | no | no | — | yes | yes | no |
+| `recruitment:manage-requisitions` | recruitment | jobRequisition | business | no | no | — | yes | yes | no |
+| `recruitment:view-candidates` | recruitment | candidate | business | no | no | — | yes | yes | no |
+| `recruitment:manage-candidates` | recruitment | candidate | business | no | no | — | yes | yes | no |
+| `recruitment:view-interviews` | recruitment | interview | business | no | no | — | yes | yes | no |
+| `recruitment:manage-interviews` | recruitment | interview | business | no | no | — | yes | yes | no |
+| `recruitment:view-offers` | recruitment | jobOffer | business | no | no | — | yes | yes | no |
+| `recruitment:manage-offers` | recruitment | jobOffer | business | no | no | — | yes | yes | no |
+| `recruitment:view-joining` | recruitment | candidateJoining | business | no | no | — | yes | yes | no |
+| `recruitment:manage-joining` | recruitment | candidateJoining | business | no | no | — | yes | yes | no |
+| `recruitment:manage-links` | recruitment | recruitmentApplicationLink | business | no | no | — | yes | yes | no |
+| `recruitment:manage-submissions` | recruitment | candidateResumeSubmission | business | no | no | — | yes | yes | no |
 
 ---
 
@@ -513,3 +526,53 @@ changes who can do what.
 | GET | /api/workspace/sheets | `sheets:manage` | — |
 | POST | /api/workspace/sheets | `sheets:manage` | — |
 | PATCH | /api/workspace/sheets/:id | `sheets:manage` | id |
+| GET | /api/recruitment/metrics | `recruitment:view-metrics` | — |
+| GET | /api/recruitment/requisitions | `recruitment:view-requisitions` | — |
+| POST | /api/recruitment/requisitions | `recruitment:manage-requisitions` | — |
+| GET | /api/recruitment/requisitions/:id | `recruitment:view-requisitions` | id |
+| PATCH | /api/recruitment/requisitions/:id/status | `recruitment:manage-requisitions` | id |
+| GET | /api/recruitment/candidates | `recruitment:view-candidates` | — |
+| POST | /api/recruitment/candidates | `recruitment:manage-candidates` | — |
+| POST | /api/recruitment/candidates/resume/upload | `recruitment:manage-candidates` | — |
+| POST | /api/recruitment/candidates/resume/parse | `recruitment:manage-candidates` | — |
+| GET | /api/recruitment/candidates/resume/preview | `recruitment:view-candidates` | — |
+| GET | /api/recruitment/candidates/:id | `recruitment:view-candidates` | id |
+| GET | /api/recruitment/candidates/:id/resume | `recruitment:view-candidates` | id |
+| PATCH | /api/recruitment/candidates/:id/status | `recruitment:manage-candidates` | id |
+| PATCH | /api/recruitment/candidates/:id/screening | `recruitment:manage-candidates` | id |
+| POST | /api/recruitment/candidates/:id/hire | `recruitment:manage-candidates` | id |
+| GET | /api/recruitment/interviews | `recruitment:view-interviews` | — |
+| POST | /api/recruitment/interviews | `recruitment:manage-interviews` | — |
+| GET | /api/recruitment/interviews/:id | `recruitment:view-interviews` | id |
+| PATCH | /api/recruitment/interviews/:id/status | `recruitment:manage-interviews` | id |
+| POST | /api/recruitment/interviews/:id/feedback | `recruitment:manage-interviews` | id |
+| PATCH | /api/recruitment/interviews/:id/feedback/:feedbackId | `recruitment:manage-interviews` | id |
+| PATCH | /api/recruitment/interview-feedback/:id | `recruitment:manage-interviews` | id |
+| POST | /api/recruitment/interviews/:id/reschedule | `recruitment:manage-interviews` | id |
+| POST | /api/recruitment/interviews/:id/decision | `recruitment:manage-interviews` | id |
+| GET | /api/recruitment/offers | `recruitment:view-offers` | — |
+| POST | /api/recruitment/offers | `recruitment:manage-offers` | — |
+| GET | /api/recruitment/offers/:id | `recruitment:view-offers` | id |
+| PATCH | /api/recruitment/offers/:id | `recruitment:manage-offers` | id |
+| PATCH | /api/recruitment/offers/:id/status | `recruitment:manage-offers` | id |
+| GET | /api/recruitment/joining | `recruitment:view-joining` | — |
+| GET | /api/recruitment/joinings | `recruitment:view-joining` | — |
+| POST | /api/recruitment/joining | `recruitment:manage-joining` | — |
+| POST | /api/recruitment/joinings | `recruitment:manage-joining` | — |
+| GET | /api/recruitment/joining/:id | `recruitment:view-joining` | id |
+| GET | /api/recruitment/joinings/:id | `recruitment:view-joining` | id |
+| PATCH | /api/recruitment/joining/:id/status | `recruitment:manage-joining` | id |
+| PATCH | /api/recruitment/joinings/:id/status | `recruitment:manage-joining` | id |
+| PATCH | /api/recruitment/joining/:id | `recruitment:manage-joining` | id |
+| PATCH | /api/recruitment/joinings/:id | `recruitment:manage-joining` | id |
+| GET | /api/recruitment/application-links | `recruitment:manage-links` | — |
+| POST | /api/recruitment/application-links | `recruitment:manage-links` | — |
+| GET | /api/recruitment/application-links/:id | `recruitment:manage-links` | id |
+| PATCH | /api/recruitment/application-links/:id/status | `recruitment:manage-links` | id |
+| GET | /api/recruitment/resume-submissions | `recruitment:manage-submissions` | — |
+| POST | /api/recruitment/resume-submissions/upload | `recruitment:manage-submissions` | — |
+| GET | /api/recruitment/resume-submissions/:id | `recruitment:manage-submissions` | id |
+| GET | /api/recruitment/resume-submissions/:id/resume | `recruitment:manage-submissions` | id |
+| GET | /api/recruitment/resume-submissions/:id/resume-url | `recruitment:manage-submissions` | id |
+| PATCH | /api/recruitment/resume-submissions/:id/status | `recruitment:manage-submissions` | id |
+| POST | /api/recruitment/resume-submissions/:id/convert | `recruitment:manage-submissions` | id |

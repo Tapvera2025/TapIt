@@ -16,6 +16,9 @@ vi.mock('./repository.js', () => ({
   replaceTaskAssignees: vi.fn(),
   updateTaskRow: vi.fn(),
   validateAssigneeIds: vi.fn(),
+  validateAssigneesInTeamScope: vi.fn(),
+  validateAssigneesInDepartmentScope: vi.fn(),
+  validateAssigneesInPoolScope: vi.fn(),
   enqueueTaskAudit: vi.fn(),
 }));
 

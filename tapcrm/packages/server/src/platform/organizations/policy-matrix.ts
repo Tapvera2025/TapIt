@@ -69,6 +69,7 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   holidays: [G, all, allV, allV, allV, allV, allV, allV, allV, allV, _],
   payroll: [G, all, _, own, own, own, own, own, own, own, _],
   performance: [G, all, all, team, own, team, team, team, pool, own, _],
+  recruitment: [G, dept, dept, _, _, _, _, _, _, par, _],
   territories: [G, _, _, dept, _, _, team, _, _, _, _],
   leads: [G, _, _, dept, _, _, team, _, pool, own, _],
   callbacks: [G, _, _, dept, _, _, team, _, pool, own, _],

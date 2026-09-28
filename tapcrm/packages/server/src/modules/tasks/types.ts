@@ -10,6 +10,8 @@ export interface TaskAssignee {
   readonly id: string;
   readonly email?: string | undefined;
   readonly fullName: string;
+  readonly teamId?: string | null | undefined;
+  readonly departmentId?: string | null | undefined;
   readonly assignedAt: Date;
 }
 
@@ -24,6 +26,14 @@ export interface Task {
   readonly dueDate: Date | null;
   readonly createdBy: string;
   readonly createdByName?: string | null | undefined;
+  readonly creatorTeamId?: string | null | undefined;
+  readonly creatorDepartmentId?: string | null | undefined;
+  readonly departmentId?: string | null | undefined;
+  readonly departmentIds?: readonly string[] | undefined;
+  readonly teamId?: string | null | undefined;
+  readonly teamIds?: readonly string[] | undefined;
+  readonly poolId?: string | null | undefined;
+  readonly poolIds?: readonly string[] | undefined;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly assignees: readonly TaskAssignee[];

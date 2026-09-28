@@ -144,6 +144,15 @@ export const submitFeedbackSchema = z.object({
   areasForImprovement: z.string().trim().max(5000).optional().nullable(),
 });
 
+export const updateFeedbackSchema = z.object({
+  interviewerId: z.string().uuid('Invalid interviewer ID').optional(),
+  recommendation: interviewRecommendationSchema.optional(),
+  rating: z.coerce.number().int().min(1).max(5).optional().nullable(),
+  feedback: z.string().trim().min(1, 'Feedback is required').max(10000).optional(),
+  strengths: z.string().trim().max(5000).optional().nullable(),
+  areasForImprovement: z.string().trim().max(5000).optional().nullable(),
+});
+
 export const offerStatusSchema = z.enum([
   'draft',
   'sent',
@@ -171,6 +180,20 @@ export const updateOfferStatusSchema = z.object({
   status: offerStatusSchema,
 });
 
+export const updateOfferSchema = z.object({
+  candidateId: z.string().uuid('Invalid candidate ID').optional(),
+  requisitionId: z.string().uuid('Invalid requisition ID').optional(),
+  positionId: z.string().uuid().optional().nullable(),
+  designationId: z.string().uuid().optional().nullable(),
+  offeredSalary: z.union([z.string().trim().min(1), z.number()]).transform((v) => String(v)).optional(),
+  currency: z.string().trim().min(3).max(3).optional(),
+  offerDate: z.string().trim().optional().nullable(),
+  validUntil: z.string().trim().optional().nullable(),
+  expectedJoiningDate: z.string().trim().optional().nullable(),
+  status: offerStatusSchema.optional(),
+  notes: z.string().trim().max(5000).optional().nullable(),
+});
+
 export const joiningStatusSchema = z.enum([
   'pending',
   'confirmed',
@@ -188,6 +211,15 @@ export const createJoiningSchema = z.object({
 
 export const updateJoiningStatusSchema = z.object({
   status: joiningStatusSchema,
+  actualJoiningDate: z.string().trim().optional().nullable(),
+  notes: z.string().trim().max(5000).optional().nullable(),
+});
+
+export const updateJoiningSchema = z.object({
+  candidateId: z.string().uuid('Invalid candidate ID').optional(),
+  offerId: z.string().uuid('Invalid offer ID').optional(),
+  expectedJoiningDate: z.string().trim().optional(),
+  status: joiningStatusSchema.optional(),
   actualJoiningDate: z.string().trim().optional().nullable(),
   notes: z.string().trim().max(5000).optional().nullable(),
 });
@@ -290,10 +322,13 @@ export type UpdateCandidateScreeningInput = z.infer<typeof updateCandidateScreen
 export type ScheduleInterviewInput = z.infer<typeof scheduleInterviewSchema>;
 export type UpdateInterviewStatusInput = z.infer<typeof updateInterviewStatusSchema>;
 export type SubmitFeedbackInput = z.infer<typeof submitFeedbackSchema>;
+export type UpdateFeedbackInput = z.infer<typeof updateFeedbackSchema>;
 export type CreateOfferInput = z.infer<typeof createOfferSchema>;
 export type UpdateOfferStatusInput = z.infer<typeof updateOfferStatusSchema>;
+export type UpdateOfferInput = z.infer<typeof updateOfferSchema>;
 export type CreateJoiningInput = z.infer<typeof createJoiningSchema>;
 export type UpdateJoiningStatusInput = z.infer<typeof updateJoiningStatusSchema>;
+export type UpdateJoiningInput = z.infer<typeof updateJoiningSchema>;
 export type CreateApplicationLinkInput = z.infer<typeof createApplicationLinkSchema>;
 export type UpdateApplicationLinkStatusInput = z.infer<typeof updateApplicationLinkStatusSchema>;
 export type PublicApplyInput = z.infer<typeof publicApplySchema>;

@@ -1,10 +1,12 @@
 import crypto from 'node:crypto';
+import type { Resource } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import {
   ConflictError,
   NotEligibleError,
   NotFoundError,
 } from '../../platform/http/error-handler.js';
+import { PlatformValidationError } from '../../platform/errors.js';
 import { provisionEmployee } from '../employee/index.js';
 import {
   notifyCandidateRejection,
@@ -23,16 +25,28 @@ import type {
   Candidate,
   CandidateJoining,
   CandidateResumeSubmission,
+  CandidateStatus,
   Interview,
   InterviewFeedback,
+  InterviewStatus,
   JobOffer,
   JobRequisition,
+  OfferStatus,
   ParsedCandidateData,
   PublicJobRequisitionDetails,
   RecruitmentApplicationLink,
   RecruitmentMetrics,
+  RequisitionStatus,
   UploadCandidateResumeResult,
 } from './types.js';
+import {
+  assertValidInterviewTransition,
+  assertValidCandidateTransition,
+  assertValidRequisitionTransition,
+  assertValidOfferTransition,
+  assertValidJoiningTransition,
+  assertInterviewDecisionEligible,
+} from './state-machine.js';
 import type {
   ConvertSubmissionInput,
   CreateApplicationLinkInput,
@@ -47,9 +61,12 @@ import type {
   RescheduleInterviewInput,
   ScheduleInterviewInput,
   SubmitFeedbackInput,
+  UpdateFeedbackInput,
   UpdateApplicationLinkStatusInput,
   UpdateCandidateStatusInput,
+  UpdateJoiningInput,
   UpdateJoiningStatusInput,
+  UpdateOfferInput,
   UpdateSubmissionStatusInput,
   UploadCandidateResumeInput,
   ParseCandidateResumeInput,
@@ -87,6 +104,11 @@ export async function updateRequisitionStatus(
   id: string,
   status: string,
 ): Promise<JobRequisition> {
+  const existing = await repo.findRequisitionById(ctx, id);
+  if (!existing) throw new NotFoundError('Job requisition');
+
+  assertValidRequisitionTransition(existing.status, status as RequisitionStatus);
+
   const updated = await repo.updateRequisitionStatus(ctx, id, status);
   if (!updated) throw new NotFoundError('Job requisition');
   return updated;
@@ -131,6 +153,11 @@ export async function updateCandidateStatus(
   id: string,
   input: UpdateCandidateStatusInput,
 ): Promise<Candidate> {
+  const candidate = await repo.findCandidateById(ctx, id);
+  if (!candidate) throw new NotFoundError('Candidate');
+
+  assertValidCandidateTransition(candidate.status, input.status);
+
   const updated = await repo.updateCandidateStatus(ctx, id, input.status, input.rejectionReason);
   if (!updated) throw new NotFoundError('Candidate');
   return updated;
@@ -301,6 +328,10 @@ export async function scheduleInterview(
   const requisition = await repo.findRequisitionById(ctx, input.requisitionId);
   if (!requisition) throw new NotFoundError('Job requisition');
 
+  if (candidate.requisitionId !== input.requisitionId) {
+    throw new PlatformValidationError('Candidate does not belong to the specified job requisition');
+  }
+
   const interview = await repo.createInterview(ctx, input);
 
   // Send candidate interview invitation email (non-blocking)
@@ -324,6 +355,11 @@ export async function updateInterviewStatus(
   id: string,
   status: string,
 ): Promise<Interview> {
+  const interview = await repo.findInterviewById(ctx, id);
+  if (!interview) throw new NotFoundError('Interview');
+
+  assertValidInterviewTransition(interview.status, status as InterviewStatus);
+
   const updated = await repo.updateInterviewStatus(ctx, id, status);
   if (!updated) throw new NotFoundError('Interview');
   return updated;
@@ -369,6 +405,21 @@ export async function recordInterviewDecision(
 
   const requisition = await repo.findRequisitionById(ctx, interview.requisitionId);
 
+  // Validate decision is valid enum value
+  const decisionVal = String(input.decision);
+  if (decisionVal !== 'accepted' && decisionVal !== 'rejected') {
+    throw new PlatformValidationError(
+      `Invalid interview decision: '${decisionVal}'. Must be 'accepted' or 'rejected'.`,
+    );
+  }
+
+  // Workflow eligibility check (interview must be in eligible state e.g. completed, not repeated)
+  assertInterviewDecisionEligible(interview, candidate);
+
+  // Validate candidate target status transition
+  const targetCandidateStatus: CandidateStatus = input.decision === 'accepted' ? 'selected' : 'rejected';
+  assertValidCandidateTransition(candidate.status, targetCandidateStatus);
+
   const updatedCandidate = await repo.recordInterviewDecision(ctx, interviewId, input);
 
   if (input.decision === 'rejected' && candidate && requisition) {
@@ -388,9 +439,53 @@ export async function submitInterviewFeedback(
   interviewId: string,
   input: SubmitFeedbackInput,
 ): Promise<InterviewFeedback> {
-  const exists = await repo.findInterviewById(ctx, interviewId);
-  if (!exists) throw new NotFoundError('Interview');
+  const interview = await repo.findInterviewById(ctx, interviewId);
+  if (!interview) throw new NotFoundError('Interview');
+
+  const interviewer = await repo.findUserById(ctx, input.interviewerId);
+  if (!interviewer) throw new NotFoundError('Interviewer');
+
+  const assignedInterviewers = interview.interviewerIds ?? (await repo.getAssignedInterviewerIds(ctx, interviewId));
+  if (!assignedInterviewers.includes(input.interviewerId)) {
+    throw new PlatformValidationError('Interviewer is not assigned to this interview');
+  }
+
   return repo.createInterviewFeedback(ctx, interviewId, input);
+}
+
+export async function updateInterviewFeedback(
+  ctx: RequestContext,
+  id: string,
+  input: UpdateFeedbackInput,
+): Promise<InterviewFeedback> {
+  const existing = await repo.findInterviewFeedbackById(ctx, id);
+  if (!existing) throw new NotFoundError('Interview feedback');
+
+  const targetInterviewerId = input.interviewerId ?? existing.interviewerId;
+
+  const interview = await repo.findInterviewById(ctx, existing.interviewId);
+  if (!interview) throw new NotFoundError('Interview');
+
+  const interviewer = await repo.findUserById(ctx, targetInterviewerId);
+  if (!interviewer) throw new NotFoundError('Interviewer');
+
+  const assignedInterviewers = interview.interviewerIds ?? (await repo.getAssignedInterviewerIds(ctx, existing.interviewId));
+  if (!assignedInterviewers.includes(targetInterviewerId)) {
+    throw new PlatformValidationError('Interviewer is not assigned to this interview');
+  }
+
+  const updated = await repo.updateInterviewFeedback(ctx, id, input);
+  if (!updated) throw new NotFoundError('Interview feedback');
+  return updated;
+}
+
+export async function getInterviewFeedback(
+  ctx: RequestContext,
+  id: string,
+): Promise<InterviewFeedback> {
+  const fb = await repo.findInterviewFeedbackById(ctx, id);
+  if (!fb) throw new NotFoundError('Interview feedback');
+  return fb;
 }
 
 // ---------------------------------------------------------------------
@@ -419,7 +514,41 @@ export async function createOffer(
 ): Promise<JobOffer> {
   const candidate = await repo.findCandidateById(ctx, input.candidateId);
   if (!candidate) throw new NotFoundError('Candidate');
+
+  const requisition = await repo.findRequisitionById(ctx, input.requisitionId);
+  if (!requisition) throw new NotFoundError('Job requisition');
+
+  if (candidate.requisitionId !== input.requisitionId) {
+    throw new PlatformValidationError('Candidate does not belong to the specified job requisition');
+  }
+
   return repo.createOffer(ctx, input);
+}
+
+export async function updateOffer(
+  ctx: RequestContext,
+  id: string,
+  input: UpdateOfferInput,
+): Promise<JobOffer> {
+  const offer = await repo.findOfferById(ctx, id);
+  if (!offer) throw new NotFoundError('Job offer');
+
+  const targetCandidateId = input.candidateId ?? offer.candidateId;
+  const targetRequisitionId = input.requisitionId ?? offer.requisitionId;
+
+  const candidate = await repo.findCandidateById(ctx, targetCandidateId);
+  if (!candidate) throw new NotFoundError('Candidate');
+
+  const requisition = await repo.findRequisitionById(ctx, targetRequisitionId);
+  if (!requisition) throw new NotFoundError('Job requisition');
+
+  if (candidate.requisitionId !== targetRequisitionId) {
+    throw new PlatformValidationError('Candidate does not belong to the specified job requisition');
+  }
+
+  const updated = await repo.updateOffer(ctx, id, input);
+  if (!updated) throw new NotFoundError('Job offer');
+  return updated;
 }
 
 export async function updateOfferStatus(
@@ -427,6 +556,21 @@ export async function updateOfferStatus(
   id: string,
   status: string,
 ): Promise<JobOffer> {
+  const offer = await repo.findOfferById(ctx, id);
+  if (!offer) throw new NotFoundError('Job offer');
+
+  const candidate = await repo.findCandidateById(ctx, offer.candidateId);
+  if (!candidate) throw new NotFoundError('Candidate');
+
+  const requisition = await repo.findRequisitionById(ctx, offer.requisitionId);
+  if (!requisition) throw new NotFoundError('Job requisition');
+
+  if (candidate.requisitionId !== offer.requisitionId) {
+    throw new PlatformValidationError('Candidate does not belong to the specified job requisition');
+  }
+
+  assertValidOfferTransition(offer.status, status as OfferStatus);
+
   const updated = await repo.updateOfferStatus(ctx, id, status);
   if (!updated) throw new NotFoundError('Job offer');
   return updated;
@@ -456,7 +600,43 @@ export async function createJoining(
   ctx: RequestContext,
   input: CreateJoiningInput,
 ): Promise<CandidateJoining> {
+  const candidate = await repo.findCandidateById(ctx, input.candidateId);
+  if (!candidate) throw new NotFoundError('Candidate');
+
+  const offer = await repo.findOfferById(ctx, input.offerId);
+  if (!offer) throw new NotFoundError('Job offer');
+
+  if (offer.candidateId !== input.candidateId) {
+    throw new PlatformValidationError('Offer does not belong to the specified candidate');
+  }
+
   return repo.createJoining(ctx, input);
+}
+
+export async function updateJoining(
+  ctx: RequestContext,
+  id: string,
+  input: UpdateJoiningInput,
+): Promise<CandidateJoining> {
+  const joining = await repo.findJoiningById(ctx, id);
+  if (!joining) throw new NotFoundError('Candidate joining');
+
+  const targetCandidateId = input.candidateId ?? joining.candidateId;
+  const targetOfferId = input.offerId ?? joining.offerId;
+
+  const candidate = await repo.findCandidateById(ctx, targetCandidateId);
+  if (!candidate) throw new NotFoundError('Candidate');
+
+  const offer = await repo.findOfferById(ctx, targetOfferId);
+  if (!offer) throw new NotFoundError('Job offer');
+
+  if (offer.candidateId !== targetCandidateId) {
+    throw new PlatformValidationError('Offer does not belong to the specified candidate');
+  }
+
+  const updated = await repo.updateJoining(ctx, id, input);
+  if (!updated) throw new NotFoundError('Candidate joining');
+  return updated;
 }
 
 export async function updateJoiningStatus(
@@ -464,6 +644,21 @@ export async function updateJoiningStatus(
   id: string,
   input: UpdateJoiningStatusInput,
 ): Promise<CandidateJoining> {
+  const joining = await repo.findJoiningById(ctx, id);
+  if (!joining) throw new NotFoundError('Candidate joining');
+
+  const candidate = await repo.findCandidateById(ctx, joining.candidateId);
+  if (!candidate) throw new NotFoundError('Candidate');
+
+  const offer = await repo.findOfferById(ctx, joining.offerId);
+  if (!offer) throw new NotFoundError('Job offer');
+
+  if (offer.candidateId !== joining.candidateId) {
+    throw new PlatformValidationError('Offer does not belong to the specified candidate');
+  }
+
+  assertValidJoiningTransition(joining.status, input.status);
+
   const updated = await repo.updateJoiningStatus(
     ctx,
     id,
@@ -485,6 +680,10 @@ export async function createApplicationLink(
 ): Promise<RecruitmentApplicationLink> {
   const requisition = await repo.findRequisitionById(ctx, input.requisitionId);
   if (!requisition) throw new NotFoundError('Job requisition');
+
+  if (requisition.status !== 'open') {
+    throw new PlatformValidationError('Cannot create application link for a requisition that is not open');
+  }
 
   const token = crypto.randomBytes(32).toString('hex');
   return repo.createApplicationLink(ctx, input, token);
@@ -511,9 +710,37 @@ export async function updateApplicationLinkStatus(
   id: string,
   input: UpdateApplicationLinkStatusInput,
 ): Promise<RecruitmentApplicationLink> {
+  const link = await repo.findApplicationLinkById(ctx, id);
+  if (!link) throw new NotFoundError('Application link');
+
   const updated = await repo.updateApplicationLinkStatus(ctx, id, input.status, input.expiresAt);
   if (!updated) throw new NotFoundError('Application link');
   return updated;
+}
+
+export function assertPublicApplicationLinkValid(
+  link: RecruitmentApplicationLink | null | undefined,
+  requisition: JobRequisition | null | undefined,
+): asserts link is RecruitmentApplicationLink {
+  if (!link || link.status !== 'active') {
+    throw new NotFoundError('Application link is invalid, expired, or disabled');
+  }
+
+  if (link.expiresAt && new Date(link.expiresAt).getTime() <= Date.now()) {
+    throw new NotFoundError('Application link is invalid, expired, or disabled');
+  }
+
+  if (
+    !requisition ||
+    requisition.organizationId !== link.organizationId ||
+    requisition.id !== link.requisitionId
+  ) {
+    throw new NotFoundError('Application link is invalid, expired, or disabled');
+  }
+
+  if (requisition.status !== 'open') {
+    throw new NotFoundError('Application link is invalid, expired, or disabled');
+  }
 }
 
 export async function resolvePublicApplicationLink(token: string): Promise<{
@@ -525,7 +752,9 @@ export async function resolvePublicApplicationLink(token: string): Promise<{
     throw new NotFoundError('Application link is invalid, expired, or disabled');
   }
 
-  const { requisition } = resolved;
+  const { link, requisition } = resolved;
+  assertPublicApplicationLinkValid(link, requisition);
+
   return {
     token,
     requisition: {
@@ -558,6 +787,7 @@ export async function submitPublicApplication(
   }
 
   const { link, requisition } = resolved;
+  assertPublicApplicationLinkValid(link, requisition);
 
   // Decode base64 resume buffer
   const cleanBase64 = input.resumeBase64.replace(/^data:[^;]+;base64,/, '');
@@ -814,4 +1044,92 @@ export async function getRecruitmentMetrics(
   ctx: RequestContext,
 ): Promise<RecruitmentMetrics> {
   return repo.getRecruitmentMetrics(ctx);
+}
+
+// ---------------------------------------------------------------------
+// Resource loaders — used by the centralized authorization framework
+// (platform/http/router.ts) to perform object-level checks before the
+// handler runs.  These follow the Resource interface from @tapcrm/authz,
+// which requires a 'type' discriminator field (see ports.ts).
+// ---------------------------------------------------------------------
+
+export async function loadRequisitionResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await repo.findRequisitionById(ctx, id);
+  if (!record) return null;
+  return { type: 'jobRequisition', ...record };
+}
+
+export async function loadCandidateResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await repo.findCandidateById(ctx, id);
+  if (!record) return null;
+  return { type: 'candidate', ...record };
+}
+
+export async function loadInterviewResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await repo.findInterviewById(ctx, id);
+  if (!record) return null;
+  return { type: 'interview', ...record };
+}
+
+export async function loadOfferResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await repo.findOfferById(ctx, id);
+  if (!record) return null;
+  return { type: 'jobOffer', ...record };
+}
+
+export async function loadJoiningResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await repo.findJoiningById(ctx, id);
+  if (!record) return null;
+  return { type: 'candidateJoining', ...record };
+}
+
+export async function loadApplicationLinkResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await repo.findApplicationLinkById(ctx, id);
+  if (!record) return null;
+  return { type: 'recruitmentApplicationLink', ...record };
+}
+
+export async function loadResumeSubmissionResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await repo.findResumeSubmissionById(ctx, id);
+  if (!record) return null;
+  return { type: 'candidateResumeSubmission', ...record };
+}
+
+/**
+ * Loads the parent Interview for a given InterviewFeedback ID.
+ *
+ * Used by PATCH /api/recruitment/interview-feedback/:id, where `:id` is a
+ * feedback ID.  The interviewPolicy governs access to feedback records, so
+ * the authorization check must operate on the parent Interview resource.
+ */
+export async function loadInterviewFeedbackAsInterviewResource(
+  ctx: RequestContext,
+  feedbackId: string,
+): Promise<Resource | null> {
+  const feedback = await repo.findInterviewFeedbackById(ctx, feedbackId);
+  if (!feedback) return null;
+  const interview = await repo.findInterviewById(ctx, feedback.interviewId);
+  if (!interview) return null;
+  return { type: 'interview', ...interview };
 }

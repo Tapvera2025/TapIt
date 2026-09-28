@@ -25,6 +25,9 @@ import type {
   RescheduleInterviewInput,
   ScheduleInterviewInput,
   SubmitFeedbackInput,
+  UpdateFeedbackInput,
+  UpdateJoiningInput,
+  UpdateOfferInput,
 } from './validators.js';
 
 // ---------------------------------------------------------------------
@@ -782,6 +785,91 @@ export async function createInterviewFeedback(
   };
 }
 
+export async function findUserById(
+  ctx: RequestContext,
+  userId: string,
+): Promise<{ id: string; fullName: string } | null> {
+  return db.maybeOne<{ id: string; fullName: string }>(
+    ctx,
+    sql`
+      SELECT id, full_name
+      FROM app_user
+      WHERE organization_id = ${ctx.organizationId} AND id = ${userId}
+    `,
+  );
+}
+
+export async function getAssignedInterviewerIds(
+  ctx: RequestContext,
+  interviewId: string,
+): Promise<string[]> {
+  const rows = await db.query<{ userId: string }>(
+    ctx,
+    sql`
+      SELECT ii.user_id
+      FROM interview_interviewer ii
+      JOIN app_user u ON u.organization_id = ii.organization_id AND u.id = ii.user_id
+      WHERE ii.organization_id = ${ctx.organizationId} AND ii.interview_id = ${interviewId}
+    `,
+  );
+  return rows.map((r) => r.userId);
+}
+
+export async function findInterviewFeedbackById(
+  ctx: RequestContext,
+  id: string,
+): Promise<InterviewFeedback | null> {
+  return db.maybeOne<InterviewFeedback>(
+    ctx,
+    sql`
+      SELECT
+        f.id,
+        f.organization_id,
+        f.interview_id,
+        f.interviewer_id,
+        u.full_name AS interviewer_name,
+        f.recommendation,
+        f.rating,
+        f.feedback,
+        f.strengths,
+        f.areas_for_improvement,
+        f.submitted_at,
+        f.created_at,
+        f.updated_at
+      FROM interview_feedback f
+      JOIN app_user u ON u.organization_id = f.organization_id AND u.id = f.interviewer_id
+      WHERE f.organization_id = ${ctx.organizationId} AND f.id = ${id}
+    `,
+  );
+}
+
+export async function updateInterviewFeedback(
+  ctx: RequestContext,
+  id: string,
+  input: UpdateFeedbackInput,
+): Promise<InterviewFeedback | null> {
+  const setClauses: SqlFragment[] = [];
+  if (input.interviewerId !== undefined) setClauses.push(sql`interviewer_id = ${input.interviewerId}`);
+  if (input.recommendation !== undefined) setClauses.push(sql`recommendation = ${input.recommendation}`);
+  if (input.rating !== undefined) setClauses.push(sql`rating = ${input.rating}`);
+  if (input.feedback !== undefined) setClauses.push(sql`feedback = ${input.feedback}`);
+  if (input.strengths !== undefined) setClauses.push(sql`strengths = ${input.strengths}`);
+  if (input.areasForImprovement !== undefined) setClauses.push(sql`areas_for_improvement = ${input.areasForImprovement}`);
+
+  if (setClauses.length > 0) {
+    await db.query(
+      ctx,
+      sql`
+        UPDATE interview_feedback
+        SET ${sql.join(setClauses, ', ')}
+        WHERE organization_id = ${ctx.organizationId} AND id = ${id}
+      `,
+    );
+  }
+
+  return findInterviewFeedbackById(ctx, id);
+}
+
 // ---------------------------------------------------------------------
 // 4. Offers
 // ---------------------------------------------------------------------
@@ -935,6 +1023,38 @@ function toIsoDate(val: Date | string | null | undefined): string {
   const d = new Date(s);
   if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]!;
   return new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]!;
+}
+
+export async function updateOffer(
+  ctx: RequestContext,
+  id: string,
+  input: UpdateOfferInput,
+): Promise<JobOffer | null> {
+  const setClauses: SqlFragment[] = [];
+  if (input.candidateId !== undefined) setClauses.push(sql`candidate_id = ${input.candidateId}`);
+  if (input.requisitionId !== undefined) setClauses.push(sql`requisition_id = ${input.requisitionId}`);
+  if (input.positionId !== undefined) setClauses.push(sql`position_id = ${input.positionId ?? null}`);
+  if (input.designationId !== undefined) setClauses.push(sql`designation_id = ${input.designationId ?? null}`);
+  if (input.offeredSalary !== undefined) setClauses.push(sql`offered_salary = ${input.offeredSalary}::numeric`);
+  if (input.currency !== undefined) setClauses.push(sql`currency = ${input.currency}`);
+  if (input.offerDate !== undefined) setClauses.push(sql`offer_date = ${input.offerDate ? sql`${input.offerDate}::date` : sql`CURRENT_DATE`}`);
+  if (input.validUntil !== undefined) setClauses.push(sql`valid_until = ${input.validUntil ? sql`${input.validUntil}::date` : null}`);
+  if (input.expectedJoiningDate !== undefined) setClauses.push(sql`expected_joining_date = ${input.expectedJoiningDate ? sql`${input.expectedJoiningDate}::date` : null}`);
+  if (input.status !== undefined) setClauses.push(sql`status = ${input.status}`);
+  if (input.notes !== undefined) setClauses.push(sql`notes = ${input.notes ?? null}`);
+
+  if (setClauses.length > 0) {
+    await db.query(
+      ctx,
+      sql`
+        UPDATE job_offer
+        SET ${sql.join(setClauses, ', ')}
+        WHERE organization_id = ${ctx.organizationId} AND id = ${id}
+      `,
+    );
+  }
+
+  return findOfferById(ctx, id);
 }
 
 export async function updateOfferStatus(
@@ -1141,6 +1261,39 @@ export async function updateJoiningStatus(
   return findJoiningById(ctx, id);
 }
 
+export async function updateJoining(
+  ctx: RequestContext,
+  id: string,
+  input: UpdateJoiningInput,
+): Promise<CandidateJoining | null> {
+  const setClauses: SqlFragment[] = [];
+  if (input.candidateId !== undefined) setClauses.push(sql`candidate_id = ${input.candidateId}`);
+  if (input.offerId !== undefined) setClauses.push(sql`offer_id = ${input.offerId}`);
+  if (input.expectedJoiningDate !== undefined) setClauses.push(sql`expected_joining_date = ${input.expectedJoiningDate}::date`);
+  if (input.status !== undefined) setClauses.push(sql`status = ${input.status}`);
+  if (input.actualJoiningDate !== undefined) {
+    setClauses.push(
+      input.actualJoiningDate
+        ? sql`actual_joining_date = ${input.actualJoiningDate}::date`
+        : sql`actual_joining_date = NULL`,
+    );
+  }
+  if (input.notes !== undefined) setClauses.push(sql`notes = ${input.notes}`);
+
+  if (setClauses.length > 0) {
+    await db.query(
+      ctx,
+      sql`
+        UPDATE candidate_joining
+        SET ${sql.join(setClauses, ', ')}
+        WHERE organization_id = ${ctx.organizationId} AND id = ${id}
+      `,
+    );
+  }
+
+  return findJoiningById(ctx, id);
+}
+
 // ---------------------------------------------------------------------
 // 6. Metrics Aggregate
 // ---------------------------------------------------------------------
@@ -1330,7 +1483,7 @@ export async function resolvePublicApplicationLink(token: string): Promise<{
 
   // Check status and expiration
   if (link.status !== 'active') return null;
-  if (link.expiresAt && new Date(link.expiresAt) < new Date()) return null;
+  if (link.expiresAt && new Date(link.expiresAt).getTime() <= Date.now()) return null;
 
   const reqs = await bootstrapDb.readAs<JobRequisition>(
     link.organizationId,
@@ -1364,6 +1517,16 @@ export async function resolvePublicApplicationLink(token: string): Promise<{
 
   const requisition = reqs[0];
   if (!requisition) return null;
+
+  // Tenant / resource relationship check (fail closed)
+  if (requisition.organizationId !== link.organizationId || requisition.id !== link.requisitionId) {
+    return null;
+  }
+
+  // Linked requisition must be eligible for public applications ('open')
+  if (requisition.status !== 'open') {
+    return null;
+  }
 
   return { link, requisition };
 }

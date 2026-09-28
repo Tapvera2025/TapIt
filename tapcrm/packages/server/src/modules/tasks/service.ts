@@ -21,6 +21,9 @@ import {
   replaceTaskAssignees,
   updateTaskRow,
   validateAssigneeIds,
+  validateAssigneesInDepartmentScope,
+  validateAssigneesInPoolScope,
+  validateAssigneesInTeamScope,
 } from './repository.js';
 import type {
   PaginatedTasks,
@@ -74,6 +77,24 @@ export async function loadTaskResource(
 ): Promise<Resource | null> {
   const task = await findTaskById(ctx, id);
   if (!task) return null;
+  const assigneeTeamIds = task.assignees
+    .map((a) => a.teamId)
+    .filter((tid): tid is string => typeof tid === 'string' && tid.length > 0);
+  const teamIds = Array.from(
+    new Set([
+      ...(task.creatorTeamId ? [task.creatorTeamId] : []),
+      ...assigneeTeamIds,
+    ]),
+  );
+  const assigneeDepartmentIds = task.assignees
+    .map((a) => a.departmentId)
+    .filter((did): did is string => typeof did === 'string' && did.length > 0);
+  const departmentIds = Array.from(
+    new Set([
+      ...(task.creatorDepartmentId ? [task.creatorDepartmentId] : []),
+      ...assigneeDepartmentIds,
+    ]),
+  );
   return {
     type: 'task',
     id: task.id,
@@ -83,6 +104,17 @@ export async function loadTaskResource(
     assigneeIds: task.assignees.map((a) => a.id),
     status: task.status,
     priority: task.priority,
+    creatorTeamId: task.creatorTeamId ?? null,
+    creatorDepartmentId: task.creatorDepartmentId ?? null,
+    assigneeTeamIds,
+    assigneeDepartmentIds,
+    departmentId: task.creatorDepartmentId ?? assigneeDepartmentIds[0] ?? null,
+    departmentIds,
+    teamId: task.creatorTeamId ?? assigneeTeamIds[0] ?? null,
+    teamIds,
+    poolId: task.creatorTeamId ?? assigneeTeamIds[0] ?? null,
+    poolIds: teamIds,
+    assignees: task.assignees,
   };
 }
 
@@ -106,6 +138,64 @@ export async function createTask(
           'One or more assignees do not exist or do not belong to this organization',
           { missingAssigneeIds: missing },
         );
+      }
+
+      if (!globalAccess(ctx.principal)) {
+        const assignPolicy = await effectivePolicy(ctx, 'tasks:assign');
+        if (assignPolicy && assignPolicy.scope === 'team') {
+          const allowedTeams = await scopeResolver.teamIds(ctx);
+          const validScopedIds = await validateAssigneesInTeamScope(
+            tx,
+            ctx.organizationId,
+            uniqueAssigneeIds,
+            allowedTeams,
+            ctx.principal.id,
+          );
+          if (validScopedIds.length !== uniqueAssigneeIds.length) {
+            const outOfScope = uniqueAssigneeIds.filter((id) => !validScopedIds.includes(id));
+            throw new TaskValidationError(
+              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
+              'One or more assignees are outside your team scope',
+              { missingAssigneeIds: outOfScope },
+            );
+          }
+        } else if (assignPolicy && assignPolicy.scope === 'department') {
+          const departmentId = await scopeResolver.departmentId(ctx);
+          const validScopedIds = await validateAssigneesInDepartmentScope(
+            tx,
+            ctx.organizationId,
+            uniqueAssigneeIds,
+            departmentId,
+            ctx.principal.id,
+          );
+          if (validScopedIds.length !== uniqueAssigneeIds.length) {
+            const outOfScope = uniqueAssigneeIds.filter((id) => !validScopedIds.includes(id));
+            throw new TaskValidationError(
+              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
+              'One or more assignees are outside your department scope',
+              { missingAssigneeIds: outOfScope },
+            );
+          }
+        } else if (assignPolicy && assignPolicy.scope === 'pool') {
+          const poolMembers = await scopeResolver.poolMemberIds(ctx);
+          const poolIds = await scopeResolver.poolIds(ctx);
+          const validScopedIds = await validateAssigneesInPoolScope(
+            tx,
+            ctx.organizationId,
+            uniqueAssigneeIds,
+            poolMembers,
+            poolIds,
+            ctx.principal.id,
+          );
+          if (validScopedIds.length !== uniqueAssigneeIds.length) {
+            const outOfScope = uniqueAssigneeIds.filter((id) => !validScopedIds.includes(id));
+            throw new TaskValidationError(
+              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
+              'One or more assignees are outside your pool scope',
+              { missingAssigneeIds: outOfScope },
+            );
+          }
+        }
       }
     }
 
@@ -290,6 +380,64 @@ export async function assignTask(
           'One or more assignees do not exist or do not belong to this organization',
           { missingAssigneeIds: missing },
         );
+      }
+
+      if (!globalAccess(ctx.principal)) {
+        const assignPolicy = await effectivePolicy(ctx, 'tasks:assign');
+        if (assignPolicy && assignPolicy.scope === 'team') {
+          const allowedTeams = await scopeResolver.teamIds(ctx);
+          const validScopedIds = await validateAssigneesInTeamScope(
+            tx,
+            ctx.organizationId,
+            uniqueAssigneeIds,
+            allowedTeams,
+            ctx.principal.id,
+          );
+          if (validScopedIds.length !== uniqueAssigneeIds.length) {
+            const outOfScope = uniqueAssigneeIds.filter((mId) => !validScopedIds.includes(mId));
+            throw new TaskValidationError(
+              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
+              'One or more assignees are outside your team scope',
+              { missingAssigneeIds: outOfScope },
+            );
+          }
+        } else if (assignPolicy && assignPolicy.scope === 'department') {
+          const departmentId = await scopeResolver.departmentId(ctx);
+          const validScopedIds = await validateAssigneesInDepartmentScope(
+            tx,
+            ctx.organizationId,
+            uniqueAssigneeIds,
+            departmentId,
+            ctx.principal.id,
+          );
+          if (validScopedIds.length !== uniqueAssigneeIds.length) {
+            const outOfScope = uniqueAssigneeIds.filter((mId) => !validScopedIds.includes(mId));
+            throw new TaskValidationError(
+              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
+              'One or more assignees are outside your department scope',
+              { missingAssigneeIds: outOfScope },
+            );
+          }
+        } else if (assignPolicy && assignPolicy.scope === 'pool') {
+          const poolMembers = await scopeResolver.poolMemberIds(ctx);
+          const poolIds = await scopeResolver.poolIds(ctx);
+          const validScopedIds = await validateAssigneesInPoolScope(
+            tx,
+            ctx.organizationId,
+            uniqueAssigneeIds,
+            poolMembers,
+            poolIds,
+            ctx.principal.id,
+          );
+          if (validScopedIds.length !== uniqueAssigneeIds.length) {
+            const outOfScope = uniqueAssigneeIds.filter((mId) => !validScopedIds.includes(mId));
+            throw new TaskValidationError(
+              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
+              'One or more assignees are outside your pool scope',
+              { missingAssigneeIds: outOfScope },
+            );
+          }
+        }
       }
     }
 

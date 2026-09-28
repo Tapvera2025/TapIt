@@ -17,6 +17,7 @@ const HR_MODULES = [
   'holidays',
   'payroll',
   'performance',
+  'recruitment',
 ] as const;
 const SALES_MODULES = [
   'territories',

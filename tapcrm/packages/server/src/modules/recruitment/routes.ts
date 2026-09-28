@@ -1,7 +1,5 @@
-import { Router, type NextFunction, type Request, type Response } from 'express';
-import { globalAccess } from '@tapcrm/contracts';
-import { bootstrapDb } from '../../platform/dal/db.js';
-import { sql } from '../../platform/dal/sql.js';
+import { route } from '../../platform/http/route.js';
+import { z } from 'zod';
 import * as service from './service.js';
 import {
   convertSubmissionSchema,
@@ -16,11 +14,14 @@ import {
   rescheduleInterviewSchema,
   scheduleInterviewSchema,
   submitFeedbackSchema,
+  updateFeedbackSchema,
   updateApplicationLinkStatusSchema,
   updateCandidateScreeningSchema,
   updateCandidateStatusSchema,
   updateInterviewStatusSchema,
+  updateJoiningSchema,
   updateJoiningStatusSchema,
+  updateOfferSchema,
   updateOfferStatusSchema,
   updateRequisitionStatusSchema,
   updateSubmissionStatusSchema,
@@ -28,550 +29,688 @@ import {
   parseCandidateResumeSchema,
 } from './validators.js';
 
-function paramId(req: Request): string {
-  const val = req.params['id'];
-  return (Array.isArray(val) ? val[0] : val) ?? '';
-}
+const idSchema = z.string().uuid();
 
 /**
- * HR / Super Admin authorization gate for recruitment operations.
- * Evaluated within the authenticated RequestContext pipeline.
+ * Recruitment HTTP route definitions.
+ *
+ * Route bindings declare action, path, parameters, and resource loader.
+ * Authorization is evaluated by the platform router BEFORE handler invocation.
+ *
+ * Pipeline (TECH.md §8.3):
+ *   Request → requestContext → module-entitlement → loadResource
+ *     → authorize(ctx, action, resource) → handler → project → Response
+ *
+ * Handlers do NOT call authorize() directly (API-1).
  */
-async function requireHrOrAdmin(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const ctx = req.ctx;
-  if (!ctx || !ctx.principal) {
-    res.status(401).json({
-      success: false,
-      code: 'UNAUTHENTICATED',
-      message: 'Authentication required',
-    });
-    return;
-  }
-
-  if (globalAccess(ctx.principal)) {
-    next();
-    return;
-  }
-
-  if ('departmentId' in ctx.principal && ctx.principal.departmentId) {
-    const dept = await bootstrapDb.readAs<{ code: string; name: string }>(
-      ctx.organizationId,
-      sql`
-        SELECT code, name
-        FROM department
-        WHERE organization_id = ${ctx.organizationId}
-          AND id = ${ctx.principal.departmentId}
-          AND status = 'active'
-      `,
-    );
-
-    if (dept[0]) {
-      const code = dept[0].code.toLowerCase();
-      const name = dept[0].name.toLowerCase();
-      if (
-        code === 'hr' ||
-        name === 'human resources' ||
-        code.includes('recruitment')
-      ) {
-        next();
-        return;
-      }
-    }
-  }
-
-  res.status(403).json({
-    success: false,
-    code: 'FORBIDDEN',
-    message: 'Access to recruitment module is restricted to HR personnel',
-  });
-}
-
-/**
- * Builds the Express router mounted at `${config.API_BASE_PATH}/recruitment`.
- */
-export function buildRecruitmentRouter(): Router {
-  const router = Router();
-
-  router.use(requireHrOrAdmin);
-
-  // -------------------------------------------------------------------
-  // 0. Metrics
-  // -------------------------------------------------------------------
-  router.get('/metrics', async (req, res, next) => {
-    try {
-      const data = await service.getRecruitmentMetrics(req.ctx!);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // -------------------------------------------------------------------
-  // 1. Requisitions
-  // -------------------------------------------------------------------
-  router.get('/requisitions', async (req, res, next) => {
-    try {
-      const filter = {
-        search: typeof req.query['search'] === 'string' ? req.query['search'] : undefined,
-        status: typeof req.query['status'] === 'string' ? req.query['status'] : undefined,
-        departmentId: typeof req.query['departmentId'] === 'string' ? req.query['departmentId'] : undefined,
-        employmentType: typeof req.query['employmentType'] === 'string' ? req.query['employmentType'] : undefined,
-      };
-      const data = await service.listRequisitions(req.ctx!, filter);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/requisitions', async (req, res, next) => {
-    try {
-      const input = createRequisitionSchema.parse(req.body ?? {});
-      const data = await service.createRequisition(req.ctx!, input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/requisitions/:id', async (req, res, next) => {
-    try {
-      const data = await service.getRequisition(req.ctx!, paramId(req));
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.patch('/requisitions/:id/status', async (req, res, next) => {
-    try {
-      const { status } = updateRequisitionStatusSchema.parse(req.body ?? {});
-      const data = await service.updateRequisitionStatus(req.ctx!, paramId(req), status);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // -------------------------------------------------------------------
-  // 2. Candidates
-  // -------------------------------------------------------------------
-  router.get('/candidates', async (req, res, next) => {
-    try {
-      const filter = {
-        search: typeof req.query['search'] === 'string' ? req.query['search'] : undefined,
-        status: typeof req.query['status'] === 'string' ? req.query['status'] : undefined,
-        requisitionId: typeof req.query['requisitionId'] === 'string' ? req.query['requisitionId'] : undefined,
-        source: typeof req.query['source'] === 'string' ? req.query['source'] : undefined,
-      };
-      const data = await service.listCandidates(req.ctx!, filter);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/candidates/resume/upload', async (req, res, next) => {
-    try {
-      const input = uploadCandidateResumeSchema.parse(req.body ?? {});
-      const data = await service.uploadCandidateResume(req.ctx!, input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/candidates/resume/parse', async (req, res, next) => {
-    try {
-      const input = parseCandidateResumeSchema.parse(req.body ?? {});
-      const data = await service.parseCandidateResume(req.ctx!, input);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/candidates/resume/preview', async (req, res, next) => {
-    try {
-      const key = typeof req.query['key'] === 'string' ? req.query['key'] : '';
-      const { buffer, mimeType, filename } = await service.getResumePreviewFile(req.ctx!, key);
-      res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
-      res.setHeader('Content-Length', buffer.length);
-      res.status(200).end(buffer);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/candidates', async (req, res, next) => {
-    try {
-      const input = createCandidateSchema.parse(req.body ?? {});
-      const data = await service.createCandidate(req.ctx!, input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/candidates/:id/resume', async (req, res, next) => {
-    try {
-      const { buffer, mimeType, filename } = await service.getCandidateResumeFile(req.ctx!, paramId(req));
-      res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
-      res.setHeader('Content-Length', buffer.length);
-      res.status(200).end(buffer);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/candidates/:id', async (req, res, next) => {
-    try {
-      const data = await service.getCandidate(req.ctx!, paramId(req));
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.patch('/candidates/:id/status', async (req, res, next) => {
-    try {
-      const input = updateCandidateStatusSchema.parse(req.body ?? {});
-      const data = await service.updateCandidateStatus(req.ctx!, paramId(req), input);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.patch('/candidates/:id/screening', async (req, res, next) => {
-    try {
-      const { screeningNotes } = updateCandidateScreeningSchema.parse(req.body ?? {});
-      const data = await service.updateCandidateScreening(req.ctx!, paramId(req), screeningNotes);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // -------------------------------------------------------------------
-  // 3. Interviews
-  // -------------------------------------------------------------------
-  router.get('/interviews', async (req, res, next) => {
-    try {
-      const filter = {
-        candidateId: typeof req.query['candidateId'] === 'string' ? req.query['candidateId'] : undefined,
-        requisitionId: typeof req.query['requisitionId'] === 'string' ? req.query['requisitionId'] : undefined,
-        status: typeof req.query['status'] === 'string' ? req.query['status'] : undefined,
-        stage: typeof req.query['stage'] === 'string' ? req.query['stage'] : undefined,
-      };
-      const data = await service.listInterviews(req.ctx!, filter);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/interviews', async (req, res, next) => {
-    try {
-      const input = scheduleInterviewSchema.parse(req.body ?? {});
-      const data = await service.scheduleInterview(req.ctx!, input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/interviews/:id', async (req, res, next) => {
-    try {
-      const data = await service.getInterview(req.ctx!, paramId(req));
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.patch('/interviews/:id/status', async (req, res, next) => {
-    try {
-      const { status } = updateInterviewStatusSchema.parse(req.body ?? {});
-      const data = await service.updateInterviewStatus(req.ctx!, paramId(req), status);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/interviews/:id/feedback', async (req, res, next) => {
-    try {
-      const input = submitFeedbackSchema.parse(req.body ?? {});
-      const data = await service.submitInterviewFeedback(req.ctx!, paramId(req), input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // -------------------------------------------------------------------
-  // 4. Offers
-  // -------------------------------------------------------------------
-  router.get('/offers', async (req, res, next) => {
-    try {
-      const filter = {
-        candidateId: typeof req.query['candidateId'] === 'string' ? req.query['candidateId'] : undefined,
-        status: typeof req.query['status'] === 'string' ? req.query['status'] : undefined,
-      };
-      const data = await service.listOffers(req.ctx!, filter);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/offers', async (req, res, next) => {
-    try {
-      const input = createOfferSchema.parse(req.body ?? {});
-      const data = await service.createOffer(req.ctx!, input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/offers/:id', async (req, res, next) => {
-    try {
-      const data = await service.getOffer(req.ctx!, paramId(req));
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.patch('/offers/:id/status', async (req, res, next) => {
-    try {
-      const { status } = updateOfferStatusSchema.parse(req.body ?? {});
-      const data = await service.updateOfferStatus(req.ctx!, paramId(req), status);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // -------------------------------------------------------------------
-  // 5. Joining
-  // -------------------------------------------------------------------
-  const handleListJoining = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const filter = {
-        status: typeof req.query['status'] === 'string' ? req.query['status'] : undefined,
-      };
-      const data = await service.listJoinings(req.ctx!, filter);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  const handleCreateJoining = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const input = createJoiningSchema.parse(req.body ?? {});
-      const data = await service.createJoining(req.ctx!, input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  const handleGetJoining = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const data = await service.getJoining(req.ctx!, paramId(req));
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  const handleUpdateJoining = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const input = updateJoiningStatusSchema.parse(req.body ?? {});
-      const data = await service.updateJoiningStatus(req.ctx!, paramId(req), input);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  router.get('/joining', handleListJoining);
-  router.get('/joinings', handleListJoining);
-  router.post('/joining', handleCreateJoining);
-  router.post('/joinings', handleCreateJoining);
-  router.get('/joining/:id', handleGetJoining);
-  router.get('/joinings/:id', handleGetJoining);
-  router.patch('/joining/:id/status', handleUpdateJoining);
-  router.patch('/joinings/:id/status', handleUpdateJoining);
-
-  // -------------------------------------------------------------------
-  // 6. Application Links (HR Management)
-  // -------------------------------------------------------------------
-  router.get('/application-links', async (req, res, next) => {
-    try {
-      const requisitionId = typeof req.query['requisitionId'] === 'string' ? req.query['requisitionId'] : undefined;
-      const data = await service.listApplicationLinks(req.ctx!, requisitionId);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/application-links', async (req, res, next) => {
-    try {
-      const input = createApplicationLinkSchema.parse(req.body ?? {});
-      const data = await service.createApplicationLink(req.ctx!, input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/application-links/:id', async (req, res, next) => {
-    try {
-      const data = await service.getApplicationLink(req.ctx!, paramId(req));
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.patch('/application-links/:id/status', async (req, res, next) => {
-    try {
-      const input = updateApplicationLinkStatusSchema.parse(req.body ?? {});
-      const data = await service.updateApplicationLinkStatus(req.ctx!, paramId(req), input);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // -------------------------------------------------------------------
-  // 7. Resume Submissions (HR Resume Inbox)
-  // -------------------------------------------------------------------
-  router.get('/resume-submissions', async (req, res, next) => {
-    try {
-      const filter = {
-        requisitionId: typeof req.query['requisitionId'] === 'string' ? req.query['requisitionId'] : undefined,
-        status: typeof req.query['status'] === 'string' ? req.query['status'] : undefined,
-        search: typeof req.query['search'] === 'string' ? req.query['search'] : undefined,
-      };
-      const data = await service.listResumeSubmissions(req.ctx!, filter);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/resume-submissions/upload', async (req, res, next) => {
-    try {
-      const input = hrManualSubmissionSchema.parse(req.body ?? {});
-      const data = await service.createManualSubmission(req.ctx!, input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/resume-submissions/:id', async (req, res, next) => {
-    try {
-      const data = await service.getResumeSubmission(req.ctx!, paramId(req));
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/resume-submissions/:id/resume', async (req, res, next) => {
-    try {
-      const { buffer, mimeType, filename } = await service.getResumeFile(req.ctx!, paramId(req));
-      res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
-      res.setHeader('Content-Length', buffer.length);
-      res.status(200).end(buffer);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get('/resume-submissions/:id/resume-url', async (req, res, next) => {
-    try {
-      const data = await service.getResumeSignedUrl(req.ctx!, paramId(req));
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.patch('/resume-submissions/:id/status', async (req, res, next) => {
-    try {
-      const input = updateSubmissionStatusSchema.parse(req.body ?? {});
-      const data = await service.updateResumeSubmissionStatus(req.ctx!, paramId(req), input);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/resume-submissions/:id/convert', async (req, res, next) => {
-    try {
-      const input = convertSubmissionSchema.parse(req.body ?? {});
-      const data = await service.convertResumeSubmissionToCandidate(req.ctx!, paramId(req), input);
-      res.status(201).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // -------------------------------------------------------------------
-  // 8. Candidate Hiring
-  // -------------------------------------------------------------------
-  router.post('/candidates/:id/hire', async (req, res, next) => {
-    try {
-      const input = hireCandidateSchema.parse(req.body ?? {});
-      const data = await service.hireCandidateAsEmployee(req.ctx!, paramId(req), input);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // -------------------------------------------------------------------
-  // 9. Interview Reschedule & Decision
-  // -------------------------------------------------------------------
-  router.post('/interviews/:id/reschedule', async (req, res, next) => {
-    try {
-      const input = rescheduleInterviewSchema.parse(req.body ?? {});
-      const data = await service.rescheduleInterview(req.ctx!, paramId(req), input);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/interviews/:id/decision', async (req, res, next) => {
-    try {
-      const input = interviewDecisionSchema.parse(req.body ?? {});
-      const data = await service.recordInterviewDecision(req.ctx!, paramId(req), input);
-      res.status(200).json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  return router;
-}
-
 export function registerRecruitmentRoutes(): void {
-  // Recruitment routes are mounted via buildRecruitmentRouter() in app.ts.
+  // -----------------------------------------------------------------
+  // 0. Metrics — no resource
+  // -----------------------------------------------------------------
+  route({
+    method: 'GET',
+    path: '/api/recruitment/metrics',
+    action: 'recruitment:view-metrics',
+    module: 'recruitment',
+    handler: async ({ ctx }) => service.getRecruitmentMetrics(ctx),
+  });
+
+  // -----------------------------------------------------------------
+  // 1. Requisitions
+  // -----------------------------------------------------------------
+  route({
+    method: 'GET',
+    path: '/api/recruitment/requisitions',
+    action: 'recruitment:view-requisitions',
+    module: 'recruitment',
+    handler: async ({ ctx, query }) => {
+      const filter = {
+        search: typeof query['search'] === 'string' ? query['search'] : undefined,
+        status: typeof query['status'] === 'string' ? query['status'] : undefined,
+        departmentId: typeof query['departmentId'] === 'string' ? query['departmentId'] : undefined,
+        employmentType: typeof query['employmentType'] === 'string' ? query['employmentType'] : undefined,
+      };
+      return service.listRequisitions(ctx, filter);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/requisitions',
+    action: 'recruitment:manage-requisitions',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.createRequisition(ctx, createRequisitionSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/requisitions/:id',
+    action: 'recruitment:view-requisitions',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadRequisitionResource,
+    handler: async ({ ctx, params }) =>
+      service.getRequisition(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/requisitions/:id/status',
+    action: 'recruitment:manage-requisitions',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadRequisitionResource,
+    handler: async ({ ctx, params, body }) => {
+      const { status } = updateRequisitionStatusSchema.parse(body);
+      return service.updateRequisitionStatus(ctx, idSchema.parse(params['id']), status);
+    },
+  });
+
+  // -----------------------------------------------------------------
+  // 2. Candidates — static paths before parameterised paths
+  // -----------------------------------------------------------------
+  route({
+    method: 'GET',
+    path: '/api/recruitment/candidates',
+    action: 'recruitment:view-candidates',
+    module: 'recruitment',
+    handler: async ({ ctx, query }) => {
+      const filter = {
+        search: typeof query['search'] === 'string' ? query['search'] : undefined,
+        status: typeof query['status'] === 'string' ? query['status'] : undefined,
+        requisitionId: typeof query['requisitionId'] === 'string' ? query['requisitionId'] : undefined,
+        source: typeof query['source'] === 'string' ? query['source'] : undefined,
+      };
+      return service.listCandidates(ctx, filter);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/candidates/resume/upload',
+    action: 'recruitment:manage-candidates',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.uploadCandidateResume(ctx, uploadCandidateResumeSchema.parse(body)),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/candidates/resume/parse',
+    action: 'recruitment:manage-candidates',
+    module: 'recruitment',
+    handler: async ({ ctx, body }) =>
+      service.parseCandidateResume(ctx, parseCandidateResumeSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/candidates/resume/preview',
+    action: 'recruitment:view-candidates',
+    module: 'recruitment',
+    handler: async ({ ctx, query, res }) => {
+      const key = typeof query['key'] === 'string' ? query['key'] : '';
+      const { buffer, mimeType, filename } = await service.getResumePreviewFile(ctx, key);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.status(200).end(buffer);
+      return null; // framework checks res.headersSent before sending JSON
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/candidates',
+    action: 'recruitment:manage-candidates',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.createCandidate(ctx, createCandidateSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/candidates/:id/resume',
+    action: 'recruitment:view-candidates',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadCandidateResource,
+    handler: async ({ ctx, params, res }) => {
+      const { buffer, mimeType, filename } = await service.getCandidateResumeFile(
+        ctx,
+        idSchema.parse(params['id']),
+      );
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.status(200).end(buffer);
+      return null;
+    },
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/candidates/:id',
+    action: 'recruitment:view-candidates',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadCandidateResource,
+    handler: async ({ ctx, params }) =>
+      service.getCandidate(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/candidates/:id/status',
+    action: 'recruitment:manage-candidates',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadCandidateResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateCandidateStatus(
+        ctx,
+        idSchema.parse(params['id']),
+        updateCandidateStatusSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/candidates/:id/screening',
+    action: 'recruitment:manage-candidates',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadCandidateResource,
+    handler: async ({ ctx, params, body }) => {
+      const { screeningNotes } = updateCandidateScreeningSchema.parse(body);
+      return service.updateCandidateScreening(ctx, idSchema.parse(params['id']), screeningNotes);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/candidates/:id/hire',
+    action: 'recruitment:manage-candidates',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadCandidateResource,
+    handler: async ({ ctx, params, body }) =>
+      service.hireCandidateAsEmployee(
+        ctx,
+        idSchema.parse(params['id']),
+        hireCandidateSchema.parse(body),
+      ),
+  });
+
+  // -----------------------------------------------------------------
+  // 3. Interviews
+  // -----------------------------------------------------------------
+  route({
+    method: 'GET',
+    path: '/api/recruitment/interviews',
+    action: 'recruitment:view-interviews',
+    module: 'recruitment',
+    handler: async ({ ctx, query }) => {
+      const filter = {
+        candidateId: typeof query['candidateId'] === 'string' ? query['candidateId'] : undefined,
+        requisitionId: typeof query['requisitionId'] === 'string' ? query['requisitionId'] : undefined,
+        status: typeof query['status'] === 'string' ? query['status'] : undefined,
+        stage: typeof query['stage'] === 'string' ? query['stage'] : undefined,
+      };
+      return service.listInterviews(ctx, filter);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/interviews',
+    action: 'recruitment:manage-interviews',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.scheduleInterview(ctx, scheduleInterviewSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/interviews/:id',
+    action: 'recruitment:view-interviews',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadInterviewResource,
+    handler: async ({ ctx, params }) =>
+      service.getInterview(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/interviews/:id/status',
+    action: 'recruitment:manage-interviews',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadInterviewResource,
+    handler: async ({ ctx, params, body }) => {
+      const { status } = updateInterviewStatusSchema.parse(body);
+      return service.updateInterviewStatus(ctx, idSchema.parse(params['id']), status);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/interviews/:id/feedback',
+    action: 'recruitment:manage-interviews',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadInterviewResource,
+    handler: async ({ ctx, params, body }) =>
+      service.submitInterviewFeedback(
+        ctx,
+        idSchema.parse(params['id']),
+        submitFeedbackSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/interviews/:id/feedback/:feedbackId',
+    action: 'recruitment:manage-interviews',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadInterviewResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateInterviewFeedback(
+        ctx,
+        idSchema.parse(params['feedbackId']),
+        updateFeedbackSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/interview-feedback/:id',
+    action: 'recruitment:manage-interviews',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadInterviewFeedbackAsInterviewResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateInterviewFeedback(
+        ctx,
+        idSchema.parse(params['id']),
+        updateFeedbackSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/interviews/:id/reschedule',
+    action: 'recruitment:manage-interviews',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadInterviewResource,
+    handler: async ({ ctx, params, body }) =>
+      service.rescheduleInterview(
+        ctx,
+        idSchema.parse(params['id']),
+        rescheduleInterviewSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/interviews/:id/decision',
+    action: 'recruitment:manage-interviews',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadInterviewResource,
+    handler: async ({ ctx, params, body }) =>
+      service.recordInterviewDecision(
+        ctx,
+        idSchema.parse(params['id']),
+        interviewDecisionSchema.parse(body),
+      ),
+  });
+
+  // -----------------------------------------------------------------
+  // 4. Offers
+  // -----------------------------------------------------------------
+  route({
+    method: 'GET',
+    path: '/api/recruitment/offers',
+    action: 'recruitment:view-offers',
+    module: 'recruitment',
+    handler: async ({ ctx, query }) => {
+      const filter = {
+        candidateId: typeof query['candidateId'] === 'string' ? query['candidateId'] : undefined,
+        status: typeof query['status'] === 'string' ? query['status'] : undefined,
+      };
+      return service.listOffers(ctx, filter);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/offers',
+    action: 'recruitment:manage-offers',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.createOffer(ctx, createOfferSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/offers/:id',
+    action: 'recruitment:view-offers',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadOfferResource,
+    handler: async ({ ctx, params }) =>
+      service.getOffer(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/offers/:id',
+    action: 'recruitment:manage-offers',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadOfferResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateOffer(ctx, idSchema.parse(params['id']), updateOfferSchema.parse(body)),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/offers/:id/status',
+    action: 'recruitment:manage-offers',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadOfferResource,
+    handler: async ({ ctx, params, body }) => {
+      const { status } = updateOfferStatusSchema.parse(body);
+      return service.updateOfferStatus(ctx, idSchema.parse(params['id']), status);
+    },
+  });
+
+  // -----------------------------------------------------------------
+  // 5. Joining
+  // -----------------------------------------------------------------
+  route({
+    method: 'GET',
+    path: '/api/recruitment/joining',
+    action: 'recruitment:view-joining',
+    module: 'recruitment',
+    handler: async ({ ctx, query }) =>
+      service.listJoinings(ctx, {
+        status: typeof query['status'] === 'string' ? query['status'] : undefined,
+      }),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/joinings',
+    action: 'recruitment:view-joining',
+    module: 'recruitment',
+    handler: async ({ ctx, query }) =>
+      service.listJoinings(ctx, {
+        status: typeof query['status'] === 'string' ? query['status'] : undefined,
+      }),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/joining',
+    action: 'recruitment:manage-joining',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.createJoining(ctx, createJoiningSchema.parse(body)),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/joinings',
+    action: 'recruitment:manage-joining',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.createJoining(ctx, createJoiningSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/joining/:id',
+    action: 'recruitment:view-joining',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadJoiningResource,
+    handler: async ({ ctx, params }) =>
+      service.getJoining(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/joinings/:id',
+    action: 'recruitment:view-joining',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadJoiningResource,
+    handler: async ({ ctx, params }) =>
+      service.getJoining(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/joining/:id/status',
+    action: 'recruitment:manage-joining',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadJoiningResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateJoiningStatus(
+        ctx,
+        idSchema.parse(params['id']),
+        updateJoiningStatusSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/joinings/:id/status',
+    action: 'recruitment:manage-joining',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadJoiningResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateJoiningStatus(
+        ctx,
+        idSchema.parse(params['id']),
+        updateJoiningStatusSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/joining/:id',
+    action: 'recruitment:manage-joining',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadJoiningResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateJoining(
+        ctx,
+        idSchema.parse(params['id']),
+        updateJoiningSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/joinings/:id',
+    action: 'recruitment:manage-joining',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadJoiningResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateJoining(
+        ctx,
+        idSchema.parse(params['id']),
+        updateJoiningSchema.parse(body),
+      ),
+  });
+
+  // -----------------------------------------------------------------
+  // 6. Application Links
+  // -----------------------------------------------------------------
+  route({
+    method: 'GET',
+    path: '/api/recruitment/application-links',
+    action: 'recruitment:manage-links',
+    module: 'recruitment',
+    handler: async ({ ctx, query }) =>
+      service.listApplicationLinks(
+        ctx,
+        typeof query['requisitionId'] === 'string' ? query['requisitionId'] : undefined,
+      ),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/application-links',
+    action: 'recruitment:manage-links',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.createApplicationLink(ctx, createApplicationLinkSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/application-links/:id',
+    action: 'recruitment:manage-links',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadApplicationLinkResource,
+    handler: async ({ ctx, params }) =>
+      service.getApplicationLink(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/application-links/:id/status',
+    action: 'recruitment:manage-links',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadApplicationLinkResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateApplicationLinkStatus(
+        ctx,
+        idSchema.parse(params['id']),
+        updateApplicationLinkStatusSchema.parse(body),
+      ),
+  });
+
+  // -----------------------------------------------------------------
+  // 7. Resume Submissions — static paths before parameterised paths
+  // -----------------------------------------------------------------
+  route({
+    method: 'GET',
+    path: '/api/recruitment/resume-submissions',
+    action: 'recruitment:manage-submissions',
+    module: 'recruitment',
+    handler: async ({ ctx, query }) => {
+      const filter = {
+        requisitionId: typeof query['requisitionId'] === 'string' ? query['requisitionId'] : undefined,
+        status: typeof query['status'] === 'string' ? query['status'] : undefined,
+        search: typeof query['search'] === 'string' ? query['search'] : undefined,
+      };
+      return service.listResumeSubmissions(ctx, filter);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/resume-submissions/upload',
+    action: 'recruitment:manage-submissions',
+    module: 'recruitment',
+    status: 201,
+    handler: async ({ ctx, body }) =>
+      service.createManualSubmission(ctx, hrManualSubmissionSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/resume-submissions/:id',
+    action: 'recruitment:manage-submissions',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadResumeSubmissionResource,
+    handler: async ({ ctx, params }) =>
+      service.getResumeSubmission(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/resume-submissions/:id/resume',
+    action: 'recruitment:manage-submissions',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadResumeSubmissionResource,
+    handler: async ({ ctx, params, res }) => {
+      const { buffer, mimeType, filename } = await service.getResumeFile(
+        ctx,
+        idSchema.parse(params['id']),
+      );
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.status(200).end(buffer);
+      return null;
+    },
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/recruitment/resume-submissions/:id/resume-url',
+    action: 'recruitment:manage-submissions',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadResumeSubmissionResource,
+    handler: async ({ ctx, params }) =>
+      service.getResumeSignedUrl(ctx, idSchema.parse(params['id'])),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/recruitment/resume-submissions/:id/status',
+    action: 'recruitment:manage-submissions',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadResumeSubmissionResource,
+    handler: async ({ ctx, params, body }) =>
+      service.updateResumeSubmissionStatus(
+        ctx,
+        idSchema.parse(params['id']),
+        updateSubmissionStatusSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/recruitment/resume-submissions/:id/convert',
+    action: 'recruitment:manage-submissions',
+    module: 'recruitment',
+    resourceParam: 'id',
+    loadResource: service.loadResumeSubmissionResource,
+    handler: async ({ ctx, params, body }) =>
+      service.convertResumeSubmissionToCandidate(
+        ctx,
+        idSchema.parse(params['id']),
+        convertSubmissionSchema.parse(body),
+      ),
+  });
 }
