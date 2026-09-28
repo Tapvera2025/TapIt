@@ -4,6 +4,7 @@
  */
 import type { DateOnly } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
+import { queryUnresolvedBreaches } from './repository.js';
 
 export type UnresolvedBreachKind =
   | 'pending-consequence'      // status=pending, consequence in mark-late|mark-half-day|mark-absent|deduct-minutes|deduct-amount
@@ -20,15 +21,29 @@ export interface UnresolvedBreach {
  * Step 9 publish gate: returns current rows that block payroll publication.
  * (1) status='pending' AND consequence IN mark-late|mark-half-day|mark-absent|deduct-minutes|deduct-amount
  * (2) status IN ('pending','confirmed') AND consequence='require-explanation' AND explanation IS NULL
+ *
+ * The organization is read from the DB session context (RLS/app.organization_id).
+ * Pass the running transaction so the check is atomic with the publication step.
  */
 export async function unresolvedBreaches(
-  _tx: Tx,
-  _userIds: readonly string[],
-  _from: DateOnly,
-  _to: DateOnly,
+  tx: Tx,
+  userIds: readonly string[],
+  from: DateOnly,
+  to: DateOnly,
 ): Promise<UnresolvedBreach[]> {
-  // Implemented in Task 6.
-  throw new Error('unresolvedBreaches not yet implemented');
+  if (userIds.length === 0) return [];
+  // organizationId is read from the session-local setting via RLS; the query uses
+  // current_organization_id() in the repository so we read it here too.
+  const orgRow = await tx.one<{ v: string }>(
+    { sql: `SELECT current_setting('app.organization_id') AS v`, parameters: [] },
+  );
+  const rows = await queryUnresolvedBreaches(tx, orgRow.v, userIds, from, to);
+  return rows.map((r) => ({
+    id: r.id,
+    userId: r.userId,
+    workDate: r.workDate,
+    kind: r.kind,
+  }));
 }
 
 export {

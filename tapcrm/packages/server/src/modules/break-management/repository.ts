@@ -485,3 +485,231 @@ export async function supersedeBreach(
     WHERE id = ${breachId}
   `);
 }
+
+// ── Breach review helpers (Task 6) ────────────────────────────────────────────
+
+export interface BreachRow {
+  id: string;
+  organizationId: string;
+  userId: string;
+  attendanceRecordId: string;
+  workDate: DateOnly;
+  policyVersionId: string;
+  matchedRuleId: string | null;
+  occurrenceNumber: number | null;
+  status: string;
+  autoApplied: boolean;
+  confirmedBy: string | null;
+  confirmedAt: string | null;
+  waivedBy: string | null;
+  waivedAt: string | null;
+  waiverReason: string | null;
+  suppressionReason: string | null;
+  explanation: string | null;
+}
+
+/**
+ * Load a single breach row by ID, FOR UPDATE (row lock).
+ */
+export async function loadBreachForUpdate(
+  tx: Tx,
+  breachId: string,
+): Promise<BreachRow | null> {
+  return tx.maybeOne<BreachRow>(sql`
+    SELECT id, organization_id AS "organizationId", user_id AS "userId",
+           attendance_record_id AS "attendanceRecordId",
+           work_date::text AS "workDate",
+           policy_version_id AS "policyVersionId",
+           matched_rule_id AS "matchedRuleId",
+           occurrence_number AS "occurrenceNumber",
+           status, auto_applied AS "autoApplied",
+           confirmed_by AS "confirmedBy", confirmed_at::text AS "confirmedAt",
+           waived_by AS "waivedBy", waived_at::text AS "waivedAt",
+           waiver_reason AS "waiverReason",
+           suppression_reason AS "suppressionReason",
+           explanation
+    FROM break_breach
+    WHERE id = ${breachId}
+    FOR UPDATE
+  `);
+}
+
+export interface PenaltyRuleForBreach {
+  id: string;
+  consequence: string;
+  minutes: number | null;
+  amount: string | null;
+}
+
+/**
+ * Load the matched penalty rule for a breach (to get consequence, minutes, amount).
+ */
+export async function loadRuleForBreach(
+  tx: Tx,
+  organizationId: string,
+  ruleId: string,
+): Promise<PenaltyRuleForBreach | null> {
+  return tx.maybeOne<PenaltyRuleForBreach>(sql`
+    SELECT id, consequence, minutes, amount::text AS amount
+    FROM break_penalty_rule
+    WHERE organization_id = ${organizationId} AND id = ${ruleId}
+  `);
+}
+
+/**
+ * Confirm a breach — transition to 'confirmed', record who decided.
+ */
+export async function confirmBreach(
+  tx: Tx,
+  breachId: string,
+  decidedBy: string,
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE break_breach
+    SET status = 'confirmed',
+        confirmed_by = ${decidedBy}::uuid,
+        confirmed_at = now(),
+        updated_at = now()
+    WHERE id = ${breachId}
+  `);
+}
+
+/**
+ * Waive a breach — transition to 'waived', record actor and reason.
+ */
+export async function waiveBreach(
+  tx: Tx,
+  breachId: string,
+  decidedBy: string,
+  reason: string,
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE break_breach
+    SET status = 'waived',
+        waived_by = ${decidedBy}::uuid,
+        waived_at = now(),
+        waiver_reason = ${reason},
+        updated_at = now()
+    WHERE id = ${breachId}
+  `);
+}
+
+/**
+ * Add or update the explanation on a breach.
+ */
+export async function setBreachExplanation(
+  tx: Tx,
+  breachId: string,
+  explanation: string,
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE break_breach
+    SET explanation = ${explanation},
+        updated_at = now()
+    WHERE id = ${breachId}
+  `);
+}
+
+export interface BreachListRow {
+  id: string;
+  userId: string;
+  workDate: DateOnly;
+  status: string;
+  matchedRuleId: string | null;
+  occurrenceNumber: number | null;
+  autoApplied: boolean;
+  confirmedBy: string | null;
+  confirmedAt: string | null;
+  waivedBy: string | null;
+  waivedAt: string | null;
+  waiverReason: string | null;
+  explanation: string | null;
+  createdAt: string;
+}
+
+/**
+ * List breaches for an organization, with optional filters.
+ */
+export async function listBreaches(
+  tx: Tx,
+  organizationId: string,
+  opts: {
+    userId?: string;
+    status?: string;
+    fromDate?: string;
+    toDate?: string;
+    after?: string;
+    limit: number;
+  },
+): Promise<BreachListRow[]> {
+  return tx.query<BreachListRow>(sql`
+    SELECT bb.id, bb.user_id AS "userId",
+           bb.work_date::text AS "workDate",
+           bb.status,
+           bb.matched_rule_id AS "matchedRuleId",
+           bb.occurrence_number AS "occurrenceNumber",
+           bb.auto_applied AS "autoApplied",
+           bb.confirmed_by AS "confirmedBy",
+           bb.confirmed_at::text AS "confirmedAt",
+           bb.waived_by AS "waivedBy",
+           bb.waived_at::text AS "waivedAt",
+           bb.waiver_reason AS "waiverReason",
+           bb.explanation,
+           bb.created_at::text AS "createdAt"
+    FROM break_breach bb
+    WHERE bb.organization_id = current_organization_id()
+      AND (${opts.userId ?? null} IS NULL OR bb.user_id = ${opts.userId ?? null}::uuid)
+      AND (${opts.status ?? null} IS NULL OR bb.status = ${opts.status ?? null})
+      AND (${opts.fromDate ?? null} IS NULL OR bb.work_date >= ${opts.fromDate ?? null}::date)
+      AND (${opts.toDate ?? null} IS NULL OR bb.work_date <= ${opts.toDate ?? null}::date)
+      AND (${opts.after ?? null} IS NULL OR bb.id > ${opts.after ?? null}::uuid)
+    ORDER BY bb.work_date DESC, bb.id
+    LIMIT ${opts.limit}
+  `);
+}
+
+export interface UnresolvedBreachRow {
+  id: string;
+  userId: string;
+  workDate: DateOnly;
+  kind: 'pending-consequence' | 'pending-explanation';
+}
+
+/**
+ * Returns current rows that block payroll publication (Task 6 / façade).
+ * (1) status='pending' AND consequence in mark-late|mark-half-day|mark-absent|deduct-minutes|deduct-amount
+ * (2) status IN ('pending','confirmed') AND consequence='require-explanation' AND explanation IS NULL
+ */
+export async function queryUnresolvedBreaches(
+  tx: Tx,
+  organizationId: string,
+  userIds: readonly string[],
+  from: DateOnly,
+  to: DateOnly,
+): Promise<UnresolvedBreachRow[]> {
+  if (userIds.length === 0) return [];
+  return tx.query<UnresolvedBreachRow>(sql`
+    SELECT bb.id, bb.user_id AS "userId",
+           bb.work_date::text AS "workDate",
+           CASE
+             WHEN bb.status = 'pending'
+               AND r.consequence IN ('mark-late','mark-half-day','mark-absent','deduct-minutes','deduct-amount')
+               THEN 'pending-consequence'
+             ELSE 'pending-explanation'
+           END AS kind
+    FROM break_breach bb
+    LEFT JOIN break_penalty_rule r
+      ON r.organization_id = bb.organization_id AND r.id = bb.matched_rule_id
+    WHERE bb.organization_id = ${organizationId}
+      AND bb.user_id = ANY(${[...userIds]}::uuid[])
+      AND bb.work_date >= ${from}
+      AND bb.work_date <= ${to}
+      AND (
+        (bb.status = 'pending'
+          AND r.consequence IN ('mark-late','mark-half-day','mark-absent','deduct-minutes','deduct-amount'))
+        OR (bb.status IN ('pending','confirmed')
+          AND r.consequence = 'require-explanation'
+          AND bb.explanation IS NULL)
+      )
+  `);
+}

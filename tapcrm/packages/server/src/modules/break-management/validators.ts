@@ -99,3 +99,30 @@ export const resolveQuerySchema = z.object({
   date: dateOnly.optional(),  // defaults to today
 });
 export type ResolveQuery = z.infer<typeof resolveQuerySchema>;
+
+// ── Breach review schemas (Task 6) ───────────────────────────────────────────
+
+export const confirmBreachSchema = z.object({
+  reason: z.string().max(2000).optional(),
+});
+export type ConfirmBreachBody = z.infer<typeof confirmBreachSchema>;
+
+export const waiveBreachSchema = z.object({
+  reason: z.string().min(1).max(2000),
+});
+export type WaiveBreachBody = z.infer<typeof waiveBreachSchema>;
+
+export const explanationSchema = z.object({
+  explanation: z.string().min(1).max(5000),
+});
+export type ExplanationBody = z.infer<typeof explanationSchema>;
+
+export const listBreachesSchema = z.object({
+  userId: uuid.optional(),
+  status: z.enum(['pending', 'confirmed', 'waived', 'advisory', 'suppressed', 'superseded']).optional(),
+  fromDate: dateOnly.optional(),
+  toDate: dateOnly.optional(),
+  after: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type ListBreachesQuery = z.infer<typeof listBreachesSchema>;

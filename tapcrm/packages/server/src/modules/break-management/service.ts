@@ -1,4 +1,5 @@
-import type { DateOnly } from '@tapcrm/contracts';
+import type { DateOnly, Decimal } from '@tapcrm/contracts';
+import { decimal } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -13,8 +14,18 @@ import type {
   PreviewPolicyBody,
   ListPoliciesQuery,
   ResolveQuery,
+  ConfirmBreachBody,
+  WaiveBreachBody,
+  ExplanationBody,
+  ListBreachesQuery,
 } from './validators.js';
 import type { BreakPolicySnapshot } from '../attendance/facade.js';
+import {
+  applyOverlay,
+  removeOverlays,
+  lockPerson,
+} from '../attendance/facade.js';
+import { breakDeductionWriter } from './ports.js';
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -277,5 +288,243 @@ export async function resolveUserPolicy(
     const versions = await repo.loadVersionsForPolicies(tx, orgId, policyIds, workDate);
 
     return resolveBreakPolicy(workDate, subject, assignments, versions);
+  });
+}
+
+// ── Breach review errors ──────────────────────────────────────────────────────
+
+export class BreachNotFoundError extends Error {
+  readonly status = 404;
+  constructor() { super('Break breach not found'); this.name = 'BreachNotFoundError'; }
+}
+
+export class BreachSelfReviewError extends Error {
+  readonly status = 403;
+  constructor() { super('Reviewer cannot be the same person as the breach subject'); this.name = 'BreachSelfReviewError'; }
+}
+
+export class BreachTransitionError extends Error {
+  readonly status = 422;
+  constructor(message: string) { super(message); this.name = 'BreachTransitionError'; }
+}
+
+// ── Breach review service functions (Task 6) ─────────────────────────────────
+
+/**
+ * Confirm a pending/advisory breach.
+ *
+ * Enforces:
+ * - Status must be 'pending' or 'advisory'
+ * - Reviewer must not be the breach subject (anti-self-review)
+ * - Writes overlay (for attendance consequences) or payroll deduction in the same TX
+ */
+export async function confirmBreach(
+  ctx: RequestContext,
+  breachId: string,
+  _body: ConfirmBreachBody,
+): Promise<{ id: string; status: string }> {
+  return db.transaction(ctx, async (tx) => {
+    const orgId = await repo.currentOrganizationId(tx);
+
+    // Load breach FOR UPDATE (row lock)
+    const breach = await repo.loadBreachForUpdate(tx, breachId);
+    if (!breach) throw new BreachNotFoundError();
+
+    // G4: forbid self-review
+    if (breach.userId === ctx.principal.id) throw new BreachSelfReviewError();
+
+    // Status guard
+    if (breach.status === 'suppressed') {
+      throw new BreachTransitionError('Cannot confirm a suppressed breach');
+    }
+    if (breach.status === 'waived') {
+      throw new BreachTransitionError('Cannot confirm a waived breach');
+    }
+    if (breach.status === 'superseded') {
+      throw new BreachTransitionError('Cannot confirm a superseded breach');
+    }
+    if (breach.status === 'confirmed') {
+      throw new BreachTransitionError('Breach is already confirmed');
+    }
+    // Must be 'pending' or 'advisory'
+    if (breach.status !== 'pending' && breach.status !== 'advisory') {
+      throw new BreachTransitionError(`Cannot confirm breach in status '${breach.status}'`);
+    }
+
+    // Take person lock (D24)
+    await lockPerson(tx, breach.userId);
+
+    // Load matched rule to determine consequence
+    let consequence: string | null = null;
+    let ruleMinutes: number | null = null;
+    let ruleAmount: string | null = null;
+
+    if (breach.matchedRuleId !== null) {
+      const rule = await repo.loadRuleForBreach(tx, orgId, breach.matchedRuleId);
+      if (rule) {
+        consequence = rule.consequence;
+        ruleMinutes = rule.minutes;
+        ruleAmount = rule.amount;
+      }
+    }
+
+    // Apply attendance overlay or payroll deduction based on consequence
+    if (
+      consequence === 'mark-late' ||
+      consequence === 'mark-half-day' ||
+      consequence === 'mark-absent' ||
+      consequence === 'deduct-minutes'
+    ) {
+      await applyOverlay(tx, {
+        sourceKind: 'break-breach',
+        sourceId: breach.id,
+        userId: breach.userId,
+        workDate: breach.workDate,
+        kind: 'breach-consequence',
+        consequence: consequence as 'mark-late' | 'mark-half-day' | 'mark-absent' | 'deduct-minutes',
+        minutes: consequence === 'deduct-minutes' ? (ruleMinutes ?? null) : null,
+      });
+    } else if (consequence === 'deduct-amount') {
+      // Compute periodStart: first day of the breach's work month
+      const periodStart = (breach.workDate.slice(0, 7) + '-01') as DateOnly;
+      await breakDeductionWriter().writeDeduction(tx, {
+        organizationId: orgId,
+        userId: breach.userId,
+        periodStart,
+        amount: decimal(ruleAmount ?? '0') as Decimal,
+        label: `Break deduction – ${breach.workDate}`,
+        breakBreachId: breach.id,
+      });
+    } else {
+      // warn / notify-manager / require-explanation: no attendance/pay effect
+      console.info(
+        JSON.stringify({
+          level: 'info',
+          msg: 'break-breach confirmed with no-op consequence',
+          breachId: breach.id,
+          consequence,
+        }),
+      );
+    }
+
+    // Transition the breach status
+    await repo.confirmBreach(tx, breachId, ctx.principal.id);
+
+    return { id: breachId, status: 'confirmed' };
+  });
+}
+
+/**
+ * Waive a pending, advisory, or confirmed breach.
+ *
+ * Enforces:
+ * - Must supply a non-empty reason
+ * - Reviewer must not be the breach subject
+ * - Removes any overlay or payroll deduction created during confirmation
+ */
+export async function waiveBreach(
+  ctx: RequestContext,
+  breachId: string,
+  body: WaiveBreachBody,
+): Promise<{ id: string; status: string }> {
+  return db.transaction(ctx, async (tx) => {
+    const orgId = await repo.currentOrganizationId(tx);
+
+    // Load breach FOR UPDATE
+    const breach = await repo.loadBreachForUpdate(tx, breachId);
+    if (!breach) throw new BreachNotFoundError();
+
+    // G4: forbid self-review
+    if (breach.userId === ctx.principal.id) throw new BreachSelfReviewError();
+
+    // Status guard — can waive pending, advisory, confirmed
+    if (breach.status === 'suppressed') {
+      throw new BreachTransitionError('Cannot waive a suppressed breach');
+    }
+    if (breach.status === 'superseded') {
+      throw new BreachTransitionError('Cannot waive a superseded breach');
+    }
+    if (breach.status === 'waived') {
+      throw new BreachTransitionError('Breach is already waived');
+    }
+    if (
+      breach.status !== 'pending' &&
+      breach.status !== 'advisory' &&
+      breach.status !== 'confirmed'
+    ) {
+      throw new BreachTransitionError(`Cannot waive breach in status '${breach.status}'`);
+    }
+
+    // Take person lock (D24)
+    await lockPerson(tx, breach.userId);
+
+    // Load matched rule to determine if we need to revoke a deduction
+    let consequence: string | null = null;
+    if (breach.matchedRuleId !== null) {
+      const rule = await repo.loadRuleForBreach(tx, orgId, breach.matchedRuleId);
+      if (rule) consequence = rule.consequence;
+    }
+
+    // Remove overlay (covers mark-late, mark-half-day, mark-absent, deduct-minutes)
+    await removeOverlays(tx, 'break-breach', breachId);
+
+    // Revoke payroll deduction if applicable
+    if (consequence === 'deduct-amount') {
+      await breakDeductionWriter().revokeDeduction(tx, breachId);
+    }
+
+    // Transition the breach status
+    await repo.waiveBreach(tx, breachId, ctx.principal.id, body.reason);
+
+    return { id: breachId, status: 'waived' };
+  });
+}
+
+/**
+ * Add or update an explanation on a breach that requires one.
+ * Own-scope: only the breach subject may submit their own explanation.
+ */
+export async function addExplanation(
+  ctx: RequestContext,
+  breachId: string,
+  body: ExplanationBody,
+): Promise<{ id: string }> {
+  return db.transaction(ctx, async (tx) => {
+    const breach = await repo.loadBreachForUpdate(tx, breachId);
+    if (!breach) throw new BreachNotFoundError();
+
+    // Own-scope enforcement (service-level, belt-and-suspenders)
+    if (breach.userId !== ctx.principal.id) {
+      throw new BreachTransitionError('Only the breach subject may add an explanation');
+    }
+
+    // Must be pending or confirmed to accept an explanation
+    if (breach.status !== 'pending' && breach.status !== 'confirmed') {
+      throw new BreachTransitionError(
+        `Cannot add explanation to breach in status '${breach.status}'`,
+      );
+    }
+
+    await repo.setBreachExplanation(tx, breachId, body.explanation);
+
+    return { id: breachId };
+  });
+}
+
+/**
+ * List breaches for the organization with optional filters.
+ */
+export async function listBreaches(
+  ctx: RequestContext,
+  query: ListBreachesQuery,
+): Promise<repo.BreachListRow[]> {
+  return db.transaction(ctx, async (tx) => {
+    const opts: Parameters<typeof repo.listBreaches>[2] = { limit: query.limit };
+    if (query.userId !== undefined) opts.userId = query.userId;
+    if (query.status !== undefined) opts.status = query.status;
+    if (query.fromDate !== undefined) opts.fromDate = query.fromDate;
+    if (query.toDate !== undefined) opts.toDate = query.toDate;
+    if (query.after !== undefined) opts.after = query.after;
+    return repo.listBreaches(tx, ctx.organizationId, opts);
   });
 }

@@ -1,5 +1,6 @@
 import { registerBreakPolicyResolver } from './attendance/facade.js';
 import { breakPolicyResolverImpl } from './break-management/resolver-service.js';
+import { registerPayrollPorts } from './payroll/facade.js';
 import { registerBreakPolicies } from './break-management/policy.js';
 import { registerBreakManagementRoutes } from './break-management/routes.js';
 import { registerOrganizationPolicies } from './organization/policy.js';
@@ -49,7 +50,7 @@ import { registerBreakJobs } from './break-management/jobs.js';
  */
 export function initializePorts(): void {
   registerBreakPolicyResolver(breakPolicyResolverImpl);
-  // Task 6: registerBreakDeductionWriter(breakDeductionWriterImpl)
+  registerPayrollPorts();
 }
 
 /**
