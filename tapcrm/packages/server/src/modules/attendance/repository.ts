@@ -931,8 +931,7 @@ export async function resolveReviewItem(
       AND user_id   = ${item.userId}
       AND work_date = ${item.workDate}
       AND kind      = ${item.kind}
-      AND (event_id = ${item.eventId ?? null}
-           OR (event_id IS NULL AND ${item.eventId ?? null} IS NULL))
+      AND event_id IS NOT DISTINCT FROM ${item.eventId ?? null}::uuid
       AND resolved_at IS NULL
   `);
 }
