@@ -49,6 +49,8 @@ const EXPECTED: Record<string, string> = {
   leave_attachment: 'INSERT,SELECT',
   leave_balance_entry: 'INSERT,SELECT',
   work_from_home_day: 'DELETE,INSERT,SELECT,UPDATE',
+  attendance_correction: 'INSERT,SELECT,UPDATE',
+  attendance_review_item: 'INSERT,SELECT,UPDATE',
 };
 
 describe.skipIf(!enabled)('People table privileges for the app role (PostgreSQL)', () => {
