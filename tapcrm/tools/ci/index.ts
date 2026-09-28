@@ -23,6 +23,10 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, dirname, relative, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { findBoundaryViolations } from './boundary.js';
+import { findDateShortcuts, findTimeLibraryImports } from './time-rules.js';
+import { findForeignTableUse } from './tables.js';
+import { findPresenceViolations } from './presence-rules.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -213,8 +217,8 @@ const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
       .split('\n')
       .forEach((line, i) => {
         if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
-        // Counts and percentages are legitimately numbers; money is not.
-        if (/count|percent|index|length|version|attempts|limit|port|seconds|ms\b/i.test(line)) return;
+        // Counts, percentages and time durations are legitimately numbers; money is not.
+        if (/count|percent|index|length|version|attempts|limit|port|seconds|minutes|ms\b/i.test(line)) return;
         if (MONEY.test(line)) {
           blocking(
             'CI-21',
@@ -260,33 +264,88 @@ const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
 }
 
 /* ================================================================== *
- * Module boundary — TECH.md §3
+ * Module boundary — TECH.md §3, MB-1, MB-5
+ *
+ * Another module is reached only through its facade.ts. Relative imports are
+ * resolved against the importing file (tools/ci/boundary.ts), so a sibling
+ * path such as `../identity/password/service.js` cannot slip through.
  * ================================================================== */
 {
-  let violations = 0;
-  for (const file of moduleFiles) {
-    const match = /packages\/server\/src\/modules\/([^/]+)\//.exec(file.replace(/\\/g, '/'));
-    const own = match?.[1];
-    read(file)
-      .split('\n')
-      .forEach((line, i) => {
-        const importMatch = /from\s+['"](\.\.\/)+modules\/([^/'"]+)\/([^'"]+)['"]/.exec(line);
-        if (!importMatch) return;
-        const target = importMatch[2];
-        const what = importMatch[3] ?? '';
-        if (target === own) return;
-        if (/service|repository|policy|state/.test(what)) {
-          blocking(
-            'boundary',
-            '§3',
-            `${rel(file)}:${i + 1} imports ${target}/${what}. "A module may import contracts, ` +
-              'authz and platform. It may NOT import another module\'s service, repository or policy."',
-          );
-          violations += 1;
-        }
-      });
+  const violations = findBoundaryViolations(
+    moduleFiles.map((file) => ({ path: file, text: read(file) })),
+    ROOT,
+  );
+  for (const v of violations) {
+    blocking(
+      'boundary',
+      '§3',
+      `${v.file}:${v.line} reaches into module "${v.to}" (${v.specifier}). ` +
+        `Import ${v.to}/facade.ts instead; a module may not import another module's internals (MB-1).`,
+    );
   }
-  if (violations === 0) ok('bound  module boundaries respected');
+  if (violations.length === 0) ok('bound  module boundaries respected (facades only)');
+}
+
+/* ================================================================== *
+ * T-2 / T-4 — dates in People modules (attendance design §5.1)
+ *
+ * T-2: a People module takes a day from the shifts façade or platform/time.ts
+ *      in the organization's timezone, never CURRENT_DATE, now()::date or the
+ *      date part of a UTC string.
+ * T-4: luxon is imported by platform/time.ts and nothing else.
+ * ================================================================== */
+{
+  const everything = serverFiles.map((file) => ({ path: file, text: read(file) }));
+  const shortcuts = findDateShortcuts(everything, ROOT);
+  for (const v of shortcuts) {
+    blocking(
+      'T-2',
+      'T-2',
+      `${v.file}:${v.line} uses ${v.what}. Take the day from the shifts façade or ` +
+        "platform/time.ts in the organization's timezone.",
+    );
+  }
+  if (shortcuts.length === 0) ok('T-2    People modules take dates in the organization timezone');
+
+  const libraries = findTimeLibraryImports(everything, ROOT);
+  for (const v of libraries) {
+    blocking('T-4', 'T-4', `${v.file}:${v.line} imports luxon. Use platform/time.ts.`);
+  }
+  if (libraries.length === 0) ok('T-4    one date library, imported only by platform/time.ts');
+}
+
+/* ================================================================== *
+ * SH-1 — a module's tables belong to it (attendance design §6.2)
+ *
+ * Only `shifts` reads the shift tables; everyone else asks ShiftsFacade.
+ * ================================================================== */
+{
+  const violations = findForeignTableUse(
+    serverFiles.map((file) => ({ path: file, text: read(file) })),
+    ROOT,
+  );
+  for (const v of violations) {
+    blocking('SH-1', 'SH-1', `${v.file}:${v.line} uses ${v.table}, which belongs to ${v.owner}. Use its facade.`);
+  }
+  if (violations.length === 0) ok('SH-1   shift tables read only by the shifts module');
+}
+
+/* ================================================================== *
+ * D26 — one presence state machine (attendance design §20)
+ *
+ * The transition table and the PresenceState union live in
+ * packages/contracts/src/presence.ts only, and attendance never imports
+ * live-status.
+ * ================================================================== */
+{
+  const violations = findPresenceViolations(
+    sourceFiles.map((file) => ({ path: file, text: read(file) })),
+    ROOT,
+  );
+  for (const v of violations) {
+    blocking('D26', 'D26', `${v.file}:${v.line} ${v.what}. Use packages/contracts/src/presence.ts.`);
+  }
+  if (violations.length === 0) ok('D26    one presence state machine, in contracts/presence.ts');
 }
 
 /* ================================================================== *

@@ -1,3 +1,5 @@
+import { registerBreakPolicyResolver } from './attendance/facade.js';
+import { breakPolicyResolverImpl } from './break-management/resolver-service.js';
 import { registerOrganizationPolicies } from './organization/policy.js';
 import { registerOrganizationRoutes } from './organization/routes.js';
 import { registerEmployeePolicies } from './employee/policy.js';
@@ -43,7 +45,7 @@ import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from '.
  * port slot. Neither direction imports the other module's internals.
  */
 export function initializePorts(): void {
-  // Task 3: registerBreakPolicyResolver(new BreakPolicyResolverImpl())
+  registerBreakPolicyResolver(breakPolicyResolverImpl);
   // Task 6: registerBreakDeductionWriter(new BreakDeductionWriterImpl())
 }
 

@@ -7,6 +7,7 @@ import { calculate } from './calculate.js';
 import * as calc from './calculation-repository.js';
 import { isEmployedOn } from './employment.js';
 import { applyCloseDecision, reattribute } from './ledger.js';
+import { breakPolicyResolver } from './ports.js';
 import { findAppUser, hasRetiredAutoOut, lockPerson } from './repository.js';
 
 /**
@@ -57,6 +58,20 @@ export async function recalculateRecord(
   const attributionFlags = retiredAutoOut
     ? [...new Set([...record.attributionFlags, 'reconciled-from-auto-close'])]
     : record.attributionFlags;
+
+  // Resolve break policy from stored snapshots (D19: null = paid breaks, no limits).
+  const resolver = breakPolicyResolver();
+  const policySnapshot = resolver !== null
+    ? await resolver.resolvePolicy(
+        tx,
+        record.organizationId,
+        record.userId,
+        record.workDate,
+        record.placementSnapshot,
+        record.shiftSnapshot,
+      )
+    : null;
+
   const result = calculate({
     workDate: record.workDate,
     shift: record.shiftSnapshot,
@@ -67,12 +82,11 @@ export async function recalculateRecord(
     employed: person !== null && isEmployedOn(person, record.workDate),
     events: await calc.effectiveEventsForRecord(tx, recordId),
     overlays: await calc.overlaysFor(tx, record.userId, record.workDate),
-    // D19: with no break policy, break time is paid. Step 8 brings the policy.
-    breaksPaid: true,
+    breaksPaid: policySnapshot?.countsTowardWorkHours ?? true,  // D19
     nightWindow: await calc.nightWindowOn(tx, record.workDate),
     attributionFlags,
   });
-  await calc.writeCalculation(tx, recordId, record.inputVersion, result);
+  await calc.writeCalculation(tx, recordId, record.inputVersion, result, policySnapshot);
   await calc.refreshMonthSummary(tx, record.userId, record.workDate);
   return 'calculated';
 }

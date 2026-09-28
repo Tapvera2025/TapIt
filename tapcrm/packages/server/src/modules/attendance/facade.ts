@@ -55,3 +55,12 @@ export {
   loadDaySnapshot,
   type DaySnapshot,
 } from './detail.js';
+export {
+  breakEvaluationCandidates,
+  earliestStaleBreakDay,
+  loadBreakDay,
+  setBreaksEvaluatedVersion,
+  invalidateBreakEvaluations,
+  type BreakEvaluationCandidate,
+  type BreakDayRecord,
+} from './break-evaluation.js';
