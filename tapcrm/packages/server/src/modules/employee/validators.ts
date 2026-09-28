@@ -1,6 +1,20 @@
 import { z } from 'zod';
 
+// ED-3 — Employee ID format. Uppercase, alphanumeric with hyphens, 1–50
+// chars, starting with an alphanumeric. Matches the DB CHECK constraint;
+// keeping the two in sync is deliberate so validation errors surface at
+// 422 rather than as a 500 from a constraint violation.
+const employeeIdFormat = /^[A-Z0-9][A-Z0-9-]{0,49}$/;
+
 export const createEmployeeSchema = z.object({
+  employeeId: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .refine((value) => employeeIdFormat.test(value), {
+      message: 'Employee ID must be uppercase alphanumeric with hyphens (max 50 chars)',
+    })
+    .optional(),
   email: z.string().trim().email().max(320),
   fullName: z.string().trim().min(2).max(160),
   password: z.string().min(12).max(200),

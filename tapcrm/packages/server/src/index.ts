@@ -32,6 +32,9 @@ import { closePools } from './platform/dal/pool.js';
 import { purgeAllExpiredGeofenceCoordinates } from './modules/identity/geofence/privacy.js';
 import { startBackgroundJobs, stopBackgroundJobs } from './platform/jobs.js';
 import { startAuditDrainer, stopAuditDrainer } from './modules/audit/drainer.js';
+import { startNotificationDispatcher, stopNotificationDispatcher } from './modules/notifications/dispatcher.js';
+import { resolvePrincipalFromToken } from './modules/identity/index.js';
+import { startRealtime, stopRealtime } from './platform/realtime/index.js';
 
 /**
  * Entry point.
@@ -60,6 +63,17 @@ const server = app.listen(config.API_PORT, () => {
 // AU-I1 — business transactions only write the outbox; this chains it. It needs
 // PostgreSQL only, so unlike the job queue below it does not depend on Redis.
 startAuditDrainer();
+
+// Notification outbox -> per-recipient rows -> socket signal. Also PostgreSQL-only.
+startNotificationDispatcher();
+
+// RT-1: the handshake uses the same token and session-version check as HTTP.
+void startRealtime(server, async (token, options) => {
+  const resolved = await resolvePrincipalFromToken(token, options);
+  return resolved ? { userId: resolved.principal.id, organizationId: resolved.organizationId } : null;
+}).catch((error: unknown) => {
+  console.error(JSON.stringify({ level: 'error', msg: 'realtime unavailable', error: String(error) }));
+});
 
 let geofenceRetentionTimer: NodeJS.Timeout | null = null;
 void startBackgroundJobs().catch((error: unknown) => {
@@ -97,7 +111,7 @@ function shutdown(code: number): void {
 
   server.close(() => {
     // Let an in-flight audit batch commit before the pool is drained.
-    void stopAuditDrainer().then(closePools).finally(() => {
+    void Promise.all([stopAuditDrainer(), stopNotificationDispatcher()]).then(stopRealtime).then(closePools).finally(() => {
       void stopBackgroundJobs();
       clearTimeout(forced);
       process.exit(code);

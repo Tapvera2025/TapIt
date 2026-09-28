@@ -18,5 +18,6 @@ export * from './errors.js';
 export * from './api.js';
 export * from './registry.types.js';
 export * from './registry.generated.js';
+export * from './actionMetadata.js';
 export * from './principal.js';
 export * from './platform.js';

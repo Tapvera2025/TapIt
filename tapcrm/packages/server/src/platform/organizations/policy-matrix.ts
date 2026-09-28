@@ -53,7 +53,9 @@ const allV = 'all-people*' as const;
 export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = {
   identity: [G, _, _, _, _, _, _, _, _, _, _],
   organization: [G, deptV, _, deptV, deptV, deptV, _, _, _, _, _],
-  'access-management': [G, _, _, _, _, _, _, _, _, _, _],
+  // HR may submit position-change requests. `access:view` is carved out below
+  // so this does not expose the Super Admin Access Explorer.
+  'access-management': [G, dept, _, _, _, _, _, _, _, _, _],
   audit: [G, allV, _, _, _, _, _, _, _, _, _],
   'system-administration': [G, _, _, _, _, _, _, _, _, _, _],
   'employee-directory': [G, all, all, deptV, _, deptV, _, _, _, _, _],
@@ -96,10 +98,15 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
 };
 
 export const CARVE_OUTS: Readonly<Partial<Record<MatrixPosition, readonly string[]>>> = {
+  // HR can inspect position policies for the employee access preview, but it
+  // still does not receive broad Access Management visibility.
+  hr: ['access:view'],
+  // HR Executive may read people records but does not receive the protected
+  // employee-account management capability.
+  'hr-executive': ['users:manage'],
   'project-manager': ['tasks:review', 'org:view-policies', 'org:view-people'],
   'sales-head': ['org:view-policies'],
   'dev-dept-head': ['org:view-policies'],
-  hr: ['org:view-policies'],
 };
 
 export interface RegistryActionDefinition {

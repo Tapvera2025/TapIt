@@ -32,6 +32,7 @@ describe('organization starter template', () => {
       'Marketing Executive',
       'Content Writer',
     ]);
+    expect(template.designations.every((designation) => designation.department === 'development')).toBe(true);
     expect(template.teams.map((team) => team.name)).toEqual([
       'Developer Team',
       'Digital & Marketing',
@@ -46,5 +47,49 @@ describe('organization starter template', () => {
     expect(template.positions).toHaveLength(ORGANIZATION_TEMPLATE.positions.length);
     expect(template.teams).toHaveLength(ORGANIZATION_TEMPLATE.teams.length);
     expect(template.designations).toHaveLength(ORGANIZATION_TEMPLATE.designations.length);
+  });
+
+  it('defines only the four requested intern positions with base-employee access', () => {
+    const interns = ORGANIZATION_TEMPLATE.positions.filter((position) =>
+      position.code.endsWith('-intern'),
+    );
+
+    expect(interns).toEqual([
+      expect.objectContaining({
+        code: 'developer-intern',
+        name: 'Developer Intern',
+        department: 'development',
+        level: 10,
+        parent: 'developer-team-manager',
+        matrixColumn: 'base-employee',
+      }),
+      expect.objectContaining({
+        code: 'content-intern',
+        name: 'Content Intern',
+        department: 'development',
+        level: 10,
+        parent: 'content-team-manager',
+        matrixColumn: 'base-employee',
+      }),
+      expect.objectContaining({
+        code: 'marketing-executive-intern',
+        name: 'Marketing Executive Intern',
+        department: 'development',
+        level: 10,
+        parent: 'digital-marketing-manager',
+        matrixColumn: 'base-employee',
+      }),
+      expect.objectContaining({
+        code: 'hr-intern',
+        name: 'HR Intern',
+        department: 'hr',
+        level: 10,
+        parent: 'hr',
+        matrixColumn: 'base-employee',
+      }),
+    ]);
+    expect(interns.some((position) => position.department === 'sales')).toBe(false);
+    expect(interns.some((position) => position.code === 'project-intern')).toBe(false);
+    expect(interns.some((position) => position.department === 'finance')).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 -- =====================================================================
--- 0034 — Tasks (Global Company Task Management)
+-- 0051 — Tasks (Global Company Task Management)
 --
 -- Task and task_assignee tables, tenant RLS, indexes, and triggers.
 -- =====================================================================

@@ -10,6 +10,7 @@ import {
 const position = ORGANIZATION_TEMPLATE.positions.find(
   (item) => item.code === 'dev-dept-head',
 )!;
+const hrPosition = ORGANIZATION_TEMPLATE.positions.find((item) => item.code === 'hr')!;
 
 const registry: RegistryActionDefinition[] = [
   {
@@ -25,6 +26,12 @@ const registry: RegistryActionDefinition[] = [
     superAdminOnly: false,
   },
   {
+    action: 'org:view-designations',
+    module: 'organization',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
     action: 'org:view-policies',
     module: 'organization',
     positionGrantable: true,
@@ -33,6 +40,24 @@ const registry: RegistryActionDefinition[] = [
   {
     action: 'projects:view',
     module: 'projects',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'access:request-role-change',
+    module: 'access-management',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'access:view',
+    module: 'access-management',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'users:manage',
+    module: 'employee-directory',
     positionGrantable: true,
     superAdminOnly: false,
   },
@@ -87,7 +112,7 @@ describe('default tenant position policies', () => {
       new Map([['dev-dept-head', 'position-new']]),
     );
 
-    expect(inserted).toBe(3);
+    expect(inserted).toBe(4);
     expect([...rows.values()]).toEqual(
       expect.arrayContaining([
         {
@@ -100,6 +125,12 @@ describe('default tenant position policies', () => {
           organizationId: 'org-new',
           positionId: 'position-new',
           action: 'org:view-people',
+          scope: 'department',
+        },
+        {
+          organizationId: 'org-new',
+          positionId: 'position-new',
+          action: 'org:view-designations',
           scope: 'department',
         },
         {
@@ -145,5 +176,51 @@ describe('default tenant position policies', () => {
       new Map([['dev-dept-head', 'position-new']]),
     );
     expect(rows.size).toBe(count);
+  });
+
+  it('provisions the role-change request only for HR, not Access Explorer', async () => {
+    const { tx, rows } = fakeTx();
+    await provisionDefaultPositionPolicies(
+      tx,
+      'org-hr',
+      ['access-management'],
+      [hrPosition, position],
+      new Map([
+        ['hr', 'position-hr'],
+        ['dev-dept-head', 'position-manager'],
+      ]),
+    );
+
+    expect(rows.get('org-hr:position-hr:access:request-role-change')).toMatchObject({
+      scope: 'department',
+    });
+    expect(rows.has('org-hr:position-hr:access:view')).toBe(false);
+    expect(rows.has('org-hr:position-manager:access:request-role-change')).toBe(false);
+  });
+
+  it('grants HR employee management without granting it to HR Executive', async () => {
+    const { tx, rows } = fakeTx();
+    await provisionDefaultPositionPolicies(
+      tx,
+      'org-hr',
+      ['employee-directory', 'organization'],
+      [hrPosition, ORGANIZATION_TEMPLATE.positions.find((item) => item.code === 'hr-executive')!],
+      new Map([
+        ['hr', 'position-hr'],
+        ['hr-executive', 'position-hr-executive'],
+      ]),
+    );
+
+    expect(rows.get('org-hr:position-hr:users:manage')).toMatchObject({
+      scope: 'all-people',
+    });
+    expect(rows.has('org-hr:position-hr-executive:users:manage')).toBe(false);
+    expect(rows.get('org-hr:position-hr:org:view-designations')).toMatchObject({
+      scope: 'department',
+    });
+    expect(rows.get('org-hr:position-hr:org:view-policies')).toMatchObject({
+      scope: 'department',
+    });
+    expect(rows.has('org-hr:position-hr:access:view')).toBe(false);
   });
 });

@@ -80,17 +80,25 @@ export const organizationApi = {
       body: JSON.stringify(body),
     }),
   designations: () => request<OrganizationDesignation[]>('/api/org/designations'),
-  createDesignation: (body: { name: string; specializations: string[] }) =>
-    request<OrganizationDesignation>('/api/org/designations', json(body)),
+  createDesignation: (body: {
+    departmentId: string;
+    name: string;
+    specializations: string[];
+  }) => request<OrganizationDesignation>('/api/org/designations', json(body)),
   updateDesignation: (id: string, body: Record<string, unknown>) =>
     request<OrganizationDesignation>(`/api/org/designations/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
   chart: () => request<OrganizationChart>('/api/org/chart'),
-  reportingManagers: (departmentId: string, positionId: string, subjectUserId?: string) =>
+  reportingManagers: (
+    departmentId: string,
+    positionId: string,
+    subjectUserId?: string,
+    teamId?: string,
+  ) =>
     request<ReportingManagerCandidate[]>(
-      `/api/users?departmentId=${encodeURIComponent(departmentId)}&positionId=${encodeURIComponent(positionId)}${subjectUserId ? `&subjectUserId=${encodeURIComponent(subjectUserId)}` : ''}`,
+      `/api/users?departmentId=${encodeURIComponent(departmentId)}&positionId=${encodeURIComponent(positionId)}${subjectUserId ? `&subjectUserId=${encodeURIComponent(subjectUserId)}` : ''}${teamId ? `&teamId=${encodeURIComponent(teamId)}` : ''}`,
     ),
   previewManagerReassignment: (
     userId: string,

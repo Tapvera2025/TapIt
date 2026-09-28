@@ -45,13 +45,23 @@ describe('environment booleans', () => {
     expect(config.S3_FORCE_PATH_STYLE).toBe(true);
   });
 
+  it('treats an empty optional archive key id as unset', () => {
+    expect(load({ AUDIT_ARCHIVE_KEY_ID: '' }).AUDIT_ARCHIVE_KEY_ID).toBeUndefined();
+  });
+
   it('rejects a value it does not recognise instead of guessing', () => {
     expect(() => load({ IDENTITY_DEV_BYPASS: 'maybe' })).toThrow(/IDENTITY_DEV_BYPASS/);
   });
 });
 
 describe('production safety', () => {
-  const PROD = { NODE_ENV: 'production', CLIENT_ORIGIN: 'https://crm.example.com' };
+  const PROD = {
+    NODE_ENV: 'production',
+    CLIENT_ORIGIN: 'https://crm.example.com',
+    AUDIT_ARCHIVE_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+    AUDIT_ARCHIVE_KEY_ID: 'audit-key-v1',
+    AUDIT_ARCHIVE_KEYRING_JSON: JSON.stringify({ 'audit-key-v0': Buffer.alloc(32, 6).toString('base64') }),
+  };
 
   it('accepts a properly configured production environment', () => {
     expect(() => load(PROD)).not.toThrow();

@@ -8,7 +8,16 @@ import { createIdentityContext, toPrincipal, type IdentityUser } from './princip
 export async function resolvePrincipal(req: Request) {
   const header = req.header('authorization');
   if (!header?.startsWith('Bearer ')) return null;
-  const claims = await verifyIdentityAccessToken(header.slice(7).trim());
+  return resolvePrincipalFromToken(header.slice(7).trim());
+}
+
+/**
+ * Same token and session-version check as HTTP (TECH RT-1). `touch: false` lets
+ * the socket layer re-validate a long-lived connection without counting that as
+ * user activity on the session.
+ */
+export async function resolvePrincipalFromToken(token: string, options: { touch?: boolean } = {}) {
+  const claims = await verifyIdentityAccessToken(token);
   const rows = await bootstrapDb.readAs<IdentityUser>(claims.organizationId, sql`
     SELECT u.id, u.organization_id, u.account_type, u.email, u.password_hash, u.status,
            o.status AS organization_status, u.session_version, u.must_change_password, u.locked_until, u.full_name,
@@ -24,6 +33,7 @@ export async function resolvePrincipal(req: Request) {
   if (user.organizationStatus !== 'active') throw new IdentityAuthenticationError('IDENTITY_ORGANIZATION_SUSPENDED');
   if (user.lockedUntil && user.lockedUntil > new Date()) throw new IdentityAuthenticationError('IDENTITY_ACCOUNT_LOCKED', undefined, 429);
   if (user.mustChangePassword) throw new IdentityAuthenticationError('IDENTITY_PASSWORD_CHANGE_REQUIRED');
+  if (options.touch === false) return { principal: toPrincipal(user), organizationId: user.organizationId };
   await db.transaction(
     createIdentityContext(user, `identity:session:${claims.sessionId}`),
     (tx) => tx.query(sql`

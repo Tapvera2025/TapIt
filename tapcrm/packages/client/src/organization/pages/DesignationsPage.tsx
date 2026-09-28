@@ -12,11 +12,16 @@ import {
   Page,
   Select,
 } from '../components/OrganizationUi.js';
-import type { OrganizationDesignation } from '../types/index.js';
+import type {
+  OrganizationDepartment,
+  OrganizationDesignation,
+} from '../types/index.js';
 
 export function DesignationsPage(): React.JSX.Element {
   const [items, setItems] = useState<OrganizationDesignation[]>([]);
+  const [departments, setDepartments] = useState<OrganizationDepartment[]>([]);
   const [editing, setEditing] = useState<OrganizationDesignation | null>(null);
+  const [departmentId, setDepartmentId] = useState('');
   const [name, setName] = useState('');
   const [specializations, setSpecializations] = useState('');
   const [status, setStatus] = useState('active');
@@ -25,10 +30,19 @@ export function DesignationsPage(): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [message, setMessage] = useState('');
+  const departmentLookup = new Map(departments.map((item) => [item.id, item] as const));
+  const departmentOptions = departments
+    .filter((item) => item.status === 'active')
+    .map((item) => ({ value: item.id, label: item.name }));
   async function load() {
     setLoading(true);
     try {
-      setItems(await organizationApi.designations());
+      const [designations, departmentList] = await Promise.all([
+        organizationApi.designations(),
+        organizationApi.departments(),
+      ]);
+      setItems(designations);
+      setDepartments(departmentList);
       setError(null);
     } catch (cause) {
       setError(cause);
@@ -41,6 +55,7 @@ export function DesignationsPage(): React.JSX.Element {
   }, []);
   function create() {
     setEditing(null);
+    setDepartmentId('');
     setName('');
     setSpecializations('');
     setStatus('active');
@@ -48,6 +63,7 @@ export function DesignationsPage(): React.JSX.Element {
   }
   function edit(item: OrganizationDesignation) {
     setEditing(item);
+    setDepartmentId(item.departmentId);
     setName(item.name);
     setSpecializations(item.specializations.join(', '));
     setStatus(item.status);
@@ -55,6 +71,10 @@ export function DesignationsPage(): React.JSX.Element {
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (!departmentId) {
+      setError(new Error('Please choose a department for this designation.'));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -64,11 +84,17 @@ export function DesignationsPage(): React.JSX.Element {
         .filter(Boolean);
       if (editing)
         await organizationApi.updateDesignation(editing.id, {
+          departmentId,
           name,
           specializations: values,
           status,
         });
-      else await organizationApi.createDesignation({ name, specializations: values });
+      else
+        await organizationApi.createDesignation({
+          departmentId,
+          name,
+          specializations: values,
+        });
       setOpen(false);
       setMessage('Designation saved.');
       await load();
@@ -110,6 +136,9 @@ export function DesignationsPage(): React.JSX.Element {
                 <div>
                   <p className="font-semibold">{item.name}</p>
                   <p className="mt-1 text-xs text-app-muted">
+                    {departmentLookup.get(item.departmentId)?.name ?? 'Unassigned department'}
+                  </p>
+                  <p className="mt-1 text-xs text-app-muted">
                     {item.specializations.length
                       ? item.specializations.join(' · ')
                       : 'No specializations'}
@@ -137,6 +166,12 @@ export function DesignationsPage(): React.JSX.Element {
             }}
             className="grid gap-4"
           >
+            <Select
+              label="Department"
+              value={departmentId}
+              onChange={setDepartmentId}
+              options={departmentOptions}
+            />
             <Field label="Designation name" value={name} onChange={setName} required />
             <Field
               label="Specializations"

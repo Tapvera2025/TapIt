@@ -17,7 +17,13 @@ import {
   enableController,
   disableController,
 } from './modules/controller.js';
-import { inviteAdmin, resendAdmin, listInvitationController, revokeInvitationController } from './invitations/controller.js';
+import {
+  inviteAdmin,
+  resendAdmin,
+  resetAdminPassword,
+  listInvitationController,
+  revokeInvitationController,
+} from './invitations/controller.js';
 import { dashboardController, statsController } from './dashboard/controller.js';
 
 /** Exact platform routes agreed for the Master Admin control plane. */
@@ -46,6 +52,7 @@ export function buildPlatformRouter(): Router {
   router.get('/organizations/:id/admin', adminController);
   router.post('/organizations/:id/admin/invite', inviteAdmin);
   router.post('/organizations/:id/admin/resend', resendAdmin);
+  router.post('/organizations/:id/admin/reset-password', resetAdminPassword);
 
   return router;
 }

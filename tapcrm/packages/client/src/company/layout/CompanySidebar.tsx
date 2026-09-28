@@ -9,6 +9,9 @@ export function CompanySidebar({
   identity,
   organizationName,
   accountType,
+  canRequestRoleChange,
+  canViewAudit,
+  canViewEmployees,
   onNavigate,
   onLogout,
   open,
@@ -25,6 +28,9 @@ export function CompanySidebar({
   };
   organizationName: string | null;
   accountType: string;
+  canRequestRoleChange: boolean;
+  canViewAudit: boolean;
+  canViewEmployees: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   open: boolean;
@@ -92,10 +98,30 @@ export function CompanySidebar({
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
             ],
           },
+          ...(canViewEmployees
+            ? [
+                {
+                  label: 'People',
+                  items: [{ label: 'Employees', path: '/company/employees', icon: 'users' }],
+                },
+              ]
+            : []),
           {
             label: 'Identity & Access',
             items: [
               { label: 'Sessions & Devices', path: '/company/sessions', icon: 'monitor' },
+              ...(accountType === 'employee' && canRequestRoleChange
+                ? [
+                    {
+                      label: 'Request Role Change',
+                      path: '/company/role-change-request',
+                      icon: 'briefcase',
+                    },
+                  ]
+                : []),
+              ...(accountType === 'employee' && canViewAudit
+                ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard' }]
+                : []),
             ],
           },
         ];

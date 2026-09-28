@@ -73,6 +73,14 @@ export type StarterMatrixPosition =
   | 'base-employee'
   | 'client';
 
+/** Seeded intern positions added to every applicable organization template. */
+export const INTERN_POSITION_CODES = [
+  'developer-intern',
+  'content-intern',
+  'marketing-executive-intern',
+  'hr-intern',
+] as const;
+
 /** Canonical seeded position codes eligible to lead each supported team kind. */
 export const TEAM_LEAD_POSITION_CODES = {
   'sales-team': ['sales-team-lead', 'sales-supervisor'],
@@ -87,6 +95,7 @@ export const TEAM_LEAD_POSITION_CODES = {
 export interface OrganizationTemplateDesignation {
   readonly code: string;
   readonly name: string;
+  readonly department: string;
   readonly specializations: readonly string[];
   readonly moduleKeys: readonly string[];
 }
@@ -304,6 +313,42 @@ export const ORGANIZATION_TEMPLATE: OrganizationTemplate = {
       matrixColumn: 'base-employee',
     },
     {
+      code: 'developer-intern',
+      name: 'Developer Intern',
+      department: 'development',
+      level: 10,
+      parent: 'developer-team-manager',
+      status: 'active',
+      matrixColumn: 'base-employee',
+    },
+    {
+      code: 'content-intern',
+      name: 'Content Intern',
+      department: 'development',
+      level: 10,
+      parent: 'content-team-manager',
+      status: 'active',
+      matrixColumn: 'base-employee',
+    },
+    {
+      code: 'marketing-executive-intern',
+      name: 'Marketing Executive Intern',
+      department: 'development',
+      level: 10,
+      parent: 'digital-marketing-manager',
+      status: 'active',
+      matrixColumn: 'base-employee',
+    },
+    {
+      code: 'hr-intern',
+      name: 'HR Intern',
+      department: 'hr',
+      level: 10,
+      parent: 'hr',
+      status: 'active',
+      matrixColumn: 'base-employee',
+    },
+    {
       code: 'finance-manager',
       name: 'Finance Manager',
       department: 'finance',
@@ -326,18 +371,21 @@ export const ORGANIZATION_TEMPLATE: OrganizationTemplate = {
     {
       code: 'developer',
       name: 'Developer',
+      department: 'development',
       specializations: ['Frontend', 'Backend', 'Full-stack', 'QA / Tester'],
       moduleKeys: DEVELOPMENT_MODULES,
     },
     {
       code: 'marketing-executive',
       name: 'Marketing Executive',
+      department: 'development',
       specializations: ['SEO', 'Ads / PPC', 'Social Media', 'Analytics'],
       moduleKeys: DEVELOPMENT_MODULES,
     },
     {
       code: 'content-writer',
       name: 'Content Writer',
+      department: 'development',
       specializations: ['Web Copy', 'Blog', 'Technical', 'Ad Copy'],
       moduleKeys: DEVELOPMENT_MODULES,
     },

@@ -321,7 +321,9 @@ export type PlatformOperation =
   | 'seed'
   | 'retention-enforcement'
   | 'audit-drain'
+  | 'notification-dispatch'
   | 'audit-chain-verification'
+  | 'audit-retention'
   | 'audit-archiving'
   | 'organization-provisioning'
   | 'health-check';
@@ -361,7 +363,7 @@ export const platformDb = {
       }),
     );
     const pool =
-      operation === 'migration' || operation === 'seed' ? getMigrationPool() : getPool();
+      operation === 'migration' || operation === 'seed' || operation === 'audit-retention' ? getMigrationPool() : getPool();
     const result = await pool.query(fragment.sql, [...fragment.parameters]);
     return camelizeRows<T>(result.rows as Record<string, unknown>[]);
   },
@@ -380,7 +382,7 @@ export const platformDb = {
       }),
     );
     const pool =
-      operation === 'migration' || operation === 'seed' ? getMigrationPool() : getPool();
+      operation === 'migration' || operation === 'seed' || operation === 'audit-retention' ? getMigrationPool() : getPool();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -412,7 +414,8 @@ export const platformDb = {
         organizationId,
       }),
     );
-    const client = await getPool().connect();
+    const pool = operation === 'audit-retention' ? getMigrationPool() : getPool();
+    const client = await pool.connect();
     try {
       await client.query('BEGIN');
       await client.query(SET_TENANT, [organizationId]);

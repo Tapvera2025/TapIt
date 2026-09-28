@@ -610,7 +610,7 @@ A user holding `access:delegate` may edit the policies of another user, subject 
 | Ceiling       | Cannot grant an action, or a scope wider, than the actor holds          |
 | Boundary      | The target must be inside the actor's own scope                         |
 | Seniority     | The target's level must be strictly lower than the actor's              |
-| Root of trust | `access:delegate` and `users:manage` may only be granted by Super Admin |
+| Root of trust | `access:delegate` may only be granted by Super Admin; `users:manage` may be granted to the seeded HR position by its default position policy, but neither capability may be granted by delegation |
 
 Every grant, revoke and expiry writes an audit record with a mandatory reason.
 
@@ -645,7 +645,7 @@ Some rules are not configurable. They are enforced regardless of what any permis
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `globalAccess`             | **Derived, never stored**: `globalAccess(p) = p.accountType === "super-admin"`. No column, no policy, no override, no delegation path, no interface control. A boolean on a record is a boolean somebody can set. |
 | `access:delegate`          | Granted by Super Admin only. A delegate cannot create another delegate.                                                                                                                                           |
-| `users:manage`             | Granted by Super Admin only.                                                                                                                                                                                      |
+| `users:manage`             | Granted to HR by the default position policy; never grantable by delegation.                                                                                                                                       |
 | `notepad:view-all`         | Super Admin only. Not grantable to anyone.                                                                                                                                                                        |
 | `billing:set-terms`        | Super Admin only. Not grantable to anyone, including a Finance Manager (P8).                                                                                                                                      |
 | `accounting:reopen-period` | Super Admin only (A4).                                                                                                                                                                                            |
@@ -910,7 +910,7 @@ Until Finance is staffed, Super Admin holds all six modules and grants individua
 
 ### 6.1 Reading the Non-Obvious Cells
 
-**`organization`** **reads** **`view`** **for three positions, but that is three capabilities, not one.** Branch heads hold structure and people visibility for their own department plus structure-only elsewhere. None of them hold `org:view-policies` — the access model is not organizational information (OR-12 to OR-14).
+**`organization`** **reads** **`view`** **for three positions, but that is three capabilities, not one.** Branch heads hold structure and people visibility for their own department plus structure-only elsewhere. HR additionally holds `org:view-policies` only to render the employee Access Preview; it does not receive `access:view` or any position-policy management action.
 
 **HR is broad across people and blank across business.** Every people module reads `all-ppl`; every sales and delivery module reads `—`. HR's breadth is a domain, not a company-wide grant. Governed by protected constraint P7.
 
@@ -1259,7 +1259,7 @@ Each specification states purpose, screens, rules and acceptance criteria. Rule 
 | OR-10          | Reassigning a manager moves the individual only. Moving their reports as well requires explicit confirmation with a preview of every affected line.                                                                                                                                                                   |
 | OR-11          | Designations and specializations are configuration, editable without a deployment, and never authorize anything.                                                                                                                                                                                                      |
 | OR-12          | **Organizational visibility is split into three capabilities** so that seeing the shape of the company does not leak the access model: `org:view-structure` (departments, teams, position names, ladder), `org:view-people` (who holds what, who reports to whom), `org:view-policies` (what a position can do).      |
-| OR-13          | Branch heads hold `org:view-structure` and `org:view-people` **scoped to their own department**, plus structure-only visibility of other departments so cross-department routing is possible. They do **not** hold `org:view-policies`; the access model is visible only to Super Admin and to `access:view` holders. |
+| OR-13          | Branch heads hold `org:view-structure` and `org:view-people` **scoped to their own department**, plus structure-only visibility of other departments so cross-department routing is possible. They do **not** hold `org:view-policies`; the access model is visible to Super Admin, `access:view` holders, and HR only for the employee Access Preview. |
 | OR-14          | The org chart honours OR-13: the Sales Department Head sees the Sales tree in full and other departments as nodes with their head named, not expanded. A Project Manager, managing nobody, sees structure only.                                                                                                       |
 
 **Acceptance**

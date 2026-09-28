@@ -1,13 +1,18 @@
 import { createOpaqueToken, hashToken } from '../auth/crypto.js';
 import { loadConfig } from '../../config.js';
 import { getOrganization } from '../organizations/service.js';
-import { platformDb, type Tx } from '../../platform/dal/db.js';
+import { db, platformDb, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { sendAdminInvitation } from '../../modules/identity/notifications/invitation-email.js';
+import { sendPasswordResetEmail } from '../../modules/identity/notifications/authentication-email.js';
+import { createIdentityContext } from '../../modules/identity/authentication/principal.js';
+import { findUserById } from '../../modules/identity/repository.js';
 import { PlatformConflictError, PlatformNotFoundError, PlatformValidationError } from '../errors.js';
 import * as invitationRepo from './repository.js';
 
 const INVITATION_TTL_MS = 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 export async function createInvitationRecord(
   tx: Tx,
@@ -165,6 +170,125 @@ export async function resendInvitation(input: {
     expiresAt: result.expiresAt,
     invitationUrl: process.env['NODE_ENV'] === 'production' ? undefined : delivery.invitationUrl,
     delivery: delivery.delivery,
+  };
+}
+
+/**
+ * Master-admin recovery: send a password reset link to the org's active
+ * super admin. Non-destructive — reuses the existing password_reset_token
+ * flow so the target account never changes state until the super admin
+ * follows the link and picks a new password.
+ *
+ * Rate-limited by the most recent unused token to prevent abuse.
+ */
+export async function sendAdminPasswordReset(input: {
+  organizationId: string;
+  actorId: string;
+}) {
+  // Resolve the org and its active super admin under the platform role,
+  // since a master admin operates cross-tenant.
+  const org = await platformDb.maybeOne<{
+    id: string;
+    code: string;
+    name: string;
+    status: 'active' | 'suspended';
+  }>(
+    'organization-provisioning',
+    'load org for admin password reset',
+    sql`SELECT id, code, name, status FROM organization WHERE id = ${input.organizationId}`,
+  );
+  if (!org) throw new PlatformNotFoundError('Organization not found');
+  if (org.status !== 'active')
+    throw new PlatformValidationError(
+      'Cannot reset the admin password while the company is suspended',
+    );
+
+  const admin = await platformDb.maybeOne<{ id: string; email: string | null }>(
+    'organization-provisioning',
+    'load active super admin for password reset',
+    sql`SELECT id, email FROM app_user
+        WHERE organization_id = ${org.id}
+          AND account_type = 'super-admin'
+          AND status = 'active'
+        LIMIT 1`,
+  );
+  if (!admin)
+    throw new PlatformNotFoundError('This organization has no active Super Admin');
+  if (!admin.email)
+    throw new PlatformValidationError('The Super Admin has no email address on file');
+
+  // Rate limit: refuse if a still-valid unused token was issued in the last
+  // minute. Same shape as resendInvitation.
+  const recent = await platformDb.maybeOne<{ createdAt: Date }>(
+    'organization-provisioning',
+    'check recent password reset token',
+    sql`SELECT created_at FROM password_reset_token
+        WHERE organization_id = ${org.id}
+          AND user_id = ${admin.id}
+          AND used_at IS NULL
+          AND expires_at > now()
+        ORDER BY created_at DESC
+        LIMIT 1`,
+  );
+  if (recent) {
+    const elapsed = Date.now() - recent.createdAt.getTime();
+    if (elapsed < RESEND_COOLDOWN_MS) {
+      const remaining = Math.ceil((RESEND_COOLDOWN_MS - elapsed) / 1000);
+      throw new PlatformValidationError(
+        `Please wait ${remaining} seconds before sending another reset link`,
+      );
+    }
+  }
+
+  // The token write goes through the tenant-scoped DAL under the target
+  // user's context so RLS on password_reset_token evaluates correctly.
+  const identityUser = await findUserById(admin.id, org.id);
+  if (!identityUser)
+    throw new PlatformNotFoundError('Super Admin identity could not be loaded');
+
+  const token = createOpaqueToken(32);
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+  await db.transaction(
+    createIdentityContext(identityUser, `platform:admin-reset:${input.actorId}`),
+    async (tx) => {
+      // Invalidate any prior unused tokens so only the newest link works.
+      await tx.query(sql`
+        UPDATE password_reset_token
+        SET used_at = now()
+        WHERE organization_id = ${org.id}
+          AND user_id = ${admin.id}
+          AND used_at IS NULL
+      `);
+      await tx.query(sql`
+        INSERT INTO password_reset_token (organization_id, user_id, token_hash, expires_at)
+        VALUES (${org.id}, ${admin.id}, ${hashToken(token)}, ${expiresAt})
+      `);
+    },
+  );
+
+  let delivery: 'email' | 'development-log' | 'failed';
+  try {
+    await sendPasswordResetEmail(admin.email, token, org.code);
+    delivery = process.env['NODE_ENV'] === 'production' ? 'email' : 'development-log';
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        msg: 'admin password reset delivery failed',
+        organizationId: org.id,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    delivery = 'failed';
+  }
+
+  const base = loadConfig().CLIENT_ORIGIN;
+  const resetUrl = `${base}/reset-password?token=${encodeURIComponent(token)}&org=${encodeURIComponent(org.code)}`;
+  return {
+    email: admin.email,
+    expiresAt,
+    resetUrl: process.env['NODE_ENV'] === 'production' ? undefined : resetUrl,
+    delivery,
   };
 }
 

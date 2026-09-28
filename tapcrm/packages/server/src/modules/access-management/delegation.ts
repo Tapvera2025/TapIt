@@ -99,8 +99,8 @@ export async function assertDelegationAllowed(
   /* ---- Root of trust, and delegability ----
    * Two separate refusals the registry already distinguishes:
    *
-   *   superAdminOnly (18 actions)      reserved TO Super Admin — access:delegate
-   *                                    and users:manage among them (§4.6)
+   *   superAdminOnly actions         reserved TO Super Admin — access:delegate
+   *                                    remains one of them (§4.6)
    *   delegationAllowed=false (65)     not handed out by a delegate at all. Every
    *                                    sensitive action is in here, by the CHECK
    *                                    constraint in migration 0002.

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 export function Page({
   eyebrow,
@@ -134,6 +134,46 @@ export function Select({
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+export function SearchableSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = 'Search…',
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  placeholder?: string;
+  disabled?: boolean;
+}): React.JSX.Element {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value);
+  const filtered = options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()));
+  return (
+    <label className="relative text-xs font-semibold text-app-muted">
+      <span className="mb-2 block">{label}</span>
+      <input
+        disabled={disabled}
+        value={open ? query : selected?.label ?? ''}
+        placeholder={placeholder}
+        onFocus={() => { setQuery(''); setOpen(true); }}
+        onBlur={() => { window.setTimeout(() => setOpen(false), 0); }}
+        onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
+        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
+      />
+      {open && !disabled && <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-app-border bg-app-surface shadow-xl">
+        <button type="button" className="w-full px-3 py-2 text-left text-xs text-app-muted hover:bg-app-background" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(''); setQuery(''); setOpen(false); }}>Clear selection</button>
+        {filtered.map((option) => <button key={option.value} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-app-background" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(option.value); setQuery(''); setOpen(false); }}>{option.label}</button>)}
+        {filtered.length === 0 && <p className="px-3 py-2 text-xs text-app-muted">No matches.</p>}
+      </div>}
     </label>
   );
 }

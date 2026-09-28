@@ -1411,6 +1411,21 @@
       "description": ""
     },
     {
+      "action": "org:view-designations",
+      "module": "organization",
+      "resource": "designation",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "org:view-people",
       "module": "organization",
       "resource": "user",
@@ -2186,7 +2201,7 @@
       "grantPolicy": {
         "positionGrantable": true,
         "delegationAllowed": false,
-        "superAdminOnly": true
+        "superAdminOnly": false
       },
       "description": ""
     },
@@ -2348,7 +2363,7 @@
     {
       "method": "GET",
       "path": "/api/org/designations",
-      "action": "org:manage-designations",
+      "action": "org:view-designations",
       "resourceParam": null
     },
     {
@@ -2376,6 +2391,18 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/access/delegation-options/:userId",
+      "action": "access:delegate",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/access/overrides",
+      "action": "access:view",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/access/override",
       "action": "access:delegate",
@@ -2394,6 +2421,18 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/access/role-change-request-access",
+      "action": "access:request-role-change",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/access/role-change-requests",
+      "action": "access:view",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/access/role-change-request/:id/decide",
       "action": "access:decide-role-change",
@@ -2402,6 +2441,12 @@
     {
       "method": "GET",
       "path": "/api/audit",
+      "action": "audit:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/integrity",
       "action": "audit:view",
       "resourceParam": null
     },
@@ -2420,6 +2465,12 @@
     {
       "method": "GET",
       "path": "/api/audit/holds",
+      "action": "audit:manage-holds",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/hold-targets",
       "action": "audit:manage-holds",
       "resourceParam": null
     },

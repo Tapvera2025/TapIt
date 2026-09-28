@@ -77,7 +77,7 @@ services:
 
   minio:
     # §12 — S3-compatible object storage. Signed URLs only; never a public bucket.
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     restart: unless-stopped
     command: server /data --console-address ':9001'
     environment:
@@ -104,7 +104,7 @@ services:
   # only the application layer.
   # -------------------------------------------------------------------
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
       minio:
         condition: service_healthy
@@ -118,7 +118,7 @@ services:
       mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
       mc mb --ignore-existing local/$$S3_BUCKET &&
       mc mb --ignore-existing --with-lock local/$$S3_BUCKET_WORM &&
-      mc retention set --default COMPLIANCE 7y local/$$S3_BUCKET_WORM &&
+      mc retention set --default COMPLIANCE 6y local/$$S3_BUCKET_WORM &&
       echo 'buckets ready';
       "
     restart: 'no'
@@ -182,6 +182,9 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      AUDIT_ARCHIVE_ENCRYPTION_KEY: ${AUDIT_ARCHIVE_ENCRYPTION_KEY:-}
+      AUDIT_ARCHIVE_KEY_ID: ${AUDIT_ARCHIVE_KEY_ID:-}
+      AUDIT_ARCHIVE_KEYRING_JSON: ${AUDIT_ARCHIVE_KEYRING_JSON:-}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env (32+ characters)}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env (32+ characters)}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-3600}

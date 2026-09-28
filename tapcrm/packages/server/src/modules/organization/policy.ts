@@ -124,6 +124,38 @@ const designationPolicy: ResourcePolicy = {
   },
 };
 
+/**
+ * Position policy preview is organization-wide metadata, while position
+ * management remains department-scoped. The route's action is part of the
+ * authorization decision, so reading a position's policy does not widen any
+ * create/update policy capability.
+ */
+export const positionPolicy: ResourcePolicy = {
+  resourceType: 'position',
+  domain: 'business',
+  async check(ctx, action, resource, scope) {
+    if (action === 'org:view-policies') {
+      return resource['organizationId'] === ctx.organizationId;
+    }
+    return departmentScoped('position', 'position').check(ctx, action, resource, scope);
+  },
+  async filter(ctx, action, scope) {
+    if (action === 'org:view-policies') {
+      return {
+        sql: 'position.organization_id = $1',
+        parameters: [ctx.organizationId],
+      };
+    }
+    return departmentScoped('position', 'position').filter(ctx, action, scope);
+  },
+  participantFields() {
+    return [];
+  },
+  initiatorField() {
+    return null;
+  },
+};
+
 /** `role_change_request` — the module's one approval-bearing resource. */
 const roleChangeRequestPolicy: ResourcePolicy = {
   resourceType: 'roleChangeRequest',
@@ -184,7 +216,7 @@ const roleChangeRequestPolicy: ResourcePolicy = {
 
 export function registerOrganizationPolicies(): void {
   registerResourcePolicy(departmentScoped('department', 'department', 'id'));
-  registerResourcePolicy(departmentScoped('position', 'position'));
+  registerResourcePolicy(positionPolicy);
   registerResourcePolicy(departmentScoped('team', 'team'));
   registerResourcePolicy(designationPolicy);
   registerResourcePolicy(roleChangeRequestPolicy);

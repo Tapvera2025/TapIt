@@ -84,7 +84,7 @@ describe('user authorization scope consistency', () => {
     await expect(
       userPolicy.check(ctx, 'users:manage', resource({ teamId: 'team-3' }), 'team'),
     ).resolves.toBe(true);
-    const teamPredicate = await userPolicy.filter(ctx, 'users:manage', 'team');
+    const teamPredicate = await userPolicy['filter'](ctx, 'users:manage', 'team');
     expect(teamPredicate.sql).toContain('u.team_id = ANY');
     expect(teamPredicate.parameters).toEqual([['team-1', 'team-2', 'team-3']]);
   });

@@ -50,10 +50,15 @@ export function ReportingPage(): React.JSX.Element {
       return;
     }
     void organizationApi
-      .reportingManagers(selected.departmentId, selected.positionId, selected.id)
+      .reportingManagers(
+        selected.departmentId,
+        selected.positionId,
+        selected.id,
+        selected.teamId ?? undefined,
+      )
       .then(setCandidates)
       .catch(setError);
-  }, [selected?.departmentId, selected?.positionId]);
+  }, [selected?.departmentId, selected?.positionId, selected?.teamId, selected?.id]);
   async function previewChange(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);

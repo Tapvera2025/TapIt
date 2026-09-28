@@ -54,6 +54,7 @@ export interface CompanyDepartment {
 }
 export interface CompanyDesignation {
   id: string;
+  departmentId: string;
   name: string;
   specializations: string[];
   status: string;
@@ -101,12 +102,14 @@ export function getCompanyReportingManagers(
   departmentId: string,
   positionId: string,
   subjectUserId?: string,
+  teamId?: string,
 ): Promise<CompanyReportingManager[]> {
   const subjectQuery = subjectUserId
     ? `&subjectUserId=${encodeURIComponent(subjectUserId)}`
     : '';
+  const teamQuery = teamId ? `&teamId=${encodeURIComponent(teamId)}` : '';
   return request(
-    `/api/users?departmentId=${encodeURIComponent(departmentId)}&positionId=${encodeURIComponent(positionId)}${subjectQuery}`,
+    `/api/users?departmentId=${encodeURIComponent(departmentId)}&positionId=${encodeURIComponent(positionId)}${subjectQuery}${teamQuery}`,
   );
 }
 export function getCompanyDepartments(): Promise<CompanyDepartment[]> {

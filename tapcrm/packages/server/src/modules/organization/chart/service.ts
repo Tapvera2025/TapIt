@@ -1,5 +1,5 @@
 import { effectivePolicy, visibilityFilter } from '@tapcrm/authz';
-import { globalAccess } from '@tapcrm/contracts';
+import { globalAccess, type Action } from '@tapcrm/contracts';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import {
   listChartDepartments,
@@ -31,11 +31,12 @@ export interface OrganizationChart {
  */
 export async function getOrganizationChart(
   ctx: RequestContext,
+  peopleAction: Action = 'org:view-people',
 ): Promise<OrganizationChart> {
   const [peopleFilter, structurePolicy, peoplePolicy, departments] = await Promise.all([
-    visibilityFilter(ctx, 'org:view-people', 'user'),
+    visibilityFilter(ctx, peopleAction, 'user'),
     effectivePolicy(ctx, 'org:view-structure'),
-    effectivePolicy(ctx, 'org:view-people'),
+    effectivePolicy(ctx, peopleAction),
     listChartDepartments(ctx),
   ]);
   const rows = await listChartRows(ctx, peopleFilter);

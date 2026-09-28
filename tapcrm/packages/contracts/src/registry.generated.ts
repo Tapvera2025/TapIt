@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 147   Bindings: 301
+ * Actions: 148   Bindings: 307
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -114,6 +114,7 @@ export type Action =
   | 'org:manage-designations'
   | 'org:manage-positions'
   | 'org:manage-teams'
+  | 'org:view-designations'
   | 'org:view-people'
   | 'org:view-policies'
   | 'org:view-structure'
@@ -263,6 +264,7 @@ export const ACTIONS: readonly Action[] = [
   'org:manage-designations',
   'org:manage-positions',
   'org:manage-teams',
+  'org:view-designations',
   'org:view-people',
   'org:view-policies',
   'org:view-structure',
@@ -1729,6 +1731,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'org:view-designations': {
+    action: 'org:view-designations',
+    module: 'organization',
+    resource: 'designation',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'org:view-people': {
     action: 'org:view-people',
     module: 'organization',
@@ -2505,7 +2522,7 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
-      superAdminOnly: true,
+      superAdminOnly: false,
     },
     description: "",
   },
@@ -2550,19 +2567,25 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/org/positions/:id', action: 'org:manage-positions', resourceParam: 'id' },
   { method: 'POST', path: '/api/org/positions/:id/policies/preview', action: 'org:manage-positions', resourceParam: 'id' },
   { method: 'PUT', path: '/api/org/positions/:id/policies', action: 'org:manage-positions', resourceParam: 'id' },
-  { method: 'GET', path: '/api/org/designations', action: 'org:manage-designations', resourceParam: null },
+  { method: 'GET', path: '/api/org/designations', action: 'org:view-designations', resourceParam: null },
   { method: 'POST', path: '/api/org/designations', action: 'org:manage-designations', resourceParam: null },
   { method: 'PATCH', path: '/api/org/designations/:id', action: 'org:manage-designations', resourceParam: 'id' },
   { method: 'GET', path: '/api/access/effective/:userId', action: 'access:view', resourceParam: 'userId' },
   { method: 'GET', path: '/api/access/who-can/:action', action: 'access:view', resourceParam: null },
+  { method: 'GET', path: '/api/access/delegation-options/:userId', action: 'access:delegate', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/access/overrides', action: 'access:view', resourceParam: null },
   { method: 'POST', path: '/api/access/override', action: 'access:delegate', resourceParam: null },
   { method: 'DELETE', path: '/api/access/override/:id', action: 'access:delegate', resourceParam: 'id' },
   { method: 'POST', path: '/api/access/role-change-request', action: 'access:request-role-change', resourceParam: null },
+  { method: 'GET', path: '/api/access/role-change-request-access', action: 'access:request-role-change', resourceParam: null },
+  { method: 'GET', path: '/api/access/role-change-requests', action: 'access:view', resourceParam: null },
   { method: 'POST', path: '/api/access/role-change-request/:id/decide', action: 'access:decide-role-change', resourceParam: 'id' },
   { method: 'GET', path: '/api/audit', action: 'audit:view', resourceParam: null },
+  { method: 'GET', path: '/api/audit/integrity', action: 'audit:view', resourceParam: null },
   { method: 'GET', path: '/api/audit/:id', action: 'audit:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/audit/export', action: 'audit:export', resourceParam: null },
   { method: 'GET', path: '/api/audit/holds', action: 'audit:manage-holds', resourceParam: null },
+  { method: 'GET', path: '/api/audit/hold-targets', action: 'audit:manage-holds', resourceParam: null },
   { method: 'POST', path: '/api/audit/holds', action: 'audit:manage-holds', resourceParam: null },
   { method: 'DELETE', path: '/api/audit/holds/:id', action: 'audit:manage-holds', resourceParam: 'id' },
   { method: 'GET', path: '/api/system/settings', action: 'system:manage-settings', resourceParam: null },

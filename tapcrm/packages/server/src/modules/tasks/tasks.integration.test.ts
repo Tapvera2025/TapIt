@@ -108,10 +108,10 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
     await asOwner(
       'create test users',
       sql`
-        INSERT INTO app_user (id, organization_id, email, full_name, account_type, department_id, position_id) VALUES
-        (${userA1}, ${orgA}, ${`userA1-${orgA.slice(0, 4)}@example.com`}, 'User A1', 'employee', ${deptA}, ${posA}),
-        (${userA2}, ${orgA}, ${`userA2-${orgA.slice(0, 4)}@example.com`}, 'User A2', 'employee', ${deptA}, ${posA}),
-        (${userB1}, ${orgB}, ${`userB1-${orgB.slice(0, 4)}@example.com`}, 'User B1', 'employee', ${deptB}, ${posB})
+        INSERT INTO app_user (id, organization_id, email, full_name, account_type, department_id, position_id, employee_id) VALUES
+        (${userA1}, ${orgA}, ${`userA1-${orgA.slice(0, 4)}@example.com`}, 'User A1', 'employee', ${deptA}, ${posA}, 'TASK-A1'),
+        (${userA2}, ${orgA}, ${`userA2-${orgA.slice(0, 4)}@example.com`}, 'User A2', 'employee', ${deptA}, ${posA}, 'TASK-A2'),
+        (${userB1}, ${orgB}, ${`userB1-${orgB.slice(0, 4)}@example.com`}, 'User B1', 'employee', ${deptB}, ${posB}, 'TASK-B1')
       `,
     );
   });
