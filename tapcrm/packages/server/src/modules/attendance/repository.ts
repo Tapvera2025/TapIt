@@ -1141,6 +1141,24 @@ export async function findEffectiveEvent(
   `);
 }
 
+/** Returns true if this record has at least one void auto-out (append-only evidence of a retired assumed departure). */
+export async function hasRetiredAutoOut(
+  tx: Tx,
+  recordId: string,
+): Promise<boolean> {
+  const row = await tx.maybeOne<{ found: boolean }>(sql`
+    SELECT true AS found
+    FROM   attendance_event e
+    JOIN   attendance_event_assignment a
+           ON  a.organization_id = e.organization_id AND a.event_id = e.id
+    WHERE  a.attendance_record_id = ${recordId}
+      AND  e.kind    = 'auto-out'
+      AND  e.is_void = true
+    LIMIT 1
+  `);
+  return row?.found === true;
+}
+
 /** Loads a user's dept/team for authorization scope checks (mirrors shifts pattern). */
 export async function findCorrectionSubject(
   tx: Tx,
