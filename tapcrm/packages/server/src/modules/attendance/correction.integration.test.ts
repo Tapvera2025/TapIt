@@ -20,6 +20,7 @@ import { approveCorrection, bulkCorrection, raiseCorrection, requestCorrection }
  *
  *   TAPCRM_INTEGRATION_DB=1 MIGRATION_DATABASE_URL=… DATABASE_URL=… npx vitest run <file>
  */
+const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
 
 const ORG = randomUUID();
 const DEPT1 = randomUUID();
@@ -85,7 +86,7 @@ const system = () =>
     runId: randomUUID(),
   });
 
-describe('correction workflow (PostgreSQL)', () => {
+describe.skipIf(!enabled)('correction workflow (PostgreSQL)', () => {
   beforeAll(async () => {
     installAuthz();
     registerAttendancePolicies();
