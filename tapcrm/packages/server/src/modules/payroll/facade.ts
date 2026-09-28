@@ -47,3 +47,28 @@ export {
   type StructureChanged,
   type ConfigChanged,
 } from './events.js';
+
+export {
+  createRun,
+  getRunById,
+  getRunEmployees,
+  transitionRun,
+  periodEndFor,
+  fingerprint,
+  type CreateRunInput,
+  type CreateRunResult,
+  type PayrollRunRow,
+  type RunEmployeeRow,
+  type RunBlocker,
+  type RunStatus,
+} from './run.js';
+
+export {
+  computeAndWriteDraftSlip,
+  type FrozenEmployeeInputs,
+} from './snapshot.js';
+
+export {
+  registerPayrollJobs,
+  type PayrollJobs,
+} from './jobs.js';

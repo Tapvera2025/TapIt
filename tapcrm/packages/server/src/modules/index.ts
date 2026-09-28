@@ -37,6 +37,7 @@ import {
 } from './live-status/index.js';
 import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from './leave/index.js';
 import { registerBreakJobs } from './break-management/jobs.js';
+import { registerPayrollJobs } from './payroll/facade.js';
 
 /**
  * Port initialization — MUST be called before registerAllPolicies, registerAllRoutes,
@@ -110,4 +111,5 @@ export function registerAllJobs(): void {
   registerBiometricJobs();
   registerLeaveJobs();
   registerBreakJobs();
+  registerPayrollJobs();
 }
