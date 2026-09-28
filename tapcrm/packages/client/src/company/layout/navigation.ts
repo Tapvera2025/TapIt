@@ -1,9 +1,14 @@
+export interface CompanyNavSubItem {
+  label: string;
+  path: string;
+}
 import type { Action } from '@tapcrm/contracts';
 
 export interface CompanyNavItem {
   label: string;
   path: string;
   icon: string;
+  children?: CompanyNavSubItem[];
   requiredAction?: Action;
 }
 export interface CompanyNavGroup {
@@ -27,7 +32,24 @@ export const companyNavigation: CompanyNavGroup[] = [
   },
   {
     label: 'People',
-    items: [{ label: 'Employees', path: '/company/employees', icon: 'users', requiredAction: 'users:view' }],
+    items: [
+      { label: 'Employees', path: '/company/employees', icon: 'users', requiredAction: 'users:view' },
+      {
+        label: 'Recruitment',
+        path: '/company/recruitment',
+        icon: 'briefcase',
+        children: [
+          { label: 'Overview', path: '/company/recruitment' },
+          { label: 'Requisitions', path: '/company/recruitment/requisitions' },
+          { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
+          { label: 'Candidates', path: '/company/recruitment/candidates' },
+          { label: 'Interviews', path: '/company/recruitment/interviews' },
+          { label: 'Offers', path: '/company/recruitment/offers' },
+          { label: 'Joining', path: '/company/recruitment/joining' },
+        ],
+      },
+    ],
+    
   },
   {
     label: 'Organization',
