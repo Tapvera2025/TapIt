@@ -10,6 +10,8 @@ import { registerAuditPolicies } from './audit/policy.js';
 import { registerAuditRoutes } from './audit/routes.js';
 import { registerTasksPolicies } from './tasks/policy.js';
 import { registerTasksRoutes } from './tasks/routes.js';
+import { registerRecruitmentPolicies } from './recruitment/policy.js';
+import { registerRecruitmentRoutes } from './recruitment/routes.js';
 
 /**
  * The module registry.
@@ -28,6 +30,7 @@ export function registerAllPolicies(): void {
   registerGeofencePolicies();
   registerAuditPolicies();
   registerTasksPolicies();
+  registerRecruitmentPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -38,5 +41,6 @@ export function registerAllRoutes(): void {
   registerGeofenceRoutes();
   registerAuditRoutes();
   registerTasksRoutes();
+  registerRecruitmentRoutes();
 }
 

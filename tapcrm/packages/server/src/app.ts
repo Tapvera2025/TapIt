@@ -13,10 +13,7 @@ import { assertManifest, buildRouter, checkManifest } from './platform/http/rout
 import { registerAllPolicies, registerAllRoutes } from './modules/index.js';
 import { buildPlatformRouter } from './platform/routes.js';
 import { registerIdentityPublicRoutes } from './modules/identity/index.js';
-import {
-  buildPublicRecruitmentRouter,
-  buildRecruitmentRouter,
-} from './modules/recruitment/index.js';
+import { buildPublicRecruitmentRouter } from './modules/recruitment/index.js';
 import { registerNotificationRoutes } from './modules/notifications/routes.js';
 import { Router } from 'express';
 
@@ -128,7 +125,6 @@ export function buildApp(options: BuildOptions = {}): Express {
   // Pipeline step 1. Everything below it has a RequestContext or never runs.
   app.use(config.API_BASE_PATH, requestContext);
   app.use(config.API_BASE_PATH, auditFlushMiddleware);
-  app.use(`${config.API_BASE_PATH}/recruitment`, buildRecruitmentRouter());
   app.use(buildRouter());
 
   app.use(errorHandler);

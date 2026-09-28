@@ -40,6 +40,7 @@ const MODULES = new Set([
   'clients', 'post-closure', 'client-portal',
   'billing-terms', 'invoicing', 'payments', 'receivables', 'payables', 'accounting',
   'chat', 'project-communication', 'documents', 'reporting', 'notifications', 'workspace',
+  'recruitment',
 ]);
 
 /**
