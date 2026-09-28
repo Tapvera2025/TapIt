@@ -252,20 +252,25 @@ describe('warningThreshold', () => {
 // ---------------------------------------------------------------------------
 
 describe('checkWarningState', () => {
-  // limit=60, grace=5 → breach > 65; threshold = ceil(65*80/100) = 52
+  // limit=60, grace=5 → breach > 65; threshold = ceil(65*80/100) = ceil(52) = 52
+  // boundary set: 51 clear, 52 warn, 65 warn, 66 breach
   it('returns clear below warning threshold', () => {
     expect(checkWarningState(40, 60, 5, 80)).toBe('clear');
   });
 
-  it('returns warning at the warning threshold', () => {
+  it('returns clear at 51 (one below warning threshold of 52)', () => {
+    expect(checkWarningState(51, 60, 5, 80)).toBe('clear');
+  });
+
+  it('returns warning at the warning threshold (52)', () => {
     expect(checkWarningState(52, 60, 5, 80)).toBe('warning');
   });
 
-  it('returns warning between threshold and breach boundary', () => {
+  it('returns warning between threshold and breach boundary (65)', () => {
     expect(checkWarningState(65, 60, 5, 80)).toBe('warning');
   });
 
-  it('returns breach above limit + grace', () => {
+  it('returns breach above limit + grace (66)', () => {
     expect(checkWarningState(66, 60, 5, 80)).toBe('breach');
   });
 });

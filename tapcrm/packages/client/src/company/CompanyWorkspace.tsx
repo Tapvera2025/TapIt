@@ -11,6 +11,8 @@ import { RoleChangeRequestPage } from '../access-management/pages/RoleChangeRequ
 import { getRoleChangeRequestAccess } from '../access-management/api/accessApi.js';
 import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
+import { EmployeeBreakView } from './breaks/EmployeeBreakView.js';
+import { BreachQueuePage } from './breaks/BreachQueuePage.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -73,6 +75,7 @@ export function CompanyWorkspace({
   const isAccess = pathname === '/company/access';
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
+  const isBreachQueue = pathname === '/company/breaks/queue';
   const title = isOrganization
     ? 'Organization'
     : pathname === '/company/employees'
@@ -85,6 +88,8 @@ export function CompanyWorkspace({
             ? 'Request Role Change'
             : isAudit
               ? 'Audit Log'
+            : isBreachQueue
+              ? 'Break Breach Queue'
             : pathname === '/company/geofencing'
               ? 'Geofencing'
               : 'Dashboard';
@@ -96,22 +101,15 @@ export function CompanyWorkspace({
     <RoleChangeRequestPage />
   ) : isAudit && (isSuperAdmin || canViewAudit) ? (
     <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />
+  ) : isBreachQueue && isSuperAdmin ? (
+    <BreachQueuePage />
   ) : pathname === '/company/sessions' ? (
     <SessionsPage
       onBack={() => onNavigate('/company/dashboard')}
       onSignedOut={onLogout}
     />
   ) : !isSuperAdmin ? (
-    <div className="grid min-h-[60vh] place-items-center p-6 text-center">
-      <div>
-        <h1 className="font-display text-2xl font-bold">
-          Employee workspace is coming soon
-        </h1>
-        <p className="mt-2 text-sm text-app-muted">
-          Your account can still review its active Sessions &amp; Devices.
-        </p>
-      </div>
-    </div>
+    <EmployeeBreakView />
   ) : pathname === '/company/employees' ? (
     <EmployeesPage />
   ) : pathname === '/company/geofencing' ? (

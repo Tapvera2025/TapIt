@@ -1,10 +1,10 @@
 import type { DateOnly, Decimal } from '@tapcrm/contracts';
-import { decimal } from '@tapcrm/contracts';
+import { decimal, readDay } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { organizationToday } from '../../platform/organization-time.js';
-import { addDays } from '../../platform/time.js';
+import { addDays, type Clock } from '../../platform/time.js';
 import * as repo from './repository.js';
 import { resolveBreakPolicy } from './resolver.js';
 import type {
@@ -24,8 +24,11 @@ import {
   applyOverlay,
   removeOverlays,
   lockPerson,
+  loadDaySnapshot,
 } from '../attendance/facade.js';
 import { breakDeductionWriter } from './ports.js';
+import { breakPolicyResolver } from '../attendance/facade.js';
+import { measureBreaks, checkWarningState } from './rules.js';
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -526,5 +529,165 @@ export async function listBreaches(
     if (query.toDate !== undefined) opts.toDate = query.toDate;
     if (query.after !== undefined) opts.after = query.after;
     return repo.listBreaches(tx, ctx.organizationId, opts);
+  });
+}
+
+// ── Allowance and prompts (Task 7) ────────────────────────────────────────────
+
+export interface BreakWarningState {
+  totalState: 'clear' | 'warning' | 'breach' | 'no-limit';
+  singleState: 'clear' | 'warning' | 'breach' | 'no-limit';
+}
+
+export interface BreakAllowanceResponse {
+  workDate: DateOnly;
+  noPolicy: boolean;
+  policy: BreakPolicySnapshot | null;
+  usage: { totalMinutes: number; longestMinutes: number; count: number };
+  remaining: { totalMinutes: number | null; singleMinutes: number | null };
+  warning: BreakWarningState;
+}
+
+export interface BreakPromptItem {
+  breachId: string;
+  workDate: DateOnly;
+  ruleCondition: string;
+  measuredTotalMinutes: number;
+  measuredSingleMinutes: number;
+  measuredCount: number;
+}
+
+/**
+ * Returns the caller's break allowance for today (organization-local date).
+ * For open breaks, elapsed time is included up to clock.now().
+ */
+export async function getAllowanceForCaller(
+  ctx: RequestContext,
+  clock: Clock,
+): Promise<BreakAllowanceResponse> {
+  return db.transaction(ctx, async (tx) => {
+    const today = await organizationToday(tx, clock);
+
+    // Load today's snapshot for the caller
+    const snapshot = await loadDaySnapshot(tx, ctx.principal.id, today);
+
+    // Measure break usage from effective events (including open breaks up to now)
+    const usage = snapshot !== null
+      ? measureBreaks(readDay(snapshot.events, null), clock.now().getTime())
+      : { totalMinutes: 0, longestMinutes: 0, count: 0 };
+
+    // Resolve break policy via the registered resolver
+    const resolver = breakPolicyResolver();
+    let policy: BreakPolicySnapshot | null = null;
+
+    if (resolver !== null && snapshot !== null) {
+      const orgRow = await tx.one<{ v: string }>(
+        { sql: `SELECT current_setting('app.organization_id') AS v`, parameters: [] },
+      );
+      policy = await resolver.resolvePolicy(
+        tx,
+        orgRow.v,
+        ctx.principal.id,
+        today,
+        snapshot.record.placementSnapshot,
+        snapshot.record.shiftSnapshot,
+      );
+    } else if (resolver !== null) {
+      // No attendance record for today — try resolving from user's current placement
+      const userRow = await tx.maybeOne<{
+        departmentId: string | null;
+        positionId: string | null;
+        teamId: string | null;
+      }>(sql`
+        SELECT department_id AS "departmentId",
+               position_id AS "positionId",
+               team_id AS "teamId"
+        FROM app_user
+        WHERE id = ${ctx.principal.id}
+      `);
+      const orgRow = await tx.one<{ v: string }>(
+        { sql: `SELECT current_setting('app.organization_id') AS v`, parameters: [] },
+      );
+      if (userRow !== null) {
+        const placementSnapshot = {
+          departmentId: userRow.departmentId,
+          teamId: userRow.teamId,
+          positionId: userRow.positionId,
+        };
+        policy = await resolver.resolvePolicy(
+          tx,
+          orgRow.v,
+          ctx.principal.id,
+          today,
+          placementSnapshot,
+          null,
+        );
+      }
+    }
+
+    if (policy === null) {
+      return {
+        workDate: today,
+        noPolicy: true,
+        policy: null,
+        usage,
+        remaining: { totalMinutes: null, singleMinutes: null },
+        warning: { totalState: 'no-limit', singleState: 'no-limit' },
+      };
+    }
+
+    const remaining = {
+      totalMinutes: policy.upperTotalMinutes !== null
+        ? policy.upperTotalMinutes - usage.totalMinutes
+        : null,
+      singleMinutes: policy.upperSingleMinutes !== null
+        ? policy.upperSingleMinutes - usage.longestMinutes
+        : null,
+    };
+
+    const warning: BreakWarningState = {
+      totalState: policy.upperTotalMinutes !== null
+        ? checkWarningState(usage.totalMinutes, policy.upperTotalMinutes, policy.graceMinutes, policy.warningPercent)
+        : 'no-limit',
+      singleState: policy.upperSingleMinutes !== null
+        ? checkWarningState(usage.longestMinutes, policy.upperSingleMinutes, policy.graceMinutes, policy.warningPercent)
+        : 'no-limit',
+    };
+
+    return {
+      workDate: today,
+      noPolicy: false,
+      policy,
+      usage,
+      remaining,
+      warning,
+    };
+  });
+}
+
+/**
+ * Returns unresolved `require-explanation` prompts for the logged-in employee.
+ */
+export async function getPromptsForCaller(
+  ctx: RequestContext,
+): Promise<BreakPromptItem[]> {
+  return db.transaction(ctx, async (tx) => {
+    return tx.query<BreakPromptItem>(sql`
+      SELECT bb.id AS "breachId",
+             bb.work_date::text AS "workDate",
+             COALESCE(r.condition, '') AS "ruleCondition",
+             bb.measured_total_minutes AS "measuredTotalMinutes",
+             bb.measured_single_minutes AS "measuredSingleMinutes",
+             bb.measured_count AS "measuredCount"
+      FROM break_breach bb
+      LEFT JOIN break_penalty_rule r
+        ON r.organization_id = bb.organization_id AND r.id = bb.matched_rule_id
+      WHERE bb.organization_id = current_organization_id()
+        AND bb.user_id = ${ctx.principal.id}::uuid
+        AND r.consequence = 'require-explanation'
+        AND bb.explanation IS NULL
+        AND bb.status IN ('pending', 'confirmed')
+      ORDER BY bb.work_date DESC, bb.id
+    `);
   });
 }

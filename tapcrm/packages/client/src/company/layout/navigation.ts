@@ -57,6 +57,12 @@ export const companyNavigation: CompanyNavGroup[] = [
       { label: 'Audit Log', path: '/company/audit', icon: 'clipboard', requiredAction: 'audit:view' },
     ],
   },
+  {
+    label: 'Attendance',
+    items: [
+      { label: 'Break Queue', path: '/company/breaks/queue', icon: 'clock', requiredAction: 'breaks:review-breach' as Action },
+    ],
+  },
 ];
 
 /**

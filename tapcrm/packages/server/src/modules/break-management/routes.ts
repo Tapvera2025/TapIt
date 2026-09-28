@@ -3,6 +3,7 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { route } from '../../platform/http/route.js';
+import { systemClock } from '../../platform/time.js';
 import {
   listPolicies,
   createPolicy,
@@ -14,6 +15,8 @@ import {
   waiveBreach,
   addExplanation,
   listBreaches,
+  getAllowanceForCaller,
+  getPromptsForCaller,
 } from './service.js';
 import {
   createPolicySchema,
@@ -89,6 +92,23 @@ async function loadBreachResource(ctx: RequestContext, id: string): Promise<Reso
 }
 
 export function registerBreakManagementRoutes(): void {
+  // ── Employee self-service routes (Task 7) ───────────────────────────────────
+  route({
+    method: 'GET',
+    path: '/api/breaks/allowance/me',
+    action: 'breaks:view',
+    module: 'break-management',
+    handler: async ({ ctx }) => getAllowanceForCaller(ctx, systemClock),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/breaks/prompts/me',
+    action: 'breaks:view',
+    module: 'break-management',
+    handler: async ({ ctx }) => getPromptsForCaller(ctx),
+  });
+
   // ── Breach routes (Task 6) ──────────────────────────────────────────────────
   route({
     method: 'GET',
