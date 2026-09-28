@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 147   Bindings: 306
+ * Actions: 148   Bindings: 307
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -37,6 +37,7 @@ export type Action =
   | 'approvals:delegate'
   | 'attendance:correct'
   | 'attendance:export'
+  | 'attendance:raise-correction'
   | 'attendance:request-correction'
   | 'attendance:view'
   | 'attendance:view-live'
@@ -186,6 +187,7 @@ export const ACTIONS: readonly Action[] = [
   'approvals:delegate',
   'attendance:correct',
   'attendance:export',
+  'attendance:raise-correction',
   'attendance:request-correction',
   'attendance:view',
   'attendance:view-live',
@@ -570,6 +572,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'attendance:raise-correction': {
+    action: 'attendance:raise-correction',
+    module: 'attendance',
+    resource: 'attendanceCorrection',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
       superAdminOnly: false,
     },
     description: "",
@@ -2596,9 +2613,10 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/attendance', action: 'attendance:view', resourceParam: null },
   { method: 'GET', path: '/api/attendance/:userId/:date', action: 'attendance:view', resourceParam: 'userId' },
   { method: 'POST', path: '/api/attendance/export', action: 'attendance:export', resourceParam: null },
-  { method: 'POST', path: '/api/attendance/corrections', action: 'attendance:correct', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/exports/:jobId', action: 'attendance:export', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/corrections', action: 'attendance:raise-correction', resourceParam: null },
   { method: 'POST', path: '/api/attendance/corrections/:id/approve', action: 'attendance:correct', resourceParam: 'id' },
-  { method: 'POST', path: '/api/attendance/corrections/bulk', action: 'attendance:correct', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/corrections/bulk', action: 'attendance:raise-correction', resourceParam: null },
   { method: 'POST', path: '/api/attendance/corrections/request', action: 'attendance:request-correction', resourceParam: null },
   { method: 'GET', path: '/api/breaks/policies', action: 'breaks:manage-policy', resourceParam: null },
   { method: 'POST', path: '/api/breaks/policies', action: 'breaks:manage-policy', resourceParam: null },

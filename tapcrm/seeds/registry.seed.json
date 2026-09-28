@@ -256,6 +256,21 @@
       "description": ""
     },
     {
+      "action": "attendance:raise-correction",
+      "module": "attendance",
+      "resource": "attendanceCorrection",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "attendance:request-correction",
       "module": "attendance",
       "resource": "attendanceCorrection",
@@ -2622,9 +2637,15 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/attendance/exports/:jobId",
+      "action": "attendance:export",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/attendance/corrections",
-      "action": "attendance:correct",
+      "action": "attendance:raise-correction",
       "resourceParam": null
     },
     {
@@ -2636,7 +2657,7 @@
     {
       "method": "POST",
       "path": "/api/attendance/corrections/bulk",
-      "action": "attendance:correct",
+      "action": "attendance:raise-correction",
       "resourceParam": null
     },
     {

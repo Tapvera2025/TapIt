@@ -5,7 +5,7 @@
 > **This file is generated.** `tools/convert-authorization-pdf.py` lifted §6.4 and
 > §6.5 out of the delivered PDF into the markdown tables below, so that
 > `tools/extract-registry.ts` can consume them (TECH.md §6.1). The conversion
-> asserts every total the document states about itself — 147 actions,
+> asserts every total the document states about itself — 148 actions,
 > 292 bindings, and the sensitive / approval-bearing / delegable /
 > domain counts — and refuses to write this file if any of them disagree.
 >
@@ -17,7 +17,7 @@
 
 ## 6.4 Action Registry
 
-147 actions. Column meanings are as given in the source document:
+148 actions. Column meanings are as given in the source document:
 
 | Column | Meaning |
 | --- | --- |
@@ -70,6 +70,7 @@
 | `attendance:view` | attendance | attendanceRecord | people | no | no | — | yes | yes | no |
 | `attendance:export` | attendance | attendanceRecord | people | no | no | — | yes | yes | no |
 | `attendance:correct` | attendance | attendanceCorrection | people | yes | yes | requestedBy | yes | no | no |
+| `attendance:raise-correction` | attendance | attendanceCorrection | people | yes | no | — | yes | no | no |
 | `attendance:request-correction` | attendance | attendanceCorrection | people | no | no | — | yes | yes | no |
 | `breaks:manage-policy` | break-management | breakPolicy | people | yes | no | — | yes | no | no |
 | `breaks:review-breach` | break-management | breakBreach | people | yes | yes | userId | yes | no | no |
@@ -274,9 +275,10 @@ changes who can do what.
 | GET | /api/attendance | `attendance:view` | — |
 | GET | /api/attendance/:userId/:date | `attendance:view` | userId |
 | POST | /api/attendance/export | `attendance:export` | — |
-| POST | /api/attendance/corrections | `attendance:correct` | — |
+| GET | /api/attendance/exports/:jobId | `attendance:export` | — |
+| POST | /api/attendance/corrections | `attendance:raise-correction` | — |
 | POST | /api/attendance/corrections/:id/approve | `attendance:correct` | id |
-| POST | /api/attendance/corrections/bulk | `attendance:correct` | — |
+| POST | /api/attendance/corrections/bulk | `attendance:raise-correction` | — |
 | POST | /api/attendance/corrections/request | `attendance:request-correction` | — |
 | GET | /api/breaks/policies | `breaks:manage-policy` | — |
 | POST | /api/breaks/policies | `breaks:manage-policy` | — |
