@@ -33,6 +33,7 @@ export interface RecordForCalculation {
   attributionFlags: string[];
   inputVersion: number;
   calculatedInputVersion: number;
+  calculationVersion: number;
 }
 
 export async function lockRecordForCalculation(
@@ -42,7 +43,7 @@ export async function lockRecordForCalculation(
   return tx.one<RecordForCalculation>(sql`
     SELECT id, user_id, organization_id, work_date::text AS work_date, state,
            shift_snapshot, placement_snapshot, close_due_at, day_type,
-           attribution_flags, input_version, calculated_input_version
+           attribution_flags, input_version, calculated_input_version, calculation_version
     FROM attendance_record WHERE id = ${recordId}
     FOR UPDATE
   `);

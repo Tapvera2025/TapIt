@@ -197,7 +197,7 @@
 
 ## 6.5 API Bindings
 
-294 bindings. Every action bound to at least one HTTP route. A route
+302 bindings. Every action bound to at least one HTTP route. A route
 registered at boot with no binding is a startup failure (RM-1); a binding naming
 an unregistered action fails the build (RM-2).
 
@@ -333,6 +333,14 @@ changes who can do what.
 | PUT | /api/payroll/structures/:userId | `payroll:manage` | userId |
 | GET | /api/payroll/config | `payroll:manage-config` | — |
 | PUT | /api/payroll/config | `payroll:manage-config` | — |
+| GET | /api/payroll/cycle | `payroll:view` | — |
+| GET | /api/payroll/runs/:id | `payroll:manage` | id |
+| GET | /api/payroll/runs/:id/employees | `payroll:manage` | id |
+| GET | /api/payroll/runs/:id/drifts | `payroll:manage` | id |
+| POST | /api/payroll/runs/:id/drifts/:driftId/remediate | `payroll:manage` | id |
+| POST | /api/payroll/inputs | `payroll:manage` | — |
+| PATCH | /api/payroll/inputs/:id/revoke | `payroll:manage` | — |
+| GET | /api/payroll/payslips/:id/document | `payroll:view` | id |
 | GET | /api/performance/:userId | `performance:view` | userId |
 | GET | /api/performance/:userId/kpis | `performance:view-aggregates` | userId |
 | POST | /api/performance/:userId/reviews | `performance:manage` | userId |

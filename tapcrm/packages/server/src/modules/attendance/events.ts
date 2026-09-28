@@ -12,6 +12,10 @@ export const ATTENDANCE_EVENTS = {
   EXPORT_REQUESTED: 'attendance.export-requested',
   /** A correction was approved or rejected (§12). */
   CORRECTION_DECIDED: 'attendance.correction-decided',
+  /** A day's calculation version changed (payroll watermark, §14). */
+  DAY_CHANGED: 'attendance.day-changed',
+  /** A payroll blocker (correction/review-item) was opened or resolved. */
+  PAYROLL_BLOCKER_CHANGED: 'attendance.payroll-blocker-changed',
 } as const;
 
 export interface RecalcRequested {
@@ -33,4 +37,20 @@ export interface CorrectionDecided {
   readonly status: 'approved' | 'rejected';
   readonly requestedBy: string;
   readonly decidedBy: string;
+}
+
+export interface DayChanged {
+  readonly recordId: string;
+  readonly userId: string;
+  readonly workDate: string;
+  readonly organizationId: string;
+  readonly calculationVersion: number;
+}
+
+export interface PayrollBlockerChanged {
+  readonly userId: string;
+  readonly workDate: string;
+  readonly sourceType: 'correction' | 'review-item';
+  readonly sourceId: string;
+  readonly transition: 'opened' | 'resolved';
 }

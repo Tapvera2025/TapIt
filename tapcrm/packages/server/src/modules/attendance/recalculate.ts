@@ -1,11 +1,13 @@
 import type { DateOnly } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
+import { sql } from '../../platform/dal/sql.js';
 import type { GenerationDecision } from '../../platform/jobs/generation.js';
 import { addDays } from '../../platform/time.js';
 import { calculate } from './calculate.js';
 import * as calc from './calculation-repository.js';
 import { isEmployedOn } from './employment.js';
+import { ATTENDANCE_EVENTS } from './events.js';
 import { applyCloseDecision, reattribute } from './ledger.js';
 import { breakPolicyResolver } from './ports.js';
 import { findAppUser, hasRetiredAutoOut, lockPerson } from './repository.js';
@@ -87,6 +89,17 @@ export async function recalculateRecord(
     attributionFlags,
   });
   await calc.writeCalculation(tx, recordId, record.inputVersion, result, policySnapshot);
+  await tx.query(sql`
+    INSERT INTO domain_outbox (organization_id, event_name, payload)
+    VALUES (${record.organizationId}, ${ATTENDANCE_EVENTS.DAY_CHANGED},
+            ${JSON.stringify({
+              recordId,
+              userId: record.userId,
+              workDate: record.workDate,
+              organizationId: record.organizationId,
+              calculationVersion: record.calculationVersion + 1,
+            })}::jsonb)
+  `);
   await calc.refreshMonthSummary(tx, record.userId, record.workDate);
   return 'calculated';
 }

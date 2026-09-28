@@ -29,6 +29,27 @@ import type { ApproveBody, BulkCorrectionBody, RaiseCorrectionBody, RequestCorre
 
 // ── Outbox helpers ─────────────────────────────────────────────────────────
 
+async function writePayrollBlockerChanged(
+  tx: Tx,
+  organizationId: string,
+  correctionId: string,
+  userId: string,
+  workDate: string,
+  transition: 'opened' | 'resolved',
+): Promise<void> {
+  await tx.query(sql`
+    INSERT INTO domain_outbox (organization_id, event_name, payload)
+    VALUES (${organizationId}, ${ATTENDANCE_EVENTS.PAYROLL_BLOCKER_CHANGED},
+            ${JSON.stringify({
+              userId,
+              workDate,
+              sourceType: 'correction',
+              sourceId: correctionId,
+              transition,
+            })}::jsonb)
+  `);
+}
+
 async function writeCorrectionDecided(
   tx: Tx,
   organizationId: string,
@@ -183,7 +204,7 @@ export async function raiseCorrection(
       await checkReadability(tx, body.userId, body.workDate, kind, wholeSeconds(new Date(at)), targetEventId);
     }
 
-    return repo.insertCorrection(tx, {
+    const corrId = await repo.insertCorrection(tx, {
       organizationId,
       userId: body.userId,
       workDate: body.workDate,
@@ -192,6 +213,8 @@ export async function raiseCorrection(
       reason: body.reason,
       requestedBy: ctx.principal.id,
     });
+    await writePayrollBlockerChanged(tx, organizationId, corrId, body.userId, body.workDate, 'opened');
+    return corrId;
   });
   return { correctionId };
 }
@@ -216,7 +239,7 @@ export async function requestCorrection(
       await checkReadability(tx, userId, body.workDate, kind, wholeSeconds(new Date(at)), targetEventId);
     }
 
-    return repo.insertCorrection(tx, {
+    const corrId = await repo.insertCorrection(tx, {
       organizationId,
       userId,
       workDate: body.workDate,
@@ -225,6 +248,8 @@ export async function requestCorrection(
       reason: body.reason,
       requestedBy: userId,
     });
+    await writePayrollBlockerChanged(tx, organizationId, corrId, userId, body.workDate, 'opened');
+    return corrId;
   });
   return { correctionId };
 }
@@ -424,6 +449,7 @@ export async function approveCorrection(
 
     const decided = await repo.findCorrectionById(tx, correctionId);
     await writeCorrectionDecided(tx, organizationId, decided!);
+    await writePayrollBlockerChanged(tx, organizationId, correctionId, decided!.userId, decided!.workDate, 'resolved');
     await writeAuditEntry(tx, ctx, decided!, 'attendance:correct');
   });
 
@@ -448,7 +474,7 @@ export async function bulkCorrection(
     }
 
     for (const userId of sorted) {
-      await repo.insertCorrection(tx, {
+      const corrId = await repo.insertCorrection(tx, {
         organizationId,
         userId,
         workDate: body.workDate,
@@ -458,6 +484,7 @@ export async function bulkCorrection(
         batchId,
         requestedBy: ctx.principal.id,
       });
+      await writePayrollBlockerChanged(tx, organizationId, corrId, userId, body.workDate, 'opened');
     }
     return sorted.length;
   });

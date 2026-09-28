@@ -59,3 +59,5 @@ export {
   type BreakPolicySnapshot,
   type AttendanceBreakPolicyResolver,
 } from '../attendance/facade.js';
+
+export { BREAK_EVENTS, type BreakPayrollBlockerChanged } from './events.js';

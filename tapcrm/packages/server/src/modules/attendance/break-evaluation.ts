@@ -38,7 +38,7 @@ export async function breakEvaluationCandidates(
     FROM attendance_record
     WHERE organization_id = ${organizationId}
       AND state = 'closed'
-      AND (breaks_evaluated_version IS NULL OR breaks_evaluated_version IS DISTINCT FROM calculated_input_version)
+      AND (breaks_evaluated_version IS NULL OR breaks_evaluated_version IS DISTINCT FROM calculation_version)
       AND (${afterId}::uuid IS NULL OR id > ${afterId}::uuid)
     ORDER BY id
     LIMIT ${limit}
@@ -61,7 +61,7 @@ export async function earliestStaleBreakDay(
     WHERE organization_id = ${organizationId}
       AND user_id = ${userId}
       AND state = 'closed'
-      AND (breaks_evaluated_version IS NULL OR breaks_evaluated_version IS DISTINCT FROM calculated_input_version)
+      AND (breaks_evaluated_version IS NULL OR breaks_evaluated_version IS DISTINCT FROM calculation_version)
       AND (
         (work_date >= ${isoWeekStart} AND work_date <= ${isoWeekEnd})
         OR (work_date >= ${monthStart} AND work_date <= ${monthEnd})

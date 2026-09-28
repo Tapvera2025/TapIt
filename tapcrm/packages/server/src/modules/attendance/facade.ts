@@ -41,7 +41,7 @@ export {
 export { lockPerson } from './repository.js';
 export { employedOn } from './employment.js';
 export { requestRecalculation } from './recalculate.js';
-export { ATTENDANCE_EVENTS, type RecalcRequested } from './events.js';
+export { ATTENDANCE_EVENTS, type RecalcRequested, type DayChanged, type PayrollBlockerChanged } from './events.js';
 export { openDay } from './day-open.js';
 export {
   applyOverlay,
@@ -64,3 +64,11 @@ export {
   type BreakEvaluationCandidate,
   type BreakDayRecord,
 } from './break-evaluation.js';
+export {
+  snapshotPeriod,
+  openItems,
+  type AttendanceDaySnapshot,
+  type MissingDay,
+  type PeriodSnapshot,
+  type OpenItem,
+} from './payroll-snapshot.js';
