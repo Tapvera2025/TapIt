@@ -871,3 +871,286 @@ export async function bumpInputVersions(
     `);
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Review items (§12.2)
+ * ------------------------------------------------------------------ */
+
+export type ReviewItemKind =
+  | 'assumed-departure' | 'auto-close-failed' | 'reconciled-from-auto-close'
+  | 'overtime-on-assumed' | 'same-instant-conflict' | 'departure-without-arrival'
+  | 'previous-session-unconfirmed' | 'worked-remotely-without-approval' | 'punched-on-leave'
+  | 'holiday-worked' | 'activity-after-finish' | 'late-synced-punch'
+  | 'outside-shift-window' | 'overlapping-shift-windows' | 'not-evaluated'
+  | 'retime-changes-subject';
+
+/** Opens an item. For event_id IS NOT NULL: idempotent (unique index prevents duplicate).
+ *  For event_id IS NULL: opens a new item only when none is currently open. */
+export async function upsertReviewItem(
+  tx: Tx,
+  organizationId: string,
+  item: {
+    userId: string;
+    workDate: DateOnly;
+    kind: ReviewItemKind;
+    eventId?: string | null;
+    detail?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await tx.query(sql`
+    INSERT INTO attendance_review_item (organization_id, user_id, work_date, kind, event_id, detail)
+    VALUES (${organizationId}, ${item.userId}, ${item.workDate}, ${item.kind},
+            ${item.eventId ?? null}, ${JSON.stringify(item.detail ?? {})}::jsonb)
+    ON CONFLICT DO NOTHING
+  `);
+}
+
+/** Resolves an open item. Pass `resolvedBy` for human closures; omit for system closures. */
+export async function resolveReviewItem(
+  tx: Tx,
+  organizationId: string,
+  item: {
+    userId: string;
+    workDate: DateOnly;
+    kind: ReviewItemKind;
+    eventId?: string | null;
+    resolvedBy?: string | null;
+    correctionId?: string | null;
+    note?: string | null;
+  },
+): Promise<void> {
+  const source = item.resolvedBy != null ? 'human' : 'system';
+  await tx.query(sql`
+    UPDATE attendance_review_item
+    SET resolved_at      = now(),
+        resolved_by      = ${item.resolvedBy ?? null},
+        resolution_source = ${source},
+        resolution_note  = ${item.note ?? null},
+        correction_id    = ${item.correctionId ?? null}
+    WHERE organization_id = ${organizationId}
+      AND user_id   = ${item.userId}
+      AND work_date = ${item.workDate}
+      AND kind      = ${item.kind}
+      AND (event_id = ${item.eventId ?? null}
+           OR (event_id IS NULL AND ${item.eventId ?? null} IS NULL))
+      AND resolved_at IS NULL
+  `);
+}
+
+/** The current (non-void, non-superseded) auto-out assigned to this record, if any. */
+export async function findAutoOutForRecord(
+  tx: Tx,
+  recordId: string,
+): Promise<{ id: string; occurredAt: Date } | null> {
+  return tx.maybeOne<{ id: string; occurredAt: Date }>(sql`
+    SELECT e.id, e.occurred_at AS "occurredAt"
+    FROM   attendance_event e
+    JOIN   attendance_event_assignment a
+           ON  a.organization_id      = e.organization_id
+           AND a.event_id             = e.id
+    WHERE  a.attendance_record_id = ${recordId}
+      AND  e.kind     = 'auto-out'
+      AND  e.is_void  = false
+      AND  NOT EXISTS (
+             SELECT 1 FROM attendance_event v
+             WHERE  v.organization_id      = e.organization_id
+               AND  v.supersedes_event_id  = e.id
+           )
+    LIMIT 1
+  `);
+}
+
+/** Effective events for one record, optionally excluding auto-outs. */
+export async function effectiveEventsOfRecord(
+  tx: Tx,
+  recordId: string,
+  options: { excludeAutoOut?: boolean } = {},
+): Promise<NeighbourhoodEvent[]> {
+  return tx.query<NeighbourhoodEvent>(sql`
+    SELECT e.id, e.user_id AS "userId", e.kind, e.occurred_at AS "occurredAt",
+           e.source, e.evidence, e.is_void AS "isVoid",
+           a.attendance_record_id AS "recordId",
+           a.attendance_record_id AS "assignedRecordId",
+           r.work_date::text       AS "assignedDate",
+           a.reason, a.pinned
+    FROM   attendance_event e
+    JOIN   attendance_event_assignment a
+           ON  a.organization_id = e.organization_id AND a.event_id = e.id
+    JOIN   attendance_record r
+           ON  r.id = a.attendance_record_id
+    WHERE  a.attendance_record_id = ${recordId}
+      AND  e.is_void = false
+      AND  NOT EXISTS (
+             SELECT 1 FROM attendance_event v
+             WHERE  v.organization_id = e.organization_id
+               AND  v.supersedes_event_id = e.id
+           )
+      AND  (${options.excludeAutoOut !== true}::boolean OR e.kind <> 'auto-out')
+    ORDER BY e.occurred_at, e.kind
+  `);
+}
+
+/** Lock the derived day after the caller holds the person's advisory lock. */
+export async function findRecordForClosure(
+  tx: Tx,
+  userId: string,
+  workDate: DateOnly,
+): Promise<{ id: string; state: 'open' | 'closed'; dayType: string;
+  closeDueAt: Date; closedBy: string | null; inputVersion: number } | null> {
+  return tx.maybeOne<{ id: string; state: 'open' | 'closed'; dayType: string;
+    closeDueAt: Date; closedBy: string | null; inputVersion: number }>(sql`
+    SELECT id, state, day_type AS "dayType", close_due_at AS "closeDueAt",
+           closed_by AS "closedBy", input_version AS "inputVersion"
+    FROM attendance_record
+    WHERE user_id = ${userId} AND work_date = ${workDate}
+    FOR UPDATE
+  `);
+}
+
+/** A derived answer can change on a closed record. Write only real changes. */
+export async function setRecordClosure(
+  tx: Tx,
+  recordId: string,
+  answer: { state: 'open'; closedBy: null } |
+    { state: 'closed'; closedBy: 'punch-out' | 'auto-close' | 'no-show' | 'correction' },
+  now: Date,
+): Promise<boolean> {
+  const rows = await tx.query<{ id: string }>(sql`
+    UPDATE attendance_record
+    SET state = ${answer.state},
+        closed_by = ${answer.closedBy},
+        closed_at = CASE WHEN ${answer.state} = 'open' THEN NULL ELSE ${now}::timestamptz END
+    WHERE id = ${recordId}
+      AND (state, closed_by) IS DISTINCT FROM (${answer.state}::text, ${answer.closedBy}::text)
+    RETURNING id
+  `);
+  return rows.length === 1;
+}
+
+/* ------------------------------------------------------------------ *
+ * Corrections (§12.1)
+ * ------------------------------------------------------------------ */
+
+export interface CorrectionRow {
+  readonly id: string;
+  readonly userId: string;
+  readonly workDate: DateOnly;
+  readonly kind: 'add-event' | 'replace-event' | 'void-event' | 'confirm-as-is';
+  readonly payload: unknown;
+  readonly reason: string;
+  readonly batchId: string | null;
+  readonly status: 'pending' | 'approved' | 'rejected';
+  readonly requestedBy: string;
+  readonly decidedBy: string | null;
+  readonly decidedAt: Date | null;
+  readonly decisionNote: string | null;
+}
+
+export async function insertCorrection(
+  tx: Tx,
+  c: {
+    organizationId: string;
+    userId: string;
+    workDate: DateOnly;
+    kind: CorrectionRow['kind'];
+    payload: unknown;
+    reason: string;
+    batchId?: string | null;
+    requestedBy: string;
+  },
+): Promise<string> {
+  const row = await tx.one<{ id: string }>(sql`
+    INSERT INTO attendance_correction
+      (organization_id, user_id, work_date, kind, payload, reason, batch_id, requested_by)
+    VALUES
+      (${c.organizationId}, ${c.userId}, ${c.workDate}, ${c.kind},
+       ${JSON.stringify(c.payload)}::jsonb, ${c.reason}, ${c.batchId ?? null}, ${c.requestedBy})
+    RETURNING id
+  `);
+  return row.id;
+}
+
+export async function findCorrectionById(
+  tx: Tx,
+  id: string,
+): Promise<CorrectionRow | null> {
+  return tx.maybeOne<CorrectionRow>(sql`
+    SELECT id, user_id AS "userId", work_date::text AS "workDate", kind, payload, reason,
+           batch_id AS "batchId", status, requested_by AS "requestedBy",
+           decided_by AS "decidedBy", decided_at AS "decidedAt",
+           decision_note AS "decisionNote"
+    FROM attendance_correction
+    WHERE id = ${id}
+  `);
+}
+
+export async function findCorrectionForUpdate(
+  tx: Tx,
+  id: string,
+): Promise<CorrectionRow | null> {
+  return tx.maybeOne<CorrectionRow>(sql`
+    SELECT id, user_id AS "userId", work_date::text AS "workDate", kind, payload, reason,
+           batch_id AS "batchId", status, requested_by AS "requestedBy",
+           decided_by AS "decidedBy", decided_at AS "decidedAt",
+           decision_note AS "decisionNote"
+    FROM attendance_correction
+    WHERE id = ${id}
+    FOR UPDATE
+  `);
+}
+
+export async function updateCorrectionStatus(
+  tx: Tx,
+  id: string,
+  update: { status: 'approved' | 'rejected'; decidedBy: string; decidedAt: Date; decisionNote?: string | null },
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE attendance_correction
+    SET status       = ${update.status},
+        decided_by   = ${update.decidedBy},
+        decided_at   = ${update.decidedAt},
+        decision_note = ${update.decisionNote ?? null}
+    WHERE id = ${id}
+  `);
+}
+
+/** Returns the effective event AND its assigned workDate; null if not effective. */
+export async function findEffectiveEvent(
+  tx: Tx,
+  userId: string,
+  eventId: string,
+): Promise<{ id: string; kind: EventKind; occurredAt: Date; source: EventSource;
+  evidence: Evidence; recordId: string | null; workDate: DateOnly | null } | null> {
+  return tx.maybeOne<{ id: string; kind: EventKind; occurredAt: Date; source: EventSource;
+    evidence: Evidence; recordId: string | null; workDate: DateOnly | null }>(sql`
+    SELECT e.id, e.kind, e.occurred_at AS "occurredAt", e.source, e.evidence,
+           a.attendance_record_id AS "recordId",
+           r.work_date::text       AS "workDate"
+    FROM   attendance_event e
+    LEFT JOIN attendance_event_assignment a
+              ON  a.organization_id = e.organization_id AND a.event_id = e.id
+    LEFT JOIN attendance_record r
+              ON  r.id = a.attendance_record_id
+    WHERE  e.id = ${eventId} AND e.user_id = ${userId}
+      AND  e.is_void = false
+      AND  NOT EXISTS (
+             SELECT 1 FROM attendance_event v
+             WHERE  v.organization_id = e.organization_id
+               AND  v.supersedes_event_id = e.id
+           )
+  `);
+}
+
+/** Loads a user's dept/team for authorization scope checks (mirrors shifts pattern). */
+export async function findCorrectionSubject(
+  tx: Tx,
+  userId: string,
+): Promise<{ id: string; organizationId: string; departmentId: string | null; teamId: string | null } | null> {
+  return tx.maybeOne<{ id: string; organizationId: string;
+    departmentId: string | null; teamId: string | null }>(sql`
+    SELECT id, organization_id AS "organizationId",
+           department_id AS "departmentId", team_id AS "teamId"
+    FROM app_user
+    WHERE id = ${userId} AND account_type = 'employee'
+  `);
+}

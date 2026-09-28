@@ -16,7 +16,7 @@ function ev(
 ): AttendanceEventInput {
   const evidence: AttendanceEventInput['evidence'] =
     kind === 'auto-out' || kind === 'scan' ? 'assumed' : 'confirmed';
-  return { id: `${kind}-${at}`, kind, at, source, evidence };
+  return { id: `${kind}-${at}`, kind, at, source, evidence, assignmentReason: 'midpoint' };
 }
 
 describe('closeDecision', () => {
