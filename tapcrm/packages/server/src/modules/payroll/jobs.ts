@@ -4,9 +4,11 @@ import { defineJob, type JobHandle } from '../../platform/jobs/runner.js';
 import { lockPerson } from '../attendance/facade.js';
 import { transitionRun } from './run.js';
 import { computeAndWriteDraftSlip, type FrozenEmployeeInputs } from './snapshot.js';
+import { sweepPublishedPeriods } from './sweep.js';
 
 export interface PayrollJobs {
   readonly computeEmployee: JobHandle<{ runId: string; userId: string; inputsFingerprint: string }>;
+  readonly publishedPeriodSweep: JobHandle<undefined>;
 }
 
 export function registerPayrollJobs(): PayrollJobs {
@@ -92,5 +94,19 @@ export function registerPayrollJobs(): PayrollJobs {
     },
   });
 
-  return { computeEmployee: computeJob };
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+
+  const publishedPeriodSweepJob = defineJob({
+    name: 'payroll.published-period-sweep',
+    perOrganization: true,
+    module: 'payroll',
+    schedule: { every: ONE_HOUR_MS },
+    attempts: 1, // next hour offers the same run; retries buy nothing
+    handler: async ({ ctx }) => {
+      const result = await sweepPublishedPeriods(ctx);
+      return { itemsProcessed: result.opened, details: { scanned: result.scanned } };
+    },
+  });
+
+  return { computeEmployee: computeJob, publishedPeriodSweep: publishedPeriodSweepJob };
 }

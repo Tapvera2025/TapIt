@@ -79,3 +79,17 @@ export {
   type PublishBlocker,
   type PublishResult,
 } from './publish.js';
+
+export {
+  openDrift,
+  openFlag,
+  latestPublishedSlip,
+  publishedRunForPeriod,
+  type DriftInput,
+} from './flags.js';
+
+export { reviseSlip, type ReviseSlipInput } from './revision.js';
+
+export { recordDocument, getDocument } from './document.js';
+
+export { sweepPublishedPeriods } from './sweep.js';
