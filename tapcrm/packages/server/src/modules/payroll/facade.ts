@@ -13,3 +13,37 @@ export function registerPayrollPorts(): void {
     revokeDeduction: revokeBreakDeduction,
   });
 }
+
+export {
+  listConfigs,
+  acceptConfig,
+  resolveConfig,
+  type AcceptConfigInput,
+  type PayrollConfigRow,
+  type ConfigSource,
+} from './config.js';
+
+export {
+  listStructures,
+  createStructure,
+  resolveStructureForDate,
+  type CreateStructureInput,
+  type SalaryStructureRow,
+  type StructureLineRow,
+} from './structure.js';
+
+export {
+  insertManualInput,
+  revokeManualInput,
+  listActiveInputsForPeriod,
+  type ManualInputKind,
+  type ManualInputInsert,
+  type PayrollInputRow,
+} from './input.js';
+
+export {
+  PAYROLL_EVENTS,
+  type InputChanged,
+  type StructureChanged,
+  type ConfigChanged,
+} from './events.js';
