@@ -39,9 +39,12 @@ export interface RunEmployeeRow {
 
 /** Get the last day of a month for a given YYYY-MM-DD first-of-month. */
 export function periodEndFor(periodStart: string): string {
-  const d = new Date(periodStart);
-  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return end.toISOString().slice(0, 10);
+  const [y, m] = periodStart.split('-').map(Number) as [number, number];
+  // Last day of month: day 0 of the next month
+  const day0 = new Date(y, m, 0);
+  const dd = String(day0.getDate()).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  return `${y}-${mm}-${dd}`;
 }
 
 /** SHA-256 canonical fingerprint over sorted JSON arrays. */

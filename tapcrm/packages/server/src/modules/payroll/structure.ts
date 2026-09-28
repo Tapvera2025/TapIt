@@ -1,3 +1,4 @@
+import type { Decimal } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -6,7 +7,7 @@ export interface StructureLine {
   readonly code: string;
   readonly label: string;
   readonly kind: 'earning' | 'deduction' | 'employer-contribution';
-  readonly amount: number;  // stored as numeric, represents full rupees for display
+  readonly amount: Decimal;
   readonly prorated: boolean;
   readonly statutoryTags: string[];
   readonly sortOrder: number;

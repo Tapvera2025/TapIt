@@ -315,7 +315,7 @@ export function registerPayrollRoutes(): void {
         currency: parsed.currency,
         effectiveFrom: parsed.effectiveFrom,
         ...(parsed.effectiveTo !== undefined ? { effectiveTo: parsed.effectiveTo } : {}),
-        lines: parsed.lines,
+        lines: parsed.lines.map(l => ({ ...l, amount: String(l.amount) as import('@tapcrm/contracts').Decimal })),
       };
       return createStructure(ctx, input);
     },
@@ -357,7 +357,7 @@ export function registerPayrollRoutes(): void {
           userId: input.userId,
           periodStart: input.periodStart,
           kind: input.kind,
-          amount: input.amount,
+          amount: String(input.amount) as import('@tapcrm/contracts').Decimal,
           label: input.label,
           reason: input.reason,
           createdBy: ctx.principal.id,

@@ -1,3 +1,4 @@
+import type { Decimal } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { BreakDeductionInput } from '../break-management/facade.js';
@@ -8,7 +9,7 @@ export interface ManualInputInsert {
   readonly userId: string;
   readonly periodStart: string;
   readonly kind: ManualInputKind;
-  readonly amount: number;
+  readonly amount: Decimal;
   readonly label: string;
   readonly reason: string;
   readonly createdBy: string;
