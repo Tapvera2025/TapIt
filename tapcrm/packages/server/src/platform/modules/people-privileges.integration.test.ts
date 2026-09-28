@@ -57,6 +57,19 @@ const EXPECTED: Record<string, string> = {
   break_policy_assignment: 'INSERT,SELECT,UPDATE',
   break_breach: 'INSERT,SELECT,UPDATE',
   payroll_input: 'INSERT,SELECT,UPDATE',
+  payroll_config: 'INSERT,SELECT,UPDATE',
+  payroll_config_source: 'INSERT,SELECT',
+  salary_structure: 'INSERT,SELECT,UPDATE',
+  salary_structure_line: 'INSERT,SELECT',
+  payroll_run: 'INSERT,SELECT,UPDATE',
+  payroll_run_employee: 'INSERT,SELECT,UPDATE',
+  payslip: 'INSERT,SELECT,UPDATE',
+  payslip_line: 'DELETE,INSERT,SELECT',
+  payslip_salary_use: 'DELETE,INSERT,SELECT',
+  payslip_document: 'INSERT,SELECT',
+  payslip_flag: 'INSERT,SELECT,UPDATE',
+  payroll_run_drift: 'INSERT,SELECT,UPDATE',
+  ledger_posting_intent: 'INSERT,SELECT,UPDATE',
 };
 
 describe.skipIf(!enabled)('People table privileges for the app role (PostgreSQL)', () => {

@@ -200,3 +200,41 @@ describe('BM-1 — break-management and payroll table ownership', () => {
     ).toEqual([]);
   });
 });
+
+describe('P2 — payroll and accounting table ownership', () => {
+  it('attendance reading payroll_run directly is flagged', () => {
+    expect(
+      findForeignTableUse(
+        [file('packages/server/src/modules/attendance/repository.ts', 'SELECT * FROM payroll_run WHERE')],
+        ROOT,
+      ),
+    ).toEqual([{ file: 'packages/server/src/modules/attendance/repository.ts', line: 1, table: 'payroll_run', owner: 'payroll' }]);
+  });
+
+  it('payroll reading its own tables is fine', () => {
+    expect(
+      findForeignTableUse(
+        [file('packages/server/src/modules/payroll/repository.ts', 'SELECT * FROM payslip WHERE')],
+        ROOT,
+      ),
+    ).toEqual([]);
+  });
+
+  it('payroll reading ledger_posting_intent directly is flagged (must go through accounting facade)', () => {
+    expect(
+      findForeignTableUse(
+        [file('packages/server/src/modules/payroll/repository.ts', 'INSERT INTO ledger_posting_intent')],
+        ROOT,
+      ),
+    ).toEqual([{ file: 'packages/server/src/modules/payroll/repository.ts', line: 1, table: 'ledger_posting_intent', owner: 'accounting' }]);
+  });
+
+  it('accounting reading ledger_posting_intent is fine', () => {
+    expect(
+      findForeignTableUse(
+        [file('packages/server/src/modules/accounting/posting-intent.ts', 'SELECT * FROM ledger_posting_intent')],
+        ROOT,
+      ),
+    ).toEqual([]);
+  });
+});

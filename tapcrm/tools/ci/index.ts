@@ -217,8 +217,8 @@ const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
       .split('\n')
       .forEach((line, i) => {
         if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
-        // Counts, percentages and time durations are legitimately numbers; money is not.
-        if (/count|percent|index|length|version|attempts|limit|port|seconds|minutes|ms\b/i.test(line)) return;
+        // Counts, percentages, time durations and attendance units are legitimately numbers; money is not.
+        if (/count|percent|index|length|version|attempts|limit|port|seconds|minutes|units|ms\b/i.test(line)) return;
         if (MONEY.test(line)) {
           blocking(
             'CI-21',

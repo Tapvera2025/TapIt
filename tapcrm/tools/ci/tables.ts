@@ -19,7 +19,8 @@ export const TABLE_OWNERS: readonly {
   { module: 'live-status',       tables: /^user_status$/ },
   { module: 'biometric',         tables: /^biometric_[a-z_]+$/ },
   { module: 'break-management',  tables: /^(break_policy|break_policy_version|break_penalty_rule|break_policy_assignment|break_breach)$/ },
-  { module: 'payroll',           tables: /^payroll_input$/ },
+  { module: 'payroll',           tables: /^(payroll_input|payroll_config|payroll_config_source|salary_structure|salary_structure_line|payroll_run|payroll_run_employee|payslip|payslip_line|payslip_salary_use|payslip_document|payslip_flag|payroll_run_drift)$/ },
+  { module: 'accounting',        tables: /^ledger_posting_intent$/ },
 ];
 
 export interface TableViolation {
