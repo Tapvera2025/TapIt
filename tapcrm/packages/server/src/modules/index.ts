@@ -33,6 +33,21 @@ import {
 import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from './leave/index.js';
 
 /**
+ * Port initialization — MUST be called before registerAllPolicies, registerAllRoutes,
+ * registerAllJobs, and any attendance recalculation consumer.
+ * Application startup must fail if either required port is absent after this call.
+ *
+ * Both ports follow the same pattern as the PresenceProjector port in attendance:
+ * the break-management module registers the BreakPolicyResolver into attendance's
+ * port slot; payroll registers the BreakDeductionWriter into break-management's
+ * port slot. Neither direction imports the other module's internals.
+ */
+export function initializePorts(): void {
+  // Task 3: registerBreakPolicyResolver(new BreakPolicyResolverImpl())
+  // Task 6: registerBreakDeductionWriter(new BreakDeductionWriterImpl())
+}
+
+/**
  * The module registry.
  *
  * One place that names every implemented module, so that both the application

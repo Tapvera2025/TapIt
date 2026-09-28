@@ -406,6 +406,21 @@
       "description": ""
     },
     {
+      "action": "breaks:explain",
+      "module": "break-management",
+      "resource": "breakBreach",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "breaks:manage-policy",
       "module": "break-management",
       "resource": "breakPolicy",
@@ -2709,6 +2724,12 @@
       "resourceParam": "id"
     },
     {
+      "method": "POST",
+      "path": "/api/breaks/breaches/:id/explanation",
+      "action": "breaks:explain",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/breaks/breaches",
       "action": "breaks:view",
@@ -2725,6 +2746,12 @@
       "path": "/api/breaks/policies/resolve/:userId",
       "action": "breaks:view",
       "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/breaks/prompts/me",
+      "action": "breaks:view",
+      "resourceParam": null
     },
     {
       "method": "GET",

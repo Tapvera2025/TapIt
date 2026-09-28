@@ -24,7 +24,15 @@ export {
   type ReplacementRefusal,
   type RetireResult,
 } from './ledger.js';
-export { presenceProjector, registerPresenceProjector } from './ports.js';
+export {
+  presenceProjector,
+  registerPresenceProjector,
+  breakPolicyResolver,
+  registerBreakPolicyResolver,
+  __resetBreakPolicyResolver,
+  type BreakPolicySnapshot,
+  type AttendanceBreakPolicyResolver,
+} from './ports.js';
 /**
  * D24 — the person's lock. A caller that reads its own rows about the person
  * before appending (biometric duplicate bursts) takes it first; the ledger

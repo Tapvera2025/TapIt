@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 148   Bindings: 307
+ * Actions: 149   Bindings: 309
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -47,6 +47,7 @@ export type Action =
   | 'billing:set-terms'
   | 'billing:view-terms'
   | 'biometric:manage'
+  | 'breaks:explain'
   | 'breaks:manage-policy'
   | 'breaks:review-breach'
   | 'breaks:view'
@@ -197,6 +198,7 @@ export const ACTIONS: readonly Action[] = [
   'billing:set-terms',
   'billing:view-terms',
   'biometric:manage',
+  'breaks:explain',
   'breaks:manage-policy',
   'breaks:review-breach',
   'breaks:view',
@@ -722,6 +724,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'breaks:explain': {
+    action: 'breaks:explain',
+    module: 'break-management',
+    resource: 'breakBreach',
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
       superAdminOnly: false,
     },
     description: "",
@@ -2625,9 +2642,11 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/breaks/policies/:id/assign', action: 'breaks:manage-policy', resourceParam: 'id' },
   { method: 'POST', path: '/api/breaks/breaches/:id/confirm', action: 'breaks:review-breach', resourceParam: 'id' },
   { method: 'POST', path: '/api/breaks/breaches/:id/waive', action: 'breaks:review-breach', resourceParam: 'id' },
+  { method: 'POST', path: '/api/breaks/breaches/:id/explanation', action: 'breaks:explain', resourceParam: 'id' },
   { method: 'GET', path: '/api/breaks/breaches', action: 'breaks:view', resourceParam: null },
   { method: 'GET', path: '/api/breaks/allowance/me', action: 'breaks:view', resourceParam: null },
   { method: 'GET', path: '/api/breaks/policies/resolve/:userId', action: 'breaks:view', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/breaks/prompts/me', action: 'breaks:view', resourceParam: null },
   { method: 'GET', path: '/api/shifts', action: 'shifts:view', resourceParam: null },
   { method: 'GET', path: '/api/shifts/assignments', action: 'shifts:view', resourceParam: null },
   { method: 'POST', path: '/api/shifts', action: 'shifts:manage', resourceParam: null },

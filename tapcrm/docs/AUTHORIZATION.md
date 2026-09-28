@@ -17,7 +17,7 @@
 
 ## 6.4 Action Registry
 
-148 actions. Column meanings are as given in the source document:
+149 actions. Column meanings are as given in the source document:
 
 | Column | Meaning |
 | --- | --- |
@@ -72,6 +72,7 @@
 | `attendance:correct` | attendance | attendanceCorrection | people | yes | yes | requestedBy | yes | no | no |
 | `attendance:raise-correction` | attendance | attendanceCorrection | people | yes | no | — | yes | no | no |
 | `attendance:request-correction` | attendance | attendanceCorrection | people | no | no | — | yes | yes | no |
+| `breaks:explain` | break-management | breakBreach | people | no | no | — | yes | yes | no |
 | `breaks:manage-policy` | break-management | breakPolicy | people | yes | no | — | yes | no | no |
 | `breaks:review-breach` | break-management | breakBreach | people | yes | yes | userId | yes | no | no |
 | `breaks:view` | break-management | breakBreach | people | no | no | — | yes | yes | no |
@@ -196,7 +197,7 @@
 
 ## 6.5 API Bindings
 
-292 bindings. Every action bound to at least one HTTP route. A route
+294 bindings. Every action bound to at least one HTTP route. A route
 registered at boot with no binding is a startup failure (RM-1); a binding naming
 an unregistered action fails the build (RM-2).
 
@@ -287,9 +288,11 @@ changes who can do what.
 | POST | /api/breaks/policies/:id/assign | `breaks:manage-policy` | id |
 | POST | /api/breaks/breaches/:id/confirm | `breaks:review-breach` | id |
 | POST | /api/breaks/breaches/:id/waive | `breaks:review-breach` | id |
+| POST | /api/breaks/breaches/:id/explanation | `breaks:explain` | id |
 | GET | /api/breaks/breaches | `breaks:view` | — |
 | GET | /api/breaks/allowance/me | `breaks:view` | — |
 | GET | /api/breaks/policies/resolve/:userId | `breaks:view` | userId |
+| GET | /api/breaks/prompts/me | `breaks:view` | — |
 | GET | /api/shifts | `shifts:view` | — |
 | GET | /api/shifts/assignments | `shifts:view` | — |
 | POST | /api/shifts | `shifts:manage` | — |
