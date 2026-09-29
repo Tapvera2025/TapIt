@@ -30,24 +30,106 @@ export class IdentityApiError extends Error {
 const ACCESS_KEY = 'tapcrm.identity.access';
 const REFRESH_KEY = 'tapcrm.identity.refresh';
 export const IDENTITY_EXPIRED_EVENT = 'tapcrm:identity-expired';
+export const IDENTITY_SESSION_CHANGED_EVENT = 'tapcrm:identity-session-changed';
+export const IDENTITY_BOOTSTRAP_UPDATED_EVENT = 'tapcrm:identity-bootstrap-updated';
+export type IdentitySessionChangeReason = 'login' | 'refresh' | 'logout' | 'expired' | 'principal-changed' | 'permissions-changed';
+export interface IdentitySessionSnapshot {
+  readonly epoch: number;
+  readonly principalId: string | null;
+  readonly organizationId: string | null;
+}
+export interface IdentitySessionChangeDetail extends IdentitySessionSnapshot {
+  readonly reason: IdentitySessionChangeReason;
+}
+let sessionEpoch = 0;
+let principalId: string | null = null;
+let organizationId: string | null = null;
 let refreshPromise: Promise<boolean> | null = null;
+const sessionListeners = new Set<(detail: IdentitySessionChangeDetail) => void>();
+
+export function identityApiBasePath(): string {
+  const configured = import.meta.env['VITE_API_BASE_PATH'] || '/api';
+  return `/${configured.replace(/^\/+|\/+$/g, '')}`;
+}
+
+/** Existing callers use /api paths; deployments may mount the API elsewhere. */
+export function identityApiPath(path: string): string {
+  const suffix = path.replace(/^\/api(?=\/|$)/, '');
+  return `${identityApiBasePath()}${suffix.startsWith('/') ? suffix : `/${suffix}`}`;
+}
+
+export function getIdentitySessionSnapshot(): IdentitySessionSnapshot {
+  return { epoch: sessionEpoch, principalId, organizationId };
+}
+
+export function subscribeIdentitySessionChange(listener: (detail: IdentitySessionChangeDetail) => void): () => void {
+  sessionListeners.add(listener);
+  return () => sessionListeners.delete(listener);
+}
+
+function emitSessionChange(reason: IdentitySessionChangeReason): void {
+  sessionEpoch += 1;
+  const detail = { ...getIdentitySessionSnapshot(), reason };
+  for (const listener of sessionListeners) listener(detail);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<IdentitySessionChangeDetail>(IDENTITY_SESSION_CHANGED_EVENT, {
+      detail,
+    }));
+  }
+}
+
+export function setIdentitySessionPrincipal(nextPrincipalId: string, nextOrganizationId: string): void {
+  if (principalId === nextPrincipalId && organizationId === nextOrganizationId) return;
+  principalId = nextPrincipalId;
+  organizationId = nextOrganizationId;
+  emitSessionChange('principal-changed');
+}
+
+export function invalidateIdentityPermissions(): void {
+  emitSessionChange('permissions-changed');
+}
+
+export function notifyIdentityBootstrapUpdated(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(IDENTITY_BOOTSTRAP_UPDATED_EVENT));
+  }
+}
+
+export class IdentitySessionChangedError extends Error {
+  constructor() {
+    super('The signed-in account changed while the request was in progress');
+    this.name = 'IdentitySessionChangedError';
+  }
+}
+
+function assertSession(epoch: number): void {
+  if (sessionEpoch !== epoch) throw new IdentitySessionChangedError();
+}
 
 export function getIdentityAccessToken(): string | null {
   return sessionStorage.getItem(ACCESS_KEY);
 }
 
-export function saveIdentityTokens(accessToken: string, refreshToken: string): void {
+export function saveIdentityTokens(accessToken: string, refreshToken: string, reason: 'login' | 'refresh' = 'login'): void {
   sessionStorage.setItem(ACCESS_KEY, accessToken);
   sessionStorage.setItem(REFRESH_KEY, refreshToken);
+  if (reason === 'login') {
+    principalId = null;
+    organizationId = null;
+  }
+  emitSessionChange(reason);
 }
 
-export function clearIdentityTokens(): void {
+export function clearIdentityTokens(reason: 'logout' | 'expired' = 'logout'): void {
   sessionStorage.removeItem(ACCESS_KEY);
   sessionStorage.removeItem(REFRESH_KEY);
+  principalId = null;
+  organizationId = null;
+  emitSessionChange(reason);
 }
 
 function redirectToIdentityLogin(): void {
-  clearIdentityTokens();
+  clearIdentityTokens('expired');
   window.dispatchEvent(new Event(IDENTITY_EXPIRED_EVENT));
   if (window.location.pathname !== '/login') {
     window.history.replaceState({}, '', '/login');
@@ -59,16 +141,18 @@ async function refreshIdentityTokens(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   const refreshToken = sessionStorage.getItem(REFRESH_KEY);
   if (!refreshToken) return false;
+  const expectedEpoch = sessionEpoch;
   refreshPromise = (async () => {
     try {
-      const response = await fetch('/api/identity/refresh', {
+      const response = await fetch(identityApiPath('/api/identity/refresh'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       });
       const body = (await response.json()) as { success?: boolean; data?: { accessToken: string; refreshToken: string } };
       if (!response.ok || !body.success || !body.data) return false;
-      saveIdentityTokens(body.data.accessToken, body.data.refreshToken);
+      if (sessionEpoch !== expectedEpoch) return false;
+      saveIdentityTokens(body.data.accessToken, body.data.refreshToken, 'refresh');
       return true;
     } catch {
       return false;
@@ -80,13 +164,16 @@ async function refreshIdentityTokens(): Promise<boolean> {
 }
 
 export async function identityRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let expectedEpoch = sessionEpoch;
+  const expectedPrincipal = principalId;
+  const expectedOrganization = organizationId;
   const token = getIdentityAccessToken();
   if (!token) {
     redirectToIdentityLogin();
     throw new IdentityApiError('Your login session has expired', 'IDENTITY_SESSION_EXPIRED', 401);
   }
 
-  const request = async (accessToken: string): Promise<Response> => fetch(path, {
+  const request = async (accessToken: string): Promise<Response> => fetch(identityApiPath(path), {
     ...init,
     headers: {
       authorization: `Bearer ${accessToken}`,
@@ -95,16 +182,24 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
     },
   });
   let response = await request(token);
+  assertSession(expectedEpoch);
   if (response.status === 401) {
     if (await refreshIdentityTokens()) {
+      if (sessionEpoch !== expectedEpoch + 1 || principalId !== expectedPrincipal || organizationId !== expectedOrganization) {
+        throw new IdentitySessionChangedError();
+      }
+      expectedEpoch = sessionEpoch;
       response = await request(getIdentityAccessToken()!);
+      assertSession(expectedEpoch);
       if (response.status === 401) redirectToIdentityLogin();
     } else {
+      assertSession(expectedEpoch);
       redirectToIdentityLogin();
     }
   }
 
   const body = (await response.json()) as { success?: boolean; data?: T; message?: string; code?: string };
+  assertSession(expectedEpoch);
   if (response.status === 403 && body.message === 'Company access is suspended') {
     redirectToIdentityLogin();
   }
@@ -116,41 +211,56 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
 
 /** Authenticated non-JSON response for user-facing downloads. */
 export async function identityDownload(path: string, init: RequestInit = {}): Promise<Blob> {
+  let expectedEpoch = sessionEpoch;
+  const expectedPrincipal = principalId;
+  const expectedOrganization = organizationId;
   const token = getIdentityAccessToken();
   if (!token) {
     redirectToIdentityLogin();
     throw new IdentityApiError('Your login session has expired', 'IDENTITY_SESSION_EXPIRED', 401);
   }
-  const request = (accessToken: string) => fetch(path, {
+  const request = (accessToken: string) => fetch(identityApiPath(path), {
     ...init,
     headers: { authorization: `Bearer ${accessToken}`, ...(init.body ? { 'content-type': 'application/json' } : {}), ...(init.headers ?? {}) },
   });
   let response = await request(token);
-  if (response.status === 401 && await refreshIdentityTokens()) response = await request(getIdentityAccessToken()!);
+  assertSession(expectedEpoch);
+  if (response.status === 401 && await refreshIdentityTokens()) {
+    if (sessionEpoch !== expectedEpoch + 1 || principalId !== expectedPrincipal || organizationId !== expectedOrganization) {
+      throw new IdentitySessionChangedError();
+    }
+    expectedEpoch = sessionEpoch;
+    response = await request(getIdentityAccessToken()!);
+    assertSession(expectedEpoch);
+  }
+  assertSession(expectedEpoch);
   if (response.status === 401) redirectToIdentityLogin();
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { message?: string; code?: string };
     throw new IdentityApiError(body.message ?? 'Download failed', body.code ?? 'IDENTITY_REQUEST_FAILED', response.status);
   }
-  return response.blob();
+  const blob = await response.blob();
+  assertSession(expectedEpoch);
+  return blob;
 }
 
 export async function identityLogout(): Promise<void> {
   const accessToken = getIdentityAccessToken();
+  clearIdentityTokens();
   try {
     if (accessToken) {
-      await fetch('/api/identity/logout', {
+      await fetch(identityApiPath('/api/identity/logout'), {
         method: 'POST',
         headers: { authorization: `Bearer ${accessToken}` },
       });
     }
-  } finally {
-    clearIdentityTokens();
+  } catch {
+    // The local session has already ended; remote revocation is best effort.
   }
 }
 
 export async function identityLogin(email: string, password: string, location?: GeolocationInput): Promise<IdentityLoginResult> {
-  const response = await fetch('/api/identity/login', {
+  const response = await fetch(identityApiPath('/api/identity/login'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password, deviceLabel: 'Company Web', ...(location ?? {}) }),
@@ -182,7 +292,7 @@ export async function changeTemporaryPassword(currentPassword: string, newPasswo
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
-  const response = await fetch('/api/identity/password/reset/request', {
+  const response = await fetch(identityApiPath('/api/identity/password/reset/request'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email }),
@@ -191,7 +301,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 export async function resetPassword(token: string, organizationCode: string, password: string): Promise<void> {
-  const response = await fetch('/api/identity/password/reset', {
+  const response = await fetch(identityApiPath('/api/identity/password/reset'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ token, organizationCode, password }),

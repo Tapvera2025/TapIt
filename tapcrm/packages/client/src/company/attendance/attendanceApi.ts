@@ -1,0 +1,129 @@
+import { identityRequest } from '../../identity/api/authApi.js';
+
+/** Shapes returned by the registered attendance routes. Status and minutes are stored server answers. */
+export interface AttendanceDayView {
+  userId: string;
+  employeeId: string | null;
+  workDate: string;
+  state: 'open' | 'closed';
+  status: string | null;
+  dayType: string;
+  units: { present: number; paidLeave: number; unpaidLeave: number; absent: number; holiday: number };
+  minutes: { worked: number; break: number; late: number; earlyExit: number; overtime: number; night: number };
+  arrivalAt: string | null;
+  departureAt: string | null;
+  isWfh: boolean;
+  flags: string[];
+  shift: { shiftId: string | null; source: string; kind: string | null; start: string | null; end: string | null };
+  recalculating: boolean;
+}
+
+export interface AttendanceEventView {
+  id: string;
+  kind: string;
+  at?: string;
+  occurredAt?: string;
+  source: string;
+  evidence?: string;
+  assignmentReason?: string;
+  isVoid?: boolean;
+  supersededBy?: string | null;
+}
+
+export interface AttendanceOverlayView {
+  id: string;
+  kind: string;
+  paid: boolean | null;
+  consequence: string | null;
+  minutes: number | null;
+  sourceKind: string;
+  sourceId: string;
+}
+
+export interface AttendanceDayDetail {
+  date: string;
+  userId: string;
+  record: {
+    id: string;
+    state: 'open' | 'closed';
+    status: string | null;
+    dayType: string;
+    shift: {
+      kind?: string;
+      source?: string;
+      start?: string | null;
+      end?: string | null;
+      isOvernight?: boolean;
+      timezone?: string;
+    } | null;
+    shiftSource: string;
+    placement: { departmentId: string | null; teamId: string | null; positionId: string | null };
+    window: { start: string; end: string; closeDueAt: string };
+    minutes: AttendanceDayView['minutes'];
+    units: AttendanceDayView['units'];
+    arrivalAt: string | null;
+    departureAt: string | null;
+    isWfh: boolean;
+    flags: string[];
+    attributionFlags: string[];
+    inputVersion: number;
+    calculationVersion: number;
+    calculatedAt: string | null;
+    closedAt: string | null;
+    closedBy: string | null;
+  };
+  events: { effective: AttendanceEventView[]; superseded: AttendanceEventView[] };
+  overlays: AttendanceOverlayView[];
+  corrections: unknown[];
+  /** Decorated by the server after subject visibility and A1 checks. */
+  allowedActions?: { requestCorrection?: boolean };
+}
+
+export type CorrectionRequest =
+  | { workDate: string; reason: string; kind: 'add-event'; payload: { kind: 'in' | 'out' | 'break-start' | 'break-end'; at: string } }
+  | { workDate: string; reason: string; kind: 'replace-event'; payload: { targetEventId: string; kind: 'in' | 'out' | 'break-start' | 'break-end'; at: string } }
+  | { workDate: string; reason: string; kind: 'void-event'; payload: { targetEventId: string } };
+
+export interface AttendanceExportStatus {
+  jobId: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  from: string;
+  to: string;
+  rowCount: number | null;
+  errorMessage: string | null;
+  downloadUrl: string | null;
+}
+
+export async function getAttendanceDays(
+  from: string,
+  to: string,
+  userId: string,
+  signal?: AbortSignal,
+): Promise<AttendanceDayView[]> {
+  const query = new URLSearchParams({ from, to, userId });
+  const result = await identityRequest<{ records: AttendanceDayView[] }>(`/api/attendance?${query}`, { signal: signal ?? null });
+  return result.records;
+}
+
+export function getAttendanceDayDetail(userId: string, date: string, signal?: AbortSignal): Promise<AttendanceDayDetail> {
+  return identityRequest<AttendanceDayDetail>(
+    `/api/attendance/${encodeURIComponent(userId)}/${encodeURIComponent(date)}`,
+    { signal: signal ?? null },
+  );
+}
+
+export function requestAttendanceCorrection(body: CorrectionRequest): Promise<{ correctionId: string }> {
+  return identityRequest('/api/attendance/corrections/request', {
+    method: 'POST', body: JSON.stringify(body),
+  });
+}
+
+export function requestAttendanceExport(from: string, to: string, userId: string): Promise<{ jobId: string; status: 'queued' }> {
+  return identityRequest('/api/attendance/export', {
+    method: 'POST', body: JSON.stringify({ from, to, userIds: [userId] }),
+  });
+}
+
+export function getAttendanceExportStatus(jobId: string): Promise<AttendanceExportStatus> {
+  return identityRequest(`/api/attendance/exports/${encodeURIComponent(jobId)}`);
+}

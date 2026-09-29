@@ -11,11 +11,20 @@ import { RoleChangeRequestPage } from '../access-management/pages/RoleChangeRequ
 import { getRoleChangeRequestAccess } from '../access-management/api/accessApi.js';
 import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
-import { EmployeeBreakView } from './breaks/EmployeeBreakView.js';
 import { BreachQueuePage } from './breaks/BreachQueuePage.js';
+import { BreakPoliciesPage } from './breaks/BreakPoliciesPage.js';
 import { PayrollCyclePage } from './payroll/PayrollCyclePage.js';
 import { MyPayslipsPage } from './payroll/MyPayslipsPage.js';
 import { RunsPage } from './payroll/RunsPage.js';
+import { TodayPage } from './today/TodayPage.js';
+import { LiveBoardPage } from './live/LiveBoardPage.js';
+import { AttendancePage } from './attendance/AttendancePage.js';
+import { CorrectionsPage } from './attendance/CorrectionsPage.js';
+import { ShiftsPage } from './shifts/ShiftsPage.js';
+import { HolidaysPage } from './holidays/HolidaysPage.js';
+import { LeavePage } from './leave/LeavePage.js';
+import { LeaveQueuePage } from './leave/LeaveQueuePage.js';
+import { BiometricPage } from './biometric/BiometricPage.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -71,70 +80,72 @@ export function CompanyWorkspace({
       </div>
     );
   const isSuperAdmin = identity.user.accountType === 'super-admin';
+  const userId = identity.user.id;
+
   const isOrganization =
     isSuperAdmin &&
     (pathname === '/company/organization' ||
       pathname.startsWith('/company/organization/'));
-  const isAccess = pathname === '/company/access';
-  const isRoleChangeRequest = pathname === '/company/role-change-request';
-  const isAudit = pathname === '/company/audit';
-  const isBreachQueue = pathname === '/company/breaks/queue';
-  const isPayrollCycle = pathname === '/company/payroll/cycle';
-  const isMyPayslips = pathname === '/company/payroll/my-payslips';
-  const isPayrollRuns = pathname === '/company/payroll/runs';
+
+  const PAGE_TITLES: Record<string, string> = {
+    '/company/employees': 'Employees',
+    '/company/sessions': 'Sessions & Devices',
+    '/company/access': 'Access Explorer',
+    '/company/role-change-request': 'Request Role Change',
+    '/company/audit': 'Audit Log',
+    '/company/breaks/queue': 'Break Breach Queue',
+    '/company/breaks/policies': 'Break Policies',
+    '/company/payroll/cycle': 'Payroll Cycle',
+    '/company/payroll/my-payslips': 'My Payslips',
+    '/company/payroll/runs': 'Payroll Runs',
+    '/company/geofencing': 'Geofencing',
+    '/company/attendance/today': 'Today',
+    '/company/attendance/my': 'My Attendance',
+    '/company/attendance/live': 'Workforce Board',
+    '/company/attendance/corrections': 'Corrections',
+    '/company/shifts': 'Shifts',
+    '/company/holidays': 'Holidays',
+    '/company/leave/my': 'My Leave',
+    '/company/leave/queue': 'Leave Queue',
+    '/company/biometric': 'Biometric',
+  };
+
   const title = isOrganization
     ? 'Organization'
-    : pathname === '/company/employees'
-      ? 'Employees'
-      : pathname === '/company/sessions'
-        ? 'Sessions & Devices'
-        : isAccess
-          ? 'Access Explorer'
-          : isRoleChangeRequest
-            ? 'Request Role Change'
-            : isAudit
-              ? 'Audit Log'
-            : isBreachQueue
-              ? 'Break Breach Queue'
-            : isPayrollCycle
-              ? 'Payroll Cycle'
-            : isMyPayslips
-              ? 'My Payslips'
-            : isPayrollRuns
-              ? 'Payroll Runs'
-            : pathname === '/company/geofencing'
-              ? 'Geofencing'
-              : 'Dashboard';
-  const content = isOrganization ? (
-    <OrganizationWorkspace pathname={pathname} />
-  ) : isAccess && isSuperAdmin ? (
-    <AccessExplorerPage />
-  ) : isRoleChangeRequest && !isSuperAdmin ? (
-    <RoleChangeRequestPage />
-  ) : isAudit && (isSuperAdmin || canViewAudit) ? (
-    <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />
-  ) : isBreachQueue && isSuperAdmin ? (
-    <BreachQueuePage />
-  ) : isPayrollCycle ? (
-    <PayrollCyclePage />
-  ) : isMyPayslips ? (
-    <MyPayslipsPage />
-  ) : isPayrollRuns && isSuperAdmin ? (
-    <RunsPage />
-  ) : pathname === '/company/sessions' ? (
-    <SessionsPage
-      onBack={() => onNavigate('/company/dashboard')}
-      onSignedOut={onLogout}
-    />
-  ) : !isSuperAdmin ? (
-    <EmployeeBreakView />
-  ) : pathname === '/company/employees' ? (
-    <EmployeesPage />
-  ) : pathname === '/company/geofencing' ? (
-    <GeofencingPage onBack={() => onNavigate('/company/dashboard')} />
-  ) : (
-    <DashboardPage identity={identity} onNavigate={onNavigate} />
-  );
+    : PAGE_TITLES[pathname] ?? 'Dashboard';
+
+  function renderContent(): React.JSX.Element {
+    if (isOrganization) return <OrganizationWorkspace pathname={pathname} />;
+    if (pathname === '/company/access' && isSuperAdmin) return <AccessExplorerPage />;
+    if (pathname === '/company/role-change-request' && !isSuperAdmin) return <RoleChangeRequestPage />;
+    if (pathname === '/company/audit' && (isSuperAdmin || canViewAudit))
+      return <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />;
+    if (pathname === '/company/breaks/queue' && isSuperAdmin) return <BreachQueuePage />;
+    if (pathname === '/company/breaks/policies' && isSuperAdmin) return <BreakPoliciesPage />;
+    if (pathname === '/company/payroll/cycle') return <PayrollCyclePage />;
+    if (pathname === '/company/payroll/my-payslips') return <MyPayslipsPage />;
+    if (pathname === '/company/payroll/runs' && isSuperAdmin) return <RunsPage />;
+    if (pathname === '/company/sessions')
+      return <SessionsPage onBack={() => onNavigate('/company/dashboard')} onSignedOut={onLogout} />;
+    if (pathname === '/company/employees' && isSuperAdmin) return <EmployeesPage />;
+    if (pathname === '/company/geofencing')
+      return <GeofencingPage onBack={() => onNavigate('/company/dashboard')} />;
+    // Attendance
+    if (pathname === '/company/attendance/today') return <TodayPage />;
+    if (pathname === '/company/attendance/my') return <AttendancePage userId={userId} />;
+    if (pathname === '/company/attendance/live' && isSuperAdmin) return <LiveBoardPage />;
+    if (pathname === '/company/attendance/corrections') return <CorrectionsPage />;
+    // Shifts & Leave
+    if (pathname === '/company/shifts' && isSuperAdmin) return <ShiftsPage />;
+    if (pathname === '/company/holidays') return <HolidaysPage />;
+    if (pathname === '/company/leave/my') return <LeavePage userId={userId} />;
+    if (pathname === '/company/leave/queue' && isSuperAdmin) return <LeaveQueuePage />;
+    if (pathname === '/company/biometric' && isSuperAdmin) return <BiometricPage />;
+
+    return <DashboardPage identity={identity!} onNavigate={onNavigate} />;
+  }
+
+  const content = renderContent();
   return (
     <CompanyLayout
       pathname={pathname}

@@ -28,6 +28,7 @@ const blank = {
   designationId: '',
   specialization: '',
   reportsTo: '',
+  joiningDate: '',
 };
 
 export function EmployeesPage(): React.JSX.Element {
@@ -165,6 +166,7 @@ export function EmployeesPage(): React.JSX.Element {
         ...(form.designationId ? { designationId: form.designationId } : {}),
         ...(form.specialization ? { specialization: form.specialization } : {}),
         reportsTo: form.reportsTo || null,
+        ...(form.joiningDate ? { joiningDate: form.joiningDate } : {}),
       });
       setMessage(
         `Employee ${result.employee.fullName} created. Credentials were sent by email.`,
@@ -245,6 +247,12 @@ export function EmployeesPage(): React.JSX.Element {
               value={form.confirmPassword}
               onChange={(value) => setForm({ ...form, confirmPassword: value })}
               required
+            />
+            <Field
+              label="Joining date (optional)"
+              type="date"
+              value={form.joiningDate}
+              onChange={(value) => setForm({ ...form, joiningDate: value })}
             />
             <Select
               label="Department"

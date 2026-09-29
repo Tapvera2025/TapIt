@@ -60,14 +60,29 @@ export const companyNavigation: CompanyNavGroup[] = [
   {
     label: 'Attendance',
     items: [
-      { label: 'Break Queue', path: '/company/breaks/queue', icon: 'clock', requiredAction: 'breaks:review-breach' as Action },
+      { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
+      { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+      { label: 'Workforce Board', path: '/company/attendance/live', icon: 'users', requiredAction: 'attendance:view-live' },
+      { label: 'Corrections', path: '/company/attendance/corrections', icon: 'edit', requiredAction: 'attendance:correct' },
+      { label: 'Break Queue', path: '/company/breaks/queue', icon: 'alert-circle', requiredAction: 'breaks:review-breach' },
+      { label: 'Break Policies', path: '/company/breaks/policies', icon: 'settings', requiredAction: 'breaks:manage-policy' },
+      { label: 'Biometric', path: '/company/biometric', icon: 'cpu', requiredAction: 'biometric:manage' },
+    ],
+  },
+  {
+    label: 'Shifts & Leave',
+    items: [
+      { label: 'My Leave', path: '/company/leave/my', icon: 'sun' },
+      { label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox', requiredAction: 'leave:decide' },
+      { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
+      { label: 'Shifts', path: '/company/shifts', icon: 'layers', requiredAction: 'shifts:manage' },
     ],
   },
   {
     label: 'Payroll',
     items: [
-      { label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text', requiredAction: 'payroll:view' as Action },
-      { label: 'Payroll Runs', path: '/company/payroll/runs', icon: 'dollar-sign', requiredAction: 'payroll:manage' as Action },
+      { label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text', requiredAction: 'payroll:view' },
+      { label: 'Payroll Runs', path: '/company/payroll/runs', icon: 'dollar-sign', requiredAction: 'payroll:manage' },
     ],
   },
 ];
