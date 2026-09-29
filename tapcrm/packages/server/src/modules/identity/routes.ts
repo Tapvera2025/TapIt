@@ -51,8 +51,8 @@ export function registerIdentityPublicRoutes(router: Router): void {
       if (!resolved) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
       const user = await findUserById(resolved.principal.id, resolved.organizationId);
       if (!user) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
-      const organization = await bootstrapDb.readAs<{ id: string; code: string; name: string; status: string }>(resolved.organizationId, sql`
-        SELECT id, code, name, status FROM organization WHERE id = ${resolved.organizationId}
+      const organization = await bootstrapDb.readAs<{ id: string; code: string; name: string; status: string; timezone: string }>(resolved.organizationId, sql`
+        SELECT id, code, name, status, timezone FROM organization WHERE id = ${resolved.organizationId}
       `);
 
       let departmentCode: string | null = null;

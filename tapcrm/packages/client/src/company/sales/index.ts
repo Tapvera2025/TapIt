@@ -6,3 +6,5 @@ export * from './leads/LeadsPage.js';
 export * from './leads/LeadDetailsPage.js';
 export * from './leads/StalledLeadsPage.js';
 export * from './leads/ReengagementSegmentsPage.js';
+export * from './leads/CallbacksPage.js';
+export * from './leads/CallbackDetailPage.js';

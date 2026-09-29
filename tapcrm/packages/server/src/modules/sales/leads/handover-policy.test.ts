@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PolicyEvaluationContext } from '@tapcrm/authz';
-import { handoverPolicy } from './handover-policy.js';
+import { canViewInternalHandoverState, handoverPolicy } from './handover-policy.js';
 
 const baseContext = { organizationId: 'org-a', principal: { id: 'user-a' }, scope: { poolIds: async () => new Set<string>(), teamIds: async () => new Set<string>(), departmentId: async () => null } };
 const context = baseContext as unknown as PolicyEvaluationContext;
@@ -15,5 +15,17 @@ describe('lead handover policy', () => {
   it('keeps initiation with the current originator', async () => {
     expect(await handoverPolicy.check(context, 'handovers:initiate', resource, 'own')).toBe(true);
     expect(await handoverPolicy.check({ ...baseContext, principal: { id: 'user-c' } } as unknown as PolicyEvaluationContext, 'handovers:initiate', resource, 'own')).toBe(false);
+  });
+
+  it('hides finalized handover state from the original owner', async () => {
+    expect(await handoverPolicy.check(context, 'handovers:view', { ...resource, status: 'accepted' }, 'own')).toBe(false);
+    expect(await handoverPolicy.check({ ...baseContext, principal: { id: 'user-b' } } as unknown as PolicyEvaluationContext, 'handovers:view', { ...resource, status: 'accepted' }, 'own')).toBe(true);
+  });
+
+  it('preserves Lead visibility while hiding internal state from the original owner', () => {
+    expect(canViewInternalHandoverState('user-a', false, 'user-a', 'user-b')).toBe(false);
+    expect(canViewInternalHandoverState('user-b', false, 'user-a', 'user-b')).toBe(true);
+    expect(canViewInternalHandoverState('user-a', false, 'user-a', 'user-a')).toBe(true);
+    expect(canViewInternalHandoverState('user-a', false, 'user-a', 'user-a', true)).toBe(false);
   });
 });

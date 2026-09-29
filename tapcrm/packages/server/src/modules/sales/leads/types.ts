@@ -34,6 +34,9 @@ export interface Handover {
   reason: string | null; annotations: Record<string, unknown>; timeToAcceptSeconds: number | null; timeToOutcomeSeconds: number | null;
 }
 export interface HandoverTarget { id: string; fullName: string; positionCode: 'sales-supervisor' | 'sales-team-lead'; teamId: string | null; availability: HandoverAvailability; selectable: boolean; }
-export type CallbackStatus = 'scheduled' | 'completed' | 'missed' | 'cancelled';
-export interface LeadCallback { id: string; organizationId: string; leadId: string; ownerId: string; ownerName: string | null; scheduledAt: Date; reason: string | null; status: CallbackStatus; completedAt: Date | null; missedAt: Date | null; cancelledAt: Date | null; createdBy: string; createdAt: Date; updatedAt: Date; }
+export type CallbackStatus = 'pending' | 'completed' | 'rescheduled' | 'not_reachable' | 'missed' | 'cancelled';
+export type CallbackOutcome = 'connected' | 'follow_up_required' | 'converted' | 'not_interested' | 'not_reachable' | 'other';
+export interface CallbackReminderDelivery { id: string; recipientId: string; channel: 'in-app' | 'push' | 'email' | 'whatsapp'; status: 'scheduled' | 'sent' | 'delivered' | 'failed'; scheduledAt: string; sentAt: string | null; deliveredAt: string | null; failedAt: string | null; detail: string | null; }
+export interface CallbackReminder { id: string; reminderType: 't_minus_60' | 't_minus_15' | 'due'; scheduledAt: string; deliveries: CallbackReminderDelivery[]; }
+export interface LeadCallback { id: string; organizationId: string; leadId: string; leadNumber: string; leadContactName: string; ownerId: string; ownerName: string | null; scheduledAt: Date; reason: string | null; status: CallbackStatus; outcome: CallbackOutcome | null; parentCallbackId: string | null; organizationTimezone: string; reminders: CallbackReminder[]; completedAt: Date | null; missedAt: Date | null; cancelledAt: Date | null; createdBy: string; createdAt: Date; updatedAt: Date; }
 export type HandoverResource = Resource & { organizationId: string; leadId: string; fromUserId: string; toUserId: string; status: string; disposition: string | null; ownerId: string | null; currentHolderId: string | null; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null };

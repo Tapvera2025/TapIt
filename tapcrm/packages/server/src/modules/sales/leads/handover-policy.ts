@@ -2,10 +2,15 @@ import { MATCH_NOTHING, registerResourcePolicy, type PolicyEvaluationContext, ty
 import type { Action, Scope } from '@tapcrm/contracts';
 import type { HandoverResource } from './types.js';
 
+export function canViewInternalHandoverState(principalId: string, isGlobalPrincipal: boolean, ownerId: string | null, currentHolderId: string | null, hasAcceptedHandover = false): boolean {
+  return isGlobalPrincipal || ownerId !== principalId || (!hasAcceptedHandover && currentHolderId === principalId);
+}
+
 export const handoverPolicy: ResourcePolicy<HandoverResource> = {
   resourceType: 'handover', domain: 'business',
   async check(ctx: PolicyEvaluationContext, action: Action, resource: HandoverResource, scope: Scope) {
     if (resource.organizationId !== ctx.organizationId) return false;
+    if (action === 'handovers:view' && resource.status !== 'pending' && resource.fromUserId === ctx.principal.id) return false;
     if (action === 'handovers:receive') return resource.toUserId === ctx.principal.id;
     if (action === 'handovers:record-disposition') return resource.toUserId === ctx.principal.id && resource.status === 'accepted' && resource.disposition === null;
     if (action === 'handovers:initiate') return resource.fromUserId === ctx.principal.id;

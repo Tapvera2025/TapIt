@@ -21,10 +21,13 @@ import {
   TerritoriesPage,
   TerritoryDetailsPage,
   getLeads,
+  getAllCallbacks,
   LeadsPage,
   LeadDetailsPage,
   StalledLeadsPage,
   ReengagementSegmentsPage,
+  CallbacksPage,
+  CallbackDetailPage,
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 
@@ -45,6 +48,7 @@ export function CompanyWorkspace({
   const [employeesAccessChecked, setEmployeesAccessChecked] = useState(false);
   const [canViewTerritories, setCanViewTerritories] = useState(false);
   const [canViewLeads, setCanViewLeads] = useState(false);
+  const [canViewCallbacks, setCanViewCallbacks] = useState(false);
 
   useEffect(() => {
     void getCompanyIdentity()
@@ -56,6 +60,7 @@ export function CompanyWorkspace({
           setEmployeesAccessChecked(true);
           setCanViewTerritories(true);
           setCanViewLeads(true);
+          setCanViewCallbacks(true);
         } else if (nextIdentity.user.accountType === 'employee') {
           // The API is the source of truth for employee-directory access.
           // This probe only controls navigation; EmployeesPage still uses
@@ -73,6 +78,10 @@ export function CompanyWorkspace({
           void getLeads()
             .then(() => setCanViewLeads(true))
             .catch(() => setCanViewLeads(false));
+
+          void getAllCallbacks()
+            .then(() => setCanViewCallbacks(true))
+            .catch(() => setCanViewCallbacks(false));
 
           void getRoleChangeRequestAccess()
             .then(() => setCanRequestRoleChange(true))
@@ -145,6 +154,11 @@ export function CompanyWorkspace({
   const isLeads = pathname === '/company/sales/leads';
   const isStalledLeads = pathname === '/company/sales/leads/stalled';
   const isReengagement = pathname === '/company/sales/leads/re-engagement';
+  const isCallbacks = pathname === '/company/sales/callbacks';
+  const isCallbackCalendar = pathname === '/company/sales/callbacks/calendar';
+  const isCallbackBoard = pathname === '/company/sales/callbacks/board';
+  const isCallbackSchedule = pathname === '/company/sales/callbacks/schedule';
+  const callbackDetailMatch = isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule ? null : pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
 
   const territoryDetailMatch = pathname.match(/^\/company\/sales\/territories\/([^/]+)$/);
 
@@ -173,6 +187,8 @@ export function CompanyWorkspace({
                     ? 'Tasks'
                     : isTerritories || territoryDetailMatch
                       ? 'Territories'
+                      : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
+                        ? 'Callbacks'
                       : isLeads || isStalledLeads || isReengagement || leadDetailMatch
                         ? 'Leads'
                         : 'Dashboard';
@@ -219,12 +235,20 @@ export function CompanyWorkspace({
       canManage={isSuperAdmin}
       onBack={() => onNavigate('/company/sales/territories')}
     />
+  ) : (isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch) &&
+    (isSuperAdmin || canViewCallbacks) ? (
+    callbackDetailMatch ? (
+      <CallbackDetailPage id={callbackDetailMatch[1]!} currentUserId={identity.user.id} onBack={() => onNavigate('/company/sales/callbacks')} onNavigate={onNavigate} />
+    ) : (
+      <CallbacksPage view={isCallbackCalendar ? 'calendar' : isCallbackBoard ? 'board' : isCallbackSchedule ? 'schedule' : 'list'} organizationTimezone={identity.organization?.timezone ?? 'Asia/Kolkata'} onNavigate={onNavigate} />
+    )
   ) : (isLeads || isStalledLeads || isReengagement || leadDetailMatch) &&
     (isSuperAdmin || canViewLeads) ? (
     leadDetailMatch ? (
       <LeadDetailsPage
         id={leadDetailMatch[1]!}
         currentUserId={identity.user.id}
+        organizationTimezone={identity.organization?.timezone ?? 'Asia/Kolkata'}
         onBack={() => onNavigate('/company/sales/leads')}
       />
     ) : isStalledLeads ? (
