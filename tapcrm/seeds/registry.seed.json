@@ -2605,6 +2605,12 @@
     },
     {
       "method": "POST",
+      "path": "/api/users/:id/reset-password",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
       "path": "/api/users/import",
       "action": "users:manage",
       "resourceParam": null

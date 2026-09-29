@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createEmployee } from '../api/employeesApi.js';
+import { createEmployee, resetEmployeePassword } from '../api/employeesApi.js';
 import {
   getCompanyDepartments,
   getCompanyDesignations,
@@ -50,6 +50,12 @@ export function EmployeesPage(): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [resetTarget, setResetTarget] = useState<{ id: string; fullName: string } | null>(null);
+  const [resetPw, setResetPw] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetDone, setResetDone] = useState(false);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -432,6 +438,19 @@ export function EmployeesPage(): React.JSX.Element {
                       Reporting Manager:
                     </span>{' '}
                     {employee.reportsToName ?? '—'}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetTarget({ id: employee.id, fullName: employee.fullName });
+                        setResetPw('');
+                        setResetConfirm('');
+                        setResetError('');
+                        setResetDone(false);
+                      }}
+                      className="ml-4 rounded border border-app-border px-2 py-0.5 text-xs text-app-muted hover:border-app-accent hover:text-app-foreground"
+                    >
+                      Reset password
+                    </button>
                   </div>
                 </div>
               ))}
@@ -439,6 +458,96 @@ export function EmployeesPage(): React.JSX.Element {
           </section>
         )}
       </div>
+
+      {resetTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reset employee password"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-app-border bg-app-surface p-6 shadow-xl">
+            <h2 className="font-display text-lg font-bold">Reset password</h2>
+            <p className="mt-1 text-sm text-app-muted">
+              Set a new temporary password for{' '}
+              <span className="font-semibold text-app-foreground">{resetTarget.fullName}</span>.
+              They will be required to change it on next login.
+            </p>
+
+            {resetDone ? (
+              <div className="mt-4 rounded-lg bg-emerald-500/12 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+                Password reset. The employee must change it on their next login.
+              </div>
+            ) : (
+              <form
+                className="mt-4 space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (resetPw.length < 12) { setResetError('Password must be at least 12 characters.'); return; }
+                  if (resetPw !== resetConfirm) { setResetError('Passwords do not match.'); return; }
+                  setResetBusy(true);
+                  setResetError('');
+                  resetEmployeePassword(resetTarget.id, resetPw)
+                    .then(() => { setResetDone(true); })
+                    .catch((err: unknown) => { setResetError(err instanceof Error ? err.message : 'Failed to reset password.'); })
+                    .finally(() => { setResetBusy(false); });
+                }}
+              >
+                <label className="block text-xs font-semibold text-app-muted">
+                  <span className="mb-1.5 block">New password (min 12 characters)</span>
+                  <input
+                    type="password"
+                    value={resetPw}
+                    onChange={(e) => setResetPw(e.target.value)}
+                    required
+                    autoFocus
+                    className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-app-muted">
+                  <span className="mb-1.5 block">Confirm password</span>
+                  <input
+                    type="password"
+                    value={resetConfirm}
+                    onChange={(e) => setResetConfirm(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
+                  />
+                </label>
+                {resetError && (
+                  <p className="text-xs text-app-danger">{resetError}</p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={resetBusy}
+                    className="rounded-lg bg-app-accent px-4 py-2 text-sm font-bold text-app-on-accent disabled:opacity-50"
+                  >
+                    {resetBusy ? 'Resetting…' : 'Reset password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResetTarget(null)}
+                    className="rounded-lg border border-app-border px-4 py-2 text-sm hover:border-app-accent"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {resetDone && (
+              <button
+                type="button"
+                onClick={() => setResetTarget(null)}
+                className="mt-4 rounded-lg border border-app-border px-4 py-2 text-sm hover:border-app-accent"
+              >
+                Close
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

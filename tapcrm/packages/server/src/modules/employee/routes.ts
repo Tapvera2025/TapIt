@@ -1,8 +1,8 @@
 import { route } from '../../platform/http/route.js';
-import { provisionEmployee } from './service.js';
-import { createEmployeeSchema } from './validators.js';
-import { getOrganizationChart } from '../organization/chart/service.js';
-import { listReportingManagerOptions } from '../organization/reporting/service.js';
+import { userResource } from '../identity/facade.js';
+import { provisionEmployee, updateEmployee, adminResetPassword } from './service.js';
+import { createEmployeeSchema, updateEmployeeSchema, resetPasswordSchema } from './validators.js';
+import { getOrganizationChart, listReportingManagerOptions } from '../organization/facade.js';
 import { z } from 'zod';
 
 export function registerEmployeeRoutes(): void {
@@ -37,5 +37,27 @@ export function registerEmployeeRoutes(): void {
     status: 201,
     handler: async ({ ctx, body }) =>
       provisionEmployee(ctx, createEmployeeSchema.parse(body)),
+  });
+  route({
+    method: 'PATCH',
+    path: '/api/users/:id',
+    action: 'users:manage',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    handler: async ({ ctx, params, body }) =>
+      updateEmployee(ctx, params['id']!, updateEmployeeSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/users/:id/reset-password',
+    action: 'users:manage',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    handler: async ({ ctx, params, body }) => {
+      const { password } = resetPasswordSchema.parse(body);
+      return adminResetPassword(ctx, params['id']!, password);
+    },
   });
 }

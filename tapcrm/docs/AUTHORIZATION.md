@@ -268,6 +268,7 @@ changes who can do what.
 | POST | /api/users/:id/manager-reassignment/preview | `users:manage` | id |
 | POST | /api/users/:id/manager-reassignment/confirm | `users:manage` | id |
 | POST | /api/users/:id/status | `users:manage` | id |
+| POST | /api/users/:id/reset-password | `users:manage` | id |
 | POST | /api/users/import | `users:manage` | — |
 | GET | /api/onboarding | `onboarding:manage` | — |
 | POST | /api/onboarding | `onboarding:manage` | — |

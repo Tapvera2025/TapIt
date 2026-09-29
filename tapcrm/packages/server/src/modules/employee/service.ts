@@ -1,9 +1,15 @@
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
-import { IdentityConflictError, IdentityValidationError } from '../identity/errors.js';
-import { hashIdentityPassword } from '../identity/password/service.js';
-import { sendEmployeeCredentials } from '../identity/notifications/invitation-email.js';
-import { validateManagerAssignment } from '../organization/reporting/service.js';
+import { sql } from '../../platform/dal/sql.js';
+import {
+  IdentityConflictError,
+  IdentityValidationError,
+  hashIdentityPassword,
+  sendEmployeeCredentials,
+} from '../identity/facade.js';
+import { validateManagerAssignment } from '../organization/facade.js';
+import { changedDays } from './employment.js';
+import { recordEmploymentChanged } from './events.js';
 import {
   allocateEmployeeId,
   createEmployee,
@@ -14,8 +20,10 @@ import {
   findDesignation,
   findPosition,
   findTeam,
+  lockEmployment,
+  setEmployment,
 } from './repository.js';
-import type { CreateEmployeeInput } from './validators.js';
+import type { CreateEmployeeInput, UpdateEmployeeInput } from './validators.js';
 
 export async function provisionEmployee(ctx: RequestContext, input: CreateEmployeeInput) {
   const email = input.email.trim().toLowerCase();
@@ -124,6 +132,7 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
       designationId: input.designationId ?? null,
       specialization: input.specialization?.trim() || null,
       reportsTo: input.reportsTo ?? null,
+      joinedOn: input.joiningDate ?? null,
     });
     await enqueueEmployeeAudit(tx, {
       organizationId: ctx.organizationId,
@@ -155,4 +164,102 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
     employee: result,
     credentials: { delivery: 'email', status: 'sent' as const },
   };
+}
+
+/**
+ * PATCH /api/users/:id — for now, the employment window: the joining and the
+ * leaving date, both inclusive. Days already recorded are re-judged by
+ * attendance after commit (`employee.employment-changed`); nothing is
+ * deleted, and a day that falls outside the new window is marked
+ * `not-employed` rather than removed (§8.6).
+ */
+export async function updateEmployee(
+  ctx: RequestContext,
+  userId: string,
+  input: UpdateEmployeeInput,
+) {
+  return db.transaction(ctx, async (tx) => {
+    const current = await lockEmployment(tx, userId);
+    if (current === null || current.accountType !== 'employee') {
+      throw new IdentityValidationError(
+        'IDENTITY_NOT_AN_EMPLOYEE',
+        'Only an employee has joining and leaving dates',
+      );
+    }
+    const before = { joinedOn: current.joinedOn, leftOn: current.leftOn };
+    const after = {
+      joinedOn: input.joiningDate === undefined ? current.joinedOn : input.joiningDate,
+      leftOn: input.leavingDate === undefined ? current.leftOn : input.leavingDate,
+    };
+    if (
+      after.joinedOn !== null &&
+      after.leftOn !== null &&
+      after.leftOn < after.joinedOn
+    ) {
+      throw new IdentityValidationError(
+        'IDENTITY_EMPLOYMENT_DATES_INVALID',
+        'The leaving date cannot come before the joining date',
+      );
+    }
+    const changed = changedDays(before, after);
+    if (changed !== null) {
+      await setEmployment(tx, userId, after);
+      await enqueueEmployeeAudit(tx, {
+        organizationId: ctx.organizationId,
+        actorId: ctx.principal.id,
+        actorType: ctx.principal.accountType,
+        targetId: userId,
+        requestId: ctx.requestId,
+        sourceIp: ctx.sourceIp,
+        action: 'employee.employment_dates_changed',
+        before: { joiningDate: before.joinedOn, leavingDate: before.leftOn },
+        after: { joiningDate: after.joinedOn, leavingDate: after.leftOn },
+      });
+      await recordEmploymentChanged(tx, ctx.organizationId, { userId, ...changed });
+    }
+    return { id: userId, joiningDate: after.joinedOn, leavingDate: after.leftOn };
+  });
+}
+
+export async function adminResetPassword(
+  ctx: RequestContext,
+  userId: string,
+  password: string,
+): Promise<{ ok: true }> {
+  const passwordHash = await hashIdentityPassword(password);
+  return db.transaction(ctx, async (tx) => {
+    const user = await tx.maybeOne<{ id: string }>(sql`
+      SELECT id FROM app_user
+      WHERE id = ${userId}::uuid AND organization_id = ${ctx.organizationId}
+        AND account_type = 'employee' AND status = 'active'
+    `);
+    if (!user) {
+      throw new IdentityValidationError('IDENTITY_NOT_FOUND', 'Employee not found or inactive');
+    }
+    await tx.query(sql`
+      UPDATE app_user
+      SET password_hash = ${passwordHash},
+          must_change_password = true,
+          session_version = session_version + 1
+      WHERE id = ${userId}::uuid AND organization_id = ${ctx.organizationId}
+    `);
+    await tx.query(sql`
+      UPDATE session SET revoked_at = now()
+      WHERE organization_id = ${ctx.organizationId}
+        AND user_id = ${userId}::uuid
+        AND revoked_at IS NULL
+    `);
+    await enqueueEmployeeAudit(tx, {
+      organizationId: ctx.organizationId,
+      actorId: ctx.principal.id,
+      actorType: ctx.principal.accountType,
+      targetId: userId,
+      requestId: ctx.requestId,
+      sourceIp: ctx.sourceIp,
+      action: 'employee.password_reset_by_admin',
+      before: {},
+      after: { mustChangePassword: true },
+    });
+    return { ok: true as const };
+  });
 }
