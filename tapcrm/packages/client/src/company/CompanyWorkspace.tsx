@@ -16,7 +16,17 @@ import { getRoleChangeRequestAccess } from '../access-management/api/accessApi.j
 import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
 import { TasksPage } from './tasks/index.js';
-import { getTerritories, TerritoriesPage, TerritoryDetailsPage, getLeads, LeadsPage, LeadDetailsPage, StalledLeadsPage, ReengagementSegmentsPage } from './sales/index.js';
+import {
+  getTerritories,
+  TerritoriesPage,
+  TerritoryDetailsPage,
+  getLeads,
+  LeadsPage,
+  LeadDetailsPage,
+  StalledLeadsPage,
+  ReengagementSegmentsPage,
+} from './sales/index.js';
+import { RecruitmentWorkspace } from './recruitment/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -35,28 +45,39 @@ export function CompanyWorkspace({
   const [employeesAccessChecked, setEmployeesAccessChecked] = useState(false);
   const [canViewTerritories, setCanViewTerritories] = useState(false);
   const [canViewLeads, setCanViewLeads] = useState(false);
+
   useEffect(() => {
     void getCompanyIdentity()
       .then((nextIdentity) => {
         setIdentity(nextIdentity);
+
         if (nextIdentity.user.accountType === 'super-admin') {
           setCanViewEmployees(true);
           setEmployeesAccessChecked(true);
           setCanViewTerritories(true);
           setCanViewLeads(true);
         } else if (nextIdentity.user.accountType === 'employee') {
-          // The API is the source of truth for employee-directory access. This
-          // probe only controls navigation; EmployeesPage still uses the same
-          // endpoints and the server remains authoritative for every action.
+          // The API is the source of truth for employee-directory access.
+          // This probe only controls navigation; EmployeesPage still uses
+          // the same endpoints and the server remains authoritative for
+          // every action.
           void getCompanyEmployees()
             .then(() => setCanViewEmployees(true))
             .catch(() => setCanViewEmployees(false))
             .finally(() => setEmployeesAccessChecked(true));
-          void getTerritories().then(() => setCanViewTerritories(true)).catch(() => setCanViewTerritories(false));
-          void getLeads().then(() => setCanViewLeads(true)).catch(() => setCanViewLeads(false));
+
+          void getTerritories()
+            .then(() => setCanViewTerritories(true))
+            .catch(() => setCanViewTerritories(false));
+
+          void getLeads()
+            .then(() => setCanViewLeads(true))
+            .catch(() => setCanViewLeads(false));
+
           void getRoleChangeRequestAccess()
             .then(() => setCanRequestRoleChange(true))
             .catch(() => setCanRequestRoleChange(false));
+
           void getAuditEntries({ limit: 1 })
             .then(() => setCanViewAudit(true))
             .catch(() => setCanViewAudit(false));
@@ -68,11 +89,13 @@ export function CompanyWorkspace({
         ),
       );
   }, []);
-  if (error)
+
+  if (error) {
     return (
       <div className="grid min-h-screen place-items-center bg-app-background p-6 text-center text-app-foreground">
         <div>
           <p className="text-app-danger">{error}</p>
+
           <button
             type="button"
             onClick={onLogout}
@@ -83,50 +106,81 @@ export function CompanyWorkspace({
         </div>
       </div>
     );
-  if (!identity)
+  }
+
+  if (!identity) {
     return (
       <div className="grid min-h-screen place-items-center bg-app-background text-sm text-app-muted">
         Loading company workspace...
       </div>
     );
+  }
+
   const isSuperAdmin = identity.user.accountType === 'super-admin';
+
+  const isHr =
+    isSuperAdmin ||
+    (identity.user.accountType === 'employee' &&
+      (identity.user.departmentCode?.toLowerCase().includes('hr') ||
+        identity.user.departmentName?.toLowerCase().includes('human resources') ||
+        identity.user.departmentName?.toLowerCase().includes('people') ||
+        identity.user.positionCode?.toLowerCase().startsWith('hr')));
+
   const isOrganization =
     isSuperAdmin &&
     (pathname === '/company/organization' ||
       pathname.startsWith('/company/organization/'));
+
+  const isRecruitment =
+    (pathname === '/company/recruitment' ||
+      pathname.startsWith('/company/recruitment/')) &&
+    isHr;
+
   const isAccess = pathname === '/company/access';
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
+
   const isTerritories = pathname === '/company/sales/territories';
   const isLeads = pathname === '/company/sales/leads';
   const isStalledLeads = pathname === '/company/sales/leads/stalled';
   const isReengagement = pathname === '/company/sales/leads/re-engagement';
+
   const territoryDetailMatch = pathname.match(/^\/company\/sales\/territories\/([^/]+)$/);
-  const leadDetailMatch = isStalledLeads || isReengagement ? null : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
+
+  const leadDetailMatch =
+    isStalledLeads || isReengagement
+      ? null
+      : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
+
   const title = isOrganization
     ? 'Organization'
-    : isEmployees
-      ? 'Employees'
-      : pathname === '/company/sessions'
-        ? 'Sessions & Devices'
-        : isAccess
-          ? 'Access Explorer'
-          : isRoleChangeRequest
-            ? 'Request Role Change'
-            : isAudit
-              ? 'Audit Log'
-            : pathname === '/company/geofencing'
-              ? 'Geofencing'
-              : pathname === '/company/tasks'
-                ? 'Tasks'
-                : isTerritories
-                  ? 'Territories'
-                : isLeads || isStalledLeads || isReengagement || leadDetailMatch
-                  ? 'Leads'
-                : 'Dashboard';
+    : isRecruitment
+      ? 'Recruitment'
+      : isEmployees
+        ? 'Employees'
+        : pathname === '/company/sessions'
+          ? 'Sessions & Devices'
+          : isAccess
+            ? 'Access Explorer'
+            : isRoleChangeRequest
+              ? 'Request Role Change'
+              : isAudit
+                ? 'Audit Log'
+                : pathname === '/company/geofencing'
+                  ? 'Geofencing'
+                  : pathname === '/company/tasks'
+                    ? 'Tasks'
+                    : isTerritories || territoryDetailMatch
+                      ? 'Territories'
+                      : isLeads || isStalledLeads || isReengagement || leadDetailMatch
+                        ? 'Leads'
+                        : 'Dashboard';
+
   const content = isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
+  ) : isRecruitment ? (
+    <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />
   ) : isAccess && isSuperAdmin ? (
     <AccessExplorerPage />
   ) : isRoleChangeRequest && !isSuperAdmin ? (
@@ -138,22 +192,58 @@ export function CompanyWorkspace({
       onBack={() => onNavigate('/company/dashboard')}
       onSignedOut={onLogout}
     />
-  ) : isEmployees && (isSuperAdmin || (employeesAccessChecked && canViewEmployees)) ? (
-    <EmployeesPage />
+  ) : isEmployees ? (
+    isSuperAdmin || isHr || (employeesAccessChecked && canViewEmployees) ? (
+      <EmployeesPage />
+    ) : (
+      <div className="grid min-h-[60vh] place-items-center p-6 text-center">
+        <div>
+          <h1 className="font-display text-2xl font-bold">Access Restricted</h1>
+
+          <p className="mt-2 text-sm text-app-muted">
+            Employee directory is restricted to authorized personnel.
+          </p>
+        </div>
+      </div>
+    )
   ) : pathname === '/company/tasks' ? (
     <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
   ) : isTerritories && (isSuperAdmin || canViewTerritories) ? (
-    <TerritoriesPage canManage={isSuperAdmin || canViewTerritories} onNavigate={onNavigate} />
+    <TerritoriesPage
+      canManage={isSuperAdmin || canViewTerritories}
+      onNavigate={onNavigate}
+    />
   ) : territoryDetailMatch && (isSuperAdmin || canViewTerritories) ? (
-    <TerritoryDetailsPage id={territoryDetailMatch[1]!} canManage={isSuperAdmin} onBack={() => onNavigate('/company/sales/territories')} />
-  ) : (isLeads || isStalledLeads || isReengagement || leadDetailMatch) && (isSuperAdmin || canViewLeads) ? (
-    leadDetailMatch ? <LeadDetailsPage id={leadDetailMatch[1]!} currentUserId={identity.user.id} onBack={() => onNavigate('/company/sales/leads')} /> : isStalledLeads ? <StalledLeadsPage onBack={() => onNavigate('/company/sales/leads')} onNavigate={onNavigate} /> : isReengagement ? <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} /> : <LeadsPage onNavigate={onNavigate} />
+    <TerritoryDetailsPage
+      id={territoryDetailMatch[1]!}
+      canManage={isSuperAdmin}
+      onBack={() => onNavigate('/company/sales/territories')}
+    />
+  ) : (isLeads || isStalledLeads || isReengagement || leadDetailMatch) &&
+    (isSuperAdmin || canViewLeads) ? (
+    leadDetailMatch ? (
+      <LeadDetailsPage
+        id={leadDetailMatch[1]!}
+        currentUserId={identity.user.id}
+        onBack={() => onNavigate('/company/sales/leads')}
+      />
+    ) : isStalledLeads ? (
+      <StalledLeadsPage
+        onBack={() => onNavigate('/company/sales/leads')}
+        onNavigate={onNavigate}
+      />
+    ) : isReengagement ? (
+      <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />
+    ) : (
+      <LeadsPage onNavigate={onNavigate} />
+    )
   ) : !isSuperAdmin ? (
     <div className="grid min-h-[60vh] place-items-center p-6 text-center">
       <div>
         <h1 className="font-display text-2xl font-bold">
           Employee workspace is coming soon
         </h1>
+
         <p className="mt-2 text-sm text-app-muted">
           Your account can still review its active Sessions &amp; Devices.
         </p>
@@ -164,6 +254,7 @@ export function CompanyWorkspace({
   ) : (
     <DashboardPage identity={identity} onNavigate={onNavigate} />
   );
+
   return (
     <CompanyLayout
       pathname={pathname}

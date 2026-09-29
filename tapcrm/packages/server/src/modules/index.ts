@@ -18,6 +18,8 @@ import { registerHandoverPolicies } from './sales/leads/handover-policy.js';
 import { registerHandoverRoutes } from './sales/leads/handover-routes.js';
 import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
 import { registerCallbackRoutes } from './sales/leads/callback-routes.js';
+import { registerRecruitmentPolicies } from './recruitment/policy.js';
+import { registerRecruitmentRoutes } from './recruitment/routes.js';
 
 /**
  * The module registry.
@@ -40,6 +42,7 @@ export function registerAllPolicies(): void {
   registerLeadPolicies();
   registerHandoverPolicies();
   registerCallbackPolicies();
+  registerRecruitmentPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -54,4 +57,5 @@ export function registerAllRoutes(): void {
   registerLeadRoutes();
   registerHandoverRoutes();
   registerCallbackRoutes();
+  registerRecruitmentRoutes();
 }

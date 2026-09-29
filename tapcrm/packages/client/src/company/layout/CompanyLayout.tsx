@@ -18,7 +18,14 @@ export function CompanyLayout({
   children,
 }: {
   pathname: string;
-  identity: { fullName: string; email: string };
+  identity: {
+    fullName: string;
+    email: string;
+    accountType?: string;
+    departmentCode?: string | null;
+    departmentName?: string | null;
+    positionCode?: string | null;
+  };
   organizationName: string | null;
   accountType: string;
   canRequestRoleChange: boolean;

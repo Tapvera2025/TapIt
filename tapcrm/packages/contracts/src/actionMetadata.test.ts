@@ -12,7 +12,7 @@ import {
 
 describe('canonical action presentation metadata', () => {
   it('provides catalogue presentation data for every registered action', () => {
-    expect(ACTIONS).toHaveLength(148);
+    expect(ACTIONS).toHaveLength(161);
     for (const action of ACTIONS) {
       const definition = REGISTRY[action];
       expect(actionDescription(definition)).not.toBe('');

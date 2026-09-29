@@ -13,6 +13,7 @@ import { assertManifest, buildRouter, checkManifest } from './platform/http/rout
 import { registerAllPolicies, registerAllRoutes } from './modules/index.js';
 import { buildPlatformRouter } from './platform/routes.js';
 import { registerIdentityPublicRoutes } from './modules/identity/index.js';
+import { buildPublicRecruitmentRouter } from './modules/recruitment/index.js';
 import { registerNotificationRoutes } from './modules/notifications/routes.js';
 import { Router } from 'express';
 
@@ -92,7 +93,7 @@ export function buildApp(options: BuildOptions = {}): Express {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '15mb' }));
 
   app.use(requestId);
 
@@ -111,6 +112,7 @@ export function buildApp(options: BuildOptions = {}): Express {
   app.use(`${config.API_BASE_PATH}/platform`, buildPlatformRouter());
 
   app.use(config.API_BASE_PATH, publicIdentity);
+  app.use(`${config.API_BASE_PATH}/public/recruitment`, buildPublicRecruitmentRouter());
 
   // Liveness and readiness are public and carry no tenant context.
   app.get('/health', (_req, res) => {

@@ -23,17 +23,48 @@ interface TaskDbRow {
   dueDate: Date | null;
   createdBy: string;
   createdByName?: string | null;
+  creatorTeamId?: string | null;
+  creatorDepartmentId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   assignees: Array<{
     id: string;
     email?: string;
     fullName: string;
+    teamId?: string | null;
+    departmentId?: string | null;
     assignedAt: string | Date;
   }> | null;
 }
 
 function mapTaskRow(row: TaskDbRow): Task {
+  const assignees = (row.assignees ?? []).map((a) => ({
+    id: a.id,
+    email: a.email,
+    fullName: a.fullName,
+    teamId: a.teamId ?? null,
+    departmentId: a.departmentId ?? null,
+    assignedAt: new Date(a.assignedAt),
+  }));
+  const assigneeTeamIds = assignees
+    .map((a) => a.teamId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const allTeamIds = Array.from(
+    new Set([
+      ...(row.creatorTeamId ? [row.creatorTeamId] : []),
+      ...assigneeTeamIds,
+    ]),
+  );
+  const assigneeDepartmentIds = assignees
+    .map((a) => a.departmentId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const allDepartmentIds = Array.from(
+    new Set([
+      ...(row.creatorDepartmentId ? [row.creatorDepartmentId] : []),
+      ...assigneeDepartmentIds,
+    ]),
+  );
+
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -45,14 +76,17 @@ function mapTaskRow(row: TaskDbRow): Task {
     dueDate: row.dueDate ? new Date(row.dueDate) : null,
     createdBy: row.createdBy,
     createdByName: row.createdByName ?? null,
+    creatorTeamId: row.creatorTeamId ?? null,
+    creatorDepartmentId: row.creatorDepartmentId ?? null,
+    departmentId: row.creatorDepartmentId ?? assigneeDepartmentIds[0] ?? null,
+    departmentIds: allDepartmentIds,
+    teamId: row.creatorTeamId ?? assigneeTeamIds[0] ?? null,
+    teamIds: allTeamIds,
+    poolId: row.creatorTeamId ?? assigneeTeamIds[0] ?? null,
+    poolIds: allTeamIds,
     createdAt: new Date(row.createdAt),
     updatedAt: new Date(row.updatedAt),
-    assignees: (row.assignees ?? []).map((a) => ({
-      id: a.id,
-      email: a.email,
-      fullName: a.fullName,
-      assignedAt: new Date(a.assignedAt),
-    })),
+    assignees,
   };
 }
 
@@ -70,6 +104,97 @@ export async function validateAssigneeIds(
   `);
   return rows.map((r) => r.id);
 }
+
+export async function validateAssigneesInTeamScope(
+  tx: Tx,
+  organizationId: string,
+  assigneeIds: readonly string[],
+  allowedTeamIds: ReadonlySet<string>,
+  principalId: string,
+): Promise<string[]> {
+  if (assigneeIds.length === 0) return [];
+  const teamIdArray = [...allowedTeamIds];
+  if (teamIdArray.length === 0) {
+    return assigneeIds.filter((id) => id === principalId);
+  }
+  const rows = await tx.query<{ id: string }>(sql`
+    SELECT id FROM app_user
+    WHERE organization_id = ${organizationId}
+      AND id = ANY(${assigneeIds}::uuid[])
+      AND status = 'active'
+      AND (team_id = ANY(${teamIdArray}::uuid[]) OR id = ${principalId})
+  `);
+  return rows.map((r) => r.id);
+}
+
+export async function validateAssigneesInDepartmentScope(
+  tx: Tx,
+  organizationId: string,
+  assigneeIds: readonly string[],
+  departmentId: string | null,
+  principalId: string,
+): Promise<string[]> {
+  if (assigneeIds.length === 0) return [];
+  if (departmentId === null) {
+    return assigneeIds.filter((id) => id === principalId);
+  }
+  const rows = await tx.query<{ id: string }>(sql`
+    SELECT id FROM app_user
+    WHERE organization_id = ${organizationId}
+      AND id = ANY(${assigneeIds}::uuid[])
+      AND status = 'active'
+      AND (department_id = ${departmentId} OR id = ${principalId})
+  `);
+  return rows.map((r) => r.id);
+}
+
+export async function validateAssigneesInPoolScope(
+  tx: Tx,
+  organizationId: string,
+  assigneeIds: readonly string[],
+  allowedPoolMemberIds: ReadonlySet<string>,
+  allowedPoolIds: ReadonlySet<string>,
+  principalId: string,
+): Promise<string[]> {
+  if (assigneeIds.length === 0) return [];
+  const memberArray = [...allowedPoolMemberIds];
+  const poolArray = [...allowedPoolIds];
+  if (memberArray.length === 0 && poolArray.length === 0) {
+    return assigneeIds.filter((id) => id === principalId);
+  }
+
+  if (memberArray.length > 0 && poolArray.length > 0) {
+    const rows = await tx.query<{ id: string }>(sql`
+      SELECT id FROM app_user
+      WHERE organization_id = ${organizationId}
+        AND id = ANY(${assigneeIds}::uuid[])
+        AND status = 'active'
+        AND (id = ANY(${memberArray}::uuid[]) OR team_id = ANY(${poolArray}::uuid[]) OR id = ${principalId})
+    `);
+    return rows.map((r) => r.id);
+  }
+
+  if (memberArray.length > 0) {
+    const rows = await tx.query<{ id: string }>(sql`
+      SELECT id FROM app_user
+      WHERE organization_id = ${organizationId}
+        AND id = ANY(${assigneeIds}::uuid[])
+        AND status = 'active'
+        AND (id = ANY(${memberArray}::uuid[]) OR id = ${principalId})
+    `);
+    return rows.map((r) => r.id);
+  }
+
+  const rows = await tx.query<{ id: string }>(sql`
+    SELECT id FROM app_user
+    WHERE organization_id = ${organizationId}
+      AND id = ANY(${assigneeIds}::uuid[])
+      AND status = 'active'
+      AND (team_id = ANY(${poolArray}::uuid[]) OR id = ${principalId})
+  `);
+  return rows.map((r) => r.id);
+}
+
 
 export async function insertTaskRow(
   tx: Tx,
@@ -140,6 +265,8 @@ const TASK_SELECT = sql`
     t.due_date,
     t.created_by,
     creator.full_name AS "createdByName",
+    creator.team_id AS "creatorTeamId",
+    creator.department_id AS "creatorDepartmentId",
     t.created_at,
     t.updated_at,
     COALESCE(
@@ -148,6 +275,8 @@ const TASK_SELECT = sql`
           'id', u.id,
           'email', u.email,
           'fullName', u.full_name,
+          'teamId', u.team_id,
+          'departmentId', u.department_id,
           'assignedAt', ta.assigned_at
         ) ORDER BY ta.assigned_at ASC)
         FROM task_assignee ta
