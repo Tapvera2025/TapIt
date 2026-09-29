@@ -22,12 +22,18 @@ function SlipDetailPanel({ slip, onClose }: { slip: SlipSummary; onClose: () => 
   useEffect(() => {
     setLoading(true);
     setDetail(null);
-    getSlipDetail(slip.id)
-      .then((d) => { setDetail(d); setLoading(false); })
-      .catch((err: unknown) => {
+    setError(null);
+    const run = async () => {
+      try {
+        const d = await getSlipDetail(slip.id);
+        setDetail(d);
+      } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load slip detail.');
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+    void run();
   }, [slip.id]);
 
   return (
@@ -82,12 +88,17 @@ export function MyPayslipsPage(): React.JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    listMySlips()
-      .then(({ slips: data }) => { setSlips(data); setLoading(false); })
-      .catch((err: unknown) => {
+    const run = async () => {
+      try {
+        const { slips: data } = await listMySlips();
+        setSlips(data);
+      } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load payslips.');
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+    void run();
   }, []);
 
   const selected = slips.find((s) => s.id === selectedId) ?? null;

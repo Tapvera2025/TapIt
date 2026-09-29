@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getCompanyIdentity, type CompanyIdentity } from './api/companyApi.js';
+import { setIdentitySessionPrincipal } from '../identity/api/authApi.js';
 import { CompanyLayout } from './layout/CompanyLayout.js';
 import { DashboardPage } from './dashboard/DashboardPage.js';
 import { EmployeesPage } from './employees/EmployeesPage.js';
@@ -24,6 +25,7 @@ import { ShiftsPage } from './shifts/ShiftsPage.js';
 import { HolidaysPage } from './holidays/HolidaysPage.js';
 import { LeavePage } from './leave/LeavePage.js';
 import { LeaveQueuePage } from './leave/LeaveQueuePage.js';
+import { LeaveTypesPage } from './leave/LeaveTypesPage.js';
 import { BiometricPage } from './biometric/BiometricPage.js';
 
 export function CompanyWorkspace({
@@ -40,8 +42,13 @@ export function CompanyWorkspace({
   const [canRequestRoleChange, setCanRequestRoleChange] = useState(false);
   const [canViewAudit, setCanViewAudit] = useState(false);
   useEffect(() => {
+    let cancelled = false;
     void getCompanyIdentity()
       .then((nextIdentity) => {
+        if (cancelled) return;
+        if (nextIdentity.organization) {
+          setIdentitySessionPrincipal(nextIdentity.user.id, nextIdentity.organization.id);
+        }
         setIdentity(nextIdentity);
         if (nextIdentity.user.accountType === 'employee') {
           void getRoleChangeRequestAccess()
@@ -52,11 +59,11 @@ export function CompanyWorkspace({
             .catch(() => setCanViewAudit(false));
         }
       })
-      .catch((cause) =>
-        setError(
-          cause instanceof Error ? cause.message : 'Unable to load company workspace.',
-        ),
-      );
+      .catch((cause) => {
+        if (cancelled) return;
+        setError(cause instanceof Error ? cause.message : 'Unable to load company workspace.');
+      });
+    return () => { cancelled = true; };
   }, []);
   if (error)
     return (
@@ -80,7 +87,21 @@ export function CompanyWorkspace({
       </div>
     );
   const isSuperAdmin = identity.user.accountType === 'super-admin';
+  const canManageLeaveTypes = identity.capabilities.some(
+    ({ action }) => action === 'leave:manage-types',
+  );
+  const canAcknowledgeLeave = identity.capabilities.some(
+    ({ action }) => action === 'leave:acknowledge',
+  );
+  const canDecideLeave = identity.capabilities.some(
+    ({ action }) => action === 'leave:decide',
+  );
+  const canUseLeaveQueue = canAcknowledgeLeave || canDecideLeave;
+  const canViewScopedLeaveCoverage = identity.capabilities.some(
+    ({ action, scope }) => action === 'leave:view' && scope !== 'own',
+  );
   const userId = identity.user.id;
+  const organizationTimeZone = identity.organization?.timezone ?? 'UTC';
 
   const isOrganization =
     isSuperAdmin &&
@@ -107,6 +128,7 @@ export function CompanyWorkspace({
     '/company/holidays': 'Holidays',
     '/company/leave/my': 'My Leave',
     '/company/leave/queue': 'Leave Queue',
+    '/company/leave/types': 'Leave Types',
     '/company/biometric': 'Biometric',
   };
 
@@ -138,8 +160,24 @@ export function CompanyWorkspace({
     // Shifts & Leave
     if (pathname === '/company/shifts' && isSuperAdmin) return <ShiftsPage />;
     if (pathname === '/company/holidays') return <HolidaysPage />;
-    if (pathname === '/company/leave/my') return <LeavePage userId={userId} />;
-    if (pathname === '/company/leave/queue' && isSuperAdmin) return <LeaveQueuePage />;
+    if (pathname === '/company/leave/my') return <LeavePage userId={userId} organizationTimeZone={organizationTimeZone} />;
+    if (pathname === '/company/leave/queue' && canUseLeaveQueue)
+      return (
+        <LeaveQueuePage
+          canAcknowledge={canAcknowledgeLeave}
+          canDecide={canDecideLeave}
+          canViewScopedCoverage={canViewScopedLeaveCoverage}
+        />
+      );
+    if (pathname === '/company/leave/types') {
+      return canManageLeaveTypes ? (
+        <LeaveTypesPage />
+      ) : (
+        <p role="alert" className="p-6 text-sm text-app-muted">
+          You do not have access to manage leave types.
+        </p>
+      );
+    }
     if (pathname === '/company/biometric' && isSuperAdmin) return <BiometricPage />;
 
     return <DashboardPage identity={identity!} onNavigate={onNavigate} />;
@@ -154,6 +192,8 @@ export function CompanyWorkspace({
       accountType={identity.user.accountType}
       canRequestRoleChange={canRequestRoleChange}
       canViewAudit={canViewAudit}
+      canManageLeaveTypes={canManageLeaveTypes}
+      canUseLeaveQueue={canUseLeaveQueue}
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}

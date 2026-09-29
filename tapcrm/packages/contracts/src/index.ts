@@ -20,6 +20,7 @@ export * from './registry.types.js';
 export * from './registry.generated.js';
 export * from './actionMetadata.js';
 export * from './principal.js';
+export * from './identity-bootstrap.js';
 export * from './platform.js';
 export * from './people.js';
 export * from './presence.js';

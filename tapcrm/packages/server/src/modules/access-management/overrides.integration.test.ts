@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Principal } from '@tapcrm/contracts';
 import { effectivePolicy } from '@tapcrm/authz';
 import { installAuthz } from '../../platform/authz-adapter.js';
+import { registerAllPolicies } from '../index.js';
 import { createRequestContext, type RequestContext } from '../../platform/dal/context.js';
 import { db, platformDb } from '../../platform/dal/db.js';
 import { closePools } from '../../platform/dal/pool.js';
@@ -38,6 +39,7 @@ const OTHER_ORG_TEAM = randomUUID();
 const LEAD = randomUUID();
 const AGENT = randomUUID();
 const OUTSIDER = randomUUID();
+const MEMBER = randomUUID();
 const HR = randomUUID();
 const HR_OTHER = randomUUID();
 const SUPER = randomUUID();
@@ -78,6 +80,7 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
   beforeAll(async () => {
     if (!new URL(migrationUrl).pathname.includes('test')) throw new Error('refusing non-test database');
     installAuthz();
+    registerAllPolicies();
 
     await asOwner('create test organization', sql`
       INSERT INTO organization (id, code, name) VALUES (${ORG}, ${`AM${ORG.slice(0, 6)}`}, 'Access Test')`);
@@ -110,6 +113,7 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
       VALUES (${LEAD}, ${ORG}, 'employee', 'EMP-00001', ${`lead-${LEAD}@t.io`}, 'Lead', ${POS_LEAD}, ${DEPT}),
              (${AGENT}, ${ORG}, 'employee', 'EMP-00002', ${`agent-${AGENT}@t.io`}, 'Agent', ${POS_AGENT}, ${DEPT}),
              (${OUTSIDER}, ${ORG}, 'employee', 'EMP-00003', ${`out-${OUTSIDER}@t.io`}, 'Outsider', ${POS_OTHER}, ${OTHER_DEPT}),
+             (${MEMBER}, ${ORG}, 'employee', 'EMP-00006', ${`member-${MEMBER}@t.io`}, 'Member', ${POS_AGENT}, ${DEPT}),
              (${HR}, ${ORG}, 'employee', 'EMP-00004', ${`hr-${HR}@t.io`}, 'HR', ${POS_HR}, ${DEPT}),
              (${HR_OTHER}, ${ORG}, 'employee', 'EMP-00005', ${`hr-other-${HR_OTHER}@t.io`}, 'HR Other', ${POS_HR}, ${DEPT}),
              (${SUPER}, ${ORG}, 'super-admin', NULL, ${`super-${SUPER}@t.io`}, 'Super Admin', NULL, NULL)`);
@@ -119,6 +123,7 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     await asOwner('set test employee teams', sql`
       UPDATE app_user SET team_id = CASE
         WHEN id = ${AGENT} THEN ${TEAM_SALES}
+        WHEN id = ${MEMBER} THEN ${TEAM_SALES}
         WHEN id = ${OUTSIDER} THEN ${TEAM_OTHER}
         ELSE team_id END
       WHERE organization_id = ${ORG}`);
@@ -265,8 +270,9 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
   });
 
   it('revokes by marking, never deleting, so the grant stays auditable', async () => {
+    // A colleague in the lead's own department: the lead may delegate only there.
     const granted = await grantOverride(leadCtx(), {
-      userId: OUTSIDER,
+      userId: MEMBER,
       action: 'leads:view',
       allowed: true,
       scope: 'own',
@@ -276,7 +282,7 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     });
     await revokeOverride(leadCtx(), granted.id);
 
-    const rows = await storedOverrides(OUTSIDER);
+    const rows = await storedOverrides(MEMBER);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.revokedAt).not.toBeNull();
   });
@@ -345,11 +351,12 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
              team_id AS "teamId", reports_to AS "reportsTo"
       FROM app_user WHERE organization_id = ${ORG} AND id = ${AGENT}`);
 
+    // HR's reach is narrowed to its department by the override above.
     await expect(requestRoleChange(hrCtx(), {
       subjectUserId: OUTSIDER,
       toPositionId: POS_OTHER,
-      reason: 'HR may request changes across the organization',
-    })).rejects.toThrow(/No policy|not allow/i);
+      reason: 'HR restricted to its department cannot reach another department',
+    })).rejects.toMatchObject({ reason: 'out_of_scope' });
 
     await expect(requestRoleChange(hrCtx(), {
       subjectUserId: HR_OTHER,
@@ -388,7 +395,9 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
     expect(resolved).toMatchObject({ allowed: true, scope: 'department' });
     const active = await db.query<{ id: string }>(
       leadCtx(),
-      sql`SELECT id FROM user_override WHERE organization_id = ${ORG} AND user_id = ${AGENT} AND revoked_at IS NULL`,
+      // Active ones: the already-expired override from the expiry test stays as it was.
+      sql`SELECT id FROM user_override WHERE organization_id = ${ORG} AND user_id = ${AGENT} AND revoked_at IS NULL
+          AND (expires_at IS NULL OR expires_at > now())`,
     );
     expect(active).toHaveLength(0);
     const audits = await db.query<{ payload: Record<string, unknown> }>(

@@ -8,7 +8,16 @@ import { createIdentityContext, toPrincipal, type IdentityUser } from './princip
 export async function resolvePrincipal(req: Request) {
   const header = req.header('authorization');
   if (!header?.startsWith('Bearer ')) return null;
-  const claims = await verifyIdentityAccessToken(header.slice(7).trim());
+  const { principal, organizationId } = await resolvePrincipalFromToken(header.slice(7).trim());
+  return { principal, organizationId };
+}
+
+/**
+ * The one token check, for HTTP and for the socket handshake alike (RT-1):
+ * signature, session, session version, account and organization state.
+ */
+export async function resolvePrincipalFromToken(token: string) {
+  const claims = await verifyIdentityAccessToken(token);
   const rows = await bootstrapDb.readAs<IdentityUser>(claims.organizationId, sql`
     SELECT u.id, u.organization_id, u.account_type, u.email, u.password_hash, u.status,
            o.status AS organization_status, u.session_version, u.must_change_password, u.locked_until, u.full_name,
@@ -31,5 +40,5 @@ export async function resolvePrincipal(req: Request) {
       WHERE organization_id = ${user.organizationId} AND id = ${claims.sessionId} AND revoked_at IS NULL
     `).then(() => undefined),
   );
-  return { principal: toPrincipal(user), organizationId: user.organizationId };
+  return { principal: toPrincipal(user), organizationId: user.organizationId, expiresAt: claims.expiresAt };
 }

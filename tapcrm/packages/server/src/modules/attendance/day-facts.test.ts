@@ -27,7 +27,7 @@ const FLEX_SHIFT: ResolvedShift = {
   kind: 'flexible',
   start: null,
   end: null,
-} as ResolvedShift;
+};
 
 function makeDay(date: string, shift: ResolvedShift, start: Date, end: Date): ShiftDayInput {
   return {

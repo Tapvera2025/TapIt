@@ -12,12 +12,16 @@ export function PayrollCyclePage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getPayrollCycle()
-      .then((d) => { setData(d); setLoading(false); })
-      .catch((err: unknown) => {
+    void (async () => {
+      try {
+        const d = await getPayrollCycle();
+        setData(d);
+      } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load payroll status.');
+      } finally {
         setLoading(false);
-      });
+      }
+    })();
   }, []);
 
   if (loading) return <div className="p-6 text-sm text-app-muted">Loading payroll status…</div>;

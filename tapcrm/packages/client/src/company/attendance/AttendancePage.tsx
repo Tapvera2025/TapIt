@@ -72,9 +72,8 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
     const to = grid[grid.length - 1]!;
     daysAbort.current?.abort();
     daysAbort.current = new AbortController();
-    getAttendanceDays(from, to, userId, daysAbort.current.signal)
-      .then(setDays)
-      .catch(() => undefined);
+    const sig = daysAbort.current.signal;
+    void (async () => { try { setDays(await getAttendanceDays(from, to, userId, sig)); } catch { /* optional */ } })();
     return () => { daysAbort.current?.abort(); };
   }, [month, userId]);
 
@@ -84,11 +83,16 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
     setShowCorrectionForm(false);
     detailAbort.current?.abort();
     detailAbort.current = new AbortController();
-    getAttendanceDayDetail(userId, selectedDate, detailAbort.current.signal)
-      .then((d) => { setDetail(d); setDetailLoading(false); })
-      .catch((err: unknown) => {
+    const sig = detailAbort.current.signal;
+    void (async () => {
+      try {
+        const d = await getAttendanceDayDetail(userId, selectedDate, sig);
+        setDetail(d);
+        setDetailLoading(false);
+      } catch (err) {
         if (err instanceof Error && err.name !== 'AbortError') setDetailLoading(false);
-      });
+      }
+    })();
     return () => { detailAbort.current?.abort(); };
   }, [selectedDate, userId]);
 
@@ -121,9 +125,11 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
       setCorrectionAt('');
       setDetail(null);
       setDetailLoading(true);
-      getAttendanceDayDetail(userId, selectedDate)
-        .then((d) => { setDetail(d); setDetailLoading(false); })
-        .catch(() => setDetailLoading(false));
+      void (async () => {
+        try { setDetail(await getAttendanceDayDetail(userId, selectedDate)); }
+        catch { /* ignore */ }
+        finally { setDetailLoading(false); }
+      })();
     } catch (err) {
       setCorrectionError(err instanceof Error ? err.message : 'Failed to submit correction.');
     } finally {

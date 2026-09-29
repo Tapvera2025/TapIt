@@ -89,33 +89,32 @@ function RunDetailPanel({
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function load(): void {
+  async function load(): Promise<void> {
     setLoading(true);
     setError(null);
-    Promise.all([
-      getRunDetail(runId),
-      getRunEmployees(runId),
-      listRunDrifts(runId),
-    ])
-      .then(([runData, empData, driftData]) => {
-        setRun(runData);
-        setEmployees(empData.employees);
-        setDrifts(driftData.drifts);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load run.');
-        setLoading(false);
-      });
+    try {
+      const [runData, empData, driftData] = await Promise.all([
+        getRunDetail(runId),
+        getRunEmployees(runId),
+        listRunDrifts(runId),
+      ]);
+      setRun(runData);
+      setEmployees(empData.employees);
+      setDrifts(driftData.drifts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load run.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { load(); }, [runId]);
+  useEffect(() => { void load(); }, [runId]);
 
   async function handleStart(): Promise<void> {
     setBusy(true); setActionError(null);
     try {
       await patchRun(runId, 'start');
-      onRefreshList(); load();
+      onRefreshList(); void load();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to start computation.');
     } finally { setBusy(false); }
@@ -125,7 +124,7 @@ function RunDetailPanel({
     setBusy(true); setActionError(null);
     try {
       await patchRun(runId, 'cancel');
-      onRefreshList(); load();
+      onRefreshList(); void load();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to cancel run.');
     } finally { setBusy(false); }
@@ -138,7 +137,7 @@ function RunDetailPanel({
       if (result.status === 'blocked') {
         setBlockers(result.blockers);
       } else {
-        onRefreshList(); load();
+        onRefreshList(); void load();
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to publish run.');
@@ -296,17 +295,19 @@ export function RunsPage(): React.JSX.Element {
   const [createError, setCreateError] = useState<string | null>(null);
   const [createBlockers, setCreateBlockers] = useState<RunBlocker[]>([]);
 
-  function load(): void {
+  async function load(): Promise<void> {
     setLoading(true);
-    listRuns()
-      .then(({ runs: data }) => { setRuns(data); setLoading(false); })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load runs.');
-        setLoading(false);
-      });
+    try {
+      const { runs: data } = await listRuns();
+      setRuns(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load runs.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   async function handleCreate(e: React.FormEvent): Promise<void> {
     e.preventDefault();

@@ -1,9 +1,7 @@
 import { identityRequest } from '../../identity/api/authApi.js';
+import type { IdentityBootstrap } from '@tapcrm/contracts';
 
-export interface CompanyIdentity {
-  user: { id: string; email: string; fullName: string; accountType: string };
-  organization: { id: string; code: string; name: string; status: string } | null;
-}
+export type CompanyIdentity = IdentityBootstrap;
 export interface CompanyEmployee {
   id: string;
   email?: string;

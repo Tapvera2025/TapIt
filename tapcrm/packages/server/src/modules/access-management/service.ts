@@ -18,9 +18,8 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { scopeResolver } from '../../platform/authz-adapter.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
-import { userResource } from '../identity/security/unlock.js';
-import { validateManagerAssignment } from '../organization/reporting/service.js';
-import { findTeam } from '../organization/teams/repository.js';
+import { userResource } from '../identity/facade.js';
+import { findTeam, validateManagerAssignment } from '../organization/facade.js';
 import { assertDelegationAllowed } from './delegation.js';
 import { ACCESS_ERROR_CODES, AccessNotFoundError, AccessValidationError } from './errors.js';
 import {

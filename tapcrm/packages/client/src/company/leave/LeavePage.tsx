@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   listLeaves,
-  listLeaveTypes,
+  listAvailableLeaveTypes,
   getLeaveBalances,
   submitLeave,
   cancelLeave,
@@ -22,17 +22,22 @@ const STATUS_CLASSES: Record<string, string> = {
   cancelled: 'bg-app-surface-raised text-app-muted',
 };
 
-export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
+export function LeavePage({ userId, organizationTimeZone }: { userId: string; organizationTimeZone: string }): React.JSX.Element {
   const [leaves, setLeaves] = useState<LeaveRequestSummary[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveTypeDto[]>([]);
   const [balances, setBalances] = useState<LeaveBalanceDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [supplementalError, setSupplementalError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [refreshingTypes, setRefreshingTypes] = useState(false);
 
-  const currentYear = new Date().getFullYear();
+  const currentYear = Number(new Intl.DateTimeFormat('en', {
+    year: 'numeric',
+    timeZone: organizationTimeZone,
+  }).format(new Date()));
 
   const [leaveTypeId, setLeaveTypeId] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -41,26 +46,26 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
   const [toHalf, setToHalf] = useState<'full' | 'first' | 'second'>('full');
   const [reason, setReason] = useState('');
 
-  function load(): void {
+  async function load(): Promise<void> {
     setLoading(true);
-    Promise.all([
+    setError(null);
+    setSupplementalError(null);
+    const results = await Promise.allSettled([
       listLeaves({ userId }),
-      listLeaveTypes(),
+      listAvailableLeaveTypes(),
       getLeaveBalances(userId, currentYear),
-    ])
-      .then(([leavesData, typesData, balancesData]) => {
-        setLeaves(leavesData);
-        setLeaveTypes(typesData.filter((t) => t.isActive));
-        setBalances(balancesData);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load leave data.');
-        setLoading(false);
-      });
+    ]);
+    const [leavesResult, typesResult, balancesResult] = results;
+    if (leavesResult?.status === 'fulfilled') setLeaves(leavesResult.value);
+    else setError(leavesResult?.reason instanceof Error ? leavesResult.reason.message : 'Unable to load leave requests.');
+    if (typesResult?.status === 'fulfilled') setLeaveTypes(typesResult.value.filter((type) => type.isActive));
+    else setSupplementalError((current) => [current, 'Leave types could not be loaded.'].filter(Boolean).join(' '));
+    if (balancesResult?.status === 'fulfilled') setBalances(balancesResult.value);
+    else setSupplementalError((current) => [current, 'Leave balances could not be loaded.'].filter(Boolean).join(' '));
+    setLoading(false);
   }
 
-  useEffect(() => { load(); }, [userId]);
+  useEffect(() => { void load(); }, [userId]);
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -75,7 +80,7 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
       setShowForm(false);
       setLeaveTypeId(''); setFromDate(''); setToDate('');
       setFromHalf('full'); setToHalf('full'); setReason('');
-      load();
+      await load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to submit leave.');
     } finally {
@@ -86,9 +91,21 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
   async function handleCancel(id: string): Promise<void> {
     try {
       await cancelLeave(id);
-      load();
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel leave.');
+    }
+  }
+
+  async function refreshTypes(): Promise<void> {
+    setRefreshingTypes(true);
+    setFormError(null);
+    try {
+      setLeaveTypes((await listAvailableLeaveTypes()).filter((type) => type.isActive && type.kind === 'absence'));
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : 'Unable to load leave types.');
+    } finally {
+      setRefreshingTypes(false);
     }
   }
 
@@ -111,10 +128,10 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
 
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">My Leave Requests</h2>
-        {!showForm && (
+        {!showForm && !loading && !error && (
           <button
             type="button"
-            onClick={() => setShowForm(true)}
+            onClick={() => { setShowForm(true); void refreshTypes(); }}
             className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-app-on-accent"
           >
             Apply for leave
@@ -122,15 +139,26 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
         )}
       </div>
 
+      {supplementalError && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-app-danger">
+          <span>{supplementalError}</span>
+          <button type="button" onClick={() => void load()} className="underline underline-offset-2">
+            Try again
+          </button>
+        </div>
+      )}
+
       {showForm && (
         <form onSubmit={(e) => void handleSubmit(e)} className="rounded-2xl border border-app-border bg-app-surface p-5 space-y-4">
           <p className="text-sm font-semibold">Apply for leave</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-app-muted">Leave type</label>
+              <label htmlFor="apply-leave-type" className="block text-xs font-semibold text-app-muted">Leave type</label>
               <select
+                id="apply-leave-type"
                 value={leaveTypeId}
                 onChange={(e) => setLeaveTypeId(e.target.value)}
+                required
                 className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
               >
                 <option value="">Select type…</option>
@@ -138,6 +166,19 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => void refreshTypes()}
+                disabled={refreshingTypes}
+                className="mt-1.5 text-xs font-semibold text-app-accent disabled:opacity-50"
+              >
+                {refreshingTypes ? 'Refreshing types…' : 'Refresh types'}
+              </button>
+              {!refreshingTypes && leaveTypes.length === 0 && (
+                <p className="mt-1 text-xs text-app-muted">
+                  No active absence leave types are available. Ask HR to configure one.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">From date</label>
@@ -190,7 +231,7 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
           <div className="flex gap-2">
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || refreshingTypes || leaveTypes.length === 0}
               className="rounded-lg bg-app-accent px-4 py-2 text-sm font-semibold text-app-on-accent disabled:opacity-50"
             >
               {submitting ? 'Submitting…' : 'Submit request'}
@@ -206,18 +247,25 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
         </form>
       )}
 
-      {error && <p className="text-sm text-app-danger">{error}</p>}
-      {loading && <p className="text-sm text-app-muted">Loading…</p>}
+      {error && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-app-danger">
+          <span>{error}</span>
+          <button type="button" onClick={() => void load()} className="rounded-lg border border-app-border px-3 py-1.5 text-app-foreground">
+            Try again
+          </button>
+        </div>
+      )}
+      {loading && <p role="status" className="text-sm text-app-muted">Loading…</p>}
 
-      {!loading && leaves.length === 0 && (
+      {!loading && !error && leaves.length === 0 && (
         <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">
           No leave requests yet.
         </div>
       )}
 
-      {leaves.length > 0 && (
+      {!loading && !error && leaves.length > 0 && (
         <div className="space-y-2">
-          {leaves
+          {[...leaves]
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
             .map((leave) => (
               <div key={leave.id} className="rounded-2xl border border-app-border bg-app-surface p-4">
@@ -234,7 +282,7 @@ export function LeavePage({ userId }: { userId: string }): React.JSX.Element {
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_CLASSES[leave.status] ?? STATUS_CLASSES['pending']}`}>
                       {leave.status}
                     </span>
-                    {leave.status === 'pending' && (
+                    {leave.allowedActions?.cancel && (
                       <button
                         type="button"
                         onClick={() => void handleCancel(leave.id)}

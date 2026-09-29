@@ -108,7 +108,14 @@ export function LiveBoardPage(): React.JSX.Element {
   function load(): void {
     abort.current?.abort();
     abort.current = new AbortController();
-    loadLiveBoard(abort.current.signal)
+    let promise: ReturnType<typeof loadLiveBoard>;
+    try {
+      promise = loadLiveBoard(abort.current.signal);
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') setError(err.message);
+      return;
+    }
+    promise
       .then((b) => { setBoard(b); setConnectionFailed(getConnectionFailed()); })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name !== 'AbortError') setError(err.message);

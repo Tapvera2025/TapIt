@@ -31,6 +31,17 @@ export interface LeaveRequestSummary {
   decisionNote: string | null;
   revokedAt: string | null;
   createdAt: string;
+  allowedActions?: {
+    cancel: boolean;
+    acknowledge: boolean;
+    approve: boolean;
+    reject: boolean;
+    revoke: boolean;
+  };
+}
+
+export interface LeaveQueueItem extends LeaveRequestSummary {
+  allowedActions: NonNullable<LeaveRequestSummary['allowedActions']>;
 }
 
 export interface LeaveBalanceDto {
@@ -46,6 +57,32 @@ export function listLeaveTypes(): Promise<LeaveTypeDto[]> {
   return peopleRead<LeaveTypeDto[]>('/api/leaves/types', { staleMs: 120_000 });
 }
 
+/** Employee-safe catalogue: only active absence types that can be requested. */
+export function listAvailableLeaveTypes(): Promise<LeaveTypeDto[]> {
+  return peopleRead<LeaveTypeDto[]>('/api/leaves/types/available', { staleMs: 0 });
+}
+
+export function createLeaveType(body: {
+  code: string;
+  name: string;
+  kind: 'absence' | 'attendance-mode';
+  accrualDays: number;
+  enforcement: boolean;
+  paidLeave: boolean;
+}): Promise<LeaveTypeDto> {
+  return peopleMutation('/api/leaves/types', { method: 'POST', body: JSON.stringify(body) }, ['/api/leaves/types']);
+}
+
+export function updateLeaveType(id: string, body: {
+  name?: string;
+  accrualDays?: number;
+  enforcement?: boolean;
+  paidLeave?: boolean;
+  isActive?: boolean;
+}): Promise<LeaveTypeDto> {
+  return peopleMutation(`/api/leaves/types/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) }, ['/api/leaves/types']);
+}
+
 export function listLeaves(params?: {
   userId?: string;
   status?: string;
@@ -59,6 +96,14 @@ export function listLeaves(params?: {
   if (params?.toDate) q.set('toDate', params.toDate);
   const qs = q.toString();
   return peopleRead<LeaveRequestSummary[]>(`/api/leaves${qs ? `?${qs}` : ''}`, { staleMs: 30_000 });
+}
+
+export function listLeaveAcknowledgements(): Promise<LeaveQueueItem[]> {
+  return peopleRead<LeaveQueueItem[]>('/api/leaves/acknowledgements', { staleMs: 0 });
+}
+
+export function listLeaveDecisions(): Promise<LeaveQueueItem[]> {
+  return peopleRead<LeaveQueueItem[]>('/api/leaves/decisions', { staleMs: 0 });
 }
 
 export function getLeaveBalances(userId: string, year: number): Promise<LeaveBalanceDto[]> {

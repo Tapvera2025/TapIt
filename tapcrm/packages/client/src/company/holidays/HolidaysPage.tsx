@@ -13,12 +13,16 @@ export function HolidaysPage(): React.JSX.Element {
 
   useEffect(() => {
     setLoading(true);
-    listHolidays({ from: `${year}-01-01`, to: `${year}-12-31` })
-      .then(({ holidays: data }) => { setHolidays(data); setLoading(false); })
-      .catch((err: unknown) => {
+    void (async () => {
+      try {
+        const { holidays: data } = await listHolidays({ from: `${year}-01-01`, to: `${year}-12-31` });
+        setHolidays(data);
+      } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load holidays.');
+      } finally {
         setLoading(false);
-      });
+      }
+    })();
   }, [year]);
 
   function fmtDate(value: string | null): string {

@@ -1,5 +1,5 @@
-import type { LeaveTypeDto, LeaveRequestSummary, LeaveBalanceDto, LeaveCalendarEvent, DateOnly } from '@tapcrm/contracts';
-import { isMatchNothing, visibilityFilter } from '@tapcrm/authz';
+import type { LeaveTypeDto, LeaveRequestSummary, LeaveQueueItem, LeaveBalanceDto, LeaveCalendarEvent, DateOnly } from '@tapcrm/contracts';
+import { holdsPolicy, isMatchNothing, visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import type { Tx } from '../../platform/dal/db.js';
@@ -15,7 +15,8 @@ import {
 import { recordLeaveDecided } from './events.js';
 import { daysConsumed, balanceAvailable, overlayKindForDay } from './rules.js';
 import * as repo from './repository.js';
-import type { CreateLeaveTypeBody, UpdateLeaveTypeBody, SubmitLeaveBody, SubmitWfhBody, SubmitStandingWfhBody, ListQuery, BalanceQuery, CalendarQuery, DecideBody } from './validators.js';
+import { makeLeaveRequestResource } from './policy.js';
+import type { CreateLeaveTypeBody, UpdateLeaveTypeBody, SubmitLeaveBody, SubmitWfhBody, SubmitStandingWfhBody, ListQuery, QueueListQuery, BalanceQuery, CalendarQuery, DecideBody } from './validators.js';
 
 export function toLeaveTypeDto(row: repo.LeaveTypeRow): LeaveTypeDto {
   return {
@@ -38,8 +39,38 @@ function toRequestSummary(row: repo.LeaveRequestRow, userFullName: string, typeN
   };
 }
 
+async function allowedActionsFor(
+  ctx: RequestContext,
+  row: repo.LeaveRequestRow,
+): Promise<NonNullable<LeaveRequestSummary['allowedActions']>> {
+  const resource = makeLeaveRequestResource(row.id, row.organizationId, row.userId, row.requestedBy);
+  const actions = {
+    cancel: false,
+    acknowledge: false,
+    approve: false,
+    reject: false,
+    revoke: false,
+  };
+  if (row.status === 'pending') {
+    actions.cancel = row.requestedBy === ctx.principal.id && await holdsPolicy(ctx, 'leave:request', resource);
+    actions.acknowledge = await holdsPolicy(ctx, 'leave:acknowledge', resource);
+  } else if (row.status === 'acknowledged') {
+    const allowed = await holdsPolicy(ctx, 'leave:decide', resource);
+    actions.approve = allowed;
+    actions.reject = allowed;
+  } else if (row.status === 'approved') {
+    actions.revoke = await holdsPolicy(ctx, 'leave:decide', resource);
+  }
+  return actions;
+}
+
 export async function listLeaveTypes(ctx: RequestContext): Promise<LeaveTypeDto[]> {
   return db.transaction(ctx, async (tx) => (await repo.listLeaveTypes(tx)).map(toLeaveTypeDto));
+}
+
+export async function listAvailableLeaveTypes(ctx: RequestContext): Promise<LeaveTypeDto[]> {
+  return db.transaction(ctx, async (tx) =>
+    (await repo.listAvailableAbsenceTypes(tx)).map(toLeaveTypeDto));
 }
 
 export async function createLeaveType(ctx: RequestContext, body: CreateLeaveTypeBody): Promise<LeaveTypeDto> {
@@ -136,7 +167,7 @@ export async function getLeaveRequest(ctx: RequestContext, id: string): Promise<
     const row = await repo.findLeaveRequestById(tx, id);
     if (!row) throw new LeaveNotFoundError();
     const lt = await repo.findLeaveTypeById(tx, row.leaveTypeId);
-    return toRequestSummary(row, '', lt?.name ?? '');
+    return { ...toRequestSummary(row, '', lt?.name ?? ''), allowedActions: await allowedActionsFor(ctx, row) };
   });
 }
 
@@ -153,8 +184,51 @@ export async function listLeaveRequests(ctx: RequestContext, query: ListQuery): 
       limit: query.limit,
     }, visibility);
     const typeMap = new Map((await repo.listLeaveTypes(tx)).map(t => [t.id, t]));
-    return rows.map(r => toRequestSummary(r, '', typeMap.get(r.leaveTypeId)?.name ?? ''));
+    return Promise.all(rows.map(async (row) => ({
+      ...toRequestSummary(row, row.userFullName, typeMap.get(row.leaveTypeId)?.name ?? ''),
+      allowedActions: await allowedActionsFor(ctx, row),
+    })));
   });
+}
+
+/**
+ * Workflow inboxes use the workflow action's scope before querying, then attach
+ * state- and A1-aware actions to each visible request. The collection route is
+ * authorized with leave:view because acknowledge/decide are approval-bearing
+ * actions and the auth engine requires a concrete resource for A1 evaluation.
+ */
+async function listLeaveWorkflowQueue(
+  ctx: RequestContext,
+  action: 'leave:acknowledge' | 'leave:decide',
+  statuses: readonly string[],
+  query: QueueListQuery,
+): Promise<LeaveQueueItem[]> {
+  return db.transaction(ctx, async (tx) => {
+    const visibility = await visibilityFilter(ctx, action, 'leaveRequest');
+    if (isMatchNothing(visibility)) return [];
+    const rows = await repo.listLeaveRequests(tx, {
+      statuses,
+      ...(query.fromDate !== undefined && { fromDate: query.fromDate as DateOnly }),
+      ...(query.toDate !== undefined && { toDate: query.toDate as DateOnly }),
+      ...(query.after !== undefined && { after: query.after }),
+      limit: query.limit,
+    }, visibility);
+    const typeMap = new Map((await repo.listLeaveTypes(tx)).map((type) => [type.id, type]));
+    return Promise.all(rows.map(async (row) => {
+      return {
+        ...toRequestSummary(row, row.userFullName, typeMap.get(row.leaveTypeId)?.name ?? ''),
+        allowedActions: await allowedActionsFor(ctx, row),
+      };
+    }));
+  });
+}
+
+export function listLeaveAcknowledgements(ctx: RequestContext, query: QueueListQuery): Promise<LeaveQueueItem[]> {
+  return listLeaveWorkflowQueue(ctx, 'leave:acknowledge', ['pending'], query);
+}
+
+export function listLeaveDecisions(ctx: RequestContext, query: QueueListQuery): Promise<LeaveQueueItem[]> {
+  return listLeaveWorkflowQueue(ctx, 'leave:decide', ['acknowledged', 'approved'], query);
 }
 
 export async function getBalances(ctx: RequestContext, userId: string, query: BalanceQuery): Promise<LeaveBalanceDto[]> {
@@ -212,14 +286,16 @@ export async function cancelLeave(ctx: RequestContext, id: string): Promise<void
 
 export async function getLeaveCalendar(ctx: RequestContext, query: CalendarQuery): Promise<LeaveCalendarEvent[]> {
   return db.transaction(ctx, async (tx) => {
-    const userId   = query.userId ?? ctx.principal.id;
     const pad      = (n: number) => String(n).padStart(2, '0');
     const fromDate = `${query.year}-${pad(query.month)}-01` as DateOnly;
     const lastDay  = new Date(query.year, query.month, 0).getDate();
     const toDate   = `${query.year}-${pad(query.month)}-${pad(lastDay)}` as DateOnly;
     const scopeFilter = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
     if (isMatchNothing(scopeFilter)) return [];
-    const rows = await repo.listLeaveRequests(tx, { userId, fromDate, toDate, limit: 500 }, scopeFilter);
+    const rows = await repo.listLeaveRequests(tx, {
+      ...(query.userId !== undefined && { userId: query.userId }),
+      fromDate, toDate, limit: 500,
+    }, scopeFilter);
     const typeMap = new Map((await repo.listLeaveTypes(tx)).map(t => [t.id, t]));
     const events: LeaveCalendarEvent[] = [];
     for (const r of rows.filter(r => r.status !== 'cancelled')) {

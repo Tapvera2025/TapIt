@@ -150,8 +150,17 @@ export function BreachQueuePage(): React.JSX.Element {
 
   function load(): void {
     setLoading(true);
+    setError(null);
     const params = filter === 'all' ? { limit: 100 } : { status: filter, limit: 100 };
-    listBreaches(params)
+    let promise: Promise<BreachListItem[]>;
+    try {
+      promise = listBreaches(params);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load.');
+      setLoading(false);
+      return;
+    }
+    promise
       .then((items) => { setBreaches(items); setLoading(false); })
       .catch((e: unknown) => { setError(e instanceof Error ? e.message : 'Failed to load.'); setLoading(false); });
   }

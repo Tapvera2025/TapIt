@@ -87,7 +87,7 @@ export function registerPayrollJobs(): PayrollJobs {
         const failed = parseInt(remaining?.failed ?? '0', 10);
         if (pending === 0) {
           const nextStatus = failed > 0 ? 'failed' : 'review';
-          await transitionRun(tx, payload.runId, ctx.organizationId, 'computing', nextStatus as 'failed' | 'review');
+          await transitionRun(tx, payload.runId, ctx.organizationId, 'computing', nextStatus);
         }
       });
       return { itemsProcessed: 1 };

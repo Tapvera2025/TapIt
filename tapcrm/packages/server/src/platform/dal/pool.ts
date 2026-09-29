@@ -93,6 +93,71 @@ export function getMigrationPool(): PgPool {
   return migrationPool;
 }
 
+/* ==================================================================== *
+ * LISTEN — attendance design §5.5
+ * ==================================================================== */
+
+export interface Listener {
+  close(): Promise<void>;
+}
+
+const CHANNEL = /^[a-z_][a-z0-9_]{0,62}$/;
+
+/**
+ * Calls `onNotify` with each payload sent to `channel` by `pg_notify`.
+ *
+ * LISTEN needs a connection of its own for as long as it listens, so it cannot
+ * borrow a pooled client; and this is the one file allowed to open a
+ * connection (CI-15). A dropped connection is reopened after a second. Nothing
+ * depends on it for correctness: the outbox drainer also polls every second,
+ * so a notification missed while reconnecting only costs that second.
+ */
+export async function listen(channel: string, onNotify: (payload: string) => void): Promise<Listener> {
+  if (!CHANNEL.test(channel)) throw new Error(`"${channel}" is not a valid LISTEN channel`);
+  let client: pg.Client | null = null;
+  let closed = false;
+  let retry: NodeJS.Timeout | null = null;
+
+  const connect = async (): Promise<void> => {
+    const next = new pg.Client({ connectionString: loadConfig().DATABASE_URL, application_name: 'tapcrm-listen' });
+    const reconnect = (): void => {
+      if (closed || client !== next) return;
+      client = null;
+      next.removeAllListeners();
+      void next.end().catch(() => undefined);
+      retry = setTimeout(() => void connect().catch(() => undefined), 1_000);
+      retry.unref();
+    };
+    client = next;
+    next.on('notification', (message) => {
+      if (message.channel === channel) onNotify(message.payload ?? '');
+    });
+    next.on('error', (error) => {
+      console.error(JSON.stringify({ level: 'error', msg: 'LISTEN connection failed', channel, err: error.message }));
+      reconnect();
+    });
+    next.on('end', reconnect);
+    try {
+      await next.connect();
+      await next.query(`LISTEN ${channel}`);
+    } catch (error) {
+      reconnect();
+      throw error;
+    }
+  };
+
+  await connect();
+  return {
+    async close() {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      const current = client;
+      client = null;
+      await current?.end().catch(() => undefined);
+    },
+  };
+}
+
 export async function closePools(): Promise<void> {
   await Promise.all([appPool?.end(), migrationPool?.end()]);
   appPool = null;

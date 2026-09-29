@@ -51,10 +51,18 @@ export const listQuerySchema = z.object({
   status: z.enum(['pending', 'acknowledged', 'approved', 'rejected', 'cancelled']).optional(),
   fromDate: dateOnly.optional(),
   toDate: dateOnly.optional(),
-  after: z.string().optional(),
+  after: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 export type ListQuery = z.infer<typeof listQuerySchema>;
+
+export const queueListQuerySchema = z.object({
+  fromDate: dateOnly.optional(),
+  toDate: dateOnly.optional(),
+  after: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type QueueListQuery = z.infer<typeof queueListQuerySchema>;
 
 export const balanceQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),

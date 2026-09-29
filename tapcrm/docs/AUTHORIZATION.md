@@ -5,7 +5,7 @@
 > **This file is generated.** `tools/convert-authorization-pdf.py` lifted §6.4 and
 > §6.5 out of the delivered PDF into the markdown tables below, so that
 > `tools/extract-registry.ts` can consume them (TECH.md §6.1). The conversion
-> asserts every total the document states about itself — 148 actions,
+> asserts the delivered PDF's original totals — 148 actions,
 > 292 bindings, and the sensitive / approval-bearing / delegable /
 > domain counts — and refuses to write this file if any of them disagree.
 >
@@ -197,13 +197,20 @@
 
 ## 6.5 API Bindings
 
-302 bindings. Every action bound to at least one HTTP route. A route
+321 bindings. Every action bound to at least one HTTP route. A route
 registered at boot with no binding is a startup failure (RM-1); a binding naming
 an unregistered action fails the build (RM-2).
 
 Paths are the design intent. `TECH.md` may refine them, but **not** the
 method-to-action mapping — that is the authorization contract, and changing it
 changes who can do what.
+
+The leave acknowledgement and decision inboxes are collection reads, so their
+route-level action is `leave:view`. The service applies `leave:acknowledge` or
+`leave:decide` visibility before querying and computes row actions with the
+authorization engine. Those approval-bearing actions require a concrete request
+resource for A1 and cannot authorize a resource-free collection read. Mutations
+remain bound to their approval-bearing action and re-authorize the specific row.
 
 | Method | Path | Action | ResourceParam |
 | --- | --- | --- | --- |
@@ -307,8 +314,10 @@ changes who can do what.
 | GET | /api/biometric/punches | `biometric:manage` | — |
 | POST | /api/biometric/punches/replay | `biometric:manage` | — |
 | GET | /api/leaves | `leave:view` | — |
+| GET | /api/leaves/acknowledgements | `leave:view` | — |
+| GET | /api/leaves/decisions | `leave:view` | — |
 | GET | /api/leaves/:id | `leave:view` | id |
-| GET | /api/leaves/balances/:userId | `leave:view` | userId |
+| GET | /api/leaves/balances/:userId | `leave:view` | — |
 | GET | /api/leaves/calendar | `leave:view` | — |
 | POST | /api/leaves | `leave:request` | — |
 | DELETE | /api/leaves/:id | `leave:request` | id |
@@ -318,6 +327,7 @@ changes who can do what.
 | POST | /api/leaves/:id/acknowledge | `leave:acknowledge` | id |
 | POST | /api/leaves/:id/decide | `leave:decide` | id |
 | GET | /api/leaves/types | `leave:manage-types` | — |
+| GET | /api/leaves/types/available | `leave:request` | — |
 | POST | /api/leaves/types | `leave:manage-types` | — |
 | PUT | /api/leaves/types/:id | `leave:manage-types` | id |
 | GET | /api/holidays | `holidays:view` | — |

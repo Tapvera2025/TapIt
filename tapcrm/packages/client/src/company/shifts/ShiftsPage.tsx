@@ -24,17 +24,19 @@ export function ShiftsPage(): React.JSX.Element {
   const [fullDayMinutes, setFullDayMinutes] = useState('');
   const [halfDayMinutes, setHalfDayMinutes] = useState('');
 
-  function load(): void {
+  async function load(): Promise<void> {
     setLoading(true);
-    listShifts()
-      .then((data) => { setShifts(data); setLoading(false); })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load shifts.');
-        setLoading(false);
-      });
+    try {
+      const data = await listShifts();
+      setShifts(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load shifts.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();

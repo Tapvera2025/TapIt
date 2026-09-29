@@ -4,8 +4,8 @@ import { db } from '../../platform/dal/db.js';
 import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
 import { makeLeaveTypeResource, makeLeaveRequestResource } from './policy.js';
-import { createLeaveType, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getLeaveCalendar, getLeaveRequest, listLeaveRequests, submitLeave, submitWfh, submitStandingWfh, acknowledgeLeave, decideLeave } from './service.js';
-import { createLeaveTypeSchema, updateLeaveTypeSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
+import { createLeaveType, listAvailableLeaveTypes, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getLeaveCalendar, getLeaveRequest, listLeaveRequests, listLeaveAcknowledgements, listLeaveDecisions, submitLeave, submitWfh, submitStandingWfh, acknowledgeLeave, decideLeave } from './service.js';
+import { createLeaveTypeSchema, updateLeaveTypeSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, queueListQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
 
 async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource | null> {
   const row = await db.maybeOne<{ id: string; organizationId: string }>(
@@ -15,6 +15,8 @@ async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource 
 }
 
 export function registerLeaveRoutes(): void {
+  route({ method: 'GET', path: '/api/leaves/types/available', action: 'leave:request', module: 'leave',
+    handler: async ({ ctx }) => listAvailableLeaveTypes(ctx) });
   route({ method: 'GET',  path: '/api/leaves/types', action: 'leave:manage-types', module: 'leave',
     handler: async ({ ctx }) => listLeaveTypes(ctx) });
   route({ method: 'POST', path: '/api/leaves/types', action: 'leave:manage-types', module: 'leave',
@@ -38,6 +40,13 @@ export function registerLeaveRoutes(): void {
     handler: async ({ ctx, query }) => listLeaveRequests(ctx, listQuerySchema.parse(query)) });
   route({ method: 'GET', path: '/api/leaves/calendar', action: 'leave:view', module: 'leave',
     handler: async ({ ctx, query }) => getLeaveCalendar(ctx, calendarQuerySchema.parse(query)) });
+  // The service applies acknowledge/decide visibility to each collection. Those
+  // approval-bearing actions cannot authorize a collection read without a row
+  // resource because A1 must be evaluated against requestedBy.
+  route({ method: 'GET', path: '/api/leaves/acknowledgements', action: 'leave:view', module: 'leave',
+    handler: async ({ ctx, query }) => listLeaveAcknowledgements(ctx, queueListQuerySchema.parse(query)) });
+  route({ method: 'GET', path: '/api/leaves/decisions', action: 'leave:view', module: 'leave',
+    handler: async ({ ctx, query }) => listLeaveDecisions(ctx, queueListQuerySchema.parse(query)) });
   route({ method: 'GET', path: '/api/leaves/balances/:userId', action: 'leave:view', module: 'leave',
     handler: async ({ ctx, params, query }) => getBalances(ctx, params['userId']!, balanceQuerySchema.parse(query)) });
   route({ method: 'GET', path: '/api/leaves/:id', action: 'leave:view', module: 'leave',
@@ -47,18 +56,18 @@ export function registerLeaveRoutes(): void {
     handler: async ({ ctx, body }) => submitLeave(ctx, submitLeaveSchema.parse(body)) });
   route({ method: 'DELETE', path: '/api/leaves/:id', action: 'leave:request', module: 'leave',
     resourceParam: 'id', loadResource: loadLeaveRequest,
-    handler: async ({ ctx, params }) => cancelLeave(ctx, params['id']!) });
+    handler: async ({ ctx, params }) => { await cancelLeave(ctx, params['id']!); return null; } });
   route({ method: 'POST', path: '/api/leaves/wfh', action: 'leave:request-wfh', module: 'leave',
     handler: async ({ ctx, body }) => submitWfh(ctx, submitWfhSchema.parse(body)) });
   route({ method: 'POST', path: '/api/leaves/wfh/standing', action: 'leave:manage-wfh-standing', module: 'leave',
     handler: async ({ ctx, body }) => submitStandingWfh(ctx, submitStandingWfhSchema.parse(body)) });
   route({ method: 'DELETE', path: '/api/leaves/wfh/standing/:id', action: 'leave:manage-wfh-standing', module: 'leave',
     resourceParam: 'id', loadResource: loadLeaveRequest,
-    handler: async ({ ctx, params }) => cancelLeave(ctx, params['id']!) });
+    handler: async ({ ctx, params }) => { await cancelLeave(ctx, params['id']!); return null; } });
   route({ method: 'POST', path: '/api/leaves/:id/acknowledge', action: 'leave:acknowledge', module: 'leave',
     resourceParam: 'id', loadResource: loadLeaveRequest,
-    handler: async ({ ctx, params }) => acknowledgeLeave(ctx, params['id']!) });
+    handler: async ({ ctx, params }) => { await acknowledgeLeave(ctx, params['id']!); return null; } });
   route({ method: 'POST', path: '/api/leaves/:id/decide', action: 'leave:decide', module: 'leave',
     resourceParam: 'id', loadResource: loadLeaveRequest,
-    handler: async ({ ctx, params, body }) => decideLeave(ctx, params['id']!, decideSchema.parse(body)) });
+    handler: async ({ ctx, params, body }) => { await decideLeave(ctx, params['id']!, decideSchema.parse(body)); return null; } });
 }

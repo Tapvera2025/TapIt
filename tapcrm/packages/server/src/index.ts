@@ -30,8 +30,11 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { closePools } from './platform/dal/pool.js';
 import { purgeAllExpiredGeofenceCoordinates } from './modules/identity/geofence/privacy.js';
-import { startBackgroundJobs, stopBackgroundJobs } from './platform/jobs.js';
+import { registerAllJobs } from './modules/index.js';
 import { startAuditDrainer, stopAuditDrainer } from './modules/audit/drainer.js';
+import { startJobs, stopJobs } from './platform/jobs/runner.js';
+import { startOutboxDrainer, stopOutboxDrainer } from './platform/outbox/drainer.js';
+import { startRealtime, stopRealtime } from './platform/realtime/server.js';
 
 /**
  * Entry point.
@@ -61,8 +64,19 @@ const server = app.listen(config.API_PORT, () => {
 // PostgreSQL only, so unlike the job queue below it does not depend on Redis.
 startAuditDrainer();
 
+// Design §5.5 — sockets first, so the outbox handlers that emit are in place
+// before the drainer starts claiming their events.
+void startRealtime(server)
+  .catch((error: unknown) => {
+    console.error(JSON.stringify({ level: 'error', msg: 'realtime unavailable', error: String(error) }));
+  })
+  .finally(() => {
+    void startOutboxDrainer();
+  });
+
 let geofenceRetentionTimer: NodeJS.Timeout | null = null;
-void startBackgroundJobs().catch((error: unknown) => {
+registerAllJobs();
+void startJobs().catch((error: unknown) => {
   // Keep local development safe if Redis is temporarily unavailable. The
   // durable scheduler is used whenever the existing Redis service is healthy.
   console.error(JSON.stringify({ level: 'error', msg: 'background jobs unavailable; using local retention fallback', error: String(error) }));
@@ -95,12 +109,17 @@ function shutdown(code: number): void {
   }, 15_000);
   forced.unref();
 
-  server.close(() => {
-    // Let an in-flight audit batch commit before the pool is drained.
-    void stopAuditDrainer().then(closePools).finally(() => {
-      void stopBackgroundJobs();
-      clearTimeout(forced);
-      process.exit(code);
+  // Open sockets would keep server.close() waiting, so they go first.
+  void stopRealtime().finally(() => {
+    server.close(() => {
+      // Let in-flight audit and outbox batches commit before the pool is drained.
+      void Promise.allSettled([stopAuditDrainer(), stopOutboxDrainer()])
+        .then(() => stopJobs())
+        .then(closePools)
+        .finally(() => {
+          clearTimeout(forced);
+          process.exit(code);
+        });
     });
   });
 }

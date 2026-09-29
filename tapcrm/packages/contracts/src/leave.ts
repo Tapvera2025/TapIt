@@ -39,6 +39,21 @@ export interface LeaveRequestSummary {
   readonly recurrenceType: 'daily' | null;
   readonly recurrenceEnd: DateOnly | null;
   readonly createdAt: string;
+  /** Present on authorized list/detail reads; mutations re-authorize server-side. */
+  readonly allowedActions?: LeaveRequestAllowedActions;
+}
+
+/** Server-computed controls for a visible leave request. */
+export interface LeaveRequestAllowedActions {
+  readonly cancel: boolean;
+  readonly acknowledge: boolean;
+  readonly approve: boolean;
+  readonly reject: boolean;
+  readonly revoke: boolean;
+}
+
+export interface LeaveQueueItem extends LeaveRequestSummary {
+  readonly allowedActions: LeaveRequestAllowedActions;
 }
 
 export interface LeaveBalanceDto {

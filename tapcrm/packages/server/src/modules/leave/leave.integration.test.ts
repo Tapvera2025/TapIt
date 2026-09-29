@@ -4,30 +4,45 @@
  */
 import type { DateOnly } from '@tapcrm/contracts';
 import { afterAll, describe, expect, it } from 'vitest';
-import { platformDb } from '../../platform/dal/db.js';
+import { db, platformDb } from '../../platform/dal/db.js';
 import { closePools } from '../../platform/dal/pool.js';
 import { sql } from '../../platform/dal/sql.js';
 import { createTestContext } from '../../platform/test-helpers.js';
 import { advanceStandingWfhForDate } from './jobs.js';
 import {
   acknowledgeLeave, decideLeave, reconcileWfhForDate as _reconcileWfhForDate,
-  submitLeave, submitStandingWfh, submitWfh,
+  listAvailableLeaveTypes, submitLeave, submitStandingWfh, submitWfh,
 } from './service.js';
+import * as repo from './repository.js';
 
 const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
 
 async function setup() {
   const orgId = (await platformDb.query<{ id: string }>('seed', 'create org',
-    sql`INSERT INTO organization (name, slug) VALUES ('Test', 'test-' || gen_random_uuid()::text) RETURNING id`
+    sql`INSERT INTO organization (code, name)
+        VALUES ('LV' || replace(gen_random_uuid()::text, '-', ''), 'Test') RETURNING id`
+  ))[0]!.id;
+
+  const departmentId = (await platformDb.query<{ id: string }>('seed', 'create leave department',
+    sql`INSERT INTO department (organization_id, code, name, kind)
+        VALUES (${orgId}, 'LEAVE', 'Leave Test', 'support') RETURNING id`
+  ))[0]!.id;
+  const positionId = (await platformDb.query<{ id: string }>('seed', 'create leave position',
+    sql`INSERT INTO position (organization_id, department_id, code, name, organizational_level)
+        VALUES (${orgId}, ${departmentId}, 'STAFF', 'Staff', 10) RETURNING id`
   ))[0]!.id;
 
   const [empRows, mgrRows] = await Promise.all([
     platformDb.query<{ id: string }>('seed', 'create emp',
-      sql`INSERT INTO app_user (organization_id, email, full_name, account_type)
-          VALUES (${orgId}, 'emp@test.invalid', 'Employee', 'employee') RETURNING id`),
+      sql`INSERT INTO app_user
+            (organization_id, employee_id, email, full_name, account_type, department_id, position_id)
+          VALUES (${orgId}, 'EMP-LV001', 'emp@test.invalid', 'Employee', 'employee',
+                  ${departmentId}, ${positionId}) RETURNING id`),
     platformDb.query<{ id: string }>('seed', 'create mgr',
-      sql`INSERT INTO app_user (organization_id, email, full_name, account_type)
-          VALUES (${orgId}, 'mgr@test.invalid', 'Manager', 'employee') RETURNING id`),
+      sql`INSERT INTO app_user
+            (organization_id, employee_id, email, full_name, account_type, department_id, position_id)
+          VALUES (${orgId}, 'EMP-LV002', 'mgr@test.invalid', 'Manager', 'employee',
+                  ${departmentId}, ${positionId}) RETURNING id`),
   ]);
   const empId = empRows[0]!.id;
   const mgrId = mgrRows[0]!.id;
@@ -61,6 +76,40 @@ async function forceAck(reqId: string, mgrId: string) {
 
 describe.skipIf(!enabled)('leave integration', () => {
   afterAll(closePools);
+
+  it('lists leave requests with omitted filters and retains the scoped employee name', async () => {
+    const { orgId, empId, mgrId, ltId, empCtx } = await setup();
+    const employeeRequestId = (await platformDb.query<{ id: string }>('seed', 'employee leave request',
+      sql`INSERT INTO leave_request
+            (organization_id, user_id, leave_type_id, kind, from_date, to_date, reason, requested_by)
+          VALUES (${orgId}, ${empId}, ${ltId}, 'absence', '2026-11-03', '2026-11-04', 'Leave', ${empId})
+          RETURNING id`))[0]!.id;
+    await platformDb.query('seed', 'manager leave request',
+      sql`INSERT INTO leave_request
+            (organization_id, user_id, leave_type_id, kind, from_date, to_date, reason, requested_by)
+          VALUES (${orgId}, ${mgrId}, ${ltId}, 'absence', '2026-11-03', '2026-11-04', 'Leave', ${mgrId})`);
+
+    const rows = await db.transaction(empCtx, (tx) => repo.listLeaveRequests(
+      tx, { limit: 50 }, { sql: 'user_id = $1', parameters: [empId] },
+    ));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: employeeRequestId, userId: empId, userFullName: 'Employee' });
+
+    const filtered = await db.transaction(empCtx, (tx) => repo.listLeaveRequests(
+      tx, { userId: empId, status: 'pending', fromDate: '2026-11-01' as DateOnly,
+        toDate: '2026-11-30' as DateOnly, limit: 50 },
+      { sql: 'user_id = $1', parameters: [empId] },
+    ));
+    expect(filtered).toHaveLength(1);
+  });
+
+  it('offers employees only active absence types while management retains the full list', async () => {
+    const { ltId, empCtx } = await setup();
+    expect((await listAvailableLeaveTypes(empCtx)).map((type) => type.id)).toEqual([ltId]);
+    await db.transaction(empCtx, (tx) => repo.updateLeaveType(tx, ltId, { isActive: false }));
+    expect(await listAvailableLeaveTypes(empCtx)).toEqual([]);
+    expect((await db.transaction(empCtx, (tx) => repo.listLeaveTypes(tx))).length).toBe(2);
+  });
 
   it('approval creates overlay rows and deducts balance atomically', async () => {
     const { mgrId, ltId, empCtx, mgrCtx } = await setup();

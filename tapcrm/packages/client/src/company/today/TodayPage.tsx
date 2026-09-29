@@ -150,17 +150,16 @@ export function TodayPage(): React.JSX.Element {
   useEffect(() => {
     abort.current = new AbortController();
     const sig = abort.current.signal;
-    loadTodayStatus(sig)
-      .then(setStatus)
-      .catch((err: unknown) => {
+    void (async () => {
+      try {
+        const s = await loadTodayStatus(sig);
+        setStatus(s);
+      } catch (err) {
         if (err instanceof Error && err.name !== 'AbortError') setError(err.message);
-      });
-    getBreakAllowance(sig)
-      .then(setAllowance)
-      .catch(() => undefined);
-    getBreakPrompts(sig)
-      .then(setPrompts)
-      .catch(() => undefined);
+      }
+    })();
+    void (async () => { try { setAllowance(await getBreakAllowance(sig)); } catch { /* optional */ } })();
+    void (async () => { try { setPrompts(await getBreakPrompts(sig)); } catch { /* optional */ } })();
     return () => { abort.current?.abort(); };
   }, []);
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  listLeaves,
+  listLeaveAcknowledgements,
+  listLeaveDecisions,
   acknowledgeLeave,
   decideLeave,
   getLeaveCalendar,
-  type LeaveRequestSummary,
+  type LeaveQueueItem,
   type LeaveCalendarEvent,
 } from '../api/leaveApi.js';
 
@@ -27,12 +28,17 @@ function LeaveCoverageStrip({ onDateClick }: { onDateClick: (date: string) => vo
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [events, setEvents] = useState<LeaveCalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
+    setError(null);
     getLeaveCalendar(year, month)
       .then((data) => { setEvents(data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : 'Unable to load leave coverage.');
+        setLoading(false);
+      });
   }, [year, month]);
 
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -82,7 +88,9 @@ function LeaveCoverageStrip({ onDateClick }: { onDateClick: (date: string) => vo
           </button>
         </div>
       </div>
-      {loading ? (
+      {error ? (
+        <p role="alert" className="text-xs text-app-danger">{error}</p>
+      ) : loading ? (
         <p className="text-xs text-app-muted">Loading…</p>
       ) : (
         <div className="flex flex-wrap gap-1" role="list" aria-label={`Leave coverage for ${MONTHS[month - 1]} ${year}`}>
@@ -124,39 +132,73 @@ const STATUS_CLASSES: Record<string, string> = {
   cancelled: 'bg-app-surface-raised text-app-muted',
 };
 
-type FilterStatus = 'pending' | 'acknowledged' | 'all';
+type FilterStatus = 'pending' | 'acknowledged' | 'approved' | 'all';
 
-export function LeaveQueuePage(): React.JSX.Element {
-  const [leaves, setLeaves] = useState<LeaveRequestSummary[]>([]);
+export function LeaveQueuePage({
+  canAcknowledge,
+  canDecide,
+  canViewScopedCoverage,
+}: {
+  canAcknowledge: boolean;
+  canDecide: boolean;
+  canViewScopedCoverage: boolean;
+}): React.JSX.Element {
+  const [leaves, setLeaves] = useState<LeaveQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterStatus>('pending');
+  const [warning, setWarning] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterStatus>(canAcknowledge ? 'pending' : 'acknowledged');
   const [coverageDate, setCoverageDate] = useState<string | null>(null);
   const [decideId, setDecideId] = useState<string | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   function load(): void {
     setLoading(true);
-    const params = filter === 'all' ? undefined : { status: filter };
-    listLeaves(params)
-      .then((data) => { setLeaves(data); setLoading(false); })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load leaves.');
-        setLoading(false);
-      });
+    setError(null);
+    setWarning(null);
+    const sources: Array<{ name: string; request: Promise<LeaveQueueItem[]> }> = [];
+    if (canAcknowledge && (filter === 'pending' || filter === 'all')) {
+      sources.push({ name: 'Acknowledgement inbox', request: listLeaveAcknowledgements() });
+    }
+    if (canDecide && (filter === 'acknowledged' || filter === 'approved' || filter === 'all')) {
+      sources.push({ name: 'Decision inbox', request: listLeaveDecisions() });
+    }
+    if (sources.length === 0) {
+      setLeaves([]);
+      setLoading(false);
+      return;
+    }
+    void Promise.allSettled(sources.map(({ request }) => request)).then((results) => {
+      const fulfilled = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
+      const rejected = results.flatMap((result, index) => result.status === 'rejected'
+        ? [`${sources[index]!.name}: ${result.reason instanceof Error ? result.reason.message : 'Unable to load.'}`]
+        : []);
+      const available = fulfilled.flat().filter((leave) =>
+        filter === 'all' || filter === 'pending' || leave.status === filter,
+      );
+      setLeaves(available);
+      if (fulfilled.length === 0 && rejected.length > 0) setError(rejected.join(' '));
+      else if (rejected.length > 0) setWarning(rejected.join(' '));
+      setLoading(false);
+    });
   }
 
-  useEffect(() => { load(); }, [filter]);
+  useEffect(() => { load(); }, [filter, canAcknowledge, canDecide]);
 
   async function handleAcknowledge(id: string): Promise<void> {
     setActionError(null);
+    setAcknowledgingId(id);
     try {
       await acknowledgeLeave(id);
-      load();
+      if (canDecide) setFilter('acknowledged');
+      else load();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to acknowledge.');
+    } finally {
+      setAcknowledgingId(null);
     }
   }
 
@@ -182,7 +224,9 @@ export function LeaveQueuePage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
-      <LeaveCoverageStrip onDateClick={(date) => { setCoverageDate(date); setFilter('all'); }} />
+      {canViewScopedCoverage && (
+        <LeaveCoverageStrip onDateClick={(date) => { setCoverageDate(date); setFilter('all'); }} />
+      )}
 
       {coverageDate && (
         <div className="flex items-center gap-2 rounded-xl bg-amber-500/8 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
@@ -199,7 +243,11 @@ export function LeaveQueuePage(): React.JSX.Element {
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg border border-app-border p-0.5">
-          {(['pending', 'acknowledged', 'all'] as FilterStatus[]).map((f) => (
+          {([
+            ...(canAcknowledge ? ['pending' as const] : []),
+            ...(canDecide ? ['acknowledged' as const, 'approved' as const] : []),
+            ...(canAcknowledge && canDecide ? ['all' as const] : []),
+          ] as FilterStatus[]).map((f) => (
             <button
               key={f}
               type="button"
@@ -217,19 +265,27 @@ export function LeaveQueuePage(): React.JSX.Element {
         )}
       </div>
 
-      {actionError && <p className="text-sm text-app-danger">{actionError}</p>}
-      {error && <p className="text-sm text-app-danger">{error}</p>}
-      {loading && <p className="text-sm text-app-muted">Loading…</p>}
+      {warning && <p role="status" className="text-sm text-app-danger">{warning}</p>}
+      {actionError && <p role="alert" className="text-sm text-app-danger">{actionError}</p>}
+      {error && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-app-danger">
+          <span>{error}</span>
+          <button type="button" onClick={load} className="rounded-lg border border-app-border px-3 py-1.5 text-app-foreground">
+            Try again
+          </button>
+        </div>
+      )}
+      {loading && <p role="status" className="text-sm text-app-muted">Loading…</p>}
 
-      {!loading && displayed.length === 0 && (
+      {!loading && !error && displayed.length === 0 && (
         <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">
           {coverageDate ? `No leave requests covering ${coverageDate}.` : 'No leave requests.'}
         </div>
       )}
 
-      {displayed.length > 0 && (
+      {!loading && !error && displayed.length > 0 && (
         <div className="space-y-2">
-          {displayed
+          {[...displayed]
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
             .map((leave) => (
               <div key={leave.id} className="rounded-2xl border border-app-border bg-app-surface p-4">
@@ -251,16 +307,17 @@ export function LeaveQueuePage(): React.JSX.Element {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {leave.status === 'pending' && (
+                    {leave.allowedActions.acknowledge && (
                       <button
                         type="button"
+                        disabled={acknowledgingId === leave.id}
                         onClick={() => void handleAcknowledge(leave.id)}
-                        className="rounded-lg border border-app-border px-2.5 py-1 text-xs text-app-muted hover:border-sky-400 hover:text-sky-600"
+                        className="rounded-lg border border-app-border px-2.5 py-1 text-xs text-app-muted hover:border-sky-400 hover:text-sky-600 disabled:opacity-50"
                       >
-                        Acknowledge
+                        {acknowledgingId === leave.id ? 'Acknowledging…' : 'Acknowledge'}
                       </button>
                     )}
-                    {(leave.status === 'pending' || leave.status === 'acknowledged') && (
+                    {(leave.allowedActions.approve || leave.allowedActions.reject) && (
                       <button
                         type="button"
                         onClick={() => { setDecideId(leave.id); setDecisionNote(''); setActionError(null); }}
@@ -269,7 +326,7 @@ export function LeaveQueuePage(): React.JSX.Element {
                         Decide
                       </button>
                     )}
-                    {leave.status === 'approved' && (
+                    {leave.allowedActions.revoke && (
                       <button
                         type="button"
                         onClick={() => { setDecideId(leave.id); setDecisionNote(''); setActionError(null); }}
@@ -294,27 +351,27 @@ export function LeaveQueuePage(): React.JSX.Element {
                       />
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {(leave.status === 'pending' || leave.status === 'acknowledged') && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={submitting}
-                            onClick={() => void handleDecide(leave.id, 'approved')}
-                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            type="button"
-                            disabled={submitting}
-                            onClick={() => void handleDecide(leave.id, 'rejected')}
-                            className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                          >
-                            Reject
-                          </button>
-                        </>
+                      {leave.allowedActions.approve && (
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => void handleDecide(leave.id, 'approved')}
+                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
                       )}
-                      {leave.status === 'approved' && (
+                      {leave.allowedActions.reject && (
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => void handleDecide(leave.id, 'rejected')}
+                          className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      )}
+                      {leave.allowedActions.revoke && (
                         <button
                           type="button"
                           disabled={submitting}

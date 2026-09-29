@@ -27,6 +27,10 @@ export interface LeaveRequestRow {
   recurrenceType: 'daily' | null; recurrenceEnd: DateOnly | null; createdAt: string;
 }
 
+export interface LeaveRequestListRow extends LeaveRequestRow {
+  userFullName: string;
+}
+
 export interface BalanceEntryRow extends BalanceEntry {
   id: string; leaveRequestId: string | null; periodYear: number;
 }
@@ -56,6 +60,18 @@ export async function listLeaveTypes(tx: Tx): Promise<LeaveTypeRow[]> {
            accrual_days AS "accrualDays", enforcement, paid_leave AS "paidLeave",
            is_active AS "isActive"
     FROM leave_type ORDER BY name
+  `);
+}
+
+/** Types employees can select for an ordinary absence request. */
+export async function listAvailableAbsenceTypes(tx: Tx): Promise<LeaveTypeRow[]> {
+  return tx.query<LeaveTypeRow>(sql`
+    SELECT id, organization_id AS "organizationId", code, name, kind,
+           accrual_days AS "accrualDays", enforcement, paid_leave AS "paidLeave",
+           is_active AS "isActive"
+    FROM leave_type
+    WHERE is_active = TRUE AND kind = 'absence'
+    ORDER BY name, id
   `);
 }
 
@@ -122,6 +138,9 @@ export async function findActiveOverlappingRequests(
   options: { excludeId?: string; conflictKinds?: string[] } = {},
 ): Promise<LeaveRequestRow[]> {
   const kinds = options.conflictKinds ?? ['absence', 'attendance-mode'];
+  const excludePredicate = options.excludeId === undefined
+    ? sql.raw('TRUE')
+    : sql`id <> ${options.excludeId}`;
   return tx.query<LeaveRequestRow>(sql`
     SELECT ${REQUEST_COLS}
     FROM leave_request
@@ -129,7 +148,7 @@ export async function findActiveOverlappingRequests(
       AND status IN ('pending', 'acknowledged', 'approved')
       AND from_date <= ${toDate} AND to_date >= ${fromDate}
       AND kind = ANY(${kinds}::text[])
-      AND (${options.excludeId ?? null} IS NULL OR id <> ${options.excludeId ?? null})
+      AND ${excludePredicate}
   `);
 }
 
@@ -185,18 +204,24 @@ export async function updateLeaveRequestStatus(
 
 export async function listLeaveRequests(
   tx: Tx,
-  filter: { userId?: string; status?: string; fromDate?: DateOnly; toDate?: DateOnly; after?: string; limit: number },
+  filter: { userId?: string; status?: string; statuses?: readonly string[]; fromDate?: DateOnly; toDate?: DateOnly; after?: string; limit: number },
   visibility: SqlFragment,
-): Promise<LeaveRequestRow[]> {
-  return tx.query<LeaveRequestRow>(sql`
-    SELECT ${REQUEST_COLS}
+): Promise<LeaveRequestListRow[]> {
+  const predicates: SqlFragment[] = [visibility];
+  if (filter.userId !== undefined) predicates.push(sql`user_id = ${filter.userId}`);
+  if (filter.statuses !== undefined) predicates.push(sql`status = ANY(${filter.statuses}::text[])`);
+  else if (filter.status !== undefined) predicates.push(sql`status = ${filter.status}`);
+  if (filter.fromDate !== undefined) predicates.push(sql`to_date >= ${filter.fromDate}`);
+  if (filter.toDate !== undefined) predicates.push(sql`from_date <= ${filter.toDate}`);
+  if (filter.after !== undefined) predicates.push(sql`id < ${filter.after}`);
+
+  return tx.query<LeaveRequestListRow>(sql`
+    SELECT ${REQUEST_COLS},
+           (SELECT subject.full_name FROM app_user AS subject
+            WHERE subject.organization_id = leave_request.organization_id
+              AND subject.id = leave_request.user_id) AS "userFullName"
     FROM leave_request
-    WHERE (${filter.userId ?? null} IS NULL OR user_id = ${filter.userId ?? null})
-      AND (${filter.status   ?? null} IS NULL OR status = ${filter.status ?? null})
-      AND (${filter.fromDate ?? null} IS NULL OR to_date >= ${filter.fromDate ?? null})
-      AND (${filter.toDate   ?? null} IS NULL OR from_date <= ${filter.toDate ?? null})
-      AND (${filter.after    ?? null} IS NULL OR id < ${filter.after ?? null})
-      AND ${visibility}
+    WHERE ${sql.join(predicates, ' AND ')}
     ORDER BY id DESC
     LIMIT ${filter.limit}
   `);

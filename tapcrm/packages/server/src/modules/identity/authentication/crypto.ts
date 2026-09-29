@@ -34,7 +34,8 @@ export async function verifyIdentityAccessToken(token: string) {
   try {
     const { payload } = await jwtVerify(token, accessSecret(), { algorithms: ['HS256'] });
     if (payload['typ'] !== 'identity-access' || typeof payload.sub !== 'string' || typeof payload['organizationId'] !== 'string' || typeof payload['sessionId'] !== 'string' || typeof payload['sessionVersion'] !== 'number' || typeof payload['accountType'] !== 'string') throw new Error('invalid claims');
-    return { userId: payload.sub, organizationId: payload['organizationId'], sessionId: payload['sessionId'], sessionVersion: payload['sessionVersion'], accountType: payload['accountType'] };
+    if (typeof payload.exp !== 'number') throw new Error('invalid claims');
+    return { userId: payload.sub, organizationId: payload['organizationId'], sessionId: payload['sessionId'], sessionVersion: payload['sessionVersion'], accountType: payload['accountType'], expiresAt: new Date(payload.exp * 1000) };
   } catch {
     throw new IdentityAuthenticationError('IDENTITY_ACCESS_TOKEN_INVALID');
   }

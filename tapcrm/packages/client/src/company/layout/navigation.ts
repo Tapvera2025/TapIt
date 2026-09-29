@@ -5,6 +5,7 @@ export interface CompanyNavItem {
   path: string;
   icon: string;
   requiredAction?: Action;
+  requiredAnyAction?: readonly Action[];
 }
 export interface CompanyNavGroup {
   label: string;
@@ -73,7 +74,8 @@ export const companyNavigation: CompanyNavGroup[] = [
     label: 'Shifts & Leave',
     items: [
       { label: 'My Leave', path: '/company/leave/my', icon: 'sun' },
-      { label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox', requiredAction: 'leave:decide' },
+      { label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox', requiredAnyAction: ['leave:acknowledge', 'leave:decide'] },
+      { label: 'Leave Types', path: '/company/leave/types', icon: 'settings', requiredAction: 'leave:manage-types' },
       { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
       { label: 'Shifts', path: '/company/shifts', icon: 'layers', requiredAction: 'shifts:manage' },
     ],
@@ -96,25 +98,36 @@ export function navigationScreensForActions(actions: ReadonlySet<Action>): Compa
   const seen = new Set<string>();
   return companyNavigation
     .flatMap((group) => group.items)
-    .filter((item): item is CompanyNavItem & { requiredAction: Action } =>
-      item.requiredAction !== undefined && actions.has(item.requiredAction),
+    .map((item) => ({
+      item,
+      matchedAction: item.requiredAction !== undefined && actions.has(item.requiredAction)
+        ? item.requiredAction
+        : item.requiredAnyAction?.find((action) => actions.has(action)),
+    }))
+    .filter((entry): entry is { item: CompanyNavItem; matchedAction: Action } =>
+      entry.matchedAction !== undefined,
     )
     .filter((item) => {
-      if (seen.has(item.path)) return false;
-      seen.add(item.path);
+      if (seen.has(item.item.path)) return false;
+      seen.add(item.item.path);
       return true;
     })
-    .map(({ label, path, requiredAction }) => ({ label, path, requiredAction }));
+    .map(({ item, matchedAction }) => ({ label: item.label, path: item.path, requiredAction: matchedAction }));
 }
 
 export function navigationScreensByAction(): ReadonlyMap<Action, readonly CompanyScreen[]> {
   const mapping = new Map<Action, CompanyScreen[]>();
   for (const group of companyNavigation) {
     for (const item of group.items) {
-      if (item.requiredAction === undefined) continue;
-      const screens = mapping.get(item.requiredAction) ?? [];
-      screens.push({ label: item.label, path: item.path, requiredAction: item.requiredAction });
-      mapping.set(item.requiredAction, screens);
+      const requiredActions = [
+        ...(item.requiredAction === undefined ? [] : [item.requiredAction]),
+        ...(item.requiredAnyAction ?? []),
+      ];
+      for (const requiredAction of requiredActions) {
+        const screens = mapping.get(requiredAction) ?? [];
+        screens.push({ label: item.label, path: item.path, requiredAction });
+        mapping.set(requiredAction, screens);
+      }
     }
   }
   return mapping;

@@ -2839,6 +2839,18 @@
     },
     {
       "method": "GET",
+      "path": "/api/leaves/acknowledgements",
+      "action": "leave:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/decisions",
+      "action": "leave:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/leaves/:id",
       "action": "leave:view",
       "resourceParam": "id"
@@ -2847,7 +2859,7 @@
       "method": "GET",
       "path": "/api/leaves/balances/:userId",
       "action": "leave:view",
-      "resourceParam": "userId"
+      "resourceParam": null
     },
     {
       "method": "GET",
@@ -2901,6 +2913,12 @@
       "method": "GET",
       "path": "/api/leaves/types",
       "action": "leave:manage-types",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/types/available",
+      "action": "leave:request",
       "resourceParam": null
     },
     {

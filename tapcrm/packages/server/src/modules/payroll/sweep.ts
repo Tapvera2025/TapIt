@@ -39,7 +39,7 @@ export async function sweepPublishedPeriods(
       // Check for attendance open items
       const openItems = await AttFacade.openItems(
         tx,
-        frozenUserIds as unknown as string[],
+        frozenUserIds,
         run.periodStart as DateOnly,
         run.periodEnd as DateOnly,
       );

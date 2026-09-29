@@ -25,22 +25,24 @@ export function DashboardPage({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    void Promise.allSettled([getCompanyEmployees(), getMySessions(), getGeofenceNotice()])
-      .then(([employeesResult, sessionsResult, noticeResult]) => {
+    void (async () => {
+      try {
+        const [employeesResult, sessionsResult, noticeResult] = await Promise.allSettled([
+          getCompanyEmployees(), getMySessions(), getGeofenceNotice(),
+        ]);
         if (employeesResult.status === 'fulfilled') {
           setEmployees(employeesResult.value);
           setEmployeesAvailable(true);
         }
         if (sessionsResult.status === 'fulfilled') setSessions(sessionsResult.value);
         if (noticeResult.status === 'fulfilled') setNotice(noticeResult.value);
-
-        // Employee Directory and geofencing are optional modules. Their
-        // authorization failure must not prevent the core workspace from
-        // loading. Sessions are core and remain the required dashboard data.
-        if (sessionsResult.status === 'rejected')
-          setError('Unable to load workspace data.');
-      })
-      .finally(() => setLoading(false));
+        if (sessionsResult.status === 'rejected') setError('Unable to load workspace data.');
+      } catch {
+        setError('Unable to load workspace data.');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const assigned = employees.filter((person) => person.departmentId).length;

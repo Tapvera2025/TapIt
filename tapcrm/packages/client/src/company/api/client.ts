@@ -38,7 +38,7 @@ function stablePath(path: string): string {
 
 function contextKey(context: IdentitySessionSnapshot, path: string): string {
   if (!context.principalId || !context.organizationId) {
-    throw new Error('People data requires a loaded identity bootstrap');
+    throw new Error('People data requires an authenticated session');
   }
   return `${context.organizationId}\u0000${context.principalId}\u0000${context.epoch}\u0000${path}`;
 }
@@ -94,11 +94,17 @@ export function peopleRead<T>(path: string, options: PeopleReadOptions = {}): Pr
 
 export function invalidatePeopleQueries(pathPrefixes?: readonly string[]): void {
   if (!pathPrefixes?.length) {
-    cache.clear();
+    clearPeopleQueries();
     return;
   }
   for (const [key, entry] of cache) {
     if (pathPrefixes.some((prefix) => entry.path.startsWith(prefix))) cache.delete(key);
+  }
+  for (const [key, request] of inFlight) {
+    if (pathPrefixes.some((prefix) => request.path.startsWith(prefix))) {
+      request.controller.abort();
+      inFlight.delete(key);
+    }
   }
 }
 

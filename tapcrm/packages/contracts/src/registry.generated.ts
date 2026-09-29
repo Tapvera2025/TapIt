@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 149   Bindings: 318
+ * Actions: 149   Bindings: 321
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -2661,8 +2661,10 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/biometric/punches', action: 'biometric:manage', resourceParam: null },
   { method: 'POST', path: '/api/biometric/punches/replay', action: 'biometric:manage', resourceParam: null },
   { method: 'GET', path: '/api/leaves', action: 'leave:view', resourceParam: null },
+  { method: 'GET', path: '/api/leaves/acknowledgements', action: 'leave:view', resourceParam: null },
+  { method: 'GET', path: '/api/leaves/decisions', action: 'leave:view', resourceParam: null },
   { method: 'GET', path: '/api/leaves/:id', action: 'leave:view', resourceParam: 'id' },
-  { method: 'GET', path: '/api/leaves/balances/:userId', action: 'leave:view', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/leaves/balances/:userId', action: 'leave:view', resourceParam: null },
   { method: 'GET', path: '/api/leaves/calendar', action: 'leave:view', resourceParam: null },
   { method: 'POST', path: '/api/leaves', action: 'leave:request', resourceParam: null },
   { method: 'DELETE', path: '/api/leaves/:id', action: 'leave:request', resourceParam: 'id' },
@@ -2672,6 +2674,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/leaves/:id/acknowledge', action: 'leave:acknowledge', resourceParam: 'id' },
   { method: 'POST', path: '/api/leaves/:id/decide', action: 'leave:decide', resourceParam: 'id' },
   { method: 'GET', path: '/api/leaves/types', action: 'leave:manage-types', resourceParam: null },
+  { method: 'GET', path: '/api/leaves/types/available', action: 'leave:request', resourceParam: null },
   { method: 'POST', path: '/api/leaves/types', action: 'leave:manage-types', resourceParam: null },
   { method: 'PUT', path: '/api/leaves/types/:id', action: 'leave:manage-types', resourceParam: 'id' },
   { method: 'GET', path: '/api/holidays', action: 'holidays:view', resourceParam: null },

@@ -1,3 +1,4 @@
+import type { DateOnly } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 
@@ -126,6 +127,7 @@ export async function createEmployee(
     designationId: string | null;
     specialization: string | null;
     reportsTo: string | null;
+    joinedOn: DateOnly | null;
   },
 ) {
   return tx.one<{
@@ -139,12 +141,12 @@ export async function createEmployee(
     INSERT INTO app_user(
       organization_id, account_type, employee_id, email, password_hash, status, email_verified_at,
       department_id, position_id, team_id, designation_id, specialization,
-      reports_to, full_name, must_change_password
+      reports_to, full_name, must_change_password, joined_on
     )
     VALUES (
       ${input.organizationId}, 'employee', ${input.employeeId}, ${input.email}, ${input.passwordHash}, 'active', now(),
       ${input.departmentId}, ${input.positionId}, ${input.teamId}, ${input.designationId},
-      ${input.specialization}, ${input.reportsTo}, ${input.fullName}, true
+      ${input.specialization}, ${input.reportsTo}, ${input.fullName}, true, ${input.joinedOn}
     )
     RETURNING id, employee_id, email, full_name, account_type, status
   `);
@@ -160,6 +162,9 @@ export async function enqueueEmployeeAudit(
     requestId: string;
     sourceIp: string | null;
     after: unknown;
+    /** Defaults to a creation: no `before`. */
+    action?: string;
+    before?: unknown;
   },
 ): Promise<void> {
   await tx.query(sql`
@@ -167,17 +172,47 @@ export async function enqueueEmployeeAudit(
     VALUES (
       ${input.organizationId}, 'activity',
       ${JSON.stringify({
-        action: 'employee.created',
+        action: input.action ?? 'employee.created',
         actorId: input.actorId,
         actorType: input.actorType,
         targetType: 'user',
         targetId: input.targetId,
-        before: null,
+        before: input.before ?? null,
         after: input.after,
         reason: null,
         requestId: input.requestId,
         sourceIp: input.sourceIp,
       })}::jsonb
     )
+  `);
+}
+
+export interface EmploymentRow {
+  id: string;
+  accountType: string;
+  joinedOn: DateOnly | null;
+  leftOn: DateOnly | null;
+}
+
+/** The person's employment window, locked for the change. */
+export async function lockEmployment(
+  tx: Tx,
+  userId: string,
+): Promise<EmploymentRow | null> {
+  return tx.maybeOne<EmploymentRow>(sql`
+    SELECT id, account_type, joined_on::text AS joined_on, left_on::text AS left_on
+    FROM app_user WHERE id = ${userId}
+    FOR UPDATE
+  `);
+}
+
+export async function setEmployment(
+  tx: Tx,
+  userId: string,
+  window: { joinedOn: DateOnly | null; leftOn: DateOnly | null },
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE app_user SET joined_on = ${window.joinedOn}, left_on = ${window.leftOn}
+    WHERE id = ${userId}
   `);
 }

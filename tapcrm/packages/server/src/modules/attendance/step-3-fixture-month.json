@@ -1,0 +1,91 @@
+{
+  "about": "February 2027 for a day worker (09:00-18:00) and a night worker (20:00-05:00), and the answer expected for every day once the month is closed. Punch times are Asia/Kolkata wall-clock; an out earlier than the in is the next morning. Sundays are week-offs; 15 February is a national holiday. Units are [present, paid leave, unpaid leave, absent, holiday], in half days. Replace this table with the month HR signs off: same shape.",
+  "month": { "from": "2027-02-01", "to": "2027-02-28" },
+  "weekOff": [7],
+  "holidays": ["2027-02-15"],
+  "nightWindow": { "from": "22:00", "to": "06:00" },
+  "people": {
+    "day": {
+      "shift": { "start": "09:00", "end": "18:00" },
+      "default": "normal",
+      "days": {
+        "2027-02-03": "late",
+        "2027-02-04": "half-day",
+        "2027-02-05": "overtime",
+        "2027-02-10": "leave",
+        "2027-02-11": "absent",
+        "2027-02-16": "wfh"
+      },
+      "patterns": {
+        "normal": {
+          "punches": [["in", "08:58"], ["out", "18:04"]],
+          "expect": { "status": "present", "units": [2, 0, 0, 0, 0], "worked": 546, "late": 0, "earlyExit": 0, "overtime": 0, "night": 0, "flags": [] }
+        },
+        "late": {
+          "punches": [["in", "09:25"], ["out", "18:00"]],
+          "expect": { "status": "present", "units": [2, 0, 0, 0, 0], "worked": 515, "late": 15, "earlyExit": 0, "overtime": 0, "night": 0, "flags": ["late"] }
+        },
+        "half-day": {
+          "punches": [["in", "09:00"], ["out", "14:00"]],
+          "expect": { "status": "half-day", "units": [1, 0, 0, 1, 0], "worked": 300, "late": 0, "earlyExit": 240, "overtime": 0, "night": 0, "flags": ["early-exit"] }
+        },
+        "overtime": {
+          "punches": [["in", "09:00"], ["out", "19:00"]],
+          "expect": { "status": "present", "units": [2, 0, 0, 0, 0], "worked": 600, "late": 0, "earlyExit": 0, "overtime": 60, "night": 0, "flags": ["overtime"] }
+        },
+        "leave": {
+          "punches": [],
+          "overlay": "leave-full",
+          "expect": { "status": "leave", "units": [0, 2, 0, 0, 0], "worked": 0, "late": 0, "earlyExit": 0, "overtime": 0, "night": 0, "flags": [] }
+        },
+        "absent": {
+          "punches": [],
+          "expect": { "status": "absent", "units": [0, 0, 0, 2, 0], "worked": 0, "late": 0, "earlyExit": 0, "overtime": 0, "night": 0, "flags": [] }
+        },
+        "wfh": {
+          "punches": [["in", "09:00"], ["out", "18:00"]],
+          "overlay": "wfh",
+          "expect": { "status": "present", "units": [2, 0, 0, 0, 0], "worked": 540, "late": 0, "earlyExit": 0, "overtime": 0, "night": 0, "flags": ["wfh"] }
+        },
+        "week-off": {
+          "punches": [],
+          "expect": { "status": "holiday", "units": [0, 0, 0, 0, 2], "worked": 0, "late": 0, "earlyExit": 0, "overtime": 0, "night": 0, "flags": [] }
+        },
+        "holiday": {
+          "punches": [],
+          "expect": { "status": "holiday", "units": [0, 0, 0, 0, 2], "worked": 0, "late": 0, "earlyExit": 0, "overtime": 0, "night": 0, "flags": [] }
+        }
+      }
+    },
+    "night": {
+      "shift": { "start": "20:00", "end": "05:00" },
+      "default": "normal",
+      "days": {
+        "2027-02-08": "overtime",
+        "2027-02-09": "late"
+      },
+      "patterns": {
+        "normal": {
+          "punches": [["in", "19:57"], ["out", "05:05"]],
+          "expect": { "status": "present", "units": [2, 0, 0, 0, 0], "worked": 548, "late": 0, "earlyExit": 0, "overtime": 0, "night": 425, "flags": [] }
+        },
+        "overtime": {
+          "punches": [["in", "19:58"], ["out", "05:40"]],
+          "expect": { "status": "present", "units": [2, 0, 0, 0, 0], "worked": 582, "late": 0, "earlyExit": 0, "overtime": 42, "night": 460, "flags": ["overtime"] }
+        },
+        "late": {
+          "punches": [["in", "20:30"], ["out", "05:00"]],
+          "expect": { "status": "present", "units": [2, 0, 0, 0, 0], "worked": 510, "late": 20, "earlyExit": 0, "overtime": 0, "night": 420, "flags": ["late"] }
+        },
+        "week-off": {
+          "punches": [],
+          "expect": { "status": "holiday", "units": [0, 0, 0, 0, 2], "worked": 0, "late": 0, "earlyExit": 0, "overtime": 0, "night": 0, "flags": [] }
+        },
+        "holiday": {
+          "punches": [],
+          "expect": { "status": "holiday", "units": [0, 0, 0, 0, 2], "worked": 0, "late": 0, "earlyExit": 0, "overtime": 0, "night": 0, "flags": [] }
+        }
+      }
+    }
+  }
+}

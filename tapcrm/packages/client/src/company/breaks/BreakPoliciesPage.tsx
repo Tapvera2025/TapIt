@@ -151,14 +151,19 @@ export function BreakPoliciesPage(): React.JSX.Element {
   const [warningPct, setWarningPct] = useState('80');
   const [countsTwh, setCountsTwh] = useState(true);
 
-  function load(): void {
+  async function load(): Promise<void> {
     setLoading(true);
-    listBreakPolicies()
-      .then((data) => { setPolicies(data); setLoading(false); })
-      .catch((e: unknown) => { setError(e instanceof Error ? e.message : 'Failed to load.'); setLoading(false); });
+    try {
+      const data = await listBreakPolicies();
+      setPolicies(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   async function handleCreate(e: React.FormEvent): Promise<void> {
     e.preventDefault();

@@ -11,6 +11,8 @@ export function CompanySidebar({
   accountType,
   canRequestRoleChange,
   canViewAudit,
+  canManageLeaveTypes,
+  canUseLeaveQueue,
   onNavigate,
   onLogout,
   open,
@@ -22,6 +24,8 @@ export function CompanySidebar({
   accountType: string;
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
+  canManageLeaveTypes: boolean;
+  canUseLeaveQueue: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   open: boolean;
@@ -32,11 +36,44 @@ export function CompanySidebar({
   );
   const navigation =
     accountType === 'super-admin'
-      ? companyNavigation
+      ? companyNavigation.map((group) => ({
+          ...group,
+          items: group.items.filter(
+            (item) =>
+              (item.path !== '/company/leave/types' || canManageLeaveTypes) &&
+              (item.path !== '/company/leave/queue' || canUseLeaveQueue),
+          ),
+        }))
       : [
           {
             label: 'Overview',
             items: [{ label: 'Dashboard', path: '/company/dashboard', icon: 'grid' }],
+          },
+          {
+            label: 'Attendance',
+            items: [
+              { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
+              { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+            ],
+          },
+          {
+            label: 'Shifts & Leave',
+            items: [
+              { label: 'My Leave', path: '/company/leave/my', icon: 'sun' },
+              ...(canUseLeaveQueue
+                ? [{ label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox' }]
+                : []),
+              { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
+              ...(canManageLeaveTypes
+                ? [{ label: 'Leave Types', path: '/company/leave/types', icon: 'settings' }]
+                : []),
+            ],
+          },
+          {
+            label: 'Payroll',
+            items: [
+              { label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text' },
+            ],
           },
           {
             label: 'Identity & Access',
