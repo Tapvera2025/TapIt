@@ -1,4 +1,5 @@
 import type { Resource } from '@tapcrm/authz';
+import type { Decimal } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -7,7 +8,7 @@ import {
   listConfigs, acceptConfig, type AcceptConfigInput,
 } from './config.js';
 import {
-  listStructures, createStructure,
+  listStructures, createStructure, type CreateStructureInput,
 } from './structure.js';
 import {
   insertManualInput, revokeManualInput,
@@ -33,9 +34,6 @@ async function loadPayrollRun(ctx: RequestContext, id: string): Promise<Resource
   return row ? { type: 'payrollRun', id: row.id, organizationId: row.organizationId } : null;
 }
 
-async function loadPayrollConfig(ctx: RequestContext, _id: string): Promise<Resource | null> {
-  return { type: 'payrollConfig', id: ctx.organizationId, organizationId: ctx.organizationId };
-}
 
 async function loadPayslip(ctx: RequestContext, id: string): Promise<Resource | null> {
   const row = await db.maybeOne<{ id: string; organizationId: string; userId: string }>(
@@ -310,12 +308,12 @@ export function registerPayrollRoutes(): void {
     loadResource: loadStructureUser,
     handler: async ({ ctx, body }) => {
       const parsed = createStructureSchema.parse(body);
-      const input: import('./structure.js').CreateStructureInput = {
+      const input: CreateStructureInput = {
         userId: parsed.userId,
         currency: parsed.currency,
         effectiveFrom: parsed.effectiveFrom,
         ...(parsed.effectiveTo !== undefined ? { effectiveTo: parsed.effectiveTo } : {}),
-        lines: parsed.lines.map(l => ({ ...l, amount: String(l.amount) as import('@tapcrm/contracts').Decimal })),
+        lines: parsed.lines.map(l => ({ ...l, amount: String(l.amount) as Decimal })),
       };
       return createStructure(ctx, input);
     },
@@ -357,7 +355,7 @@ export function registerPayrollRoutes(): void {
           userId: input.userId,
           periodStart: input.periodStart,
           kind: input.kind,
-          amount: String(input.amount) as import('@tapcrm/contracts').Decimal,
+          amount: String(input.amount) as Decimal,
           label: input.label,
           reason: input.reason,
           createdBy: ctx.principal.id,

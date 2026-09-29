@@ -1,5 +1,5 @@
 import { authorize } from '@tapcrm/authz';
-import type { DateOnly } from '@tapcrm/contracts';
+import type { DateOnly, AttendanceEventInput } from '@tapcrm/contracts';
 import { readDay } from '@tapcrm/contracts';
 import { randomUUID } from 'node:crypto';
 import type { RequestContext } from '../../platform/dal/context.js';
@@ -156,16 +156,16 @@ async function checkReadability(
   );
   const provisional = existing
     .filter((e) => e.id !== targetEventId)
-    .map((e): import('@tapcrm/contracts').AttendanceEventInput => ({
+    .map((e): AttendanceEventInput => ({
       id: e.id,
       kind: e.kind,
       at: e.occurredAt.toISOString(),
       source: e.source,
       evidence: e.evidence,
-      assignmentReason: (e.reason ?? 'midpoint') as import('@tapcrm/contracts').AssignmentReason,
+      assignmentReason: (e.reason ?? 'midpoint'),
     }));
 
-  const proposed: import('@tapcrm/contracts').AttendanceEventInput = {
+  const proposed: AttendanceEventInput = {
     id: 'proposed',
     kind,
     at: at.toISOString(),
@@ -197,7 +197,7 @@ export async function raiseCorrection(
     const organizationId = (await tx.one<{ id: string }>(sql`SELECT current_organization_id() AS id`)).id;
 
     if (body.kind === 'add-event' || body.kind === 'replace-event') {
-      const { kind, at } = body.payload as { kind: 'in' | 'out' | 'break-start' | 'break-end'; at: string };
+      const { kind, at } = body.payload;
       const targetEventId = body.kind === 'replace-event'
         ? (body.payload as { targetEventId: string }).targetEventId
         : null;
@@ -232,7 +232,7 @@ export async function requestCorrection(
     const organizationId = (await tx.one<{ id: string }>(sql`SELECT current_organization_id() AS id`)).id;
 
     if (body.kind === 'add-event' || body.kind === 'replace-event') {
-      const { kind, at } = body.payload as { kind: 'in' | 'out' | 'break-start' | 'break-end'; at: string };
+      const { kind, at } = body.payload;
       const targetEventId = body.kind === 'replace-event'
         ? (body.payload as { targetEventId: string }).targetEventId
         : null;

@@ -212,7 +212,7 @@ export interface CandidateRule {
   /** Minutes for deduct-minutes consequence; null otherwise. */
   readonly minutes: number | null;
   /** Amount for deduct-amount consequence; null otherwise. */
-  readonly amount: unknown | null;
+  readonly amount: unknown;
   readonly autoApply: boolean;
 }
 

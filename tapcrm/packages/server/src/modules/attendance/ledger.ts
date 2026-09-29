@@ -2,6 +2,7 @@ import type {
   AssignmentReason,
   AttendanceEventInput,
   DateOnly,
+  EligibilityWindow,
   EventKind,
   EventSource,
   Evidence,
@@ -9,7 +10,7 @@ import type {
 import { PINNED_REASONS, readDay } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
-import { organizationTimezone, organizationToday } from '../../platform/organization-time.js';
+import { organizationTimezone } from '../../platform/organization-time.js';
 import {
   addDays,
   localDateOf,
@@ -722,7 +723,7 @@ export async function eligibilityForDay(
   tx: Tx,
   userId: string,
   workDate: DateOnly,
-): Promise<import('@tapcrm/contracts').EligibilityWindow> {
+): Promise<EligibilityWindow> {
   const facts = (await loadFacts(tx, userId, workDate, workDate)).get(workDate);
   return facts?.eligibility ?? null;
 }

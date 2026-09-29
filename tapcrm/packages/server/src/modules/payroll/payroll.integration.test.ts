@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { installAuthz } from '../../platform/authz-adapter.js';
-import { createJobContext, createRequestContext, systemPrincipal } from '../../platform/dal/context.js';
+import { createRequestContext } from '../../platform/dal/context.js';
 import { db, platformDb } from '../../platform/dal/db.js';
 import { closePools } from '../../platform/dal/pool.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -14,6 +14,7 @@ import { createStructure } from './structure.js';
 import { insertManualInput, listActiveInputsForPeriod } from './input.js';
 import { post } from '../accounting/facade.js';
 import { registerPayrollPolicies } from './policy.js';
+import type { Action, Decimal } from '@tapcrm/contracts';
 
 /**
  * Mandatory PostgreSQL gate for the payroll module (§9 Payroll design, Task 8).
@@ -67,7 +68,7 @@ function makeCtx() {
     organizationId: ORG,
     sessionVersion: 1,
     accountType: 'service' as const,
-    allowedActions: [] as import('@tapcrm/contracts').Action[],
+    allowedActions: [] as Action[],
     allowedResources: [] as string[],
     expiresAt: new Date(Date.now() + 3_600_000),
   };
@@ -249,7 +250,7 @@ describe.skipIf(!enabled)('salary structure (PostgreSQL)', () => {
         code: 'BASIC',
         label: 'Basic Salary',
         kind: 'earning',
-        amount: '30000' as import('@tapcrm/contracts').Decimal,
+        amount: '30000' as Decimal,
         prorated: true,
         statutoryTags: [],
         sortOrder: 1,
@@ -269,7 +270,7 @@ describe.skipIf(!enabled)('salary structure (PostgreSQL)', () => {
         code: 'B',
         label: 'B',
         kind: 'earning',
-        amount: '10000' as import('@tapcrm/contracts').Decimal,
+        amount: '10000' as Decimal,
         prorated: true,
         statutoryTags: [],
         sortOrder: 1,
@@ -286,7 +287,7 @@ describe.skipIf(!enabled)('manual inputs (PostgreSQL)', () => {
         userId: EMP,
         periodStart: '2025-03-01',
         kind: 'bonus',
-        amount: '5000' as import('@tapcrm/contracts').Decimal,
+        amount: '5000' as Decimal,
         label: 'Q1 bonus',
         reason: 'Performance Q1',
         createdBy: EMP,
@@ -297,7 +298,7 @@ describe.skipIf(!enabled)('manual inputs (PostgreSQL)', () => {
         userId: EMP,
         periodStart: '2025-03-01',
         kind: 'adjustment',
-        amount: '1000' as import('@tapcrm/contracts').Decimal,
+        amount: '1000' as Decimal,
         label: 'Correction',
         reason: 'Pay correction',
         createdBy: EMP,

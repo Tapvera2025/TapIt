@@ -422,7 +422,7 @@ export async function evaluateBreakDay(
           userId: record.userId,
           workDate,
           kind: 'breach-consequence',
-          consequence: consequence as 'mark-late' | 'mark-half-day' | 'mark-absent' | 'deduct-minutes',
+          consequence: consequence,
           minutes: consequence === 'deduct-minutes' ? (selectedRule.minutes ?? null) : null,
         },
         clock,

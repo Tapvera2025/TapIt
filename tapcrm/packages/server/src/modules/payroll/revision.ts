@@ -4,10 +4,9 @@ import { sql } from '../../platform/dal/sql.js';
 import type { DateOnly } from '@tapcrm/contracts';
 import * as AttFacade from '../attendance/facade.js';
 import * as BreakFacade from '../break-management/facade.js';
-import { post, type PostingLine } from '../accounting/facade.js';
+import { post } from '../accounting/facade.js';
 import { computeAndWriteDraftSlip, type FrozenEmployeeInputs } from './snapshot.js';
 import { buildRevisionPostingIntent, type SlipComponent } from './posting.js';
-import { latestPublishedSlip } from './flags.js';
 import { fingerprint } from './run.js';
 import { listActiveInputsForPeriod } from './input.js';
 import { resolveStructureForDate } from './structure.js';
@@ -67,14 +66,14 @@ export async function reviseSlip(
     const activeInputs = await listActiveInputsForPeriod(tx, ctx.organizationId, [sourceSlip.userId], sourceSlip.periodStart);
     const snapshot = await AttFacade.snapshotPeriod(
       tx,
-      [sourceSlip.userId] as unknown as string[],
+      [sourceSlip.userId],
       sourceSlip.periodStart as DateOnly,
       sourceSlip.periodEnd as DateOnly,
     );
 
     const openItems = await AttFacade.openItems(
       tx,
-      [sourceSlip.userId] as unknown as string[],
+      [sourceSlip.userId],
       sourceSlip.periodStart as DateOnly,
       sourceSlip.periodEnd as DateOnly,
     );
@@ -158,7 +157,7 @@ export async function reviseSlip(
       runId: sourceSlip.runId,
       payslipId: draftSlipId,
       kind: deltaIntent.kind,
-      lines: deltaIntent.lines as PostingLine[],
+      lines: deltaIntent.lines,
       debitTotalPaise: deltaIntent.debitTotalPaise,
       creditTotalPaise: deltaIntent.creditTotalPaise,
     });

@@ -1,11 +1,11 @@
 import type { RequestContext } from '../../platform/dal/context.js';
-import { db, type Tx } from '../../platform/dal/db.js';
+import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { DateOnly } from '@tapcrm/contracts';
 import * as AttFacade from '../attendance/facade.js';
 import * as BreakFacade from '../break-management/facade.js';
-import { post, type PostingLine } from '../accounting/facade.js';
-import { getRunById, getRunEmployees, transitionRun, fingerprint } from './run.js';
+import { post } from '../accounting/facade.js';
+import { getRunById, getRunEmployees, transitionRun } from './run.js';
 import { buildRunPostingIntent, type SlipComponent } from './posting.js';
 import { PAYROLL_EVENTS } from './events.js';
 
@@ -60,12 +60,12 @@ export async function publishRun(
     }
 
     // Re-read live inputs after locks
-    const liveSnapshot = await AttFacade.snapshotPeriod(
-      tx, userIds as unknown as string[],
+    const _liveSnapshot = await AttFacade.snapshotPeriod(
+      tx, userIds,
       run.periodStart as DateOnly, run.periodEnd as DateOnly,
     );
     const liveOpen = await AttFacade.openItems(
-      tx, userIds as unknown as string[],
+      tx, userIds,
       run.periodStart as DateOnly, run.periodEnd as DateOnly,
     );
     const unresolvedBreaches = await BreakFacade.unresolvedBreaches(
@@ -160,7 +160,7 @@ export async function publishRun(
       runId,
       payslipId: null,
       kind: intent.kind,
-      lines: intent.lines as PostingLine[],
+      lines: intent.lines,
       debitTotalPaise: intent.debitTotalPaise,
       creditTotalPaise: intent.creditTotalPaise,
     });

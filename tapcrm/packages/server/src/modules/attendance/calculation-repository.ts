@@ -126,7 +126,7 @@ export async function writeCalculation(
   recordId: string,
   inputVersion: number,
   result: CalculatedAttendance,
-  breakPolicySnapshot: unknown | null = null,
+  breakPolicySnapshot: unknown = null,
 ): Promise<void> {
   const snapshotJson =
     breakPolicySnapshot !== null && breakPolicySnapshot !== undefined

@@ -83,7 +83,7 @@ export interface BreakDayRecord {
   readonly breaksEvaluatedVersion: number | null;
   readonly shiftSnapshot: unknown;
   readonly placementSnapshot: unknown;
-  readonly breakPolicySnapshot: unknown | null;
+  readonly breakPolicySnapshot: unknown;
   readonly dayType: string;
 }
 

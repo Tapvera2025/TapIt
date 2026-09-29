@@ -1,7 +1,8 @@
 import type { Router } from 'express';
 import { acceptAdminInvitation } from './invitations.js';
 import { installPrincipalResolver } from '../../platform/http/context.js';
-import { resolvePrincipal } from './service.js';
+import { installSocketPrincipalResolver } from '../../platform/realtime/server.js';
+import { resolvePrincipal, resolvePrincipalFromToken } from './service.js';
 import {
   loginController,
   refreshController,
@@ -19,7 +20,34 @@ import { bootstrapDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { route } from '../../platform/http/route.js';
 import type { RequestContext } from '../../platform/dal/context.js';
+import { createRequestContext } from '../../platform/dal/context.js';
 import { unlockUser, userResource } from './security/unlock.js';
+import { enabledModuleKeys } from '../../platform/module-entitlement.js';
+import { effectivePolicy } from '@tapcrm/authz';
+import { REGISTRY, globalAccess, isModuleName, type IdentityBootstrap, type IdentityBootstrapCapability } from '@tapcrm/contracts';
+import { randomUUID } from 'node:crypto';
+
+async function bootstrapCapabilities(
+  ctx: RequestContext,
+  enabledModules: ReadonlySet<string>,
+): Promise<IdentityBootstrapCapability[]> {
+  const actions = Object.keys(REGISTRY) as (keyof typeof REGISTRY)[];
+  const enabledActions = actions.filter((action) => enabledModules.has(REGISTRY[action].module));
+  if (globalAccess(ctx.principal)) {
+    return enabledActions.map((action) => ({ action, scope: 'global' as const }));
+  }
+  if (ctx.principal.accountType === 'service') {
+    const { allowedActions } = ctx.principal;
+    return enabledActions
+      .filter((action) => allowedActions.includes(action))
+      .map((action) => ({ action, scope: 'own' as const }));
+  }
+  const policies = await Promise.all(enabledActions.map((action) => effectivePolicy(ctx, action)));
+  return enabledActions.flatMap((action, index) => {
+    const policy = policies[index];
+    return policy?.allowed ? [{ action, scope: policy.scope }] : [];
+  });
+}
 
 export function registerIdentityRoutes(): void {
   route({
@@ -35,6 +63,7 @@ export function registerIdentityRoutes(): void {
 
 export function registerIdentityPublicRoutes(router: Router): void {
   installPrincipalResolver(resolvePrincipal);
+  installSocketPrincipalResolver(async (token) => resolvePrincipalFromToken(token).catch(() => null));
   router.post('/identity/login', loginController);
   router.post('/identity/refresh', refreshController);
   router.post('/identity/logout', logoutController);
@@ -51,13 +80,23 @@ export function registerIdentityPublicRoutes(router: Router): void {
       if (!resolved) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
       const user = await findUserById(resolved.principal.id, resolved.organizationId);
       if (!user) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
-      const organization = await bootstrapDb.readAs<{ id: string; code: string; name: string; status: string }>(resolved.organizationId, sql`
-        SELECT id, code, name, status FROM organization WHERE id = ${resolved.organizationId}
+      const organization = await bootstrapDb.readAs<{ id: string; code: string; name: string; status: string; timezone: string }>(resolved.organizationId, sql`
+        SELECT id, code, name, status, timezone FROM organization WHERE id = ${resolved.organizationId}
       `);
-      res.status(200).json({ success: true, data: {
+      const ctx = createRequestContext({
+        organizationId: resolved.organizationId,
+        principal: resolved.principal,
+        requestId: randomUUID(),
+      });
+      const enabledModules = (await enabledModuleKeys(resolved.organizationId)).filter(isModuleName);
+      const capabilities = await bootstrapCapabilities(ctx, new Set(enabledModules));
+      const data: IdentityBootstrap = {
         user: { id: user.id, email: user.email, fullName: user.fullName, accountType: user.accountType },
         organization: organization[0] ?? null,
-      } });
+        enabledModules,
+        capabilities,
+      };
+      res.status(200).json({ success: true, data });
     } catch (error) { next(error); }
   });
   router.get('/identity/geofence/notice', async (req, res, next) => {

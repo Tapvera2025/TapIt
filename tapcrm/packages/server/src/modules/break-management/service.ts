@@ -1,4 +1,4 @@
-import type { DateOnly, Decimal } from '@tapcrm/contracts';
+import type { DateOnly } from '@tapcrm/contracts';
 import { decimal, readDay } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
@@ -384,7 +384,7 @@ export async function confirmBreach(
         userId: breach.userId,
         workDate: breach.workDate,
         kind: 'breach-consequence',
-        consequence: consequence as 'mark-late' | 'mark-half-day' | 'mark-absent' | 'deduct-minutes',
+        consequence: consequence,
         minutes: consequence === 'deduct-minutes' ? (ruleMinutes ?? null) : null,
       });
     } else if (consequence === 'deduct-amount') {
@@ -394,7 +394,7 @@ export async function confirmBreach(
         organizationId: orgId,
         userId: breach.userId,
         periodStart,
-        amount: decimal(ruleAmount ?? '0') as Decimal,
+        amount: decimal(ruleAmount ?? '0'),
         label: `Break deduction – ${breach.workDate}`,
         breakBreachId: breach.id,
       });
