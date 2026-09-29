@@ -10,6 +10,14 @@ import { registerAuditPolicies } from './audit/policy.js';
 import { registerAuditRoutes } from './audit/routes.js';
 import { registerTasksPolicies } from './tasks/policy.js';
 import { registerTasksRoutes } from './tasks/routes.js';
+import { registerTerritoryPolicies } from './sales/territories/policy.js';
+import { registerTerritoryRoutes } from './sales/territories/routes.js';
+import { registerLeadPolicies } from './sales/leads/policy.js';
+import { registerLeadRoutes } from './sales/leads/routes.js';
+import { registerHandoverPolicies } from './sales/leads/handover-policy.js';
+import { registerHandoverRoutes } from './sales/leads/handover-routes.js';
+import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
+import { registerCallbackRoutes } from './sales/leads/callback-routes.js';
 
 /**
  * The module registry.
@@ -28,6 +36,10 @@ export function registerAllPolicies(): void {
   registerGeofencePolicies();
   registerAuditPolicies();
   registerTasksPolicies();
+  registerTerritoryPolicies();
+  registerLeadPolicies();
+  registerHandoverPolicies();
+  registerCallbackPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -38,5 +50,8 @@ export function registerAllRoutes(): void {
   registerGeofenceRoutes();
   registerAuditRoutes();
   registerTasksRoutes();
+  registerTerritoryRoutes();
+  registerLeadRoutes();
+  registerHandoverRoutes();
+  registerCallbackRoutes();
 }
-

@@ -30,6 +30,13 @@ export const companyNavigation: CompanyNavGroup[] = [
     items: [{ label: 'Employees', path: '/company/employees', icon: 'users', requiredAction: 'users:view' }],
   },
   {
+    label: 'Sales',
+    items: [
+      { label: 'Territories', path: '/company/sales/territories', icon: 'map', requiredAction: 'territories:view' },
+      { label: 'Leads', path: '/company/sales/leads', icon: 'users', requiredAction: 'leads:view' },
+    ],
+  },
+  {
     label: 'Organization',
     items: [
       { label: 'Overview', path: '/company/organization', icon: 'grid', requiredAction: 'org:view-structure' },

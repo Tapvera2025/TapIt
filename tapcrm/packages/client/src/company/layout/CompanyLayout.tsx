@@ -10,6 +10,8 @@ export function CompanyLayout({
   canRequestRoleChange,
   canViewAudit,
   canViewEmployees,
+  canViewTerritories,
+  canViewLeads,
   title,
   onNavigate,
   onLogout,
@@ -22,6 +24,8 @@ export function CompanyLayout({
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
   canViewEmployees: boolean;
+  canViewTerritories: boolean;
+  canViewLeads: boolean;
   title: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -44,6 +48,8 @@ export function CompanyLayout({
         canRequestRoleChange={canRequestRoleChange}
         canViewAudit={canViewAudit}
         canViewEmployees={canViewEmployees}
+        canViewTerritories={canViewTerritories}
+        canViewLeads={canViewLeads}
         onNavigate={onNavigate}
         onLogout={onLogout}
         open={sidebarOpen}

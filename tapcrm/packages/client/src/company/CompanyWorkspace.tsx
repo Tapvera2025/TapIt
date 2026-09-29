@@ -16,6 +16,7 @@ import { getRoleChangeRequestAccess } from '../access-management/api/accessApi.j
 import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
 import { TasksPage } from './tasks/index.js';
+import { getTerritories, TerritoriesPage, TerritoryDetailsPage, getLeads, LeadsPage, LeadDetailsPage, StalledLeadsPage, ReengagementSegmentsPage } from './sales/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -32,6 +33,8 @@ export function CompanyWorkspace({
   const [canViewAudit, setCanViewAudit] = useState(false);
   const [canViewEmployees, setCanViewEmployees] = useState(false);
   const [employeesAccessChecked, setEmployeesAccessChecked] = useState(false);
+  const [canViewTerritories, setCanViewTerritories] = useState(false);
+  const [canViewLeads, setCanViewLeads] = useState(false);
   useEffect(() => {
     void getCompanyIdentity()
       .then((nextIdentity) => {
@@ -39,6 +42,8 @@ export function CompanyWorkspace({
         if (nextIdentity.user.accountType === 'super-admin') {
           setCanViewEmployees(true);
           setEmployeesAccessChecked(true);
+          setCanViewTerritories(true);
+          setCanViewLeads(true);
         } else if (nextIdentity.user.accountType === 'employee') {
           // The API is the source of truth for employee-directory access. This
           // probe only controls navigation; EmployeesPage still uses the same
@@ -47,6 +52,8 @@ export function CompanyWorkspace({
             .then(() => setCanViewEmployees(true))
             .catch(() => setCanViewEmployees(false))
             .finally(() => setEmployeesAccessChecked(true));
+          void getTerritories().then(() => setCanViewTerritories(true)).catch(() => setCanViewTerritories(false));
+          void getLeads().then(() => setCanViewLeads(true)).catch(() => setCanViewLeads(false));
           void getRoleChangeRequestAccess()
             .then(() => setCanRequestRoleChange(true))
             .catch(() => setCanRequestRoleChange(false));
@@ -91,6 +98,12 @@ export function CompanyWorkspace({
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
+  const isTerritories = pathname === '/company/sales/territories';
+  const isLeads = pathname === '/company/sales/leads';
+  const isStalledLeads = pathname === '/company/sales/leads/stalled';
+  const isReengagement = pathname === '/company/sales/leads/re-engagement';
+  const territoryDetailMatch = pathname.match(/^\/company\/sales\/territories\/([^/]+)$/);
+  const leadDetailMatch = isStalledLeads || isReengagement ? null : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
   const title = isOrganization
     ? 'Organization'
     : isEmployees
@@ -107,6 +120,10 @@ export function CompanyWorkspace({
               ? 'Geofencing'
               : pathname === '/company/tasks'
                 ? 'Tasks'
+                : isTerritories
+                  ? 'Territories'
+                : isLeads || isStalledLeads || isReengagement || leadDetailMatch
+                  ? 'Leads'
                 : 'Dashboard';
   const content = isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
@@ -125,6 +142,12 @@ export function CompanyWorkspace({
     <EmployeesPage />
   ) : pathname === '/company/tasks' ? (
     <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
+  ) : isTerritories && (isSuperAdmin || canViewTerritories) ? (
+    <TerritoriesPage canManage={isSuperAdmin || canViewTerritories} onNavigate={onNavigate} />
+  ) : territoryDetailMatch && (isSuperAdmin || canViewTerritories) ? (
+    <TerritoryDetailsPage id={territoryDetailMatch[1]!} canManage={isSuperAdmin} onBack={() => onNavigate('/company/sales/territories')} />
+  ) : (isLeads || isStalledLeads || isReengagement || leadDetailMatch) && (isSuperAdmin || canViewLeads) ? (
+    leadDetailMatch ? <LeadDetailsPage id={leadDetailMatch[1]!} currentUserId={identity.user.id} onBack={() => onNavigate('/company/sales/leads')} /> : isStalledLeads ? <StalledLeadsPage onBack={() => onNavigate('/company/sales/leads')} onNavigate={onNavigate} /> : isReengagement ? <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} /> : <LeadsPage onNavigate={onNavigate} />
   ) : !isSuperAdmin ? (
     <div className="grid min-h-[60vh] place-items-center p-6 text-center">
       <div>
@@ -150,6 +173,8 @@ export function CompanyWorkspace({
       canRequestRoleChange={canRequestRoleChange}
       canViewAudit={canViewAudit}
       canViewEmployees={canViewEmployees}
+      canViewTerritories={canViewTerritories}
+      canViewLeads={canViewLeads}
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}
