@@ -2,6 +2,7 @@ import { MATCH_ALL, effectivePolicy, visibilityFilter } from '@tapcrm/authz';
 import {
   REGISTRY,
   globalAccess,
+  isPositionPolicyGrantable,
   isAction,
   isScopeDefinedForDomain,
   isWithinCeiling,
@@ -544,10 +545,7 @@ async function validatePolicyCeiling(
     );
   }
   const definition = REGISTRY[policy.action];
-  if (
-    !definition.grantPolicy.positionGrantable ||
-    definition.grantPolicy.superAdminOnly
-  ) {
+  if (!isPositionPolicyGrantable(definition)) {
     throw new OrganizationValidationError(
       ORGANIZATION_ERROR_CODES.POSITION_POLICY_NOT_GRANTABLE,
       `Action "${policy.action}" cannot be granted through a position policy`,

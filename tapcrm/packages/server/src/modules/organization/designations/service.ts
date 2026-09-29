@@ -57,7 +57,7 @@ export async function listDesignations(
 ): Promise<DesignationRecord[]> {
   return listRows(
     ctx,
-    await visibilityFilter(ctx, 'org:manage-designations', 'designation'),
+    await visibilityFilter(ctx, 'org:view-designations', 'designation'),
   );
 }
 

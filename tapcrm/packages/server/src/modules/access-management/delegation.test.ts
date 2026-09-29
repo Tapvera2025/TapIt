@@ -108,12 +108,12 @@ describe('root of trust (PRD §4.6)', () => {
     ).rejects.toMatchObject({ code: 'ACCESS_DELEGATION_ROOT_OF_TRUST' });
   });
 
-  it('refuses users:manage from a non-Super-Admin', async () => {
+  it('keeps users:manage non-delegable even though HR receives it by position policy', async () => {
     held['access:delegate'] = { allowed: true, scope: 'all-people' };
     held['users:manage'] = { allowed: true, scope: 'all-people' };
     await expect(
       assertDelegationAllowed(context(), grant({ action: 'users:manage', scope: 'own' }), target()),
-    ).rejects.toMatchObject({ code: 'ACCESS_DELEGATION_ROOT_OF_TRUST' });
+    ).rejects.toMatchObject({ code: 'ACCESS_DELEGATION_NOT_DELEGABLE' });
   });
 
   it('allows Super Admin to grant a root-of-trust action', async () => {

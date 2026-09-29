@@ -63,7 +63,7 @@ export function registerIdentityRoutes(): void {
 
 export function registerIdentityPublicRoutes(router: Router): void {
   installPrincipalResolver(resolvePrincipal);
-  installSocketPrincipalResolver(async (token) => resolvePrincipalFromToken(token).catch(() => null));
+  installSocketPrincipalResolver(async (token, options) => resolvePrincipalFromToken(token, options).catch(() => null));
   router.post('/identity/login', loginController);
   router.post('/identity/refresh', refreshController);
   router.post('/identity/logout', logoutController);
@@ -90,8 +90,46 @@ export function registerIdentityPublicRoutes(router: Router): void {
       });
       const enabledModules = (await enabledModuleKeys(resolved.organizationId)).filter(isModuleName);
       const capabilities = await bootstrapCapabilities(ctx, new Set(enabledModules));
+      let departmentCode: string | null = null;
+      let departmentName: string | null = null;
+      let positionCode: string | null = null;
+      let positionName: string | null = null;
+
+      if (user.departmentId || user.positionId) {
+        const details = await bootstrapDb.readAs<{
+          departmentCode: string | null;
+          departmentName: string | null;
+          positionCode: string | null;
+          positionName: string | null;
+        }>(resolved.organizationId, sql`
+          SELECT d.code AS department_code, d.name AS department_name,
+                 p.code AS position_code, p.name AS position_name
+          FROM app_user u
+          LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
+          LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
+          WHERE u.id = ${user.id} AND u.organization_id = ${resolved.organizationId}
+        `);
+        if (details[0]) {
+          departmentCode = details[0].departmentCode;
+          departmentName = details[0].departmentName;
+          positionCode = details[0].positionCode;
+          positionName = details[0].positionName;
+        }
+      }
+
       const data: IdentityBootstrap = {
-        user: { id: user.id, email: user.email, fullName: user.fullName, accountType: user.accountType },
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          accountType: user.accountType,
+          departmentId: user.departmentId ?? null,
+          departmentCode,
+          departmentName,
+          positionId: user.positionId ?? null,
+          positionCode,
+          positionName,
+        },
         organization: organization[0] ?? null,
         enabledModules,
         capabilities,

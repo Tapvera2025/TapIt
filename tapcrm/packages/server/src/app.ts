@@ -10,9 +10,11 @@ import { requestContext, requestId } from './platform/http/context.js';
 import { installDevPrincipalResolver } from './platform/http/dev-resolver.js';
 import { errorHandler } from './platform/http/error-handler.js';
 import { assertManifest, buildRouter, checkManifest } from './platform/http/router.js';
-import { registerAllPolicies, registerAllRoutes } from './modules/index.js';
+import { initializePorts, registerAllPolicies, registerAllRoutes } from './modules/index.js';
 import { buildPlatformRouter } from './platform/routes.js';
 import { registerIdentityPublicRoutes } from './modules/identity/index.js';
+import { buildPublicRecruitmentRouter } from './modules/recruitment/index.js';
+import { registerNotificationRoutes } from './modules/notifications/routes.js';
 import { Router } from 'express';
 
 /**
@@ -44,6 +46,7 @@ function registerAll(): void {
   // A1 runs from sod.ts at step 2; A2–A4 and P1–P8 register here.
   registerProtectedConstraints();
 
+  initializePorts();
   registerAllPolicies();
   registerAllRoutes();
 }
@@ -91,12 +94,13 @@ export function buildApp(options: BuildOptions = {}): Express {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '15mb' }));
 
   app.use(requestId);
 
   const publicIdentity = Router();
   registerIdentityPublicRoutes(publicIdentity);
+  registerNotificationRoutes(publicIdentity);
   if (config.IDENTITY_DEV_BYPASS) {
     if (config.NODE_ENV === 'production') {
       throw new Error('IDENTITY_DEV_BYPASS must not be enabled in production');
@@ -109,6 +113,7 @@ export function buildApp(options: BuildOptions = {}): Express {
   app.use(`${config.API_BASE_PATH}/platform`, buildPlatformRouter());
 
   app.use(config.API_BASE_PATH, publicIdentity);
+  app.use(`${config.API_BASE_PATH}/public/recruitment`, buildPublicRecruitmentRouter());
 
   // Liveness and readiness are public and carry no tenant context.
   app.get('/health', (_req, res) => {

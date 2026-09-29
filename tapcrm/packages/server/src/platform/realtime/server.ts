@@ -33,13 +33,15 @@ import {
  */
 
 export interface SocketIdentity {
-  readonly principal: Principal;
+  readonly principal?: Principal;
+  /** Present for the public notification-only adapter; channel sockets need a principal. */
+  readonly userId?: string;
   readonly organizationId: string;
   /** When the token stops being valid. */
   readonly expiresAt: Date;
 }
 
-export type SocketPrincipalResolver = (token: string) => Promise<SocketIdentity | null>;
+export type SocketPrincipalResolver = (token: string, options?: { touch?: boolean }) => Promise<SocketIdentity | null>;
 
 export class RealtimeUnavailableError extends Error {
   constructor() {
@@ -52,6 +54,7 @@ export class RealtimeUnavailableError extends Error {
 interface SocketData {
   identity: SocketIdentity;
   rooms: string[];
+  token: string;
 }
 type RealtimeServer = Server<Record<string, never>, Record<string, (payload: Record<string, unknown>) => void>, Record<string, never>, SocketData>;
 
@@ -61,6 +64,7 @@ let io: RealtimeServer | null = null;
 let publisher: Redis | null = null;
 let subscriber: Redis | null = null;
 let permissionsHandlerRegistered = false;
+const REVALIDATE_MS = 2 * 60_000;
 
 /** Identity installs its token check at boot, as it does for HTTP. */
 export function installSocketPrincipalResolver(resolver: SocketPrincipalResolver): void {
@@ -75,7 +79,12 @@ export function definePeopleChannel(channel: PeopleChannel): void {
 
 async function roomsFor(identity: SocketIdentity): Promise<string[]> {
   const { principal, organizationId } = identity;
-  const rooms = [personalRoom(organizationId, principal.id)];
+  const userId = principal?.id ?? identity.userId;
+  if (!userId) throw new Error('Socket identity has no user id');
+  const rooms = [personalRoom(organizationId, userId)];
+  // Notification-only callers have no policy-bearing Principal. They receive
+  // only their tenant-qualified personal room.
+  if (!principal) return rooms;
   if (channels.size === 0) return rooms;
   const ctx = createRequestContext({ organizationId, principal, requestId: `socket:${principal.id}` });
   const everyone = globalAccess(principal);
@@ -105,7 +114,11 @@ function running(): RealtimeServer {
 
 /** RT-4 — ids and a change type only. */
 export function emitToUser(organizationId: string, userId: string, event: string, payload: Record<string, unknown>): void {
-  running().to(personalRoom(organizationId, userId)).emit(event, payload);
+  try {
+    io?.to(personalRoom(organizationId, userId)).emit(event, payload);
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'warn', msg: 'realtime emit skipped', event, error: String(error) }));
+  }
 }
 
 /** Everyone whose scope on the channel covers `subject` hears it, once. */
@@ -148,17 +161,32 @@ function handlePermissionsChanged(): void {
   });
 }
 
-export async function startRealtime(httpServer: HttpServer, options: { redisUrl?: string } = {}): Promise<void> {
+export async function startRealtime(httpServer: HttpServer, options: { redisUrl?: string; path?: string } = {}): Promise<void> {
   if (io !== null) return;
   const config = loadConfig();
   const url = options.redisUrl ?? config.REDIS_URL;
-  publisher = new Redis(url, { maxRetriesPerRequest: null });
-  subscriber = publisher.duplicate();
+  publisher = new Redis(url, { maxRetriesPerRequest: null, lazyConnect: true, retryStrategy: () => null });
+  subscriber = publisher.duplicate({ lazyConnect: true, retryStrategy: () => null });
+  for (const client of [publisher, subscriber]) {
+    client.on('error', (error) => {
+      console.error(JSON.stringify({ level: 'warn', msg: 'realtime redis error', error: String(error) }));
+    });
+  }
+  let adapter: ReturnType<typeof createAdapter> | undefined;
+  try {
+    await Promise.all([publisher.connect(), subscriber.connect()]);
+    adapter = createAdapter(publisher, subscriber);
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'warn', msg: 'realtime running without Redis adapter', error: String(error) }));
+    await Promise.allSettled([publisher.quit(), subscriber.quit()]);
+    publisher = null;
+    subscriber = null;
+  }
 
   const server: RealtimeServer = new Server(httpServer, {
-    path: `${config.API_BASE_PATH}/socket.io`,
+    path: options.path ?? `${config.API_BASE_PATH}/socket.io`,
     serveClient: false,
-    adapter: createAdapter(publisher, subscriber),
+    ...(adapter === undefined ? {} : { adapter }),
   });
 
   server.use((socket, next) => {
@@ -167,6 +195,7 @@ export async function startRealtime(httpServer: HttpServer, options: { redisUrl?
       next(new Error('UNAUTHENTICATED'));
       return;
     }
+    socket.data.token = token;
     resolveSocket(token)
       .then(async (identity) => {
         if (identity === null || identity.expiresAt.getTime() <= Date.now()) {
@@ -185,7 +214,22 @@ export async function startRealtime(httpServer: HttpServer, options: { redisUrl?
     void socket.join(rooms);
     const expiry = setTimeout(() => socket.disconnect(true), identity.expiresAt.getTime() - Date.now());
     expiry.unref();
-    socket.on('disconnect', () => clearTimeout(expiry));
+    const revalidate = setInterval(() => {
+      void resolveSocket(socket.data.token, { touch: false })
+        .then((current) => {
+          const currentUserId = current?.principal?.id ?? current?.userId;
+          const connectedUserId = identity.principal?.id ?? identity.userId;
+          if (!current || currentUserId !== connectedUserId || current.organizationId !== identity.organizationId) {
+            socket.disconnect(true);
+          }
+        })
+        .catch(() => socket.disconnect(true));
+    }, REVALIDATE_MS);
+    revalidate.unref();
+    socket.on('disconnect', () => {
+      clearTimeout(expiry);
+      clearInterval(revalidate);
+    });
   });
 
   io = server;

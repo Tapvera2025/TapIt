@@ -1,6 +1,10 @@
 import type { Tx } from '../dal/db.js';
 import { sql } from '../dal/sql.js';
-import { templateForModules, type OrganizationTemplate } from './template.js';
+import {
+  INTERN_POSITION_CODES,
+  templateForModules,
+  type OrganizationTemplate,
+} from './template.js';
 import { provisionDefaultPositionPolicies } from './policy-matrix.js';
 
 export async function bootstrapOrganization(
@@ -140,6 +144,76 @@ export async function bootstrapOrganization(
     organizationId,
     moduleKeys,
     template.positions,
+    positionIds,
+  );
+}
+
+/**
+ * Reconcile only positions introduced after an organization was created.
+ * Existing rows are never renamed, reparented, or otherwise overwritten.
+ */
+export async function reconcileInternPositions(
+  tx: Tx,
+  organizationId: string,
+  moduleKeys: readonly string[],
+): Promise<void> {
+  const template = templateForModules(moduleKeys);
+  const internCodes = new Set<string>(INTERN_POSITION_CODES);
+  const definitions = template.positions.filter((position) =>
+    internCodes.has(position.code),
+  );
+  const positionIds = new Map<string, string>();
+
+  for (const definition of definitions) {
+    const department = await tx.maybeOne<{ id: string }>(sql`
+      SELECT id FROM department
+      WHERE organization_id = ${organizationId}
+        AND code = ${definition.department}
+        AND status = 'active'
+    `);
+    if (!department) continue;
+
+    const existing = await tx.maybeOne<{ id: string; isSeeded: boolean }>(sql`
+      SELECT id, is_seeded AS "isSeeded" FROM position
+      WHERE organization_id = ${organizationId} AND code = ${definition.code}
+    `);
+    if (existing) {
+      // Custom same-code rows belong to the tenant and must not receive seed
+      // policy defaults. Seeded rows are safe to reconcile idempotently.
+      if (existing.isSeeded) positionIds.set(definition.code, existing.id);
+      continue;
+    }
+
+    const parent = definition.parent
+      ? await tx.maybeOne<{ id: string; isSeeded: boolean }>(sql`
+          SELECT id, is_seeded AS "isSeeded" FROM position
+          WHERE organization_id = ${organizationId}
+            AND code = ${definition.parent}
+            AND department_id = ${department.id}
+            AND status = 'active'
+        `)
+      : null;
+    if (definition.parent && (!parent || !parent.isSeeded)) continue;
+
+    const row = await tx.one<{ id: string }>(sql`
+      INSERT INTO position (
+        organization_id, department_id, code, name, organizational_level,
+        parent_position_id, is_seeded, status
+      )
+      VALUES (
+        ${organizationId}, ${department.id}, ${definition.code}, ${definition.name},
+        ${definition.level}, ${parent?.id ?? null}, true, ${definition.status}
+      )
+      RETURNING id
+    `);
+    positionIds.set(definition.code, row.id);
+  }
+
+  await provisionDefaultPositionPolicies(
+    tx,
+    organizationId,
+    moduleKeys,
+    definitions,
     positionIds,
   );
 }

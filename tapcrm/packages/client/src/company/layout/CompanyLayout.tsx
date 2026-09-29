@@ -11,19 +11,46 @@ export function CompanyLayout({
   canViewAudit,
   canManageLeaveTypes,
   canUseLeaveQueue,
+  canViewEmployees,
+  canViewLiveBoard,
+  canReviewCorrections,
+  canReviewBreaches,
+  canManageBreakPolicies,
+  canManageShifts,
+  canManagePayroll,
+  canManageBiometric,
+  isHr,
+  hasRecruitment,
   title,
   onNavigate,
   onLogout,
   children,
 }: {
   pathname: string;
-  identity: { fullName: string; email: string };
+  identity: {
+    fullName: string;
+    email: string;
+    accountType?: string;
+    departmentCode?: string | null;
+    departmentName?: string | null;
+    positionCode?: string | null;
+  };
   organizationName: string | null;
   accountType: string;
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
   canManageLeaveTypes: boolean;
   canUseLeaveQueue: boolean;
+  canViewEmployees: boolean;
+  canViewLiveBoard: boolean;
+  canReviewCorrections: boolean;
+  canReviewBreaches: boolean;
+  canManageBreakPolicies: boolean;
+  canManageShifts: boolean;
+  canManagePayroll: boolean;
+  canManageBiometric: boolean;
+  isHr: boolean;
+  hasRecruitment: boolean;
   title: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -47,6 +74,16 @@ export function CompanyLayout({
         canViewAudit={canViewAudit}
         canManageLeaveTypes={canManageLeaveTypes}
         canUseLeaveQueue={canUseLeaveQueue}
+        canViewEmployees={canViewEmployees}
+        canViewLiveBoard={canViewLiveBoard}
+        canReviewCorrections={canReviewCorrections}
+        canReviewBreaches={canReviewBreaches}
+        canManageBreakPolicies={canManageBreakPolicies}
+        canManageShifts={canManageShifts}
+        canManagePayroll={canManagePayroll}
+        canManageBiometric={canManageBiometric}
+        isHr={isHr}
+        hasRecruitment={hasRecruitment}
         onNavigate={onNavigate}
         onLogout={onLogout}
         open={sidebarOpen}
@@ -65,6 +102,7 @@ export function CompanyLayout({
           title={title}
           onMenu={() => setSidebarOpen(true)}
           onLogout={onLogout}
+          onNavigate={onNavigate}
         />
         <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {children}

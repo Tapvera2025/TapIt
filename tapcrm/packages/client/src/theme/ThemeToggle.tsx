@@ -8,7 +8,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
   return (
     <button
       type="button"
-      className={`group inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition duration-200 hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 ${floating ? 'fixed bottom-6 right-6 z-20 border-app-border/80 bg-app-surface/95 text-app-foreground shadow-[0_12px_35px_rgba(0,0,0,0.22)] backdrop-blur-md max-[560px]:bottom-4 max-[560px]:right-4' : 'border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'}`}
+      className={`group inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition duration-200 hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 max-sm:size-9 max-sm:p-0 max-sm:justify-center ${floating ? 'fixed bottom-6 right-6 z-20 border-app-border/80 bg-app-surface/95 text-app-foreground shadow-[0_12px_35px_rgba(0,0,0,0.22)] backdrop-blur-md max-[560px]:bottom-4 max-[560px]:right-4' : 'border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'}`}
       onClick={() => setTheme(nextTheme)}
       aria-label={`Switch to ${nextTheme} mode`}
       title={`Switch to ${nextTheme} mode`}
@@ -25,7 +25,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
           </svg>
         )}
       </span>
-      <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
+      <span className="hidden sm:inline">{isDark ? 'Light mode' : 'Dark mode'}</span>
     </button>
   );
 }

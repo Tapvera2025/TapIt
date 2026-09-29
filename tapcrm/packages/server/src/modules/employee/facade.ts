@@ -8,3 +8,4 @@
  *               days when their joining or leaving date moves
  */
 export { EMPLOYEE_EVENTS, type EmploymentChanged } from './events.js';
+export { provisionEmployee } from './service.js';

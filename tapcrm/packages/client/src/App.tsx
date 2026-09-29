@@ -14,6 +14,7 @@ import {
 } from './identity/index.js';
 import { IDENTITY_EXPIRED_EVENT } from './identity/api/authApi.js';
 import { CompanyWorkspace } from './company/CompanyWorkspace.js';
+import { PublicApplicationPage } from './company/recruitment/pages/PublicApplicationPage.js';
 import type { IdentityLoginResult } from './identity/api/authApi.js';
 
 export function App(): React.JSX.Element {
@@ -63,6 +64,10 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
   }, []);
 
+  if (pathname.startsWith('/apply/')) {
+    const token = pathname.replace(/^\/apply\/?/, '');
+    return <PublicApplicationPage token={token} />;
+  }
   if (pathname === '/accept-invitation') return <AcceptInvitation />;
   if (pathname.startsWith('/platform'))
     return authenticated ? (

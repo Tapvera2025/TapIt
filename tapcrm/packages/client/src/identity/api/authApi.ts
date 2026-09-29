@@ -149,6 +149,8 @@ async function refreshIdentityTokens(): Promise<boolean> {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       });
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) return false;
       const body = (await response.json()) as { success?: boolean; data?: { accessToken: string; refreshToken: string } };
       if (!response.ok || !body.success || !body.data) return false;
       if (sessionEpoch !== expectedEpoch) return false;
@@ -198,8 +200,24 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
     }
   }
 
-  const body = (await response.json()) as { success?: boolean; data?: T; message?: string; code?: string };
+  const contentType = response.headers.get('content-type') ?? '';
+  let body: { success?: boolean; data?: T; message?: string; code?: string } | null = null;
+  if (contentType.includes('application/json')) {
+    try {
+      body = (await response.json()) as { success?: boolean; data?: T; message?: string; code?: string };
+    } catch {
+      body = null;
+    }
+  }
+
   assertSession(expectedEpoch);
+  if (!body) {
+    const errorText = await response.text().catch(() => '');
+    const message = response.status === 404
+      ? `Resource not found: ${path}`
+      : `Server returned non-JSON response (${response.status}): ${response.statusText || errorText.slice(0, 100)}`;
+    throw new IdentityApiError(message, response.status === 404 ? 'NOT_FOUND' : 'NON_JSON_RESPONSE', response.status);
+  }
   if (response.status === 403 && body.message === 'Company access is suspended') {
     redirectToIdentityLogin();
   }
@@ -265,6 +283,10 @@ export async function identityLogin(email: string, password: string, location?: 
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password, deviceLabel: 'Company Web', ...(location ?? {}) }),
   });
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new IdentityApiError('Server returned non-JSON response during login', 'NON_JSON_RESPONSE', response.status);
+  }
   const body = (await response.json()) as { success?: boolean; data?: IdentityLoginResult; message?: string; code?: string };
   if (!response.ok || !body.success || !body.data) throw new IdentityApiError(body.message ?? 'Company login failed', body.code ?? 'IDENTITY_LOGIN_FAILED', response.status);
   saveIdentityTokens(body.data.accessToken, body.data.refreshToken);

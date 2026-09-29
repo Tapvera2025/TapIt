@@ -16,6 +16,12 @@ export interface IdentityBootstrap {
     readonly email: string;
     readonly fullName: string;
     readonly accountType: AccountType;
+    readonly departmentId?: string | null;
+    readonly departmentCode?: string | null;
+    readonly departmentName?: string | null;
+    readonly positionId?: string | null;
+    readonly positionCode?: string | null;
+    readonly positionName?: string | null;
   };
   readonly organization: {
     readonly id: string;
