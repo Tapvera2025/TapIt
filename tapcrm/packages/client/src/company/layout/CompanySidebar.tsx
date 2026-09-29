@@ -61,6 +61,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+              { label: 'My Notepad', path: '/company/my-notepad', icon: 'notepad' },
             ],
           },
           {
@@ -96,6 +97,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+              { label: 'My Notepad', path: '/company/my-notepad', icon: 'notepad' },
             ],
           },
           ...(canViewEmployees
@@ -177,6 +179,8 @@ export function CompanySidebar({
                     const isRecruitmentItem = item.label === 'Recruitment';
                     const isItemActive =
                       pathname === item.path ||
+                      (item.path === '/company/my-notepad' &&
+                        pathname === '/company/notepad') ||
                       (item.path !== '/company/organization' &&
                         pathname.startsWith(`${item.path}/`));
                     const showChildren =

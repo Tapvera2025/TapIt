@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
+import { Icon } from '../../../ui/Icon.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../../api/companyApi.js';
 import { hireCandidate } from '../api/recruitmentApi.js';
 import type { Candidate, CandidateJoining, JobOffer } from '../types/index.js';
@@ -80,7 +81,9 @@ export function HiringDialog({
       {hiredResult ? (
         <div className="space-y-4 py-3">
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center">
-            <span className="text-3xl" aria-hidden="true">🎉</span>
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600">
+              <Icon name="check" className="size-6" />
+            </div>
             <h3 className="mt-2 text-base font-bold text-emerald-800 dark:text-emerald-200">
               Candidate Hired Successfully!
             </h3>

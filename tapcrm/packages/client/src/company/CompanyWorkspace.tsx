@@ -17,6 +17,7 @@ import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
 import { TasksPage } from './tasks/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
+import { MyNotepadPage } from './notepad/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -122,28 +123,34 @@ export function CompanyWorkspace({
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
+  const isNotepad =
+    pathname === '/company/my-notepad' || pathname === '/company/notepad';
 
-  const title = isOrganization
-    ? 'Organization'
-    : isRecruitment
-      ? 'Recruitment'
-      : isEmployees
-        ? 'Employees'
-        : pathname === '/company/sessions'
-          ? 'Sessions & Devices'
-          : isAccess
-            ? 'Access Explorer'
-            : isRoleChangeRequest
-              ? 'Request Role Change'
-              : isAudit
-                ? 'Audit Log'
-                : pathname === '/company/geofencing'
-                  ? 'Geofencing'
-                  : pathname === '/company/tasks'
-                    ? 'Tasks'
-                    : 'Dashboard';
+  const title = isNotepad
+    ? 'My Notepad'
+    : isOrganization
+      ? 'Organization'
+      : isRecruitment
+        ? 'Recruitment'
+        : isEmployees
+          ? 'Employees'
+          : pathname === '/company/sessions'
+            ? 'Sessions & Devices'
+            : isAccess
+              ? 'Access Explorer'
+              : isRoleChangeRequest
+                ? 'Request Role Change'
+                : isAudit
+                  ? 'Audit Log'
+                  : pathname === '/company/geofencing'
+                    ? 'Geofencing'
+                    : pathname === '/company/tasks'
+                      ? 'Tasks'
+                      : 'Dashboard';
 
-  const content = isOrganization ? (
+  const content = isNotepad ? (
+    <MyNotepadPage />
+  ) : isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
   ) : isRecruitment ? (
     <RecruitmentWorkspace

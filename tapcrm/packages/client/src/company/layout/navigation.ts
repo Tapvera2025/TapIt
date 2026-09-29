@@ -28,6 +28,7 @@ export const companyNavigation: CompanyNavGroup[] = [
     items: [
       { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
       { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+      { label: 'My Notepad', path: '/company/my-notepad', icon: 'notepad' },
     ],
   },
   {
@@ -49,7 +50,6 @@ export const companyNavigation: CompanyNavGroup[] = [
         ],
       },
     ],
-    
   },
   {
     label: 'Organization',

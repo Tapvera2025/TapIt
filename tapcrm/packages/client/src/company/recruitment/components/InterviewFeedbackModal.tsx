@@ -89,11 +89,11 @@ export function InterviewFeedbackModal({
             onChange={setRating}
             disabled={submitting}
             options={[
-              { value: '5', label: '5 ★ — Exceptional' },
-              { value: '4', label: '4 ★ — Strong' },
-              { value: '3', label: '3 ★ — Acceptable / Baseline' },
-              { value: '2', label: '2 ★ — Below Expectations' },
-              { value: '1', label: '1 ★ — Poor' },
+              { value: '5', label: '5 / 5 — Exceptional' },
+              { value: '4', label: '4 / 5 — Strong' },
+              { value: '3', label: '3 / 5 — Acceptable / Baseline' },
+              { value: '2', label: '2 / 5 — Below Expectations' },
+              { value: '1', label: '1 / 5 — Poor' },
             ]}
           />
         </div>

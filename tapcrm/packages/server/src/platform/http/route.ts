@@ -38,14 +38,12 @@ export type ResourceLoader = (
   id: string,
 ) => Promise<Resource | null>;
 
-export interface RouteBinding<TBody = unknown, TResult = unknown> {
+/**
+ * Common fields shared by both authorized and auth-only route bindings.
+ */
+interface RouteBindingBase<TBody = unknown, TResult = unknown> {
   readonly method: HttpMethod;
   readonly path: string;
-  /**
-   * API-3 — typed as the generated union, so a binding naming an action outside
-   * the registry is a COMPILE error, not a runtime deny (RG-I2).
-   */
-  readonly action: Action;
   /** RM-14 / API-4 — mandatory when the action names a resource. */
   readonly resourceParam?: string;
   readonly loadResource?: ResourceLoader;
@@ -58,6 +56,51 @@ export interface RouteBinding<TBody = unknown, TResult = unknown> {
   readonly module?: string;
 }
 
+/**
+ * Normal authorized route — MUST declare an Action.
+ * The framework resolves the action, authorizes, and projects the result.
+ */
+interface AuthorizedRouteBinding<TBody = unknown, TResult = unknown>
+  extends RouteBindingBase<TBody, TResult> {
+  /**
+   * API-3 — typed as the generated union, so a binding naming an action outside
+   * the registry is a COMPILE error, not a runtime deny (RG-I2).
+   */
+  readonly action: Action;
+  readonly authOnly?: never;
+}
+
+/**
+ * Authentication-only route — explicitly opted out of action-based
+ * authorization. MUST set `authOnly: true` to be intentional.
+ *
+ * The framework verifies authentication and tenant context but does NOT
+ * run action-based authorization or field-level result projection.
+ *
+ * Use ONLY for universal authenticated-user utilities (e.g. My Notepad)
+ * that every user in every tenant should access without position-based
+ * gating.
+ */
+interface AuthOnlyRouteBinding<TBody = unknown, TResult = unknown>
+  extends RouteBindingBase<TBody, TResult> {
+  readonly action?: never;
+  readonly authOnly: true;
+}
+
+/**
+ * RouteBinding — a discriminated union.
+ *
+ * A route MUST declare either:
+ *   `action: Action`   → normal authorized route
+ *   `authOnly: true`   → authentication-only route (explicit opt-out)
+ *
+ * A route with neither will fail to type-check, preventing accidental
+ * authorization bypass.
+ */
+export type RouteBinding<TBody = unknown, TResult = unknown> =
+  | AuthorizedRouteBinding<TBody, TResult>
+  | AuthOnlyRouteBinding<TBody, TResult>;
+
 const bindings: RouteBinding<never, unknown>[] = [];
 
 /**
@@ -66,28 +109,30 @@ const bindings: RouteBinding<never, unknown>[] = [];
  * registered Express route came through here.
  */
 export function route<TBody, TResult>(binding: RouteBinding<TBody, TResult>): void {
-  const definition = REGISTRY[binding.action];
+  if ('action' in binding && binding.action !== undefined) {
+    const definition = REGISTRY[binding.action];
 
-  // API-4 / RM-14, asserted at DECLARATION time rather than at boot, so the
-  // stack trace points at the offending route.
-  if (definition.resource !== null && binding.resourceParam !== undefined) {
-    if (!binding.path.includes(`:${binding.resourceParam}`)) {
-      throw new Error(
-        `Route ${binding.method} ${binding.path} declares resourceParam ` +
-          `"${binding.resourceParam}" which is not a parameter of its path.`,
-      );
-    }
-    if (binding.loadResource === undefined) {
-      throw new Error(
-        `Route ${binding.method} ${binding.path} declares resourceParam but no ` +
-          'loadResource. Without a loader the framework cannot perform the ' +
-          'object-level check required by AZ-1, and an endpoint-level check alone ' +
-          'is insufficient (SE-3).',
-      );
+    // API-4 / RM-14, asserted at DECLARATION time rather than at boot, so the
+    // stack trace points at the offending route.
+    if (definition.resource !== null && binding.resourceParam !== undefined) {
+      if (!binding.path.includes(`:${binding.resourceParam}`)) {
+        throw new Error(
+          `Route ${binding.method} ${binding.path} declares resourceParam ` +
+            `"${binding.resourceParam}" which is not a parameter of its path.`,
+        );
+      }
+      if (binding.loadResource === undefined) {
+        throw new Error(
+          `Route ${binding.method} ${binding.path} declares resourceParam but no ` +
+            'loadResource. Without a loader the framework cannot perform the ' +
+            'object-level check required by AZ-1, and an endpoint-level check alone ' +
+            'is insufficient (SE-3).',
+        );
+      }
     }
   }
 
-  bindings.push(binding);
+  bindings.push(binding as RouteBinding<never, unknown>);
 }
 
 export function registeredBindings(): readonly RouteBinding<never, unknown>[] {

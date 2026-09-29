@@ -70,9 +70,9 @@ export function RecruitmentWorkspace({
   }
 
   return (
-    <div>
+    <div className="w-full max-w-full overflow-x-hidden">
       {/* Top Section Navigation Tabs */}
-      <div className="px-5 pt-4 md:px-8">
+      <div className="w-full max-w-full px-4 pt-3 md:px-8 md:pt-4">
         <div className="mx-auto max-w-7xl">
           <RecruitmentTabs
             activeTab={activeTab}

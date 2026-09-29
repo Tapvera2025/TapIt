@@ -78,7 +78,7 @@ export function OffersPage({
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent hover:opacity-90"
+          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto"
         >
           + Create Offer
         </button>
