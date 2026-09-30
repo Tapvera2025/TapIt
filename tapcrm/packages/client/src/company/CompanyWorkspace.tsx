@@ -31,6 +31,7 @@ import {
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
+import { MyTodoPage } from './todo/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -151,6 +152,8 @@ export function CompanyWorkspace({
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
   const isEmployeeNotes = pathname === '/company/employee-notes';
+  const isTodo =
+    pathname === '/company/todo' || pathname === '/company/my-todo';
   const isNotepad =
     pathname === '/company/my-notepad' || pathname === '/company/notepad';
 
@@ -176,37 +179,41 @@ export function CompanyWorkspace({
       ? null
       : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
 
-  const title = isNotepad
-    ? 'My Notepad'
-    : isEmployeeNotes
-      ? 'Employee Notes'
-      : isOrganization
-        ? 'Organization'
-        : isRecruitment
-          ? 'Recruitment'
-          : isEmployees
-            ? 'Employees'
-            : pathname === '/company/sessions'
-              ? 'Sessions & Devices'
-              : isAccess
-                ? 'Access Explorer'
-                : isRoleChangeRequest
-                  ? 'Request Role Change'
-                  : isAudit
-                    ? 'Audit Log'
-                    : pathname === '/company/geofencing'
-                      ? 'Geofencing'
-                      : pathname === '/company/tasks'
-                        ? 'Tasks'
-                        : isTerritories || territoryDetailMatch
-                          ? 'Territories'
-                          : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
-                            ? 'Callbacks'
-                          : isLeads || isStalledLeads || isReengagement || leadDetailMatch
-                            ? 'Leads'
-                            : 'Dashboard';
+  const title = isTodo
+    ? 'My Todo'
+    : isNotepad
+      ? 'My Notepad'
+      : isEmployeeNotes
+        ? 'Employee Notes'
+        : isOrganization
+          ? 'Organization'
+          : isRecruitment
+            ? 'Recruitment'
+            : isEmployees
+              ? 'Employees'
+              : pathname === '/company/sessions'
+                ? 'Sessions & Devices'
+                : isAccess
+                  ? 'Access Explorer'
+                  : isRoleChangeRequest
+                    ? 'Request Role Change'
+                    : isAudit
+                      ? 'Audit Log'
+                      : pathname === '/company/geofencing'
+                        ? 'Geofencing'
+                        : pathname === '/company/tasks'
+                          ? 'Tasks'
+                          : isTerritories || territoryDetailMatch
+                            ? 'Territories'
+                            : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
+                              ? 'Callbacks'
+                            : isLeads || isStalledLeads || isReengagement || leadDetailMatch
+                              ? 'Leads'
+                              : 'Dashboard';
 
-  const content = isNotepad ? (
+  const content = isTodo ? (
+    <MyTodoPage />
+  ) : isNotepad ? (
     <MyNotepadPage />
   ) : isEmployeeNotes ? (
     isSuperAdmin ? (
