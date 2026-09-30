@@ -9,6 +9,8 @@ import { sql } from './dal/sql.js';
 import { runDailyAuditIntegrityVerification } from '../modules/audit/integrity.js';
 import { runAuditRetention } from '../modules/audit/archive.js';
 import { pruneExpired } from '../modules/notifications/repository.js';
+import { runStalledLeadSweep } from '../modules/sales/leads/stalled-service.js';
+import { runCallbackAutomation } from '../modules/sales/leads/callback-automation.js';
 
 /** Queue integration point for transactional email/outbox delivery. */
 export const PLATFORM_JOBS = {
@@ -18,6 +20,8 @@ export const PLATFORM_JOBS = {
   AUDIT_CHAIN_VERIFICATION: 'audit.chain-verification',
   AUDIT_RETENTION: 'audit.retention',
   NOTIFICATION_RETENTION: 'notifications.retention',
+  LEAD_STALLED_SWEEP: 'sales.leads.stalled-sweep',
+  CALLBACK_AUTOMATION: 'sales.leads.callback-automation',
 } as const;
 
 const RETENTION_QUEUE = 'tapcrm.identity.retention';
@@ -48,6 +52,12 @@ export async function startBackgroundJobs(): Promise<void> {
     if (job.name === PLATFORM_JOBS.NOTIFICATION_RETENTION) {
       await pruneExpiredNotifications();
     }
+    if (job.name === PLATFORM_JOBS.LEAD_STALLED_SWEEP) {
+      await runStalledLeadSweep();
+    }
+    if (job.name === PLATFORM_JOBS.CALLBACK_AUTOMATION) {
+      await runCallbackAutomation();
+    }
   }, { connection });
   worker.on('failed', (job, error) => {
     console.error(JSON.stringify({ level: 'error', msg: 'background job failed', job: job?.name, error: String(error) }));
@@ -76,6 +86,16 @@ export async function startBackgroundJobs(): Promise<void> {
     'audit-retention',
     { every: 24 * 60 * 60 * 1000 },
     { name: PLATFORM_JOBS.AUDIT_RETENTION, data: { runId: randomUUID() }, opts: { attempts: 3, backoff: { type: 'exponential', delay: 60_000 } } },
+  );
+  await queue.upsertJobScheduler(
+    'lead-stalled-sweep',
+    { every: 60 * 60 * 1000 },
+    { name: PLATFORM_JOBS.LEAD_STALLED_SWEEP, data: { runId: randomUUID() } },
+  );
+  await queue.upsertJobScheduler(
+    'callback-automation',
+    { every: 60 * 1000 },
+    { name: PLATFORM_JOBS.CALLBACK_AUTOMATION, data: { runId: randomUUID() } },
   );
 }
 

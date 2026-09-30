@@ -16,6 +16,19 @@ import { getRoleChangeRequestAccess } from '../access-management/api/accessApi.j
 import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
 import { TasksPage } from './tasks/index.js';
+import {
+  getTerritories,
+  TerritoriesPage,
+  TerritoryDetailsPage,
+  getLeads,
+  getAllCallbacks,
+  LeadsPage,
+  LeadDetailsPage,
+  StalledLeadsPage,
+  ReengagementSegmentsPage,
+  CallbacksPage,
+  CallbackDetailPage,
+} from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 
 export function CompanyWorkspace({
@@ -33,6 +46,9 @@ export function CompanyWorkspace({
   const [canViewAudit, setCanViewAudit] = useState(false);
   const [canViewEmployees, setCanViewEmployees] = useState(false);
   const [employeesAccessChecked, setEmployeesAccessChecked] = useState(false);
+  const [canViewTerritories, setCanViewTerritories] = useState(false);
+  const [canViewLeads, setCanViewLeads] = useState(false);
+  const [canViewCallbacks, setCanViewCallbacks] = useState(false);
 
   useEffect(() => {
     void getCompanyIdentity()
@@ -42,6 +58,9 @@ export function CompanyWorkspace({
         if (nextIdentity.user.accountType === 'super-admin') {
           setCanViewEmployees(true);
           setEmployeesAccessChecked(true);
+          setCanViewTerritories(true);
+          setCanViewLeads(true);
+          setCanViewCallbacks(true);
         } else if (nextIdentity.user.accountType === 'employee') {
           // The API is the source of truth for employee-directory access.
           // This probe only controls navigation; EmployeesPage still uses
@@ -51,6 +70,18 @@ export function CompanyWorkspace({
             .then(() => setCanViewEmployees(true))
             .catch(() => setCanViewEmployees(false))
             .finally(() => setEmployeesAccessChecked(true));
+
+          void getTerritories()
+            .then(() => setCanViewTerritories(true))
+            .catch(() => setCanViewTerritories(false));
+
+          void getLeads()
+            .then(() => setCanViewLeads(true))
+            .catch(() => setCanViewLeads(false));
+
+          void getAllCallbacks()
+            .then(() => setCanViewCallbacks(true))
+            .catch(() => setCanViewCallbacks(false));
 
           void getRoleChangeRequestAccess()
             .then(() => setCanRequestRoleChange(true))
@@ -63,9 +94,7 @@ export function CompanyWorkspace({
       })
       .catch((cause) =>
         setError(
-          cause instanceof Error
-            ? cause.message
-            : 'Unable to load company workspace.',
+          cause instanceof Error ? cause.message : 'Unable to load company workspace.',
         ),
       );
   }, []);
@@ -102,9 +131,7 @@ export function CompanyWorkspace({
     isSuperAdmin ||
     (identity.user.accountType === 'employee' &&
       (identity.user.departmentCode?.toLowerCase().includes('hr') ||
-        identity.user.departmentName
-          ?.toLowerCase()
-          .includes('human resources') ||
+        identity.user.departmentName?.toLowerCase().includes('human resources') ||
         identity.user.departmentName?.toLowerCase().includes('people') ||
         identity.user.positionCode?.toLowerCase().startsWith('hr')));
 
@@ -122,6 +149,23 @@ export function CompanyWorkspace({
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
+
+  const isTerritories = pathname === '/company/sales/territories';
+  const isLeads = pathname === '/company/sales/leads';
+  const isStalledLeads = pathname === '/company/sales/leads/stalled';
+  const isReengagement = pathname === '/company/sales/leads/re-engagement';
+  const isCallbacks = pathname === '/company/sales/callbacks';
+  const isCallbackCalendar = pathname === '/company/sales/callbacks/calendar';
+  const isCallbackBoard = pathname === '/company/sales/callbacks/board';
+  const isCallbackSchedule = pathname === '/company/sales/callbacks/schedule';
+  const callbackDetailMatch = isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule ? null : pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
+
+  const territoryDetailMatch = pathname.match(/^\/company\/sales\/territories\/([^/]+)$/);
+
+  const leadDetailMatch =
+    isStalledLeads || isReengagement
+      ? null
+      : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
 
   const title = isOrganization
     ? 'Organization'
@@ -141,24 +185,24 @@ export function CompanyWorkspace({
                   ? 'Geofencing'
                   : pathname === '/company/tasks'
                     ? 'Tasks'
-                    : 'Dashboard';
+                    : isTerritories || territoryDetailMatch
+                      ? 'Territories'
+                      : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
+                        ? 'Callbacks'
+                      : isLeads || isStalledLeads || isReengagement || leadDetailMatch
+                        ? 'Leads'
+                        : 'Dashboard';
 
   const content = isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
   ) : isRecruitment ? (
-    <RecruitmentWorkspace
-      pathname={pathname}
-      onNavigate={onNavigate}
-    />
+    <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />
   ) : isAccess && isSuperAdmin ? (
     <AccessExplorerPage />
   ) : isRoleChangeRequest && !isSuperAdmin ? (
     <RoleChangeRequestPage />
   ) : isAudit && (isSuperAdmin || canViewAudit) ? (
-    <AuditLogPage
-      canManageHolds={isSuperAdmin}
-      canExport={isSuperAdmin}
-    />
+    <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />
   ) : pathname === '/company/sessions' ? (
     <SessionsPage
       onBack={() => onNavigate('/company/dashboard')}
@@ -170,9 +214,7 @@ export function CompanyWorkspace({
     ) : (
       <div className="grid min-h-[60vh] place-items-center p-6 text-center">
         <div>
-          <h1 className="font-display text-2xl font-bold">
-            Access Restricted
-          </h1>
+          <h1 className="font-display text-2xl font-bold">Access Restricted</h1>
 
           <p className="mt-2 text-sm text-app-muted">
             Employee directory is restricted to authorized personnel.
@@ -181,19 +223,60 @@ export function CompanyWorkspace({
       </div>
     )
   ) : pathname === '/company/tasks' ? (
-    <TasksPage
-      isSuperAdmin={isSuperAdmin}
-      currentUserId={identity.user.id}
-    />
-  ) : pathname === '/company/geofencing' ? (
-    <GeofencingPage
-      onBack={() => onNavigate('/company/dashboard')}
-    />
-  ) : (
-    <DashboardPage
-      identity={identity}
+    <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
+  ) : isTerritories && (isSuperAdmin || canViewTerritories) ? (
+    <TerritoriesPage
+      canManage={isSuperAdmin || canViewTerritories}
       onNavigate={onNavigate}
     />
+  ) : territoryDetailMatch && (isSuperAdmin || canViewTerritories) ? (
+    <TerritoryDetailsPage
+      id={territoryDetailMatch[1]!}
+      canManage={isSuperAdmin}
+      onBack={() => onNavigate('/company/sales/territories')}
+    />
+  ) : (isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch) &&
+    (isSuperAdmin || canViewCallbacks) ? (
+    callbackDetailMatch ? (
+      <CallbackDetailPage id={callbackDetailMatch[1]!} currentUserId={identity.user.id} onBack={() => onNavigate('/company/sales/callbacks')} onNavigate={onNavigate} />
+    ) : (
+      <CallbacksPage view={isCallbackCalendar ? 'calendar' : isCallbackBoard ? 'board' : isCallbackSchedule ? 'schedule' : 'list'} organizationTimezone={identity.organization?.timezone ?? 'Asia/Kolkata'} onNavigate={onNavigate} />
+    )
+  ) : (isLeads || isStalledLeads || isReengagement || leadDetailMatch) &&
+    (isSuperAdmin || canViewLeads) ? (
+    leadDetailMatch ? (
+      <LeadDetailsPage
+        id={leadDetailMatch[1]!}
+        currentUserId={identity.user.id}
+        organizationTimezone={identity.organization?.timezone ?? 'Asia/Kolkata'}
+        onBack={() => onNavigate('/company/sales/leads')}
+      />
+    ) : isStalledLeads ? (
+      <StalledLeadsPage
+        onBack={() => onNavigate('/company/sales/leads')}
+        onNavigate={onNavigate}
+      />
+    ) : isReengagement ? (
+      <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />
+    ) : (
+      <LeadsPage onNavigate={onNavigate} />
+    )
+  ) : !isSuperAdmin ? (
+    <div className="grid min-h-[60vh] place-items-center p-6 text-center">
+      <div>
+        <h1 className="font-display text-2xl font-bold">
+          Employee workspace is coming soon
+        </h1>
+
+        <p className="mt-2 text-sm text-app-muted">
+          Your account can still review its active Sessions &amp; Devices.
+        </p>
+      </div>
+    </div>
+  ) : pathname === '/company/geofencing' ? (
+    <GeofencingPage onBack={() => onNavigate('/company/dashboard')} />
+  ) : (
+    <DashboardPage identity={identity} onNavigate={onNavigate} />
   );
 
   return (
@@ -205,6 +288,8 @@ export function CompanyWorkspace({
       canRequestRoleChange={canRequestRoleChange}
       canViewAudit={canViewAudit}
       canViewEmployees={canViewEmployees}
+      canViewTerritories={canViewTerritories}
+      canViewLeads={canViewLeads}
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}

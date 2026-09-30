@@ -326,7 +326,8 @@ export type PlatformOperation =
   | 'audit-retention'
   | 'audit-archiving'
   | 'organization-provisioning'
-  | 'health-check';
+  | 'health-check'
+  | 'callback-automation';
 
 export const platformDb = {
   async one<T>(
