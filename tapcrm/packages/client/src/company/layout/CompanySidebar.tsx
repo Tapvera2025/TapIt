@@ -195,18 +195,23 @@ export function CompanySidebar({
                         pathname === '/company/notepad') ||
                       (item.path !== '/company/organization' &&
                         pathname.startsWith(`${item.path}/`));
-                    const showChildren =
+                    const showChildren = Boolean(
                       item.children &&
-                      (recruitmentOpen || pathname.startsWith(item.path));
+                        (isRecruitmentItem
+                          ? recruitmentOpen
+                          : pathname.startsWith(item.path)),
+                    );
 
                     return (
                       <div key={item.path}>
                         <button
                           aria-current={isItemActive ? 'page' : undefined}
+                          aria-expanded={item.children ? showChildren : undefined}
                           type="button"
                           onClick={() => {
                             if (isRecruitmentItem) {
                               setRecruitmentOpen((prev) => !prev);
+                              return;
                             }
                             onNavigate(item.path);
                             onClose();
@@ -231,8 +236,7 @@ export function CompanySidebar({
                           )}
                         </button>
 
-                        {item.children &&
-                          (recruitmentOpen || pathname.startsWith(item.path)) && (
+                        {item.children && showChildren && (
                             <div className="ml-7 mt-1 space-y-1 border-l border-app-border pl-2">
                             {item.children.map((sub) => {
                               const isSubActive =
