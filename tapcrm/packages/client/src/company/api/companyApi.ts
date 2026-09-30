@@ -13,7 +13,7 @@ export interface CompanyIdentity {
     positionCode?: string | null;
     positionName?: string | null;
   };
-  organization: { id: string; code: string; name: string; status: string } | null;
+  organization: { id: string; code: string; name: string; status: string; timezone: string } | null;
 }
 export interface CompanyEmployee {
   id: string;

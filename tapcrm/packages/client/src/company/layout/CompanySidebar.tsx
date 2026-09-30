@@ -12,6 +12,8 @@ export function CompanySidebar({
   canRequestRoleChange,
   canViewAudit,
   canViewEmployees,
+  canViewTerritories = false,
+  canViewLeads = false,
   onNavigate,
   onLogout,
   open,
@@ -31,6 +33,8 @@ export function CompanySidebar({
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
   canViewEmployees: boolean;
+  canViewTerritories?: boolean;
+  canViewLeads?: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   open: boolean;
@@ -109,6 +113,12 @@ export function CompanySidebar({
                   items: [{ label: 'Employees', path: '/company/employees', icon: 'users' }],
                 },
               ]
+            : []),
+          ...(canViewTerritories || canViewLeads
+            ? [{ label: 'Sales', items: [
+              ...(canViewTerritories ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }] : []),
+              ...(canViewLeads ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }] : []),
+            ] }]
             : []),
           {
             label: 'Identity & Access',

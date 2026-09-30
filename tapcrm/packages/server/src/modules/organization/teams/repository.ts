@@ -13,6 +13,7 @@ export interface TeamRecord {
   parentTeamId: string | null;
   sharedVisibility: boolean;
   isSeeded: boolean;
+  status: 'active' | 'inactive';
 }
 
 export async function listTeams(
@@ -22,7 +23,7 @@ export async function listTeams(
   return db.query<TeamRecord>(
     ctx,
     sql`
-    SELECT id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded
+    SELECT id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded, status
     FROM team WHERE organization_id = ${ctx.organizationId} AND ${filter} ORDER BY name
   `,
   );
@@ -34,7 +35,7 @@ export async function findTeam(
   id: string,
 ): Promise<TeamRecord | null> {
   return tx.maybeOne<TeamRecord>(sql`
-    SELECT id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded
+    SELECT id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded, status
     FROM team WHERE organization_id = ${organizationId} AND id = ${id}
   `);
 }
@@ -47,7 +48,7 @@ export async function findTeamByName(
   excludeId?: string,
 ): Promise<TeamRecord | null> {
   return tx.maybeOne<TeamRecord>(sql`
-    SELECT id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded
+    SELECT id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded, status
     FROM team
     WHERE organization_id = ${organizationId} AND department_id = ${departmentId}
       AND lower(name) = lower(${name}) AND id <> COALESCE(${excludeId ?? null}, id)
@@ -69,7 +70,7 @@ export async function insertTeam(
   return tx.one<TeamRecord>(sql`
     INSERT INTO team (organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility)
     VALUES (${input.organizationId}, ${input.departmentId}, ${input.kind}, ${input.name}, ${input.leadUserId}, ${input.parentTeamId}, ${input.sharedVisibility})
-    RETURNING id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded
+    RETURNING id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded, status
   `);
 }
 
@@ -89,7 +90,7 @@ export async function updateTeam(
   return tx.one<TeamRecord>(sql`
     UPDATE team SET department_id = ${input.departmentId}, kind = ${input.kind}, name = ${input.name}, lead_user_id = ${input.leadUserId}, parent_team_id = ${input.parentTeamId}, shared_visibility = ${input.sharedVisibility}
     WHERE organization_id = ${input.organizationId} AND id = ${input.id}
-    RETURNING id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded
+    RETURNING id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded, status
   `);
 }
 
@@ -159,7 +160,7 @@ export async function loadTeamResource(ctx: RequestContext, id: string) {
   const row = await db.maybeOne<TeamRecord>(
     ctx,
     sql`
-    SELECT id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded
+    SELECT id, organization_id, department_id, kind, name, lead_user_id, parent_team_id, shared_visibility, is_seeded, status
     FROM team WHERE organization_id = ${ctx.organizationId} AND id = ${id}
   `,
   );

@@ -4,6 +4,7 @@ import type { Principal } from '@tapcrm/contracts';
 import { createRequestContext, type RequestContext } from '../../platform/dal/context.js';
 import { db, platformDb } from '../../platform/dal/db.js';
 import { closePools } from '../../platform/dal/pool.js';
+import { dispatchOrganization } from '../notifications/dispatcher.js';
 import { sql } from '../../platform/dal/sql.js';
 import { installAuthz } from '../../platform/authz-adapter.js';
 import { registerTasksPolicies } from './policy.js';
@@ -25,6 +26,7 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
   const orgB = randomUUID();
   const userA1 = randomUUID();
   const userA2 = randomUUID();
+  const userA3 = randomUUID();
   const userB1 = randomUUID();
 
   const asOwner = (reason: string, fragment: ReturnType<typeof sql>) =>
@@ -111,12 +113,16 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
         INSERT INTO app_user (id, organization_id, email, full_name, account_type, department_id, position_id, employee_id) VALUES
         (${userA1}, ${orgA}, ${`userA1-${orgA.slice(0, 4)}@example.com`}, 'User A1', 'employee', ${deptA}, ${posA}, 'TASK-A1'),
         (${userA2}, ${orgA}, ${`userA2-${orgA.slice(0, 4)}@example.com`}, 'User A2', 'employee', ${deptA}, ${posA}, 'TASK-A2'),
+        (${userA3}, ${orgA}, ${`userA3-${orgA.slice(0, 4)}@example.com`}, 'User A3', 'employee', ${deptA}, ${posA}, 'TASK-A3'),
         (${userB1}, ${orgB}, ${`userB1-${orgB.slice(0, 4)}@example.com`}, 'User B1', 'employee', ${deptB}, ${posB}, 'TASK-B1')
       `,
     );
   });
 
   afterAll(async () => {
+    await asOwner('delete test notification deliveries', sql`DELETE FROM notification_delivery WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
+    await asOwner('delete test notifications', sql`DELETE FROM notification WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
+    await asOwner('delete test notification outbox', sql`DELETE FROM notification_outbox WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test task assignees', sql`DELETE FROM task_assignee WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test tasks', sql`DELETE FROM task WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test audit entries', sql`DELETE FROM audit_outbox WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
@@ -259,5 +265,108 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
     // User in Org B listing tasks sees 0 tasks
     const listB = await listTasks(ctxB, taskListQuerySchema.parse({}));
     expect(listB.items.every((t) => t.id !== taskInA.id)).toBe(true);
+  });
+
+  /**
+   * Notifications on task operations. The reference for how a module's
+   * notifications are tested end to end: do the business action, run the
+   * dispatcher, then look at who actually received what.
+   */
+  describe('notifications', () => {
+    const ctxA2 = () => ctxFor(orgA, userA2);
+
+    /** Dispatch everything pending, then list what a user received for one task. */
+    async function received(userId: string, taskId: string): Promise<string[]> {
+      await dispatchOrganization(orgA);
+      const rows = await asOwner(
+        'read notifications',
+        sql`SELECT type FROM notification
+            WHERE recipient_id = ${userId} AND metadata->>'taskId' = ${taskId}
+            ORDER BY created_at, type`,
+      );
+      return (rows as unknown as Array<{ type: string }>).map((r) => r.type);
+    }
+
+    const outboxCount = async (): Promise<number> => {
+      const [row] = (await asOwner(
+        'count outbox',
+        sql`SELECT count(*)::int AS n FROM notification_outbox WHERE organization_id = ${orgA}`,
+      )) as unknown as Array<{ n: number }>;
+      return row!.n;
+    };
+
+    it('create: notifies the assignees, not the creator', async () => {
+      const task = await createTask(ctxA1(), createTaskSchema.parse({
+        title: 'Notify on create',
+        priority: 'high',
+        assigneeIds: [userA1, userA2],
+      }));
+      expect(await received(userA2, task.id)).toEqual(['task.assigned']);
+      expect(await received(userA1, task.id)).toEqual([]); // the actor
+    });
+
+    it('create: assigning only yourself queues nothing at all', async () => {
+      const before = await outboxCount();
+      await createTask(ctxA1(), createTaskSchema.parse({ title: 'Self task', assigneeIds: [userA1] }));
+      await createTask(ctxA1(), createTaskSchema.parse({ title: 'No assignees' }));
+      expect(await outboxCount()).toBe(before);
+    });
+
+    it('update: tells assignees only when something really changed', async () => {
+      const task = await createTask(ctxA1(), createTaskSchema.parse({
+        title: 'Notify on update',
+        priority: 'low',
+        assigneeIds: [userA2],
+      }));
+      await received(userA2, task.id); // flush the "assigned" notification
+
+      await updateTask(ctxA1(), task.id, { title: 'Notify on update', priority: 'low' }); // no change
+      expect(await received(userA2, task.id)).toEqual(['task.assigned']);
+
+      await updateTask(ctxA1(), task.id, { priority: 'urgent' });
+      expect(await received(userA2, task.id)).toEqual(['task.assigned', 'task.updated']);
+    });
+
+    it('transition: tells the creator and assignees but never the actor; completion has its own type', async () => {
+      const task = await createTask(ctxA1(), createTaskSchema.parse({
+        title: 'Notify on status',
+        assigneeIds: [userA2],
+      }));
+      await received(userA2, task.id);
+
+      // The assignee starts the work: the creator (A1) hears, the actor (A2) does not.
+      await transitionTask(ctxA2(), task.id, { status: 'in_progress' });
+      expect(await received(userA1, task.id)).toEqual(['task.status_changed']);
+      expect(await received(userA2, task.id)).toEqual(['task.assigned']);
+
+      await transitionTask(ctxA2(), task.id, { status: 'completed' });
+      expect(await received(userA1, task.id)).toEqual(['task.status_changed', 'task.completed']);
+    });
+
+    it('assign: only the difference is news', async () => {
+      const task = await createTask(ctxA1(), createTaskSchema.parse({
+        title: 'Notify on reassign',
+        assigneeIds: [userA2],
+      }));
+      await received(userA2, task.id);
+
+      // A2 -> A3: A3 is newly assigned, A2 is removed.
+      await assignTask(ctxA1(), task.id, { assigneeIds: [userA3] });
+      expect(await received(userA3, task.id)).toEqual(['task.assigned']);
+      expect(await received(userA2, task.id)).toEqual(['task.assigned', 'task.unassigned']);
+
+      // Saving the same list again tells nobody anything.
+      await assignTask(ctxA1(), task.id, { assigneeIds: [userA3] });
+      expect(await received(userA3, task.id)).toEqual(['task.assigned']);
+    });
+
+    it('a failed operation leaves no notification behind (same transaction)', async () => {
+      const task = await createTask(ctxA1(), createTaskSchema.parse({ title: 'Rollback check' }));
+      const before = await outboxCount();
+      // userB1 belongs to another organization, so validation throws mid-transaction.
+      await expect(assignTask(ctxA1(), task.id, { assigneeIds: [userA2, userB1] })).rejects.toThrow(TaskValidationError);
+      expect(await outboxCount()).toBe(before);
+      expect(await received(userA2, task.id)).toEqual([]);
+    });
   });
 });
