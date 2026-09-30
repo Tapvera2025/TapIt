@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { PolicyEvaluationContext } from '@tapcrm/authz';
-import { canViewInternalHandoverState, handoverPolicy } from './handover-policy.js';
+import { canViewInternalHandoverState, handoverPolicy } from './policy.js';
 
 const baseContext = { organizationId: 'org-a', principal: { id: 'user-a' }, scope: { poolIds: async () => new Set<string>(), teamIds: async () => new Set<string>(), departmentId: async () => null } };
 const context = baseContext as unknown as PolicyEvaluationContext;
-const resource = { type: 'handover', id: 'handover-a', organizationId: 'org-a', leadId: 'lead-a', fromUserId: 'user-a', toUserId: 'user-b', status: 'pending', disposition: null, ownerId: 'user-a', currentHolderId: 'user-a', salesTeamId: null, salesPoolId: null, departmentId: null };
+const resource = { type: 'handover', id: 'handover-a', organizationId: 'org-a', leadId: 'lead-a', fromUserId: 'user-a', toUserId: 'user-b', handoverMode: 'direct' as const, status: 'pending', disposition: null, ownerId: 'user-a', currentHolderId: 'user-a', salesTeamId: null, salesPoolId: null, departmentId: null };
 
 describe('lead handover policy', () => {
   it('allows only the offered target to receive', async () => {
     expect(await handoverPolicy.check({ ...baseContext, principal: { id: 'user-b' } } as unknown as PolicyEvaluationContext, 'handovers:receive', resource, 'own')).toBe(true);
     expect(await handoverPolicy.check(context, 'handovers:receive', resource, 'own')).toBe(false);
+  });
+
+  it('allows an eligible policy principal to claim an unassigned team queue item', async () => {
+    const queued = { ...resource, toUserId: null, handoverMode: 'team_queue' as const };
+    expect(await handoverPolicy.check({ ...baseContext, principal: { id: 'user-c' } } as unknown as PolicyEvaluationContext, 'handovers:receive', queued, 'own')).toBe(true);
   });
 
   it('keeps initiation with the current originator', async () => {

@@ -6,11 +6,13 @@ import { sql } from '../../../platform/dal/sql.js';
 import { LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from './errors.js';
 import { notifyCallback } from './callback-notifications.js';
 import { findCallback, insertCallback, listCallbacks, loadCallbackResource as loadCallbackResourceRow, markCallbackRescheduled, updateCallbackStatus } from './callback-repository.js';
-import { findLeadHandoverResource, insertActivity, insertAudit, loadLeadResource } from './repository.js';
+import { insertActivity, insertAudit, loadLeadResource } from './repository.js';
+import { findLeadHandoverResource } from '../handover/repository.js';
 import { leadPolicy } from './policy.js';
 import { scopeResolver } from '../../../platform/authz-adapter.js';
 import type { LeadCallback } from './types.js';
 import { isValidCallbackTransition } from './callback-state.js';
+import { isTerminalLeadStatus } from './lifecycle.js';
 import type { CallbackListQuery, CallbackOutcomeInput, CreateCallbackInput, UpdateCallbackInput } from './validators.js';
 
 export const loadCallbackResource = loadCallbackResourceRow;
@@ -31,6 +33,7 @@ async function assertLeadAccess(ctx: RequestContext, leadId: string): Promise<{ 
 
 export async function scheduleCallbackInTransaction(tx: Tx, ctx: RequestContext, leadId: string, scheduledAt: Date, reason: string | null, createdBy: string): Promise<string> {
   const lead = await findLeadHandoverResource(ctx, leadId);
+  if (lead && isTerminalLeadStatus(lead.status)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'A converted or closed-lost Lead cannot have a callback');
   const operationalOwnerId = lead?.currentHolderId ?? lead?.ownerId;
   if (!operationalOwnerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot have a callback');
   const id = await insertCallback(tx, ctx.organizationId, { leadId, ownerId: operationalOwnerId, scheduledAt, reason, createdBy });

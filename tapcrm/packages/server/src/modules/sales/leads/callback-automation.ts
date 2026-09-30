@@ -3,7 +3,8 @@ import { createJobContext, type RequestContext } from '../../../platform/dal/con
 import { platformDb, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { notifyCallbackMissed, notifyCallbackReminder } from './callback-notifications.js';
-import { insertActivity, insertAudit, listHandoverTargets } from './repository.js';
+import { insertActivity, insertAudit } from './repository.js';
+import { listHandoverTargets } from '../handover/repository.js';
 
 const SYSTEM_ID = '00000000-0000-0000-0000-000000000000';
 const REMINDERS = [

@@ -11,7 +11,7 @@ export const handoverPolicy: ResourcePolicy<HandoverResource> = {
   async check(ctx: PolicyEvaluationContext, action: Action, resource: HandoverResource, scope: Scope) {
     if (resource.organizationId !== ctx.organizationId) return false;
     if (action === 'handovers:view' && resource.status !== 'pending' && resource.fromUserId === ctx.principal.id) return false;
-    if (action === 'handovers:receive') return resource.toUserId === ctx.principal.id;
+    if (action === 'handovers:receive') return resource.toUserId === ctx.principal.id || (resource.handoverMode === 'team_queue' && resource.status === 'pending' && resource.toUserId === null);
     if (action === 'handovers:record-disposition') return resource.toUserId === ctx.principal.id && resource.status === 'accepted' && resource.disposition === null;
     if (action === 'handovers:initiate') return resource.fromUserId === ctx.principal.id;
     if (scope === 'own' || scope === 'participant') return resource.fromUserId === ctx.principal.id || resource.toUserId === ctx.principal.id;

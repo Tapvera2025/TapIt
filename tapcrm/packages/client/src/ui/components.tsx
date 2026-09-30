@@ -32,7 +32,7 @@ export function Page({
           </div>
           {action}
         </div>
-        {children}
+        <div className="mt-8">{children}</div>
       </div>
     </div>
   );

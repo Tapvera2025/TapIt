@@ -382,6 +382,7 @@ changes who can do what.
 | POST | /api/handovers/:id/disposition | `handovers:record-disposition` | id |
 | GET | /api/handovers | `handovers:view` | — |
 | GET | /api/handovers/:id | `handovers:view` | id |
+| POST | /api/handovers/:id/annotations | `handovers:view` | id |
 | GET | /api/deals | `deals:view` | — |
 | GET | /api/deals/:id | `deals:view` | id |
 | GET | /api/deals/:id/commercials | `deals:view-commercials` | id |
