@@ -1,4 +1,5 @@
-import { Button, Modal } from '../../../ui/components.js';
+import { Button } from '../../../ui/components.js';
+import { TodoModal } from './TodoModal.js';
 
 export interface DeleteTodoModalProps {
   readonly isOpen: boolean;
@@ -18,19 +19,19 @@ export function DeleteTodoModal({
   if (!isOpen) return null;
 
   return (
-    <Modal title="Delete Todo" onClose={onClose}>
-      <div className="space-y-3">
+    <TodoModal title="Delete Todo" onClose={onClose}>
+      <div className="space-y-3 min-w-0 max-w-full">
         <p className="text-sm leading-relaxed text-app-muted">
           Are you sure want to delete this todo??
         </p>
         {todoTitle && (
-          <p className="rounded-lg border border-app-border bg-app-background p-3 text-sm font-medium text-app-foreground">
+          <p className="rounded-lg border border-app-border bg-app-background p-3 text-sm font-medium text-app-foreground min-w-0 max-w-full break-words [overflow-wrap:anywhere]">
             {todoTitle}
           </p>
         )}
       </div>
 
-      <div className="mt-6 flex items-center justify-end gap-3">
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-3 min-w-0">
         <Button
           type="button"
           kind="secondary"
@@ -48,6 +49,6 @@ export function DeleteTodoModal({
           {isDeleting ? 'Deleting...' : 'Delete'}
         </Button>
       </div>
-    </Modal>
+    </TodoModal>
   );
 }

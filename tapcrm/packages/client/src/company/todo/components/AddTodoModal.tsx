@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Button, Modal } from '../../../ui/components.js';
+import { toast } from 'react-hot-toast';
+import { Button } from '../../../ui/components.js';
+import { TodoModal } from './TodoModal.js';
 import type {
   CreateTodoPayload,
   MyTodo,
@@ -76,8 +78,23 @@ export function AddTodoModal({
       return;
     }
 
+    if (trimmedTitle.length > 500) {
+      const errorMsg = 'Title must not exceed 500 characters';
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
+      return;
+    }
+
     if (!scheduledDate) {
       setValidationError('Scheduled date is required');
+      return;
+    }
+
+    const trimmedDesc = description.trim();
+    if (trimmedDesc.length > 5000) {
+      const errorMsg = 'Description must not exceed 5000 characters';
+      setValidationError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
@@ -85,7 +102,7 @@ export function AddTodoModal({
 
     const payload: CreateTodoPayload | UpdateTodoPayload = {
       title: trimmedTitle,
-      description: description.trim() || null,
+      description: trimmedDesc || null,
       priority,
       scheduledDate,
       dueTime: dueTime ? `${dueTime}:00` : null,
@@ -95,11 +112,16 @@ export function AddTodoModal({
   }
 
   return (
-    <Modal
+    <TodoModal
       title={isEditing ? 'Edit Todo' : 'Add New Todo'}
       onClose={onClose}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        onSubmit={(event) => {
+          void handleSubmit(event);
+        }}
+        className="space-y-4"
+      >
         {validationError && (
           <div
             role="alert"
@@ -203,6 +225,6 @@ export function AddTodoModal({
           </Button>
         </div>
       </form>
-    </Modal>
+    </TodoModal>
   );
 }

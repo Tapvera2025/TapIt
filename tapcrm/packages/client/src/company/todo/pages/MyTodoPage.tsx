@@ -239,8 +239,8 @@ export function MyTodoPage(): React.JSX.Element {
   }
 
   return (
-    <div className="p-3 sm:p-5 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-5xl space-y-3.5 sm:space-y-4">
+    <div className="p-3 sm:p-5 md:p-6 lg:p-8 w-full min-w-0">
+      <div className="mx-auto max-w-5xl space-y-3.5 sm:space-y-4 w-full min-w-0">
         {/* Error notification banner */}
         {error && (
           <Notice error>
@@ -296,7 +296,7 @@ export function MyTodoPage(): React.JSX.Element {
         {loading ? (
           <Loading />
         ) : (
-          <div className="space-y-4 sm:space-y-5">
+          <div className="space-y-4 sm:space-y-5 w-full min-w-0">
             {/* Today Section */}
             {(activeTab === 'all' || activeTab === 'today') && (
               <TodoSection

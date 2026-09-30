@@ -14,16 +14,16 @@ export function TodoSection({
   children,
 }: TodoSectionProps): React.JSX.Element {
   return (
-    <section className="space-y-2" aria-labelledby={`todo-section-${title.toLowerCase()}`}>
-      <div className="flex items-center justify-between pb-0.5">
-        <div className="flex items-center gap-2">
+    <section className="space-y-2 min-w-0 max-w-full" aria-labelledby={`todo-section-${title.toLowerCase()}`}>
+      <div className="flex items-center justify-between pb-0.5 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <h2
             id={`todo-section-${title.toLowerCase()}`}
             className="font-display text-sm sm:text-base font-bold text-app-foreground"
           >
             {title}
           </h2>
-          <span className="rounded-full bg-app-accent/15 px-2 py-0.5 text-xs font-bold text-app-accent">
+          <span className="shrink-0 rounded-full bg-app-accent/15 px-2 py-0.5 text-xs font-bold text-app-accent">
             {count}
           </span>
         </div>
@@ -34,7 +34,7 @@ export function TodoSection({
           {emptyMessage}
         </div>
       ) : (
-        <div className="space-y-1.5 sm:space-y-2">{children}</div>
+        <div className="space-y-1.5 sm:space-y-2 min-w-0 max-w-full">{children}</div>
       )}
     </section>
   );

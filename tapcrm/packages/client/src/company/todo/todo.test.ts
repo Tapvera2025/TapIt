@@ -423,6 +423,31 @@ describe('My Todo - Frontend Suite', () => {
       expect(html).toContain('low');
     });
 
+    it('TodoCard constrains extremely long unbroken titles and descriptions with safe wrap utilities', () => {
+      const longTitle = 'vwcSFCSACEFACaffcwwwcSFCSACEFACaffcwwwcSFCSACEFACaffcwwwcSFCSACEFACaffcwwwcSFCSACEFACaffcwwwcSFCSACEFAC';
+      const longDesc = 'SuperLongDescriptionWithoutSpacesThatWouldNormallyBreakLayoutAndOverflowTheEntirePageHorizontally';
+      const html = renderToStaticMarkup(
+        React.createElement(TodoCard, {
+          todo: {
+            ...mockSampleTodo,
+            title: longTitle,
+            description: longDesc,
+          },
+          onComplete: () => {},
+          onReopen: () => {},
+          onEdit: () => {},
+          onDelete: () => {},
+        }),
+      );
+
+      expect(html).toContain(longTitle);
+      expect(html).toContain(longDesc);
+      // Ensures container and text have overflow prevention utilities
+      expect(html).toContain('min-w-0 max-w-full');
+      expect(html).toContain('[overflow-wrap:anywhere]');
+      expect(html).toContain('break-words');
+    });
+
     it('TodoSection renders section header and empty message when empty', () => {
       const html = renderToStaticMarkup(
         React.createElement(
@@ -479,6 +504,22 @@ describe('My Todo - Frontend Suite', () => {
       expect(html).toContain('Save Changes');
     });
 
+    it('AddTodoModal has proper modal stacking levels (z-50 dialog, z-40 backdrop) below toast notifications (z-9999)', () => {
+      const html = renderToStaticMarkup(
+        React.createElement(AddTodoModal, {
+          isOpen: true,
+          onClose: () => {},
+          onSubmit: async () => {},
+          initialTodo: null,
+          isSubmitting: false,
+        }),
+      );
+
+      // Dialog is at z-50 and backdrop at z-40, ensuring react-hot-toast (z-9999) floats above
+      expect(html).toContain('z-50');
+      expect(html).toContain('z-40');
+    });
+
     it('DeleteTodoModal renders confirmation modal with title and prompt text', () => {
       const html = renderToStaticMarkup(
         React.createElement(DeleteTodoModal, {
@@ -495,6 +536,24 @@ describe('My Todo - Frontend Suite', () => {
       expect(html).toContain('Prepare financial report');
       expect(html).toContain('Cancel');
       expect(html).toContain('Delete');
+    });
+
+    it('DeleteTodoModal constrains extremely long unbroken titles with wrapping utilities', () => {
+      const longTitle = 'vwcSFCSACEFACaffcwwwcSFCSACEFACaffcwwwcSFCSACEFACaffcwwwcSFCSACEFACaffcwwwcSFCSACEFAC';
+      const html = renderToStaticMarkup(
+        React.createElement(DeleteTodoModal, {
+          isOpen: true,
+          onClose: () => {},
+          onConfirm: () => {},
+          todoTitle: longTitle,
+          isDeleting: false,
+        }),
+      );
+
+      expect(html).toContain(longTitle);
+      expect(html).toContain('min-w-0 max-w-full');
+      expect(html).toContain('[overflow-wrap:anywhere]');
+      expect(html).toContain('break-words');
     });
 
     it('DeleteTodoModal returns empty when closed', () => {
