@@ -13,6 +13,7 @@ export interface TaskAssignee {
   readonly teamId?: string | null | undefined;
   readonly departmentId?: string | null | undefined;
   readonly assignedAt: Date;
+  readonly status: TaskStatus;
 }
 
 export interface Task {
@@ -48,6 +49,8 @@ export interface TaskListQuery {
   readonly endDate?: Date | undefined;
   readonly projectId?: string | undefined;
   readonly assigneeId?: string | undefined;
+  readonly creatorId?: string | undefined;
+  readonly participantId?: string | undefined;
   readonly page?: number | undefined;
   readonly pageSize?: number | undefined;
   readonly sortBy?: 'dueDate' | 'createdAt' | 'title' | 'priority' | 'status' | undefined;

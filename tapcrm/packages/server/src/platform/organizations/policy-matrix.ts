@@ -78,7 +78,7 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   approvals: [G, _, _, dept, _, _, team, _, pool, par, _],
   handoff: [G, _, _, par, par, par, _, _, _, _, _],
   projects: [G, _, _, _, own, dept, _, team, _, own, A],
-  tasks: [G, _, _, _, own, dept, team, team, pool, own, _],
+  tasks: [G, dept, dept, _, own, dept, team, team, pool, own, _],
   'resource-planning': [G, _, _, _, ownV, dept, team, team, _, _, _],
   delivery: [G, _, _, _, par, par, _, teamV, _, _, A],
   clients: [G, _, _, dept, own, deptV, team, _, pool, own, A],

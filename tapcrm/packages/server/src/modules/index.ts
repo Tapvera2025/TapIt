@@ -12,7 +12,11 @@ import { registerTasksPolicies } from './tasks/policy.js';
 import { registerTasksRoutes } from './tasks/routes.js';
 import { registerRecruitmentPolicies } from './recruitment/policy.js';
 import { registerRecruitmentRoutes } from './recruitment/routes.js';
-import { registerMyNotepadRoutes } from './myNotepad/index.js';
+import {
+  registerMyNotepadAdminRoutes,
+  registerMyNotepadRoutes,
+  registerNotepadPolicies,
+} from './myNotepad/index.js';
 
 /**
  * The module registry.
@@ -32,6 +36,7 @@ export function registerAllPolicies(): void {
   registerAuditPolicies();
   registerTasksPolicies();
   registerRecruitmentPolicies();
+  registerNotepadPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -44,5 +49,6 @@ export function registerAllRoutes(): void {
   registerTasksRoutes();
   registerRecruitmentRoutes();
   registerMyNotepadRoutes();
+  registerMyNotepadAdminRoutes();
 }
 

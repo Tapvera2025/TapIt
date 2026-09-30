@@ -1,5 +1,5 @@
 import type { Resource } from '@tapcrm/authz';
-import { effectivePolicy, visibilityFilter } from '@tapcrm/authz';
+import { AuthorizationError, effectivePolicy, visibilityFilter } from '@tapcrm/authz';
 import { globalAccess } from '@tapcrm/contracts';
 import { scopeResolver } from '../../platform/authz-adapter.js';
 import type { RequestContext } from '../../platform/dal/context.js';
@@ -19,6 +19,7 @@ import {
   isPrincipalProjectManager,
   listTasksWithFilter,
   replaceTaskAssignees,
+  updateTaskAssigneeStatus,
   updateTaskRow,
   validateAssigneeIds,
   validateAssigneesInDepartmentScope,
@@ -204,7 +205,7 @@ export async function createTask(
       title: input.title,
       description: input.description ?? null,
       projectId: input.projectId ?? null,
-      priority: input.priority,
+      priority: input.priority ?? 'medium',
       status: 'pending',
       dueDate: input.dueDate ?? null,
       createdBy: ctx.principal.id,
@@ -329,6 +330,101 @@ export async function transitionTask(
     throw new TaskNotFoundError();
   }
 
+  const isAssignee = existing.assignees.some((a) => a.id === ctx.principal.id);
+  const targetUserId =
+    input.userId ?? (isAssignee ? ctx.principal.id : undefined);
+
+  if (targetUserId) {
+    const assignee = existing.assignees.find((a) => a.id === targetUserId);
+    if (!assignee) {
+      throw new TaskValidationError(
+        TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
+        'Specified user is not assigned to this task',
+        { targetUserId },
+      );
+    }
+
+    assertValidTransition(assignee.status, input.status);
+
+    if (targetUserId !== ctx.principal.id && !globalAccess(ctx.principal)) {
+      const updatePolicy = await effectivePolicy(ctx, 'tasks:update');
+      if (!updatePolicy || !updatePolicy.allowed) {
+        throw new AuthorizationError(
+          'tasks:update',
+          'no_policy',
+          'No policy grants tasks:update to this principal.',
+        );
+      }
+      if (updatePolicy.scope === 'own' || updatePolicy.scope === 'participant') {
+        throw new AuthorizationError(
+          'tasks:update',
+          'out_of_scope',
+          'Cannot modify another assignee status under own/participant scope.',
+        );
+      }
+      if (updatePolicy.scope === 'team') {
+        const allowedTeams = await scopeResolver.teamIds(ctx);
+        if (!assignee.teamId || !allowedTeams.has(assignee.teamId)) {
+          throw new AuthorizationError(
+            'tasks:update',
+            'out_of_scope',
+            'Assignee is outside your team scope.',
+          );
+        }
+      } else if (updatePolicy.scope === 'department') {
+        const allowedDeptId = await scopeResolver.departmentId(ctx);
+        if (!assignee.departmentId || assignee.departmentId !== allowedDeptId) {
+          throw new AuthorizationError(
+            'tasks:update',
+            'out_of_scope',
+            'Assignee is outside your department scope.',
+          );
+        }
+      } else if (updatePolicy.scope === 'pool') {
+        const poolMembers = await scopeResolver.poolMemberIds(ctx);
+        if (!poolMembers.has(targetUserId)) {
+          throw new AuthorizationError(
+            'tasks:update',
+            'out_of_scope',
+            'Assignee is outside your pool scope.',
+          );
+        }
+      }
+    }
+
+    return db.transaction(ctx, async (tx) => {
+      await updateTaskAssigneeStatus(
+        tx,
+        ctx.organizationId,
+        id,
+        targetUserId,
+        input.status,
+      );
+
+      const action =
+        input.status === 'completed'
+          ? 'task.assignee_completed'
+          : 'task.assignee_status_changed';
+
+      await enqueueTaskAudit(tx, ctx, {
+        action,
+        targetId: id,
+        before: { assigneeId: targetUserId, status: assignee.status },
+        after: {
+          assigneeId: targetUserId,
+          status: input.status,
+          notes: input.notes ?? null,
+        },
+      });
+
+      const updated = await findTaskByIdTx(tx, ctx.organizationId, id);
+      if (!updated) {
+        throw new TaskNotFoundError();
+      }
+      return updated;
+    });
+  }
+
   assertValidTransition(existing.status, input.status);
 
   return db.transaction(ctx, async (tx) => {
@@ -352,6 +448,16 @@ export async function transitionTask(
     }
     return updated;
   });
+}
+
+export async function updateAssignmentStatus(
+  ctx: RequestContext,
+  taskId: string,
+  userId: string,
+  status: TaskStatus,
+  notes?: string | null,
+): Promise<Task> {
+  return transitionTask(ctx, taskId, { status, userId, notes });
 }
 
 export async function assignTask(

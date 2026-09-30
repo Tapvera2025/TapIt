@@ -1,6 +1,6 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
-import { companyNavigation, type CompanyNavGroup } from './navigation.js';
+import { companyNavigation, myNotepadNavItem, type CompanyNavGroup } from './navigation.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
 
@@ -43,10 +43,12 @@ export function CompanySidebar({
     pathname.startsWith('/company/recruitment'),
   );
 
-  const isSuperAdmin = accountType === 'super-admin';
+  const isSuperAdmin =
+    accountType?.toLowerCase() === 'super-admin' ||
+    identity.accountType?.toLowerCase() === 'super-admin';
   const isHr =
     isSuperAdmin ||
-    (accountType === 'employee' &&
+    ((accountType === 'employee' || identity.accountType === 'employee') &&
       (identity.departmentCode?.toLowerCase().includes('hr') ||
         identity.departmentName?.toLowerCase().includes('human resources') ||
         identity.departmentName?.toLowerCase().includes('people') ||
@@ -61,7 +63,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
-              { label: 'My Notepad', path: '/company/my-notepad', icon: 'notepad' },
+              myNotepadNavItem,
             ],
           },
           {
@@ -97,7 +99,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
-              { label: 'My Notepad', path: '/company/my-notepad', icon: 'notepad' },
+              myNotepadNavItem,
             ],
           },
           ...(canViewEmployees

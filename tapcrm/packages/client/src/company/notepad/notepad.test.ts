@@ -191,43 +191,84 @@ describe('statistics calculations', () => {
 });
 
 describe('My Notepad navigation registration', () => {
-  it('registers My Notepad in companyNavigation under Overview with universal access', async () => {
-    const { companyNavigation } = await import('../layout/navigation.js');
+  it('registers My Notepad in companyNavigation under Overview with universal access as a single source of truth', async () => {
+    const { companyNavigation, myNotepadNavItem, myNotepadItem } = await import('../layout/navigation.js');
+    expect(myNotepadNavItem).toBeDefined();
+    expect(myNotepadItem).toBe(myNotepadNavItem);
+    expect(myNotepadNavItem.label).toBe('My Notepad');
+    expect(myNotepadNavItem.path).toBe('/company/my-notepad');
+    expect(myNotepadNavItem.icon).toBe('notepad');
+    expect(myNotepadNavItem.requiredAction).toBeUndefined();
+
     const overviewGroup = companyNavigation.find((g) => g.label === 'Overview');
     expect(overviewGroup).toBeDefined();
     const notepadItem = overviewGroup?.items.find((i) => i.label === 'My Notepad');
-    expect(notepadItem).toBeDefined();
-    expect(notepadItem?.path).toBe('/company/my-notepad');
-    expect(notepadItem?.icon).toBe('notepad');
-    expect(notepadItem?.requiredAction).toBeUndefined();
+    expect(notepadItem).toBe(myNotepadNavItem);
   });
 
-  it('renders My Notepad under Overview for super-admin, HR, and regular employees in CompanySidebar', async () => {
+  it('renders My Notepad under Overview for super-admin, HR, and regular employees in CompanySidebar regardless of permissions', async () => {
     const React = await import('react');
     const { renderToStaticMarkup } = await import('react-dom/server');
     const { CompanySidebar } = await import('../layout/CompanySidebar.js');
 
-    const roles: Array<{
+    const roleConfigs: Array<{
       name: string;
       accountType: string;
       departmentCode?: string;
       departmentName?: string;
       positionCode?: string;
+      canViewEmployees: boolean;
+      canViewAudit: boolean;
+      canRequestRoleChange: boolean;
     }> = [
-      { name: 'super-admin', accountType: 'super-admin' },
+      { name: 'super-admin', accountType: 'super-admin', canViewEmployees: true, canViewAudit: true, canRequestRoleChange: false },
+      { name: 'super-admin-restricted-flags', accountType: 'super-admin', canViewEmployees: false, canViewAudit: false, canRequestRoleChange: false },
       {
         name: 'hr-employee',
         accountType: 'employee',
         departmentCode: 'HR',
         departmentName: 'Human Resources',
         positionCode: 'HR-SPEC',
+        canViewEmployees: true,
+        canViewAudit: false,
+        canRequestRoleChange: false,
       },
       {
-        name: 'regular-employee',
+        name: 'hr-employee-no-employees-flag',
+        accountType: 'employee',
+        departmentCode: 'HR',
+        departmentName: 'People Ops',
+        positionCode: 'HR-EXEC',
+        canViewEmployees: false,
+        canViewAudit: false,
+        canRequestRoleChange: false,
+      },
+      {
+        name: 'regular-employee-all-flags-false',
         accountType: 'employee',
         departmentCode: 'ENG',
         departmentName: 'Engineering',
         positionCode: 'DEV',
+        canViewEmployees: false,
+        canViewAudit: false,
+        canRequestRoleChange: false,
+      },
+      {
+        name: 'regular-employee-all-flags-true',
+        accountType: 'employee',
+        departmentCode: 'ENG',
+        departmentName: 'Engineering',
+        positionCode: 'DEV',
+        canViewEmployees: true,
+        canViewAudit: true,
+        canRequestRoleChange: true,
+      },
+      {
+        name: 'unknown-role-fallback',
+        accountType: 'contractor',
+        canViewEmployees: false,
+        canViewAudit: false,
+        canRequestRoleChange: false,
       },
     ];
 
@@ -242,7 +283,7 @@ describe('My Notepad navigation registration', () => {
 
     const { ThemeProvider } = await import('../../theme/ThemeContext.js');
 
-    for (const role of roles) {
+    for (const config of roleConfigs) {
       const html = renderToStaticMarkup(
         React.createElement(
           ThemeProvider,
@@ -252,15 +293,15 @@ describe('My Notepad navigation registration', () => {
             identity: {
               fullName: 'Test User',
               email: 'test@example.com',
-              departmentCode: role.departmentCode ?? null,
-              departmentName: role.departmentName ?? null,
-              positionCode: role.positionCode ?? null,
+              departmentCode: config.departmentCode ?? null,
+              departmentName: config.departmentName ?? null,
+              positionCode: config.positionCode ?? null,
             },
             organizationName: 'Acme Corp',
-            accountType: role.accountType,
-            canRequestRoleChange: false,
-            canViewAudit: false,
-            canViewEmployees: true,
+            accountType: config.accountType,
+            canRequestRoleChange: config.canRequestRoleChange,
+            canViewAudit: config.canViewAudit,
+            canViewEmployees: config.canViewEmployees,
             onNavigate: () => {},
             onLogout: () => {},
             open: true,

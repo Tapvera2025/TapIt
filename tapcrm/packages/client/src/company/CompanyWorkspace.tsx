@@ -17,7 +17,7 @@ import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
 import { TasksPage } from './tasks/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
-import { MyNotepadPage } from './notepad/index.js';
+import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -123,33 +123,52 @@ export function CompanyWorkspace({
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
+  const isEmployeeNotes = pathname === '/company/employee-notes';
   const isNotepad =
     pathname === '/company/my-notepad' || pathname === '/company/notepad';
 
   const title = isNotepad
     ? 'My Notepad'
-    : isOrganization
-      ? 'Organization'
-      : isRecruitment
-        ? 'Recruitment'
-        : isEmployees
-          ? 'Employees'
-          : pathname === '/company/sessions'
-            ? 'Sessions & Devices'
-            : isAccess
-              ? 'Access Explorer'
-              : isRoleChangeRequest
-                ? 'Request Role Change'
-                : isAudit
-                  ? 'Audit Log'
-                  : pathname === '/company/geofencing'
-                    ? 'Geofencing'
-                    : pathname === '/company/tasks'
-                      ? 'Tasks'
-                      : 'Dashboard';
+    : isEmployeeNotes
+      ? 'Employee Notes'
+      : isOrganization
+        ? 'Organization'
+        : isRecruitment
+          ? 'Recruitment'
+          : isEmployees
+            ? 'Employees'
+            : pathname === '/company/sessions'
+              ? 'Sessions & Devices'
+              : isAccess
+                ? 'Access Explorer'
+                : isRoleChangeRequest
+                  ? 'Request Role Change'
+                  : isAudit
+                    ? 'Audit Log'
+                    : pathname === '/company/geofencing'
+                      ? 'Geofencing'
+                      : pathname === '/company/tasks'
+                        ? 'Tasks'
+                        : 'Dashboard';
 
   const content = isNotepad ? (
     <MyNotepadPage />
+  ) : isEmployeeNotes ? (
+    isSuperAdmin ? (
+      <EmployeeNotesPage />
+    ) : (
+      <div className="grid min-h-[60vh] place-items-center p-6 text-center">
+        <div>
+          <h1 className="font-display text-2xl font-bold">
+            Access Restricted
+          </h1>
+
+          <p className="mt-2 text-sm text-app-muted">
+            Employee notes monitoring is restricted to Super Admin.
+          </p>
+        </div>
+      </div>
+    )
   ) : isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
   ) : isRecruitment ? (

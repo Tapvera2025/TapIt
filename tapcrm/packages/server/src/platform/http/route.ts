@@ -132,7 +132,7 @@ export function route<TBody, TResult>(binding: RouteBinding<TBody, TResult>): vo
     }
   }
 
-  bindings.push(binding as RouteBinding<never, unknown>);
+  bindings.push(binding);
 }
 
 export function registeredBindings(): readonly RouteBinding<never, unknown>[] {

@@ -34,6 +34,7 @@ interface TaskDbRow {
     teamId?: string | null;
     departmentId?: string | null;
     assignedAt: string | Date;
+    status?: string | null;
   }> | null;
 }
 
@@ -45,6 +46,7 @@ function mapTaskRow(row: TaskDbRow): Task {
     teamId: a.teamId ?? null,
     departmentId: a.departmentId ?? null,
     assignedAt: new Date(a.assignedAt),
+    status: (a.status as TaskStatus) ?? 'pending',
   }));
   const assigneeTeamIds = assignees
     .map((a) => a.teamId)
@@ -226,13 +228,14 @@ export async function insertTaskAssignees(
   taskId: string,
   assigneeIds: readonly string[],
   assignedBy: string,
+  initialStatus: TaskStatus = 'pending',
 ): Promise<void> {
   for (const userId of assigneeIds) {
     await tx.query(sql`
       INSERT INTO task_assignee (
-        organization_id, task_id, user_id, assigned_by, assigned_at
+        organization_id, task_id, user_id, assigned_by, assigned_at, status
       ) VALUES (
-        ${organizationId}, ${taskId}, ${userId}, ${assignedBy}, now()
+        ${organizationId}, ${taskId}, ${userId}, ${assignedBy}, now(), ${initialStatus}
       )
       ON CONFLICT (organization_id, task_id, user_id) DO NOTHING
     `);
@@ -246,11 +249,37 @@ export async function replaceTaskAssignees(
   assigneeIds: readonly string[],
   assignedBy: string,
 ): Promise<void> {
+  if (assigneeIds.length === 0) {
+    await tx.query(sql`
+      DELETE FROM task_assignee
+      WHERE organization_id = ${organizationId} AND task_id = ${taskId}
+    `);
+    return;
+  }
   await tx.query(sql`
     DELETE FROM task_assignee
     WHERE organization_id = ${organizationId} AND task_id = ${taskId}
+      AND NOT (user_id = ANY(${assigneeIds}::uuid[]))
   `);
   await insertTaskAssignees(tx, organizationId, taskId, assigneeIds, assignedBy);
+}
+
+export async function updateTaskAssigneeStatus(
+  tx: Tx,
+  organizationId: string,
+  taskId: string,
+  userId: string,
+  status: TaskStatus,
+): Promise<boolean> {
+  const rows = await tx.query<{ userId: string }>(sql`
+    UPDATE task_assignee
+    SET status = ${status}
+    WHERE organization_id = ${organizationId}
+      AND task_id = ${taskId}
+      AND user_id = ${userId}
+    RETURNING user_id AS "userId"
+  `);
+  return rows.length > 0;
 }
 
 const TASK_SELECT = sql`
@@ -277,7 +306,8 @@ const TASK_SELECT = sql`
           'fullName', u.full_name,
           'teamId', u.team_id,
           'departmentId', u.department_id,
-          'assignedAt', ta.assigned_at
+          'assignedAt', ta.assigned_at,
+          'status', ta.status
         ) ORDER BY ta.assigned_at ASC)
         FROM task_assignee ta
         JOIN app_user u ON u.id = ta.user_id AND u.organization_id = ta.organization_id
@@ -434,6 +464,21 @@ export async function listTasksWithFilter(
     whereClauses.push(sql`EXISTS (
       SELECT 1 FROM task_assignee ta
       WHERE ta.task_id = t.id AND ta.user_id = ${query.assigneeId} AND ta.organization_id = ${ctx.organizationId}
+    )`);
+  }
+
+  // Creator filter
+  if (query.creatorId) {
+    whereClauses.push(sql`t.created_by = ${query.creatorId}`);
+  }
+
+  // Participant filter (user is creator OR user is an eligible assignee/participant)
+  if (query.participantId) {
+    whereClauses.push(sql`(
+      t.created_by = ${query.participantId} OR EXISTS (
+        SELECT 1 FROM task_assignee ta
+        WHERE ta.task_id = t.id AND ta.user_id = ${query.participantId} AND ta.organization_id = ${ctx.organizationId}
+      )
     )`);
   }
 

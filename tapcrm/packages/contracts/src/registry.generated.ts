@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 161   Bindings: 357
+ * Actions: 161   Bindings: 361
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3069,6 +3069,10 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/notices/:id', action: 'notices:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/workspace/notepads', action: 'notepad:view-all', resourceParam: null },
   { method: 'GET', path: '/api/workspace/notepads/:userId', action: 'notepad:view-all', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/admin/employee-notes', action: 'notepad:view-all', resourceParam: null },
+  { method: 'GET', path: '/api/admin/employee-notes/:userId', action: 'notepad:view-all', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/admin/employee-notes/:userId/history', action: 'notepad:view-all', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/admin/employee-notes/:userId/history/:historyId', action: 'notepad:view-all', resourceParam: 'userId' },
   { method: 'GET', path: '/api/workspace/sheets', action: 'sheets:manage', resourceParam: null },
   { method: 'POST', path: '/api/workspace/sheets', action: 'sheets:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/workspace/sheets/:id', action: 'sheets:manage', resourceParam: 'id' },
