@@ -7,6 +7,8 @@ import { platformDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { ChatNotFoundError, ChatNotSenderError, ChatValidationError } from './errors.js';
 import {
+  addGroupMembers,
+  archiveGroup,
   createInternalGroup,
   forwardMessage,
   getConversation,
@@ -16,7 +18,9 @@ import {
   loadMessageResource,
   markRead,
   reactToMessage,
+  removeGroupMember,
   removeReactionFromMessage,
+  renameGroup,
   sendMessage,
   startDirectConversation,
   unsendMessage,
@@ -254,6 +258,62 @@ describe.skipIf(!enabled)('chat engine (PostgreSQL)', () => {
 
   it('rejects adding an inactive or cross-tenant member to a group', async () => {
     await expect(createInternalGroup(asAlice(), { name: 'Bad group', memberIds: [bob, outsider] })).rejects.toThrow(ChatValidationError);
+  });
+
+  describe('Internal Group governance', () => {
+    it('renames a group', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Old Name', memberIds: [bob] });
+      const renamed = await renameGroup(asAlice(), group.id, 'New Name');
+      expect(renamed.name).toBe('New Name');
+    });
+
+    it('adds a member, who can then read the group, and removing them revokes access (soft, history preserved)', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Growing Group', memberIds: [bob] });
+      expect(group.members.map((m) => m.userId)).not.toContain(carol);
+
+      const withCarol = await addGroupMembers(asAlice(), group.id, [carol]);
+      expect(withCarol.members.map((m) => m.userId)).toContain(carol);
+      const message = await sendMessage(asAlice(), group.id, { body: 'hi carol' });
+      expect(await loadMessageResource(ctxFor(orgA, carol), message.id)).not.toBeNull();
+
+      const withoutCarol = await removeGroupMember(asAlice(), group.id, carol);
+      expect(withoutCarol.members.map((m) => m.userId)).not.toContain(carol);
+      // Membership is gone, but the message carol read while a member is untouched.
+      expect(await loadConversationResource(ctxFor(orgA, carol), group.id)).toEqual(
+        expect.objectContaining({ memberIds: expect.not.arrayContaining([carol]) }),
+      );
+      const [row] = await asOwner<{ n: string }>('read', sql`SELECT count(*)::text AS n FROM message WHERE id = ${message.id}`);
+      expect(row?.n).toBe('1');
+    });
+
+    it('re-adding a previously removed member restores access (rejoin, not a duplicate row)', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Revolving Door', memberIds: [bob] });
+      await removeGroupMember(asAlice(), group.id, bob);
+      const rejoined = await addGroupMembers(asAlice(), group.id, [bob]);
+      expect(rejoined.members.map((m) => m.userId)).toContain(bob);
+
+      const [row] = await asOwner<{ n: string }>('read', sql`SELECT count(*)::text AS n FROM conversation_member WHERE conversation_id = ${group.id} AND user_id = ${bob}`);
+      expect(row?.n).toBe('1');
+    });
+
+    it('archiving a group drops it from the conversation list but does not delete it', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Retiring Room', memberIds: [bob] });
+      await archiveGroup(asAlice(), group.id);
+
+      const groups = await listConversations(asAlice(), 'group');
+      expect(groups.some((c) => c.id === group.id)).toBe(false);
+
+      const [row] = await asOwner<{ n: string }>('read', sql`SELECT count(*)::text AS n FROM conversation WHERE id = ${group.id}`);
+      expect(row?.n).toBe('1');
+    });
+
+    it('refuses to manage a direct conversation or a project conversation through the group governance path', async () => {
+      const direct = await startDirectConversation(asAlice(), bob);
+      await expect(renameGroup(asAlice(), direct.id, 'Not a group')).rejects.toThrow(ChatValidationError);
+      await expect(addGroupMembers(asAlice(), direct.id, [carol])).rejects.toThrow(ChatValidationError);
+      await expect(removeGroupMember(asAlice(), direct.id, bob)).rejects.toThrow(ChatValidationError);
+      await expect(archiveGroup(asAlice(), direct.id)).rejects.toThrow(ChatValidationError);
+    });
   });
 
   it('the Direct Messages tab lists only kind=direct, newest activity first', async () => {

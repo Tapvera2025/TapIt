@@ -5,19 +5,24 @@ import { db } from '../../platform/dal/db.js';
 import { emitToUser, installTypingAuthorizer } from '../../platform/realtime/index.js';
 import { ChatNotFoundError, ChatNotSenderError, ChatValidationError } from './errors.js';
 import {
+  addConversationMembers,
   addReaction,
+  archiveConversation,
   conversationMemberIds,
   createGroupConversation,
   decodeMessageCursor,
   encodeMessageCursor,
   findConversationById,
+  findConversationKind,
   findMessageById,
   findOrCreateDirectConversation,
   insertMessage,
   listConversationsForUser,
   listMessages as repoListMessages,
   markConversationRead,
+  removeConversationMember,
   removeReaction,
+  renameConversation,
   unsendMessage as repoUnsendMessage,
   validateMemberIds,
 } from './repository.js';
@@ -119,6 +124,80 @@ export async function createInternalGroup(ctx: RequestContext, input: { name: st
     emitToUser(ctx.organizationId, member.userId, 'chat:conversation:new', { id, kind: 'group' });
   }
   return conversation;
+}
+
+/**
+ * A group's ONLY governance route is Super Admin (per product decision:
+ * simpler than a per-group delegate, and matches how this codebase already
+ * treats `chat:manage-groups` — SuperAdminOnly in the registry, so `authorize`
+ * never even reaches `chatConversationPolicy.check` for these actions; a
+ * caller here is Super Admin by construction). Every function below still
+ * refuses to touch a 'direct' or 'project' conversation — Phase 4's project
+ * groups are managed by the projects module's own action, not this one.
+ */
+async function requireGroup(ctx: RequestContext, id: string): Promise<void> {
+  const conversation = await findConversationKind(ctx, id);
+  if (!conversation) throw new ChatNotFoundError('conversation');
+  if (conversation.kind !== 'group') {
+    throw new ChatValidationError('Only an Internal Group can be managed this way', { kind: conversation.kind });
+  }
+}
+
+async function notifyOtherMembers(ctx: RequestContext, conversationId: string, event: 'chat:conversation:updated', extra: Record<string, unknown> = {}): Promise<void> {
+  const memberIds = await conversationMemberIds(ctx, conversationId);
+  for (const memberId of memberIds ?? []) {
+    if (memberId === ctx.principal.id) continue;
+    emitToUser(ctx.organizationId, memberId, event, { id: conversationId, ...extra });
+  }
+}
+
+export async function renameGroup(ctx: RequestContext, id: string, name: string): Promise<Conversation> {
+  await requireGroup(ctx, id);
+  await db.transaction(ctx, (tx) => renameConversation(tx, ctx.organizationId, id, name));
+  await notifyOtherMembers(ctx, id, 'chat:conversation:updated');
+  const conversation = await findConversationById(ctx, id);
+  if (!conversation) throw new ChatNotFoundError('conversation');
+  return conversation;
+}
+
+export async function addGroupMembers(ctx: RequestContext, id: string, memberIds: readonly string[]): Promise<Conversation> {
+  await requireGroup(ctx, id);
+  await db.transaction(ctx, async (tx) => {
+    const validIds = await validateMemberIds(tx, ctx.organizationId, memberIds);
+    if (validIds.length !== memberIds.length) {
+      const missing = memberIds.filter((memberId) => !validIds.includes(memberId));
+      throw new ChatValidationError('One or more members are not active in this organization', { missingUserIds: missing });
+    }
+    await addConversationMembers(tx, ctx.organizationId, id, validIds);
+  });
+
+  const conversation = await findConversationById(ctx, id);
+  if (!conversation) throw new ChatNotFoundError('conversation');
+  for (const memberId of memberIds) {
+    if (memberId === ctx.principal.id) continue;
+    emitToUser(ctx.organizationId, memberId, 'chat:conversation:new', { id, kind: 'group' });
+  }
+  await notifyOtherMembers(ctx, id, 'chat:conversation:updated');
+  return conversation;
+}
+
+/** The removed member is told separately (a bare id, RT-4) so their client drops the conversation from its list. */
+export async function removeGroupMember(ctx: RequestContext, id: string, userId: string): Promise<Conversation> {
+  await requireGroup(ctx, id);
+  await db.transaction(ctx, (tx) => removeConversationMember(tx, ctx.organizationId, id, userId));
+
+  emitToUser(ctx.organizationId, userId, 'chat:conversation:updated', { id, removed: true });
+  const conversation = await findConversationById(ctx, id);
+  if (!conversation) throw new ChatNotFoundError('conversation');
+  await notifyOtherMembers(ctx, id, 'chat:conversation:updated');
+  return conversation;
+}
+
+export async function archiveGroup(ctx: RequestContext, id: string): Promise<{ archived: true }> {
+  await requireGroup(ctx, id);
+  await db.transaction(ctx, (tx) => archiveConversation(tx, ctx.organizationId, id));
+  await notifyOtherMembers(ctx, id, 'chat:conversation:updated', { archived: true });
+  return { archived: true };
 }
 
 export async function listMessages(ctx: RequestContext, conversationId: string, query: ListMessagesQuery): Promise<{ messages: Message[]; nextCursor: string | null }> {

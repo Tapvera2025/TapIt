@@ -4287,6 +4287,30 @@
       "resourceParam": null
     },
     {
+      "method": "PATCH",
+      "path": "/api/chat/conversations/:id",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/members",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/conversations/:id/members/:userId",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/archive",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
       "method": "POST",
       "path": "/api/chat/conversations/:id/messages",
       "action": "chat:send",

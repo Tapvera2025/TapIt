@@ -8,6 +8,7 @@ import {
   markConversationRead,
   type ChatMessage,
   type Conversation,
+  type ConversationKind,
 } from './api/chatApi.js';
 
 /** RT-6 fallback: only matters while the socket is down. */
@@ -16,11 +17,12 @@ const RECONNECT_MS = 5_000;
 const TYPING_STOP_MS = 3_000;
 
 /**
- * The Direct Messages tab's data layer. Same shape as `useNotifications`:
- * REST is the source of truth, the socket is only "something changed,
- * refetch" (RT-4 — no message bodies travel over it).
+ * The data layer shared by every conversation tab (Direct Messages now;
+ * Internal Groups, Phase 3 — Project Groups, Phase 4, all reuse this). Same
+ * shape as `useNotifications`: REST is the source of truth, the socket is
+ * only "something changed, refetch" (RT-4 — no message bodies travel over it).
  */
-export function useChat(): {
+export function useChat(kind: ConversationKind): {
   conversations: Conversation[];
   activeId: string | null;
   setActiveId: (id: string | null) => void;
@@ -51,13 +53,13 @@ export function useChat(): {
 
   const refreshConversations = useCallback(async (): Promise<void> => {
     try {
-      const list = await getConversations('direct');
+      const list = await getConversations(kind);
       setConversations(list);
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load conversations.');
     }
-  }, []);
+  }, [kind]);
 
   const loadMessages = useCallback(async (conversationId: string): Promise<void> => {
     setLoadingMessages(true);
@@ -114,6 +116,14 @@ export function useChat(): {
     };
 
     socket.on('chat:conversation:new', () => void refreshConversations());
+    socket.on('chat:conversation:updated', (payload: { id?: string; removed?: boolean }) => {
+      void refreshConversations();
+      if (payload.id && payload.id === activeIdRef.current) {
+        // Removed from the group I'm currently viewing: back out of it.
+        if (payload.removed) setActiveIdState(null);
+        else void loadMessages(payload.id);
+      }
+    });
     socket.on('chat:message:new', onConversationEvent);
     socket.on('chat:message:unsent', onConversationEvent);
     socket.on('chat:message:reaction', onConversationEvent);

@@ -71,6 +71,27 @@ export function startDirectConversation(userId: string): Promise<Conversation> {
   return identityRequest('/api/chat/conversations/direct', { method: 'POST', body: JSON.stringify({ userId }) });
 }
 
+/** Internal Groups (Phase 3) — Super-Admin-only server-side (chat:manage-groups). */
+export function createGroup(name: string, memberIds: string[]): Promise<Conversation> {
+  return identityRequest('/api/chat/conversations/group', { method: 'POST', body: JSON.stringify({ name, memberIds }) });
+}
+
+export function renameGroup(conversationId: string, name: string): Promise<Conversation> {
+  return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+}
+
+export function addGroupMembers(conversationId: string, memberIds: string[]): Promise<Conversation> {
+  return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}/members`, { method: 'POST', body: JSON.stringify({ memberIds }) });
+}
+
+export function removeGroupMember(conversationId: string, userId: string): Promise<Conversation> {
+  return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+}
+
+export function archiveGroup(conversationId: string): Promise<{ archived: true }> {
+  return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}/archive`, { method: 'POST' });
+}
+
 export function sendMessage(conversationId: string, body: string, replyToMessageId?: string | null): Promise<ChatMessage> {
   return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: 'POST',

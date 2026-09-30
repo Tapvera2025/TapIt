@@ -227,6 +227,47 @@ export async function validateMemberIds(tx: Tx, organizationId: string, userIds:
   return rows.map((r) => r.id);
 }
 
+/** `kind` and `name`/`projectId` only, never `direct_pair_key` (dedup is direct-only, CH-1). */
+export async function findConversationKind(ctx: RequestContext, id: string): Promise<{ kind: ConversationKind; name: string | null } | null> {
+  return db.maybeOne<{ kind: ConversationKind; name: string | null }>(ctx, sql`
+    SELECT kind, name FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${id}
+  `);
+}
+
+export async function renameConversation(tx: Tx, organizationId: string, id: string, name: string): Promise<void> {
+  await tx.query(sql`
+    UPDATE conversation SET name = ${name}, updated_at = now() WHERE organization_id = ${organizationId} AND id = ${id}
+  `);
+}
+
+/**
+ * Re-adds a member. `left_at = NULL` rather than a fresh row: if they were
+ * removed earlier, re-adding them is a rejoin, not a second membership row
+ * (the primary key is (conversation_id, user_id)).
+ */
+export async function addConversationMembers(tx: Tx, organizationId: string, conversationId: string, userIds: readonly string[]): Promise<void> {
+  if (userIds.length === 0) return;
+  await tx.query(sql`
+    INSERT INTO conversation_member (conversation_id, organization_id, user_id)
+    SELECT ${conversationId}, ${organizationId}, u FROM unnest(${[...userIds]}::uuid[]) AS u
+    ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL
+  `);
+}
+
+/** Soft-remove: the row (and the history they were part of) stays; `left_at` is what `filter()`/listing checks. */
+export async function removeConversationMember(tx: Tx, organizationId: string, conversationId: string, userId: string): Promise<void> {
+  await tx.query(sql`
+    UPDATE conversation_member SET left_at = now()
+    WHERE organization_id = ${organizationId} AND conversation_id = ${conversationId} AND user_id = ${userId} AND left_at IS NULL
+  `);
+}
+
+export async function archiveConversation(tx: Tx, organizationId: string, id: string): Promise<void> {
+  await tx.query(sql`
+    UPDATE conversation SET archived_at = now() WHERE organization_id = ${organizationId} AND id = ${id}
+  `);
+}
+
 /* ---------------------------------- messages --------------------------------- */
 
 export function encodeMessageCursor(row: { createdAt: string; id: string }): string {

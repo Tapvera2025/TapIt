@@ -31,7 +31,7 @@ import {
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
-import { DirectMessagesPage } from '../chat/index.js';
+import { MessagesPage } from '../chat/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -259,7 +259,7 @@ export function CompanyWorkspace({
   ) : pathname === '/company/tasks' ? (
     <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
   ) : pathname === '/company/messages' ? (
-    <DirectMessagesPage currentUserId={identity.user.id} />
+    <MessagesPage currentUserId={identity.user.id} isSuperAdmin={isSuperAdmin} />
   ) : isTerritories && (isSuperAdmin || canViewTerritories) ? (
     <TerritoriesPage
       canManage={isSuperAdmin || canViewTerritories}

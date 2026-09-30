@@ -1,1 +1,1 @@
-export { DirectMessagesPage } from './DirectMessagesPage.js';
+export { MessagesPage } from './MessagesPage.js';

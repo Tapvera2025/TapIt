@@ -32,6 +32,7 @@ export type RealtimeEvent =
   | 'notification:read'
   | 'permissions:changed'
   | 'chat:conversation:new'
+  | 'chat:conversation:updated'
   | 'chat:message:new'
   | 'chat:message:read'
   | 'chat:message:reaction'

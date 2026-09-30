@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { route } from '../../platform/http/route.js';
 import {
+  addGroupMembers,
+  archiveGroup,
   createInternalGroup,
   forwardMessage,
   getConversation,
@@ -10,22 +12,27 @@ import {
   loadMessageResource,
   markRead,
   reactToMessage,
+  removeGroupMember,
   removeReactionFromMessage,
+  renameGroup,
   sendMessage,
   startDirectConversation,
   unsendMessage,
 } from './service.js';
 import {
+  addGroupMembersSchema,
   createGroupConversationSchema,
   forwardMessageSchema,
   listConversationsQuerySchema,
   listMessagesQuerySchema,
   reactionSchema,
+  renameGroupSchema,
   sendMessageSchema,
   startDirectConversationSchema,
 } from './validators.js';
 
 const idParam = z.object({ id: z.string().uuid() });
+const idUserIdParams = z.object({ id: z.string().uuid(), userId: z.string().uuid() });
 
 /**
  * Chat HTTP routes — Phase 2 of the messaging build (team-docs has the plan).
@@ -96,6 +103,49 @@ export function registerChatRoutes(): void {
     module: 'chat',
     status: 201,
     handler: async ({ ctx, body }) => createInternalGroup(ctx, createGroupConversationSchema.parse(body)),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/chat/conversations/:id',
+    action: 'chat:manage-groups',
+    module: 'chat',
+    resourceParam: 'id',
+    loadResource: loadConversationResource,
+    handler: async ({ ctx, params, body }) => renameGroup(ctx, idParam.parse(params).id, renameGroupSchema.parse(body).name),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/chat/conversations/:id/members',
+    action: 'chat:manage-groups',
+    module: 'chat',
+    resourceParam: 'id',
+    loadResource: loadConversationResource,
+    handler: async ({ ctx, params, body }) => addGroupMembers(ctx, idParam.parse(params).id, addGroupMembersSchema.parse(body).memberIds),
+  });
+
+  route({
+    method: 'DELETE',
+    path: '/api/chat/conversations/:id/members/:userId',
+    action: 'chat:manage-groups',
+    module: 'chat',
+    resourceParam: 'id',
+    loadResource: loadConversationResource,
+    handler: async ({ ctx, params }) => {
+      const { id, userId } = idUserIdParams.parse(params);
+      return removeGroupMember(ctx, id, userId);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/chat/conversations/:id/archive',
+    action: 'chat:manage-groups',
+    module: 'chat',
+    resourceParam: 'id',
+    loadResource: loadConversationResource,
+    handler: async ({ ctx, params }) => archiveGroup(ctx, idParam.parse(params).id),
   });
 
   route({

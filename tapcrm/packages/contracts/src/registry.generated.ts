@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 164   Bindings: 384
+ * Actions: 164   Bindings: 388
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3120,6 +3120,10 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/chat/conversations/:id/read', action: 'chat:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/chat/conversations/direct', action: 'chat:send', resourceParam: null },
   { method: 'POST', path: '/api/chat/conversations/group', action: 'chat:manage-groups', resourceParam: null },
+  { method: 'PATCH', path: '/api/chat/conversations/:id', action: 'chat:manage-groups', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/conversations/:id/members', action: 'chat:manage-groups', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/chat/conversations/:id/members/:userId', action: 'chat:manage-groups', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/conversations/:id/archive', action: 'chat:manage-groups', resourceParam: 'id' },
   { method: 'POST', path: '/api/chat/conversations/:id/messages', action: 'chat:send', resourceParam: 'id' },
   { method: 'POST', path: '/api/chat/messages/:id/forward', action: 'chat:send', resourceParam: 'id' },
   { method: 'POST', path: '/api/chat/messages/:id/react', action: 'chat:send', resourceParam: 'id' },
