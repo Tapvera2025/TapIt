@@ -25,7 +25,7 @@ const tx = {} as never;
 const ctx = { organizationId: 'org', principal: { id: ACTOR } } as never;
 const call = (): Record<string, unknown> => vi.mocked(notify).mock.calls[0]![2] as never;
 
-const assignee = (id: string) => ({ id, fullName: id, assignedAt: new Date() });
+const assignee = (id: string) => ({ id, fullName: id, assignedAt: new Date(), status: 'pending' as const });
 const baseTask = {
   id: 'task-1',
   title: 'Prepare Q4 report',

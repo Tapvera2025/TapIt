@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
+import { Icon } from '../../../ui/Icon.js';
 import {
   convertResumeSubmission,
   getResumeDownloadUrl,
@@ -143,7 +144,14 @@ export function ResumeReviewModal({
                 disabled={downloading}
                 onClick={() => void handleDownloadResume()}
               >
-                {downloading ? 'Loading Resume...' : '📄 View / Download Resume'}
+                {downloading ? (
+                  'Loading Resume...'
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="notepad" className="size-4" />
+                    <span>View / Download Resume</span>
+                  </span>
+                )}
               </Button>
             </div>
           </div>

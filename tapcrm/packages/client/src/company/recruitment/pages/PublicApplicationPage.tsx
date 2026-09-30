@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrandLogo } from '../../../ui/BrandLogo.js';
 import { Button, Notice } from '../../../ui/components.js';
+import { Icon } from '../../../ui/Icon.js';
 import {
   getPublicApplicationLinkDetails,
   submitPublicApplication,
@@ -150,8 +151,10 @@ export function PublicApplicationPage({
       <main className="grid min-h-screen place-items-center bg-app-background p-6 text-app-foreground">
         <div className="max-w-md rounded-2xl border border-app-border bg-app-surface p-8 text-center shadow-lg">
           <BrandLogo className="mx-auto mb-6 w-36" />
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-500/10 text-2xl text-rose-600">
-            ✕
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-500/10 text-rose-600">
+            <svg className="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
           </div>
           <h1 className="font-display text-xl font-bold text-app-foreground">
             Application Unavailable
@@ -174,8 +177,8 @@ export function PublicApplicationPage({
       <main className="grid min-h-screen place-items-center bg-app-background p-6 text-app-foreground">
         <div className="max-w-md rounded-2xl border border-emerald-500/30 bg-app-surface p-8 text-center shadow-lg">
           <BrandLogo className="mx-auto mb-6 w-36" />
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-3xl text-emerald-600">
-            ✓
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
+            <Icon name="check" className="size-8" />
           </div>
           <h1 className="font-display text-2xl font-bold text-app-foreground">
             Application Submitted!
@@ -345,7 +348,7 @@ export function PublicApplicationPage({
               {file ? (
                 <div className="flex items-center justify-between rounded-xl border border-app-border bg-app-background p-4 text-sm">
                   <div className="flex items-center gap-3 truncate">
-                    <span className="text-2xl" aria-hidden="true">📄</span>
+                    <Icon name="notepad" className="size-6 text-app-muted shrink-0" />
                     <div className="truncate">
                       <p className="font-semibold text-app-foreground truncate">{file.name}</p>
                       <p className="text-xs text-app-muted">
@@ -366,7 +369,9 @@ export function PublicApplicationPage({
                 </div>
               ) : (
                 <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-app-border bg-app-background p-8 text-center transition hover:border-app-accent hover:bg-app-accent/5">
-                  <span className="text-4xl" aria-hidden="true">📤</span>
+                  <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-app-accent/10 text-app-accent">
+                    <Icon name="notepad" className="size-6" />
+                  </div>
                   <p className="mt-2 text-sm font-semibold text-app-foreground">
                     Upload your resume document
                   </p>

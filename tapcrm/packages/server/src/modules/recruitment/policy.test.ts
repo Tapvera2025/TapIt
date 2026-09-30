@@ -258,7 +258,7 @@ describe('jobRequisitionPolicy', () => {
 
   it('denies all-people scope (PD-1)', async () => {
     const result = await jobRequisitionPolicy.filter(
-      hrCtx() as unknown as Parameters<typeof jobRequisitionPolicy.filter>[0],
+      hrCtx(),
       'recruitment:view-requisitions',
       'all-people',
     );
@@ -268,7 +268,7 @@ describe('jobRequisitionPolicy', () => {
   it('generates a correct department filter', async () => {
     const ctx = hrCtx();
     const filter = await jobRequisitionPolicy.filter(
-      ctx as unknown as Parameters<typeof jobRequisitionPolicy.filter>[0],
+      ctx,
       'recruitment:view-requisitions',
       'department',
     );
@@ -304,7 +304,7 @@ describe('candidatePolicy', () => {
 
   it('denies all-people scope (PD-1)', async () => {
     const result = await candidatePolicy.filter(
-      hrCtx() as unknown as Parameters<typeof candidatePolicy.filter>[0],
+      hrCtx(),
       'recruitment:view-candidates',
       'all-people',
     );
@@ -357,7 +357,7 @@ describe('interviewPolicy — participant scope', () => {
 
   it('denies all-people scope (PD-1)', async () => {
     const result = await interviewPolicy.filter(
-      hrCtx() as unknown as Parameters<typeof interviewPolicy.filter>[0],
+      hrCtx(),
       'recruitment:view-interviews',
       'all-people',
     );
@@ -385,7 +385,7 @@ describe('jobOfferPolicy', () => {
 
   it('denies all-people scope (PD-1)', async () => {
     const result = await jobOfferPolicy.filter(
-      hrCtx() as unknown as Parameters<typeof jobOfferPolicy.filter>[0],
+      hrCtx(),
       'recruitment:view-offers',
       'all-people',
     );
@@ -413,7 +413,7 @@ describe('candidateJoiningPolicy', () => {
 
   it('denies all-people scope (PD-1)', async () => {
     const result = await candidateJoiningPolicy.filter(
-      hrCtx() as unknown as Parameters<typeof candidateJoiningPolicy.filter>[0],
+      hrCtx(),
       'recruitment:view-joining',
       'all-people',
     );
@@ -441,7 +441,7 @@ describe('recruitmentApplicationLinkPolicy', () => {
 
   it('denies all-people scope (PD-1)', async () => {
     const result = await recruitmentApplicationLinkPolicy.filter(
-      hrCtx() as unknown as Parameters<typeof recruitmentApplicationLinkPolicy.filter>[0],
+      hrCtx(),
       'recruitment:manage-links',
       'all-people',
     );
@@ -469,7 +469,7 @@ describe('candidateResumeSubmissionPolicy', () => {
 
   it('denies all-people scope (PD-1)', async () => {
     const result = await candidateResumeSubmissionPolicy.filter(
-      hrCtx() as unknown as Parameters<typeof candidateResumeSubmissionPolicy.filter>[0],
+      hrCtx(),
       'recruitment:manage-submissions',
       'all-people',
     );

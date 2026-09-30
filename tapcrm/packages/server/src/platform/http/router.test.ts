@@ -34,4 +34,36 @@ describe('route manifest validation', () => {
       'GET /api/users: registered action users:manage, manifest action users:view',
     ]);
   });
+
+  it('auth-only routes are excluded from manifest action validation', () => {
+    route({
+      method: 'GET',
+      path: '/api/my-notepad',
+      authOnly: true,
+      handler,
+    });
+
+    const drift = checkManifest();
+    // Auth-only routes do not appear in routesWithoutBinding since they
+    // have no action and are not expected in the authorization manifest.
+    expect(drift.routesWithoutBinding).toEqual([]);
+    expect(drift.actionMismatches).toEqual([]);
+  });
+
+  it('auth-only routes still participate in duplicate detection', () => {
+    route({
+      method: 'GET',
+      path: '/api/my-notepad',
+      authOnly: true,
+      handler,
+    });
+    route({
+      method: 'GET',
+      path: '/api/my-notepad',
+      authOnly: true,
+      handler,
+    });
+
+    expect(checkManifest().duplicateRoutes).toEqual(['GET /api/my-notepad']);
+  });
 });

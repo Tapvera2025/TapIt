@@ -12,6 +12,7 @@ export interface TaskAssignee {
   readonly email?: string | undefined;
   readonly fullName: string;
   readonly assignedAt: string | Date;
+  readonly status: TaskStatus;
 }
 
 export interface TaskAssignableUser {
@@ -48,6 +49,8 @@ export interface TaskListQuery {
   readonly endDate?: string | undefined;
   readonly projectId?: string | undefined;
   readonly assigneeId?: string | undefined;
+  readonly creatorId?: string | undefined;
+  readonly participantId?: string | undefined;
   readonly page?: number | undefined;
   readonly pageSize?: number | undefined;
   readonly sortBy?: 'dueDate' | 'createdAt' | 'title' | 'priority' | 'status' | undefined;
@@ -81,6 +84,7 @@ export interface UpdateTaskInput {
 
 export interface TransitionTaskInput {
   readonly status: TaskStatus;
+  readonly userId?: string | undefined;
   readonly notes?: string | null | undefined;
 }
 
@@ -119,7 +123,12 @@ export interface TaskFiltersProps {
 export interface TaskListProps {
   readonly tasks: readonly Task[];
   readonly loading?: boolean | undefined;
-  readonly onTransitionStatus: (taskId: string, status: TaskStatus) => Promise<void>;
+  readonly currentUserId?: string | undefined;
+  readonly onTransitionStatus: (
+    taskId: string,
+    status: TaskStatus,
+    userId?: string,
+  ) => Promise<void>;
   readonly onEditTask?: ((task: Task) => void) | undefined;
   readonly onAssignTask?: ((task: Task) => void) | undefined;
 }

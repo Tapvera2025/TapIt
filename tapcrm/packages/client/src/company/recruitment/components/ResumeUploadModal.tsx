@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
+import { Icon } from '../../../ui/Icon.js';
 import { submitHrManualResume } from '../api/recruitmentApi.js';
 import type { CandidateResumeSubmission, JobRequisition } from '../types/index.js';
 
@@ -170,7 +171,7 @@ export function ResumeUploadModal({
           {file ? (
             <div className="flex items-center justify-between rounded-xl border border-app-border bg-app-surface p-3 text-sm">
               <div className="flex items-center gap-2 truncate">
-                <span className="text-xl" aria-hidden="true">📄</span>
+                <Icon name="notepad" className="size-5 text-app-muted shrink-0" />
                 <div className="truncate">
                   <p className="font-semibold text-app-foreground truncate">{file.name}</p>
                   <p className="text-xs text-app-muted">
@@ -191,7 +192,9 @@ export function ResumeUploadModal({
             </div>
           ) : (
             <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-app-border bg-app-surface p-6 text-center transition hover:border-app-accent hover:bg-app-accent/5">
-              <span className="text-3xl" aria-hidden="true">📁</span>
+              <div className="flex size-10 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
+                <Icon name="notepad" className="size-5" />
+              </div>
               <p className="mt-2 text-sm font-semibold text-app-foreground">
                 Click to browse or drag and drop resume here
               </p>

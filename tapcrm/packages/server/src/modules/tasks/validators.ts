@@ -36,6 +36,7 @@ export const updateTaskSchema = z.object({
 
 export const transitionTaskSchema = z.object({
   status: taskStatusSchema,
+  userId: z.string().uuid('Invalid user ID format').optional(),
   notes: z.string().trim().max(2000).optional().nullable(),
 });
 
@@ -62,6 +63,8 @@ export const taskListQuerySchema = z
     endDate: z.coerce.date().optional(),
     projectId: z.string().uuid().optional(),
     assigneeId: z.string().uuid().optional(),
+    creatorId: z.string().uuid().optional(),
+    participantId: z.string().uuid().optional(),
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
     sortBy: z

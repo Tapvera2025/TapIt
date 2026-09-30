@@ -30,6 +30,7 @@ import {
   CallbackDetailPage,
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
+import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -149,6 +150,9 @@ export function CompanyWorkspace({
   const isRoleChangeRequest = pathname === '/company/role-change-request';
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
+  const isEmployeeNotes = pathname === '/company/employee-notes';
+  const isNotepad =
+    pathname === '/company/my-notepad' || pathname === '/company/notepad';
 
   const isTerritories = pathname === '/company/sales/territories';
   const isLeads = pathname === '/company/sales/leads';
@@ -158,42 +162,69 @@ export function CompanyWorkspace({
   const isCallbackCalendar = pathname === '/company/sales/callbacks/calendar';
   const isCallbackBoard = pathname === '/company/sales/callbacks/board';
   const isCallbackSchedule = pathname === '/company/sales/callbacks/schedule';
-  const callbackDetailMatch = isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule ? null : pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
+  const callbackDetailMatch =
+    isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule
+      ? null
+      : pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
 
-  const territoryDetailMatch = pathname.match(/^\/company\/sales\/territories\/([^/]+)$/);
+  const territoryDetailMatch = pathname.match(
+    /^\/company\/sales\/territories\/([^/]+)$/,
+  );
 
   const leadDetailMatch =
     isStalledLeads || isReengagement
       ? null
       : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
 
-  const title = isOrganization
-    ? 'Organization'
-    : isRecruitment
-      ? 'Recruitment'
-      : isEmployees
-        ? 'Employees'
-        : pathname === '/company/sessions'
-          ? 'Sessions & Devices'
-          : isAccess
-            ? 'Access Explorer'
-            : isRoleChangeRequest
-              ? 'Request Role Change'
-              : isAudit
-                ? 'Audit Log'
-                : pathname === '/company/geofencing'
-                  ? 'Geofencing'
-                  : pathname === '/company/tasks'
-                    ? 'Tasks'
-                    : isTerritories || territoryDetailMatch
-                      ? 'Territories'
-                      : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
-                        ? 'Callbacks'
-                      : isLeads || isStalledLeads || isReengagement || leadDetailMatch
-                        ? 'Leads'
-                        : 'Dashboard';
+  const title = isNotepad
+    ? 'My Notepad'
+    : isEmployeeNotes
+      ? 'Employee Notes'
+      : isOrganization
+        ? 'Organization'
+        : isRecruitment
+          ? 'Recruitment'
+          : isEmployees
+            ? 'Employees'
+            : pathname === '/company/sessions'
+              ? 'Sessions & Devices'
+              : isAccess
+                ? 'Access Explorer'
+                : isRoleChangeRequest
+                  ? 'Request Role Change'
+                  : isAudit
+                    ? 'Audit Log'
+                    : pathname === '/company/geofencing'
+                      ? 'Geofencing'
+                      : pathname === '/company/tasks'
+                        ? 'Tasks'
+                        : isTerritories || territoryDetailMatch
+                          ? 'Territories'
+                          : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
+                            ? 'Callbacks'
+                          : isLeads || isStalledLeads || isReengagement || leadDetailMatch
+                            ? 'Leads'
+                            : 'Dashboard';
 
-  const content = isOrganization ? (
+  const content = isNotepad ? (
+    <MyNotepadPage />
+  ) : isEmployeeNotes ? (
+    isSuperAdmin ? (
+      <EmployeeNotesPage />
+    ) : (
+      <div className="grid min-h-[60vh] place-items-center p-6 text-center">
+        <div>
+          <h1 className="font-display text-2xl font-bold">
+            Access Restricted
+          </h1>
+
+          <p className="mt-2 text-sm text-app-muted">
+            Employee notes monitoring is restricted to Super Admin.
+          </p>
+        </div>
+      </div>
+    )
+  ) : isOrganization ? (
     <OrganizationWorkspace pathname={pathname} />
   ) : isRecruitment ? (
     <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />

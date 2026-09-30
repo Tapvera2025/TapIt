@@ -33,7 +33,9 @@ export function CompanyHeader({
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <NotificationBell onNavigate={onNavigate} />
-        <ThemeToggle />
+        <div className="md:hidden">
+          <ThemeToggle />
+        </div>
         <button
           type="button"
           onClick={onLogout}
