@@ -27,7 +27,35 @@ export interface SocketIdentity {
 export type SocketAuthenticator = (token: string, options?: { touch?: boolean }) => Promise<SocketIdentity | null>;
 
 /** RT-5 event names emitted through `emitToUser`. */
-export type RealtimeEvent = 'notification:new' | 'notification:read' | 'permissions:changed';
+export type RealtimeEvent =
+  | 'notification:new'
+  | 'notification:read'
+  | 'permissions:changed'
+  | 'chat:conversation:new'
+  | 'chat:message:new'
+  | 'chat:message:read'
+  | 'chat:message:reaction'
+  | 'chat:message:unsent';
+
+/**
+ * Typing is the one thing a client SENDS rather than only receives — RT-2
+ * still holds (the client cannot choose an arbitrary room): it names a
+ * conversation id, and the server decides who hears it by asking the
+ * authorizer for that conversation's CURRENT member ids. A module that wants
+ * typing registers exactly one authorizer via `installTypingAuthorizer`; the
+ * chat module is the only caller today.
+ */
+export type TypingAuthorizer = (
+  organizationId: string,
+  userId: string,
+  conversationId: string,
+) => Promise<readonly string[] | null>;
+
+let typingAuthorizer: TypingAuthorizer | null = null;
+
+export function installTypingAuthorizer(authorizer: TypingAuthorizer): void {
+  typingAuthorizer = authorizer;
+}
 
 /** Tenant-qualified: user ids are unique, but the room name must still encode the tenant. */
 export const userRoom = (organizationId: string, userId: string): string =>
@@ -35,22 +63,27 @@ export const userRoom = (organizationId: string, userId: string): string =>
 
 const REVALIDATE_MS = 2 * 60_000;
 
-/** No client-to-server events are handled at all (RT-2); the map is intentionally open. */
+/** Nothing is emitted TO the client through the typed map; every push goes through `emitToUser`. */
 type NoEvents = Record<string, (...args: unknown[]) => void>;
+
+/** The one client-to-server event this layer accepts (see `TypingAuthorizer` above). */
+interface ClientEvents {
+  'chat:typing': (payload: unknown) => void;
+}
 
 interface SocketData {
   identity: SocketIdentity;
   token: string;
 }
-type RealtimeServer = Server<NoEvents, NoEvents, NoEvents, SocketData>;
-type RealtimeSocket = Socket<NoEvents, NoEvents, NoEvents, SocketData>;
+type RealtimeServer = Server<ClientEvents, NoEvents, NoEvents, SocketData>;
+type RealtimeSocket = Socket<ClientEvents, NoEvents, NoEvents, SocketData>;
 
 let io: RealtimeServer | null = null;
 let redisClients: Redis[] = [];
 
 export async function startRealtime(server: HttpServer, authenticate: SocketAuthenticator): Promise<void> {
   const config = loadConfig();
-  io = new Server<NoEvents, NoEvents, NoEvents, SocketData>(server, {
+  io = new Server<ClientEvents, NoEvents, NoEvents, SocketData>(server, {
     // Same-origin through the dev proxy / reverse proxy; CORS_ORIGIN is honoured
     // for split-origin deployments.
     cors: { origin: config.CORS_ORIGIN, credentials: true },
@@ -98,7 +131,29 @@ export async function startRealtime(server: HttpServer, authenticate: SocketAuth
     }, REVALIDATE_MS);
     timer.unref();
     socket.on('disconnect', () => clearInterval(timer));
+
+    // Ephemeral, never persisted. Fanned out through each recipient's OWN
+    // personal room — same as every other push here — so no new room concept
+    // is needed for a conversation this small.
+    socket.on('chat:typing', (payload: unknown) => {
+      void handleTyping(identity, payload).catch((error: unknown) => logError('chat:typing failed', error));
+    });
   });
+}
+
+async function handleTyping(identity: SocketIdentity, payload: unknown): Promise<void> {
+  if (!typingAuthorizer) return;
+  if (typeof payload !== 'object' || payload === null) return;
+  const conversationId = (payload as Record<string, unknown>)['conversationId'];
+  const state = (payload as Record<string, unknown>)['state'];
+  if (typeof conversationId !== 'string' || (state !== 'start' && state !== 'stop')) return;
+
+  const memberIds = await typingAuthorizer(identity.organizationId, identity.userId, conversationId);
+  if (!memberIds) return; // not a member — say nothing, not even an error
+  for (const memberId of memberIds) {
+    if (memberId === identity.userId) continue;
+    io?.to(userRoom(identity.organizationId, memberId)).emit('chat:typing', { conversationId, userId: identity.userId, state });
+  }
 }
 
 /**

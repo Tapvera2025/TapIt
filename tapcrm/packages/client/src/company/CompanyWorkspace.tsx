@@ -31,6 +31,7 @@ import {
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
+import { DirectMessagesPage } from '../chat/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -198,7 +199,9 @@ export function CompanyWorkspace({
                       ? 'Geofencing'
                       : pathname === '/company/tasks'
                         ? 'Tasks'
-                        : isTerritories || territoryDetailMatch
+                        : pathname === '/company/messages'
+                          ? 'Messages'
+                          : isTerritories || territoryDetailMatch
                           ? 'Territories'
                           : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
                             ? 'Callbacks'
@@ -255,6 +258,8 @@ export function CompanyWorkspace({
     )
   ) : pathname === '/company/tasks' ? (
     <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
+  ) : pathname === '/company/messages' ? (
+    <DirectMessagesPage currentUserId={identity.user.id} />
   ) : isTerritories && (isSuperAdmin || canViewTerritories) ? (
     <TerritoriesPage
       canManage={isSuperAdmin || canViewTerritories}

@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 161   Bindings: 361
+ * Actions: 164   Bindings: 384
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -54,6 +54,9 @@ export type Action =
   | 'callbacks:view'
   | 'changes:assign'
   | 'changes:classify'
+  | 'chat:manage-groups'
+  | 'chat:send'
+  | 'chat:view'
   | 'clients:manage'
   | 'clients:manage-requests'
   | 'clients:view'
@@ -217,6 +220,9 @@ export const ACTIONS: readonly Action[] = [
   'callbacks:view',
   'changes:assign',
   'changes:classify',
+  'chat:manage-groups',
+  'chat:send',
+  'chat:view',
   'clients:manage',
   'clients:manage-requests',
   'clients:view',
@@ -853,6 +859,51 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'chat:manage-groups': {
+    action: 'chat:manage-groups',
+    module: 'chat',
+    resource: 'chatConversation',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: false,
+      delegationAllowed: false,
+      superAdminOnly: true,
+    },
+    description: "",
+  },
+  'chat:send': {
+    action: 'chat:send',
+    module: 'chat',
+    resource: 'chatConversation',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'chat:view': {
+    action: 'chat:view',
+    module: 'chat',
+    resource: 'chatConversation',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
       superAdminOnly: false,
     },
     description: "",
@@ -3063,6 +3114,17 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/communication/tracker', action: 'communication:view', resourceParam: null },
   { method: 'GET', path: '/api/projects/:id/messages/client', action: 'communication:client-thread', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/messages/client', action: 'communication:client-thread', resourceParam: 'id' },
+  { method: 'GET', path: '/api/chat/conversations', action: 'chat:view', resourceParam: null },
+  { method: 'GET', path: '/api/chat/conversations/:id', action: 'chat:view', resourceParam: 'id' },
+  { method: 'GET', path: '/api/chat/conversations/:id/messages', action: 'chat:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/conversations/:id/read', action: 'chat:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/conversations/direct', action: 'chat:send', resourceParam: null },
+  { method: 'POST', path: '/api/chat/conversations/group', action: 'chat:manage-groups', resourceParam: null },
+  { method: 'POST', path: '/api/chat/conversations/:id/messages', action: 'chat:send', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/messages/:id/forward', action: 'chat:send', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/messages/:id/react', action: 'chat:send', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/chat/messages/:id/react', action: 'chat:send', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/messages/:id/unsend', action: 'chat:send', resourceParam: 'id' },
   { method: 'GET', path: '/api/documents', action: 'documents:view', resourceParam: null },
   { method: 'GET', path: '/api/documents/:id', action: 'documents:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/documents', action: 'documents:upload', resourceParam: null },
