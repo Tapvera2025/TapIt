@@ -26,6 +26,8 @@ import {
   registerNotepadPolicies,
 } from './myNotepad/index.js';
 import { registerChatPolicies, registerChatRealtime, registerChatRoutes } from './chat/index.js';
+import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
+import { registerProjectPolicies, registerProjectRoutes } from './projects/index.js';
 
 /**
  * The module registry.
@@ -51,6 +53,8 @@ export function registerAllPolicies(): void {
   registerRecruitmentPolicies();
   registerNotepadPolicies();
   registerChatPolicies();
+  registerClientPolicies();
+  registerProjectPolicies();
 }
 
 /** Realtime wiring that has no route/policy shape of its own (the typing relay). */
@@ -74,4 +78,6 @@ export function registerAllRoutes(): void {
   registerMyNotepadRoutes();
   registerMyNotepadAdminRoutes();
   registerChatRoutes();
+  registerClientRoutes();
+  registerProjectRoutes();
 }

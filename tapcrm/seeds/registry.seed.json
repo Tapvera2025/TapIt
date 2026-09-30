@@ -3639,6 +3639,12 @@
       "resourceParam": "id"
     },
     {
+      "method": "POST",
+      "path": "/api/projects/:id/discussion-group",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/projects/:id/profitability",
       "action": "projects:view-financials",

@@ -418,6 +418,7 @@ changes who can do what.
 | PATCH | /api/projects/:id | `projects:manage` | id |
 | POST | /api/projects/:id/team | `projects:manage` | id |
 | POST | /api/projects/:id/archive | `projects:manage` | id |
+| POST | /api/projects/:id/discussion-group | `projects:manage` | id |
 | GET | /api/projects/:id/profitability | `projects:view-financials` | id |
 | GET | /api/tasks | `tasks:view` | — |
 | GET | /api/tasks/:id | `tasks:view` | id |

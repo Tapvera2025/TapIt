@@ -17,6 +17,9 @@ export const NOTIFICATION_TYPES = {
   TASK_UPDATED: 'task.updated',
   TASK_STATUS_CHANGED: 'task.status_changed',
   TASK_COMPLETED: 'task.completed',
+
+  // projects (see modules/projects/notifications.ts)
+  PROJECT_ASSIGNED: 'project.assigned',
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
