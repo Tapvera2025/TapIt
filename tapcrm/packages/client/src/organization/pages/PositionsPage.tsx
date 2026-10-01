@@ -27,12 +27,14 @@ import {
 } from '../components/OrganizationUi.js';
 import type {
   OrganizationDepartment,
+  OrganizationChart,
   OrganizationLadder,
   OrganizationPosition,
   PolicyImpactPreview,
   PositionImpactPreview,
   PositionPolicy,
 } from '../types/index.js';
+import { IdentityApiError } from '../../identity/api/authApi.js';
 
 type PositionForm = {
   departmentId: string;
@@ -42,6 +44,8 @@ type PositionForm = {
   parentPositionId: string;
   status: string;
 };
+type PositionField = 'code' | 'name' | 'organizationalLevel' | 'parentPositionId';
+type PositionFieldErrors = Partial<Record<PositionField, string>>;
 const blank: PositionForm = {
   departmentId: '',
   code: '',
@@ -58,6 +62,7 @@ export function PositionsPage(): React.JSX.Element {
   const [departments, setDepartments] = useState<OrganizationDepartment[]>([]);
   const [departmentId, setDepartmentId] = useState('');
   const [ladder, setLadder] = useState<OrganizationLadder | null>(null);
+  const [chart, setChart] = useState<OrganizationChart | null>(null);
   const [form, setForm] = useState(blank);
   const [editing, setEditing] = useState<OrganizationPosition | null>(null);
   const [impact, setImpact] = useState<PositionImpactPreview | null>(null);
@@ -72,6 +77,8 @@ export function PositionsPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [fieldErrors, setFieldErrors] = useState<PositionFieldErrors>({});
+  const [formError, setFormError] = useState('');
   const [message, setMessage] = useState('');
   async function loadDepartments() {
     try {
@@ -114,6 +121,8 @@ export function PositionsPage(): React.JSX.Element {
     setEditing(null);
     setImpact(null);
     setPendingCreate(null);
+    setFieldErrors({});
+    setFormError('');
     setForm({ ...blank, departmentId });
     setOpen(true);
   }
@@ -128,7 +137,19 @@ export function PositionsPage(): React.JSX.Element {
       parentPositionId: position.parentPositionId ?? '',
       status: position.status,
     });
+    setFieldErrors({});
+    setFormError('');
     setOpen(true);
+  }
+  function updateFormField(field: PositionField, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setFormError('');
   }
   function payload(confirmImpact = false): Record<string, unknown> {
     return {
@@ -143,6 +164,23 @@ export function PositionsPage(): React.JSX.Element {
   }
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    const nextErrors: PositionFieldErrors = {};
+    if (!form.code.trim()) nextErrors.code = 'Position code is required.';
+    else if (!editing && !/^[a-z0-9][a-z0-9-]*$/.test(form.code.trim()))
+      nextErrors.code = 'Code can use only lowercase letters, numbers, and hyphens.';
+    if (!form.name.trim()) nextErrors.name = 'Position name is required.';
+    if (
+      !form.organizationalLevel ||
+      Number(form.organizationalLevel) < 1 ||
+      !Number.isInteger(Number(form.organizationalLevel))
+    )
+      nextErrors.organizationalLevel =
+        'Organizational level must be a whole number of at least 1.';
+    if (!editing && !form.parentPositionId)
+      nextErrors.parentPositionId = 'Parent position is required.';
+    setFieldErrors(nextErrors);
+    setFormError('');
+    if (Object.keys(nextErrors).length > 0) return;
     setBusy(true);
     setError(null);
     try {
@@ -157,6 +195,7 @@ export function PositionsPage(): React.JSX.Element {
         if (preview.positionParentChanges && preview.positionParentChanges.length > 0) {
           setPendingCreate(body);
           setImpact(preview);
+          setChart(await organizationApi.chart().catch(() => null));
         } else {
           await organizationApi.createPosition(body);
           setOpen(false);
@@ -165,7 +204,16 @@ export function PositionsPage(): React.JSX.Element {
         }
       }
     } catch (cause) {
-      setError(cause);
+      if (
+        cause instanceof IdentityApiError &&
+        cause.code === 'ORG_POSITION_CODE_EXISTS'
+      ) {
+        setFieldErrors({ code: 'A position with this code already exists.' });
+      } else if (cause instanceof Error) {
+        setFormError(cause.message);
+      } else {
+        setFormError('Unable to save position.');
+      }
     } finally {
       setBusy(false);
     }
@@ -181,7 +229,9 @@ export function PositionsPage(): React.JSX.Element {
       setMessage('Position created and hierarchy updated.');
       await loadLadder();
     } catch (cause) {
-      setError(cause);
+      setFormError(
+        cause instanceof Error ? cause.message : 'Unable to apply hierarchy change.',
+      );
     } finally {
       setBusy(false);
     }
@@ -342,6 +392,7 @@ export function PositionsPage(): React.JSX.Element {
           onClose={() => setOpen(false)}
         >
           <form
+            noValidate
             onSubmit={(event) => {
               void save(event);
             }}
@@ -350,26 +401,29 @@ export function PositionsPage(): React.JSX.Element {
             <Field
               label="Code"
               value={form.code}
-              onChange={(value) => setForm({ ...form, code: value })}
+              onChange={(value) => updateFormField('code', value)}
+              error={fieldErrors.code}
               required
             />
             <Field
               label="Name"
               value={form.name}
-              onChange={(value) => setForm({ ...form, name: value })}
+              onChange={(value) => updateFormField('name', value)}
+              error={fieldErrors.name}
               required
             />
             <Field
               label="Organizational level"
               type="number"
               value={form.organizationalLevel}
-              onChange={(value) => setForm({ ...form, organizationalLevel: value })}
+              onChange={(value) => updateFormField('organizationalLevel', value)}
+              error={fieldErrors.organizationalLevel}
               required
             />
             <Select
               label="Parent position"
               value={form.parentPositionId}
-              onChange={(value) => setForm({ ...form, parentPositionId: value })}
+              onChange={(value) => updateFormField('parentPositionId', value)}
               options={flatPositions
                 .filter((item) => item.id !== editing?.id)
                 .map((item) => ({
@@ -378,6 +432,7 @@ export function PositionsPage(): React.JSX.Element {
                 }))}
               required={!editing || editing.parentPositionId !== null}
               disabled={!editing && flatPositions.length === 0}
+              error={fieldErrors.parentPositionId}
             />
             {!editing && flatPositions.length === 0 && (
               <p className="text-xs text-app-muted md:col-span-2">
@@ -398,6 +453,7 @@ export function PositionsPage(): React.JSX.Element {
             <Button type="submit" disabled={busy} className="md:col-span-2">
               {busy ? 'Saving…' : 'Save position'}
             </Button>
+            {formError && <ErrorMessage cause={new Error(formError)} />}
           </form>
         </Modal>
       )}
@@ -411,6 +467,9 @@ export function PositionsPage(): React.JSX.Element {
         >
           <ImpactPreview
             impact={impact}
+            positions={flatPositions}
+            chart={chart}
+            formError={formError}
             onConfirm={() => {
               void confirmCreate();
             }}
@@ -418,6 +477,7 @@ export function PositionsPage(): React.JSX.Element {
             onCancel={() => {
               setImpact(null);
               setPendingCreate(null);
+              setFormError('');
             }}
           />
         </Modal>
@@ -463,15 +523,29 @@ function stripPolicy(policy: PositionPolicy) {
 }
 function ImpactPreview({
   impact,
+  positions,
+  chart,
+  formError,
   onConfirm,
   busy,
   onCancel,
 }: {
   impact: PositionImpactPreview;
+  positions: OrganizationPosition[];
+  chart: OrganizationChart | null;
+  formError: string;
   onConfirm: () => void;
   busy: boolean;
   onCancel: () => void;
 }): React.JSX.Element {
+  const positionNames = new Map(
+    positions.map((position) => [position.id, position.name]),
+  );
+  const employeeNames = new Map(
+    (chart?.people ?? []).map((person) => [person.id, person.fullName]),
+  );
+  const proposedPositionName = impact.position?.name ?? 'the new position';
+
   return (
     <div>
       <p className="text-sm text-app-muted">
@@ -493,13 +567,24 @@ function ImpactPreview({
             key={change.positionId}
             className="rounded-lg border border-app-border p-3 text-sm"
           >
-            Position <strong>{change.positionId}</strong> will be re-parented.
+            Position <strong>{positionName(change.positionId, positionNames)}</strong>{' '}
+            will be re-parented from{' '}
+            <strong>{positionName(change.currentParentPositionId, positionNames)}</strong>{' '}
+            to{' '}
+            <strong>
+              {change.proposedParentPositionId
+                ? positionName(change.proposedParentPositionId, positionNames)
+                : proposedPositionName}
+            </strong>
+            .
           </p>
         ))}
         {(impact.reportingRelationships ?? []).map((line, index) => (
           <p key={index} className="rounded-lg border border-app-border p-3 text-sm">
-            Reporting line: {displayValue(line['currentReportsTo'])} →{' '}
-            {displayValue(line['proposedReportsTo'])}
+            Reporting line for{' '}
+            <strong>{personName(line['userId'], employeeNames)}</strong>:{' '}
+            {personName(line['currentReportsTo'], employeeNames)} →{' '}
+            {personName(line['proposedReportsTo'], employeeNames)}
           </p>
         ))}
       </div>
@@ -511,13 +596,21 @@ function ImpactPreview({
           {busy ? 'Applying…' : 'Confirm and apply'}
         </Button>
       </div>
+      {formError && (
+        <div className="mt-4">
+          <ErrorMessage cause={new Error(formError)} />
+        </div>
+      )}
     </div>
   );
 }
-function displayValue(value: unknown): string {
-  if (typeof value === 'string' && value.length > 0) return value;
-  if (value === null || value === undefined) return 'none';
-  return JSON.stringify(value);
+function positionName(id: unknown, names: Map<string, string>): string {
+  if (typeof id !== 'string' || id.length === 0) return 'none';
+  return names.get(id) ?? 'unavailable position';
+}
+function personName(id: unknown, names: Map<string, string>): string {
+  if (typeof id !== 'string' || id.length === 0) return 'none';
+  return names.get(id) ?? 'unavailable employee';
 }
 function PolicyEditor({
   policies,

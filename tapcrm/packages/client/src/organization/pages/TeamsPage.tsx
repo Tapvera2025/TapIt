@@ -17,6 +17,7 @@ import type {
   OrganizationDepartment,
   OrganizationTeam,
 } from '../types/index.js';
+import { IdentityApiError } from '../../identity/api/authApi.js';
 
 const blank = {
   departmentId: '',
@@ -31,6 +32,8 @@ const TEAM_KINDS = [
   { value: 'sales-pool', label: 'Sales pool' },
   { value: 'dev-subteam', label: 'Development sub-team' },
 ];
+type TeamField = 'departmentId' | 'kind' | 'name';
+type TeamFieldErrors = Partial<Record<TeamField, string>>;
 export function TeamsPage(): React.JSX.Element {
   const [teams, setTeams] = useState<OrganizationTeam[]>([]);
   const [departments, setDepartments] = useState<OrganizationDepartment[]>([]);
@@ -43,6 +46,8 @@ export function TeamsPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [fieldErrors, setFieldErrors] = useState<TeamFieldErrors>({});
+  const [formError, setFormError] = useState('');
   const [message, setMessage] = useState('');
   async function load() {
     setLoading(true);
@@ -68,6 +73,8 @@ export function TeamsPage(): React.JSX.Element {
   function startCreate() {
     setEditing(null);
     setForm(blank);
+    setFieldErrors({});
+    setFormError('');
     setOpen(true);
   }
   function startEdit(item: OrganizationTeam) {
@@ -80,10 +87,32 @@ export function TeamsPage(): React.JSX.Element {
       parentTeamId: item.parentTeamId ?? '',
       sharedVisibility: item.sharedVisibility ?? false,
     });
+    setFieldErrors({});
+    setFormError('');
     setOpen(true);
+  }
+  function updateForm(field: keyof typeof blank, value: string | boolean) {
+    setForm((current) => ({ ...current, [field]: value }));
+    if (field in fieldErrors) {
+      setFieldErrors((current) => {
+        const next = { ...current };
+        delete next[field as TeamField];
+        return next;
+      });
+    }
+    setFormError('');
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    const nextErrors: TeamFieldErrors = {};
+    if (!form.departmentId) nextErrors.departmentId = 'Department is required.';
+    if (!form.kind) nextErrors.kind = 'Team type / kind is required.';
+    if (!form.name.trim()) nextErrors.name = 'Team name is required.';
+    else if (form.name.trim().length > 160)
+      nextErrors.name = 'Team name must be at most 160 characters.';
+    setFieldErrors(nextErrors);
+    setFormError('');
+    if (Object.keys(nextErrors).length > 0) return;
     setBusy(true);
     setError(null);
     try {
@@ -101,7 +130,13 @@ export function TeamsPage(): React.JSX.Element {
       setMessage('Team saved.');
       await load();
     } catch (cause) {
-      setError(cause);
+      if (cause instanceof IdentityApiError && cause.code === 'ORG_TEAM_NAME_EXISTS') {
+        setFieldErrors({ name: 'A team with this name already exists.' });
+      } else if (cause instanceof Error) {
+        setFormError(cause.message);
+      } else {
+        setFormError('Unable to save team.');
+      }
     } finally {
       setBusy(false);
     }
@@ -134,12 +169,20 @@ export function TeamsPage(): React.JSX.Element {
   const eligibleLeads = (chart?.people ?? []).filter(
     (person) => person.departmentId === form.departmentId,
   );
-  const selectedEmployee = (chart?.people ?? []).find((person) => person.id === memberUser);
+  const selectedEmployee = (chart?.people ?? []).find(
+    (person) => person.id === memberUser,
+  );
   const eligibleDestinationTeams = teams.filter(
-    (team) => selectedEmployee !== undefined && team.status === 'active' && team.departmentId === selectedEmployee.departmentId && team.id !== selectedEmployee.teamId,
+    (team) =>
+      selectedEmployee !== undefined &&
+      team.status === 'active' &&
+      team.departmentId === selectedEmployee.departmentId &&
+      team.id !== selectedEmployee.teamId,
   );
   const currentTeamName = selectedEmployee?.teamId
-    ? teams.find((team) => team.id === selectedEmployee.teamId)?.name ?? selectedEmployee.teamName ?? selectedEmployee.teamId
+    ? (teams.find((team) => team.id === selectedEmployee.teamId)?.name ??
+      selectedEmployee.teamName ??
+      selectedEmployee.teamId)
     : null;
   return (
     <Page
@@ -178,10 +221,18 @@ export function TeamsPage(): React.JSX.Element {
                 value={memberUser}
                 onChange={(value) => {
                   setMemberUser(value);
-                  const employee = (chart?.people ?? []).find((person) => person.id === value);
-                  if (!employee || !teams.some((team) =>
-                    team.id === memberTeam && team.departmentId === employee.departmentId,
-                  )) setMemberTeam('');
+                  const employee = (chart?.people ?? []).find(
+                    (person) => person.id === value,
+                  );
+                  if (
+                    !employee ||
+                    !teams.some(
+                      (team) =>
+                        team.id === memberTeam &&
+                        team.departmentId === employee.departmentId,
+                    )
+                  )
+                    setMemberTeam('');
                 }}
                 options={(chart?.people ?? []).map((person) => ({
                   value: person.id,
@@ -199,9 +250,14 @@ export function TeamsPage(): React.JSX.Element {
                 }))}
                 required
               />
-              {selectedEmployee && <p className="text-xs text-app-muted md:col-span-3">
-                Current team: <span className="font-semibold text-app-foreground">{currentTeamName ?? 'Unassigned'}</span>
-              </p>}
+              {selectedEmployee && (
+                <p className="text-xs text-app-muted md:col-span-3">
+                  Current team:{' '}
+                  <span className="font-semibold text-app-foreground">
+                    {currentTeamName ?? 'Unassigned'}
+                  </span>
+                </p>
+              )}
               {memberUser && eligibleDestinationTeams.length === 0 && (
                 <p className="text-xs text-app-muted md:col-span-3">
                   No teams are available in this employee&apos;s department.
@@ -244,6 +300,7 @@ export function TeamsPage(): React.JSX.Element {
           onClose={() => setOpen(false)}
         >
           <form
+            noValidate
             onSubmit={(event) => {
               void submit(event);
             }}
@@ -252,42 +309,55 @@ export function TeamsPage(): React.JSX.Element {
             <Select
               label="Department"
               value={form.departmentId}
-              onChange={(value) =>
-                setForm({ ...form, departmentId: value, parentTeamId: '' })
-              }
+              onChange={(value) => {
+                updateForm('departmentId', value);
+                setForm((current) => ({ ...current, parentTeamId: '' }));
+              }}
               options={departments.map((item) => ({ value: item.id, label: item.name }))}
+              error={fieldErrors.departmentId}
               required
             />
             <Select
               label="Team type / kind"
               value={form.kind}
-              onChange={(value) => setForm({ ...form, kind: value, parentTeamId: '' })}
+              onChange={(value) => {
+                updateForm('kind', value);
+                setForm((current) => ({ ...current, parentTeamId: '' }));
+              }}
               options={TEAM_KINDS}
+              error={fieldErrors.kind}
               required
             />
             <Field
               label="Name"
               value={form.name}
-              onChange={(value) => setForm({ ...form, name: value })}
+              onChange={(value) => updateForm('name', value)}
+              error={fieldErrors.name}
               required
             />
             <Select
               label="Team lead (optional during bootstrap)"
               value={form.leadUserId}
               onChange={(value) => setForm({ ...form, leadUserId: value })}
-              options={eligibleLeads.map((person) => ({ value: person.id, label: person.fullName }))}
+              options={eligibleLeads.map((person) => ({
+                value: person.id,
+                label: person.fullName,
+              }))}
             />
             {eligibleLeads.length === 0 && (
               <p className="text-xs text-app-muted">
-                No employees are available in this department yet. You can save
-                the team without a lead and assign one later.
+                No employees are available in this department yet. You can save the team
+                without a lead and assign one later.
               </p>
             )}
             <Select
               label="Parent team (optional for a root team)"
               value={form.parentTeamId}
               onChange={(value) => setForm({ ...form, parentTeamId: value })}
-              options={eligibleParentTeams.map((team) => ({ value: team.id, label: team.name }))}
+              options={eligibleParentTeams.map((team) => ({
+                value: team.id,
+                label: team.name,
+              }))}
             />
             {form.kind !== 'sales-pool' && eligibleParentTeams.length === 0 && (
               <p className="text-xs text-app-muted">
@@ -297,6 +367,7 @@ export function TeamsPage(): React.JSX.Element {
             <Button type="submit" disabled={busy}>
               {busy ? 'Saving…' : 'Save team'}
             </Button>
+            {formError && <ErrorMessage cause={new Error(formError)} />}
           </form>
         </Modal>
       )}
