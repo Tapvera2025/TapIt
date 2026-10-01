@@ -25,6 +25,7 @@ import {
   registerMyNotepadRoutes,
   registerNotepadPolicies,
 } from './myNotepad/index.js';
+import { registerMyTodoRoutes } from './myTodo/routes.js';
 
 /**
  * The module registry.
@@ -66,4 +67,5 @@ export function registerAllRoutes(): void {
   registerRecruitmentRoutes();
   registerMyNotepadRoutes();
   registerMyNotepadAdminRoutes();
+  registerMyTodoRoutes();
 }

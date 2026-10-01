@@ -23,6 +23,18 @@ export interface CompanyScreen {
 }
 
 /**
+ * Single universal navigation item for My Todo.
+ * Universally available to all authenticated company users without action or role gating.
+ */
+export const myTodoNavItem: CompanyNavItem = {
+  label: 'My Todo',
+  path: '/company/todo',
+  icon: 'pencil',
+};
+
+export const myTodoItem = myTodoNavItem;
+
+/**
  * Single universal navigation item for My Notepad.
  * Universally available to all authenticated company users without action or role gating.
  */
@@ -40,6 +52,7 @@ export const companyNavigation: CompanyNavGroup[] = [
     items: [
       { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
       { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+      myTodoNavItem,
       myNotepadNavItem,
     ],
   },

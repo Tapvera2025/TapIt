@@ -1,6 +1,11 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
-import { companyNavigation, myNotepadNavItem, type CompanyNavGroup } from './navigation.js';
+import {
+  companyNavigation,
+  myNotepadNavItem,
+  myTodoNavItem,
+  type CompanyNavGroup,
+} from './navigation.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
 
@@ -69,6 +74,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+              myTodoNavItem,
               myNotepadNavItem,
             ],
           },
@@ -105,6 +111,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+              myTodoNavItem,
               myNotepadNavItem,
             ],
           },

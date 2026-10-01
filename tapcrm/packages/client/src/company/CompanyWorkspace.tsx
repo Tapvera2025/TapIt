@@ -33,6 +33,7 @@ import {
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
+import { MyTodoPage } from './todo/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -159,6 +160,8 @@ export function CompanyWorkspace({
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
   const isEmployeeNotes = pathname === '/company/employee-notes';
+  const isTodo =
+    pathname === '/company/todo' || pathname === '/company/my-todo';
   const isNotepad =
     pathname === '/company/my-notepad' || pathname === '/company/notepad';
 
@@ -184,7 +187,9 @@ export function CompanyWorkspace({
       ? null
       : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
 
-    const title = isNotepad
+  const title = isTodo
+    ? 'My Todo'
+    : isNotepad
       ? 'My Notepad'
       : isEmployeeNotes
         ? 'Employee Notes'
@@ -223,7 +228,9 @@ export function CompanyWorkspace({
                                   ? 'Leads'
                                   : 'Dashboard';
 
-  const content = isNotepad ? (
+  const content = isTodo ? (
+    <MyTodoPage />
+  ) : isNotepad ? (
     <MyNotepadPage />
   ) : isEmployeeNotes ? (
     isSuperAdmin ? (
