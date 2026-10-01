@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 164   Bindings: 389
+ * Actions: 164   Bindings: 391
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3013,6 +3013,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/projects/:id/team', action: 'projects:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/archive', action: 'projects:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/discussion-group', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/projects/:id/discussion-group', action: 'projects:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/projects/:id/profitability', action: 'projects:view-financials', resourceParam: 'id' },
   { method: 'GET', path: '/api/tasks', action: 'tasks:view', resourceParam: null },
   { method: 'GET', path: '/api/tasks/:id', action: 'tasks:view', resourceParam: 'id' },
@@ -3116,6 +3117,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/projects/:id/messages/client', action: 'communication:client-thread', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/messages/client', action: 'communication:client-thread', resourceParam: 'id' },
   { method: 'GET', path: '/api/chat/conversations', action: 'chat:view', resourceParam: null },
+  { method: 'GET', path: '/api/chat/colleagues', action: 'chat:send', resourceParam: null },
   { method: 'GET', path: '/api/chat/conversations/:id', action: 'chat:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/chat/conversations/:id/messages', action: 'chat:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/chat/conversations/:id/read', action: 'chat:view', resourceParam: 'id' },

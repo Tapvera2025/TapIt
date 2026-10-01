@@ -24,6 +24,8 @@ export interface Conversation {
   readonly kind: ConversationKind;
   /** Display name for group/project; null for direct (client renders the other member). */
   readonly name: string | null;
+  /** Group/project only; null for direct. */
+  readonly description: string | null;
   readonly projectId: string | null;
   readonly createdBy: string;
   readonly createdAt: Date;
@@ -45,6 +47,11 @@ export interface MessageReaction {
   readonly emoji: ReactionEmoji;
 }
 
+export interface MessageMention {
+  readonly userId: string;
+  readonly fullName: string;
+}
+
 export interface Message {
   readonly id: string;
   readonly organizationId: string;
@@ -60,6 +67,8 @@ export interface Message {
   readonly reactions: readonly MessageReaction[];
   /** Other members whose read cursor has reached this message (CH-derived "seen by"). */
   readonly seenBy: readonly string[];
+  /** Who this message @mentioned, resolved to their current name (not re-derived from the body text). */
+  readonly mentions: readonly MessageMention[];
 }
 
 export interface ConversationResource {

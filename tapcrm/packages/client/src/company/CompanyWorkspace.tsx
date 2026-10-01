@@ -31,9 +31,9 @@ import {
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
-import { MessagesPage } from '../chat/index.js';
-import { ClientsPage } from '../clients/index.js';
-import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
+import { getConversations, MessagesPage } from '../chat/index.js';
+import { ClientsPage, getClients } from '../clients/index.js';
+import { getProjects, ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -53,6 +53,9 @@ export function CompanyWorkspace({
   const [canViewTerritories, setCanViewTerritories] = useState(false);
   const [canViewLeads, setCanViewLeads] = useState(false);
   const [canViewCallbacks, setCanViewCallbacks] = useState(false);
+  const [canViewChat, setCanViewChat] = useState(false);
+  const [canViewClients, setCanViewClients] = useState(false);
+  const [canViewProjects, setCanViewProjects] = useState(false);
 
   useEffect(() => {
     void getCompanyIdentity()
@@ -65,6 +68,9 @@ export function CompanyWorkspace({
           setCanViewTerritories(true);
           setCanViewLeads(true);
           setCanViewCallbacks(true);
+          setCanViewChat(true);
+          setCanViewClients(true);
+          setCanViewProjects(true);
         } else if (nextIdentity.user.accountType === 'employee') {
           // The API is the source of truth for employee-directory access.
           // This probe only controls navigation; EmployeesPage still uses
@@ -94,6 +100,22 @@ export function CompanyWorkspace({
           void getAuditEntries({ limit: 1 })
             .then(() => setCanViewAudit(true))
             .catch(() => setCanViewAudit(false));
+
+          // chat:view is granted to every employee position by default
+          // (CH-1: no hierarchy) — this probe is what actually shows the
+          // Messages link; without it the permission exists but nothing in
+          // the sidebar ever points at it.
+          void getConversations('direct')
+            .then(() => setCanViewChat(true))
+            .catch(() => setCanViewChat(false));
+
+          void getClients()
+            .then(() => setCanViewClients(true))
+            .catch(() => setCanViewClients(false));
+
+          void getProjects()
+            .then(() => setCanViewProjects(true))
+            .catch(() => setCanViewProjects(false));
         }
       })
       .catch((cause) =>
@@ -349,6 +371,9 @@ export function CompanyWorkspace({
       canViewEmployees={canViewEmployees}
       canViewTerritories={canViewTerritories}
       canViewLeads={canViewLeads}
+      canViewChat={canViewChat}
+      canViewClients={canViewClients}
+      canViewProjects={canViewProjects}
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}

@@ -3,6 +3,7 @@ import { Button, Card, Loading, Notice, Page } from '../ui/components.js';
 import { getProjects, type Project } from './api/projectsApi.js';
 import { CreateDiscussionGroupModal } from './CreateDiscussionGroupModal.js';
 import { CreateProjectModal } from './CreateProjectModal.js';
+import { formatProjectDate } from './formatDate.js';
 
 const PRIORITY_LABEL: Record<Project['priority'], string> = { low: 'Low', medium: 'Medium', high: 'High' };
 const STATUS_LABEL: Record<Project['workStatus'], string> = { new: 'New', ongoing: 'Ongoing', ended: 'Ended', expired: 'Expired' };
@@ -66,7 +67,7 @@ export function ProjectsPage({ onOpenProject }: { onOpenProject: (projectId: str
                   <td className="px-4 py-3">{project.businessName}</td>
                   <td className="px-4 py-3">{PRIORITY_LABEL[project.priority]}</td>
                   <td className="px-4 py-3">{STATUS_LABEL[project.workStatus]}</td>
-                  <td className="px-4 py-3 text-app-muted">{project.startDate}</td>
+                  <td className="px-4 py-3 text-app-muted">{formatProjectDate(project.startDate)}</td>
                   <td className="px-4 py-3">
                     {project.discussionConversationId ? <span className="text-app-accent">Created</span> : <span className="text-app-muted">Not yet</span>}
                   </td>

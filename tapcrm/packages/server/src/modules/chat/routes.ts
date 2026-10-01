@@ -6,6 +6,7 @@ import {
   createInternalGroup,
   forwardMessage,
   getConversation,
+  listColleagues,
   listConversations,
   listMessages,
   loadConversationResource,
@@ -50,6 +51,17 @@ export function registerChatRoutes(): void {
     action: 'chat:view',
     module: 'chat',
     handler: async ({ ctx, query }) => listConversations(ctx, listConversationsQuerySchema.parse(query).kind),
+  });
+
+  // Who a Direct Message can be started with — every employee/super-admin in
+  // the org, not the HR directory (`users:view`), since `chat:send` is
+  // granted far more broadly than that (CH-1).
+  route({
+    method: 'GET',
+    path: '/api/chat/colleagues',
+    action: 'chat:send',
+    module: 'chat',
+    handler: async ({ ctx }) => listColleagues(ctx),
   });
 
   route({
@@ -112,7 +124,10 @@ export function registerChatRoutes(): void {
     module: 'chat',
     resourceParam: 'id',
     loadResource: loadConversationResource,
-    handler: async ({ ctx, params, body }) => renameGroup(ctx, idParam.parse(params).id, renameGroupSchema.parse(body).name),
+    handler: async ({ ctx, params, body }) => {
+      const parsed = renameGroupSchema.parse(body);
+      return renameGroup(ctx, idParam.parse(params).id, parsed.name, parsed.description);
+    },
   });
 
   route({

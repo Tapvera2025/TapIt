@@ -22,7 +22,17 @@ const label = (conversation: Conversation): string => conversation.name ?? 'Grou
  * employee position already holds. Non-admins therefore see the list and
  * thread below with no "New" button and no "Manage" panel.
  */
-export function InternalGroupsPage({ currentUserId, isSuperAdmin }: { currentUserId: string; isSuperAdmin: boolean }): React.JSX.Element {
+export function InternalGroupsPage({
+  currentUserId,
+  isSuperAdmin,
+  initialConversationId,
+  initialMessageId,
+}: {
+  currentUserId: string;
+  isSuperAdmin: boolean;
+  initialConversationId?: string | undefined;
+  initialMessageId?: string | undefined;
+}): React.JSX.Element {
   const chat = useChat('group');
   const [showCreate, setShowCreate] = useState(false);
   const [managingId, setManagingId] = useState<string | null>(null);
@@ -53,6 +63,8 @@ export function InternalGroupsPage({ currentUserId, isSuperAdmin }: { currentUse
         emptyHint={isSuperAdmin ? 'No groups yet. Create one with "New Group".' : 'You have not been added to any internal group yet.'}
         conversationLabel={label}
         newLabel="New Group"
+        initialConversationId={initialConversationId}
+        initialMessageId={initialMessageId}
         {...(isSuperAdmin
           ? {
               onNewClick: openCreate,
@@ -69,9 +81,9 @@ export function InternalGroupsPage({ currentUserId, isSuperAdmin }: { currentUse
         <CreateGroupModal
           colleagues={colleagues}
           onClose={() => setShowCreate(false)}
-          onCreate={async (name, memberIds) => {
+          onCreate={async (name, memberIds, description) => {
             try {
-              const group = await createGroup(name, memberIds);
+              const group = await createGroup(name, memberIds, description);
               setShowCreate(false);
               await chat.refreshConversations();
               await chat.openConversation(group.id);
@@ -108,9 +120,10 @@ function CreateGroupModal({
 }: {
   colleagues: CompanyEmployee[];
   onClose: () => void;
-  onCreate: (name: string, memberIds: string[]) => Promise<void>;
+  onCreate: (name: string, memberIds: string[], description: string | null) => Promise<void>;
 }): React.JSX.Element {
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
@@ -127,7 +140,7 @@ function CreateGroupModal({
     if (!name.trim() || selected.size === 0 || saving) return;
     setSaving(true);
     try {
-      await onCreate(name.trim(), [...selected]);
+      await onCreate(name.trim(), [...selected], description.trim() || null);
     } finally {
       setSaving(false);
     }
@@ -142,6 +155,13 @@ function CreateGroupModal({
           onChange={(event) => setName(event.target.value)}
           placeholder="Group name"
           className="mb-3 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm outline-none focus:border-app-accent"
+        />
+        <textarea
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="Description (optional)"
+          rows={2}
+          className="mb-3 w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm outline-none focus:border-app-accent"
         />
         <p className="mb-1 text-xs font-semibold text-app-muted">Members</p>
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -169,7 +189,7 @@ function CreateGroupModal({
   );
 }
 
-function ManageGroupModal({
+export function ManageGroupModal({
   conversation,
   colleagues,
   onClose,
@@ -177,12 +197,13 @@ function ManageGroupModal({
   onError,
 }: {
   conversation: Conversation;
-  colleagues: CompanyEmployee[];
+  colleagues: { id: string; fullName: string }[];
   onClose: () => void;
   onRefresh: () => void;
   onError: (message: string) => void;
 }): React.JSX.Element {
   const [name, setName] = useState(conversation.name ?? '');
+  const [description, setDescription] = useState(conversation.description ?? '');
   const [addingMemberId, setAddingMemberId] = useState('');
   const memberIds = new Set(conversation.members.map((m) => m.userId));
   const addable = colleagues.filter((c) => !memberIds.has(c.id));
@@ -201,20 +222,29 @@ function ManageGroupModal({
       <div className="ui-card flex max-h-[80vh] w-full max-w-sm flex-col p-4" onClick={(event) => event.stopPropagation()}>
         <p className="mb-3 text-sm font-semibold">Manage “{conversation.name}”</p>
 
-        <div className="mb-4 flex gap-2">
+        <div className="mb-4 space-y-2">
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="flex-1 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm outline-none focus:border-app-accent"
+            className="w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm outline-none focus:border-app-accent"
           />
-          <Button
-            kind="secondary"
-            onClick={() => void run(() => renameGroup(conversation.id, name.trim()))}
-            disabled={!name.trim() || name.trim() === conversation.name}
-            className="!px-3 !py-1.5 !text-xs"
-          >
-            Rename
-          </Button>
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Description (optional)"
+            rows={2}
+            className="w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm outline-none focus:border-app-accent"
+          />
+          <div className="flex justify-end">
+            <Button
+              kind="secondary"
+              onClick={() => void run(() => renameGroup(conversation.id, name.trim(), description.trim() || null))}
+              disabled={!name.trim() || (name.trim() === conversation.name && description.trim() === (conversation.description ?? ''))}
+              className="!px-3 !py-1.5 !text-xs"
+            >
+              Save
+            </Button>
+          </div>
         </div>
 
         <p className="mb-1 text-xs font-semibold text-app-muted">Members</p>

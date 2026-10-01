@@ -5,6 +5,7 @@ import { closePools } from '../../platform/dal/pool.js';
 import { createRequestContext, type RequestContext } from '../../platform/dal/context.js';
 import { platformDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
+import { dispatchOrganization } from '../notifications/dispatcher.js';
 import { ChatNotFoundError, ChatNotSenderError, ChatValidationError } from './errors.js';
 import {
   addGroupMembers,
@@ -107,7 +108,13 @@ describe.skipIf(!enabled)('chat engine (PostgreSQL)', () => {
 
   afterAll(async () => {
     const orgs = [orgA, orgB];
-    for (const table of ['message_reaction', 'message', 'conversation_member', 'conversation', 'identity_email_directory', 'app_user', 'position', 'department']) {
+    // Chat actions notify now (new message, reaction, group membership), so
+    // these must be cleaned up before the organizations they reference.
+    for (const table of [
+      'notification_delivery', 'notification', 'notification_outbox',
+      'message_reaction', 'message', 'conversation_member', 'conversation',
+      'identity_email_directory', 'app_user', 'position', 'department',
+    ]) {
       await asOwner(`cleanup ${table}`, sql`DELETE FROM ${sql.raw(table)} WHERE organization_id = ANY(${orgs}::uuid[])`);
     }
     await asOwner('cleanup orgs', sql`DELETE FROM organization WHERE id = ANY(${orgs}::uuid[])`);
@@ -324,5 +331,98 @@ describe.skipIf(!enabled)('chat engine (PostgreSQL)', () => {
     const directOnly = await listConversations(asAlice(), 'direct');
     expect(directOnly.every((c) => c.kind === 'direct')).toBe(true);
     expect(directOnly.some((c) => c.id === direct.id)).toBe(true);
+  });
+
+  describe('notifications', () => {
+    const notificationTitlesFor = async (userId: string): Promise<string[]> => {
+      await dispatchOrganization(orgA);
+      const rows = await asOwner<{ title: string }>(
+        'read',
+        sql`SELECT title FROM notification WHERE recipient_id = ${userId} ORDER BY created_at`,
+      );
+      return rows.map((r) => r.title);
+    };
+
+    /** Scoped to one conversation — other tests in this suite share alice/bob and must not bleed into these assertions. */
+    const notificationTitlesForInConversation = async (userId: string, conversationId: string): Promise<string[]> => {
+      await dispatchOrganization(orgA);
+      const rows = await asOwner<{ title: string }>(
+        'read',
+        sql`SELECT title FROM notification WHERE recipient_id = ${userId} AND metadata->>'conversationId' = ${conversationId} ORDER BY created_at`,
+      );
+      return rows.map((r) => r.title);
+    };
+
+    const notificationsForInConversation = async (userId: string, conversationId: string): Promise<{ title: string; link: string | null }[]> => {
+      await dispatchOrganization(orgA);
+      return asOwner<{ title: string; link: string | null }>(
+        'read',
+        sql`SELECT title, link FROM notification WHERE recipient_id = ${userId} AND metadata->>'conversationId' = ${conversationId} ORDER BY created_at`,
+      );
+    };
+
+    it('a new message notifies the other member, never the sender', async () => {
+      // alice/bob's DM is deduped (direct_pair_key) and reused by many other
+      // tests in this file, so "never the sender" is checked as a delta, not
+      // an absolute empty list.
+      const conversation = await startDirectConversation(asAlice(), bob);
+      const aliceBefore = (await notificationTitlesForInConversation(alice, conversation.id)).length;
+
+      await sendMessage(asAlice(), conversation.id, { body: 'hi bob' });
+
+      expect(await notificationTitlesForInConversation(bob, conversation.id)).toContain('New message from User ' + alice.slice(0, 4));
+      expect(await notificationTitlesForInConversation(alice, conversation.id)).toHaveLength(aliceBefore);
+    });
+
+    it('a group message is titled with the group name, not the sender', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Launch Room', memberIds: [bob] });
+      await dispatchOrganization(orgA); // flush the "added to group" notification first
+      await sendMessage(asAlice(), group.id, { body: 'go time' });
+
+      expect(await notificationTitlesFor(bob)).toContain('New message in Launch Room');
+    });
+
+    it('reacting notifies only the message sender, not reacting to your own message', async () => {
+      const conversation = await startDirectConversation(asAlice(), bob);
+      const message = await sendMessage(asAlice(), conversation.id, { body: 'react to this' });
+      await dispatchOrganization(orgA); // flush the "new message" notification
+
+      await reactToMessage(asBob(), message.id, '👍');
+      const aliceTitles = await notificationTitlesFor(alice);
+      expect(aliceTitles.some((t) => t.includes('reacted 👍 to your message'))).toBe(true);
+
+      await reactToMessage(asAlice(), message.id, '❤️'); // reacting to your own message notifies no one
+      expect(await notificationTitlesFor(alice)).toEqual(aliceTitles);
+    });
+
+    it('being added to or removed from a group notifies exactly that person', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Rotating Room', memberIds: [] });
+      await addGroupMembers(asAlice(), group.id, [bob]);
+      expect(await notificationTitlesFor(bob)).toContain('You were added to Rotating Room');
+
+      await removeGroupMember(asAlice(), group.id, bob);
+      expect(await notificationTitlesFor(bob)).toContain('You were removed from Rotating Room');
+    });
+
+    it('@mentioning a member notifies them with a deep link to the conversation and message, never a non-member', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Mentions Room', memberIds: [bob, carol] });
+      await dispatchOrganization(orgA); // flush the "added to group" notifications first
+
+      const message = await sendMessage(asAlice(), group.id, {
+        body: '@User mentions, can you take a look?',
+        mentionedUserIds: [bob, outsider], // outsider is org B — not a member here, must be dropped silently
+      });
+
+      expect(message.mentions.map((m) => m.userId)).toEqual([bob]);
+
+      const bobNotifications = await notificationsForInConversation(bob, group.id);
+      const mention = bobNotifications.find((n) => n.title.includes('mentioned you in Mentions Room'));
+      expect(mention).toBeDefined();
+      expect(mention!.link).toBe(`/company/messages?conversationId=${group.id}&messageId=${message.id}`);
+
+      // Never mentioned, and not a member of this org's group at all.
+      expect(await notificationTitlesFor(outsider)).toEqual([]);
+      expect((await notificationTitlesForInConversation(carol, group.id)).some((t) => t.includes('mentioned you'))).toBe(false);
+    });
   });
 });

@@ -72,8 +72,14 @@ export const createDiscussionGroupSchema = z.object({
   memberIds: z.array(z.string().uuid()).min(1, 'A group needs at least one member'),
 });
 
+export const updateDiscussionGroupSchema = z.object({
+  name: z.string().trim().min(1, 'Group name is required').max(200),
+  description: z.string().trim().max(2000).optional().nullable(),
+});
+
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
 export type ProjectTeamInput = z.infer<typeof projectTeamSchema>;
 export type ProjectListQueryInput = z.infer<typeof projectListQuerySchema>;
 export type CreateDiscussionGroupInput = z.infer<typeof createDiscussionGroupSchema>;
+export type UpdateDiscussionGroupInput = z.infer<typeof updateDiscussionGroupSchema>;

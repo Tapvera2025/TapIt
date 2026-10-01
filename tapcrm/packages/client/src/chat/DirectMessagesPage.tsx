@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { getCompanyEmployees, type CompanyEmployee } from '../company/api/companyApi.js';
 import { Loading } from '../ui/components.js';
-import { startDirectConversation, type Conversation } from './api/chatApi.js';
+import { getChatColleagues, startDirectConversation, type Conversation } from './api/chatApi.js';
 import { ConversationWorkspace } from './ConversationWorkspace.js';
 import { useChat } from './useChat.js';
 
@@ -16,18 +15,28 @@ function otherMember(conversation: Conversation, myId: string): { userId: string
  * team-docs for the full plan and packages/server/src/modules/chat for the
  * reference server implementation this UI talks to.
  */
-export function DirectMessagesPage({ currentUserId }: { currentUserId: string }): React.JSX.Element {
+export function DirectMessagesPage({
+  currentUserId,
+  initialConversationId,
+  initialMessageId,
+}: {
+  currentUserId: string;
+  initialConversationId?: string | undefined;
+  initialMessageId?: string | undefined;
+}): React.JSX.Element {
   const chat = useChat('direct');
   const [showPicker, setShowPicker] = useState(false);
-  const [colleagues, setColleagues] = useState<CompanyEmployee[]>([]);
+  const [colleagues, setColleagues] = useState<{ id: string; fullName: string }[]>([]);
+  const [colleaguesLoaded, setColleaguesLoaded] = useState(false);
   const [error, setError] = useState('');
 
   const openPicker = (): void => {
     setShowPicker(true);
-    if (colleagues.length === 0) {
-      void getCompanyEmployees()
-        .then((list) => setColleagues(list.filter((e) => e.id !== currentUserId)))
-        .catch(() => setColleagues([]));
+    if (!colleaguesLoaded) {
+      void getChatColleagues()
+        .then((list) => setColleagues(list))
+        .catch(() => setColleagues([]))
+        .finally(() => setColleaguesLoaded(true));
     }
   };
 
@@ -52,14 +61,18 @@ export function DirectMessagesPage({ currentUserId }: { currentUserId: string })
         emptyHint='No conversations yet. Start one with "New".'
         conversationLabel={(conversation) => otherMember(conversation, currentUserId)?.fullName ?? 'Conversation'}
         onNewClick={openPicker}
+        initialConversationId={initialConversationId}
+        initialMessageId={initialMessageId}
       />
 
       {showPicker && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setShowPicker(false)}>
           <div className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
             <p className="mb-3 text-sm font-semibold">Start a conversation</p>
-            {colleagues.length === 0 ? (
+            {!colleaguesLoaded ? (
               <Loading />
+            ) : colleagues.length === 0 ? (
+              <p className="text-sm text-app-muted">No one else is available to message yet.</p>
             ) : (
               <ul>
                 {colleagues.map((person) => (

@@ -8,6 +8,7 @@ import {
   listProjects,
   loadProjectResource,
   setProjectTeam,
+  updateDiscussionGroup,
   updateProject,
 } from './service.js';
 import {
@@ -15,6 +16,7 @@ import {
   createProjectSchema,
   projectListQuerySchema,
   projectTeamSchema,
+  updateDiscussionGroupSchema,
   updateProjectSchema,
 } from './validators.js';
 
@@ -95,5 +97,16 @@ export function registerProjectRoutes(): void {
     loadResource: loadProjectResource,
     status: 201,
     handler: async ({ ctx, params, body }) => createDiscussionGroup(ctx, idParam.parse(params).id, createDiscussionGroupSchema.parse(body)),
+  });
+
+  // Renaming/describing a group that already exists — see service.ts's updateDiscussionGroup.
+  route({
+    method: 'PATCH',
+    path: '/api/projects/:id/discussion-group',
+    action: 'projects:manage',
+    module: 'projects',
+    resourceParam: 'id',
+    loadResource: loadProjectResource,
+    handler: async ({ ctx, params, body }) => updateDiscussionGroup(ctx, idParam.parse(params).id, updateDiscussionGroupSchema.parse(body)),
   });
 }

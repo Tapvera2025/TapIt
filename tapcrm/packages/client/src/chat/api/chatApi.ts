@@ -23,6 +23,7 @@ export interface Conversation {
   organizationId: string;
   kind: ConversationKind;
   name: string | null;
+  description: string | null;
   projectId: string | null;
   createdBy: string;
   createdAt: string;
@@ -45,6 +46,7 @@ export interface ChatMessage {
   createdAt: string;
   reactions: { userId: string; emoji: ReactionEmoji }[];
   seenBy: string[];
+  mentions: { userId: string; fullName: string }[];
 }
 
 export function getConversations(kind?: ConversationKind): Promise<Conversation[]> {
@@ -71,13 +73,18 @@ export function startDirectConversation(userId: string): Promise<Conversation> {
   return identityRequest('/api/chat/conversations/direct', { method: 'POST', body: JSON.stringify({ userId }) });
 }
 
-/** Internal Groups (Phase 3) — Super-Admin-only server-side (chat:manage-groups). */
-export function createGroup(name: string, memberIds: string[]): Promise<Conversation> {
-  return identityRequest('/api/chat/conversations/group', { method: 'POST', body: JSON.stringify({ name, memberIds }) });
+/** Everyone a DM can be started with — scoped by `chat:send`, not the HR employee directory. */
+export function getChatColleagues(): Promise<{ id: string; fullName: string }[]> {
+  return identityRequest('/api/chat/colleagues');
 }
 
-export function renameGroup(conversationId: string, name: string): Promise<Conversation> {
-  return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+/** Internal Groups (Phase 3) — Super-Admin-only server-side (chat:manage-groups). */
+export function createGroup(name: string, memberIds: string[], description?: string | null): Promise<Conversation> {
+  return identityRequest('/api/chat/conversations/group', { method: 'POST', body: JSON.stringify({ name, memberIds, description: description ?? undefined }) });
+}
+
+export function renameGroup(conversationId: string, name: string, description?: string | null): Promise<Conversation> {
+  return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}`, { method: 'PATCH', body: JSON.stringify({ name, description }) });
 }
 
 export function addGroupMembers(conversationId: string, memberIds: string[]): Promise<Conversation> {
@@ -92,10 +99,14 @@ export function archiveGroup(conversationId: string): Promise<{ archived: true }
   return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}/archive`, { method: 'POST' });
 }
 
-export function sendMessage(conversationId: string, body: string, replyToMessageId?: string | null): Promise<ChatMessage> {
+export function sendMessage(conversationId: string, body: string, replyToMessageId?: string | null, mentionedUserIds?: string[]): Promise<ChatMessage> {
   return identityRequest(`/api/chat/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ body, ...(replyToMessageId ? { replyToMessageId } : {}) }),
+    body: JSON.stringify({
+      body,
+      ...(replyToMessageId ? { replyToMessageId } : {}),
+      ...(mentionedUserIds && mentionedUserIds.length > 0 ? { mentionedUserIds } : {}),
+    }),
   });
 }
 

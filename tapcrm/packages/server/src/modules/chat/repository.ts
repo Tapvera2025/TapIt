@@ -6,6 +6,7 @@ import type {
   ConversationKind,
   ConversationMember,
   Message,
+  MessageMention,
   MessagePreview,
   MessageReaction,
 } from './types.js';
@@ -21,6 +22,7 @@ interface ConversationRow {
   organizationId: string;
   kind: ConversationKind;
   name: string | null;
+  description: string | null;
   projectId: string | null;
   createdBy: string;
   createdAt: Date;
@@ -62,6 +64,40 @@ export async function conversationMemberIds(ctx: RequestContext, conversationId:
     WHERE organization_id = ${ctx.organizationId} AND conversation_id = ${conversationId} AND left_at IS NULL
   `);
   return rows.map((r) => r.userId);
+}
+
+/** Same lookup, participating in a caller's open transaction — for notifying inside the same commit as the write (TX-2). */
+export async function conversationMemberIdsTx(tx: Tx, organizationId: string, conversationId: string): Promise<string[]> {
+  const rows = await tx.query<{ userId: string }>(sql`
+    SELECT user_id FROM conversation_member
+    WHERE organization_id = ${organizationId} AND conversation_id = ${conversationId} AND left_at IS NULL
+  `);
+  return rows.map((r) => r.userId);
+}
+
+export async function findUserFullName(tx: Tx, organizationId: string, userId: string): Promise<string> {
+  const row = await tx.maybeOne<{ fullName: string }>(sql`
+    SELECT full_name AS "fullName" FROM app_user WHERE organization_id = ${organizationId} AND id = ${userId}
+  `);
+  return row?.fullName ?? 'Someone';
+}
+
+/**
+ * Everyone in the org a Direct Message could be started with. Deliberately
+ * not the HR employee directory (`users:view`, all-people only) — DM is
+ * peer-to-peer and `chat:send` is granted to every employee position
+ * (CH-1), so the picker must not be narrower than that.
+ */
+export async function listColleagues(ctx: RequestContext, excludeUserId: string): Promise<{ id: string; fullName: string }[]> {
+  return db.query<{ id: string; fullName: string }>(ctx, sql`
+    SELECT id, full_name AS "fullName"
+    FROM app_user
+    WHERE organization_id = ${ctx.organizationId}
+      AND status = 'active'
+      AND account_type IN ('employee', 'super-admin')
+      AND id != ${excludeUserId}
+    ORDER BY full_name
+  `);
 }
 
 async function membersFor(ctx: RequestContext, conversationIds: readonly string[]): Promise<Map<string, ConversationMember[]>> {
@@ -125,6 +161,7 @@ function toConversation(
     organizationId: row.organizationId,
     kind: row.kind,
     name: row.name,
+    description: row.description,
     projectId: row.projectId,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
@@ -137,7 +174,7 @@ function toConversation(
 /** My conversations, newest activity first. `kind` narrows to one tab (e.g. 'direct'). */
 export async function listConversationsForUser(ctx: RequestContext, kind?: ConversationKind): Promise<Conversation[]> {
   const rows = await db.query<ConversationRow & { lastActivityAt: Date }>(ctx, sql`
-    SELECT c.id, c.organization_id, c.kind, c.name, c.project_id, c.created_by, c.created_at,
+    SELECT c.id, c.organization_id, c.kind, c.name, c.description, c.project_id, c.created_by, c.created_at,
            GREATEST(c.created_at, COALESCE((
              SELECT max(m.created_at) FROM message m
              WHERE m.organization_id = c.organization_id AND m.conversation_id = c.id
@@ -160,7 +197,7 @@ export async function listConversationsForUser(ctx: RequestContext, kind?: Conve
 
 export async function findConversationById(ctx: RequestContext, id: string): Promise<Conversation | null> {
   const row = await db.maybeOne<ConversationRow>(ctx, sql`
-    SELECT id, organization_id, kind, name, project_id, created_by, created_at
+    SELECT id, organization_id, kind, name, description, project_id, created_by, created_at
     FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${id}
   `);
   if (!row) return null;
@@ -201,11 +238,11 @@ export async function createGroupConversation(
   tx: Tx,
   organizationId: string,
   createdBy: string,
-  input: { kind: 'group' | 'project'; name: string; memberIds: readonly string[]; projectId?: string | null },
+  input: { kind: 'group' | 'project'; name: string; description?: string | null | undefined; memberIds: readonly string[]; projectId?: string | null },
 ): Promise<{ id: string }> {
   const created = await tx.one<{ id: string }>(sql`
-    INSERT INTO conversation (organization_id, kind, name, project_id, created_by)
-    VALUES (${organizationId}, ${input.kind}, ${input.name}, ${input.projectId ?? null}, ${createdBy})
+    INSERT INTO conversation (organization_id, kind, name, description, project_id, created_by)
+    VALUES (${organizationId}, ${input.kind}, ${input.name}, ${input.description ?? null}, ${input.projectId ?? null}, ${createdBy})
     RETURNING id
   `);
   const memberIds = [...new Set([createdBy, ...input.memberIds])];
@@ -234,9 +271,18 @@ export async function findConversationKind(ctx: RequestContext, id: string): Pro
   `);
 }
 
-export async function renameConversation(tx: Tx, organizationId: string, id: string, name: string): Promise<void> {
+/** Same lookup, participating in a caller's open transaction. */
+export async function findConversationKindTx(tx: Tx, organizationId: string, id: string): Promise<{ kind: ConversationKind; name: string | null } | null> {
+  return tx.maybeOne<{ kind: ConversationKind; name: string | null }>(sql`
+    SELECT kind, name FROM conversation WHERE organization_id = ${organizationId} AND id = ${id}
+  `);
+}
+
+export async function renameConversation(tx: Tx, organizationId: string, id: string, name: string, description?: string | null): Promise<void> {
   await tx.query(sql`
-    UPDATE conversation SET name = ${name}, updated_at = now() WHERE organization_id = ${organizationId} AND id = ${id}
+    UPDATE conversation
+    SET name = ${name}, description = ${description === undefined ? sql.raw('description') : description}, updated_at = now()
+    WHERE organization_id = ${organizationId} AND id = ${id}
   `);
 }
 
@@ -289,10 +335,16 @@ async function attachDerived(ctx: RequestContext, conversationId: string, rows: 
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
 
-  const [reactionRows, membersByConversation, replyRows] = await Promise.all([
+  const [reactionRows, mentionRows, membersByConversation, replyRows] = await Promise.all([
     db.query<{ messageId: string } & MessageReaction>(ctx, sql`
       SELECT message_id AS "messageId", user_id AS "userId", emoji FROM message_reaction
       WHERE organization_id = ${ctx.organizationId} AND message_id = ANY(${ids}::uuid[])
+    `),
+    db.query<{ messageId: string; userId: string; fullName: string }>(ctx, sql`
+      SELECT mm.message_id AS "messageId", mm.user_id AS "userId", u.full_name AS "fullName"
+      FROM message_mention mm
+      JOIN app_user u ON u.organization_id = mm.organization_id AND u.id = mm.user_id
+      WHERE mm.organization_id = ${ctx.organizationId} AND mm.message_id = ANY(${ids}::uuid[])
     `),
     membersFor(ctx, [conversationId]),
     (async () => {
@@ -314,6 +366,13 @@ async function attachDerived(ctx: RequestContext, conversationId: string, rows: 
     reactionsByMessage.set(r.messageId, list);
   }
 
+  const mentionsByMessage = new Map<string, MessageMention[]>();
+  for (const m of mentionRows) {
+    const list = mentionsByMessage.get(m.messageId) ?? [];
+    list.push({ userId: m.userId, fullName: m.fullName });
+    mentionsByMessage.set(m.messageId, list);
+  }
+
   return rows.map((row) => ({
     id: row.id,
     organizationId: row.organizationId,
@@ -329,6 +388,7 @@ async function attachDerived(ctx: RequestContext, conversationId: string, rows: 
     reactions: reactionsByMessage.get(row.id) ?? [],
     // "Seen by": other members whose read cursor has reached this message.
     seenBy: members.filter((m) => m.userId !== row.senderId && m.lastReadAt !== null && m.lastReadAt >= row.createdAt).map((m) => m.userId),
+    mentions: mentionsByMessage.get(row.id) ?? [],
   }));
 }
 
@@ -365,14 +425,28 @@ export async function insertMessage(
   organizationId: string,
   senderId: string,
   conversationId: string,
-  input: { body: string; replyToMessageId?: string | null; forwarded?: boolean; forwardedFromSenderId?: string | null },
+  input: { body: string; replyToMessageId?: string | null; forwarded?: boolean; forwardedFromSenderId?: string | null; mentionedUserIds?: readonly string[] | undefined },
 ): Promise<{ id: string; createdAt: Date }> {
-  return tx.one<{ id: string; createdAt: Date }>(sql`
+  const created = await tx.one<{ id: string; createdAt: Date }>(sql`
     INSERT INTO message (organization_id, conversation_id, sender_id, body, reply_to_message_id, forwarded, forwarded_from_sender_id)
     VALUES (${organizationId}, ${conversationId}, ${senderId}, ${input.body}, ${input.replyToMessageId ?? null},
             ${input.forwarded ?? false}, ${input.forwardedFromSenderId ?? null})
     RETURNING id, created_at AS "createdAt"
   `);
+  const mentionIds = input.mentionedUserIds ?? [];
+  if (mentionIds.length > 0) {
+    // Only actual, current members of this conversation can be @mentioned — a
+    // stale draft naming someone who already left is silently dropped, never 500s.
+    await tx.query(sql`
+      INSERT INTO message_mention (message_id, organization_id, user_id)
+      SELECT ${created.id}, ${organizationId}, cm.user_id
+      FROM conversation_member cm
+      WHERE cm.organization_id = ${organizationId} AND cm.conversation_id = ${conversationId}
+        AND cm.left_at IS NULL AND cm.user_id = ANY(${[...new Set(mentionIds)]}::uuid[])
+      ON CONFLICT DO NOTHING
+    `);
+  }
+  return created;
 }
 
 export async function unsendMessage(tx: Tx, organizationId: string, id: string, deletedBy: string): Promise<void> {

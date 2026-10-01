@@ -9,14 +9,18 @@ import {
   addReaction,
   archiveConversation,
   conversationMemberIds,
+  conversationMemberIdsTx,
   createGroupConversation,
   decodeMessageCursor,
   encodeMessageCursor,
   findConversationById,
   findConversationKind,
+  findConversationKindTx,
   findMessageById,
   findOrCreateDirectConversation,
+  findUserFullName,
   insertMessage,
+  listColleagues as repoListColleagues,
   listConversationsForUser,
   listMessages as repoListMessages,
   markConversationRead,
@@ -26,7 +30,8 @@ import {
   unsendMessage as repoUnsendMessage,
   validateMemberIds,
 } from './repository.js';
-import type { Conversation, ConversationKind, ConversationResource, Message } from './types.js';
+import { notifyGroupMemberRemoved, notifyGroupMembersAdded, notifyMention, notifyNewMessage, notifyReaction } from './notifications.js';
+import type { Conversation, ConversationKind, ConversationResource, Message, ReactionEmoji } from './types.js';
 import type { ListMessagesQuery } from './validators.js';
 
 export { createProjectConversation } from './facade.js';
@@ -83,6 +88,10 @@ export async function listConversations(ctx: RequestContext, kind?: Conversation
   return listConversationsForUser(ctx, kind);
 }
 
+export async function listColleagues(ctx: RequestContext): Promise<{ id: string; fullName: string }[]> {
+  return repoListColleagues(ctx, ctx.principal.id);
+}
+
 export async function getConversation(ctx: RequestContext, id: string): Promise<Conversation> {
   const conversation = await findConversationById(ctx, id);
   if (!conversation) throw new ChatNotFoundError('conversation');
@@ -107,14 +116,16 @@ export async function startDirectConversation(ctx: RequestContext, otherUserId: 
 }
 
 /** Internal Groups (Phase 3): Super-Admin-only at the route (`chat:manage-groups`). */
-export async function createInternalGroup(ctx: RequestContext, input: { name: string; memberIds: readonly string[] }): Promise<Conversation> {
+export async function createInternalGroup(ctx: RequestContext, input: { name: string; description?: string | null | undefined; memberIds: readonly string[] }): Promise<Conversation> {
   const { id } = await db.transaction(ctx, async (tx) => {
     const validIds = await validateMemberIds(tx, ctx.organizationId, input.memberIds);
     if (validIds.length !== input.memberIds.length) {
       const missing = input.memberIds.filter((memberId) => !validIds.includes(memberId));
       throw new ChatValidationError('One or more members are not active in this organization', { missingUserIds: missing });
     }
-    return createGroupConversation(tx, ctx.organizationId, ctx.principal.id, { kind: 'group', name: input.name, memberIds: validIds });
+    const created = await createGroupConversation(tx, ctx.organizationId, ctx.principal.id, { kind: 'group', name: input.name, description: input.description, memberIds: validIds });
+    await notifyGroupMembersAdded(tx, ctx, { id: created.id, name: input.name }, validIds);
+    return created;
   });
 
   const conversation = await findConversationById(ctx, id);
@@ -151,9 +162,9 @@ async function notifyOtherMembers(ctx: RequestContext, conversationId: string, e
   }
 }
 
-export async function renameGroup(ctx: RequestContext, id: string, name: string): Promise<Conversation> {
+export async function renameGroup(ctx: RequestContext, id: string, name: string, description?: string | null): Promise<Conversation> {
   await requireGroup(ctx, id);
-  await db.transaction(ctx, (tx) => renameConversation(tx, ctx.organizationId, id, name));
+  await db.transaction(ctx, (tx) => renameConversation(tx, ctx.organizationId, id, name, description));
   await notifyOtherMembers(ctx, id, 'chat:conversation:updated');
   const conversation = await findConversationById(ctx, id);
   if (!conversation) throw new ChatNotFoundError('conversation');
@@ -169,6 +180,8 @@ export async function addGroupMembers(ctx: RequestContext, id: string, memberIds
       throw new ChatValidationError('One or more members are not active in this organization', { missingUserIds: missing });
     }
     await addConversationMembers(tx, ctx.organizationId, id, validIds);
+    const conversation = await findConversationKindTx(tx, ctx.organizationId, id);
+    await notifyGroupMembersAdded(tx, ctx, { id, name: conversation?.name ?? null }, validIds);
   });
 
   const conversation = await findConversationById(ctx, id);
@@ -184,7 +197,11 @@ export async function addGroupMembers(ctx: RequestContext, id: string, memberIds
 /** The removed member is told separately (a bare id, RT-4) so their client drops the conversation from its list. */
 export async function removeGroupMember(ctx: RequestContext, id: string, userId: string): Promise<Conversation> {
   await requireGroup(ctx, id);
-  await db.transaction(ctx, (tx) => removeConversationMember(tx, ctx.organizationId, id, userId));
+  await db.transaction(ctx, async (tx) => {
+    await removeConversationMember(tx, ctx.organizationId, id, userId);
+    const conversation = await findConversationKindTx(tx, ctx.organizationId, id);
+    await notifyGroupMemberRemoved(tx, ctx, { id, name: conversation?.name ?? null }, userId);
+  });
 
   emitToUser(ctx.organizationId, userId, 'chat:conversation:updated', { id, removed: true });
   const conversation = await findConversationById(ctx, id);
@@ -216,7 +233,7 @@ async function fanOutToOtherMembers(ctx: RequestContext, conversationId: string,
   }
 }
 
-export async function sendMessage(ctx: RequestContext, conversationId: string, input: { body: string; replyToMessageId?: string | null | undefined }): Promise<Message> {
+export async function sendMessage(ctx: RequestContext, conversationId: string, input: { body: string; replyToMessageId?: string | null | undefined; mentionedUserIds?: readonly string[] | undefined }): Promise<Message> {
   if (input.replyToMessageId) {
     const target = await findMessageById(ctx, input.replyToMessageId);
     if (!target || target.conversationId !== conversationId) {
@@ -224,10 +241,26 @@ export async function sendMessage(ctx: RequestContext, conversationId: string, i
     }
   }
 
-  const created = await db.transaction(ctx, (tx) => insertMessage(tx, ctx.organizationId, ctx.principal.id, conversationId, {
-    body: input.body,
-    replyToMessageId: input.replyToMessageId ?? null,
-  }));
+  const created = await db.transaction(ctx, async (tx) => {
+    const inserted = await insertMessage(tx, ctx.organizationId, ctx.principal.id, conversationId, {
+      body: input.body,
+      replyToMessageId: input.replyToMessageId ?? null,
+      mentionedUserIds: input.mentionedUserIds,
+    });
+    const [conversation, senderName, memberIds] = await Promise.all([
+      findConversationKindTx(tx, ctx.organizationId, conversationId),
+      findUserFullName(tx, ctx.organizationId, ctx.principal.id),
+      conversationMemberIdsTx(tx, ctx.organizationId, conversationId),
+    ]);
+    if (conversation) {
+      await notifyNewMessage(tx, ctx, { id: conversationId, ...conversation }, senderName, input.body, inserted.id, memberIds);
+      const mentioned = (input.mentionedUserIds ?? []).filter((id) => memberIds.includes(id));
+      if (mentioned.length > 0) {
+        await notifyMention(tx, ctx, { id: conversationId, ...conversation }, senderName, inserted.id, mentioned);
+      }
+    }
+    return inserted;
+  });
 
   const message = await findMessageById(ctx, created.id);
   if (!message) throw new ChatNotFoundError('message');
@@ -249,11 +282,20 @@ export async function forwardMessage(ctx: RequestContext, sourceMessageId: strin
     throw new ChatNotFoundError('conversation');
   }
 
-  const created = await db.transaction(ctx, (tx) => insertMessage(tx, ctx.organizationId, ctx.principal.id, targetConversationId, {
-    body: source.body!,
-    forwarded: true,
-    forwardedFromSenderId: source.senderId,
-  }));
+  const created = await db.transaction(ctx, async (tx) => {
+    const inserted = await insertMessage(tx, ctx.organizationId, ctx.principal.id, targetConversationId, {
+      body: source.body!,
+      forwarded: true,
+      forwardedFromSenderId: source.senderId,
+    });
+    const [conversation, senderName, memberIds] = await Promise.all([
+      findConversationKindTx(tx, ctx.organizationId, targetConversationId),
+      findUserFullName(tx, ctx.organizationId, ctx.principal.id),
+      conversationMemberIdsTx(tx, ctx.organizationId, targetConversationId),
+    ]);
+    if (conversation) await notifyNewMessage(tx, ctx, { id: targetConversationId, ...conversation }, senderName, source.body!, inserted.id, memberIds);
+    return inserted;
+  });
 
   const message = await findMessageById(ctx, created.id);
   if (!message) throw new ChatNotFoundError('message');
@@ -275,19 +317,23 @@ export async function unsendMessage(ctx: RequestContext, id: string): Promise<Me
   return updated;
 }
 
-export async function reactToMessage(ctx: RequestContext, id: string, emoji: string): Promise<Message> {
+export async function reactToMessage(ctx: RequestContext, id: string, emoji: ReactionEmoji): Promise<Message> {
   const message = await findMessageById(ctx, id);
   if (!message) throw new ChatNotFoundError('message');
   if (message.deletedAt) throw new ChatValidationError('This message was unsent');
 
-  await db.transaction(ctx, (tx) => addReaction(tx, ctx.organizationId, id, ctx.principal.id, emoji));
+  await db.transaction(ctx, async (tx) => {
+    await addReaction(tx, ctx.organizationId, id, ctx.principal.id, emoji);
+    const reactorName = await findUserFullName(tx, ctx.organizationId, ctx.principal.id);
+    await notifyReaction(tx, ctx, message.senderId, reactorName, emoji, message.conversationId, id);
+  });
   const updated = await findMessageById(ctx, id);
   if (!updated) throw new ChatNotFoundError('message');
   await fanOutToOtherMembers(ctx, message.conversationId, 'chat:message:reaction', { conversationId: message.conversationId, id, userId: ctx.principal.id, emoji });
   return updated;
 }
 
-export async function removeReactionFromMessage(ctx: RequestContext, id: string, emoji: string): Promise<Message> {
+export async function removeReactionFromMessage(ctx: RequestContext, id: string, emoji: ReactionEmoji): Promise<Message> {
   const message = await findMessageById(ctx, id);
   if (!message) throw new ChatNotFoundError('message');
 

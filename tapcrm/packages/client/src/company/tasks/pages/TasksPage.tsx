@@ -381,6 +381,7 @@ export function TasksPage({
           onSubmitCreate={handleCreateTask}
           onClose={() => setIsCreateOpen(false)}
           defaultProjectId={initialProjectId}
+          lockProjectId={Boolean(initialProjectId)}
         />
 
         {/* Edit Task Modal */}

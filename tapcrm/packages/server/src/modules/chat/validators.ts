@@ -16,11 +16,13 @@ export const startDirectConversationSchema = z.object({
 
 export const createGroupConversationSchema = z.object({
   name: z.string().trim().min(1, 'Group name is required').max(200),
+  description: z.string().trim().max(2000).optional().nullable(),
   memberIds: z.array(z.string().uuid()).min(1, 'A group needs at least one member besides you').max(500),
 });
 
 export const renameGroupSchema = z.object({
   name: z.string().trim().min(1, 'Group name is required').max(200),
+  description: z.string().trim().max(2000).optional().nullable(),
 });
 
 export const addGroupMembersSchema = z.object({
@@ -30,6 +32,7 @@ export const addGroupMembersSchema = z.object({
 export const sendMessageSchema = z.object({
   body: z.string().trim().min(1, 'Message cannot be empty').max(10000),
   replyToMessageId: z.string().uuid().optional().nullable(),
+  mentionedUserIds: z.array(z.string().uuid()).max(50).optional(),
 });
 
 export const forwardMessageSchema = z.object({

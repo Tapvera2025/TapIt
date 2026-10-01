@@ -12,12 +12,13 @@ import {
   assignTask,
   createTask,
   getTask,
+  listTaskAssignees,
   listTasks,
   transitionTask,
   updateTask,
 } from './service.js';
 import { TaskNotFoundError, TaskValidationError } from './errors.js';
-import { createTaskSchema, taskListQuerySchema } from './validators.js';
+import { createTaskSchema, taskAssigneesQuerySchema, taskListQuerySchema } from './validators.js';
 
 const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
 
@@ -126,6 +127,11 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
     await asOwner('delete test task assignees', sql`DELETE FROM task_assignee WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test tasks', sql`DELETE FROM task WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test audit entries', sql`DELETE FROM audit_outbox WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
+    // Fixture for the project-scoped assignee picker tests. project/client
+    // reference app_user via created_by, so these go before app_user.
+    await asOwner('delete test project assignees', sql`DELETE FROM project_assignee WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
+    await asOwner('delete test projects', sql`DELETE FROM project WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
+    await asOwner('delete test clients', sql`DELETE FROM client WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete identity directory', sql`DELETE FROM identity_email_directory WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test users', sql`DELETE FROM app_user WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test positions', sql`DELETE FROM position WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
@@ -265,6 +271,60 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
     // User in Org B listing tasks sees 0 tasks
     const listB = await listTasks(ctxB, taskListQuerySchema.parse({}));
     expect(listB.items.every((t) => t.id !== taskInA.id)).toBe(true);
+  });
+
+  describe('assignee picker, scoped to a project', () => {
+    const projectId = randomUUID();
+    const clientId = randomUUID();
+
+    function superAdminCtxFor(organizationId: string, userId: string): RequestContext {
+      const principal: Principal = {
+        id: userId, organizationId, accountType: 'super-admin', sessionVersion: 1,
+      };
+      return createRequestContext({ organizationId, principal, requestId: `test-${userId}` });
+    }
+
+    beforeAll(async () => {
+      // A minimal client + project fixture, purely for project_assignee rows —
+      // tasks' own repository queries this table directly (a plain SQL read
+      // across modules is fine; importing the projects module's code is not).
+      await asOwner(
+        'seed client for assignee-picker fixture',
+        sql`INSERT INTO client (id, organization_id, client_name, business_name, email, region, currency, timezone, created_by)
+            VALUES (${clientId}, ${orgA}, 'Fixture Client', 'Fixture Co', 'assignee-fixture@tasks-test.invalid', 'in', 'INR', 'Asia/Kolkata', ${userA1})`,
+      );
+      await asOwner(
+        'seed project for assignee-picker fixture',
+        sql`INSERT INTO project (id, organization_id, client_id, name, priority, start_date, currency, created_by)
+            VALUES (${projectId}, ${orgA}, ${clientId}, 'Fixture Project', 'medium', now()::date, 'INR', ${userA1})`,
+      );
+      // Only userA2 is on the project; userA1 and userA3 are active employees in the org but not on it.
+      await asOwner(
+        'seed project_assignee for assignee-picker fixture',
+        sql`INSERT INTO project_assignee (organization_id, project_id, user_id, assigned_by) VALUES (${orgA}, ${projectId}, ${userA2}, ${userA1})`,
+      );
+    });
+
+    it('with no projectId, the org-wide candidate list is unrestricted (super admin)', async () => {
+      const all = await listTaskAssignees(superAdminCtxFor(orgA, userA1), taskAssigneesQuerySchema.parse({}));
+      expect(all.map((u) => u.id)).toEqual(expect.arrayContaining([userA1, userA2, userA3]));
+    });
+
+    it('with a projectId, only that project\'s team is offered — even to a super admin', async () => {
+      const scoped = await listTaskAssignees(superAdminCtxFor(orgA, userA1), taskAssigneesQuerySchema.parse({ projectId }));
+      expect(scoped.map((u) => u.id)).toEqual([userA2]);
+    });
+
+    it('a project with no assignees offers nobody', async () => {
+      const emptyProjectId = randomUUID();
+      await asOwner(
+        'seed empty project for assignee-picker fixture',
+        sql`INSERT INTO project (id, organization_id, client_id, name, priority, start_date, currency, created_by)
+            VALUES (${emptyProjectId}, ${orgA}, ${clientId}, 'Empty Project', 'low', now()::date, 'INR', ${userA1})`,
+      );
+      const scoped = await listTaskAssignees(superAdminCtxFor(orgA, userA1), taskAssigneesQuerySchema.parse({ projectId: emptyProjectId }));
+      expect(scoped).toEqual([]);
+    });
   });
 
   /**

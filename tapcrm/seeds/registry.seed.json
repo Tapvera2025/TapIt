@@ -3645,6 +3645,12 @@
       "resourceParam": "id"
     },
     {
+      "method": "PATCH",
+      "path": "/api/projects/:id/discussion-group",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/projects/:id/profitability",
       "action": "projects:view-financials",
@@ -4260,6 +4266,12 @@
       "method": "GET",
       "path": "/api/chat/conversations",
       "action": "chat:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/colleagues",
+      "action": "chat:send",
       "resourceParam": null
     },
     {

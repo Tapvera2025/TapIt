@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getClient } from '../clients/api/clientsApi.js';
-import { getCompanyEmployees, type CompanyEmployee } from '../company/api/companyApi.js';
+import { getChatColleagues } from '../chat/index.js';
 import { Button, Loading, Modal, Notice } from '../ui/components.js';
 import { createDiscussionGroup, getProject, type Project } from './api/projectsApi.js';
 
@@ -23,12 +23,12 @@ export function CreateDiscussionGroupModal({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(`${project.name} – ${project.businessName}`);
-  const [colleagues, setColleagues] = useState<CompanyEmployee[]>([]);
+  const [colleagues, setColleagues] = useState<{ id: string; fullName: string }[]>([]);
   const [clientLoginUserId, setClientLoginUserId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set(project.assignees.map((a) => a.userId)));
 
   useEffect(() => {
-    void Promise.all([getCompanyEmployees(), getClient(project.clientId)])
+    void Promise.all([getChatColleagues(), getClient(project.clientId)])
       .then(([employees, client]) => {
         setColleagues(employees);
         setClientLoginUserId(client.loginUserId);

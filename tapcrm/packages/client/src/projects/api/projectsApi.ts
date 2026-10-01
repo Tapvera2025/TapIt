@@ -110,3 +110,11 @@ export function createDiscussionGroup(projectId: string, name: string, memberIds
     body: JSON.stringify({ name, memberIds }),
   });
 }
+
+/** Renaming/describing a discussion group that already exists — `projects:manage`, not the chat module's own (Super-Admin-only) group governance. */
+export function updateDiscussionGroup(projectId: string, name: string, description: string | null): Promise<{ conversationId: string }> {
+  return identityRequest(`/api/projects/${encodeURIComponent(projectId)}/discussion-group`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name, description }),
+  });
+}

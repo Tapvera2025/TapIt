@@ -2,7 +2,7 @@ import { visibilityFilter, type Resource } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { getClientSummary } from '../clients/facade.js';
-import { createProjectConversation } from '../chat/facade.js';
+import { addProjectConversationMembers, createProjectConversation, renameProjectConversation } from '../chat/facade.js';
 import { ProjectClientNotFoundError, ProjectDiscussionGroupExistsError, ProjectNotFoundError, ProjectValidationError } from './errors.js';
 import { notifyProjectAssigned } from './notifications.js';
 import {
@@ -118,7 +118,13 @@ export async function setProjectTeam(ctx: RequestContext, id: string, input: Pro
       throw new ProjectValidationError('One or more assignees are not active employees of this organization', { missingUserIds: missing });
     }
     await replaceProjectAssignees(tx, ctx.organizationId, id, assigneeIds, ctx.principal.id);
-    await notifyProjectAssigned(tx, ctx, { id, name: existing.name }, assigneeIds.filter((assigneeId) => !before.has(assigneeId)));
+    const newlyAdded = assigneeIds.filter((assigneeId) => !before.has(assigneeId));
+    await notifyProjectAssigned(tx, ctx, { id, name: existing.name }, newlyAdded);
+    // Give new team members the discussion group too; never remove anyone as
+    // a side effect of a team edit (see chat/facade.ts's addProjectConversationMembers).
+    if (existing.discussionConversationId && newlyAdded.length > 0) {
+      await addProjectConversationMembers(tx, ctx, existing.discussionConversationId, newlyAdded, existing.name);
+    }
   });
 
   const updated = await findProjectById(ctx, id);
@@ -149,7 +155,22 @@ export async function createDiscussionGroup(ctx: RequestContext, projectId: stri
   if (!clientId) throw new ProjectClientNotFoundError();
 
   const { id } = await db.transaction(ctx, (tx) =>
-    createProjectConversation(tx, ctx.organizationId, ctx.principal.id, { name: input.name, memberIds: input.memberIds, projectId }),
+    createProjectConversation(tx, ctx, { name: input.name, memberIds: input.memberIds, projectId }),
   );
   return { conversationId: id };
+}
+
+/** Renaming/describing an existing discussion group — `projects:manage` on this project, not `chat:manage-groups`. */
+export async function updateDiscussionGroup(
+  ctx: RequestContext,
+  projectId: string,
+  input: { name: string; description?: string | null | undefined },
+): Promise<{ conversationId: string }> {
+  const existing = await findProjectById(ctx, projectId);
+  if (!existing) throw new ProjectNotFoundError();
+  if (!existing.discussionConversationId) throw new ProjectValidationError('This project has no discussion group yet');
+
+  const conversationId = existing.discussionConversationId;
+  await db.transaction(ctx, (tx) => renameProjectConversation(tx, ctx.organizationId, conversationId, input.name, input.description));
+  return { conversationId };
 }

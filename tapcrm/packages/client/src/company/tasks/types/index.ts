@@ -30,6 +30,7 @@ export interface Task {
   readonly title: string;
   readonly description: string | null;
   readonly projectId: string | null;
+  readonly projectName?: string | null | undefined;
   readonly priority: TaskPriority;
   readonly status: TaskStatus;
   readonly dueDate: string | null;
@@ -102,6 +103,8 @@ export interface TaskFormProps {
   readonly disabled?: boolean | undefined;
   /** Create mode only — pre-fills the project so a task made from a project's Task Assignment tab is tagged to it. */
   readonly defaultProjectId?: string | undefined;
+  /** Create mode only — when true, the project field is pre-filled from `defaultProjectId` and cannot be changed. */
+  readonly lockProjectId?: boolean | undefined;
 }
 
 export interface TaskAssignModalProps {

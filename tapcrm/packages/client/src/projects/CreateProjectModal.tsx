@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getClients, type Client } from '../clients/api/clientsApi.js';
-import { getCompanyEmployees, type CompanyEmployee } from '../company/api/companyApi.js';
+import { getChatColleagues } from '../chat/index.js';
 import { Button, Field, Loading, Modal, Notice, Select } from '../ui/components.js';
 import {
   PROJECT_SERVICES,
@@ -20,7 +20,7 @@ const WORK_STATUS_LABELS: Record<ProjectWorkStatus, string> = { new: 'New', ongo
 export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: (project: Project) => void }): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
-  const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
+  const [employees, setEmployees] = useState<{ id: string; fullName: string }[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -38,7 +38,7 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
   const [remarks, setRemarks] = useState('');
 
   useEffect(() => {
-    void Promise.all([getClients({ status: 'active' }), getCompanyEmployees()])
+    void Promise.all([getClients({ status: 'active' }), getChatColleagues()])
       .then(([clientPage, employeeList]) => {
         setClients(clientPage.items);
         setEmployees(employeeList);
