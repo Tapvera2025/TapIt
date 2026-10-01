@@ -75,3 +75,15 @@ export const calendarQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12),
 });
 export type CalendarQuery = z.infer<typeof calendarQuerySchema>;
+
+/** HR balance adjustment: signed half days, with a reason kept on record. */
+export const adjustBalanceSchema = z.object({
+  leaveTypeId: z.string().uuid(),
+  year: z.coerce.number().int().min(2000).max(2100),
+  units: z.number()
+    .min(-366).max(366)
+    .refine((value) => value !== 0, 'An adjustment must add or remove days')
+    .refine((value) => Number.isInteger(value * 2), 'Use whole or half days'),
+  reason: z.string().trim().min(1).max(500),
+});
+export type AdjustBalanceBody = z.infer<typeof adjustBalanceSchema>;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listShifts, createShift, type ShiftTemplate } from '../api/shiftsApi.js';
+import { suggestNextCode } from '../../ui/code-suggest.js';
 
 function fmtTime(value: string | null): string {
   if (!value) return '—';
@@ -14,6 +15,7 @@ export function ShiftsPage(): React.JSX.Element {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [lastCode, setLastCode] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'fixed' | 'flexible'>('fixed');
@@ -57,10 +59,11 @@ export function ShiftsPage(): React.JSX.Element {
           ...(halfDayMinutes ? { halfDayMinutes: Number(halfDayMinutes) } : {}),
         },
       });
+      setLastCode(code.trim());
       setShowForm(false);
       setCode(''); setName(''); setKind('fixed'); setEffectiveFrom('');
       setStartTime(''); setEndTime(''); setGraceMinutes(''); setFullDayMinutes(''); setHalfDayMinutes('');
-      load();
+      void load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create shift.');
     } finally {
@@ -75,7 +78,10 @@ export function ShiftsPage(): React.JSX.Element {
         {!showForm && (
           <button
             type="button"
-            onClick={() => setShowForm(true)}
+            onClick={() => {
+              setCode(suggestNextCode(shifts.map((s) => s.code), lastCode || undefined));
+              setShowForm(true);
+            }}
             className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-app-on-accent"
           >
             New shift
@@ -92,10 +98,11 @@ export function ShiftsPage(): React.JSX.Element {
               <input
                 type="text"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="MORNING"
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="SHIFT1"
                 className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
               />
+              {code && <p className="mt-1 text-xs text-app-muted">Auto-generated — edit as needed.</p>}
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">Name</label>

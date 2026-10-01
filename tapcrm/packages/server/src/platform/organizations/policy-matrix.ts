@@ -122,6 +122,49 @@ export interface EmittedPolicy {
   scope: string;
 }
 
+/**
+ * People actions that configure a People module or decide on someone else's
+ * request. Approvals and configuration belong to HR and Super Admin only
+ * (owner decision, 29 Sep 2026), so the starter matrix emits them only from an
+ * all-people cell — HR and HR Executive. A narrower cell (a manager's team, an
+ * employee's own record) never receives them: before this, the matrix expanded
+ * a whole module into every action, and an `own` cell handed a Developer
+ * `leave:manage-types`, `shifts:manage` and `breaks:manage-policy`, which act on
+ * configuration that has no owner and so were effectively tenant-wide.
+ *
+ * A Super Admin can still grant any of these to a position on purpose.
+ */
+export const HR_ONLY_ACTIONS: ReadonlySet<string> = new Set([
+  'attendance:correct',
+  'attendance:raise-correction',
+  'attendance:export',
+  'breaks:manage-policy',
+  'breaks:review-breach',
+  'shifts:manage',
+  'shifts:approve',
+  'leave:acknowledge',
+  'leave:decide',
+  'leave:manage-types',
+  'leave:manage-wfh-standing',
+  'holidays:manage',
+  'biometric:manage',
+  'payroll:manage',
+  'payroll:manage-config',
+]);
+
+/**
+ * Self-service actions. Outside HR they always act on the holder alone, so a
+ * team or pool cell emits them at `own`: a team lead requests their own leave
+ * and explains their own break, not their team's.
+ */
+export const SELF_SERVICE_ACTIONS: ReadonlySet<string> = new Set([
+  'attendance:request-correction',
+  'breaks:explain',
+  'leave:request',
+  'leave:request-wfh',
+  'status:punch',
+]);
+
 export function expandPermissionCell(
   module: string,
   cell: Cell,
@@ -137,7 +180,10 @@ export function expandPermissionCell(
     if (excluded.has(definition.action)) return [];
     if (readOnly && !(definition.action.split(':')[1] ?? '').startsWith('view'))
       return [];
-    return [{ action: definition.action, scope }];
+    if (scope !== 'all-people' && HR_ONLY_ACTIONS.has(definition.action)) return [];
+    const emittedScope =
+      scope !== 'all-people' && SELF_SERVICE_ACTIONS.has(definition.action) ? 'own' : scope;
+    return [{ action: definition.action, scope: emittedScope }];
   });
 }
 

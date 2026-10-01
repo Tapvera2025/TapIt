@@ -88,6 +88,19 @@ export const approveSchema = z.object({
   decisionNote: z.string().min(1).optional(),
 });
 
+export const rejectSchema = z.object({
+  decisionNote: z.string().trim().min(1).max(2000).optional(),
+});
+export type RejectBody = z.infer<typeof rejectSchema>;
+
+export const correctionListQuerySchema = z.object({
+  status: z.enum(['pending', 'approved', 'rejected', 'all']).default('pending'),
+  /** Only the caller's own requests, even for an approver. */
+  mine: z.enum(['true', 'false']).optional().transform((value) => value === 'true'),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+export type CorrectionListQuery = z.infer<typeof correctionListQuerySchema>;
+
 // Grouped creation only. A single targetEventId/reviewItemId cannot belong to
 // many employees, so bulk accepts add-event alone until atomic AT-11 approval.
 export const bulkCorrectionSchema = correctionBodyBase.extend({

@@ -48,3 +48,26 @@ export function createShift(body: {
 export function getMyShiftAssignment(signal?: AbortSignal): Promise<ShiftAssignment[]> {
   return identityRequest<ShiftAssignment[]>('/api/shifts/assignments', { signal: signal ?? null });
 }
+
+export interface EmployeeShiftDay {
+  date: string;
+  shiftId: string | null;
+  kind: 'fixed' | 'flexible' | 'none';
+  source: string;
+}
+
+export function getEmployeeShift(userId: string): Promise<{ userId: string; days: EmployeeShiftDay[] }> {
+  return peopleRead(`/api/shifts/assignments?userId=${encodeURIComponent(userId)}`, { staleMs: 0 });
+}
+
+export function assignShiftToEmployee(body: {
+  kind: 'template';
+  userId: string;
+  shiftId: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}): Promise<{ id: string; rotationId: string | null }> {
+  return peopleMutation('/api/shifts/assignments', { method: 'POST', body: JSON.stringify(body) }, [
+    '/api/shifts/assignments',
+  ]);
+}

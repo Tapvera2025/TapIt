@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { assertPositionApprovalLimits, assertPositionLevel } from './hierarchy.js';
+import {
+  assertPositionApprovalLimits,
+  assertPositionLevel,
+  selectPositionsToAdopt,
+} from './hierarchy.js';
 
 const position = (overrides: Record<string, unknown> = {}) => ({
   id: 'child-position',
@@ -67,5 +71,47 @@ describe('OR-4 custom position constraints', () => {
         children: [position({ allowsCustomTerms: true })],
       }),
     ).toThrow(/custom terms/i);
+  });
+});
+
+describe('targeted position insertion', () => {
+  const siblings = [
+    position({ id: 'selected', organizationalLevel: 40 }),
+    position({ id: 'sibling', organizationalLevel: 35 }),
+  ];
+
+  it('adopts only the selected direct child, leaving its sibling in place', () => {
+    expect(selectPositionsToAdopt(siblings, {
+      parentPositionId: 'parent-position',
+      organizationalLevel: 50,
+      adoptLowerPositions: false,
+      adoptPositionIds: ['selected'],
+    }).map(({ id }) => id)).toEqual(['selected']);
+  });
+
+  it('rejects a child under another parent or one with no available level', () => {
+    const request = {
+      parentPositionId: 'parent-position',
+      organizationalLevel: 50,
+      adoptLowerPositions: false,
+      adoptPositionIds: ['selected'],
+    };
+    expect(() => selectPositionsToAdopt([
+      position({ id: 'selected', parentPositionId: 'other-parent' }),
+    ], request)).toThrow(/direct child/i);
+    expect(() => selectPositionsToAdopt([
+      position({ id: 'selected', organizationalLevel: 50 }),
+    ], request)).toThrow(/below the new level/i);
+  });
+
+  it('keeps the seeded hierarchy immutable', () => {
+    expect(() => selectPositionsToAdopt([
+      position({ id: 'selected', isSeeded: true }),
+    ], {
+      parentPositionId: 'parent-position',
+      organizationalLevel: 50,
+      adoptLowerPositions: false,
+      adoptPositionIds: ['selected'],
+    })).toThrow(/seeded position hierarchy/i);
   });
 });

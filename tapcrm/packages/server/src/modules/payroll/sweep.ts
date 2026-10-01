@@ -5,6 +5,7 @@ import type { DateOnly } from '@tapcrm/contracts';
 import * as AttFacade from '../attendance/facade.js';
 import * as BreakFacade from '../break-management/facade.js';
 import { openDrift, openFlag, latestPublishedSlip } from './flags.js';
+import { breakEvaluationRequired } from './freeze.js';
 
 /**
  * Published-period reconciliation sweep.
@@ -26,6 +27,7 @@ export async function sweepPublishedPeriods(
       LIMIT 20
     `);
 
+    const breakEvaluation = await breakEvaluationRequired(tx, ctx.organizationId);
     let opened = 0;
     for (const run of runs) {
       // Get all employees in this run's snapshot
@@ -42,6 +44,7 @@ export async function sweepPublishedPeriods(
         frozenUserIds,
         run.periodStart as DateOnly,
         run.periodEnd as DateOnly,
+        { breakEvaluation },
       );
 
       // Check for unresolved break breaches

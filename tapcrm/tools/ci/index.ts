@@ -395,6 +395,8 @@ const RLS_EXCEPTIONS: Readonly<Record<string, string>> = {
   organization_module: 'platform entitlements, read/written by the Master Admin plane via platformDb',
   admin_invitation: 'Master Admin invitations; the accept flow resolves the tenant from the token',
   identity_email_directory: 'pre-authentication login lookup; tenant is not yet known',
+  biometric_device_directory:
+    'device push lookup (G2): a machine request carries a serial, not a tenant; read-only for the app role, written by trigger',
 };
 
 {

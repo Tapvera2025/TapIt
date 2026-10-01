@@ -141,7 +141,7 @@ export async function listPolicies(
     SELECT id, organization_id AS "organizationId", name, created_at::text AS "createdAt"
     FROM break_policy
     WHERE organization_id = ${organizationId}
-      AND (${after ?? null} IS NULL OR id > ${after ?? null}::uuid)
+      AND (${after ?? null}::uuid IS NULL OR id > ${after ?? null}::uuid)
     ORDER BY created_at, id
     LIMIT ${limit}
   `);
@@ -365,6 +365,7 @@ export interface CurrentBreachAnswer {
   id: string;
   answerFingerprint: string;
   status: string;
+  matchedRuleId: string | null;
   confirmedBy: string | null;
   confirmedAt: Date | null;
   waivedBy: string | null;
@@ -385,6 +386,7 @@ export async function currentBreachAnswer(
 ): Promise<CurrentBreachAnswer | null> {
   return tx.maybeOne<CurrentBreachAnswer>(sql`
     SELECT id, answer_fingerprint AS "answerFingerprint", status,
+           matched_rule_id AS "matchedRuleId",
            confirmed_by AS "confirmedBy", confirmed_at AS "confirmedAt",
            waived_by AS "waivedBy", waived_at AS "waivedAt",
            auto_applied AS "autoApplied",
@@ -658,11 +660,11 @@ export async function listBreaches(
            bb.created_at::text AS "createdAt"
     FROM break_breach bb
     WHERE bb.organization_id = current_organization_id()
-      AND (${opts.userId ?? null} IS NULL OR bb.user_id = ${opts.userId ?? null}::uuid)
-      AND (${opts.status ?? null} IS NULL OR bb.status = ${opts.status ?? null})
-      AND (${opts.fromDate ?? null} IS NULL OR bb.work_date >= ${opts.fromDate ?? null}::date)
-      AND (${opts.toDate ?? null} IS NULL OR bb.work_date <= ${opts.toDate ?? null}::date)
-      AND (${opts.after ?? null} IS NULL OR bb.id > ${opts.after ?? null}::uuid)
+      AND (${opts.userId ?? null}::uuid IS NULL OR bb.user_id = ${opts.userId ?? null}::uuid)
+      AND (${opts.status ?? null}::text IS NULL OR bb.status = ${opts.status ?? null})
+      AND (${opts.fromDate ?? null}::date IS NULL OR bb.work_date >= ${opts.fromDate ?? null}::date)
+      AND (${opts.toDate ?? null}::date IS NULL OR bb.work_date <= ${opts.toDate ?? null}::date)
+      AND (${opts.after ?? null}::uuid IS NULL OR bb.id > ${opts.after ?? null}::uuid)
     ORDER BY bb.work_date DESC, bb.id
     LIMIT ${opts.limit}
   `);

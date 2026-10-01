@@ -912,7 +912,7 @@ export async function submitHrManualResume(
   input: HrManualSubmissionInput,
 ): Promise<CandidateResumeSubmission> {
   return await identityRequest<CandidateResumeSubmission>(
-    '/api/recruitment/resume-submissions/manual',
+    '/api/recruitment/resume-submissions/upload',
     {
       method: 'POST',
       body: JSON.stringify(input),
@@ -973,9 +973,11 @@ export async function convertResumeSubmission(
 export async function getResumeDownloadUrl(
   submissionId: string,
 ): Promise<{ downloadUrl: string }> {
-  return await identityRequest<{ downloadUrl: string }>(
-    `/api/recruitment/resume-submissions/${encodeURIComponent(submissionId)}/download`,
+  // The server signs a short-lived storage link (15 minutes).
+  const signed = await identityRequest<{ url: string; filename: string }>(
+    `/api/recruitment/resume-submissions/${encodeURIComponent(submissionId)}/resume-url`,
   );
+  return { downloadUrl: signed.url };
 }
 
 // ---------------------------------------------------------------------

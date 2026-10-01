@@ -76,6 +76,57 @@ async function inputVersion(userId: string, day: string): Promise<number | null>
   return rows[0]?.inputVersion ?? null;
 }
 
+/**
+ * Overlays point at what created them, and since steps 6 and 8 the database
+ * holds them to it: a leave overlay needs a real leave request, a breach
+ * overlay a real breach. These make the smallest real ones.
+ */
+const leaveTypes = new Map<string, string>();
+async function leaveRequest(kind: 'absence' | 'attendance-mode', day: string, last = day): Promise<string> {
+  let typeId = leaveTypes.get(kind);
+  if (!typeId) {
+    typeId = randomUUID();
+    await asOwner('leave type', sql`
+      INSERT INTO leave_type (id, organization_id, code, name, kind, enforcement, paid_leave, created_by)
+      VALUES (${typeId}, ${ORG}, ${kind === 'absence' ? 'AL' : 'WFH'}, ${kind === 'absence' ? 'Annual' : 'Work from home'},
+              ${kind}, false, ${kind === 'absence'}, ${HR})
+    `);
+    leaveTypes.set(kind, typeId);
+  }
+  const id = randomUUID();
+  await asOwner('leave request', sql`
+    INSERT INTO leave_request (id, organization_id, user_id, leave_type_id, kind, from_date, to_date, reason, requested_by)
+    VALUES (${id}, ${ORG}, ${USER}, ${typeId}, ${kind}, ${day}, ${last}, 'Overlay test', ${USER})
+  `);
+  return id;
+}
+
+async function breach(): Promise<string> {
+  const policyId = randomUUID();
+  const versionId = randomUUID();
+  const recordId = randomUUID();
+  const id = randomUUID();
+  const day = '2026-07-01';
+  await asOwner('break policy', sql`INSERT INTO break_policy (id, organization_id, name) VALUES (${policyId}, ${ORG}, 'Overlay test')`);
+  await asOwner('break policy version', sql`
+    INSERT INTO break_policy_version (id, organization_id, policy_id, effective_from, upper_total_minutes,
+                                      grace_minutes, warning_percent, counts_toward_work_hours)
+    VALUES (${versionId}, ${ORG}, ${policyId}, '2026-01-01', 60, 5, 80, true)
+  `);
+  await asOwner('the breached day', sql`
+    INSERT INTO attendance_record (id, organization_id, user_id, work_date, state, window_start, window_end,
+                                   shift_source, shift_snapshot, placement_snapshot, close_due_at, day_type)
+    VALUES (${recordId}, ${ORG}, ${USER}, ${day}, 'closed', ${`${day}T00:00:00+05:30`}, ${`${day}T23:59:00+05:30`},
+            'default', '{}'::jsonb, '{}'::jsonb, ${`${day}T23:00:00+05:30`}, 'working')
+  `);
+  await asOwner('breach', sql`
+    INSERT INTO break_breach (id, organization_id, user_id, attendance_record_id, work_date, policy_version_id,
+                              evidence_fingerprint, answer_fingerprint, calculation_version, status)
+    VALUES (${id}, ${ORG}, ${USER}, ${recordId}, ${day}, ${versionId}, 'evidence', 'answer', 1, 'pending')
+  `);
+  return id;
+}
+
 describe.skipIf(!enabled)('attendance overlays (PostgreSQL)', () => {
   beforeAll(async () => {
     await asOwner(
@@ -127,6 +178,11 @@ describe.skipIf(!enabled)('attendance overlays (PostgreSQL)', () => {
       'domain_outbox',
       'attendance_event_assignment',
       'attendance_overlay',
+      'break_breach',
+      'break_policy_version',
+      'break_policy',
+      'leave_request',
+      'leave_type',
       'attendance_record',
       'attendance_day_open_state',
       'shift_setting',
@@ -169,7 +225,7 @@ describe.skipIf(!enabled)('attendance overlays (PostgreSQL)', () => {
 
   it('full unpaid leave on a fresh day writes ONE overlay and ONE recalc event (no double event)', async () => {
     const day = '2026-10-15';
-    const leaveId = randomUUID();
+    const leaveId = await leaveRequest('absence', day);
     await apply({
       sourceKind: 'leave',
       sourceId: leaveId,
@@ -193,7 +249,7 @@ describe.skipIf(!enabled)('attendance overlays (PostgreSQL)', () => {
 
   it('first-half paid leave', async () => {
     const day = '2026-10-16';
-    const leaveId = randomUUID();
+    const leaveId = await leaveRequest('absence', day);
     await apply({
       sourceKind: 'leave',
       sourceId: leaveId,
@@ -210,7 +266,7 @@ describe.skipIf(!enabled)('attendance overlays (PostgreSQL)', () => {
 
   it('WFH overlay', async () => {
     const day = '2026-10-17';
-    const wfhId = randomUUID();
+    const wfhId = await leaveRequest('attendance-mode', day);
     await apply({
       sourceKind: 'wfh',
       sourceId: wfhId,
@@ -230,7 +286,7 @@ describe.skipIf(!enabled)('attendance overlays (PostgreSQL)', () => {
 
   it('break-breach consequence: deduct 30 minutes', async () => {
     const day = '2026-10-18';
-    const breachId = randomUUID();
+    const breachId = await breach();
     await apply({
       sourceKind: 'break-breach',
       sourceId: breachId,
@@ -254,7 +310,7 @@ describe.skipIf(!enabled)('attendance overlays (PostgreSQL)', () => {
 
   it('re-applying the same overlay is a no-op (no second event, no bump)', async () => {
     const day = '2026-10-19';
-    const leaveId = randomUUID();
+    const leaveId = await leaveRequest('absence', day);
     const overlay = {
       sourceKind: 'leave' as const,
       sourceId: leaveId,
@@ -276,7 +332,7 @@ describe.skipIf(!enabled)('attendance overlays (PostgreSQL)', () => {
   it('removeOverlays(sourceId) removes every overlay from that source and requeues each day', async () => {
     const d1 = '2026-10-20';
     const d2 = '2026-10-21';
-    const leaveId = randomUUID();
+    const leaveId = await leaveRequest('absence', d1, d2);
     await apply({
       sourceKind: 'leave',
       sourceId: leaveId,

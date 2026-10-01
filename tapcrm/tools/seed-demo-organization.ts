@@ -1,31 +1,24 @@
 #!/usr/bin/env tsx
 import { loadDotEnv, organizationArgument, demoPassword, DEMO_EMPLOYEES, DEMO_TEAM_PREFIX } from './demo-fixture.js';
+import { seedDemoActivity } from './demo-activity.js';
 import type { Tx } from '../packages/server/src/platform/dal/db.js';
 
 loadDotEnv();
 const organizationCode = organizationArgument();
 const password = demoPassword();
 
-const [{ platformDb }, { sql }, { bootstrapOrganization }, { hashIdentityPassword }] = await Promise.all([
+const [{ platformDb }, { sql }, { hashIdentityPassword }] = await Promise.all([
   import('../packages/server/src/platform/dal/db.js'),
   import('../packages/server/src/platform/dal/sql.js'),
-  import('../packages/server/src/platform/organizations/bootstrap.js'),
   import('../packages/server/src/modules/identity/password/service.js'),
 ]);
 
 const result = await platformDb.transaction('seed', `create development demo fixture for ${organizationCode}`, async (tx) => {
-  const organization = await tx.maybeOne<{ id: string; name: string }>(sql`
-    SELECT id, name FROM organization WHERE code = ${organizationCode} AND status = 'active'
+  const organization = await tx.maybeOne<{ id: string; name: string; timezone: string }>(sql`
+    SELECT id, name, timezone FROM organization WHERE code = ${organizationCode} AND status = 'active'
   `);
   if (!organization) throw new Error(`Active organization "${organizationCode}" was not found`);
   await tx.query(sql`SELECT set_config('app.organization_id', ${organization.id}, true)`);
-
-  const modules = await tx.query<{ key: string }>(sql`
-    SELECT m.key FROM organization_module om
-    JOIN module m ON m.id = om.module_id
-    WHERE om.organization_id = ${organization.id} AND om.status = 'enabled'
-  `);
-  await bootstrapOrganization(tx, organization.id, modules.map((row) => row.key));
 
   const positions = new Map<string, { id: string; departmentId: string; status: string }>();
   for (const employee of DEMO_EMPLOYEES) {
@@ -113,15 +106,30 @@ const result = await platformDb.transaction('seed', `create development demo fix
     UPDATE team SET lead_user_id = ${users.get('sales-supervisor') ?? null}
     WHERE organization_id = ${organization.id} AND seed_code = 'demo-sales-pool'
   `);
-  return { organizationName: organization.name, employeeCount: DEMO_EMPLOYEES.length };
+  const activity = await seedDemoActivity(tx, organization, users);
+  return { organizationName: organization.name, employeeCount: DEMO_EMPLOYEES.length, activity };
 });
 
 console.log(`✓ Demo fixture ready for ${organizationCode} (${result.organizationName})`);
 console.log(`  ${result.employeeCount} employee accounts are available with DEMO_EMPLOYEE_PASSWORD`);
+console.log(`  ${result.activity.attendanceDays} attendance days, ${result.activity.punches} punches, ${result.activity.leaveRequests} leave requests`);
+console.log(`  ${result.activity.salaries} salary structures, ${result.activity.payrollInputs} payroll inputs, ${result.activity.shifts} shift`);
+console.log(`  ${result.activity.payrollRuns} draft payroll run`);
 
 async function seededTeamId(tx: Tx, organizationId: string, seedCode: string): Promise<string | null> {
   const row = await tx.maybeOne<{ id: string }>(sql`
     SELECT id FROM team WHERE organization_id = ${organizationId} AND seed_code = ${seedCode}
   `);
-  return row?.id ?? null;
+  if (row) return row.id;
+  const standardName: Record<string, string> = {
+    'developer-team': 'Developer Team',
+    'digital-marketing': 'Digital & Marketing',
+    'content-team': 'Content Team',
+  };
+  const name = standardName[seedCode];
+  if (!name) return null;
+  const standard = await tx.maybeOne<{ id: string }>(sql`
+    SELECT id FROM team WHERE organization_id = ${organizationId} AND name = ${name}
+  `);
+  return standard?.id ?? null;
 }

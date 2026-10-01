@@ -28,10 +28,11 @@ import {
   replaceTaskAssignees,
   updateTaskRow,
   validateAssigneeIds,
-  validateAssigneesInDepartmentScope,
-  validateAssigneesInPoolScope,
-  validateAssigneesInTeamScope,
+  findLedTeamIds,
+  findUsersInAssignableScope,
+  type AssignableUsersScope,
 } from './repository.js';
+import type { Tx } from '../../platform/dal/db.js';
 import type {
   PaginatedTasks,
   Task,
@@ -147,63 +148,7 @@ export async function createTask(
         );
       }
 
-      if (!globalAccess(ctx.principal)) {
-        const assignPolicy = await effectivePolicy(ctx, 'tasks:assign');
-        if (assignPolicy && assignPolicy.scope === 'team') {
-          const allowedTeams = await scopeResolver.teamIds(ctx);
-          const validScopedIds = await validateAssigneesInTeamScope(
-            tx,
-            ctx.organizationId,
-            uniqueAssigneeIds,
-            allowedTeams,
-            ctx.principal.id,
-          );
-          if (validScopedIds.length !== uniqueAssigneeIds.length) {
-            const outOfScope = uniqueAssigneeIds.filter((id) => !validScopedIds.includes(id));
-            throw new TaskValidationError(
-              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
-              'One or more assignees are outside your team scope',
-              { missingAssigneeIds: outOfScope },
-            );
-          }
-        } else if (assignPolicy && assignPolicy.scope === 'department') {
-          const departmentId = await scopeResolver.departmentId(ctx);
-          const validScopedIds = await validateAssigneesInDepartmentScope(
-            tx,
-            ctx.organizationId,
-            uniqueAssigneeIds,
-            departmentId,
-            ctx.principal.id,
-          );
-          if (validScopedIds.length !== uniqueAssigneeIds.length) {
-            const outOfScope = uniqueAssigneeIds.filter((id) => !validScopedIds.includes(id));
-            throw new TaskValidationError(
-              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
-              'One or more assignees are outside your department scope',
-              { missingAssigneeIds: outOfScope },
-            );
-          }
-        } else if (assignPolicy && assignPolicy.scope === 'pool') {
-          const poolMembers = await scopeResolver.poolMemberIds(ctx);
-          const poolIds = await scopeResolver.poolIds(ctx);
-          const validScopedIds = await validateAssigneesInPoolScope(
-            tx,
-            ctx.organizationId,
-            uniqueAssigneeIds,
-            poolMembers,
-            poolIds,
-            ctx.principal.id,
-          );
-          if (validScopedIds.length !== uniqueAssigneeIds.length) {
-            const outOfScope = uniqueAssigneeIds.filter((id) => !validScopedIds.includes(id));
-            throw new TaskValidationError(
-              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
-              'One or more assignees are outside your pool scope',
-              { missingAssigneeIds: outOfScope },
-            );
-          }
-        }
-      }
+      await assertAssigneesInScope(tx, ctx, uniqueAssigneeIds);
     }
 
     const { id } = await insertTaskRow(tx, {
@@ -400,63 +345,7 @@ export async function assignTask(
         );
       }
 
-      if (!globalAccess(ctx.principal)) {
-        const assignPolicy = await effectivePolicy(ctx, 'tasks:assign');
-        if (assignPolicy && assignPolicy.scope === 'team') {
-          const allowedTeams = await scopeResolver.teamIds(ctx);
-          const validScopedIds = await validateAssigneesInTeamScope(
-            tx,
-            ctx.organizationId,
-            uniqueAssigneeIds,
-            allowedTeams,
-            ctx.principal.id,
-          );
-          if (validScopedIds.length !== uniqueAssigneeIds.length) {
-            const outOfScope = uniqueAssigneeIds.filter((mId) => !validScopedIds.includes(mId));
-            throw new TaskValidationError(
-              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
-              'One or more assignees are outside your team scope',
-              { missingAssigneeIds: outOfScope },
-            );
-          }
-        } else if (assignPolicy && assignPolicy.scope === 'department') {
-          const departmentId = await scopeResolver.departmentId(ctx);
-          const validScopedIds = await validateAssigneesInDepartmentScope(
-            tx,
-            ctx.organizationId,
-            uniqueAssigneeIds,
-            departmentId,
-            ctx.principal.id,
-          );
-          if (validScopedIds.length !== uniqueAssigneeIds.length) {
-            const outOfScope = uniqueAssigneeIds.filter((mId) => !validScopedIds.includes(mId));
-            throw new TaskValidationError(
-              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
-              'One or more assignees are outside your department scope',
-              { missingAssigneeIds: outOfScope },
-            );
-          }
-        } else if (assignPolicy && assignPolicy.scope === 'pool') {
-          const poolMembers = await scopeResolver.poolMemberIds(ctx);
-          const poolIds = await scopeResolver.poolIds(ctx);
-          const validScopedIds = await validateAssigneesInPoolScope(
-            tx,
-            ctx.organizationId,
-            uniqueAssigneeIds,
-            poolMembers,
-            poolIds,
-            ctx.principal.id,
-          );
-          if (validScopedIds.length !== uniqueAssigneeIds.length) {
-            const outOfScope = uniqueAssigneeIds.filter((mId) => !validScopedIds.includes(mId));
-            throw new TaskValidationError(
-              TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
-              'One or more assignees are outside your pool scope',
-              { missingAssigneeIds: outOfScope },
-            );
-          }
-        }
-      }
+      await assertAssigneesInScope(tx, ctx, uniqueAssigneeIds);
     }
 
     await replaceTaskAssignees(
@@ -502,46 +391,84 @@ export async function listTaskAssignees(
   ctx: RequestContext,
   query: TaskAssigneesQueryInput,
 ): Promise<readonly TaskAssignableUser[]> {
-  // 1. Super Admin: full tenant access
-  if (globalAccess(ctx.principal)) {
-    return findAssignableUsers(ctx, { kind: 'all' }, query);
-  }
+  const scope = await resolveAssignableScope(ctx);
+  if (scope.kind === 'none') return [];
+  return findAssignableUsers(ctx, scope, query);
+}
 
-  // 2. Resolve caller's effective policy on tasks:assign
+/**
+ * Who the caller may assign a task to (PA-6, TK-8), from their effective
+ * `tasks:assign` scope:
+ *
+ *   all-people   anyone in the organization (Super Admin, HR)
+ *   department   their department
+ *   team         their team tree and every team they lead
+ *   pool         their pool
+ *   own          themselves only — a Project Manager also directs the
+ *                development department
+ *
+ * Every scope also covers the people who report to the caller, directly or
+ * not: a manager can always give work to their own reports, whether or not
+ * the org chart puts them in the same team. Before this, `own` was not checked
+ * at all, so any employee could assign a task to anyone in any department,
+ * while a team manager was refused for a direct report outside their team.
+ */
+export async function resolveAssignableScope(
+  ctx: RequestContext,
+): Promise<AssignableUsersScope> {
+  if (globalAccess(ctx.principal)) return { kind: 'all' };
   const policy = await effectivePolicy(ctx, 'tasks:assign');
-  if (!policy || !policy.allowed) {
-    return [];
-  }
+  if (!policy || !policy.allowed) return { kind: 'none' };
+  if (policy.scope === 'all-people') return { kind: 'all' };
 
-  // 3. Determine scope
-  if (policy.scope === 'all-people') {
-    return findAssignableUsers(ctx, { kind: 'all' }, query);
-  }
+  const reports = await scopeResolver.subordinateIds(ctx);
+  const userIds = [...new Set([ctx.principal.id, ...reports])];
 
   if (policy.scope === 'department') {
-    const departmentId = await scopeResolver.departmentId(ctx);
-    return findAssignableUsers(ctx, { kind: 'department', departmentId }, query);
+    return { kind: 'scoped', userIds, departmentId: await scopeResolver.departmentId(ctx) };
   }
-
   if (policy.scope === 'team') {
-    const teamIds = [...(await scopeResolver.teamIds(ctx))];
-    return findAssignableUsers(ctx, { kind: 'team', teamIds }, query);
+    const teams = new Set<string>(await scopeResolver.teamIds(ctx));
+    for (const id of await findLedTeamIds(ctx)) teams.add(id);
+    return { kind: 'scoped', userIds, teamIds: [...teams] };
   }
-
   if (policy.scope === 'pool') {
-    const poolMemberIds = [...(await scopeResolver.poolMemberIds(ctx))];
-    return findAssignableUsers(ctx, { kind: 'pool', poolMemberIds }, query);
+    const members = await scopeResolver.poolMemberIds(ctx);
+    const pools = await scopeResolver.poolIds(ctx);
+    return { kind: 'scoped', userIds: [...new Set([...userIds, ...members])], teamIds: [...pools] };
   }
-
-  if (policy.scope === 'own' || policy.scope === 'participant') {
-    const isProjectManager = await isPrincipalProjectManager(ctx);
-    const departmentId = await scopeResolver.departmentId(ctx);
-    return findAssignableUsers(
-      ctx,
-      { kind: 'own', isProjectManager, departmentId },
-      query,
-    );
+  // own / participant
+  if (await isPrincipalProjectManager(ctx)) {
+    return { kind: 'scoped', userIds, departmentCode: 'development' };
   }
+  return { kind: 'scoped', userIds };
+}
 
-  return [];
+const SCOPE_MESSAGE: Record<string, string> = {
+  department: 'You can assign tasks only to people in your department or who report to you',
+  team: 'You can assign tasks only to your team or to people who report to you',
+  pool: 'You can assign tasks only to your pool or to people who report to you',
+  own: 'You can assign tasks only to yourself or to people who report to you',
+};
+
+async function assertAssigneesInScope(
+  tx: Tx,
+  ctx: RequestContext,
+  assigneeIds: readonly string[],
+): Promise<void> {
+  if (assigneeIds.length === 0) return;
+  const scope = await resolveAssignableScope(ctx);
+  if (scope.kind === 'all') return;
+  const inScope = new Set(
+    await findUsersInAssignableScope(tx, ctx.organizationId, assigneeIds, scope),
+  );
+  const outOfScope = assigneeIds.filter((id) => !inScope.has(id));
+  if (outOfScope.length === 0) return;
+  const policy = await effectivePolicy(ctx, 'tasks:assign');
+  const key = policy?.scope === 'participant' ? 'own' : (policy?.scope ?? 'own');
+  throw new TaskValidationError(
+    TASK_ERROR_CODES.TASK_ASSIGNEE_NOT_FOUND,
+    SCOPE_MESSAGE[key] ?? SCOPE_MESSAGE['own']!,
+    { missingAssigneeIds: outOfScope },
+  );
 }

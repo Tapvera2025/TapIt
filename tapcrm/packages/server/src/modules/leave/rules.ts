@@ -27,16 +27,54 @@ export function overlayKindForDay(
 }
 
 export interface BalanceEntry {
-  kind: 'opening' | 'accrual' | 'consumption' | 'reversal';
+  kind: 'opening' | 'accrual' | 'consumption' | 'reversal' | 'adjustment';
+  /** Signed only for an adjustment; every other kind is a positive quantity. */
   units: number;
 }
 
-/** Closing balance by construction (LV-11): opening + accrued − consumed + reversed. */
+/**
+ * Ledger balance by construction (LV-11): opening + accrued − consumed +
+ * reversed ± adjusted. The yearly entitlement is added by the caller
+ * (`yearlyEntitlement`); it is derived, not stored.
+ */
 export function balanceAvailable(entries: readonly BalanceEntry[]): number {
   return entries.reduce((sum, e) => {
     const sign = e.kind === 'consumption' ? -1 : 1;
     return sum + sign * e.units;
   }, 0);
+}
+
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function dayOfYear(date: string): number {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  const cumulative = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+  return cumulative[m - 1]! + d + (m > 2 && isLeapYear(y) ? 1 : 0);
+}
+
+/**
+ * The year's entitlement for a leave type granting `accrualDays` a year,
+ * pro-rated to the days of that year the person is employed (owner decision,
+ * 29 Sep 2026): someone joining on 1 July gets about half. Rounded to the
+ * nearest half day. A missing joining date is no lower bound.
+ */
+export function yearlyEntitlement(
+  accrualDays: number,
+  year: number,
+  joinedOn: string | null,
+  leftOn: string | null,
+): number {
+  if (accrualDays <= 0) return 0;
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+  const from = joinedOn !== null && joinedOn > yearStart ? joinedOn : yearStart;
+  const to = leftOn !== null && leftOn < yearEnd ? leftOn : yearEnd;
+  if (from > to) return 0;
+  const daysInYear = isLeapYear(year) ? 366 : 365;
+  const employedDays = dayOfYear(to) - dayOfYear(from) + 1;
+  return Math.round(((accrualDays * employedDays) / daysInYear) * 2) / 2;
 }
 
 /**

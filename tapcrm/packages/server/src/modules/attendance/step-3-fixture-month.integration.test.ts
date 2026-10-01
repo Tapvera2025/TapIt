@@ -100,6 +100,29 @@ async function devicePunch(userId: string, at: Date): Promise<string> {
   return id;
 }
 
+/** The approved leave or WFH request an overlay stands for: one per day, as leave writes them. */
+const leaveTypes = new Map<string, string>();
+async function approvedRequest(userId: string, kind: 'absence' | 'attendance-mode', day: DateOnly): Promise<string> {
+  let typeId = leaveTypes.get(kind);
+  if (typeId === undefined) {
+    typeId = randomUUID();
+    await asOwner(
+      'a leave type',
+      sql`INSERT INTO leave_type (id, organization_id, code, name, kind, enforcement, paid_leave, created_by)
+          VALUES (${typeId}, ${ORG}, ${kind === 'absence' ? 'AL' : 'WFH'}, ${kind === 'absence' ? 'Annual' : 'Work from home'},
+                  ${kind}, false, ${kind === 'absence'}, ${ADMIN})`,
+    );
+    leaveTypes.set(kind, typeId);
+  }
+  const id = randomUUID();
+  await asOwner(
+    'the request',
+    sql`INSERT INTO leave_request (id, organization_id, user_id, leave_type_id, kind, from_date, to_date, reason, requested_by)
+        VALUES (${id}, ${ORG}, ${userId}, ${typeId}, ${kind}, ${day}, ${day}, 'Fixture month', ${userId})`,
+  );
+  return id;
+}
+
 function monthDates(): DateOnly[] {
   const out: DateOnly[] = [];
   for (
@@ -304,10 +327,12 @@ describe.skipIf(!enabled)('step 3 fixture month (PostgreSQL)', () => {
         const pattern = person.patterns[patternOn(person, date)]!;
         if (pattern.overlay !== undefined) {
           const overlay = pattern.overlay;
+          // An overlay points at the approved request behind it (leave's key, step 6).
+          const sourceId = await approvedRequest(userId, overlay === 'wfh' ? 'attendance-mode' : 'absence', date);
           await db.transaction(ctx(), (tx) =>
             applyOverlay(tx, {
               sourceKind: overlay === 'wfh' ? 'wfh' : 'leave',
-              sourceId: randomUUID(),
+              sourceId,
               userId,
               workDate: date,
               kind: overlay,
@@ -375,8 +400,10 @@ describe.skipIf(!enabled)('step 3 fixture month (PostgreSQL)', () => {
     await db.transaction(ctx(), (tx) => retireEvent(tx, out!.id));
     await settle();
     const voided = (await storedMonth(night)).get(date)!;
-    expect(voided).toMatchObject({ status: 'absent', worked: 0 });
-    expect(voided.flags).toContain('missing-punch-out');
+    // Without its departure the day is open again: the departure had closed it
+    // (closed_by = punch-out), and the fixture month is still ahead of us, so
+    // the closing time has not come. An open day is not judged yet.
+    expect(voided).toMatchObject({ status: 'none', worked: 0, flags: [] });
 
     const at = ist('2027-02-18', '05:05');
     const biometricPunchId = await devicePunch(night, at);

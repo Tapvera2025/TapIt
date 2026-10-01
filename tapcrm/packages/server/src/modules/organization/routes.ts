@@ -17,6 +17,7 @@ import {
 import {
   createPosition,
   previewCreatePosition,
+  previewUpdatePosition,
   getPositionHolders,
   getPositionLadder,
   getPositionPolicies,
@@ -237,6 +238,16 @@ export function registerOrganizationRoutes(): void {
     loadResource: loadPositionResource,
     handler: async ({ ctx, params, body }) =>
       updatePositionById(ctx, params['id']!, updatePositionSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/org/positions/:id/preview',
+    action: 'org:manage-positions',
+    module: 'organization',
+    resourceParam: 'id',
+    loadResource: loadPositionResource,
+    handler: async ({ ctx, params, body }) =>
+      previewUpdatePosition(ctx, params['id']!, updatePositionSchema.parse(body)),
   });
   route({
     method: 'POST',

@@ -4,7 +4,14 @@ import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { route } from '../../platform/http/route.js';
 import { organizationToday } from '../../platform/organization-time.js';
-import { approveCorrection, bulkCorrection, raiseCorrection, requestCorrection } from './correction.js';
+import {
+  approveCorrection,
+  bulkCorrection,
+  listCorrections,
+  raiseCorrection,
+  rejectCorrection,
+  requestCorrection,
+} from './correction.js';
 import { getExportStatus, requestExport } from './export.js';
 import { dayDetail, listRecords } from './service.js';
 import {
@@ -15,6 +22,8 @@ import {
   listQuerySchema,
   raiseCorrectionSchema,
   requestCorrectionSchema,
+  rejectSchema,
+  correctionListQuerySchema,
 } from './validators.js';
 
 /**
@@ -78,6 +87,20 @@ export function registerAttendanceRoutes(): void {
   });
 
   route({
+    method: 'GET', path: '/api/attendance/corrections',
+    action: 'attendance:view', module: 'attendance',
+    handler: async ({ ctx, query }) => listCorrections(ctx, correctionListQuerySchema.parse(query)),
+  });
+
+  route({
+    method: 'POST', path: '/api/attendance/corrections/:id/reject',
+    action: 'attendance:correct', module: 'attendance', status: 200,
+    resourceParam: 'id', loadResource: loadCorrectionResource,
+    handler: async ({ ctx, params, body }) =>
+      rejectCorrection(ctx, params['id']!, rejectSchema.parse(body)),
+  });
+
+  route({
     method: 'POST', path: '/api/attendance/corrections/:id/approve',
     action: 'attendance:correct', module: 'attendance',
     resourceParam: 'id', loadResource: loadCorrectionResource,
@@ -91,17 +114,6 @@ export function registerAttendanceRoutes(): void {
     action: 'attendance:view',
     module: 'attendance',
     handler: async ({ ctx, query }) => listRecords(ctx, listQuerySchema.parse(query)),
-  });
-
-  route({
-    method: 'GET',
-    path: '/api/attendance/:userId/:date',
-    action: 'attendance:view',
-    module: 'attendance',
-    resourceParam: 'userId',
-    loadResource: loadAttendanceSubject,
-    handler: async ({ ctx, params }) =>
-      dayDetail(ctx, params['userId']!, dateSchema.parse(params['date'])),
   });
 
   route({
@@ -122,5 +134,18 @@ export function registerAttendanceRoutes(): void {
     // No resource loader: an export spans many people, so no one subject
     // authorizes it. It belongs to whoever asked for it (checked inside).
     handler: async ({ ctx, params }) => getExportStatus(ctx, params['jobId']!),
+  });
+
+  // Registered last: `/:userId/:date` would otherwise shadow `/exports/:jobId`
+  // (routes match in registration order).
+  route({
+    method: 'GET',
+    path: '/api/attendance/:userId/:date',
+    action: 'attendance:view',
+    module: 'attendance',
+    resourceParam: 'userId',
+    loadResource: loadAttendanceSubject,
+    handler: async ({ ctx, params }) =>
+      dayDetail(ctx, params['userId']!, dateSchema.parse(params['date'])),
   });
 }

@@ -1,7 +1,21 @@
 import { route } from '../../platform/http/route.js';
 import { userResource } from '../identity/facade.js';
-import { provisionEmployee, updateEmployee, adminResetPassword } from './service.js';
-import { createEmployeeSchema, updateEmployeeSchema, resetPasswordSchema } from './validators.js';
+import {
+  adminResetPassword,
+  changePlacement,
+  getEmployee,
+  listDeactivatedEmployees,
+  provisionEmployee,
+  setEmployeeStatus,
+  updateEmployee,
+} from './service.js';
+import {
+  createEmployeeSchema,
+  employeeStatusSchema,
+  placementSchema,
+  resetPasswordSchema,
+  updateEmployeeSchema,
+} from './validators.js';
 import { getOrganizationChart, listReportingManagerOptions } from '../organization/facade.js';
 import { z } from 'zod';
 
@@ -12,6 +26,7 @@ export function registerEmployeeRoutes(): void {
     action: 'users:view',
     module: 'employee-directory',
     handler: async ({ ctx, query }) => {
+      if (query['status'] === 'inactive') return listDeactivatedEmployees(ctx);
       if (query['departmentId'] !== undefined && query['positionId'] !== undefined) {
         return listReportingManagerOptions(
           ctx,
@@ -39,6 +54,15 @@ export function registerEmployeeRoutes(): void {
       provisionEmployee(ctx, createEmployeeSchema.parse(body)),
   });
   route({
+    method: 'GET',
+    path: '/api/users/:id',
+    action: 'users:view',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    handler: async ({ ctx, params }) => getEmployee(ctx, params['id']!),
+  });
+  route({
     method: 'PATCH',
     path: '/api/users/:id',
     action: 'users:manage',
@@ -47,6 +71,28 @@ export function registerEmployeeRoutes(): void {
     loadResource: userResource,
     handler: async ({ ctx, params, body }) =>
       updateEmployee(ctx, params['id']!, updateEmployeeSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/users/:id/placement',
+    action: 'users:change-placement',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    status: 200,
+    handler: async ({ ctx, params, body }) =>
+      changePlacement(ctx, params['id']!, placementSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/users/:id/status',
+    action: 'users:manage',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    status: 200,
+    handler: async ({ ctx, params, body }) =>
+      setEmployeeStatus(ctx, params['id']!, employeeStatusSchema.parse(body)),
   });
   route({
     method: 'POST',

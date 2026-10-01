@@ -90,12 +90,51 @@ export const createPositionSchema = z.object({
     ),
   name: z.string().trim().min(1).max(160),
   organizationalLevel: z.number().int().min(1).max(100),
-  parentPositionId: z.string().uuid(),
+  /**
+   * Null only for a department's first position, which becomes its root (the
+   * department head); every later position sits under an existing one.
+   */
+  parentPositionId: z
+    .string()
+    .uuid()
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
   status: positionStatus.optional().default('active'),
   maxDealValue: z.number().nonnegative().nullable().optional(),
   maxDiscountPercent: z.number().min(0).max(100).nullable().optional(),
   allowsCustomTerms: z.boolean().optional().default(false),
+  /**
+   * Also move the parent's lower-level positions under the new one ("insert
+   * a level"). Off by default: a new position is added beside them, and
+   * nothing else in the ladder moves unless this is asked for and confirmed.
+   */
+  adoptLowerPositions: z.boolean().optional().default(false),
+  /** Move only these direct children under the new position (Add above). */
+  adoptPositionIds: z.array(z.string().uuid()).max(100).optional().default([]),
   confirmImpact: z.boolean().optional().default(false),
+}).superRefine((value, ctx) => {
+  if (value.adoptLowerPositions && value.adoptPositionIds.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['adoptPositionIds'],
+      message: 'Choose either all lower positions or specific positions to adopt',
+    });
+  }
+  if (new Set(value.adoptPositionIds).size !== value.adoptPositionIds.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['adoptPositionIds'],
+      message: 'Each adopted position may appear only once',
+    });
+  }
+  if (value.adoptPositionIds.length > 0 && value.status !== 'active') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['status'],
+      message: 'A position must be active to adopt another position',
+    });
+  }
 });
 
 export const updatePositionSchema = z

@@ -10,10 +10,13 @@ import { requestContext, requestId } from './platform/http/context.js';
 import { installDevPrincipalResolver } from './platform/http/dev-resolver.js';
 import { errorHandler } from './platform/http/error-handler.js';
 import { assertManifest, buildRouter, checkManifest } from './platform/http/router.js';
+import { registeredBindings } from './platform/http/route.js';
 import { initializePorts, registerAllPolicies, registerAllRoutes } from './modules/index.js';
 import { buildPlatformRouter } from './platform/routes.js';
 import { registerIdentityPublicRoutes } from './modules/identity/index.js';
+import { registerDashboardRoutes } from './modules/dashboard/index.js';
 import { buildPublicRecruitmentRouter } from './modules/recruitment/index.js';
+import { buildBiometricMachineRouter } from './modules/biometric/index.js';
 import { registerNotificationRoutes } from './modules/notifications/routes.js';
 import { Router } from 'express';
 
@@ -84,7 +87,7 @@ export function buildApp(options: BuildOptions = {}): Express {
     JSON.stringify({
       level: 'info',
       msg: 'route manifest',
-      routesRegistered: 292 - drift.bindingsWithoutRoute.length,
+      routesRegistered: registeredBindings().length,
       bindingsAwaitingRoutes: drift.bindingsWithoutRoute.length,
     }),
   );
@@ -94,12 +97,16 @@ export function buildApp(options: BuildOptions = {}): Express {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet());
+  // G2 — ZKTeco-firmware devices push to /iclock in their own text protocol.
+  // Mounted before JSON parsing and product authentication (attendance §10.5).
+  app.use('/iclock', buildBiometricMachineRouter());
   app.use(express.json({ limit: '15mb' }));
 
   app.use(requestId);
 
   const publicIdentity = Router();
   registerIdentityPublicRoutes(publicIdentity);
+  registerDashboardRoutes(publicIdentity);
   registerNotificationRoutes(publicIdentity);
   if (config.IDENTITY_DEV_BYPASS) {
     if (config.NODE_ENV === 'production') {

@@ -476,3 +476,36 @@ export async function markAlertNotified(
     UPDATE biometric_alert SET notified_at = ${at} WHERE id = ${alertId} AND notified_at IS NULL
   `);
 }
+
+/* ------------------------------------------------------------------ *
+ * Machine endpoint (G2, §10.5)
+ * ------------------------------------------------------------------ */
+
+export interface MachineDevice {
+  readonly id: string;
+  readonly serialNumber: string;
+  readonly status: 'pending' | 'enabled' | 'disabled';
+  readonly timezone: string;
+  readonly handshakeTimezone: string;
+  readonly stampMode: 'resend-all' | 'resume';
+  readonly attlogStamp: string | null;
+  /** The device's allow-listed source addresses; empty allows any. */
+  readonly ipAllowlist: string[];
+  readonly connectorStatus: 'active' | 'disabled';
+  readonly organizationStatus: string;
+}
+
+/** What the machine endpoint needs to answer a device, read under RLS. */
+export async function findMachineDevice(tx: Tx, deviceId: string): Promise<MachineDevice | null> {
+  return tx.maybeOne<MachineDevice>(sql`
+    SELECT d.id, d.serial_number, d.status, d.timezone, d.handshake_timezone, d.stamp_mode,
+           d.attlog_stamp,
+           ARRAY(SELECT host(a) FROM unnest(coalesce(d.ip_allowlist, '{}'::inet[])) AS a) AS ip_allowlist,
+           c.status AS connector_status,
+           o.status AS organization_status
+    FROM biometric_device d
+    JOIN biometric_connector c ON c.organization_id = d.organization_id AND c.id = d.connector_id
+    JOIN organization o ON o.id = d.organization_id
+    WHERE d.id = ${deviceId}
+  `);
+}

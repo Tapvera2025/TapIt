@@ -10,6 +10,7 @@ export function CompanyLayout({
   canRequestRoleChange,
   canViewAudit,
   canManageLeaveTypes,
+  canViewLeaveBalances,
   canUseLeaveQueue,
   canViewEmployees,
   canViewLiveBoard,
@@ -18,6 +19,7 @@ export function CompanyLayout({
   canManageBreakPolicies,
   canManageShifts,
   canManagePayroll,
+  canManagePayrollConfig,
   canManageBiometric,
   isHr,
   hasRecruitment,
@@ -40,6 +42,7 @@ export function CompanyLayout({
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
   canManageLeaveTypes: boolean;
+  canViewLeaveBalances: boolean;
   canUseLeaveQueue: boolean;
   canViewEmployees: boolean;
   canViewLiveBoard: boolean;
@@ -48,6 +51,7 @@ export function CompanyLayout({
   canManageBreakPolicies: boolean;
   canManageShifts: boolean;
   canManagePayroll: boolean;
+  canManagePayrollConfig: boolean;
   canManageBiometric: boolean;
   isHr: boolean;
   hasRecruitment: boolean;
@@ -73,6 +77,7 @@ export function CompanyLayout({
         canRequestRoleChange={canRequestRoleChange}
         canViewAudit={canViewAudit}
         canManageLeaveTypes={canManageLeaveTypes}
+        canViewLeaveBalances={canViewLeaveBalances}
         canUseLeaveQueue={canUseLeaveQueue}
         canViewEmployees={canViewEmployees}
         canViewLiveBoard={canViewLiveBoard}
@@ -81,6 +86,7 @@ export function CompanyLayout({
         canManageBreakPolicies={canManageBreakPolicies}
         canManageShifts={canManageShifts}
         canManagePayroll={canManagePayroll}
+        canManagePayrollConfig={canManagePayrollConfig}
         canManageBiometric={canManageBiometric}
         isHr={isHr}
         hasRecruitment={hasRecruitment}

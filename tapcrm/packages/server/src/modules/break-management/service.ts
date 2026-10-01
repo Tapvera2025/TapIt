@@ -1,3 +1,4 @@
+import { ApplicationError } from '../../errors.js';
 import type { DateOnly } from '@tapcrm/contracts';
 import { decimal, readDay } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
@@ -27,20 +28,24 @@ import {
   loadDaySnapshot,
 } from '../attendance/facade.js';
 import { breakDeductionWriter } from './ports.js';
+import { notifyBreachExplained, notifyBreachReviewed } from './notifications.js';
 import { breakPolicyResolver } from '../attendance/facade.js';
 import { measureBreaks, checkWarningState } from './rules.js';
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
-export class BreakPolicyNotFoundError extends Error {
-  readonly status = 404;
-  constructor() { super('Break policy not found'); this.name = 'BreakPolicyNotFoundError'; }
+// These extend ApplicationError so the global handler answers 404/422 with the
+// message — a plain Error became "500 Internal error" in the Break Policies UI.
+export class BreakPolicyNotFoundError extends ApplicationError {
+  constructor() {
+    super('Break policy not found', 404, 'BREAK_POLICY_NOT_FOUND');
+    this.name = 'BreakPolicyNotFoundError';
+  }
 }
 
-export class BreakPolicyValidationError extends Error {
-  readonly status = 422;
+export class BreakPolicyValidationError extends ApplicationError {
   constructor(message: string) {
-    super(message);
+    super(message, 422, 'BREAK_POLICY_INVALID');
     this.name = 'BreakPolicyValidationError';
   }
 }
@@ -296,19 +301,25 @@ export async function resolveUserPolicy(
 
 // ── Breach review errors ──────────────────────────────────────────────────────
 
-export class BreachNotFoundError extends Error {
-  readonly status = 404;
-  constructor() { super('Break breach not found'); this.name = 'BreachNotFoundError'; }
+export class BreachNotFoundError extends ApplicationError {
+  constructor() {
+    super('Break breach not found', 404, 'BREAK_BREACH_NOT_FOUND');
+    this.name = 'BreachNotFoundError';
+  }
 }
 
-export class BreachSelfReviewError extends Error {
-  readonly status = 403;
-  constructor() { super('Reviewer cannot be the same person as the breach subject'); this.name = 'BreachSelfReviewError'; }
+export class BreachSelfReviewError extends ApplicationError {
+  constructor() {
+    super('Reviewer cannot be the same person as the breach subject', 403, 'BREAK_BREACH_SELF_REVIEW');
+    this.name = 'BreachSelfReviewError';
+  }
 }
 
-export class BreachTransitionError extends Error {
-  readonly status = 422;
-  constructor(message: string) { super(message); this.name = 'BreachTransitionError'; }
+export class BreachTransitionError extends ApplicationError {
+  constructor(message: string) {
+    super(message, 422, 'BREAK_BREACH_INVALID_TRANSITION');
+    this.name = 'BreachTransitionError';
+  }
 }
 
 // ── Breach review service functions (Task 6) ─────────────────────────────────
@@ -412,6 +423,10 @@ export async function confirmBreach(
 
     // Transition the breach status
     await repo.confirmBreach(tx, breachId, ctx.principal.id);
+    await notifyBreachReviewed(tx, ctx, breach, {
+      outcome: 'confirmed',
+      rule: { consequence, minutes: ruleMinutes, amount: ruleAmount },
+    });
 
     return { id: breachId, status: 'confirmed' };
   });
@@ -478,6 +493,7 @@ export async function waiveBreach(
 
     // Transition the breach status
     await repo.waiveBreach(tx, breachId, ctx.principal.id, body.reason);
+    await notifyBreachReviewed(tx, ctx, breach, { outcome: 'waived', reason: body.reason });
 
     return { id: breachId, status: 'waived' };
   });
@@ -509,6 +525,7 @@ export async function addExplanation(
     }
 
     await repo.setBreachExplanation(tx, breachId, body.explanation);
+    await notifyBreachExplained(tx, ctx, breach);
 
     return { id: breachId };
   });

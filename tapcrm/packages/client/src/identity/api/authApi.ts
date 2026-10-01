@@ -48,7 +48,7 @@ let refreshPromise: Promise<boolean> | null = null;
 const sessionListeners = new Set<(detail: IdentitySessionChangeDetail) => void>();
 
 export function identityApiBasePath(): string {
-  const configured = import.meta.env['VITE_API_BASE_PATH'] || '/api';
+  const configured = String(import.meta.env['VITE_API_BASE_PATH'] || '/api');
   return `/${configured.replace(/^\/+|\/+$/g, '')}`;
 }
 

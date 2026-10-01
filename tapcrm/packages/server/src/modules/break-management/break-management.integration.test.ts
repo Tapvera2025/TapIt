@@ -485,6 +485,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('record', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -492,6 +493,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${EMP_USER}, '2026-09-02', 'closed',
+        '2026-09-02T00:00:00+05:30', '2026-09-03T06:00:00+05:30', 'default',
         '{"shiftId": null, "kind": "flexible"}'::jsonb,
         ${JSON.stringify({ departmentId: DEPT, positionId: POS_EMP, teamId: null })}::jsonb,
         1, 1, 1,
@@ -546,6 +548,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('record for self-confirm', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -553,6 +556,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${EMP_USER}, '2026-09-03', 'closed',
+        '2026-09-03T00:00:00+05:30', '2026-09-04T06:00:00+05:30', 'default',
         '{"shiftId": null}'::jsonb,
         ${JSON.stringify({ departmentId: DEPT, positionId: POS_EMP, teamId: null })}::jsonb,
         1, 1, 1,
@@ -588,6 +592,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('record for self-waive', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -595,6 +600,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${EMP_USER}, '2026-09-04', 'closed',
+        '2026-09-04T00:00:00+05:30', '2026-09-05T06:00:00+05:30', 'default',
         '{"shiftId": null}'::jsonb,
         ${JSON.stringify({ departmentId: DEPT, positionId: POS_EMP, teamId: null })}::jsonb,
         1, 1, 1,
@@ -708,6 +714,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('no-policy record', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -715,6 +722,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${noPolicyUser}, '2026-09-10', 'closed',
+        '2026-09-10T00:00:00+05:30', '2026-09-11T06:00:00+05:30', 'default',
         '{"shiftId": null, "kind": "flexible"}'::jsonb,
         ${JSON.stringify({ departmentId: null, positionId: null, teamId: null })}::jsonb,
         1, 1, 1,
@@ -750,6 +758,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('stale record', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -757,6 +766,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${EMP_USER}, '2026-09-11', 'closed',
+        '2026-09-11T00:00:00+05:30', '2026-09-12T06:00:00+05:30', 'default',
         '{"shiftId": null}'::jsonb,
         ${JSON.stringify({ departmentId: DEPT, positionId: POS_EMP, teamId: null })}::jsonb,
         1, 1, 3,
@@ -783,6 +793,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('record for terminal', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -790,6 +801,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${EMP_USER}, '2026-09-05', 'closed',
+        '2026-09-05T00:00:00+05:30', '2026-09-06T06:00:00+05:30', 'default',
         '{"shiftId": null}'::jsonb,
         ${JSON.stringify({ departmentId: DEPT, positionId: POS_EMP, teamId: null })}::jsonb,
         1, 1, 1,
@@ -841,6 +853,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('record for suppressed', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -848,6 +861,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${EMP_USER}, '2026-09-07', 'closed',
+        '2026-09-07T00:00:00+05:30', '2026-09-08T06:00:00+05:30', 'default',
         '{"shiftId": null}'::jsonb,
         ${JSON.stringify({ departmentId: DEPT, positionId: POS_EMP, teamId: null })}::jsonb,
         1, 1, 1,
@@ -889,6 +903,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('record for unresolved', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -896,6 +911,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${EMP_USER}, '2026-09-15', 'closed',
+        '2026-09-15T00:00:00+05:30', '2026-09-16T06:00:00+05:30', 'default',
         '{"shiftId": null}'::jsonb,
         ${JSON.stringify({ departmentId: DEPT, positionId: POS_EMP, teamId: null })}::jsonb,
         1, 1, 1,
@@ -973,6 +989,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
     await asOwner('record for expl', sql`
       INSERT INTO attendance_record (
         id, organization_id, user_id, work_date, state,
+        window_start, window_end, shift_source,
         shift_snapshot, placement_snapshot,
         input_version, calculated_input_version, calculation_version,
         close_due_at, day_type, breaks_evaluation_revision,
@@ -980,6 +997,7 @@ describe.skipIf(!enabled)('break-management (PostgreSQL)', () => {
         overtime_minutes, night_minutes
       ) VALUES (
         ${recordId}, ${ORG}, ${EMP_USER}, '2026-09-16', 'closed',
+        '2026-09-16T00:00:00+05:30', '2026-09-17T06:00:00+05:30', 'default',
         '{"shiftId": null}'::jsonb,
         ${JSON.stringify({ departmentId: DEPT, positionId: POS_EMP, teamId: null })}::jsonb,
         1, 1, 1,

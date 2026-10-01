@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import argon2 from 'argon2';
 import { SignJWT, jwtVerify } from 'jose';
 import type { PlatformPrincipal } from '@tapcrm/contracts';
@@ -86,6 +86,8 @@ export async function signRefreshToken(
   const config = loadConfig();
   return new SignJWT({ typ: 'platform-refresh', sessionId, familyId })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    // Unique per token, so two rotations in the same second never collide.
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime(`${config.REFRESH_TOKEN_TTL_SECONDS}s`)
     .sign(refreshSecret());

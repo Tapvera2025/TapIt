@@ -10,7 +10,7 @@
  *   employee           userResource (PATCH /api/users/:id)
  *   biometric          sendBiometricDeviceAlert
  */
-export { IdentityConflictError, IdentityValidationError } from './errors.js';
+export { IdentityConflictError, IdentityNotFoundError, IdentityValidationError } from './errors.js';
 export { hashIdentityPassword } from './password/service.js';
 export { sendEmployeeCredentials } from './notifications/invitation-email.js';
 export { userResource } from './security/unlock.js';

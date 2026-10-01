@@ -105,96 +105,46 @@ export async function validateAssigneeIds(
   return rows.map((r) => r.id);
 }
 
-export async function validateAssigneesInTeamScope(
+/**
+ * Of `candidateIds`, the active users inside an assigner's scope. The scope is
+ * resolved by the service (`resolveAssignableScope`); an empty scope matches
+ * nobody, so a caller can never widen it by leaving a field out.
+ */
+export async function findUsersInAssignableScope(
   tx: Tx,
   organizationId: string,
-  assigneeIds: readonly string[],
-  allowedTeamIds: ReadonlySet<string>,
-  principalId: string,
+  candidateIds: readonly string[],
+  scope: AssignableUsersScope,
 ): Promise<string[]> {
-  if (assigneeIds.length === 0) return [];
-  const teamIdArray = [...allowedTeamIds];
-  if (teamIdArray.length === 0) {
-    return assigneeIds.filter((id) => id === principalId);
-  }
+  if (candidateIds.length === 0 || scope.kind === 'none') return [];
   const rows = await tx.query<{ id: string }>(sql`
-    SELECT id FROM app_user
-    WHERE organization_id = ${organizationId}
-      AND id = ANY(${assigneeIds}::uuid[])
-      AND status = 'active'
-      AND (team_id = ANY(${teamIdArray}::uuid[]) OR id = ${principalId})
+    SELECT u.id FROM app_user u
+    LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
+    WHERE u.organization_id = ${organizationId}
+      AND u.id = ANY(${candidateIds}::uuid[])
+      AND u.status = 'active'
+      AND ${assignableScopeCondition(scope)}
   `);
   return rows.map((r) => r.id);
 }
 
-export async function validateAssigneesInDepartmentScope(
-  tx: Tx,
-  organizationId: string,
-  assigneeIds: readonly string[],
-  departmentId: string | null,
-  principalId: string,
-): Promise<string[]> {
-  if (assigneeIds.length === 0) return [];
-  if (departmentId === null) {
-    return assigneeIds.filter((id) => id === principalId);
-  }
-  const rows = await tx.query<{ id: string }>(sql`
-    SELECT id FROM app_user
-    WHERE organization_id = ${organizationId}
-      AND id = ANY(${assigneeIds}::uuid[])
-      AND status = 'active'
-      AND (department_id = ${departmentId} OR id = ${principalId})
+/** Teams the user leads, with every team beneath them. */
+export async function findLedTeamIds(ctx: RequestContext): Promise<string[]> {
+  const organizationId = ctx.organizationId;
+  const userId = ctx.principal.id;
+  const rows = await db.query<{ id: string }>(ctx, sql`
+    WITH RECURSIVE led AS (
+      SELECT id FROM team
+      WHERE organization_id = ${organizationId} AND lead_user_id = ${userId}::uuid
+      UNION
+      SELECT t.id FROM team t
+      JOIN led ON t.parent_team_id = led.id
+      WHERE t.organization_id = ${organizationId}
+    )
+    SELECT id FROM led
   `);
   return rows.map((r) => r.id);
 }
-
-export async function validateAssigneesInPoolScope(
-  tx: Tx,
-  organizationId: string,
-  assigneeIds: readonly string[],
-  allowedPoolMemberIds: ReadonlySet<string>,
-  allowedPoolIds: ReadonlySet<string>,
-  principalId: string,
-): Promise<string[]> {
-  if (assigneeIds.length === 0) return [];
-  const memberArray = [...allowedPoolMemberIds];
-  const poolArray = [...allowedPoolIds];
-  if (memberArray.length === 0 && poolArray.length === 0) {
-    return assigneeIds.filter((id) => id === principalId);
-  }
-
-  if (memberArray.length > 0 && poolArray.length > 0) {
-    const rows = await tx.query<{ id: string }>(sql`
-      SELECT id FROM app_user
-      WHERE organization_id = ${organizationId}
-        AND id = ANY(${assigneeIds}::uuid[])
-        AND status = 'active'
-        AND (id = ANY(${memberArray}::uuid[]) OR team_id = ANY(${poolArray}::uuid[]) OR id = ${principalId})
-    `);
-    return rows.map((r) => r.id);
-  }
-
-  if (memberArray.length > 0) {
-    const rows = await tx.query<{ id: string }>(sql`
-      SELECT id FROM app_user
-      WHERE organization_id = ${organizationId}
-        AND id = ANY(${assigneeIds}::uuid[])
-        AND status = 'active'
-        AND (id = ANY(${memberArray}::uuid[]) OR id = ${principalId})
-    `);
-    return rows.map((r) => r.id);
-  }
-
-  const rows = await tx.query<{ id: string }>(sql`
-    SELECT id FROM app_user
-    WHERE organization_id = ${organizationId}
-      AND id = ANY(${assigneeIds}::uuid[])
-      AND status = 'active'
-      AND (team_id = ANY(${poolArray}::uuid[]) OR id = ${principalId})
-  `);
-  return rows.map((r) => r.id);
-}
-
 
 export async function insertTaskRow(
   tx: Tx,
@@ -517,12 +467,35 @@ export async function enqueueTaskAudit(
   `);
 }
 
+/**
+ * Who an assigner may give a task to (PA-6, TK-8). `all` is tenant-wide;
+ * `scoped` is the union of the listed people, teams, department and
+ * department code — always including the assigner and everyone who reports to
+ * them; `none` matches nobody.
+ */
 export interface AssignableUsersScope {
-  readonly kind: 'all' | 'department' | 'team' | 'pool' | 'own' | 'none';
-  readonly departmentId?: string | null;
+  readonly kind: 'all' | 'scoped' | 'none';
+  /** Named people: the assigner, their reporting subtree, pool members. */
+  readonly userIds?: readonly string[];
+  /** Members of these teams: the assigner's team tree and the teams they lead. */
   readonly teamIds?: readonly string[];
-  readonly poolMemberIds?: readonly string[];
-  readonly isProjectManager?: boolean;
+  /** Everyone in the assigner's department (department scope). */
+  readonly departmentId?: string | null;
+  /** Everyone in the department with this code (a Project Manager directing delivery). */
+  readonly departmentCode?: string | null;
+}
+
+function assignableScopeCondition(scope: AssignableUsersScope): SqlFragment {
+  if (scope.kind === 'all') return sql`TRUE`;
+  const parts: SqlFragment[] = [];
+  if (scope.userIds && scope.userIds.length > 0)
+    parts.push(sql`u.id = ANY(${scope.userIds}::uuid[])`);
+  if (scope.teamIds && scope.teamIds.length > 0)
+    parts.push(sql`u.team_id = ANY(${scope.teamIds}::uuid[])`);
+  if (scope.departmentId) parts.push(sql`u.department_id = ${scope.departmentId}::uuid`);
+  if (scope.departmentCode) parts.push(sql`d.code = ${scope.departmentCode}`);
+  if (scope.kind === 'none' || parts.length === 0) return sql`FALSE`;
+  return sql`(${sql.join(parts, ' OR ')})`;
 }
 
 export async function isPrincipalProjectManager(
@@ -558,33 +531,7 @@ export async function findAssignableUsers(
     sql`u.account_type IN ('employee', 'super-admin')`,
   ];
 
-  if (scope.kind === 'department') {
-    if (!scope.departmentId) return [];
-    whereClauses.push(
-      sql`(u.department_id = ${scope.departmentId} OR u.id = ${ctx.principal.id})`,
-    );
-  } else if (scope.kind === 'team') {
-    if (!scope.teamIds || scope.teamIds.length === 0) return [];
-    whereClauses.push(
-      sql`(u.team_id = ANY(${scope.teamIds}::uuid[]) OR u.id = ${ctx.principal.id})`,
-    );
-  } else if (scope.kind === 'pool') {
-    if (!scope.poolMemberIds || scope.poolMemberIds.length === 0) return [];
-    whereClauses.push(sql`u.id = ANY(${scope.poolMemberIds}::uuid[])`);
-  } else if (scope.kind === 'own') {
-    if (scope.isProjectManager) {
-      // PRD §3.7.1 PA-1 & TK-8: Project Manager directs delivery across development sub-teams
-      whereClauses.push(sql`(d.code = 'development' OR u.id = ${ctx.principal.id})`);
-    } else if (scope.departmentId) {
-      // Regular IC / Base Employee: can assign to department peers/collaborators + self
-      whereClauses.push(
-        sql`(u.department_id = ${scope.departmentId} OR u.id = ${ctx.principal.id})`,
-      );
-    } else {
-      // Fallback: own user record
-      whereClauses.push(sql`u.id = ${ctx.principal.id}`);
-    }
-  }
+  whereClauses.push(assignableScopeCondition(scope));
 
   if (query.search?.trim()) {
     const pattern = `%${query.search.trim()}%`;

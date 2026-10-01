@@ -144,6 +144,7 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
 
   afterAll(async () => {
     await asOwner('remove test audit rows', sql`DELETE FROM audit_outbox WHERE organization_id = ${ORG}`);
+    await asOwner('remove test notification intents', sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`);
     // Teardown order is dictated by a schema gap worth knowing about:
     // `identity_email_directory` (migration 0024) holds NON-cascading FKs to
     // both `organization` and `app_user`, because migration 0012's cascade
@@ -389,7 +390,10 @@ describe.skipIf(!enabled)('override write path (PostgreSQL)', () => {
       positionId: POS_LEAD,
       departmentId: DEPT,
       teamId: TEAM_SALES,
-      reportsTo: HR,
+      // HR's position is not above the lead position, so HR can no longer be
+      // this person's manager: the approval clears the line instead of keeping
+      // an invalid one (the old behaviour left reportsTo = HR).
+      reportsTo: null,
     });
     const resolved = await effectivePolicy(promotedAgentCtx(), 'leads:view');
     expect(resolved).toMatchObject({ allowed: true, scope: 'department' });

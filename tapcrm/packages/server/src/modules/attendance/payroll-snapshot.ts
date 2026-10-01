@@ -92,7 +92,7 @@ export async function snapshotPeriod(
            calculation_version AS "calculationVersion",
            breaks_evaluated_version AS "breaksEvaluatedVersion",
            breaks_evaluation_revision AS "breaksEvaluationRevision",
-           (COALESCE(flags, '[]'::jsonb) @> '["recalculation-failed"]'::jsonb) AS "recalculationFailed"
+           ('recalculation-failed' = ANY(flags)) AS "recalculationFailed"
     FROM attendance_record
     WHERE user_id = ANY(${userIds}::uuid[])
       AND work_date >= ${from}
@@ -144,6 +144,16 @@ export interface OpenItem {
   readonly sourceId: string | null;
 }
 
+export interface OpenItemsOptions {
+  /**
+   * Whether a closed day must also have been evaluated for breaks. Only an
+   * organization with break management enabled evaluates breaks; without it no
+   * day is ever evaluated, and requiring it would block every payroll.
+   * Default true.
+   */
+  readonly breakEvaluation?: boolean;
+}
+
 /**
  * Returns all items that block payroll publication for the given users in [from, to].
  * Only attendance SQL reads attendance/correction tables.
@@ -153,16 +163,18 @@ export async function openItems(
   userIds: readonly string[],
   from: DateOnly,
   to: DateOnly,
+  options: OpenItemsOptions = {},
 ): Promise<OpenItem[]> {
   if (userIds.length === 0) return [];
   const items: OpenItem[] = [];
+  const breakEvaluation = options.breakEvaluation ?? true;
 
   // 1. Open/stale/failed attendance days
   const dayRows = await tx.query<{ userId: string; workDate: DateOnly; kind: string; recordId: string }>(sql`
     SELECT user_id AS "userId", work_date::text AS "workDate",
            CASE
              WHEN state = 'open' THEN 'open-day'
-             WHEN (COALESCE(flags, '[]'::jsonb) @> '["recalculation-failed"]'::jsonb) THEN 'recalculation-failed'
+             WHEN ('recalculation-failed' = ANY(flags)) THEN 'recalculation-failed'
              WHEN state = 'closed' AND breaks_evaluated_version IS NULL THEN 'not-evaluated'
              WHEN state = 'closed' AND breaks_evaluated_version IS DISTINCT FROM calculation_version THEN 'stale-evaluation'
            END AS kind,
@@ -173,8 +185,8 @@ export async function openItems(
       AND work_date <= ${to}
       AND (
         state = 'open'
-        OR (COALESCE(flags, '[]'::jsonb) @> '["recalculation-failed"]'::jsonb)
-        OR (state = 'closed' AND (breaks_evaluated_version IS NULL OR breaks_evaluated_version IS DISTINCT FROM calculation_version))
+        OR ('recalculation-failed' = ANY(flags))
+        OR (${breakEvaluation}::boolean AND state = 'closed' AND (breaks_evaluated_version IS NULL OR breaks_evaluated_version IS DISTINCT FROM calculation_version))
       )
   `);
   for (const r of dayRows) {

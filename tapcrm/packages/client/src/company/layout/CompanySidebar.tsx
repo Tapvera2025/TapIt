@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
+import { SidebarPet, useAiPet } from './AiPet.js';
 import type { CompanyNavGroup } from './navigation.js';
 
 export function CompanySidebar({
@@ -12,6 +13,7 @@ export function CompanySidebar({
   canRequestRoleChange,
   canViewAudit,
   canManageLeaveTypes,
+  canViewLeaveBalances,
   canUseLeaveQueue,
   canViewEmployees,
   canViewLiveBoard,
@@ -20,6 +22,7 @@ export function CompanySidebar({
   canManageBreakPolicies,
   canManageShifts,
   canManagePayroll,
+  canManagePayrollConfig,
   canManageBiometric,
   isHr,
   hasRecruitment,
@@ -39,6 +42,7 @@ export function CompanySidebar({
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
   canManageLeaveTypes: boolean;
+  canViewLeaveBalances: boolean;
   canUseLeaveQueue: boolean;
   canViewEmployees: boolean;
   canViewLiveBoard: boolean;
@@ -47,6 +51,7 @@ export function CompanySidebar({
   canManageBreakPolicies: boolean;
   canManageShifts: boolean;
   canManagePayroll: boolean;
+  canManagePayrollConfig: boolean;
   canManageBiometric: boolean;
   isHr: boolean;
   hasRecruitment: boolean;
@@ -58,6 +63,7 @@ export function CompanySidebar({
   const [organizationOpen, setOrganizationOpen] = useState(pathname.startsWith('/company/organization'));
   const [recruitmentOpen, setRecruitmentOpen] = useState(pathname.startsWith('/company/recruitment'));
   const isSuperAdmin = accountType === 'super-admin';
+  const { activePet } = useAiPet();
 
   const navigation: CompanyNavGroup[] = [
     {
@@ -77,7 +83,7 @@ export function CompanySidebar({
             { label: 'Positions', path: '/company/organization/positions', icon: 'briefcase' },
             { label: 'Designations', path: '/company/organization/designations', icon: 'briefcase' },
             { label: 'Reporting', path: '/company/organization/reporting', icon: 'users' },
-            { label: 'Org Chart', path: '/company/organization/org-chart', icon: 'grid' },
+            { label: 'Org Chart', path: '/company/organization/org-chart', icon: 'hierarchy' },
           ],
         }]
       : []),
@@ -122,6 +128,7 @@ export function CompanySidebar({
       items: [
         { label: 'My Leave', path: '/company/leave/my', icon: 'sun' },
         ...(canUseLeaveQueue ? [{ label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox' }] : []),
+        ...(canViewLeaveBalances ? [{ label: 'Leave Balances', path: '/company/leave/balances', icon: 'chart' }] : []),
         ...(canManageLeaveTypes ? [{ label: 'Leave Types', path: '/company/leave/types', icon: 'settings' }] : []),
         { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
         ...(canManageShifts ? [{ label: 'Shifts', path: '/company/shifts', icon: 'layers' }] : []),
@@ -135,7 +142,12 @@ export function CompanySidebar({
           ? [
               { label: 'Payroll Cycle', path: '/company/payroll/cycle', icon: 'calendar' },
               { label: 'Payroll Runs', path: '/company/payroll/runs', icon: 'dollar-sign' },
+              { label: 'Salary Structures', path: '/company/payroll/salaries', icon: 'briefcase' },
+              { label: 'Bonuses & Deductions', path: '/company/payroll/inputs', icon: 'chart' },
             ]
+          : []),
+        ...(canManagePayrollConfig
+          ? [{ label: 'Payroll Settings', path: '/company/payroll/settings', icon: 'settings' }]
           : []),
       ],
     },
@@ -197,7 +209,7 @@ export function CompanySidebar({
               {(!isOrganization || organizationOpen) && (
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
-                    const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
+                    const isActive = pathname === item.path || (item.path !== '/company/organization' && pathname.startsWith(`${item.path}/`));
                     const showChildren = Boolean(item.children && (recruitmentOpen || pathname.startsWith(item.path)));
                     return (
                       <div key={item.path}>
@@ -247,6 +259,7 @@ export function CompanySidebar({
           <div className="mt-3 h-1 w-10 rounded-full bg-app-accent" />
         </div>
       </nav>
+      {activePet && <SidebarPet pet={activePet} />}
       <div className="shrink-0 border-t border-app-border pt-4">
         <div className="mb-4 px-3"><ThemeToggle /></div>
         <p className="truncate px-3 text-sm font-bold">{identity.fullName}</p>

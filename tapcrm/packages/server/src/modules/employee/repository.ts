@@ -1,3 +1,4 @@
+import type { SqlFragment } from '@tapcrm/authz';
 import type { DateOnly } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -187,6 +188,154 @@ export async function enqueueEmployeeAudit(
   `);
 }
 
+export interface EmployeeProfile {
+  id: string;
+  accountType: string;
+  status: string;
+  fullName: string;
+  email: string | null;
+  employeeId: string | null;
+  departmentId: string | null;
+  departmentName: string | null;
+  positionId: string | null;
+  positionName: string | null;
+  teamId: string | null;
+  teamName: string | null;
+  designationId: string | null;
+  designationName: string | null;
+  specialization: string | null;
+  reportsTo: string | null;
+  reportsToName: string | null;
+  joinedOn: DateOnly | null;
+  leftOn: DateOnly | null;
+  mustChangePassword: boolean;
+  createdAt: string;
+}
+
+/** One person's editable profile, with the names the edit screen shows. */
+export async function findEmployeeProfile(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  options: { forUpdate?: boolean } = {},
+): Promise<EmployeeProfile | null> {
+  return tx.maybeOne<EmployeeProfile>(sql`
+    SELECT u.id, u.account_type, u.status, u.full_name, u.email::text AS email, u.employee_id,
+           u.department_id, d.name AS department_name,
+           u.position_id, p.name AS position_name,
+           u.team_id, t.name AS team_name,
+           u.designation_id, des.name AS designation_name,
+           u.specialization, u.reports_to, m.full_name AS reports_to_name,
+           u.joined_on::text AS joined_on, u.left_on::text AS left_on,
+           u.must_change_password, u.created_at::text AS created_at
+    FROM app_user u
+    LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
+    LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
+    LEFT JOIN team t ON t.organization_id = u.organization_id AND t.id = u.team_id
+    LEFT JOIN designation des ON des.organization_id = u.organization_id AND des.id = u.designation_id
+    LEFT JOIN app_user m ON m.organization_id = u.organization_id AND m.id = u.reports_to
+    WHERE u.organization_id = ${organizationId} AND u.id = ${userId}::uuid
+    ${options.forUpdate ? sql`FOR UPDATE OF u` : sql``}
+  `);
+}
+
+export async function emailTakenByAnother(tx: Tx, email: string, userId: string): Promise<boolean> {
+  const row = await tx.maybeOne<{ userId: string }>(sql`
+    SELECT user_id FROM identity_email_directory WHERE email = ${email}
+  `);
+  return row !== null && row.userId !== userId;
+}
+
+export async function employeeIdTakenByAnother(
+  tx: Tx,
+  organizationId: string,
+  employeeId: string,
+  userId: string,
+): Promise<boolean> {
+  const row = await tx.maybeOne<{ id: string }>(sql`
+    SELECT id FROM app_user
+    WHERE organization_id = ${organizationId}
+      AND account_type = 'employee'
+      AND employee_id = ${employeeId}
+      AND id <> ${userId}::uuid
+  `);
+  return row !== null;
+}
+
+/** Write the profile columns that changed. */
+export async function updateProfile(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  changes: {
+    fullName?: string;
+    email?: string;
+    employeeId?: string;
+    teamId?: string | null;
+    designationId?: string | null;
+    specialization?: string | null;
+  },
+): Promise<void> {
+  const sets = [
+    changes.fullName !== undefined ? sql`full_name = ${changes.fullName}` : null,
+    changes.email !== undefined ? sql`email = ${changes.email}` : null,
+    changes.employeeId !== undefined ? sql`employee_id = ${changes.employeeId}` : null,
+    changes.teamId !== undefined ? sql`team_id = ${changes.teamId}::uuid` : null,
+    changes.designationId !== undefined ? sql`designation_id = ${changes.designationId}::uuid` : null,
+    changes.specialization !== undefined ? sql`specialization = ${changes.specialization}` : null,
+  ].filter((fragment): fragment is NonNullable<typeof fragment> => fragment !== null);
+  if (sets.length === 0) return;
+  await tx.query(sql`
+    UPDATE app_user SET ${sql.join(sets, ', ')}, updated_at = now()
+    WHERE organization_id = ${organizationId} AND id = ${userId}::uuid
+  `);
+}
+
+/** Move someone: department, position, team and (optionally) manager. Sessions restart with the new powers. */
+export async function updatePlacement(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  placement: {
+    departmentId: string;
+    positionId: string;
+    teamId: string | null;
+    reportsTo?: string | null;
+  },
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE app_user
+    SET department_id = ${placement.departmentId}::uuid,
+        position_id = ${placement.positionId}::uuid,
+        team_id = ${placement.teamId}::uuid,
+        ${placement.reportsTo === undefined ? sql`reports_to = reports_to` : sql`reports_to = ${placement.reportsTo}::uuid`},
+        session_version = session_version + 1,
+        updated_at = now()
+    WHERE organization_id = ${organizationId} AND id = ${userId}::uuid
+  `);
+}
+
+export async function setAccountStatus(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  status: 'active' | 'inactive',
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE app_user
+    SET status = ${status},
+        session_version = session_version + 1,
+        updated_at = now()
+    WHERE organization_id = ${organizationId} AND id = ${userId}::uuid
+  `);
+  if (status === 'inactive') {
+    await tx.query(sql`
+      UPDATE session SET revoked_at = now()
+      WHERE organization_id = ${organizationId} AND user_id = ${userId}::uuid AND revoked_at IS NULL
+    `);
+  }
+}
+
 export interface EmploymentRow {
   id: string;
   accountType: string;
@@ -214,5 +363,36 @@ export async function setEmployment(
   await tx.query(sql`
     UPDATE app_user SET joined_on = ${window.joinedOn}, left_on = ${window.leftOn}
     WHERE id = ${userId}
+  `);
+}
+
+export interface InactiveEmployeeRow {
+  id: string;
+  fullName: string;
+  email: string | null;
+  employeeId: string | null;
+  status: string;
+  departmentName: string | null;
+  positionName: string | null;
+  leftOn: DateOnly | null;
+}
+
+/** Deactivated employees the caller may see, so they can be reviewed or reactivated. */
+export async function listInactiveEmployees(
+  tx: Tx,
+  organizationId: string,
+  visibility: SqlFragment,
+): Promise<InactiveEmployeeRow[]> {
+  return tx.query<InactiveEmployeeRow>(sql`
+    SELECT u.id, u.full_name, u.email::text AS email, u.employee_id, u.status,
+           d.name AS department_name, p.name AS position_name, u.left_on::text AS left_on
+    FROM app_user u
+    LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
+    LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
+    WHERE u.organization_id = ${organizationId}
+      AND u.account_type = 'employee'
+      AND u.status IN ('inactive', 'offboarded')
+      AND ${visibility}
+    ORDER BY u.full_name, u.id
   `);
 }

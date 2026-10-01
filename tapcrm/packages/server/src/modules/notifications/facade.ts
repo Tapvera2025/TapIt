@@ -49,5 +49,15 @@ export async function notify(tx: Tx, ctx: Pick<RequestContext, 'organizationId' 
 }
 
 export { NOTIFICATION_TYPES } from './types.js';
+export {
+  clip,
+  dayCount,
+  describePlacement,
+  formatDay,
+  formatDayRange,
+  formatMonth,
+  fullNames,
+  inBatches,
+} from './format.js';
 export type { NotifyInput, NotificationAudience, NotificationPriority } from './types.js';
 export { dispatchOrganization } from './dispatcher.js';

@@ -3,6 +3,7 @@ import type { SqlFragment } from '@tapcrm/authz';
 import type { Tx } from '../dal/db.js';
 import { ORGANIZATION_TEMPLATE } from './template.js';
 import {
+  expandPermissionCell,
   provisionDefaultPositionPolicies,
   type RegistryActionDefinition,
 } from './policy-matrix.js';
@@ -222,5 +223,47 @@ describe('default tenant position policies', () => {
       scope: 'department',
     });
     expect(rows.has('org-hr:position-hr:access:view')).toBe(false);
+  });
+});
+
+describe('HR-only People approvals (owner decision, 29 Sep 2026)', () => {
+  const people = (module: string, actions: string[]): RegistryActionDefinition[] =>
+    actions.map((action) => ({ action, module, positionGrantable: true, superAdminOnly: false }));
+  const byModule = new Map<string, RegistryActionDefinition[]>([
+    ['leave', people('leave', ['leave:view', 'leave:request', 'leave:request-wfh', 'leave:acknowledge', 'leave:decide', 'leave:manage-types', 'leave:manage-wfh-standing'])],
+    ['break-management', people('break-management', ['breaks:view', 'breaks:explain', 'breaks:review-breach', 'breaks:manage-policy'])],
+    ['shifts', people('shifts', ['shifts:view', 'shifts:manage', 'shifts:approve'])],
+  ]);
+  const actions = (policies: Array<{ action: string; scope: string }>) =>
+    policies.map((p) => `${p.action}:${p.scope}`).sort();
+
+  it('an employee cell keeps self-service only', () => {
+    expect(actions(expandPermissionCell('leave', 'own', 'base-employee', byModule))).toEqual([
+      'leave:request-wfh:own',
+      'leave:request:own',
+      'leave:view:own',
+    ]);
+    expect(actions(expandPermissionCell('shifts', 'own', 'base-employee', byModule))).toEqual([
+      'shifts:view:own',
+    ]);
+  });
+
+  it('a team cell sees its team but approves nothing, and explains only its own breaks', () => {
+    expect(actions(expandPermissionCell('break-management', 'team', 'sub-team-manager', byModule))).toEqual([
+      'breaks:explain:own',
+      'breaks:view:team',
+    ]);
+  });
+
+  it('HR keeps every People action tenant-wide', () => {
+    expect(actions(expandPermissionCell('leave', 'all-people', 'hr', byModule))).toEqual([
+      'leave:acknowledge:all-people',
+      'leave:decide:all-people',
+      'leave:manage-types:all-people',
+      'leave:manage-wfh-standing:all-people',
+      'leave:request-wfh:all-people',
+      'leave:request:all-people',
+      'leave:view:all-people',
+    ]);
   });
 });

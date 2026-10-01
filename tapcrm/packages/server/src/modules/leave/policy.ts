@@ -71,7 +71,7 @@ const leaveRequestPolicy: ResourcePolicy = {
       const teamIds = await ctx.scope.teamIds(ctx);
       if (teamIds.size === 0) return MATCH_NOTHING;
       return {
-        sql: 'user_id IN (SELECT user_id FROM team_member WHERE team_id = ANY($1::uuid[]))',
+        sql: 'user_id IN (SELECT id FROM app_user WHERE team_id = ANY($1::uuid[]))',
         parameters: [[...teamIds]],
       };
     }

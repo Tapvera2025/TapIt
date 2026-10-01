@@ -194,10 +194,10 @@ export async function findEffectiveManager(
      AND manager.position_id = parent_position.id
      AND manager.account_type = 'employee'
      AND manager.status = 'active'
-     AND manager.department_id = subject.department_id
+     AND manager.department_id = ${subject.departmentId}::uuid
      AND (
-       subject.team_id IS NULL
-       OR manager.team_id = subject.team_id
+       ${subject.teamId}::uuid IS NULL
+       OR manager.team_id = ${subject.teamId}::uuid
        OR manager.team_id IS NULL
      )
     WHERE subject_position.organization_id = ${organizationId}
@@ -277,6 +277,22 @@ export async function listReportingSubtree(
            status, department_id, team_id, position_id, reports_to
     FROM reporting_tree
     ORDER BY depth, id
+  `);
+}
+
+/** Everyone whose explicit manager is `managerUserId`. */
+export async function listDirectReports(
+  tx: Tx,
+  organizationId: string,
+  managerUserId: string,
+): Promise<ReportingUser[]> {
+  return tx.query<ReportingUser>(sql`
+    SELECT id, full_name, organization_id, (account_type = 'employee') AS is_employee,
+           (account_type = 'super-admin') AS is_super_admin,
+           status, department_id, team_id, position_id, reports_to
+    FROM app_user
+    WHERE organization_id = ${organizationId} AND reports_to = ${managerUserId}::uuid
+    ORDER BY id
   `);
 }
 

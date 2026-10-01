@@ -38,8 +38,9 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
       organizationId,
       accountType: 'employee',
       sessionVersion: 1,
-      positionId: randomUUID(),
-      departmentId: randomUUID(),
+      // The user's real placement, so their position's policies apply.
+      positionId: organizationId === orgA ? posA : posB,
+      departmentId: organizationId === orgA ? deptA : deptB,
       teamId: null,
       reportsTo: null,
       organizationalLevel: 1,
@@ -106,15 +107,27 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
       `,
     );
 
-    // 4. Create app users
+    // 4. Create app users. A2 and A3 report to A1: an employee assigns tasks
+    // only to themselves and to the people who report to them.
     await asOwner(
       'create test users',
       sql`
-        INSERT INTO app_user (id, organization_id, email, full_name, account_type, department_id, position_id, employee_id) VALUES
-        (${userA1}, ${orgA}, ${`userA1-${orgA.slice(0, 4)}@example.com`}, 'User A1', 'employee', ${deptA}, ${posA}, 'TASK-A1'),
-        (${userA2}, ${orgA}, ${`userA2-${orgA.slice(0, 4)}@example.com`}, 'User A2', 'employee', ${deptA}, ${posA}, 'TASK-A2'),
-        (${userA3}, ${orgA}, ${`userA3-${orgA.slice(0, 4)}@example.com`}, 'User A3', 'employee', ${deptA}, ${posA}, 'TASK-A3'),
-        (${userB1}, ${orgB}, ${`userB1-${orgB.slice(0, 4)}@example.com`}, 'User B1', 'employee', ${deptB}, ${posB}, 'TASK-B1')
+        INSERT INTO app_user (id, organization_id, email, full_name, account_type, department_id, position_id, employee_id, reports_to) VALUES
+        (${userA1}, ${orgA}, ${`userA1-${orgA.slice(0, 4)}@example.com`}, 'User A1', 'employee', ${deptA}, ${posA}, 'TASK-A1', NULL),
+        (${userA2}, ${orgA}, ${`userA2-${orgA.slice(0, 4)}@example.com`}, 'User A2', 'employee', ${deptA}, ${posA}, 'TASK-A2', ${userA1}::uuid),
+        (${userA3}, ${orgA}, ${`userA3-${orgA.slice(0, 4)}@example.com`}, 'User A3', 'employee', ${deptA}, ${posA}, 'TASK-A3', ${userA1}::uuid),
+        (${userB1}, ${orgB}, ${`userB1-${orgB.slice(0, 4)}@example.com`}, 'User B1', 'employee', ${deptB}, ${posB}, 'TASK-B1', NULL)
+      `,
+    );
+
+    // 5. What every employee gets from the starter matrix: assign at `own`
+    // scope — themselves and their reports.
+    await asOwner(
+      'grant task assignment at own scope',
+      sql`
+        INSERT INTO position_policy (organization_id, position_id, action, allowed, scope) VALUES
+        (${orgA}, ${posA}, 'tasks:assign', true, 'own'),
+        (${orgB}, ${posB}, 'tasks:assign', true, 'own')
       `,
     );
   });
@@ -127,6 +140,7 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
     await asOwner('delete test tasks', sql`DELETE FROM task WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test audit entries', sql`DELETE FROM audit_outbox WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete identity directory', sql`DELETE FROM identity_email_directory WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
+    await asOwner('delete test position policies', sql`DELETE FROM position_policy WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test users', sql`DELETE FROM app_user WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test positions', sql`DELETE FROM position WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);
     await asOwner('delete test departments', sql`DELETE FROM department WHERE organization_id = ANY(${[orgA, orgB]}::uuid[])`);

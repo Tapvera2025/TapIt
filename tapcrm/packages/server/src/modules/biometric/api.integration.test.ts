@@ -259,7 +259,9 @@ describe.skipIf(!enabled)('biometric admin API (PostgreSQL)', () => {
       expect(rest).toMatchObject({ devices: [{ serialNumber: 'CQZ7225' }], next: null });
     });
 
-    it('a serial is taken once per tenant; another tenant may use it', async () => {
+    it('a serial belongs to one company: taken again here or elsewhere is refused', async () => {
+      // A machine's push carries only its serial (/iclock, G2), so the serial
+      // must name one company across the platform (migration 0066).
       const body = {
         serialNumber: 'CQZ7224',
         name: 'Copy',
@@ -270,8 +272,9 @@ describe.skipIf(!enabled)('biometric admin API (PostgreSQL)', () => {
         status: 409,
         code: 'BIOMETRIC_SERIAL_TAKEN',
       });
-      await expect(createDevice(admin(B), body)).resolves.toMatchObject({
-        serialNumber: 'CQZ7224',
+      await expect(createDevice(admin(B), body)).rejects.toMatchObject({
+        status: 409,
+        code: 'BIOMETRIC_SERIAL_TAKEN',
       });
     });
 
@@ -292,7 +295,7 @@ describe.skipIf(!enabled)('biometric admin API (PostgreSQL)', () => {
       expect(await loadDeviceBySerial(admin(), '../etc')).toBeNull();
     });
 
-    it('configuration changes reach new punches only, and live mode waits for 5c', async () => {
+    it('configuration changes reach new punches only, and a device can go live', async () => {
       const change = await changeDevice(
         admin(),
         'CQZ7224',
@@ -315,9 +318,12 @@ describe.skipIf(!enabled)('biometric admin API (PostgreSQL)', () => {
           ipAllowlist: ['203.0.113.7', '198.51.100.0/24'],
         },
       });
+      // Live application is available now that the device connection (5c) and
+      // employment dates are in place. Back to dry-run for the tests below.
       await expect(
         changeDevice(admin(), 'CQZ7224', patchDeviceSchema.parse({ dryRun: false })),
-      ).rejects.toMatchObject({ status: 409, code: 'BIOMETRIC_LIVE_NOT_AVAILABLE' });
+      ).resolves.toMatchObject({ device: { dryRun: false } });
+      await changeDevice(admin(), 'CQZ7224', patchDeviceSchema.parse({ dryRun: true }));
       await expect(
         changeDevice(
           admin(),

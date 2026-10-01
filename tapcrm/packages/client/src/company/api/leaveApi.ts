@@ -47,10 +47,23 @@ export interface LeaveQueueItem extends LeaveRequestSummary {
 export interface LeaveBalanceDto {
   leaveTypeId: string;
   leaveTypeName: string;
+  enforced: boolean;
+  paid: boolean;
+  entitlement: number;
   opening: number;
   accrued: number;
+  adjustments: number;
   consumed: number;
+  pending: number;
   available: number;
+}
+
+export interface LeaveBalanceOverviewRow {
+  userId: string;
+  fullName: string;
+  employeeId: string | null;
+  departmentName: string | null;
+  balances: LeaveBalanceDto[];
 }
 
 export function listLeaveTypes(): Promise<LeaveTypeDto[]> {
@@ -107,7 +120,24 @@ export function listLeaveDecisions(): Promise<LeaveQueueItem[]> {
 }
 
 export function getLeaveBalances(userId: string, year: number): Promise<LeaveBalanceDto[]> {
-  return peopleRead<LeaveBalanceDto[]>(`/api/leaves/balances/${encodeURIComponent(userId)}?year=${year}`, { staleMs: 60_000 });
+  return peopleRead<LeaveBalanceDto[]>(`/api/leaves/balances/${encodeURIComponent(userId)}?year=${year}`, { staleMs: 15_000 });
+}
+
+export function getLeaveBalanceOverview(year: number): Promise<LeaveBalanceOverviewRow[]> {
+  return peopleRead<LeaveBalanceOverviewRow[]>(`/api/leaves/balances?year=${year}`, { staleMs: 0 });
+}
+
+export function adjustLeaveBalance(userId: string, body: {
+  leaveTypeId: string;
+  year: number;
+  units: number;
+  reason: string;
+}): Promise<LeaveBalanceDto> {
+  return peopleMutation(
+    `/api/leaves/balances/${encodeURIComponent(userId)}/adjust`,
+    { method: 'POST', body: JSON.stringify(body) },
+    ['/api/leaves/balances'],
+  );
 }
 
 export function submitLeave(body: {
@@ -118,7 +148,7 @@ export function submitLeave(body: {
   toHalf: 'full' | 'first' | 'second';
   reason: string;
 }): Promise<LeaveRequestSummary> {
-  return peopleMutation('/api/leaves', { method: 'POST', body: JSON.stringify(body) }, ['/api/leaves']);
+  return peopleMutation('/api/leaves', { method: 'POST', body: JSON.stringify(body) }, ['/api/leaves', '/api/leaves/balances']);
 }
 
 export function cancelLeave(id: string): Promise<void> {

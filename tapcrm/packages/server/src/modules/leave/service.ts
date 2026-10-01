@@ -13,10 +13,11 @@ import {
   LeaveConflictError, LeaveForbiddenError, LeaveNotFoundError, LeaveTypeNotFoundError, LeaveValidationError,
 } from './errors.js';
 import { recordLeaveDecided } from './events.js';
-import { daysConsumed, balanceAvailable, overlayKindForDay } from './rules.js';
+import { daysConsumed, overlayKindForDay, yearlyEntitlement } from './rules.js';
 import * as repo from './repository.js';
 import { makeLeaveRequestResource } from './policy.js';
-import type { CreateLeaveTypeBody, UpdateLeaveTypeBody, SubmitLeaveBody, SubmitWfhBody, SubmitStandingWfhBody, ListQuery, QueueListQuery, BalanceQuery, CalendarQuery, DecideBody } from './validators.js';
+import { notifyLeaveDecided, notifyLeaveRequested } from './notifications.js';
+import type { CreateLeaveTypeBody, UpdateLeaveTypeBody, SubmitLeaveBody, SubmitWfhBody, SubmitStandingWfhBody, ListQuery, QueueListQuery, BalanceQuery, CalendarQuery, DecideBody, AdjustBalanceBody } from './validators.js';
 
 export function toLeaveTypeDto(row: repo.LeaveTypeRow): LeaveTypeDto {
   return {
@@ -53,7 +54,11 @@ async function allowedActionsFor(
   };
   if (row.status === 'pending') {
     actions.cancel = row.requestedBy === ctx.principal.id && await holdsPolicy(ctx, 'leave:request', resource);
-    actions.acknowledge = await holdsPolicy(ctx, 'leave:acknowledge', resource);
+    // HR decides in one step (owner decision, 29 Sep 2026); acknowledging first is optional.
+    const decides = await holdsPolicy(ctx, 'leave:decide', resource);
+    actions.approve = decides;
+    actions.reject = decides;
+    actions.acknowledge = !decides && await holdsPolicy(ctx, 'leave:acknowledge', resource);
   } else if (row.status === 'acknowledged') {
     const allowed = await holdsPolicy(ctx, 'leave:decide', resource);
     actions.approve = allowed;
@@ -74,9 +79,6 @@ export async function listAvailableLeaveTypes(ctx: RequestContext): Promise<Leav
 }
 
 export async function createLeaveType(ctx: RequestContext, body: CreateLeaveTypeBody): Promise<LeaveTypeDto> {
-  if (body.enforcement)
-    throw new LeaveValidationError(LEAVE_ERROR_CODES.ENFORCEMENT_NOT_ENABLED,
-      'Enforcement cannot be enabled until opening balances are seeded (leave go-live task).');
   return db.transaction(ctx, async (tx) => {
     const orgId = await repo.currentOrganizationId(tx);
     return toLeaveTypeDto(await repo.insertLeaveType(tx, orgId, body, ctx.principal.id));
@@ -84,9 +86,6 @@ export async function createLeaveType(ctx: RequestContext, body: CreateLeaveType
 }
 
 export async function updateLeaveType(ctx: RequestContext, id: string, body: UpdateLeaveTypeBody): Promise<LeaveTypeDto> {
-  if (body.enforcement === true)
-    throw new LeaveValidationError(LEAVE_ERROR_CODES.ENFORCEMENT_NOT_ENABLED,
-      'Enforcement cannot be enabled until opening balances are seeded (leave go-live task).');
   return db.transaction(ctx, async (tx) => {
     if (!(await repo.findLeaveTypeById(tx, id))) throw new LeaveTypeNotFoundError();
     const patch: Parameters<typeof repo.updateLeaveType>[2] = {};
@@ -140,11 +139,14 @@ export async function submitLeave(ctx: RequestContext, body: SubmitLeaveBody): P
 
     if (leaveType.enforcement && consumed > 0) {
       const year = parseInt(body.fromDate.slice(0, 4));
-      const entries = await repo.getBalanceEntries(tx, ctx.principal.id, body.leaveTypeId, year);
-      const available = balanceAvailable(entries);
-      if (available < consumed) {
+      const balance = await balanceFor(tx, ctx.principal.id, leaveType, year);
+      const free = balance.available - balance.pending;
+      if (free < consumed) {
         throw new LeaveValidationError(LEAVE_ERROR_CODES.INSUFFICIENT_BALANCE,
-          `Insufficient balance: ${available} days available, ${consumed} requested`);
+          `Not enough ${leaveType.name} left: ${free} day${free === 1 ? '' : 's'} available` +
+          (balance.pending > 0 ? ` after ${balance.pending} day${balance.pending === 1 ? '' : 's'} already requested` : '') +
+          `, ${consumed} requested.`,
+          { available: balance.available, pending: balance.pending, requested: consumed });
       }
     }
 
@@ -158,6 +160,7 @@ export async function submitLeave(ctx: RequestContext, body: SubmitLeaveBody): P
       requestedBy: ctx.principal.id,
       recurrenceType: null, recurrenceEnd: null,
     });
+    await notifyLeaveRequested(tx, ctx, row, leaveType.name);
     return toRequestSummary(row, '', leaveType.name);
   });
 }
@@ -228,43 +231,164 @@ export function listLeaveAcknowledgements(ctx: RequestContext, query: QueueListQ
 }
 
 export function listLeaveDecisions(ctx: RequestContext, query: QueueListQuery): Promise<LeaveQueueItem[]> {
-  return listLeaveWorkflowQueue(ctx, 'leave:decide', ['acknowledged', 'approved'], query);
+  return listLeaveWorkflowQueue(ctx, 'leave:decide', ['pending', 'acknowledged', 'approved'], query);
+}
+
+export interface BalanceFigures {
+  entitlement: number;
+  opening: number;
+  accrued: number;
+  adjustments: number;
+  consumed: number;
+  pending: number;
+  available: number;
+}
+
+/**
+ * One person's balance for a type and year: the pro-rated yearly entitlement
+ * plus the ledger (opening, accrual, adjustments) less what approved leave
+ * used; `pending` is what requests awaiting a decision would use.
+ */
+async function balanceFor(
+  tx: Tx, userId: string, leaveType: repo.LeaveTypeRow, year: number,
+): Promise<BalanceFigures> {
+  const window = await repo.findEmploymentWindow(tx, userId);
+  const entries = await repo.getBalanceEntries(tx, userId, leaveType.id, year);
+  return figures(
+    yearlyEntitlement(leaveType.accrualDays, year, window?.joinedOn ?? null, window?.leftOn ?? null),
+    entries,
+    await repo.pendingDays(tx, userId, leaveType.id, year),
+  );
+}
+
+function figures(
+  entitlement: number,
+  entries: readonly { kind: string; units: number }[],
+  pending: number,
+): BalanceFigures {
+  const sum = (kind: string) => entries.filter((e) => e.kind === kind).reduce((total, e) => total + e.units, 0);
+  const opening = sum('opening');
+  const accrued = entitlement + sum('accrual');
+  const adjustments = sum('adjustment');
+  const consumed = sum('consumption') - sum('reversal');
+  return {
+    entitlement,
+    opening,
+    accrued,
+    adjustments,
+    consumed,
+    pending,
+    available: Math.round((opening + accrued + adjustments - consumed) * 2) / 2,
+  };
+}
+
+async function assertBalanceVisible(ctx: RequestContext, tx: Tx, userId: string): Promise<void> {
+  const scopeFilter = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
+  if (isMatchNothing(scopeFilter)) {
+    throw new LeaveForbiddenError(LEAVE_ERROR_CODES.FORBIDDEN, 'Not authorized to view this user\'s balances');
+  }
+  // The leaveRequest policy filter only references user_id, requested_by,
+  // acknowledged_by, decided_by — all present in this synthetic row.
+  const allowed = await tx.maybeOne<{ ok: boolean }>(sql`
+    SELECT TRUE AS ok
+    FROM (
+      SELECT ${userId}::uuid AS user_id,
+             NULL::uuid AS requested_by,
+             NULL::uuid AS acknowledged_by,
+             NULL::uuid AS decided_by
+    ) t
+    WHERE ${scopeFilter}
+  `);
+  if (!allowed)
+    throw new LeaveForbiddenError(LEAVE_ERROR_CODES.FORBIDDEN, 'Not authorized to view this user\'s balances');
 }
 
 export async function getBalances(ctx: RequestContext, userId: string, query: BalanceQuery): Promise<LeaveBalanceDto[]> {
   return db.transaction(ctx, async (tx) => {
-    const scopeFilter = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
-    if (!isMatchNothing(scopeFilter)) {
-      // The leaveRequest policy filter only references user_id, requested_by,
-      // acknowledged_by, decided_by — all present in this synthetic row.
-      const allowed = await tx.maybeOne<{ ok: boolean }>(sql`
-        SELECT TRUE AS ok
-        FROM (
-          SELECT ${userId}::uuid AS user_id,
-                 NULL::uuid AS requested_by,
-                 NULL::uuid AS acknowledged_by,
-                 NULL::uuid AS decided_by
-        ) t
-        WHERE ${scopeFilter}
-      `);
-      if (!allowed)
-        throw new LeaveForbiddenError(LEAVE_ERROR_CODES.FORBIDDEN, 'Not authorized to view this user\'s balances');
-    } else {
-      throw new LeaveForbiddenError(LEAVE_ERROR_CODES.FORBIDDEN, 'Not authorized to view this user\'s balances');
-    }
-
+    await assertBalanceVisible(ctx, tx, userId);
     const types = await repo.listLeaveTypes(tx);
-    return Promise.all(
-      types.filter(t => t.isActive && t.kind === 'absence').map(async (t) => {
-        const entries = await repo.getBalanceEntries(tx, userId, t.id, query.year);
-        const opening  = entries.filter(e => e.kind === 'opening').reduce((s, e) => s + e.units, 0);
-        const accrued  = entries.filter(e => e.kind === 'accrual').reduce((s, e) => s + e.units, 0);
-        const consumed = entries.filter(e => e.kind === 'consumption').reduce((s, e) => s + e.units, 0);
-        const reversed = entries.filter(e => e.kind === 'reversal').reduce((s, e) => s + e.units, 0);
-        return { leaveTypeId: t.id, leaveTypeName: t.name, opening, accrued, consumed,
-          available: opening + accrued - consumed + reversed };
+    const result: LeaveBalanceDto[] = [];
+    for (const t of types.filter((type) => type.isActive && type.kind === 'absence')) {
+      const balance = await balanceFor(tx, userId, t, query.year);
+      result.push({
+        leaveTypeId: t.id, leaveTypeName: t.name, enforced: t.enforcement, paid: t.paidLeave,
+        ...balance,
+      });
+    }
+    return result;
+  });
+}
+
+export interface LeaveBalanceOverviewRow {
+  userId: string;
+  fullName: string;
+  employeeId: string | null;
+  departmentName: string | null;
+  balances: LeaveBalanceDto[];
+}
+
+/** Every visible employee's balances for the year — the HR overview. */
+export async function getBalanceOverview(ctx: RequestContext, query: BalanceQuery): Promise<LeaveBalanceOverviewRow[]> {
+  return db.transaction(ctx, async (tx) => {
+    const visibility = await visibilityFilter(ctx, 'leave:view', 'leaveRequest');
+    if (isMatchNothing(visibility)) return [];
+    const subjects = await repo.listBalanceSubjects(tx, visibility, query.year);
+    const ids = subjects.map((s) => s.id);
+    const types = (await repo.listLeaveTypes(tx)).filter((type) => type.isActive && type.kind === 'absence');
+    const sums = await repo.sumBalanceEntries(tx, ids, query.year);
+    const pending = await repo.sumPendingDays(tx, ids, query.year);
+    return subjects.map((subject) => ({
+      userId: subject.id,
+      fullName: subject.fullName,
+      employeeId: subject.employeeId,
+      departmentName: subject.departmentName,
+      balances: types.map((t) => {
+        const entries = sums.filter((e) => e.userId === subject.id && e.leaveTypeId === t.id);
+        const waiting = pending.find((p) => p.userId === subject.id && p.leaveTypeId === t.id)?.days ?? 0;
+        return {
+          leaveTypeId: t.id, leaveTypeName: t.name, enforced: t.enforcement, paid: t.paidLeave,
+          ...figures(yearlyEntitlement(t.accrualDays, query.year, subject.joinedOn, subject.leftOn), entries, waiting),
+        };
       }),
-    );
+    }));
+  });
+}
+
+/**
+ * HR adjusts a balance: a signed ledger entry with a reason — carried-forward
+ * days, a correction, compensatory leave. It never edits past entries.
+ */
+export async function adjustBalance(
+  ctx: RequestContext, userId: string, body: AdjustBalanceBody,
+): Promise<LeaveBalanceDto> {
+  return db.transaction(ctx, async (tx) => {
+    const window = await repo.findEmploymentWindow(tx, userId);
+    if (!window) throw new LeaveNotFoundError();
+    const leaveType = await repo.findLeaveTypeById(tx, body.leaveTypeId);
+    if (!leaveType || leaveType.kind !== 'absence') throw new LeaveTypeNotFoundError();
+    const orgId = await repo.currentOrganizationId(tx);
+    const entry = await repo.insertBalanceEntry(tx, {
+      organizationId: orgId, userId, leaveTypeId: leaveType.id,
+      kind: 'adjustment', units: body.units, leaveRequestId: null, periodYear: body.year,
+      reason: body.reason, createdBy: ctx.principal.id,
+    });
+    await tx.query(sql`
+      INSERT INTO audit_outbox (organization_id, stream, payload)
+      VALUES (${orgId}, 'activity', ${JSON.stringify({
+        action: 'leave.balance-adjusted',
+        actorId: ctx.principal.id,
+        actorType: ctx.principal.accountType,
+        targetType: 'leaveBalance',
+        targetId: entry.id,
+        before: null,
+        after: { userId, leaveTypeId: leaveType.id, year: body.year, units: body.units },
+        reason: body.reason,
+        requestId: ctx.requestId,
+        sourceIp: ctx.sourceIp,
+      })}::jsonb)
+    `);
+    const balance = await balanceFor(tx, userId, leaveType, body.year);
+    return { leaveTypeId: leaveType.id, leaveTypeName: leaveType.name, enforced: leaveType.enforcement, paid: leaveType.paidLeave, ...balance };
   });
 }
 
@@ -340,6 +464,7 @@ export async function submitWfh(ctx: RequestContext, body: SubmitWfhBody): Promi
       reason: body.reason, requestedBy: ctx.principal.id,
       recurrenceType: null, recurrenceEnd: null,
     });
+    await notifyLeaveRequested(tx, ctx, row, leaveType.name);
     return toRequestSummary(row, '', leaveType.name);
   });
 }
@@ -374,6 +499,7 @@ export async function submitStandingWfh(ctx: RequestContext, body: SubmitStandin
       reason: body.reason, requestedBy: ctx.principal.id,
       recurrenceType: 'daily', recurrenceEnd: body.recurrenceEnd as DateOnly,
     });
+    await notifyLeaveRequested(tx, ctx, row, leaveType.name);
     return toRequestSummary(row, '', leaveType.name);
   });
 }
@@ -466,7 +592,7 @@ export async function decideLeave(
       await repo.deleteWfhDaysByRequest(tx, orgId, id);
 
       const leaveType = await repo.findLeaveTypeById(tx, row.leaveTypeId);
-      if (leaveType?.enforcement && row.kind === 'absence' && row.daysConsumed > 0) {
+      if (row.kind === 'absence' && row.daysConsumed > 0 && await repo.hasConsumption(tx, id)) {
         await repo.insertBalanceEntry(tx, {
           organizationId: orgId, userId: row.userId, leaveTypeId: row.leaveTypeId,
           kind: 'reversal', units: row.daysConsumed,
@@ -490,17 +616,20 @@ export async function decideLeave(
         kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
         outcome: 'revoked', daysConsumed: row.daysConsumed,
       });
+      await notifyLeaveDecided(tx, ctx, row, 'revoked', leaveType?.name ?? 'leave', body.decisionNote);
       return toRequestSummary(updated, '', leaveType?.name ?? '');
     }
 
     if (body.decision === 'rejected') {
-      if (row.status !== 'acknowledged')
+      if (row.status !== 'acknowledged' && row.status !== 'pending')
         throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_STATUS,
           `Cannot reject a request in status '${row.status}'`);
       if (row.requestedBy === ctx.principal.id)
         throw new LeaveForbiddenError(LEAVE_ERROR_CODES.SELF_DECIDE, 'Cannot decide your own request (A1)');
       const updated = await repo.updateLeaveRequestStatus(tx, id, {
         status: 'rejected', decidedBy: ctx.principal.id, decidedAt: now,
+        // Decided in one step: the decider acknowledged it too.
+        ...(row.acknowledgedBy === null && { acknowledgedBy: ctx.principal.id, acknowledgedAt: now }),
         ...(body.decisionNote !== undefined && { decisionNote: body.decisionNote }),
       });
       await recordLeaveDecided(tx, orgId, {
@@ -509,11 +638,12 @@ export async function decideLeave(
         outcome: 'rejected', daysConsumed: 0,
       });
       const lt = await repo.findLeaveTypeById(tx, updated.leaveTypeId);
+      await notifyLeaveDecided(tx, ctx, row, 'rejected', lt?.name ?? 'leave', body.decisionNote);
       return toRequestSummary(updated, '', lt?.name ?? '');
     }
 
-    // decision === 'approved'
-    if (row.status !== 'acknowledged')
+    // decision === 'approved' — from pending (HR decides in one step) or acknowledged
+    if (row.status !== 'acknowledged' && row.status !== 'pending')
       throw new LeaveValidationError(LEAVE_ERROR_CODES.INVALID_STATUS,
         `Cannot approve a request in status '${row.status}'`);
     if (row.requestedBy === ctx.principal.id)
@@ -523,10 +653,11 @@ export async function decideLeave(
 
     if (leaveType?.enforcement && row.kind === 'absence' && row.daysConsumed > 0) {
       const year    = parseInt(row.fromDate.slice(0, 4));
-      const entries = await repo.getBalanceEntries(tx, row.userId, row.leaveTypeId, year);
-      if (balanceAvailable(entries) < row.daysConsumed) {
+      const balance = await balanceFor(tx, row.userId, leaveType, year);
+      if (balance.available < row.daysConsumed) {
         throw new LeaveValidationError(LEAVE_ERROR_CODES.INSUFFICIENT_BALANCE,
-          'Insufficient balance at approval time (may have changed since submission)');
+          `Not enough ${leaveType.name} left to approve: ${balance.available} day${balance.available === 1 ? '' : 's'} available, ${row.daysConsumed} requested.`,
+          { available: balance.available, requested: row.daysConsumed });
       }
     }
 
@@ -534,6 +665,7 @@ export async function decideLeave(
 
     const updated = await repo.updateLeaveRequestStatus(tx, id, {
       status: 'approved', decidedBy: ctx.principal.id, decidedAt: now,
+      ...(row.acknowledgedBy === null && { acknowledgedBy: ctx.principal.id, acknowledgedAt: now }),
       ...(body.decisionNote !== undefined && { decisionNote: body.decisionNote }),
     });
 
@@ -550,7 +682,11 @@ export async function decideLeave(
         });
         await reconcileWfhForDate(tx, row.userId, date, orgId, clock);
       }
-      if (leaveType?.enforcement && row.daysConsumed > 0) {
+      // Approved leave always records what it used, limit or not. A pending or
+      // acknowledged request has never been approved, so it has no consumption
+      // yet: one already there is an anomaly and the unique index refuses it,
+      // rolling the whole approval back.
+      if (row.daysConsumed > 0) {
         await repo.insertBalanceEntry(tx, {
           organizationId: orgId, userId: row.userId, leaveTypeId: row.leaveTypeId,
           kind: 'consumption', units: row.daysConsumed,
@@ -576,6 +712,7 @@ export async function decideLeave(
       kind: row.kind, fromDate: row.fromDate, toDate: row.toDate,
       outcome: 'approved', daysConsumed: row.daysConsumed,
     });
+    await notifyLeaveDecided(tx, ctx, row, 'approved', leaveType?.name ?? 'leave', body.decisionNote);
     return toRequestSummary(updated, '', leaveType?.name ?? '');
   });
 }

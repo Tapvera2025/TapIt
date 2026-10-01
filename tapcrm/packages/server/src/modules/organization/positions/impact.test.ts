@@ -4,6 +4,7 @@ import {
   describePositionPolicyScopes,
   toPositionInsertionImpactPreview,
   toPositionPolicyImpactPreview,
+  toPositionUpdateImpactPreview,
   type PositionPolicyForImpact,
   type PositionScopeDescriptionContext,
 } from './impact.js';
@@ -48,6 +49,46 @@ const scopeContext: PositionScopeDescriptionContext = {
 };
 
 describe('OR-7 position policy impact preview', () => {
+  it('previews a position move with the exact old and new parent for confirmation', () => {
+    const result = toPositionUpdateImpactPreview(
+      position,
+      { ...position, parentPositionId: 'new-parent' },
+      {
+        positionIds: [position.id, 'child-position'],
+        holderIds: ['employee-1'],
+        reportingRelationships: [{ userId: 'employee-1', reportsTo: 'manager-1' }],
+      },
+      true,
+    );
+    expect(result).toMatchObject({
+      preview: true,
+      operation: 'update',
+      requiresConfirmation: true,
+      positionParentChanges: [{
+        positionId: position.id,
+        currentParentPositionId: 'position-parent',
+        proposedParentPositionId: 'new-parent',
+      }],
+      affectedPositionIds: [position.id, 'child-position'],
+      affectedHolderIds: ['employee-1'],
+    });
+    expect(result.reportingRelationships).toEqual([
+      { userId: 'employee-1', reportsTo: 'manager-1' },
+    ]);
+  });
+
+  it('does not require confirmation when only a position name changes', () => {
+    const result = toPositionUpdateImpactPreview(
+      position,
+      { ...position, name: 'New name' },
+      { positionIds: [], holderIds: [], reportingRelationships: [] },
+      false,
+    );
+    expect(result.requiresConfirmation).toBe(false);
+    expect(result.positionParentChanges).toEqual([]);
+    expect(result.proposedPosition.name).toBe('New name');
+  });
+
   it('previews every re-parented position and preserves independent reporting lines', () => {
     const result = toPositionInsertionImpactPreview(
       {

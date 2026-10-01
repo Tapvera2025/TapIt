@@ -72,6 +72,8 @@ export const organizationApi = {
     }),
   previewPosition: (body: Record<string, unknown>) =>
     request<PositionImpactPreview>('/api/org/positions/preview', json(body)),
+  previewPositionUpdate: (id: string, body: Record<string, unknown>) =>
+    request<PositionImpactPreview>(`/api/org/positions/${id}/preview`, json(body)),
   createPosition: (body: Record<string, unknown>) =>
     request<OrganizationPosition>('/api/org/positions', json(body)),
   updatePosition: (id: string, body: Record<string, unknown>) =>

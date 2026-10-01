@@ -240,42 +240,55 @@ describe.skipIf(!enabled)('config acceptance (PostgreSQL)', () => {
 });
 
 describe.skipIf(!enabled)('salary structure (PostgreSQL)', () => {
+  let firstId = '';
+  const basic = (amount: string) => [{
+    code: 'BASIC',
+    label: 'Basic Salary',
+    kind: 'earning' as const,
+    amount: amount as Decimal,
+    prorated: true,
+    statutoryTags: ['pf-wage'],
+    sortOrder: 1,
+  }];
+
   it('creates a structure with lines', async () => {
     const ctx = makeCtx();
     const result = await createStructure(ctx, {
       userId: EMP,
       currency: 'INR',
       effectiveFrom: '2025-01-01',
-      lines: [{
-        code: 'BASIC',
-        label: 'Basic Salary',
-        kind: 'earning',
-        amount: '30000' as Decimal,
-        prorated: true,
-        statutoryTags: [],
-        sortOrder: 1,
-      }],
+      lines: basic('30000'),
     });
     expect(result.id).toBeTruthy();
+    expect(result.closedStructureId).toBeNull();
+    firstId = result.id;
   });
 
-  it('overlapping structures are rejected', async () => {
+  it('a later salary ends the one in effect the day before', async () => {
     const ctx = makeCtx();
-    // Try inserting another structure for the same person overlapping Jan 2025
-    await expect(createStructure(ctx, {
+    const result = await createStructure(ctx, {
       userId: EMP,
       currency: 'INR',
       effectiveFrom: '2025-01-15',
-      lines: [{
-        code: 'B',
-        label: 'B',
-        kind: 'earning',
-        amount: '10000' as Decimal,
-        prorated: true,
-        statutoryTags: [],
-        sortOrder: 1,
-      }],
-    })).rejects.toThrow();
+      lines: basic('36000'),
+    });
+    expect(result.closedStructureId).toBe(firstId);
+    const ended = await db.transaction(ctx, (tx) =>
+      tx.one<{ effectiveTo: string }>(sql`
+        SELECT effective_to::text AS "effectiveTo" FROM salary_structure WHERE id = ${firstId}::uuid
+      `),
+    );
+    expect(ended.effectiveTo).toBe('2025-01-15');
+  });
+
+  it('a salary starting before the current one is refused', async () => {
+    const ctx = makeCtx();
+    await expect(createStructure(ctx, {
+      userId: EMP,
+      currency: 'INR',
+      effectiveFrom: '2025-01-10',
+      lines: basic('10000'),
+    })).rejects.toMatchObject({ status: 409 });
   });
 });
 

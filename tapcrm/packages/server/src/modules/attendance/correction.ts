@@ -16,8 +16,18 @@ import {
 } from './errors.js';
 import { ATTENDANCE_EVENTS } from './events.js';
 import { applyCloseDecision, eligibilityForDay, reattribute } from './ledger.js';
+import { notifyBulkCorrectionRaised, notifyCorrectionDecided, notifyCorrectionRequested } from './notifications.js';
 import * as repo from './repository.js';
-import type { ApproveBody, BulkCorrectionBody, RaiseCorrectionBody, RequestCorrectionBody } from './validators.js';
+import type {
+  ApproveBody,
+  BulkCorrectionBody,
+  CorrectionListQuery,
+  RaiseCorrectionBody,
+  RejectBody,
+  RequestCorrectionBody,
+} from './validators.js';
+import { effectivePolicy, visibilityFilter, isMatchNothing } from '@tapcrm/authz';
+import { globalAccess } from '@tapcrm/contracts';
 
 /**
  * Correction service — §12.
@@ -145,15 +155,13 @@ async function checkReadability(
   targetEventId: string | null,
 ): Promise<void> {
   const eligibility = await eligibilityForDay(tx, userId, workDate);
-  const existing = await repo.effectiveEventsOfRecord(
-    tx,
-    // We need the recordId for the day — look it up
-    await (async () => {
-      const record = await repo.findRecordForClosure(tx, userId, workDate);
-      return record?.id ?? '';
-    })(),
-    { excludeAutoOut: true },
-  );
+  // A day nobody has punched on has no record yet — a forgotten punch is the
+  // commonest correction. Approval materializes the record (ensureDayRecord);
+  // until then the day simply has no events.
+  const record = await repo.findRecordForClosure(tx, userId, workDate);
+  const existing = record === null
+    ? []
+    : await repo.effectiveEventsOfRecord(tx, record.id, { excludeAutoOut: true });
   const provisional = existing
     .filter((e) => e.id !== targetEventId)
     .map((e): AttendanceEventInput => ({
@@ -214,6 +222,9 @@ export async function raiseCorrection(
       requestedBy: ctx.principal.id,
     });
     await writePayrollBlockerChanged(tx, organizationId, corrId, body.userId, body.workDate, 'opened');
+    await notifyCorrectionRequested(tx, ctx, {
+      id: corrId, userId: body.userId, workDate: body.workDate, kind: body.kind, requestedBy: ctx.principal.id,
+    });
     return corrId;
   });
   return { correctionId };
@@ -249,6 +260,9 @@ export async function requestCorrection(
       requestedBy: userId,
     });
     await writePayrollBlockerChanged(tx, organizationId, corrId, userId, body.workDate, 'opened');
+    await notifyCorrectionRequested(tx, ctx, {
+      id: corrId, userId, workDate: body.workDate, kind: body.kind, requestedBy: userId,
+    });
     return corrId;
   });
   return { correctionId };
@@ -451,9 +465,122 @@ export async function approveCorrection(
     await writeCorrectionDecided(tx, organizationId, decided!);
     await writePayrollBlockerChanged(tx, organizationId, correctionId, decided!.userId, decided!.workDate, 'resolved');
     await writeAuditEntry(tx, ctx, decided!, 'attendance:correct');
+    await notifyCorrectionDecided(tx, ctx, decided!);
   });
 
   return { correctionId };
+}
+
+/**
+ * POST /api/attendance/corrections/:id/reject (G8) — the approver declines the
+ * change. Same guards as approval, under the person's lock: A1 (not the
+ * requester), G4 (not the subject), AT-10 and scope, re-checked on the locked
+ * row. Nothing is written to the day; the payroll blocker the request opened
+ * is resolved.
+ */
+export async function rejectCorrection(
+  ctx: RequestContext,
+  correctionId: string,
+  body: RejectBody,
+  clock: Clock = systemClock,
+): Promise<{ correctionId: string }> {
+  await db.transaction(ctx, async (tx) => {
+    const peek = await repo.findCorrectionById(tx, correctionId);
+    if (peek === null)
+      throw new AttendanceNotFoundError(ATTENDANCE_ERROR_CODES.CORRECTION_NOT_FOUND, 'Correction not found.');
+    await repo.lockPerson(tx, peek.userId);
+    const correction = await repo.findCorrectionForUpdate(tx, correctionId);
+    if (correction === null)
+      throw new AttendanceNotFoundError(ATTENDANCE_ERROR_CODES.CORRECTION_NOT_FOUND, 'Correction not found.');
+    if (correction.status !== 'pending')
+      throw new AttendanceUnprocessableError(
+        ATTENDANCE_ERROR_CODES.INVALID_CORRECTION_STATUS,
+        `Cannot decide a correction in status '${correction.status}'.`,
+      );
+    const decider = ctx.principal.id;
+    if (decider === correction.requestedBy)
+      throw new AttendanceForbiddenError(
+        ATTENDANCE_ERROR_CODES.CORRECTION_NOT_READABLE,
+        'A1: the requester cannot decide their own correction.',
+      );
+    if (decider === correction.userId)
+      throw new AttendanceForbiddenError(
+        ATTENDANCE_ERROR_CODES.CORRECTION_NOT_READABLE,
+        'G4: the subject cannot decide a correction to their own day.',
+      );
+    const organizationId = (await tx.one<{ id: string }>(sql`SELECT current_organization_id() AS id`)).id;
+    const today = await organizationToday(tx, clock);
+    const subject = await repo.findCorrectionSubject(tx, correction.userId);
+    await authorize(ctx, 'attendance:correct', {
+      type: 'attendanceCorrection',
+      id: correctionId,
+      userId: correction.userId,
+      organizationId,
+      departmentId: subject?.departmentId ?? null,
+      teamId: subject?.teamId ?? null,
+      workDate: correction.workDate,
+      requestedBy: correction.requestedBy,
+      organizationToday: today,
+    });
+    await repo.updateCorrectionStatus(tx, correctionId, {
+      status: 'rejected',
+      decidedBy: decider,
+      decidedAt: clock.now(),
+      decisionNote: body.decisionNote ?? null,
+    });
+    const decided = await repo.findCorrectionById(tx, correctionId);
+    await writeCorrectionDecided(tx, organizationId, decided!);
+    await writePayrollBlockerChanged(tx, organizationId, correctionId, decided!.userId, decided!.workDate, 'resolved');
+    await writeAuditEntry(tx, ctx, decided!, 'attendance:correct');
+    await notifyCorrectionDecided(tx, ctx, decided!);
+  });
+  return { correctionId };
+}
+
+/**
+ * GET /api/attendance/corrections (G8) — the review queue and "my requests".
+ *
+ * A collection read, bound to `attendance:view` like the leave inboxes: an
+ * approval-bearing action needs a concrete row for A1. The caller always sees
+ * the requests about themselves or raised by them; a holder of
+ * `attendance:correct` also sees everyone in that scope (HR: all). The queue
+ * never offers a row its reader could not decide (their own) as actionable —
+ * `canDecide` is false there.
+ */
+export async function listCorrections(
+  ctx: RequestContext,
+  query: CorrectionListQuery,
+): Promise<{ corrections: repo.CorrectionListRow[] }> {
+  let reviewScope: { sql: string; parameters: readonly unknown[] } | null = null;
+  if (!query.mine) {
+    if (globalAccess(ctx.principal)) {
+      reviewScope = { sql: 'TRUE', parameters: [] };
+    } else {
+      const policy = await effectivePolicy(ctx, 'attendance:correct');
+      if (policy?.allowed) {
+        const fragment = await visibilityFilter(ctx, 'attendance:correct', 'attendanceCorrection');
+        reviewScope = isMatchNothing(fragment) ? null : fragment;
+      }
+    }
+  }
+  const rows = await db.transaction(ctx, (tx) =>
+    repo.listCorrections(tx, {
+      principalId: ctx.principal.id,
+      reviewScope,
+      status: query.status,
+      limit: query.limit,
+    }),
+  );
+  return {
+    corrections: rows.map((row) => ({
+      ...row,
+      canDecide:
+        reviewScope !== null &&
+        row.status === 'pending' &&
+        row.userId !== ctx.principal.id &&
+        row.requestedBy !== ctx.principal.id,
+    })),
+  };
 }
 
 /** POST /api/attendance/corrections/bulk — grouped pending creation. */
@@ -486,6 +613,7 @@ export async function bulkCorrection(
       });
       await writePayrollBlockerChanged(tx, organizationId, corrId, userId, body.workDate, 'opened');
     }
+    await notifyBulkCorrectionRaised(tx, ctx, { batchId, workDate: body.workDate, userIds: sorted });
     return sorted.length;
   });
 

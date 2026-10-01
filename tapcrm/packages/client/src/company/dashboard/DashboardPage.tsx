@@ -1,14 +1,100 @@
-import { useEffect, useState } from 'react';
-import { Card, Page, Notice } from '../../ui/components.js';
-import { RingChart, BarChart, Progress } from '../../ui/charts.js';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import GridLayoutDefault from 'react-grid-layout';
+import type { DashboardLayoutItem, DashboardPreferences, DashboardWidgetId } from '@tapcrm/contracts';
+
+/**
+ * react-grid-layout v1 exports the ReactGridLayout class as CommonJS default
+ * with WidthProvider, Responsive, and the Layout type attached as statics.
+ * The class type alone doesn't expose those, so we widen once at the import.
+ */
+interface RGLModule {
+  WidthProvider<P extends object>(
+    Component: ComponentType<P & { width?: number }>,
+  ): ComponentType<P & { measureBeforeMount?: boolean }>;
+}
+interface RGLLayoutItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+  static?: boolean;
+}
+type Layout = RGLLayoutItem;
+
+const GridLayout = GridLayoutDefault;
+const rglModule = GridLayoutDefault as unknown as RGLModule;
+import { Page } from '../../ui/components.js';
 import { Icon } from '../../ui/Icon.js';
-import { getGeofenceNotice, type GeofenceNotice } from '../../identity/api/authApi.js';
-import { getMySessions, type IdentitySession } from '../../identity/api/sessionsApi.js';
-import {
-  getCompanyEmployees,
-  type CompanyEmployee,
-  type CompanyIdentity,
-} from '../api/companyApi.js';
+import type { CompanyIdentity } from '../api/companyApi.js';
+import { getDashboardPreferences, saveDashboardPreferences } from './dashboardApi.js';
+import { availableWidgets, getWidget } from './registry.js';
+import type { WidgetContext } from './widget-types.js';
+import './dashboard.css';
+
+const ResponsiveGrid = rglModule.WidthProvider(GridLayout as unknown as ComponentType<Record<string, unknown> & { width?: number }>);
+const COLS = 12;
+const ROW_HEIGHT = 56;
+
+/**
+ * The starter view for someone who has never customized their dashboard: three
+ * personal cards, always available regardless of role. Everything else lives one
+ * click away behind "Customize → Add widget". Keeps a first-time dashboard from
+ * looking like a wall of empty boxes.
+ */
+const DEFAULT_WIDGETS: readonly DashboardWidgetId[] = ['punch-state', 'my-tasks', 'my-leave'];
+
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const query = window.matchMedia('(max-width: 767px)');
+    const handler = (event: MediaQueryListEvent) => setMobile(event.matches);
+    query.addEventListener('change', handler);
+    return () => query.removeEventListener('change', handler);
+  }, []);
+  return mobile;
+}
+
+/** Build a grid layout for the visible widgets, using saved positions when available. */
+function buildLayout(
+  visibleIds: readonly DashboardWidgetId[],
+  saved: readonly DashboardLayoutItem[],
+): Layout[] {
+  const savedById = new Map(saved.map((item) => [item.i, item]));
+  const layout: Layout[] = [];
+  let cursorY = 0;
+  let cursorX = 0;
+  for (const id of visibleIds) {
+    const def = getWidget(id);
+    if (!def) continue;
+    const savedItem = savedById.get(id);
+    if (savedItem) {
+      layout.push({
+        i: id,
+        x: savedItem.x,
+        y: savedItem.y,
+        w: savedItem.w,
+        h: savedItem.h,
+        minW: def.defaultLayout.minW,
+        minH: def.defaultLayout.minH,
+      });
+      continue;
+    }
+    const { w, h, minW, minH } = def.defaultLayout;
+    if (cursorX + w > COLS) {
+      cursorX = 0;
+      cursorY += h;
+    }
+    layout.push({ i: id, x: cursorX, y: cursorY, w, h, minW, minH });
+    cursorX += w;
+  }
+  return layout;
+}
 
 export function DashboardPage({
   identity,
@@ -17,305 +103,270 @@ export function DashboardPage({
   identity: CompanyIdentity;
   onNavigate: (path: string) => void;
 }): React.JSX.Element {
-  const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
-  const [sessions, setSessions] = useState<IdentitySession[]>([]);
-  const [notice, setNotice] = useState<GeofenceNotice | null>(null);
-  const [employeesAvailable, setEmployeesAvailable] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const isMobile = useIsMobile();
+  const [prefs, setPrefs] = useState<DashboardPreferences | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const available = useMemo(() => availableWidgets(identity), [identity]);
+  const availableIds = useMemo(() => available.map((widget) => widget.id), [available]);
 
   useEffect(() => {
-    void (async () => {
+    let cancelled = false;
+    const load = async (): Promise<DashboardPreferences> => {
       try {
-        const [employeesResult, sessionsResult, noticeResult] = await Promise.allSettled([
-          getCompanyEmployees(), getMySessions(), getGeofenceNotice(),
-        ]);
-        if (employeesResult.status === 'fulfilled') {
-          setEmployees(employeesResult.value);
-          setEmployeesAvailable(true);
-        }
-        if (sessionsResult.status === 'fulfilled') setSessions(sessionsResult.value);
-        if (noticeResult.status === 'fulfilled') setNotice(noticeResult.value);
-        if (sessionsResult.status === 'rejected') setError('Unable to load workspace data.');
+        return await getDashboardPreferences();
       } catch {
-        setError('Unable to load workspace data.');
-      } finally {
-        setLoading(false);
+        return getDashboardPreferences();
       }
-    })();
+    };
+    load()
+      .then((next) => {
+        if (!cancelled) setPrefs(next);
+      })
+      .catch(() => {
+        // Preferences endpoint is unreachable after a retry. Treat the user as
+        // never-customized and show the curated default silently — a scary
+        // banner on top of a working dashboard is worse than the transient
+        // outage it announces.
+        if (!cancelled) setPrefs({ layout: [], hidden: [], updatedAt: null });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const assigned = employees.filter((person) => person.departmentId).length;
-  const departments = Object.entries(
-    employees.reduce<Record<string, number>>((groups, person) => {
-      const name = person.departmentName || 'Unassigned';
-      groups[name] = (groups[name] ?? 0) + 1;
-      return groups;
-    }, {}),
-  ).sort((a, b) => b[1] - a[1]);
-  const chartData =
-    departments.length > 6
-      ? [
-          ...departments.slice(0, 5),
-          ['Other', departments.slice(5).reduce((sum, item) => sum + item[1], 0)] as [
-            string,
-            number,
-          ],
-        ]
-      : departments;
+  /**
+   * A user who has never saved prefs sees the curated default. Once they save
+   * anything (updatedAt becomes non-null), we respect their explicit `hidden`
+   * list — even if it's empty (i.e., "show me everything").
+   */
+  const hasSavedPrefs = prefs?.updatedAt != null;
+  const hidden = useMemo<readonly DashboardWidgetId[]>(() => {
+    if (!prefs) return [];
+    if (hasSavedPrefs) return prefs.hidden;
+    return availableIds.filter((id) => !DEFAULT_WIDGETS.includes(id));
+  }, [prefs, hasSavedPrefs, availableIds]);
 
-  return (
-    <Page
-      eyebrow="Your workspace, at a glance"
-      title="Workspace overview"
-      description={`Good to see you, ${identity.user.fullName}. Here's where things stand.`}
-      action={
-        <button
-          type="button"
-          onClick={() => onNavigate('/company/sessions')}
-          className="ui-primary inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold"
-        >
-          Review sessions <Icon name="arrow" className="size-4" />
-        </button>
-      }
-    >
-      {error && (
-        <div className="mt-5">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
-      {loading ? (
-        <div
-          role="status"
-          aria-label="Loading workspace"
-          className="mt-5 grid gap-4 md:grid-cols-3"
-        >
+  const visibleIds = useMemo(
+    () => availableIds.filter((id) => !hidden.includes(id)),
+    [availableIds, hidden],
+  );
+  const layout = useMemo(
+    () => buildLayout(visibleIds, prefs?.layout ?? []),
+    [visibleIds, prefs?.layout],
+  );
+
+  const persistTimer = useRef<number | null>(null);
+  const persist = useCallback(
+    (nextLayout: readonly DashboardLayoutItem[], nextHidden: readonly DashboardWidgetId[]) => {
+      if (persistTimer.current) window.clearTimeout(persistTimer.current);
+      persistTimer.current = window.setTimeout(() => {
+        void saveDashboardPreferences({ layout: nextLayout, hidden: nextHidden })
+          .then((saved) => setPrefs(saved))
+          .catch(() => undefined);
+      }, 400);
+    },
+    [],
+  );
+
+  /**
+   * Any customization commits the effective hidden set as the new explicit
+   * saved state — otherwise the derived-default logic would keep overriding
+   * their choice on the next render.
+   */
+  const commitPrefs = useCallback(
+    (nextLayout: readonly DashboardLayoutItem[], nextHidden: readonly DashboardWidgetId[]) => {
+      const now = new Date().toISOString();
+      setPrefs((current) =>
+        current ? { ...current, layout: [...nextLayout], hidden: [...nextHidden], updatedAt: now } : current,
+      );
+      persist(nextLayout, nextHidden);
+    },
+    [persist],
+  );
+
+  const handleLayoutChange = useCallback(
+    (next: Layout[]) => {
+      const items: DashboardLayoutItem[] = next
+        .filter((item) => availableIds.includes(item.i as DashboardWidgetId))
+        .map((item) => ({ i: item.i as DashboardWidgetId, x: item.x, y: item.y, w: item.w, h: item.h }));
+      commitPrefs(items, hidden);
+    },
+    [availableIds, hidden, commitPrefs],
+  );
+
+  const hide = useCallback(
+    (id: DashboardWidgetId) => {
+      const nextHidden = [...hidden, id];
+      const nextLayout = (prefs?.layout ?? []).filter((item) => item.i !== id);
+      commitPrefs(nextLayout, nextHidden);
+    },
+    [hidden, prefs?.layout, commitPrefs],
+  );
+
+  const add = useCallback(
+    (id: DashboardWidgetId) => {
+      const nextHidden = hidden.filter((item) => item !== id);
+      const nextVisible = availableIds.filter((widgetId) => !nextHidden.includes(widgetId));
+      const nextLayout: DashboardLayoutItem[] = buildLayout(nextVisible, prefs?.layout ?? []).map(
+        ({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h }),
+      );
+      commitPrefs(nextLayout, nextHidden);
+      setPickerOpen(false);
+    },
+    [availableIds, hidden, prefs?.layout, commitPrefs],
+  );
+
+  /** Reset restores the curated default, not "show every widget". */
+  const reset = useCallback(() => {
+    const nextHidden = availableIds.filter((id) => !DEFAULT_WIDGETS.includes(id));
+    commitPrefs([], nextHidden);
+    setEditing(false);
+    setPickerOpen(false);
+  }, [availableIds, commitPrefs]);
+
+  const ctx: WidgetContext = { identity, userId: identity.user.id, onNavigate };
+  const hiddenWidgets = available.filter((widget) => hidden.includes(widget.id));
+
+  if (!prefs) {
+    return (
+      <Page eyebrow="Workspace" title="Dashboard" description="Loading your dashboard…">
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {[1, 2, 3].map((item) => (
             <div key={item} className="h-36 animate-pulse rounded-2xl bg-app-surface" />
           ))}
         </div>
-      ) : (
-        <div className="dashboard-content">
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            <StatCard
-              icon="users"
-              label="Visible employees"
-              value={employeesAvailable ? employees.length : '—'}
-              detail={
-                employeesAvailable
-                  ? 'In your employee directory'
-                  : 'Employee data unavailable'
-              }
-            />
-            <StatCard
-              icon="monitor"
-              label="Your active sessions"
-              value={error ? '—' : sessions.length}
-              detail="Across signed-in devices"
-            />
-            <StatCard
-              icon="pin"
-              label="Assigned locations"
-              value={notice ? notice.locations.length : '—'}
-              detail={notice ? 'Your sign-in locations' : 'Location data unavailable'}
-            />
-          </div>
-          <div className="mt-5 grid gap-4 xl:grid-cols-[.85fr_1.65fr_1fr]">
-            <Card className="flex flex-col justify-between">
-              <h2 className="text-base font-semibold">Department coverage</h2>
-              <div className="py-5">
-                <RingChart
-                  value={assigned}
-                  max={employees.length}
-                  label="Employees assigned to a department"
-                />
-              </div>
-              <div className="text-center">
-                <p className="font-semibold">
-                  {employeesAvailable
-                    ? `${assigned} of ${employees.length} employees`
-                    : 'Data unavailable'}
-                </p>
-                <p className="mt-1 text-xs text-app-muted">Assigned to a department</p>
-              </div>
-              <div className="mt-5 border-t border-app-border pt-4 text-xs text-app-muted">
-                {employeesAvailable
-                  ? `${employees.length - assigned} employees without a department`
-                  : 'Employee access is needed for this overview.'}
-              </div>
-            </Card>
-            <Card>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold">Team distribution</h2>
-                  <p className="mt-1 text-xs text-app-muted">
-                    Visible employees by department
-                  </p>
-                </div>
-                <span className="rounded-lg bg-app-accent/10 px-2.5 py-1 text-[11px] font-semibold text-app-accent">
-                  Current snapshot
-                </span>
-              </div>
-              <BarChart
-                label="Employees by department"
-                data={chartData.map(([label, value]) => ({ label, value }))}
-              />
-              <p className="mt-4 flex items-center gap-2 text-xs text-app-muted">
-                <span className="size-2 rounded-full bg-app-accent" /> Employee count ·{' '}
-                {departments.length} groups
-              </p>
-            </Card>
-            <Card>
-              <h2 className="text-base font-semibold">Organization readiness</h2>
-              <p className="mt-1 text-xs text-app-muted">
-                Assignment coverage for visible employees
-              </p>
-              <div className="mt-8 space-y-7">
-                <Progress label="Departments" value={assigned} max={employees.length} />
-                <Progress
-                  label="Positions"
-                  value={employees.filter((p) => p.positionId).length}
-                  max={employees.length}
-                />
-                <Progress
-                  label="Teams"
-                  value={employees.filter((p) => p.teamId).length}
-                  max={employees.length}
-                />
-                <Progress
-                  label="Reporting manager"
-                  value={employees.filter((p) => p.reportsTo && !p.missingManager).length}
-                  max={employees.length}
-                />
-              </div>
-              {!employeesAvailable && (
-                <p className="mt-5 text-xs text-app-muted">Employee data unavailable.</p>
-              )}
-            </Card>
-          </div>
-          <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-            <Card>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs text-app-muted">Company workspace</p>
-                  <h2 className="mt-1 text-xl font-semibold">
-                    {identity.organization?.name ?? 'Company workspace'}
-                  </h2>
-                </div>
-                <span className="rounded-full border border-app-border px-3 py-1 text-xs capitalize">
-                  {identity.organization?.status ?? 'Unavailable'}
-                </span>
-              </div>
-              <dl className="mt-6 grid gap-5 border-t border-app-border pt-5 sm:grid-cols-2">
-                <Info
-                  label="Company code"
-                  value={identity.organization?.code ?? 'Not available'}
-                />
-                <Info label="Account type" value={identity.user.accountType} />
-                <Info
-                  label="Signed-in user"
-                  value={identity.user.fullName}
-                  capitalize={false}
-                />
-                <Info
-                  label="Email address"
-                  value={identity.user.email}
-                  capitalize={false}
-                />
-              </dl>
-            </Card>
-            <Card>
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold">Sessions & devices</h2>
+      </Page>
+    );
+  }
+
+  return (
+    <Page
+      eyebrow="Your workspace"
+      title="Dashboard"
+      description={`Good to see you, ${identity.user.fullName}.`}
+      action={
+        !isMobile ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {editing && (
+              <>
                 <button
                   type="button"
-                  onClick={() => onNavigate('/company/sessions')}
-                  className="text-xs font-semibold text-app-accent hover:underline"
+                  onClick={() => setPickerOpen((open) => !open)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold"
                 >
-                  View all →
+                  <Icon name="plus" className="size-4" /> Add widget
                 </button>
-              </div>
-              <p className="mt-1 text-xs text-app-muted">
-                Keep track of your workspace access
-              </p>
-              <div className="mt-5 space-y-3">
-                {sessions.slice(0, 3).map((session) => (
-                  <div
-                    key={session.id}
-                    className="flex items-center gap-3 rounded-xl border border-app-border bg-app-background/40 p-3"
-                  >
-                    <span className="rounded-lg bg-app-accent/10 p-2 text-app-accent">
-                      <Icon name="monitor" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {session.deviceLabel ?? 'Web browser'}
-                      </p>
-                      <p className="mt-1 truncate text-xs text-app-muted">
-                        {session.approxLocation ?? 'Location unavailable'}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-app-success/10 px-2 py-1 text-[10px] font-semibold text-app-success">
-                      {session.current ? 'Current' : 'Active'}
-                    </span>
-                  </div>
-                ))}
-                {!sessions.length && (
-                  <p className="py-6 text-sm text-app-muted">
-                    {error
-                      ? 'Session data unavailable.'
-                      : 'No active sessions to display.'}
-                  </p>
-                )}
-              </div>
-            </Card>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold"
+                >
+                  <Icon name="refresh" className="size-4" /> Reset
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setEditing((flag) => !flag);
+                setPickerOpen(false);
+              }}
+              className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+            >
+              {editing ? 'Done' : 'Customize'}
+            </button>
           </div>
+        ) : undefined
+      }
+    >
+      {editing && pickerOpen && (
+        <div className="mt-5 rounded-2xl border border-app-border bg-app-surface p-4">
+          <p className="text-sm font-semibold">Add a widget</p>
+          {hiddenWidgets.length === 0 ? (
+            <p className="mt-2 text-xs text-app-muted">All available widgets are already on your dashboard.</p>
+          ) : (
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {hiddenWidgets.map((widget) => (
+                <li key={widget.id}>
+                  <button
+                    type="button"
+                    onClick={() => add(widget.id)}
+                    className="flex w-full flex-col rounded-lg border border-app-border bg-app-background/60 p-3 text-left hover:border-app-accent"
+                  >
+                    <span className="text-sm font-semibold">{widget.title}</span>
+                    <span className="mt-1 text-xs text-app-muted">{widget.description}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {visibleIds.length === 0 ? (
+        <div className="mt-5 rounded-2xl border border-app-border bg-app-surface p-6 text-center">
+          <p className="text-sm text-app-muted">Your dashboard is empty.</p>
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={() => { setEditing(true); setPickerOpen(true); }}
+              className="ui-primary mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+            >
+              <Icon name="plus" className="size-4" /> Add widgets
+            </button>
+          )}
+        </div>
+      ) : isMobile ? (
+        <div className="mt-5 space-y-4">
+          {visibleIds.map((id) => {
+            const def = getWidget(id);
+            if (!def) return null;
+            const Component = def.component;
+            return (
+              <div key={id} className="min-h-32 rounded-2xl border border-app-border bg-app-surface p-4 shadow-sm">
+                <Component ctx={ctx} />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={`dashboard-grid mt-5 ${editing ? 'editing' : ''}`}>
+          <ResponsiveGrid
+            className="layout"
+            layout={layout}
+            cols={COLS}
+            rowHeight={ROW_HEIGHT}
+            margin={[16, 16]}
+            isDraggable={editing}
+            isResizable={editing}
+            onLayoutChange={handleLayoutChange}
+            draggableCancel=".dashboard-widget-remove, .dashboard-widget-nodrag"
+          >
+            {visibleIds.map((id) => {
+              const def = getWidget(id);
+              if (!def) return <div key={id} />;
+              const Component = def.component;
+              return (
+                <div key={id}>
+                  {editing && (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${def.title}`}
+                      className="dashboard-widget-remove"
+                      onClick={() => hide(id)}
+                    >
+                      <Icon name="close" className="size-3.5" />
+                    </button>
+                  )}
+                  <Component ctx={ctx} />
+                </div>
+              );
+            })}
+          </ResponsiveGrid>
         </div>
       )}
     </Page>
-  );
-}
-function StatCard({
-  label,
-  value,
-  detail,
-  icon,
-}: {
-  label: string;
-  value: number | string;
-  detail: string;
-  icon: string;
-}): React.JSX.Element {
-  return (
-    <Card className="metric-card">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-app-muted">{label}</p>
-        <span className="rounded-lg bg-app-accent/10 p-2 text-app-accent">
-          <Icon name={icon} />
-        </span>
-      </div>
-      <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums">{value}</p>
-      <p className="mt-3 text-xs text-app-muted">{detail}</p>
-    </Card>
-  );
-}
-function Info({
-  label,
-  value,
-  capitalize = true,
-}: {
-  label: string;
-  value: string;
-  capitalize?: boolean;
-}): React.JSX.Element {
-  return (
-    <div>
-      <dt className="text-xs text-app-muted">{label}</dt>
-      <dd
-        className={`mt-1 break-words text-sm font-medium${capitalize ? ' capitalize' : ''}`}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }

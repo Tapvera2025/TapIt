@@ -127,3 +127,46 @@ export function requestAttendanceExport(from: string, to: string, userId: string
 export function getAttendanceExportStatus(jobId: string): Promise<AttendanceExportStatus> {
   return identityRequest(`/api/attendance/exports/${encodeURIComponent(jobId)}`);
 }
+
+export interface CorrectionListItem {
+  id: string;
+  userId: string;
+  userName: string;
+  workDate: string;
+  kind: 'add-event' | 'replace-event' | 'void-event' | 'confirm-as-is';
+  payload: { kind?: string; at?: string; targetEventId?: string; reviewItemId?: string };
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: string;
+  decidedBy: string | null;
+  decidedByName: string | null;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  canDecide: boolean;
+}
+
+export function listCorrections(query: {
+  status?: 'pending' | 'approved' | 'rejected' | 'all';
+  mine?: boolean;
+} = {}): Promise<{ corrections: CorrectionListItem[] }> {
+  const params = new URLSearchParams();
+  params.set('status', query.status ?? 'pending');
+  if (query.mine) params.set('mine', 'true');
+  return identityRequest(`/api/attendance/corrections?${params.toString()}`);
+}
+
+export function approveCorrection(id: string, decisionNote?: string): Promise<{ correctionId: string }> {
+  return identityRequest(`/api/attendance/corrections/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(decisionNote ? { decisionNote } : {}),
+  });
+}
+
+export function rejectCorrection(id: string, decisionNote?: string): Promise<{ correctionId: string }> {
+  return identityRequest(`/api/attendance/corrections/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify(decisionNote ? { decisionNote } : {}),
+  });
+}

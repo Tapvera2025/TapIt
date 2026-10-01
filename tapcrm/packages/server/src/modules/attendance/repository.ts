@@ -6,6 +6,7 @@ import type {
   Evidence,
   ResolvedShift,
 } from '@tapcrm/contracts';
+import type { SqlFragment } from '@tapcrm/authz';
 import type { Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { ATTENDANCE_EVENTS, type RecalcRequested } from './events.js';
@@ -1095,6 +1096,59 @@ export async function findCorrectionForUpdate(
     FROM attendance_correction
     WHERE id = ${id}
     FOR UPDATE
+  `);
+}
+
+export interface CorrectionListRow {
+  readonly id: string;
+  readonly userId: string;
+  readonly userName: string;
+  readonly workDate: DateOnly;
+  readonly kind: CorrectionRow['kind'];
+  readonly payload: unknown;
+  readonly reason: string;
+  readonly status: CorrectionRow['status'];
+  readonly requestedBy: string;
+  readonly requestedByName: string;
+  readonly requestedAt: Date;
+  readonly decidedBy: string | null;
+  readonly decidedByName: string | null;
+  readonly decidedAt: Date | null;
+  readonly decisionNote: string | null;
+}
+
+/**
+ * The correction queue: the caller's own requests (about them or raised by
+ * them) plus, for an approver, every request inside `reviewScope` — the
+ * `attendanceCorrection` visibility fragment over the subject `u`.
+ */
+export async function listCorrections(
+  tx: Tx,
+  input: {
+    principalId: string;
+    reviewScope: SqlFragment | null;
+    status: 'pending' | 'approved' | 'rejected' | 'all';
+    limit: number;
+  },
+): Promise<CorrectionListRow[]> {
+  const visible = input.reviewScope === null
+    ? sql`(c.user_id = ${input.principalId} OR c.requested_by = ${input.principalId})`
+    : sql`(c.user_id = ${input.principalId} OR c.requested_by = ${input.principalId} OR (${input.reviewScope}))`;
+  return tx.query<CorrectionListRow>(sql`
+    SELECT c.id, c.user_id AS "userId", u.full_name AS "userName",
+           c.work_date::text AS "workDate", c.kind, c.payload, c.reason, c.status,
+           c.requested_by AS "requestedBy", rq.full_name AS "requestedByName",
+           uuid_extract_timestamp(c.id) AS "requestedAt",
+           c.decided_by AS "decidedBy", dc.full_name AS "decidedByName",
+           c.decided_at AS "decidedAt", c.decision_note AS "decisionNote"
+    FROM attendance_correction c
+    JOIN app_user u ON u.organization_id = c.organization_id AND u.id = c.user_id
+    JOIN app_user rq ON rq.organization_id = c.organization_id AND rq.id = c.requested_by
+    LEFT JOIN app_user dc ON dc.organization_id = c.organization_id AND dc.id = c.decided_by
+    WHERE ${visible}
+      AND (${input.status}::text = 'all' OR c.status = ${input.status})
+    ORDER BY c.id DESC
+    LIMIT ${input.limit}
   `);
 }
 

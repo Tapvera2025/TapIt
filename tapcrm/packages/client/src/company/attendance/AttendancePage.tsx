@@ -3,9 +3,11 @@ import { PeopleCalendar, type PeopleCalendarDay } from '../../ui/PeopleCalendar.
 import {
   getAttendanceDays,
   getAttendanceDayDetail,
+  listCorrections,
   requestAttendanceCorrection,
   type AttendanceDayView,
   type AttendanceDayDetail,
+  type CorrectionListItem,
   type CorrectionRequest,
 } from './attendanceApi.js';
 import { calendarMonth } from '../../ui/calendar-model.js';
@@ -56,6 +58,16 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
   const [detail, setDetail] = useState<AttendanceDayDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
+  const [myCorrections, setMyCorrections] = useState<CorrectionListItem[]>([]);
+  const [correctionNotice, setCorrectionNotice] = useState<string | null>(null);
+
+  function loadMyCorrections(): void {
+    void listCorrections({ status: 'all', mine: true })
+      .then((result) => setMyCorrections(result.corrections.slice(0, 10)))
+      .catch(() => setMyCorrections([]));
+  }
+
+  useEffect(() => { loadMyCorrections(); }, []);
   const [correctionKind, setCorrectionKind] = useState<'add-event' | 'void-event'>('add-event');
   const [correctionEventKind, setCorrectionEventKind] = useState<'in' | 'out' | 'break-start' | 'break-end'>('in');
   const [correctionAt, setCorrectionAt] = useState('');
@@ -107,7 +119,7 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
   }));
 
   async function submitCorrection(): Promise<void> {
-    if (!correctionReason.trim()) { setCorrectionError('Please provide a reason.'); return; }
+    if (correctionReason.trim().length < 20) { setCorrectionError('Please explain the correction in at least 20 characters.'); return; }
     setSubmitting(true);
     setCorrectionError(null);
     try {
@@ -120,6 +132,8 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
         body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: correctionEventKind, at: new Date(correctionAt).toISOString() } };
       }
       await requestAttendanceCorrection(body);
+      setCorrectionNotice('Correction requested. HR will review it; you can follow it below.');
+      loadMyCorrections();
       setShowCorrectionForm(false);
       setCorrectionReason('');
       setCorrectionAt('');
@@ -157,10 +171,10 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
           <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">
             {selectedDate}
           </p>
-          {detail?.allowedActions?.requestCorrection && !showCorrectionForm && (
+          {(detail?.allowedActions?.requestCorrection || (!detailLoading && !detail && selectedDate <= today)) && !showCorrectionForm && (
             <button
               type="button"
-              onClick={() => setShowCorrectionForm(true)}
+              onClick={() => { setShowCorrectionForm(true); setCorrectionNotice(null); if (!detail) setCorrectionKind('add-event'); }}
               className="rounded-lg border border-app-border px-3 py-1.5 text-xs text-app-muted hover:border-app-accent hover:text-app-foreground"
             >
               Request correction
@@ -168,6 +182,7 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
           )}
         </div>
 
+        {correctionNotice && <p role="status" className="mb-2 text-sm text-emerald-700 dark:text-emerald-300">{correctionNotice}</p>}
         {detailLoading && <p className="text-sm text-app-muted">Loading…</p>}
 
         {!detailLoading && !detail && (
@@ -302,6 +317,27 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
           </div>
         )}
       </div>
+
+      {myCorrections.length > 0 && (
+        <div className="rounded-2xl border border-app-border bg-app-surface p-4 sm:p-5">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-app-muted">My correction requests</p>
+          <div className="space-y-1.5">
+            {myCorrections.map((item) => (
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-app-surface-raised px-3 py-2 text-xs">
+                <span>
+                  <span className="font-semibold">{item.workDate}</span>
+                  {' · '}
+                  {item.kind === 'add-event' ? `Add ${(item.payload.kind ?? '').replace(/-/g, ' ')} at ${fmtTime(item.payload.at ?? null)}` : item.kind.replace(/-/g, ' ')}
+                  {item.decisionNote ? <span className="text-app-muted"> — {item.decisionNote}</span> : null}
+                </span>
+                <span className={`rounded-full px-2 py-0.5 font-semibold capitalize ${item.status === 'approved' ? 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-200' : item.status === 'rejected' ? 'bg-rose-500/12 text-rose-800 dark:text-rose-200' : 'bg-amber-500/14 text-amber-800 dark:text-amber-200'}`}>
+                  {item.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

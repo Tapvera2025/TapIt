@@ -173,6 +173,99 @@ describe('computePayslip — unpaid leave', () => {
   });
 });
 
+describe('computePayslip — paid units follow the employment window', () => {
+  const APRIL_BASIC = [{
+    structureId: 'struct-1',
+    currency: 'INR',
+    effectiveFrom: '2025-01-01',
+    effectiveTo: null,
+    lines: [{ code: 'BASIC', label: 'Basic', kind: 'earning' as const, amountStr: '30000', prorated: true, statutoryTags: [], sortOrder: 1 }],
+  }];
+  const april = (overrides: Partial<ComputePayslipInput>): ComputePayslipInput => ({
+    userId: 'user-1',
+    periodStart: '2025-04-01',
+    periodEnd: '2025-04-30',
+    employmentFrom: '2024-01-01',
+    employmentTo: null,
+    days: [],
+    structureSegments: APRIL_BASIC,
+    inputs: [],
+    config: { schemaVersion: 'v1', settings: {} },
+    ...overrides,
+  });
+
+  it('week-offs and holidays stay paid', () => {
+    const days = Array.from({ length: 30 }, (_, i) => {
+      const date = `2025-04-${String(i + 1).padStart(2, '0')}`;
+      return i % 7 === 5 || i % 7 === 6 ? makeDay(date, { p: 0, h: 2 }) : makeDay(date, { p: 2 });
+    });
+    const result = computePayslip(april({ days }));
+    expect(result.paidUnits).toBe(60);
+    expect(result.grossPaise).toBe(3000000n);
+  });
+
+  it('an employed day with no attendance row, or no judgement, is paid', () => {
+    // No rows at all (attendance not yet recorded), and a no-shift day with zero units.
+    expect(computePayslip(april({ days: [] })).grossPaise).toBe(3000000n);
+    const noShift = computePayslip(april({ days: [makeDay('2025-04-03', { p: 0 })] }));
+    expect(noShift.paidUnits).toBe(60);
+    expect(noShift.unpaidUnits).toBe(0);
+  });
+
+  it('absence and unpaid leave are the only loss of pay', () => {
+    const days = [
+      makeDay('2025-04-02', { p: 0, ab: 2 }),
+      makeDay('2025-04-03', { p: 1, ab: 1 }),
+      makeDay('2025-04-04', { p: 0, ul: 2 }),
+      makeDay('2025-04-07', { p: 0, pl: 2 }),
+    ];
+    const result = computePayslip(april({ days }));
+    expect(result.unpaidUnits).toBe(5);
+    expect(result.paidUnits).toBe(55);
+    // 30000 × 55 / 60 = 27500
+    expect(result.grossPaise).toBe(2750000n);
+  });
+
+  it('a leaver is paid to the last working day only', () => {
+    const result = computePayslip(april({ employmentTo: '2025-04-15' }));
+    expect(result.paidUnits).toBe(30);
+    expect(result.grossPaise).toBe(1500000n);
+  });
+
+  it('days outside employment carry no salary even with a row', () => {
+    const result = computePayslip(april({
+      employmentFrom: '2025-04-11',
+      days: [makeDay('2025-04-05', { p: 2 })],
+    }));
+    expect(result.paidUnits).toBe(40);
+    expect(result.grossPaise).toBe(2000000n);
+  });
+
+  it('no employment in the period pays nothing', () => {
+    const result = computePayslip(april({ employmentFrom: '2025-05-01' }));
+    expect(result.paidUnits).toBe(0);
+    expect(result.grossPaise).toBe(0n);
+  });
+
+  it('a mid-month raise pays each segment for the days it covers', () => {
+    const result = computePayslip(april({
+      structureSegments: [
+        { ...APRIL_BASIC[0]!, structureId: 'old', effectiveTo: '2025-04-16' },
+        {
+          structureId: 'new',
+          currency: 'INR',
+          effectiveFrom: '2025-04-16',
+          effectiveTo: null,
+          lines: [{ code: 'BASIC', label: 'Basic', kind: 'earning', amountStr: '36000', prorated: true, statutoryTags: [], sortOrder: 1 }],
+        },
+      ],
+    }));
+    // 15 days at 30000 (15000) + 15 days at 36000 (18000)
+    expect(result.grossPaise).toBe(3300000n);
+    expect(result.lines).toHaveLength(1);
+  });
+});
+
 describe('computePayslip — line-sum invariant', () => {
   it('sum of earning lines = gross', () => {
     const input: ComputePayslipInput = {

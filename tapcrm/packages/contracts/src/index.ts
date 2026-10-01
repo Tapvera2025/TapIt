@@ -26,3 +26,4 @@ export * from './people.js';
 export * from './presence.js';
 export * from './biometric.js';
 export * from './leave.js';
+export * from './dashboard.js';

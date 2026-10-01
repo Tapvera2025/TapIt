@@ -17,6 +17,30 @@ export const NOTIFICATION_TYPES = {
   TASK_UPDATED: 'task.updated',
   TASK_STATUS_CHANGED: 'task.status_changed',
   TASK_COMPLETED: 'task.completed',
+
+  // leave (modules/leave/notifications.ts)
+  LEAVE_REQUESTED: 'leave.requested',
+  LEAVE_DECIDED: 'leave.decided',
+
+  // attendance corrections (modules/attendance/notifications.ts)
+  CORRECTION_REQUESTED: 'attendance.correction_requested',
+  CORRECTION_DECIDED: 'attendance.correction_decided',
+
+  // break breaches (modules/break-management/notifications.ts)
+  BREACH_EXPLANATION_REQUIRED: 'breaks.explanation_required',
+  BREACH_APPLIED: 'breaks.breach_applied',
+  BREACH_MANAGER_NOTICE: 'breaks.manager_notice',
+  BREACH_EXPLAINED: 'breaks.explanation_submitted',
+  BREACH_REVIEWED: 'breaks.breach_reviewed',
+
+  // position changes (access-management and employee notifications.ts)
+  ROLE_CHANGE_REQUESTED: 'access.role_change_requested',
+  ROLE_CHANGE_DECIDED: 'access.role_change_decided',
+  PLACEMENT_CHANGED: 'employee.placement_changed',
+
+  // payroll (modules/payroll/notifications.ts)
+  PAYSLIP_PUBLISHED: 'payroll.payslip_published',
+  PAYSLIP_REVISED: 'payroll.payslip_revised',
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];

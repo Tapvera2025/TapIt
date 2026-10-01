@@ -1,7 +1,7 @@
 // packages/server/src/modules/leave/rules.test.ts
 import { describe, expect, it } from 'vitest';
 import type { DateOnly, LeaveHalf as _LeaveHalf } from '@tapcrm/contracts';
-import { balanceAvailable, daysConsumed, overlayKindForDay } from './rules.js';
+import { balanceAvailable, daysConsumed, overlayKindForDay, yearlyEntitlement } from './rules.js';
 
 const d = (s: string) => s as DateOnly;
 
@@ -68,4 +68,39 @@ describe('overlayKindForDay', () => {
   it('single day second → leave-second-half', () =>
     expect(overlayKindForDay(d('2026-10-01'), d('2026-10-01'), d('2026-10-01'), 'second', 'full'))
       .toBe('leave-second-half'));
+});
+
+describe('yearlyEntitlement — pro-rated yearly leave', () => {
+  it('a full year gets the whole entitlement', () => {
+    expect(yearlyEntitlement(12, 2026, '2020-04-01', null)).toBe(12);
+    expect(yearlyEntitlement(12, 2026, null, null)).toBe(12);
+  });
+  it('a joiner on 1 July gets about half, to the nearest half day', () => {
+    // 184 of 365 days × 12 = 6.05 → 6
+    expect(yearlyEntitlement(12, 2026, '2026-07-01', null)).toBe(6);
+    // 92 of 365 × 18 = 4.54 → 4.5
+    expect(yearlyEntitlement(18, 2026, '2026-10-01', null)).toBe(4.5);
+  });
+  it('a leaver is pro-rated to the last working day', () => {
+    // 90 of 365 × 12 = 2.96 → 3
+    expect(yearlyEntitlement(12, 2026, '2020-01-01', '2026-03-31')).toBe(3);
+  });
+  it('nothing outside employment, nothing for a type without accrual', () => {
+    expect(yearlyEntitlement(12, 2026, '2027-01-05', null)).toBe(0);
+    expect(yearlyEntitlement(12, 2026, null, '2025-12-31')).toBe(0);
+    expect(yearlyEntitlement(0, 2026, null, null)).toBe(0);
+  });
+  it('leap years count 366 days', () => {
+    // 1 July 2028 → 184 of 366 × 12 = 6.03 → 6
+    expect(yearlyEntitlement(12, 2028, '2028-07-01', null)).toBe(6);
+  });
+  it('adjustments are signed in the ledger', () => {
+    expect(balanceAvailable([
+      { kind: 'opening', units: 2 },
+      { kind: 'consumption', units: 3 },
+      { kind: 'reversal', units: 1 },
+      { kind: 'adjustment', units: -0.5 },
+      { kind: 'adjustment', units: 2 },
+    ])).toBe(1.5);
+  });
 });

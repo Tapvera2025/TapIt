@@ -54,7 +54,8 @@ void startRealtime(server)
     console.error(JSON.stringify({ level: 'error', msg: 'realtime unavailable', error: String(error) }));
   })
   .finally(() => {
-    startOutboxDrainer();
+    // It handles its own LISTEN failure (falls back to polling), so it never rejects.
+    void startOutboxDrainer();
     startNotificationDispatcher();
   });
 

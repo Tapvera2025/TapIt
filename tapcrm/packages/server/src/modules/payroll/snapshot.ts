@@ -1,4 +1,6 @@
+import type { DateOnly } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
+import { addDays } from '../../platform/time.js';
 import { sql } from '../../platform/dal/sql.js';
 import { computePayslip, type ComputePayslipInput, type FrozenDay, type FrozenStructureSegment, type FrozenInput } from './calculate.js';
 import { type PayrollInputRow } from './input.js';
@@ -97,10 +99,12 @@ export async function computeAndWriteDraftSlip(
     `);
   }
 
-  // Write salary use rows
+  // Write salary use rows. A structure's effective_to is exclusive.
   for (const seg of frozenInputs.structureSegments) {
     const usedFrom = periodStart > seg.effectiveFrom ? periodStart : seg.effectiveFrom;
-    const usedTo = seg.effectiveTo !== null && seg.effectiveTo < periodEnd ? seg.effectiveTo : periodEnd;
+    const lastDay = seg.effectiveTo === null ? null : addDays(seg.effectiveTo as DateOnly, -1);
+    const usedTo = lastDay !== null && lastDay < periodEnd ? lastDay : periodEnd;
+    if (usedTo < usedFrom) continue;
     await tx.query(sql`
       INSERT INTO payslip_salary_use (organization_id, payslip_id, structure_id, used_from, used_to)
       VALUES (${organizationId}, ${slipId}::uuid, ${seg.structureId}::uuid,

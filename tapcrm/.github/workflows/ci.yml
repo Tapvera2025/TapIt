@@ -89,7 +89,7 @@ jobs:
               AND c.relname <> 'organization'
               -- Documented exceptions; keep in step with RLS_EXCEPTIONS in
               -- tools/ci/index.ts. Any OTHER table lacking RLS still fails.
-              AND c.relname NOT IN ('organization_module', 'admin_invitation', 'identity_email_directory')
+              AND c.relname NOT IN ('organization_module', 'admin_invitation', 'identity_email_directory', 'biometric_device_directory')
               AND EXISTS (SELECT 1 FROM pg_attribute a
                           WHERE a.attrelid = c.oid AND a.attname = 'organization_id'
                             AND NOT a.attisdropped)

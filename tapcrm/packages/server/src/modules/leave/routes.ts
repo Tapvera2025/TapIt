@@ -4,8 +4,8 @@ import { db } from '../../platform/dal/db.js';
 import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
 import { makeLeaveTypeResource, makeLeaveRequestResource } from './policy.js';
-import { createLeaveType, listAvailableLeaveTypes, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getLeaveCalendar, getLeaveRequest, listLeaveRequests, listLeaveAcknowledgements, listLeaveDecisions, submitLeave, submitWfh, submitStandingWfh, acknowledgeLeave, decideLeave } from './service.js';
-import { createLeaveTypeSchema, updateLeaveTypeSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, queueListQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
+import { createLeaveType, listAvailableLeaveTypes, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getBalanceOverview, adjustBalance, getLeaveCalendar, getLeaveRequest, listLeaveRequests, listLeaveAcknowledgements, listLeaveDecisions, submitLeave, submitWfh, submitStandingWfh, acknowledgeLeave, decideLeave } from './service.js';
+import { createLeaveTypeSchema, updateLeaveTypeSchema, adjustBalanceSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, queueListQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
 
 async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource | null> {
   const row = await db.maybeOne<{ id: string; organizationId: string }>(
@@ -47,8 +47,14 @@ export function registerLeaveRoutes(): void {
     handler: async ({ ctx, query }) => listLeaveAcknowledgements(ctx, queueListQuerySchema.parse(query)) });
   route({ method: 'GET', path: '/api/leaves/decisions', action: 'leave:view', module: 'leave',
     handler: async ({ ctx, query }) => listLeaveDecisions(ctx, queueListQuerySchema.parse(query)) });
+  // Every visible employee's balances for a year (HR's overview). Before /:id.
+  route({ method: 'GET', path: '/api/leaves/balances', action: 'leave:view', module: 'leave',
+    handler: async ({ ctx, query }) => getBalanceOverview(ctx, balanceQuerySchema.parse(query)) });
   route({ method: 'GET', path: '/api/leaves/balances/:userId', action: 'leave:view', module: 'leave',
     handler: async ({ ctx, params, query }) => getBalances(ctx, params['userId']!, balanceQuerySchema.parse(query)) });
+  route({ method: 'POST', path: '/api/leaves/balances/:userId/adjust', action: 'leave:manage-types', module: 'leave',
+    status: 200,
+    handler: async ({ ctx, params, body }) => adjustBalance(ctx, params['userId']!, adjustBalanceSchema.parse(body)) });
   route({ method: 'GET', path: '/api/leaves/:id', action: 'leave:view', module: 'leave',
     resourceParam: 'id', loadResource: loadLeaveRequest,
     handler: async ({ ctx, params }) => getLeaveRequest(ctx, params['id']!) });

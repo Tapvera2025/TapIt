@@ -7,6 +7,22 @@ import { sql } from '../packages/server/src/platform/dal/sql.js';
 export const DEMO_EMAIL_DOMAIN = 'example.test';
 export const DEMO_EMAIL_PREFIX = 'demo.';
 export const DEMO_TEAM_PREFIX = 'demo-';
+export const DEMO_ACTIVITY_MARKER = 'tapcrm-demo-fixture-v1';
+
+/** Use recent working days in the tenant's local calendar. */
+export function demoDates(today: string): { workdays: string[]; futureLeave: string; monthStart: string; joinedOn: string } {
+  const day = new Date(`${today}T00:00:00Z`);
+  const workdays: string[] = [];
+  for (let offset = 1; workdays.length < 8; offset += 1) {
+    const candidate = new Date(day.getTime() - offset * 86_400_000);
+    if (candidate.getUTCDay() !== 0 && candidate.getUTCDay() !== 6) workdays.unshift(candidate.toISOString().slice(0, 10));
+  }
+  const next = new Date(day.getTime() + 86_400_000);
+  while (next.getUTCDay() === 0 || next.getUTCDay() === 6) next.setUTCDate(next.getUTCDate() + 1);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const joinedOn = `${Number(today.slice(0, 4)) - 1}${today.slice(4, 7)}-01`;
+  return { workdays, futureLeave: next.toISOString().slice(0, 10), monthStart, joinedOn };
+}
 
 export interface DemoEmployee {
   readonly key: string;
@@ -64,7 +80,7 @@ export function organizationArgument(requireConfirmation = false): string {
   if (process.env['NODE_ENV'] === 'production') {
     throw new Error('Demo fixtures are disabled when NODE_ENV=production');
   }
-  return value.toUpperCase();
+  return value;
 }
 
 export function demoPassword(): string {

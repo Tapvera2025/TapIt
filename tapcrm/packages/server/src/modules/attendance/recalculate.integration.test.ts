@@ -181,6 +181,9 @@ let jobs: AttendanceJobs;
 
 // Waits give up after 15 seconds (`until`), well inside the test's own limit,
 // so a failure shows what the day looked like rather than a timeout.
+// The fixture days are in September 2027: they must stay in the future. Once
+// a fixture day is past, the close job auto-closes it between two punches
+// and the answers change (the 2026 dates here broke on 22 September 2026).
 describe.skipIf(!enabled)(
   'attendance recalculation (PostgreSQL and Redis)',
   { timeout: 30_000 },
@@ -253,7 +256,7 @@ describe.skipIf(!enabled)(
           'day template',
           sql`
         INSERT INTO shift_assignment (organization_id, user_id, kind, shift_id, effective_from, created_by)
-        VALUES (${ORG}, ${id}, 'template', ${DAY}, '2026-09-01', ${HR})`,
+        VALUES (${ORG}, ${id}, 'template', ${DAY}, '2027-09-01', ${HR})`,
         );
       }
       jobs = registerAttendanceJobs();
@@ -280,9 +283,9 @@ describe.skipIf(!enabled)(
     });
 
     it('calculates a punched day once for two requests, and rebuilds the month', async () => {
-      await punch(people.a, 'in', '2026-09-22T09:25:00');
-      await punch(people.a, 'out', '2026-09-22T18:00:00');
-      const day = await settled(people.a, '2026-09-22');
+      await punch(people.a, 'in', '2027-09-22T09:25:00');
+      await punch(people.a, 'out', '2027-09-22T18:00:00');
+      const day = await settled(people.a, '2027-09-22');
       expect(day).toMatchObject({
         status: 'present',
         presentUnits: 2,
@@ -295,20 +298,23 @@ describe.skipIf(!enabled)(
         calculationVersion: 1,
       });
       expect(day.flags).toEqual(['late', 'remote-without-approval']);
+      // Three inputs after the day opened: the arrival, the departure, and the
+      // departure closing the day (closed_by = punch-out) — one run each.
       const runs = await until(
         () => runsOf('attendance.recalculate', day.id),
-        (rows) => rows.length === 2 && rows.every((row) => row.outcome === 'success'),
+        (rows) => rows.length === 3 && rows.every((row) => row.outcome === 'success'),
       );
       expect(runs.map((run) => run.idempotencyKey)).toEqual([
         `${day.id}:2`,
         `${day.id}:3`,
+        `${day.id}:4`,
       ]);
 
       const [month] = (await asOwner(
         'read month',
         sql`
       SELECT days, present_units, worked_minutes, late_days, late_minutes, open_days, stale_days
-      FROM attendance_month_summary WHERE user_id = ${people.a} AND month = '2026-09-01'`,
+      FROM attendance_month_summary WHERE user_id = ${people.a} AND month = '2027-09-01'`,
       )) as Record<string, number>[];
       expect(month).toEqual({
         days: 1,
@@ -316,25 +322,25 @@ describe.skipIf(!enabled)(
         workedMinutes: 515,
         lateDays: 1,
         lateMinutes: 15,
-        openDays: 1,
+        openDays: 0, // the departure closed the day
         staleDays: 0,
       });
     });
 
     it('leaves a day alone when its answer is already for its newest inputs', async () => {
-      const before = (await dayOf(people.a, '2026-09-22'))!;
+      const before = (await dayOf(people.a, '2027-09-22'))!;
       expect(await db.transaction(ctx(), (tx) => recalculateRecord(tx, before.id))).toBe(
         'current',
       );
-      expect((await dayOf(people.a, '2026-09-22'))!.calculationVersion).toBe(
+      expect((await dayOf(people.a, '2027-09-22'))!.calculationVersion).toBe(
         before.calculationVersion,
       );
     });
 
     it('recalculates when a new input arrives', async () => {
-      await punch(people.a, 'break-start', '2026-09-22T13:00:00');
-      await punch(people.a, 'break-end', '2026-09-22T13:30:00');
-      const day = await settled(people.a, '2026-09-22', (row) => row.breakMinutes === 30);
+      await punch(people.a, 'break-start', '2027-09-22T13:00:00');
+      await punch(people.a, 'break-end', '2027-09-22T13:30:00');
+      const day = await settled(people.a, '2027-09-22', (row) => row.breakMinutes === 30);
       // D19: no break policy yet, so the break is paid and the worked time stands.
       expect(day).toMatchObject({
         status: 'present',
@@ -345,9 +351,9 @@ describe.skipIf(!enabled)(
     });
 
     it('a past shift change reaches the day through shifts.days-changed, even once it is closed', async () => {
-      await punch(people.b, 'in', '2026-09-23T09:05:00');
-      await punch(people.b, 'out', '2026-09-23T18:00:00');
-      const first = await settled(people.b, '2026-09-23');
+      await punch(people.b, 'in', '2027-09-23T09:05:00');
+      await punch(people.b, 'out', '2027-09-23T18:00:00');
+      const first = await settled(people.b, '2027-09-23');
       expect(first).toMatchObject({ status: 'present', lateMinutes: 0, shiftId: DAY });
 
       await asOwner(
@@ -358,16 +364,16 @@ describe.skipIf(!enabled)(
         'move the day to the early shift',
         sql`
       INSERT INTO shift_override (organization_id, user_id, work_date, kind, shift_id, reason, created_by)
-      VALUES (${ORG}, ${people.b}, '2026-09-23', 'shift', ${EARLY}, 'Cover', ${HR})`,
+      VALUES (${ORG}, ${people.b}, '2027-09-23', 'shift', ${EARLY}, 'Cover', ${HR})`,
       );
       await outbox('shifts.days-changed', {
         userIds: [people.b],
-        from: '2026-09-23',
-        to: '2026-09-23',
+        from: '2027-09-23',
+        to: '2027-09-23',
         reason: 'override',
       });
 
-      const day = await settled(people.b, '2026-09-23', (row) => row.shiftId === EARLY);
+      const day = await settled(people.b, '2027-09-23', (row) => row.shiftId === EARLY);
       // 09:05 against 07:00 and ten minutes' grace.
       expect(day).toMatchObject({
         status: 'present',
@@ -379,26 +385,26 @@ describe.skipIf(!enabled)(
     });
 
     it('a holiday declared on a worked day makes it a holiday flagged as worked, and nothing else moves', async () => {
-      await punch(people.c, 'in', '2026-09-24T09:00:00');
-      await punch(people.c, 'out', '2026-09-24T18:00:00');
-      expect((await settled(people.c, '2026-09-24')).status).toBe('present');
-      const neighbour = (await dayOf(people.b, '2026-09-23'))!;
+      await punch(people.c, 'in', '2027-09-24T09:00:00');
+      await punch(people.c, 'out', '2027-09-24T18:00:00');
+      expect((await settled(people.c, '2027-09-24')).status).toBe('present');
+      const neighbour = (await dayOf(people.b, '2027-09-23'))!;
 
       await asOwner(
         'declare a holiday',
         sql`
       INSERT INTO holiday (organization_id, name, type, holiday_date, created_by)
-      VALUES (${ORG}, 'Founders Day', 'national', '2026-09-24', ${HR})`,
+      VALUES (${ORG}, 'Founders Day', 'national', '2027-09-24', ${HR})`,
       );
       const eventId = await outbox('holidays.days-changed', {
-        from: '2026-09-24',
-        toExclusive: '2026-09-25',
+        from: '2027-09-24',
+        toExclusive: '2027-09-25',
         reason: 'declared',
       });
 
       const day = await settled(
         people.c,
-        '2026-09-24',
+        '2027-09-24',
         (row) => row.status === 'holiday',
       );
       expect(day).toMatchObject({ holidayUnits: 2, presentUnits: 0, workedMinutes: 540 });
@@ -414,7 +420,7 @@ describe.skipIf(!enabled)(
         [people.b, people.c].sort(),
       );
       // b's 23rd was refreshed, but none of its facts changed, so it kept its answer.
-      expect((await dayOf(people.b, '2026-09-23'))!.calculationVersion).toBe(
+      expect((await dayOf(people.b, '2027-09-23'))!.calculationVersion).toBe(
         neighbour.calculationVersion,
       );
     });
@@ -487,7 +493,7 @@ describe.skipIf(!enabled)(
     });
 
     it('the stale sweeper re-offers a day whose request was lost', async () => {
-      const day = (await dayOf(people.a, '2026-09-22'))!;
+      const day = (await dayOf(people.a, '2027-09-22'))!;
       await asOwner(
         'lose a request',
         sql`
@@ -501,14 +507,14 @@ describe.skipIf(!enabled)(
       });
       const after = await settled(
         people.a,
-        '2026-09-22',
+        '2027-09-22',
         (row) => row.calculationVersion === day.calculationVersion + 1,
       );
       expect(after.calculatedInputVersion).toBe(day.inputVersion + 1);
     });
 
     it('flags a day whose third generation failed, until a later input succeeds', async () => {
-      const day = (await dayOf(people.c, '2026-09-24'))!;
+      const day = (await dayOf(people.c, '2027-09-24'))!;
       await asOwner(
         'lose a request',
         sql`
@@ -530,22 +536,22 @@ describe.skipIf(!enabled)(
         offered: 0,
         flagged: 1,
       });
-      const flagged = (await dayOf(people.c, '2026-09-24'))!;
+      const flagged = (await dayOf(people.c, '2027-09-24'))!;
       expect(flagged.flags).toContain('recalculation-failed');
       expect(flagged.calculatedInputVersion).toBeLessThan(flagged.inputVersion);
 
-      await punch(people.c, 'break-start', '2026-09-24T13:00:00');
-      await punch(people.c, 'break-end', '2026-09-24T13:15:00');
+      await punch(people.c, 'break-start', '2027-09-24T13:00:00');
+      await punch(people.c, 'break-end', '2027-09-24T13:15:00');
       const recovered = await settled(
         people.c,
-        '2026-09-24',
+        '2027-09-24',
         (row) => row.breakMinutes === 15,
       );
       expect(recovered.flags).not.toContain('recalculation-failed');
     });
 
     it('the stale sweeper runs a refresh request whose job was lost', async () => {
-      const id = await writeRequest(people.a, '2026-09-22', '2 minutes');
+      const id = await writeRequest(people.a, '2027-09-22', '2 minutes');
       expect(await sweepRefreshRequests(ctx(), jobs.refreshDays, new Date())).toEqual({
         offered: 1,
         flagged: 0,
@@ -558,7 +564,7 @@ describe.skipIf(!enabled)(
     });
 
     it('a refresh request whose third generation failed waits for a person, and runs once re-armed', async () => {
-      const id = await writeRequest(people.b, '2026-09-23', '3 days');
+      const id = await writeRequest(people.b, '2027-09-23', '3 days');
       for (const key of [id, `${id}:g2`, `${id}:g3`]) {
         await asOwner(
           'a dead-lettered generation',

@@ -121,6 +121,11 @@ export function deviceClockAt(instant: Date, zone: string): DeviceClockReading {
   ) as DeviceClockReading;
 }
 
+/** Minutes `zone` is ahead of UTC at `instant` (330 for Asia/Kolkata). */
+export function utcOffsetMinutes(zone: string, instant: Date): number {
+  return DateTime.fromJSDate(instant, { zone: zoneOrThrow(zone) }).offset;
+}
+
 export function addDays(date: DateOnly, days: number): DateOnly {
   const next = DateTime.fromISO(date, { zone: 'UTC' }).plus({ days }).toISODate();
   if (next === null) throw new RangeError(`cannot add ${days} days to ${date}`);

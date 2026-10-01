@@ -108,10 +108,23 @@ describe.skipIf(!enabled)('attendance day detail (PostgreSQL)', () => {
       );
     await punch('in', '2026-10-05T09:04:00');
     const out = await punch('out', '2026-10-05T18:02:00');
+    // A WFH overlay points at the approved request behind it (leave's key, step 6).
+    const wfhType = randomUUID();
+    const wfhRequest = randomUUID();
+    await asOwner(
+      'a WFH type',
+      sql`INSERT INTO leave_type (id, organization_id, code, name, kind, enforcement, paid_leave, created_by)
+          VALUES (${wfhType}, ${ORG}, 'WFH', 'Work from home', 'attendance-mode', false, false, ${HR})`,
+    );
+    await asOwner(
+      'the WFH request',
+      sql`INSERT INTO leave_request (id, organization_id, user_id, leave_type_id, kind, from_date, to_date, reason, requested_by)
+          VALUES (${wfhRequest}, ${ORG}, ${PERSON}, ${wfhType}, 'attendance-mode', ${DATE}, ${DATE}, 'Plumber visit', ${PERSON})`,
+    );
     await db.transaction(ctx(), (tx) =>
       applyOverlay(tx, {
         sourceKind: 'wfh',
-        sourceId: randomUUID(),
+        sourceId: wfhRequest,
         userId: PERSON,
         workDate: DATE,
         kind: 'wfh',

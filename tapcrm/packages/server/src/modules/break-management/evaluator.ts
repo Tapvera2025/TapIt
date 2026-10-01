@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readDay } from '@tapcrm/contracts';
+import { decimal, readDay } from '@tapcrm/contracts';
 import type { DateOnly } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { addDays, weekdayOf } from '../../platform/time.js';
@@ -16,6 +16,9 @@ import {
 } from './repository.js';
 import { resolveBreakPolicy } from './resolver.js';
 import type { CandidateRule } from './rules.js';
+import type { CurrentBreachAnswer } from './repository.js';
+import { breakDeductionWriter } from './ports.js';
+import { notifyBreachRecorded } from './notifications.js';
 
 export type EvalOutcome = 'evaluated' | 'no-op' | 'stale-payload' | 'blocked-by-earlier';
 
@@ -116,6 +119,25 @@ function occurrenceWindowBounds(
   // month
   const { monthStart, monthEnd } = monthBounds(workDate);
   return { windowStart: monthStart, windowEnd: monthEnd };
+}
+
+// ---------------------------------------------------------------------------
+// Retiring an answer
+// ---------------------------------------------------------------------------
+
+/**
+ * Supersede the day's current answer. A confirmed breach has already changed
+ * the day (an overlay) or the pay (a deduction); once it is no longer the
+ * answer those consequences go with it — otherwise a corrected day keeps the
+ * old penalty, and a new breach on the same day would add a second one.
+ * A waived breach has already had its consequences removed; the other states
+ * never applied any.
+ */
+async function retireAnswer(tx: Tx, existing: CurrentBreachAnswer, clock: { now(): Date }): Promise<void> {
+  await supersedeBreach(tx, existing.id);
+  if (existing.status !== 'confirmed') return;
+  await AttFacade.removeOverlays(tx, 'break-breach', existing.id, clock);
+  await breakDeductionWriter().revokeDeduction(tx, existing.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +256,7 @@ export async function evaluateBreakDay(
     // Handle no-policy clean day: supersede old answer if exists, advance watermark
     const existing = await currentBreachAnswer(tx, record.organizationId, recordId);
     if (existing !== null && existing.answerFingerprint !== fingerprint) {
-      await supersedeBreach(tx, existing.id);
+      await retireAnswer(tx, existing, clock);
       // No new breach needed for a clean day — just advance watermark
     }
     // Advance watermark
@@ -301,7 +323,7 @@ export async function evaluateBreakDay(
         );
         const existing = await currentBreachAnswer(tx, record.organizationId, recordId);
         if (existing !== null && existing.answerFingerprint !== cleanFingerprint) {
-          await supersedeBreach(tx, existing.id);
+          await retireAnswer(tx, existing, clock);
         }
         const advanced = await AttFacade.setBreaksEvaluatedVersion(
           tx,
@@ -370,7 +392,7 @@ export async function evaluateBreakDay(
 
   // 15. Supersede old answer if exists
   if (existing !== null) {
-    await supersedeBreach(tx, existing.id);
+    await retireAnswer(tx, existing, clock);
   }
 
   // 16. Determine auto-apply for confirmed status
@@ -405,7 +427,13 @@ export async function evaluateBreakDay(
   });
 
   // 18. For auto-applied overlay consequences (mark-late, mark-half-day, mark-absent, deduct-minutes)
-  // apply the attendance overlay. For deduct-amount, confirm the breach but skip payroll writer (Task 6).
+  // apply the attendance overlay; for deduct-amount, write the payroll deduction — the same
+  // consequences a reviewer's confirmation applies (service.confirmBreach).
+  // The rule's amount is a numeric column: pg hands it over as a string.
+  const ruleAmount =
+    typeof selectedRule?.amount === 'string' || typeof selectedRule?.amount === 'number'
+      ? String(selectedRule.amount)
+      : null;
   if (shouldAutoApply && selectedRule !== null) {
     const consequence = selectedRule.consequence;
     if (
@@ -428,7 +456,38 @@ export async function evaluateBreakDay(
         clock,
       );
     }
-    // deduct-amount: breach is confirmed with auto_applied=true; payroll writer wired in Task 6
+    if (consequence === 'deduct-amount') {
+      await breakDeductionWriter().writeDeduction(tx, {
+        organizationId: record.organizationId,
+        userId: record.userId,
+        periodStart: `${workDate.slice(0, 7)}-01` as DateOnly,
+        amount: decimal(ruleAmount ?? '0'),
+        label: `Break deduction – ${workDate}`,
+        breakBreachId: breachId,
+      });
+    }
+  }
+
+  if (selectedRule !== null) {
+    await notifyBreachRecorded(tx, {
+      organizationId: record.organizationId,
+      breachId,
+      userId: record.userId,
+      workDate,
+      status: insertStatus,
+      rule: {
+        ruleId: selectedRule.ruleId,
+        consequence: selectedRule.consequence,
+        minutes: selectedRule.minutes,
+        amount: ruleAmount,
+      },
+      measure: {
+        totalMinutes: measurement.totalMinutes,
+        longestMinutes: measurement.longestMinutes,
+        count: measurement.count,
+      },
+      previousRuleId: existing?.matchedRuleId ?? null,
+    });
   }
 
   // 19. Advance watermark (compare-and-set)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-One-time converter: TapCRM_AUTHORIZATION_v1.8.pdf -> docs/AUTHORIZATION.md
+One-time converter: team-docs/security/source/TapCRM_AUTHORIZATION_v1.8.pdf
+    -> team-docs/security/AUTHORIZATION.md
 
 TECH.md §6.1 makes AUTHORIZATION.md the input to the registry code generator.
 The document was delivered as a PDF, so this script lifts §6.4 (the 147-action

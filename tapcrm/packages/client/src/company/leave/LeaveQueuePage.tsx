@@ -132,7 +132,7 @@ const STATUS_CLASSES: Record<string, string> = {
   cancelled: 'bg-app-surface-raised text-app-muted',
 };
 
-type FilterStatus = 'pending' | 'acknowledged' | 'approved' | 'all';
+type FilterStatus = 'pending' | 'approved' | 'all';
 
 export function LeaveQueuePage({
   canAcknowledge,
@@ -147,7 +147,7 @@ export function LeaveQueuePage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterStatus>(canAcknowledge ? 'pending' : 'acknowledged');
+  const [filter, setFilter] = useState<FilterStatus>('pending');
   const [coverageDate, setCoverageDate] = useState<string | null>(null);
   const [decideId, setDecideId] = useState<string | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
@@ -159,12 +159,13 @@ export function LeaveQueuePage({
     setLoading(true);
     setError(null);
     setWarning(null);
+    // Deciders see every request awaiting a decision (HR approves in one
+    // step); someone who can only acknowledge sees their acknowledgement inbox.
     const sources: Array<{ name: string; request: Promise<LeaveQueueItem[]> }> = [];
-    if (canAcknowledge && (filter === 'pending' || filter === 'all')) {
-      sources.push({ name: 'Acknowledgement inbox', request: listLeaveAcknowledgements() });
-    }
-    if (canDecide && (filter === 'acknowledged' || filter === 'approved' || filter === 'all')) {
+    if (canDecide) {
       sources.push({ name: 'Decision inbox', request: listLeaveDecisions() });
+    } else if (canAcknowledge) {
+      sources.push({ name: 'Acknowledgement inbox', request: listLeaveAcknowledgements() });
     }
     if (sources.length === 0) {
       setLeaves([]);
@@ -177,7 +178,9 @@ export function LeaveQueuePage({
         ? [`${sources[index]!.name}: ${result.reason instanceof Error ? result.reason.message : 'Unable to load.'}`]
         : []);
       const available = fulfilled.flat().filter((leave) =>
-        filter === 'all' || filter === 'pending' || leave.status === filter,
+        filter === 'all'
+        || (filter === 'pending' && (leave.status === 'pending' || leave.status === 'acknowledged'))
+        || leave.status === filter,
       );
       setLeaves(available);
       if (fulfilled.length === 0 && rejected.length > 0) setError(rejected.join(' '));
@@ -193,8 +196,7 @@ export function LeaveQueuePage({
     setAcknowledgingId(id);
     try {
       await acknowledgeLeave(id);
-      if (canDecide) setFilter('acknowledged');
-      else load();
+      load();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to acknowledge.');
     } finally {
@@ -217,7 +219,7 @@ export function LeaveQueuePage({
     }
   }
 
-  const pendingCount = leaves.filter((l) => l.status === 'pending').length;
+  const pendingCount = leaves.filter((l) => l.status === 'pending' || l.status === 'acknowledged').length;
   const displayed = coverageDate
     ? leaves.filter((l) => l.fromDate <= coverageDate && l.toDate >= coverageDate)
     : leaves;
@@ -244,9 +246,8 @@ export function LeaveQueuePage({
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg border border-app-border p-0.5">
           {([
-            ...(canAcknowledge ? ['pending' as const] : []),
-            ...(canDecide ? ['acknowledged' as const, 'approved' as const] : []),
-            ...(canAcknowledge && canDecide ? ['all' as const] : []),
+            'pending' as const,
+            ...(canDecide ? ['approved' as const, 'all' as const] : []),
           ] as FilterStatus[]).map((f) => (
             <button
               key={f}

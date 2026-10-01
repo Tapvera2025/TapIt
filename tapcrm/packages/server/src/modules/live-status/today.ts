@@ -26,17 +26,31 @@ export async function loadToday(
   const row = await repo.readRow(tx, userId);
   const currentDay = await AttendanceFacade.currentDayFor(tx, userId, now);
 
-  // No row yet → the person can only punch in.
-  if (row === null) return { row: null, allowedMoves: ['in'] };
+  // No row yet → only allow punch in if the employee has a shift today.
+  if (row === null) {
+    const todayWindow = await ShiftsFacade.dayWindowContaining(tx, userId, now);
+    const shift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
+    return { row: null, allowedMoves: shift.kind !== 'none' ? ['in'] : [] };
+  }
 
   // A stale open session AND the new day's opening window has begun:
   // D30's explicit two-button set, not the state machine's full menu.
   if (currentDay !== null && row.workDate < currentDay) {
     const nextWindow = await ShiftsFacade.dayWindow(tx, userId, currentDay);
     if (nextWindow.start <= now) {
-      return { row, allowedMoves: ['scan', 'out', 'in'] };
+      const nextShift = await ShiftsFacade.resolve(tx, userId, currentDay);
+      return { row, allowedMoves: nextShift.kind !== 'none' ? ['scan', 'out', 'in'] : ['scan', 'out'] };
     }
   }
 
-  return { row, allowedMoves: allowedFromState(row.state) };
+  const moves = allowedFromState(row.state);
+  // Post-rollover NOT_IN state: block punch-in if no shift is assigned today.
+  if (moves.includes('in')) {
+    const todayWindow = await ShiftsFacade.dayWindowContaining(tx, userId, now);
+    const shift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
+    if (shift.kind === 'none') {
+      return { row, allowedMoves: moves.filter((m) => m !== 'in' && m !== 'scan') };
+    }
+  }
+  return { row, allowedMoves: moves };
 }

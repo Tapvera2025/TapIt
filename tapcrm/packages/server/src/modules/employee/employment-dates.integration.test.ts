@@ -122,12 +122,13 @@ describe.skipIf(!enabled)('employment dates (PostgreSQL)', () => {
   });
 
   it('a leaving date is stored, audited, and announced with the days after it', async () => {
+    // The edit now answers with the whole profile; the dates are part of it.
     await expect(
       updateEmployee(ctx(), EMPLOYEE, { joiningDate: '2026-01-01' as never }),
-    ).resolves.toEqual({ id: EMPLOYEE, joiningDate: '2026-01-01', leavingDate: null });
+    ).resolves.toMatchObject({ id: EMPLOYEE, joiningDate: '2026-01-01', leavingDate: null });
     await expect(
       updateEmployee(ctx(), EMPLOYEE, { leavingDate: '2026-10-10' as never }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       id: EMPLOYEE,
       joiningDate: '2026-01-01',
       leavingDate: '2026-10-10',

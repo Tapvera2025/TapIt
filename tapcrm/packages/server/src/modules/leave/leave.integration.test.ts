@@ -2,6 +2,7 @@
  *   TAPCRM_INTEGRATION_DB=1 MIGRATION_DATABASE_URL=… DATABASE_URL=… \
  *     npx vitest run packages/server/src/modules/leave/leave.integration.test.ts
  */
+import { randomUUID } from 'node:crypto';
 import type { DateOnly } from '@tapcrm/contracts';
 import { afterAll, describe, expect, it } from 'vitest';
 import { db, platformDb } from '../../platform/dal/db.js';
@@ -36,12 +37,12 @@ async function setup() {
     platformDb.query<{ id: string }>('seed', 'create emp',
       sql`INSERT INTO app_user
             (organization_id, employee_id, email, full_name, account_type, department_id, position_id)
-          VALUES (${orgId}, 'EMP-LV001', 'emp@test.invalid', 'Employee', 'employee',
+          VALUES (${orgId}, 'EMP-LV001', ${`emp-${randomUUID()}@test.invalid`}, 'Employee', 'employee',
                   ${departmentId}, ${positionId}) RETURNING id`),
     platformDb.query<{ id: string }>('seed', 'create mgr',
       sql`INSERT INTO app_user
             (organization_id, employee_id, email, full_name, account_type, department_id, position_id)
-          VALUES (${orgId}, 'EMP-LV002', 'mgr@test.invalid', 'Manager', 'employee',
+          VALUES (${orgId}, 'EMP-LV002', ${`mgr-${randomUUID()}@test.invalid`}, 'Manager', 'employee',
                   ${departmentId}, ${positionId}) RETURNING id`),
   ]);
   const empId = empRows[0]!.id;

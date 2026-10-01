@@ -2,7 +2,7 @@
 /**
  * GENERATED FILE — DO NOT EDIT.
  *
- * Source:    docs/AUTHORIZATION.md §6.4, §6.5
+ * Source:    team-docs/security/AUTHORIZATION.md §6.4, §6.5
  * Generator: tools/extract-registry.ts
  * Regenerate: npm run registry:extract
  *
@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 163   Bindings: 372
+ * Actions: 165   Bindings: 379
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -169,6 +169,7 @@ export type Action =
   | 'shifts:approve'
   | 'shifts:manage'
   | 'shifts:view'
+  | 'status:punch'
   | 'system:manage-integrations'
   | 'system:manage-retention'
   | 'system:manage-settings'
@@ -181,6 +182,7 @@ export type Action =
   | 'tasks:view'
   | 'territories:manage'
   | 'territories:view'
+  | 'users:change-placement'
   | 'users:manage'
   | 'users:view';
 
@@ -334,6 +336,7 @@ export const ACTIONS: readonly Action[] = [
   'shifts:approve',
   'shifts:manage',
   'shifts:view',
+  'status:punch',
   'system:manage-integrations',
   'system:manage-retention',
   'system:manage-settings',
@@ -346,6 +349,7 @@ export const ACTIONS: readonly Action[] = [
   'tasks:view',
   'territories:manage',
   'territories:view',
+  'users:change-placement',
   'users:manage',
   'users:view',
 ] as const;
@@ -2586,6 +2590,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'status:punch': {
+    action: 'status:punch',
+    module: 'live-status',
+    resource: null,
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'system:manage-integrations': {
     action: 'system:manage-integrations',
     module: 'system-administration',
@@ -2766,6 +2785,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'users:change-placement': {
+    action: 'users:change-placement',
+    module: 'employee-directory',
+    resource: 'user',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: true,
+    },
+    description: "",
+  },
   'users:manage': {
     action: 'users:manage',
     module: 'employee-directory',
@@ -2856,6 +2890,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/users/:id', action: 'users:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/users', action: 'users:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/users/:id', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/placement', action: 'users:change-placement', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/manager-reassignment', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/manager-reassignment/preview', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/manager-reassignment/confirm', action: 'users:manage', resourceParam: 'id' },
@@ -2866,6 +2901,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/onboarding', action: 'onboarding:manage', resourceParam: null },
   { method: 'POST', path: '/api/onboarding/:id/steps/:stepId/complete', action: 'onboarding:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/attendance/live', action: 'attendance:view-live', resourceParam: null },
+  { method: 'POST', path: '/api/status/punch', action: 'status:punch', resourceParam: null },
   { method: 'GET', path: '/api/attendance', action: 'attendance:view', resourceParam: null },
   { method: 'GET', path: '/api/attendance/:userId/:date', action: 'attendance:view', resourceParam: 'userId' },
   { method: 'POST', path: '/api/attendance/export', action: 'attendance:export', resourceParam: null },
@@ -2874,6 +2910,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/attendance/corrections/:id/approve', action: 'attendance:correct', resourceParam: 'id' },
   { method: 'POST', path: '/api/attendance/corrections/bulk', action: 'attendance:raise-correction', resourceParam: null },
   { method: 'POST', path: '/api/attendance/corrections/request', action: 'attendance:request-correction', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/corrections', action: 'attendance:view', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/corrections/:id/reject', action: 'attendance:correct', resourceParam: 'id' },
   { method: 'GET', path: '/api/breaks/policies', action: 'breaks:manage-policy', resourceParam: null },
   { method: 'POST', path: '/api/breaks/policies', action: 'breaks:manage-policy', resourceParam: null },
   { method: 'PATCH', path: '/api/breaks/policies/:id', action: 'breaks:manage-policy', resourceParam: 'id' },
@@ -2902,7 +2940,9 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/leaves/acknowledgements', action: 'leave:view', resourceParam: null },
   { method: 'GET', path: '/api/leaves/decisions', action: 'leave:view', resourceParam: null },
   { method: 'GET', path: '/api/leaves/:id', action: 'leave:view', resourceParam: 'id' },
+  { method: 'GET', path: '/api/leaves/balances', action: 'leave:view', resourceParam: null },
   { method: 'GET', path: '/api/leaves/balances/:userId', action: 'leave:view', resourceParam: null },
+  { method: 'POST', path: '/api/leaves/balances/:userId/adjust', action: 'leave:manage-types', resourceParam: null },
   { method: 'GET', path: '/api/leaves/calendar', action: 'leave:view', resourceParam: null },
   { method: 'POST', path: '/api/leaves', action: 'leave:request', resourceParam: null },
   { method: 'DELETE', path: '/api/leaves/:id', action: 'leave:request', resourceParam: 'id' },
@@ -2936,6 +2976,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/payroll/runs/:id/drifts/:driftId/remediate', action: 'payroll:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/payroll/inputs', action: 'payroll:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/payroll/inputs/:id/revoke', action: 'payroll:manage', resourceParam: null },
+  { method: 'GET', path: '/api/payroll/inputs', action: 'payroll:manage', resourceParam: null },
   { method: 'GET', path: '/api/payroll/payslips/:id/document', action: 'payroll:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/performance/:userId', action: 'performance:view', resourceParam: 'userId' },
   { method: 'GET', path: '/api/performance/:userId/kpis', action: 'performance:view-aggregates', resourceParam: 'userId' },

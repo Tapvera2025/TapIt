@@ -6,6 +6,7 @@ import { systemClock } from '../../platform/time.js';
 import * as repo from './repository.js';
 import { liveBoardGroup, type LiveBoardGroup } from './group.js';
 import { loadToday } from './today.js';
+import { punch } from './punch-route.js';
 
 /**
  * Live-status HTTP: one endpoint, two shapes.
@@ -23,6 +24,16 @@ const querySchema = z
   .transform((q) => ({ self: q.self === 'true' }));
 
 export function registerLiveStatusRoutes(): void {
+  // G1: an employee's own punch — in, out, break start and break end.
+  route({
+    method: 'POST',
+    path: '/api/status/punch',
+    action: 'status:punch',
+    module: 'live-status',
+    status: 200,
+    handler: async ({ ctx, body }) => punch(ctx, body),
+  });
+
   route({
     method: 'GET',
     path: '/api/attendance/live',

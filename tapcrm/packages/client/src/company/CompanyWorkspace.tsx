@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getCompanyEmployees, getCompanyIdentity, type CompanyIdentity } from './api/companyApi.js';
+import { getCompanyIdentity, type CompanyIdentity } from './api/companyApi.js';
 import { setIdentitySessionPrincipal } from '../identity/api/authApi.js';
 import { CompanyLayout } from './layout/CompanyLayout.js';
 import { DashboardPage } from './dashboard/DashboardPage.js';
@@ -9,14 +9,15 @@ import { GeofencingPage } from '../identity/pages/GeofencingPage.js';
 import { OrganizationWorkspace } from '../organization/index.js';
 import { AccessExplorerPage } from '../access-management/pages/AccessExplorerPage.js';
 import { RoleChangeRequestPage } from '../access-management/pages/RoleChangeRequestPage.js';
-import { getRoleChangeRequestAccess } from '../access-management/api/accessApi.js';
-import { getAuditEntries } from '../audit/api/auditApi.js';
 import { AuditLogPage } from '../audit/pages/AuditLogPage.js';
 import { BreachQueuePage } from './breaks/BreachQueuePage.js';
 import { BreakPoliciesPage } from './breaks/BreakPoliciesPage.js';
 import { PayrollCyclePage } from './payroll/PayrollCyclePage.js';
 import { MyPayslipsPage } from './payroll/MyPayslipsPage.js';
 import { RunsPage } from './payroll/RunsPage.js';
+import { SalariesPage } from './payroll/SalariesPage.js';
+import { PayrollSettingsPage } from './payroll/PayrollSettingsPage.js';
+import { PayrollInputsPage } from './payroll/PayrollInputsPage.js';
 import { TodayPage } from './today/TodayPage.js';
 import { LiveBoardPage } from './live/LiveBoardPage.js';
 import { AttendancePage } from './attendance/AttendancePage.js';
@@ -26,6 +27,7 @@ import { HolidaysPage } from './holidays/HolidaysPage.js';
 import { LeavePage } from './leave/LeavePage.js';
 import { LeaveQueuePage } from './leave/LeaveQueuePage.js';
 import { LeaveTypesPage } from './leave/LeaveTypesPage.js';
+import { LeaveBalancesPage } from './leave/LeaveBalancesPage.js';
 import { BiometricPage } from './biometric/BiometricPage.js';
 import { TasksPage } from './tasks/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
@@ -41,10 +43,6 @@ export function CompanyWorkspace({
 }): React.JSX.Element {
   const [identity, setIdentity] = useState<CompanyIdentity | null>(null);
   const [error, setError] = useState('');
-  const [canRequestRoleChange, setCanRequestRoleChange] = useState(false);
-  const [canViewAudit, setCanViewAudit] = useState(false);
-  const [canViewEmployees, setCanViewEmployees] = useState(false);
-  const [employeesAccessChecked, setEmployeesAccessChecked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,26 +53,6 @@ export function CompanyWorkspace({
           setIdentitySessionPrincipal(nextIdentity.user.id, nextIdentity.organization.id);
         }
         setIdentity(nextIdentity);
-
-        if (nextIdentity.user.accountType === 'super-admin') {
-          setCanViewEmployees(true);
-          setEmployeesAccessChecked(true);
-        } else if (nextIdentity.user.accountType === 'employee') {
-          // This only controls directory navigation; the directory API remains
-          // authoritative for every read and mutation.
-          void getCompanyEmployees()
-            .then(() => { if (!cancelled) setCanViewEmployees(true); })
-            .catch(() => { if (!cancelled) setCanViewEmployees(false); })
-            .finally(() => { if (!cancelled) setEmployeesAccessChecked(true); });
-
-          void getRoleChangeRequestAccess()
-            .then(() => { if (!cancelled) setCanRequestRoleChange(true); })
-            .catch(() => { if (!cancelled) setCanRequestRoleChange(false); });
-
-          void getAuditEntries({ limit: 1 })
-            .then(() => { if (!cancelled) setCanViewAudit(true); })
-            .catch(() => { if (!cancelled) setCanViewAudit(false); });
-        }
       })
       .catch((cause) => {
         if (cancelled) return;
@@ -118,6 +96,14 @@ export function CompanyWorkspace({
     )
   );
   const can = (action: string): boolean => identity.capabilities.some((item) => item.action === action);
+  // Screens that list other people need more than the holder's own record.
+  const canBeyondOwn = (action: string): boolean =>
+    identity.capabilities.some((item) => item.action === action && item.scope !== 'own');
+  // Navigation follows the capabilities the server resolved for this session;
+  // every API call is still authorized on the server.
+  const canViewEmployees = isSuperAdmin || can('users:view');
+  const canRequestRoleChange = !isSuperAdmin && can('access:request-role-change');
+  const canViewAudit = isSuperAdmin || can('audit:view');
   const canManageLeaveTypes = can('leave:manage-types');
   const canAcknowledgeLeave = can('leave:acknowledge');
   const canDecideLeave = can('leave:decide');
@@ -126,6 +112,7 @@ export function CompanyWorkspace({
     ({ action, scope }) => action === 'leave:view' && scope !== 'own',
   );
   const userId = identity.user.id;
+  const fullName = identity.user.fullName;
   const organizationTimeZone = identity.organization?.timezone ?? 'UTC';
   const hasRecruitment = identity.enabledModules.includes('recruitment');
   const isOrganization = isSuperAdmin && (
@@ -139,6 +126,7 @@ export function CompanyWorkspace({
     '/company/employees': 'Employees',
     '/company/sessions': 'Sessions & Devices',
     '/company/access': 'Access Explorer',
+    '/company/access/role-changes': 'Access Explorer',
     '/company/role-change-request': 'Request Role Change',
     '/company/audit': 'Audit Log',
     '/company/breaks/queue': 'Break Breach Queue',
@@ -146,6 +134,9 @@ export function CompanyWorkspace({
     '/company/payroll/cycle': 'Payroll Cycle',
     '/company/payroll/my-payslips': 'My Payslips',
     '/company/payroll/runs': 'Payroll Runs',
+    '/company/payroll/salaries': 'Salary Structures',
+    '/company/payroll/inputs': 'Bonuses & Deductions',
+    '/company/payroll/settings': 'Payroll Settings',
     '/company/geofencing': 'Geofencing',
     '/company/attendance/today': 'Today',
     '/company/attendance/my': 'My Attendance',
@@ -156,6 +147,7 @@ export function CompanyWorkspace({
     '/company/leave/my': 'My Leave',
     '/company/leave/queue': 'Leave Queue',
     '/company/leave/types': 'Leave Types',
+    '/company/leave/balances': 'Leave Balances',
     '/company/biometric': 'Biometric',
     '/company/tasks': 'Tasks',
   };
@@ -169,8 +161,11 @@ export function CompanyWorkspace({
   function renderContent(): React.JSX.Element {
     if (isOrganization) return <OrganizationWorkspace pathname={pathname} />;
     if (isRecruitment) return <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />;
-    if (pathname === '/company/access' && isSuperAdmin) return <AccessExplorerPage />;
-    if (pathname === '/company/role-change-request' && !isSuperAdmin) return <RoleChangeRequestPage />;
+    if (pathname === '/company/access' && isSuperAdmin) return <AccessExplorerPage key="person" />;
+    if (pathname === '/company/access/role-changes' && isSuperAdmin) {
+      return <AccessExplorerPage key="role-changes" initialTab="role-changes" />;
+    }
+    if (pathname === '/company/role-change-request' && canRequestRoleChange) return <RoleChangeRequestPage />;
     if (pathname === '/company/audit' && (isSuperAdmin || canViewAudit)) {
       return <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />;
     }
@@ -178,13 +173,23 @@ export function CompanyWorkspace({
     if (pathname === '/company/breaks/policies' && can('breaks:manage-policy')) return <BreakPoliciesPage />;
     if (pathname === '/company/payroll/cycle') return <PayrollCyclePage />;
     if (pathname === '/company/payroll/my-payslips') return <MyPayslipsPage />;
-    if (pathname === '/company/payroll/runs' && can('payroll:manage')) return <RunsPage />;
+    if (pathname === '/company/payroll/runs' && can('payroll:manage')) return <RunsPage onNavigate={onNavigate} />;
+    if (pathname === '/company/payroll/salaries' && can('payroll:manage')) return <SalariesPage />;
+    if (pathname === '/company/payroll/inputs' && can('payroll:manage')) return <PayrollInputsPage />;
+    if (pathname === '/company/payroll/settings' && can('payroll:manage-config')) return <PayrollSettingsPage />;
     if (pathname === '/company/sessions') {
       return <SessionsPage onBack={() => onNavigate('/company/dashboard')} onSignedOut={onLogout} />;
     }
     if (isEmployees) {
-      return isSuperAdmin || isHr || (employeesAccessChecked && canViewEmployees)
-        ? <EmployeesPage />
+      return canViewEmployees
+        ? (
+          <EmployeesPage
+            canManage={isSuperAdmin || can('users:manage')}
+            isSuperAdmin={isSuperAdmin}
+            canRequestRoleChange={canRequestRoleChange}
+            onNavigate={onNavigate}
+          />
+        )
         : (
           <div className="grid min-h-[60vh] place-items-center p-6 text-center">
             <div>
@@ -201,9 +206,9 @@ export function CompanyWorkspace({
     if (pathname === '/company/tasks') {
       return <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={userId} />;
     }
-    if (pathname === '/company/attendance/today') return <TodayPage />;
+    if (pathname === '/company/attendance/today') return <TodayPage fullName={fullName} userId={userId} />;
     if (pathname === '/company/attendance/my') return <AttendancePage userId={userId} />;
-    if (pathname === '/company/attendance/live' && can('attendance:view-live')) return <LiveBoardPage />;
+    if (pathname === '/company/attendance/live' && canBeyondOwn('attendance:view-live')) return <LiveBoardPage />;
     if (pathname === '/company/attendance/corrections' && can('attendance:correct')) return <CorrectionsPage />;
     if (pathname === '/company/shifts' && can('shifts:manage')) return <ShiftsPage />;
     if (pathname === '/company/holidays') return <HolidaysPage />;
@@ -218,6 +223,9 @@ export function CompanyWorkspace({
           canViewScopedCoverage={canViewScopedLeaveCoverage}
         />
       );
+    }
+    if (pathname === '/company/leave/balances' && (canManageLeaveTypes || canViewScopedLeaveCoverage)) {
+      return <LeaveBalancesPage canAdjust={canManageLeaveTypes} />;
     }
     if (pathname === '/company/leave/types') {
       return canManageLeaveTypes
@@ -237,14 +245,16 @@ export function CompanyWorkspace({
       canRequestRoleChange={canRequestRoleChange}
       canViewAudit={canViewAudit}
       canManageLeaveTypes={canManageLeaveTypes}
+      canViewLeaveBalances={canManageLeaveTypes || canViewScopedLeaveCoverage}
       canUseLeaveQueue={canUseLeaveQueue}
       canViewEmployees={canViewEmployees}
-      canViewLiveBoard={can('attendance:view-live')}
+      canViewLiveBoard={canBeyondOwn('attendance:view-live')}
       canReviewCorrections={can('attendance:correct')}
       canReviewBreaches={can('breaks:review-breach')}
       canManageBreakPolicies={can('breaks:manage-policy')}
       canManageShifts={can('shifts:manage')}
       canManagePayroll={can('payroll:manage')}
+      canManagePayrollConfig={can('payroll:manage-config')}
       canManageBiometric={can('biometric:manage')}
       isHr={Boolean(isHr)}
       hasRecruitment={hasRecruitment}

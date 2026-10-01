@@ -271,6 +271,17 @@ export const bootstrapDb = {
     return camelizeRows<T>(result.rows as Record<string, unknown>[]);
   },
 
+  /**
+   * G2 — the machine endpoint's one read before a tenant exists: which
+   * organization and device own a serial. The biometric module owns the SQL
+   * (its global device directory, read-only for this role); the device itself
+   * is then read under RLS in that tenant's context.
+   */
+  async readBiometricDirectory<T>(fragment: SqlFragment): Promise<T[]> {
+    const result = await getPool().query(fragment.sql, [...fragment.parameters]);
+    return camelizeRows<T>(result.rows as Record<string, unknown>[]);
+  },
+
   async readAs<T>(organizationId: string, fragment: SqlFragment): Promise<T[]> {
     if (!organizationId) {
       throw new MissingTenantContextError('bootstrap read with no organizationId');

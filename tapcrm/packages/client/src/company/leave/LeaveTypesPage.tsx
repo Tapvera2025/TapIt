@@ -5,6 +5,7 @@ import {
   updateLeaveType,
   type LeaveTypeDto,
 } from '../api/leaveApi.js';
+import { suggestNextCode } from '../../ui/code-suggest.js';
 
 type FormMode = null | 'create' | LeaveTypeDto;
 
@@ -17,6 +18,8 @@ export function LeaveTypesPage(): React.JSX.Element {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [lastCode, setLastCode] = useState('');
+
   // Create-only fields
   const [code, setCode] = useState('');
   const [kind, setKind] = useState<'absence' | 'attendance-mode'>('absence');
@@ -25,6 +28,7 @@ export function LeaveTypesPage(): React.JSX.Element {
   const [name, setName] = useState('');
   const [accrualDays, setAccrualDays] = useState('0');
   const [paidLeave, setPaidLeave] = useState(true);
+  const [enforcement, setEnforcement] = useState(false);
 
   // Edit-only fields
   const [isActive, setIsActive] = useState(true);
@@ -44,11 +48,12 @@ export function LeaveTypesPage(): React.JSX.Element {
   useEffect(() => { void load(); }, []);
 
   function openCreate(): void {
-    setCode('');
+    setCode(suggestNextCode(types.map((t) => t.code), lastCode || undefined));
     setKind('absence');
     setName('');
     setAccrualDays('0');
     setPaidLeave(true);
+    setEnforcement(false);
     setFormError(null);
     setSavedMessage(null);
     setMode('create');
@@ -58,6 +63,7 @@ export function LeaveTypesPage(): React.JSX.Element {
     setName(lt.name);
     setAccrualDays(String(lt.accrualDays));
     setPaidLeave(lt.paidLeave);
+    setEnforcement(lt.enforcement);
     setIsActive(lt.isActive);
     setFormError(null);
     setSavedMessage(null);
@@ -98,13 +104,15 @@ export function LeaveTypesPage(): React.JSX.Element {
           name: trimmedName,
           kind,
           accrualDays: days,
-          enforcement: false,
+          enforcement,
           paidLeave,
         });
+        setLastCode(normalizedCode);
       } else {
         saved = await updateLeaveType(mode.id, {
           name: trimmedName,
           accrualDays: days,
+          enforcement,
           paidLeave,
           isActive,
         });
@@ -172,6 +180,7 @@ export function LeaveTypesPage(): React.JSX.Element {
                     disabled={submitting}
                     className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm font-mono uppercase"
                   />
+                  {code && <p className="mt-1 text-xs text-app-muted">Auto-generated — edit as needed.</p>}
                   <p className="mt-0.5 text-[10px] text-app-muted">Short unique identifier, e.g. ANNUAL, SICK</p>
                 </div>
                 <div>
@@ -218,7 +227,7 @@ export function LeaveTypesPage(): React.JSX.Element {
                 disabled={submitting}
                 className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
               />
-              <p className="mt-0.5 text-[10px] text-app-muted">Days employees accrue per year (0 = none)</p>
+              <p className="mt-0.5 text-[10px] text-app-muted">Days per calendar year; someone joining mid-year gets a pro-rated share (0 = no balance)</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-5">
@@ -231,6 +240,16 @@ export function LeaveTypesPage(): React.JSX.Element {
                 className="h-4 w-4 rounded border-app-border accent-app-accent"
               />
               <span>Paid leave</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={enforcement}
+                onChange={(e) => setEnforcement(e.target.checked)}
+                disabled={submitting}
+                className="h-4 w-4 rounded border-app-border accent-app-accent"
+              />
+              <span>Limit requests to the balance</span>
             </label>
             {isEdit && (
               <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -246,7 +265,7 @@ export function LeaveTypesPage(): React.JSX.Element {
             )}
           </div>
           <p className="text-xs text-app-muted">
-            Balance enforcement is unavailable until opening balances are seeded. Existing requests remain in history when a type is made inactive.
+            With the limit on, a request beyond the employee&apos;s remaining balance (after requests awaiting approval) is refused. HR can adjust a balance under Leave Balances. Existing requests remain in history when a type is made inactive.
           </p>
           {formError && <p role="alert" className="text-sm text-app-danger">{formError}</p>}
           <div className="flex gap-2">
@@ -310,7 +329,7 @@ export function LeaveTypesPage(): React.JSX.Element {
                   <td className="px-4 py-3 text-app-muted capitalize">{lt.kind === 'attendance-mode' ? 'Attendance mode' : 'Absence'}</td>
                   <td className="px-4 py-3 tabular-nums text-app-muted">{lt.accrualDays} d</td>
                   <td className="px-4 py-3 text-app-muted">{lt.paidLeave ? 'Yes' : 'No'}</td>
-                  <td className="px-4 py-3 text-app-muted">{lt.enforcement ? 'Enforced' : 'Not enforced'}</td>
+                  <td className="px-4 py-3 text-app-muted">{lt.enforcement ? 'Limited to balance' : 'No limit'}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded px-2 py-0.5 text-xs font-medium ${lt.isActive ? 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-200' : 'bg-app-surface-raised text-app-muted'}`}>
                       {lt.isActive ? 'Active' : 'Inactive'}

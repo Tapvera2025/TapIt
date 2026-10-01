@@ -59,9 +59,20 @@ export interface LeaveQueueItem extends LeaveRequestSummary {
 export interface LeaveBalanceDto {
   readonly leaveTypeId: string;
   readonly leaveTypeName: string;
+  /** Whether requests beyond the balance are refused for this type. */
+  readonly enforced: boolean;
+  readonly paid: boolean;
+  /** The year's entitlement, pro-rated to the employed days of the year. */
+  readonly entitlement: number;
   readonly opening: number;
+  /** Entitlement plus any accrual entries. */
   readonly accrued: number;
+  /** HR adjustments, signed. */
+  readonly adjustments: number;
+  /** Used by approved leave, net of revocations. */
   readonly consumed: number;
+  /** Asked for in requests still awaiting a decision. */
+  readonly pending: number;
   readonly available: number;
 }
 

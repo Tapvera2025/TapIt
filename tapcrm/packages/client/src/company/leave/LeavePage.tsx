@@ -58,10 +58,24 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
     const [leavesResult, typesResult, balancesResult] = results;
     if (leavesResult?.status === 'fulfilled') setLeaves(leavesResult.value);
     else setError(leavesResult?.reason instanceof Error ? leavesResult.reason.message : 'Unable to load leave requests.');
+
+    // Accumulate supplemental errors locally, then set once. The previous
+    // callback form (setSupplementalError((current) => [current, msg].join(' ')))
+    // duplicated the message when React StrictMode double-invoked the effect,
+    // because each concurrent load() saw the other's setter output as `current`.
+    const supplemental: string[] = [];
     if (typesResult?.status === 'fulfilled') setLeaveTypes(typesResult.value.filter((type) => type.isActive));
-    else setSupplementalError((current) => [current, 'Leave types could not be loaded.'].filter(Boolean).join(' '));
+    else {
+      const detail = typesResult?.reason instanceof Error ? typesResult.reason.message : '';
+      supplemental.push(detail ? `Leave types could not be loaded: ${detail}` : 'Leave types could not be loaded.');
+    }
     if (balancesResult?.status === 'fulfilled') setBalances(balancesResult.value);
-    else setSupplementalError((current) => [current, 'Leave balances could not be loaded.'].filter(Boolean).join(' '));
+    else {
+      const detail = balancesResult?.reason instanceof Error ? balancesResult.reason.message : '';
+      supplemental.push(detail ? `Leave balances could not be loaded: ${detail}` : 'Leave balances could not be loaded.');
+    }
+    setSupplementalError(supplemental.length ? supplemental.join(' ') : null);
+
     setLoading(false);
   }
 
@@ -115,11 +129,17 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
       {balances.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {balances.map((b) => (
-            <div key={b.leaveTypeId} className="rounded-xl bg-app-surface-raised px-3 py-2.5">
+            <div key={b.leaveTypeId} className="min-w-44 rounded-xl border border-app-border bg-app-surface px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-app-muted">{b.leaveTypeName}</p>
               <p className="mt-0.5 text-base font-bold tabular-nums">
-                {b.available}
-                <span className="ml-1 text-xs font-normal text-app-muted">/ {b.opening + b.accrued} days</span>
+                {b.available}{' '}
+                <span className="text-xs font-normal text-app-muted">
+                  day{b.available === 1 ? '' : 's'} left of {b.opening + b.accrued + b.adjustments}
+                </span>
+              </p>
+              <p className="text-[11px] text-app-muted">
+                Used {b.consumed}{b.pending > 0 ? ` · ${b.pending} awaiting approval` : ''}
+                {b.enforced ? ' · limit applies' : ''}
               </p>
             </div>
           ))}

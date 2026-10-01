@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { createEmployee, resetEmployeePassword } from '../api/employeesApi.js';
+import {
+  createEmployee,
+  listInactiveEmployees,
+  resetEmployeePassword,
+  type InactiveEmployee,
+} from '../api/employeesApi.js';
+import { EditEmployeeModal } from './EditEmployeeModal.js';
 import {
   getCompanyDepartments,
   getCompanyDesignations,
@@ -16,6 +22,7 @@ import {
   type CompanyReportingManager,
   type CompanyTeam,
 } from '../api/companyApi.js';
+import { listShifts, assignShiftToEmployee, type ShiftTemplate } from '../api/shiftsApi.js';
 
 const blank = {
   fullName: '',
@@ -29,10 +36,24 @@ const blank = {
   specialization: '',
   reportsTo: '',
   joiningDate: '',
+  shiftId: '',
 };
 
-export function EmployeesPage(): React.JSX.Element {
+export function EmployeesPage({
+  canManage = true,
+  isSuperAdmin = false,
+  canRequestRoleChange = false,
+  onNavigate,
+}: {
+  canManage?: boolean;
+  isSuperAdmin?: boolean;
+  canRequestRoleChange?: boolean;
+  onNavigate?: (path: string) => void;
+} = {}): React.JSX.Element {
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [inactive, setInactive] = useState<InactiveEmployee[] | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
   const [departments, setDepartments] = useState<CompanyDepartment[]>([]);
   const [teams, setTeams] = useState<CompanyTeam[]>([]);
   const [designations, setDesignations] = useState<CompanyDesignation[]>([]);
@@ -43,6 +64,7 @@ export function EmployeesPage(): React.JSX.Element {
   const [accessPreview, setAccessPreview] = useState<
     Awaited<ReturnType<typeof getCompanyPositionPolicies>>
   >([]);
+  const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
   const [form, setForm] = useState(blank);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -60,17 +82,19 @@ export function EmployeesPage(): React.JSX.Element {
   async function load(): Promise<void> {
     setLoading(true);
     try {
-      const [nextEmployees, nextDepartments, nextTeams, nextDesignations] =
+      const [nextEmployees, nextDepartments, nextTeams, nextDesignations, nextShifts] =
         await Promise.all([
           getCompanyEmployees(),
           getCompanyDepartments(),
           getCompanyTeams(),
           getCompanyDesignations(),
+          listShifts(),
         ]);
       setEmployees(nextEmployees);
       setDepartments(nextDepartments.filter((item) => item.status === 'active'));
       setTeams(nextTeams);
       setDesignations(nextDesignations.filter((item) => item.status === 'active'));
+      setShifts(nextShifts.filter((s) => s.status === 'active'));
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load employees.');
@@ -81,6 +105,12 @@ export function EmployeesPage(): React.JSX.Element {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    if (!showInactive) return;
+    listInactiveEmployees()
+      .then(setInactive)
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Unable to load deactivated employees.'));
+  }, [showInactive]);
   useEffect(() => {
     const department = departments.find((item) => item.id === form.departmentId);
     if (!department) {
@@ -174,6 +204,14 @@ export function EmployeesPage(): React.JSX.Element {
         reportsTo: form.reportsTo || null,
         ...(form.joiningDate ? { joiningDate: form.joiningDate } : {}),
       });
+      if (form.shiftId) {
+        await assignShiftToEmployee({
+          kind: 'template',
+          userId: result.employee.id,
+          shiftId: form.shiftId,
+          effectiveFrom: form.joiningDate || new Date().toISOString().slice(0, 10),
+        });
+      }
       setMessage(
         `Employee ${result.employee.fullName} created. Credentials were sent by email.`,
       );
@@ -202,13 +240,24 @@ export function EmployeesPage(): React.JSX.Element {
               Manage employee accounts in your organization.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowCreate((open) => !open)}
-            className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent"
-          >
-            {showCreate ? 'Close form' : 'Create employee'}
-          </button>
+          {canManage && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowInactive((open) => !open)}
+                className="rounded-lg border border-app-border px-4 py-2.5 text-sm font-bold hover:border-app-accent"
+              >
+                {showInactive ? 'Hide deactivated' : 'Deactivated employees'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate((open) => !open)}
+                className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent"
+              >
+                {showCreate ? 'Close form' : 'Create employee'}
+              </button>
+            </div>
+          )}
         </div>
         {message && (
           <p className="mt-5 rounded-xl border border-app-accent/30 bg-app-accent/10 p-4 text-sm text-app-accent">
@@ -273,6 +322,12 @@ export function EmployeesPage(): React.JSX.Element {
               onChange={(value) => setForm({ ...form, positionId: value })}
               options={positionOptions}
               required
+            />
+            <Select
+              label="Shift (optional)"
+              value={form.shiftId}
+              onChange={(value) => setForm({ ...form, shiftId: value })}
+              options={shifts.map((s) => ({ value: s.id, label: `${s.name} (${s.kind})` }))}
             />
             <Select
               label="Team (optional)"
@@ -438,7 +493,16 @@ export function EmployeesPage(): React.JSX.Element {
                       Reporting Manager:
                     </span>{' '}
                     {employee.reportsToName ?? '—'}
-                    <button
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(employee.id)}
+                        className="ml-4 rounded border border-app-border px-2 py-0.5 text-xs text-app-foreground hover:border-app-accent"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {canManage && <button
                       type="button"
                       onClick={() => {
                         setResetTarget({ id: employee.id, fullName: employee.fullName });
@@ -450,7 +514,7 @@ export function EmployeesPage(): React.JSX.Element {
                       className="ml-4 rounded border border-app-border px-2 py-0.5 text-xs text-app-muted hover:border-app-accent hover:text-app-foreground"
                     >
                       Reset password
-                    </button>
+                    </button>}
                   </div>
                 </div>
               ))}
@@ -458,6 +522,58 @@ export function EmployeesPage(): React.JSX.Element {
           </section>
         )}
       </div>
+
+      {showInactive && inactive && (
+        <div className="mx-auto mt-6 max-w-7xl px-5 md:px-8">
+          <section className="rounded-2xl border border-app-border bg-app-surface">
+            <p className="border-b border-app-border p-4 text-sm font-semibold">Deactivated employees ({inactive.length})</p>
+            {inactive.length === 0 ? (
+              <p className="p-4 text-sm text-app-muted">Nobody is deactivated.</p>
+            ) : (
+              <div className="divide-y divide-app-border">
+                {inactive.map((person) => (
+                  <div key={person.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
+                    <div>
+                      <p className="font-semibold">{person.fullName}</p>
+                      <p className="text-xs text-app-muted">
+                        {[person.employeeId, person.departmentName, person.positionName].filter(Boolean).join(' · ')}
+                        {person.leftOn ? ` · left ${person.leftOn}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(person.id)}
+                      className="rounded border border-app-border px-3 py-1 text-xs hover:border-app-accent"
+                    >
+                      Open
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {editingId && (
+        <EditEmployeeModal
+          userId={editingId}
+          departments={departments}
+          teams={teams}
+          designations={designations}
+          isSuperAdmin={isSuperAdmin}
+          canRequestRoleChange={canRequestRoleChange}
+          onClose={() => setEditingId(null)}
+          onSaved={(text) => {
+            setMessage(text);
+            setEditingId(null);
+            setInactive(null);
+            if (showInactive) void listInactiveEmployees().then(setInactive).catch(() => undefined);
+            void load();
+          }}
+          {...(onNavigate ? { onRequestRoleChange: () => onNavigate('/company/role-change-request') } : {})}
+        />
+      )}
 
       {resetTarget && (
         <div

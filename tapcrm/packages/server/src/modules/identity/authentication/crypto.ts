@@ -45,6 +45,9 @@ export async function signIdentityRefreshToken(sessionId: string, organizationId
   const config = loadConfig();
   return new SignJWT({ typ: 'identity-refresh', sessionId, organizationId, familyId })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    // A unique id per token: two rotations inside one second used to produce the
+    // same token (same claims, same iat), whose hash then collided with the last one.
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime(`${config.REFRESH_TOKEN_TTL_SECONDS}s`)
     .sign(refreshSecret());

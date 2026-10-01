@@ -21,6 +21,7 @@ import {
   BiometricNotFoundError,
   BiometricValidationError,
 } from './errors.js';
+import { lookupDeviceBySerial } from './directory.js';
 import { BIOMETRIC_EVENTS, recordEvent } from './events.js';
 import { overrideWarnings, resolvePin, scopeConflicts } from './mapping.js';
 import { assertTenantWide } from './policy.js';
@@ -48,7 +49,8 @@ import {
  * history in place of the account-status shim. Until then a device can be
  * registered, configured and compared in dry-run, but not switched live.
  */
-const LIVE_APPLICATION_AVAILABLE = false;
+// The device connection (/iclock, G2) and employment dates (0060) are in place.
+const LIVE_APPLICATION_AVAILABLE = true;
 
 const REPLAYABLE_LOOKBACK_DAYS = 30;
 
@@ -144,6 +146,14 @@ export async function createDevice(
   body: CreateDeviceBody,
 ): Promise<BiometricDeviceDto> {
   await assertTenantWide(ctx);
+  // G2: one physical device pushes to one company. The directory is the only
+  // place a serial registered elsewhere is visible; it reveals nothing else.
+  const registered = await lookupDeviceBySerial(body.serialNumber);
+  if (registered !== null && registered.organizationId !== ctx.organizationId)
+    throw new BiometricConflictError(
+      BIOMETRIC_ERROR_CODES.SERIAL_TAKEN,
+      `Device serial ${body.serialNumber} is registered to another company.`,
+    );
   return db.transaction(ctx, async (tx) => {
     const timezone = body.timezone ?? (await organizationTimezone(tx));
     assertTimezone(timezone);

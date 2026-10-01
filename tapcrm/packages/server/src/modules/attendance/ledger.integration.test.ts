@@ -222,6 +222,8 @@ describe.skipIf(!enabled)('attendance ledger (PostgreSQL)', () => {
         sql`DELETE FROM ${sql.raw(table)} WHERE organization_id = ${ORG}`,
       );
     }
+    // Review items point at events; they go first.
+    await asOwner('clear review items', sql`DELETE FROM attendance_review_item WHERE organization_id = ${ORG}`);
     // The ledger is append-only for the app role; the owner clears it, voids first.
     await asOwner(
       'clear voids',
@@ -231,6 +233,7 @@ describe.skipIf(!enabled)('attendance ledger (PostgreSQL)', () => {
       'clear events',
       sql`DELETE FROM attendance_event WHERE organization_id = ${ORG}`,
     );
+    await asOwner('clear corrections', sql`DELETE FROM attendance_correction WHERE organization_id = ${ORG}`);
     for (const table of ['biometric_punch', 'biometric_device', 'biometric_connector']) {
       await asOwner(
         `clear ${table}`,
@@ -526,12 +529,22 @@ describe.skipIf(!enabled)('attendance ledger (PostgreSQL)', () => {
       const head = await db.transaction(ctx(), (tx) =>
         appendEvent(tx, deviceIn(people.d, '2026-10-08T20:00:30', headPunch)),
       );
+      // A correction event points at the approved correction behind it (step 7's key).
+      const [approved] = (await asOwner(
+        'the approved correction',
+        sql`
+        INSERT INTO attendance_correction (organization_id, user_id, work_date, kind, payload, reason, requested_by,
+                                           status, decided_by, decided_at)
+        VALUES (${ORG}, ${people.d}, '2026-10-08', 'replace-event', '{}'::jsonb,
+                'The device clock ran half a minute fast that evening', ${people.d}, 'approved', ${HR}, now())
+        RETURNING id`,
+      )) as { id: string }[];
       const [correction] = (await asOwner(
         'HR corrects the head',
         sql`
         INSERT INTO attendance_event (organization_id, user_id, kind, occurred_at, source, evidence, correction_id,
                                       supersedes_event_id)
-        VALUES (${ORG}, ${people.d}, 'in', '2026-10-08T20:00:00+05:30', 'correction', 'confirmed', ${randomUUID()},
+        VALUES (${ORG}, ${people.d}, 'in', '2026-10-08T20:00:00+05:30', 'correction', 'confirmed', ${approved!.id},
                 ${head.eventId})
         RETURNING id`,
       )) as { id: string }[];

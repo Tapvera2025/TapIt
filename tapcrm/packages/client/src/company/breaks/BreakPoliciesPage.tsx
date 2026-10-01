@@ -6,14 +6,27 @@ import {
   type BreakPolicyRow,
 } from '../api/breaksApi.js';
 
+/** Break policies and assignments take effect from tomorrow at the earliest (future-dated). */
+function tomorrow(): string {
+  const date = new Date(Date.now() + 86_400_000);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * A date or a timestamp ("2026-09-29" or "2026-09-29 16:45:12+05:30") shown as
+ * "29 Sept 2026". The timestamp used to be glued to "T12:00:00Z", which made an
+ * invalid date and crashed the whole page as soon as one policy existed.
+ */
 function fmtDate(value: string): string {
+  const day = /^\d{4}-\d{2}-\d{2}/.exec(value)?.[0];
+  if (!day) return value;
   return new Intl.DateTimeFormat('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
-  }).format(new Date(`${value}T12:00:00Z`));
+  }).format(new Date(`${day}T12:00:00Z`));
 }
 
 function AssignPanel({ policyId, onDone }: { policyId: string; onDone: () => void }): React.JSX.Element {
-  const [effectiveFrom, setEffectiveFrom] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState(tomorrow());
   const [effectiveTo, setEffectiveTo] = useState('');
   const [priority, setPriority] = useState('0');
   const [userId, setUserId] = useState('');
@@ -48,10 +61,12 @@ function AssignPanel({ policyId, onDone }: { policyId: string; onDone: () => voi
           <input
             type="date"
             value={effectiveFrom}
+            min={tomorrow()}
             onChange={(e) => setEffectiveFrom(e.target.value)}
             required
             className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
           />
+          <p className="mt-1 text-[11px] text-app-muted">Takes effect from tomorrow at the earliest.</p>
         </div>
         <div>
           <label className="block text-xs font-semibold text-app-muted">Effective to (optional)</label>
@@ -144,7 +159,7 @@ export function BreakPoliciesPage(): React.JSX.Element {
   const [submitting, setSubmitting] = useState(false);
 
   const [name, setName] = useState('');
-  const [effectiveFrom, setEffectiveFrom] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState(tomorrow());
   const [upperTotal, setUpperTotal] = useState('');
   const [upperSingle, setUpperSingle] = useState('');
   const [grace, setGrace] = useState('0');
@@ -181,9 +196,9 @@ export function BreakPoliciesPage(): React.JSX.Element {
         rules: [],
       });
       setShowForm(false);
-      setName(''); setEffectiveFrom(''); setUpperTotal(''); setUpperSingle('');
+      setName(''); setEffectiveFrom(tomorrow()); setUpperTotal(''); setUpperSingle('');
       setGrace('0'); setWarningPct('80'); setCountsTwh(true);
-      load();
+      void load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create.');
     } finally {
@@ -225,9 +240,11 @@ export function BreakPoliciesPage(): React.JSX.Element {
               <input
                 type="date"
                 value={effectiveFrom}
+                min={tomorrow()}
                 onChange={(e) => setEffectiveFrom(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
               />
+              <p className="mt-1 text-[11px] text-app-muted">Policies apply from tomorrow at the earliest.</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">Max total break (minutes)</label>
@@ -317,7 +334,7 @@ export function BreakPoliciesPage(): React.JSX.Element {
       {policies.length > 0 && (
         <div className="space-y-2">
           {policies.map((p) => (
-            <PolicyCard key={p.id} policy={p} onRefresh={load} />
+            <PolicyCard key={p.id} policy={p} onRefresh={() => void load()} />
           ))}
         </div>
       )}

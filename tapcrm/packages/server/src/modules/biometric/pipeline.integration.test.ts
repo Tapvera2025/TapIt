@@ -244,7 +244,7 @@ describe.skipIf(!enabled)('biometric pipeline (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
-    for (const table of ['domain_outbox', 'biometric_review_item', 'biometric_alert']) {
+    for (const table of ['domain_outbox', 'biometric_review_item', 'biometric_alert', 'attendance_review_item']) {
       await asOwner(
         `clear ${table}`,
         sql`DELETE FROM ${sql.raw(table)} WHERE organization_id = ${ORG}`,
@@ -264,6 +264,7 @@ describe.skipIf(!enabled)('biometric pipeline (PostgreSQL)', () => {
                punches AS (DELETE FROM biometric_punch WHERE organization_id = ${ORG})
           DELETE FROM attendance_event WHERE organization_id = ${ORG} AND supersedes_event_id IS NULL`,
     );
+    await asOwner('clear corrections', sql`DELETE FROM attendance_correction WHERE organization_id = ${ORG}`);
     for (const table of [
       'biometric_pin_mapping',
       'biometric_reader',
@@ -512,11 +513,20 @@ describe.skipIf(!enabled)('biometric pipeline (PostgreSQL)', () => {
       const head = await store(line(device.a, '001', '2026-10-14 13:00:40'), later);
       await processPunch(ctx(), head, { clock: later });
       const { attendanceEventId } = (await stateOf([head])).get(head)!;
+      // A correction event points at the approved correction behind it (step 7's key).
+      const [approved] = (await asOwner(
+        'the approved correction',
+        sql`INSERT INTO attendance_correction (organization_id, user_id, work_date, kind, payload, reason, requested_by,
+                                               status, decided_by, decided_at)
+            VALUES (${ORG}, ${ALICE}, '2026-10-14', 'replace-event', '{}'::jsonb,
+                    'Scanner clock ran fast; the real arrival was earlier', ${ALICE}, 'approved', ${HR}, now())
+            RETURNING id`,
+      )) as { id: string }[];
       await asOwner(
         'HR corrects the head',
         sql`INSERT INTO attendance_event (organization_id, user_id, kind, occurred_at, source, evidence, correction_id,
                                           supersedes_event_id)
-            VALUES (${ORG}, ${ALICE}, 'in', '2026-10-14T07:25:00Z', 'correction', 'confirmed', ${randomUUID()},
+            VALUES (${ORG}, ${ALICE}, 'in', '2026-10-14T07:25:00Z', 'correction', 'confirmed', ${approved!.id},
                     ${attendanceEventId})`,
       );
       const earlier = await store(line(device.b, '001', '2026-10-14 13:00:10'), later);

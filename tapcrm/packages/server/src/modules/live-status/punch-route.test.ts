@@ -2,18 +2,24 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fixedClock } from '../../platform/time.js';
 
 // `vi.hoisted` runs before `vi.mock` so the spy can be shared.
-const { appendEventMock } = vi.hoisted(() => ({
+const { appendEventMock, findClientEventMock, loadTodayMock } = vi.hoisted(() => ({
   appendEventMock: vi.fn(async () => ({
     eventId: 'evt-1',
     workDate: '2026-10-05',
     reason: 'midpoint',
     replayed: false,
   })),
+  findClientEventMock: vi.fn(async (): Promise<unknown> => null),
+  loadTodayMock: vi.fn(async () => ({ row: null, allowedMoves: ['in'] as string[] })),
 }));
 
 vi.mock('../attendance/facade.js', () => ({
   appendEvent: appendEventMock,
+  lockPerson: vi.fn(async () => undefined),
+  findClientEvent: findClientEventMock,
 }));
+
+vi.mock('./today.js', () => ({ loadToday: loadTodayMock }));
 
 vi.mock('../../platform/dal/db.js', () => ({
   db: {
@@ -28,9 +34,40 @@ const UUID = 'a3b1c1a0-1111-4222-8333-444444444444';
 
 beforeEach(() => {
   appendEventMock.mockClear();
+  findClientEventMock.mockReset();
+  findClientEventMock.mockResolvedValue(null);
+  loadTodayMock.mockReset();
+  loadTodayMock.mockResolvedValue({ row: null, allowedMoves: ['in'] });
 });
 
-describe('punch stub — thin pass-through to appendEvent', () => {
+describe('punch — refuses a move the person cannot make now', () => {
+  it('punching out before punching in is a 422 naming the allowed moves', async () => {
+    const clock = fixedClock('2026-10-05T09:00:00Z');
+    await expect(punch(ctx, { kind: 'out', clientEventId: UUID }, clock)).rejects.toMatchObject({
+      status: 422,
+      code: 'STATUS_PUNCH_NOT_ALLOWED',
+      details: { kind: 'out', allowedMoves: ['in'] },
+    });
+    expect(appendEventMock).not.toHaveBeenCalled();
+  });
+
+  it('a break can start only while working', async () => {
+    loadTodayMock.mockResolvedValue({ row: null, allowedMoves: ['break-start', 'out', 'scan'] });
+    const clock = fixedClock('2026-10-05T09:00:00Z');
+    await punch(ctx, { kind: 'break-start', clientEventId: UUID }, clock);
+    expect(appendEventMock).toHaveBeenCalledOnce();
+  });
+
+  it('a retry of a recorded punch is passed through for its replay answer', async () => {
+    loadTodayMock.mockResolvedValue({ row: null, allowedMoves: ['break-start', 'out', 'scan'] });
+    findClientEventMock.mockResolvedValue({ eventId: 'evt-1' });
+    const clock = fixedClock('2026-10-05T09:00:00Z');
+    await punch(ctx, { kind: 'in', clientEventId: UUID }, clock);
+    expect(appendEventMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe('punch — thin pass-through to appendEvent', () => {
   it('validates body: rejects an unknown kind', async () => {
     await expect(
       punch(ctx, { kind: 'nap', clientEventId: UUID }),

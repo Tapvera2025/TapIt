@@ -1,3 +1,5 @@
+import type { DateOnly } from '@tapcrm/contracts';
+import { addDays, daysBetween } from '../../platform/time.js';
 import { rupeesToPaise, roundToRupee, prorateAndRound } from './money.js';
 
 export interface FrozenDay {
@@ -76,30 +78,27 @@ export interface ComputePayslipResult {
   readonly unpaidUnits: number;
 }
 
-/** Compute a payslip from frozen inputs. Pure, deterministic, no I/O. */
+/**
+ * Compute a payslip from frozen inputs. Pure, deterministic, no I/O.
+ *
+ * A month of D days has 2D units. Paid units are the employed days' units less
+ * the unpaid-leave and absent units recorded on them (design §9, Task 3): paid
+ * leave, holidays and week-offs stay paid, and so does an employed day that
+ * carries no attendance row or no judgement (a no-shift day, or a day before
+ * the company began recording attendance). Dates outside the employment window
+ * carry no salary whether or not a row exists.
+ */
 export function computePayslip(input: ComputePayslipInput): ComputePayslipResult {
-  // 1. Determine the employment intersection with the period
-  const periodStart = new Date(input.periodStart);
-  const periodEnd = new Date(input.periodEnd);
-  const empFrom = new Date(input.employmentFrom);
-  const empTo = input.employmentTo ? new Date(input.employmentTo) : null;
-
   // Count days in the period
   const periodDays = countDaysInRange(input.periodStart, input.periodEnd);
   const totalUnits = periodDays * 2;
 
-  // 2. Sum units from frozen days within employment intersection
-  let paidUnits = 0;
-  let unpaidUnits = 0;
-  for (const day of input.days) {
-    const d = new Date(day.workDate);
-    // Check within employment window
-    if (d < empFrom) continue;
-    if (empTo !== null && d > empTo) continue;
-    if (d < periodStart || d > periodEnd) continue;
-    paidUnits += day.presentUnits + day.paidLeaveUnits + day.holidayUnits;
-    unpaidUnits += day.unpaidLeaveUnits + day.absentUnits;
-  }
+  // 1–2. Employed units in the period, less recorded loss of pay.
+  const employed = employedRange(input.periodStart, input.periodEnd, input.employmentFrom, input.employmentTo);
+  const unpaidUnits = employed === null ? 0 : lossUnitsIn(input.days, employed.from, employed.to);
+  const paidUnits = employed === null
+    ? 0
+    : Math.max(0, countDaysInRange(employed.from, employed.to) * 2 - unpaidUnits);
 
   // 3. Compute structure lines
   const lines: PayslipLine[] = [];
@@ -112,7 +111,7 @@ export function computePayslip(input: ComputePayslipInput): ComputePayslipResult
 
   // For prorated lines: compute paid units per segment
   // For non-prorated: use the segment in effect on the last employed day in the month
-  const lastEmployedDay = findLastEmployedDay(input.days, input.periodEnd, input.employmentFrom, input.employmentTo);
+  const lastEmployedDay = employed?.to ?? null;
   const nonProratedSegment = lastEmployedDay
     ? segments.filter(s => s.effectiveFrom <= lastEmployedDay).pop() ?? segments[0]
     : segments[0];
@@ -203,23 +202,40 @@ export function computePayslip(input: ComputePayslipInput): ComputePayslipResult
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function countDaysInRange(from: string, to: string): number {
-  const a = new Date(from).getTime();
-  const b = new Date(to).getTime();
-  return Math.round((b - a) / 86_400_000) + 1;
+  return daysBetween(from as DateOnly, to as DateOnly) + 1;
 }
 
-function findLastEmployedDay(
-  days: FrozenDay[],
+/** The calendar day before `date` (YYYY-MM-DD). */
+function dayBefore(date: string): string {
+  return addDays(date as DateOnly, -1);
+}
+
+/** The inclusive intersection of the period and the employment window, or null. */
+function employedRange(
+  periodStart: string,
   periodEnd: string,
   empFrom: string,
   empTo: string | null,
-): string | null {
-  const sorted = [...days]
-    .filter(d => d.workDate <= periodEnd && d.workDate >= empFrom && (empTo === null || d.workDate <= empTo))
-    .sort((a, b) => (a.workDate < b.workDate ? 1 : -1));
-  return sorted[0]?.workDate ?? null;
+): { from: string; to: string } | null {
+  const from = empFrom > periodStart ? empFrom : periodStart;
+  const to = empTo !== null && empTo < periodEnd ? empTo : periodEnd;
+  return from > to ? null : { from, to };
 }
 
+/** Unpaid-leave and absent units recorded on days in [from, to]. */
+function lossUnitsIn(days: FrozenDay[], from: string, to: string): number {
+  let loss = 0;
+  for (const day of days) {
+    if (day.workDate < from || day.workDate > to) continue;
+    loss += day.unpaidLeaveUnits + day.absentUnits;
+  }
+  return loss;
+}
+
+/**
+ * Paid units for the employed dates a salary segment covers. A segment's
+ * `effectiveTo` is exclusive, as in `salary_structure`.
+ */
 function countPaidUnitsInSegment(
   days: FrozenDay[],
   segment: FrozenStructureSegment,
@@ -228,14 +244,11 @@ function countPaidUnitsInSegment(
   empFrom: string,
   empTo: string | null,
 ): number {
-  let paid = 0;
-  for (const day of days) {
-    if (day.workDate < periodStart || day.workDate > periodEnd) continue;
-    if (day.workDate < empFrom) continue;
-    if (empTo !== null && day.workDate > empTo) continue;
-    if (day.workDate < segment.effectiveFrom) continue;
-    if (segment.effectiveTo !== null && day.workDate >= segment.effectiveTo) continue;
-    paid += day.presentUnits + day.paidLeaveUnits + day.holidayUnits;
-  }
-  return paid;
+  const employed = employedRange(periodStart, periodEnd, empFrom, empTo);
+  if (employed === null) return 0;
+  const from = segment.effectiveFrom > employed.from ? segment.effectiveFrom : employed.from;
+  const segmentLast = segment.effectiveTo === null ? null : dayBefore(segment.effectiveTo);
+  const to = segmentLast !== null && segmentLast < employed.to ? segmentLast : employed.to;
+  if (from > to) return 0;
+  return Math.max(0, countDaysInRange(from, to) * 2 - lossUnitsIn(days, from, to));
 }

@@ -258,16 +258,120 @@ export async function insertBalanceEntry(
   tx: Tx,
   input: {
     organizationId: string; userId: string; leaveTypeId: string;
-    kind: 'opening' | 'accrual' | 'consumption' | 'reversal'; units: number;
+    kind: 'opening' | 'accrual' | 'consumption' | 'reversal' | 'adjustment'; units: number;
     leaveRequestId: string | null; periodYear: number;
+    reason?: string | null; createdBy?: string | null;
   },
-): Promise<void> {
-  await tx.query(sql`
+): Promise<{ id: string }> {
+  return tx.one<{ id: string }>(sql`
     INSERT INTO leave_balance_entry
-      (organization_id, user_id, leave_type_id, kind, units, leave_request_id, period_year)
+      (organization_id, user_id, leave_type_id, kind, units, leave_request_id, period_year, reason, created_by)
     VALUES
       (${input.organizationId}, ${input.userId}, ${input.leaveTypeId},
-       ${input.kind}, ${input.units}, ${input.leaveRequestId}, ${input.periodYear})
+       ${input.kind}, ${input.units}, ${input.leaveRequestId}, ${input.periodYear},
+       ${input.reason ?? null}, ${input.createdBy ?? null}::uuid)
+    RETURNING id
+  `);
+}
+
+/** Whether the request already recorded its consumption (one per request). */
+export async function hasConsumption(tx: Tx, leaveRequestId: string): Promise<boolean> {
+  const row = await tx.maybeOne<{ id: string }>(sql`
+    SELECT id FROM leave_balance_entry
+    WHERE leave_request_id = ${leaveRequestId}::uuid AND kind = 'consumption'
+  `);
+  return row !== null;
+}
+
+/** Days asked for in requests still awaiting a decision, for a type and year. */
+export async function pendingDays(
+  tx: Tx, userId: string, leaveTypeId: string, year: number, excludeRequestId: string | null = null,
+): Promise<number> {
+  const row = await tx.one<{ days: number }>(sql`
+    SELECT COALESCE(sum(days_consumed), 0)::float AS days
+    FROM leave_request
+    WHERE user_id = ${userId}::uuid
+      AND leave_type_id = ${leaveTypeId}::uuid
+      AND kind = 'absence'
+      AND status IN ('pending', 'acknowledged')
+      AND EXTRACT(YEAR FROM from_date) = ${year}
+      AND (${excludeRequestId}::uuid IS NULL OR id <> ${excludeRequestId}::uuid)
+  `);
+  return row.days;
+}
+
+export interface EmploymentWindow {
+  joinedOn: string | null;
+  leftOn: string | null;
+}
+
+export async function findEmploymentWindow(tx: Tx, userId: string): Promise<EmploymentWindow | null> {
+  return tx.maybeOne<EmploymentWindow>(sql`
+    SELECT joined_on::text AS "joinedOn", left_on::text AS "leftOn"
+    FROM app_user WHERE id = ${userId}::uuid AND account_type = 'employee'
+  `);
+}
+
+export interface BalanceSubject {
+  id: string;
+  fullName: string;
+  employeeId: string | null;
+  departmentName: string | null;
+  joinedOn: string | null;
+  leftOn: string | null;
+}
+
+/** Employees the caller may see balances for, with their employment window. */
+export async function listBalanceSubjects(tx: Tx, visibility: SqlFragment, year: number): Promise<BalanceSubject[]> {
+  return tx.query<BalanceSubject>(sql`
+    SELECT u.id, u.full_name AS "fullName", u.employee_id AS "employeeId", d.name AS "departmentName",
+           u.joined_on::text AS "joinedOn", u.left_on::text AS "leftOn"
+    FROM app_user u
+    LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
+    CROSS JOIN LATERAL (
+      SELECT u.id AS user_id, NULL::uuid AS requested_by, NULL::uuid AS acknowledged_by, NULL::uuid AS decided_by
+    ) t
+    WHERE u.account_type = 'employee'
+      AND u.status IN ('active', 'locked')
+      AND (u.left_on IS NULL OR EXTRACT(YEAR FROM u.left_on) >= ${year})
+      AND ${visibility}
+    ORDER BY u.full_name, u.id
+  `);
+}
+
+export interface BalanceEntrySummaryRow {
+  userId: string;
+  leaveTypeId: string;
+  kind: 'opening' | 'accrual' | 'consumption' | 'reversal' | 'adjustment';
+  units: number;
+}
+
+/** Summed ledger entries per person, type and kind for a year. */
+export async function sumBalanceEntries(
+  tx: Tx, userIds: readonly string[], year: number,
+): Promise<BalanceEntrySummaryRow[]> {
+  if (userIds.length === 0) return [];
+  return tx.query<BalanceEntrySummaryRow>(sql`
+    SELECT user_id AS "userId", leave_type_id AS "leaveTypeId", kind, sum(units)::float AS units
+    FROM leave_balance_entry
+    WHERE user_id = ANY(${userIds}::uuid[]) AND period_year = ${year}
+    GROUP BY user_id, leave_type_id, kind
+  `);
+}
+
+/** Pending days per person and type for a year. */
+export async function sumPendingDays(
+  tx: Tx, userIds: readonly string[], year: number,
+): Promise<{ userId: string; leaveTypeId: string; days: number }[]> {
+  if (userIds.length === 0) return [];
+  return tx.query<{ userId: string; leaveTypeId: string; days: number }>(sql`
+    SELECT user_id AS "userId", leave_type_id AS "leaveTypeId", sum(days_consumed)::float AS days
+    FROM leave_request
+    WHERE user_id = ANY(${userIds}::uuid[])
+      AND kind = 'absence'
+      AND status IN ('pending', 'acknowledged')
+      AND EXTRACT(YEAR FROM from_date) = ${year}
+    GROUP BY user_id, leave_type_id
   `);
 }
 

@@ -6,9 +6,16 @@
  * the callers known:
  *
  *   employee           getOrganizationChart, listReportingManagerOptions,
- *                      validateManagerAssignment
- *   access-management  validateManagerAssignment, findTeam
+ *                      validateManagerAssignment, repairReportingLinesAfterMove
+ *   access-management  validateManagerAssignment, repairReportingLinesAfterMove, findTeam
+ *   break-management   effectiveManagerId (the "notify manager" break consequence)
  */
 export { getOrganizationChart } from './chart/service.js';
-export { listReportingManagerOptions, validateManagerAssignment } from './reporting/service.js';
+export {
+  effectiveManagerId,
+  listReportingManagerOptions,
+  repairReportingLinesAfterMove,
+  validateManagerAssignment,
+  type ClearedReportingLine,
+} from './reporting/service.js';
 export { findTeam } from './teams/repository.js';

@@ -151,7 +151,8 @@ async function mapPin(
 describe.skipIf(!enabled)('biometric schema (PostgreSQL)', () => {
   beforeAll(async () => {
     await seedTenant(A, 'SN-SHARED');
-    await seedTenant(B, 'SN-SHARED'); // equal serials in two tenants: fine before G2
+    // Since G2 (/iclock, migration 0066) a serial names one company platform-wide.
+    await seedTenant(B, 'SN-B');
   });
 
   afterAll(async () => {
@@ -184,6 +185,16 @@ describe.skipIf(!enabled)('biometric schema (PostgreSQL)', () => {
               VALUES (${A.org}, ${A.zk}, 'SN-SHARED', 'Copy', 'Asia/Kolkata', ${A.hr})`,
         ),
       ).rejects.toThrow(/duplicate key/);
+    });
+
+    it('a serial belongs to one company across the platform (G2)', async () => {
+      await expect(
+        asOwner(
+          'SN-SHARED again in B',
+          sql`INSERT INTO biometric_device (organization_id, connector_id, serial_number, name, timezone, created_by)
+              VALUES (${B.org}, ${B.zk}, 'SN-SHARED', 'Copy', 'Asia/Kolkata', ${B.hr})`,
+        ),
+      ).rejects.toThrow(/registered to another company/);
     });
 
     it('refuses keys that reach into another tenant', async () => {

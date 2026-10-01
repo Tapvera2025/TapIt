@@ -71,7 +71,7 @@ export const companyNavigation: CompanyNavGroup[] = [
         requiredAction: 'org:view-structure',
       },
       { label: 'Reporting', path: '/company/organization/reporting', icon: 'users', requiredAction: 'org:view-structure' },
-      { label: 'Org Chart', path: '/company/organization/org-chart', icon: 'grid', requiredAction: 'org:view-structure' },
+      { label: 'Org Chart', path: '/company/organization/org-chart', icon: 'hierarchy', requiredAction: 'org:view-structure' },
     ],
   },
   {
@@ -100,6 +100,7 @@ export const companyNavigation: CompanyNavGroup[] = [
     items: [
       { label: 'My Leave', path: '/company/leave/my', icon: 'sun' },
       { label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox', requiredAnyAction: ['leave:acknowledge', 'leave:decide'] },
+      { label: 'Leave Balances', path: '/company/leave/balances', icon: 'chart', requiredAction: 'leave:manage-types' },
       { label: 'Leave Types', path: '/company/leave/types', icon: 'settings', requiredAction: 'leave:manage-types' },
       { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
       { label: 'Shifts', path: '/company/shifts', icon: 'layers', requiredAction: 'shifts:manage' },
@@ -110,6 +111,9 @@ export const companyNavigation: CompanyNavGroup[] = [
     items: [
       { label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text', requiredAction: 'payroll:view' },
       { label: 'Payroll Runs', path: '/company/payroll/runs', icon: 'dollar-sign', requiredAction: 'payroll:manage' },
+      { label: 'Salary Structures', path: '/company/payroll/salaries', icon: 'briefcase', requiredAction: 'payroll:manage' },
+      { label: 'Bonuses & Deductions', path: '/company/payroll/inputs', icon: 'chart', requiredAction: 'payroll:manage' },
+      { label: 'Payroll Settings', path: '/company/payroll/settings', icon: 'settings', requiredAction: 'payroll:manage-config' },
     ],
   },
 ];

@@ -205,17 +205,54 @@ export function Empty({ children }: { children: ReactNode }): React.JSX.Element 
     </Card>
   );
 }
+/** A click on the dimmed backdrop lands on the <dialog> itself, outside its box. */
+function isBackdropEvent(event: React.MouseEvent<HTMLDialogElement>): boolean {
+  if (event.target !== event.currentTarget) return false;
+  const box = event.currentTarget.getBoundingClientRect();
+  return (
+    event.clientX < box.left ||
+    event.clientX > box.right ||
+    event.clientY < box.top ||
+    event.clientY > box.bottom
+  );
+}
+
+/** Typing in a field of this window (not a search box, not a window opened on top of it). */
+function isEdit(event: React.FormEvent<HTMLDialogElement>): boolean {
+  const target = event.target as HTMLElement;
+  if (target.closest('dialog') !== event.currentTarget) return false;
+  return !(target instanceof HTMLInputElement && target.type === 'search');
+}
+
 export function Modal({
   title,
   onClose,
   children,
+  footer,
+  size = 'md',
+  dirty,
 }: {
   title: string;
+  /**
+   * Closes the window. The × button, the Escape key and a click outside the
+   * window all come here — after a "discard changes?" check when there are edits.
+   */
   onClose: () => void;
   children: ReactNode;
+  /** Stays in view under the scrolling content: put the main actions here. */
+  footer?: ReactNode;
+  size?: 'md' | 'lg';
+  /**
+   * Whether closing now would lose edits. Left out, the window notices typing
+   * in its own fields; pass it when the edits are not plain form fields.
+   */
+  dirty?: boolean;
 }): React.JSX.Element {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const pressedOnBackdrop = useRef(false);
+  const typed = useRef(false);
+  const [confirming, setConfirming] = useState(false);
   useEffect(() => {
     const element = dialog.current;
     const previous = document.activeElement as HTMLElement | null;
@@ -225,30 +262,76 @@ export function Modal({
       previous?.focus();
     };
   }, []);
+  function requestClose() {
+    if (dirty ?? typed.current) setConfirming(true);
+    else onClose();
+  }
   return (
     <dialog
       ref={dialog}
       aria-labelledby={titleId}
+      onKeyDown={(event) => {
+        // Handled here rather than left to the browser, which stops letting a
+        // page keep the window open after a second Escape in a row.
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        event.preventDefault();
+        requestClose();
+      }}
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        requestClose();
       }}
-      className="ui-dialog"
+      onClose={() => {
+        // Closed by the browser anyway: stay on screen until the page says so.
+        const element = dialog.current;
+        if (element?.isConnected && !element.open) {
+          element.showModal();
+          requestClose();
+        }
+      }}
+      onInput={(event) => {
+        if (isEdit(event)) typed.current = true;
+      }}
+      onMouseDown={(event) => {
+        pressedOnBackdrop.current = isBackdropEvent(event);
+      }}
+      onClick={(event) => {
+        // Pressed and released outside: dragging a text selection out of the
+        // window does not close it.
+        if (pressedOnBackdrop.current && isBackdropEvent(event)) requestClose();
+        pressedOnBackdrop.current = false;
+      }}
+      className={size === 'lg' ? 'ui-dialog ui-dialog-lg' : 'ui-dialog'}
     >
-      <div className="flex items-center justify-between gap-4">
+      <div className="ui-dialog-header">
         <h2 id={titleId} className="font-display text-xl font-bold">
           {title}
         </h2>
         <button
           type="button"
-          onClick={onClose}
+          onClick={requestClose}
           className="grid size-9 place-items-center rounded-lg text-2xl text-app-muted hover:bg-app-background"
           aria-label="Close dialog"
         >
           ×
         </button>
       </div>
-      <div className="mt-5">{children}</div>
+      <div className="ui-dialog-body">{children}</div>
+      {confirming ? (
+        <div role="alert" className="ui-dialog-footer flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold">You have unsaved changes. Close without saving them?</p>
+          <div className="flex gap-2">
+            <Button kind="secondary" onClick={() => setConfirming(false)} autoFocus>
+              Keep editing
+            </Button>
+            <Button kind="danger" onClick={onClose}>
+              Discard changes
+            </Button>
+          </div>
+        </div>
+      ) : (
+        footer !== undefined && <div className="ui-dialog-footer">{footer}</div>
+      )}
     </dialog>
   );
 }
