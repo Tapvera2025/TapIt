@@ -32,6 +32,8 @@ import {
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 import { MessagesPage } from '../chat/index.js';
+import { ClientsPage } from '../clients/index.js';
+import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -177,6 +179,10 @@ export function CompanyWorkspace({
       ? null
       : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
 
+  const isClients = pathname === '/company/clients';
+  const isProjects = pathname === '/company/projects';
+  const projectDetailMatch = isProjects ? null : pathname.match(/^\/company\/projects\/([^/]+)$/);
+
   const title = isNotepad
     ? 'My Notepad'
     : isEmployeeNotes
@@ -201,7 +207,13 @@ export function CompanyWorkspace({
                         ? 'Tasks'
                         : pathname === '/company/messages'
                           ? 'Messages'
-                          : isTerritories || territoryDetailMatch
+                          : isClients
+                            ? 'Clients'
+                            : isProjects
+                              ? 'Projects'
+                              : projectDetailMatch
+                                ? 'Project'
+                                : isTerritories || territoryDetailMatch
                           ? 'Territories'
                           : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
                             ? 'Callbacks'
@@ -260,6 +272,17 @@ export function CompanyWorkspace({
     <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
   ) : pathname === '/company/messages' ? (
     <MessagesPage currentUserId={identity.user.id} isSuperAdmin={isSuperAdmin} />
+  ) : isClients ? (
+    <ClientsPage />
+  ) : isProjects ? (
+    <ProjectsPage onOpenProject={(projectId) => onNavigate(`/company/projects/${projectId}`)} />
+  ) : projectDetailMatch ? (
+    <ProjectDetailPage
+      projectId={projectDetailMatch[1]!}
+      currentUserId={identity.user.id}
+      isSuperAdmin={isSuperAdmin}
+      onBack={() => onNavigate('/company/projects')}
+    />
   ) : isTerritories && (isSuperAdmin || canViewTerritories) ? (
     <TerritoriesPage
       canManage={isSuperAdmin || canViewTerritories}

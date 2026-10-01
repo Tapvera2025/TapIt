@@ -18,16 +18,17 @@ interface ClientRow {
   createdAt: Date;
   updatedAt: Date;
   hasActiveLogin: boolean;
+  loginUserId: string | null;
 }
 
 const SELECT_CLIENT = sql`
   SELECT c.id, c.organization_id, c.client_name, c.business_name, c.email, c.region, c.currency, c.timezone,
          c.status, c.created_by, c.created_at, c.updated_at,
-         EXISTS (
-           SELECT 1 FROM app_user u
-           WHERE u.organization_id = c.organization_id AND u.client_id = c.id AND u.status = 'active'
-         ) AS "hasActiveLogin"
+         (login.id IS NOT NULL) AS "hasActiveLogin",
+         login.id AS "loginUserId"
   FROM client c
+  LEFT JOIN app_user login
+    ON login.organization_id = c.organization_id AND login.client_id = c.id AND login.status = 'active'
 `;
 
 const toClient = (row: ClientRow): Client => row;

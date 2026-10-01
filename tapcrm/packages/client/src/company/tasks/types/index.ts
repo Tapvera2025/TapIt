@@ -100,6 +100,8 @@ export interface TaskFormProps {
   readonly onSubmitUpdate?: ((id: string, input: UpdateTaskInput) => Promise<void>) | undefined;
   readonly onClose: () => void;
   readonly disabled?: boolean | undefined;
+  /** Create mode only — pre-fills the project so a task made from a project's Task Assignment tab is tagged to it. */
+  readonly defaultProjectId?: string | undefined;
 }
 
 export interface TaskAssignModalProps {

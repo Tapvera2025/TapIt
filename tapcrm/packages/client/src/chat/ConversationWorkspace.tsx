@@ -36,6 +36,7 @@ export function ConversationWorkspace({
   onNewClick,
   newLabel = 'New',
   headerExtra,
+  hideList = false,
 }: {
   /** Owned by the page (not this component), so the page's own "New" flow can drive the same instance. */
   chat: ReturnType<typeof useChat>;
@@ -48,6 +49,8 @@ export function ConversationWorkspace({
   onNewClick?: () => void;
   newLabel?: string;
   headerExtra?: (conversation: Conversation) => ReactNode;
+  /** A project's Discussions tab has exactly one conversation to show — no list needed. */
+  hideList?: boolean;
 }): React.JSX.Element {
   const [composer, setComposer] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -133,45 +136,47 @@ export function ConversationWorkspace({
   return (
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       {/* Conversation list */}
-      <div className="flex w-full shrink-0 flex-col border-b border-app-border md:h-full md:w-80 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-app-border p-4">
-          <p className="text-sm font-semibold">{title}</p>
-          {onNewClick && <Button onClick={onNewClick} className="!px-3 !py-1.5 !text-xs">{newLabel}</Button>}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {chat.conversations.length === 0 && <Empty>{emptyHint}</Empty>}
-          <ul>
-            {chat.conversations.map((conversation) => {
-              const active = conversation.id === chat.activeId;
-              return (
-                <li key={conversation.id}>
-                  <button
-                    type="button"
-                    onClick={() => void chat.openConversation(conversation.id)}
-                    className={`flex w-full items-start gap-3 border-b border-app-border px-4 py-3 text-left hover:bg-app-surface-raised ${active ? 'bg-app-surface-raised' : ''}`}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-semibold">{conversationLabel(conversation)}</span>
-                        {conversation.unreadCount > 0 && (
-                          <span className="shrink-0 rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold text-app-on-accent">
-                            {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+      {!hideList && (
+        <div className="flex w-full shrink-0 flex-col border-b border-app-border md:h-full md:w-80 md:border-b-0 md:border-r">
+          <div className="flex items-center justify-between gap-2 border-b border-app-border p-4">
+            <p className="text-sm font-semibold">{title}</p>
+            {onNewClick && <Button onClick={onNewClick} className="!px-3 !py-1.5 !text-xs">{newLabel}</Button>}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {chat.conversations.length === 0 && <Empty>{emptyHint}</Empty>}
+            <ul>
+              {chat.conversations.map((conversation) => {
+                const active = conversation.id === chat.activeId;
+                return (
+                  <li key={conversation.id}>
+                    <button
+                      type="button"
+                      onClick={() => void chat.openConversation(conversation.id)}
+                      className={`flex w-full items-start gap-3 border-b border-app-border px-4 py-3 text-left hover:bg-app-surface-raised ${active ? 'bg-app-surface-raised' : ''}`}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-semibold">{conversationLabel(conversation)}</span>
+                          {conversation.unreadCount > 0 && (
+                            <span className="shrink-0 rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold text-app-on-accent">
+                              {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                            </span>
+                          )}
+                        </span>
+                        {conversation.lastMessage && (
+                          <span className="mt-0.5 block truncate text-xs text-app-muted">
+                            {conversation.lastMessage.deletedAt ? 'Message unsent' : (conversation.lastMessage.body ?? '')}
                           </span>
                         )}
                       </span>
-                      {conversation.lastMessage && (
-                        <span className="mt-0.5 block truncate text-xs text-app-muted">
-                          {conversation.lastMessage.deletedAt ? 'Message unsent' : (conversation.lastMessage.body ?? '')}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Thread */}
       <div className="flex min-h-0 flex-1 flex-col">

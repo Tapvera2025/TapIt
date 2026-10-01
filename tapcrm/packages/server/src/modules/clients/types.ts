@@ -40,6 +40,8 @@ export interface Client {
   readonly updatedAt: Date;
   /** Whether a login (app_user, account_type='client') exists and is active. No client-portal UI reads it yet (Phase 5). */
   readonly hasActiveLogin: boolean;
+  /** The login's app_user id, when one is active — e.g. so the project wizard can preselect the client as a discussion-group member. Null otherwise. */
+  readonly loginUserId: string | null;
 }
 
 export interface ClientListQuery {

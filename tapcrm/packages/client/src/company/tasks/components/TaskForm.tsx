@@ -17,6 +17,7 @@ export function TaskForm({
   onSubmitUpdate,
   onClose,
   disabled = false,
+  defaultProjectId,
 }: TaskFormProps): React.JSX.Element | null {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -45,13 +46,13 @@ export function TaskForm({
       } else {
         setTitle('');
         setDescription('');
-        setProjectId('');
+        setProjectId(defaultProjectId ?? '');
         setDueDate('');
         setPriority('medium');
         setAssigneeIds([]);
       }
     }
-  }, [isOpen, mode, initialTask]);
+  }, [isOpen, mode, initialTask, defaultProjectId]);
 
   if (!isOpen) return null;
 
