@@ -931,9 +931,14 @@ export async function convertResumeSubmissionToCandidate(
   ctx: RequestContext,
   id: string,
   input?: ConvertSubmissionInput,
-): Promise<{ candidate: Candidate; submission: CandidateResumeSubmission }> {
+): Promise<{ candidate: Candidate; candidateId: string; submission: CandidateResumeSubmission }> {
   try {
-    return await repo.convertSubmissionToCandidate(ctx, id, input);
+    const result = await repo.convertSubmissionToCandidate(ctx, id, input);
+    return {
+      candidate: result.candidate,
+      candidateId: result.candidate.id,
+      submission: result.submission,
+    };
   } catch (error) {
     if ((error as Error & { code?: string }).code === 'DUPLICATE_CANDIDATE') {
       throw new ConflictError(

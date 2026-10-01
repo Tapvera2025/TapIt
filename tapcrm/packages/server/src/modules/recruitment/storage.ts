@@ -91,7 +91,7 @@ export class MemoryStorageService implements StorageService {
   }
 
   async getSignedUrl(key: string, _expiresInSeconds = 900): Promise<string> {
-    return `/api/recruitment/resume-submissions/file-preview?key=${encodeURIComponent(key)}`;
+    return `/api/recruitment/candidates/resume/preview?key=${encodeURIComponent(key)}`;
   }
 
   async deleteObject(key: string): Promise<void> {

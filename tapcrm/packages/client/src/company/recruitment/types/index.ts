@@ -452,6 +452,7 @@ export interface CandidateResumeSubmission {
   readonly parsedData?: ParsedResumeData | null | undefined;
   readonly status: ResumeSubmissionStatus;
   readonly rejectionReason?: string | null | undefined;
+  readonly candidateId?: string | null | undefined;
   readonly convertedCandidateId?: string | null | undefined;
   readonly convertedAt?: string | null | undefined;
   readonly source: ResumeSubmissionSource;
