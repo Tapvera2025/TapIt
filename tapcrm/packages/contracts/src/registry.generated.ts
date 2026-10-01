@@ -2928,6 +2928,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/handovers/:id/disposition', action: 'handovers:record-disposition', resourceParam: 'id' },
   { method: 'GET', path: '/api/handovers', action: 'handovers:view', resourceParam: null },
   { method: 'GET', path: '/api/handovers/:id', action: 'handovers:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/handovers/:id/annotations', action: 'handovers:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/deals', action: 'deals:view', resourceParam: null },
   { method: 'GET', path: '/api/deals/:id', action: 'deals:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/deals/:id/commercials', action: 'deals:view-commercials', resourceParam: 'id' },

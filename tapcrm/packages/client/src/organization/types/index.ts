@@ -16,6 +16,7 @@ export interface OrganizationTeam {
   leadUserId: string | null;
   sharedVisibility?: boolean;
   isSeeded: boolean;
+  status: 'active' | 'inactive';
 }
 
 export interface OrganizationPosition {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertTeamDepartmentChangeAllowed,
   assertTeamMemberDepartmentConsistency,
+  assertTeamMoveAllowed,
   isEligibleTeamLeadPosition,
 } from './service.js';
 
@@ -40,6 +41,18 @@ describe('OR-9 team and department consistency', () => {
     expect(() =>
       assertTeamMemberDepartmentConsistency('department-a', 'department-a'),
     ).not.toThrow();
+  });
+
+  it('rejects an inactive destination team', () => {
+    expect(() => assertTeamMoveAllowed({ destinationTeamStatus: 'inactive', destinationTeamId: 'team-b', currentTeamId: null, currentTeamLeadUserId: null, userId: 'user-1' })).toThrow(/active team/i);
+  });
+
+  it('rejects moving to the current team', () => {
+    expect(() => assertTeamMoveAllowed({ destinationTeamStatus: 'active', destinationTeamId: 'team-a', currentTeamId: 'team-a', currentTeamLeadUserId: null, userId: 'user-1' })).toThrow(/already a member/i);
+  });
+
+  it('rejects moving the current team lead', () => {
+    expect(() => assertTeamMoveAllowed({ destinationTeamStatus: 'active', destinationTeamId: 'team-b', currentTeamId: 'team-a', currentTeamLeadUserId: 'user-1', userId: 'user-1' })).toThrow(/Team Lead/i);
   });
 
   it('accepts only canonical lead positions for each team kind', () => {

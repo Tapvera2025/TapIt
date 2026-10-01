@@ -138,7 +138,7 @@ function mapError(error: unknown): Mapped {
   if (error instanceof PlatformConflictError)
     return {
       status: HTTP_STATUS.CONFLICT,
-      body: { success: false, code: ERROR_CODES.CONFLICT, message: error.message },
+      body: { success: false, code: ERROR_CODES.CONFLICT, message: error.message, details: error.conflictingKey ? { fields: { [error.conflictingKey]: error.message } } : undefined },
     };
   if (error instanceof PlatformValidationError || error instanceof ZodError)
     return {
@@ -146,10 +146,11 @@ function mapError(error: unknown): Mapped {
       body: {
         success: false,
         code: ERROR_CODES.VALIDATION_FAILED,
-        message:
-          error instanceof ZodError
-            ? error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
-            : error.message,
+        message: error instanceof ZodError ? 'Please correct the highlighted fields.' : error.message,
+        details: error instanceof ZodError ? {
+          fields: Object.fromEntries(error.issues.filter((issue) => issue.path.length).map((issue) => [issue.path.join('.'), issue.message])),
+          issues: error.issues.map((issue) => ({ path: issue.path, message: issue.message })),
+        } : undefined,
       },
     };
 

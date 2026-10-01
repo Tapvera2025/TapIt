@@ -10,6 +10,7 @@ import { sendAdminInvitation } from '../../modules/identity/notifications/invita
 import { bootstrapOrganization } from './bootstrap.js';
 import * as organizationRepo from './repository.js';
 import type { OrganizationProfileUpdate } from './repository.js';
+import { normalizeIdentityEmail } from '../../modules/identity/repository.js';
 
 export async function createOrganization(
   input: {
@@ -49,6 +50,21 @@ export async function createOrganization(
       'organization-provisioning',
       'create organization, entitlements and admin invitation atomically',
       async (tx) => {
+        const normalizedAdminEmail = normalizeIdentityEmail(input.adminEmail);
+        const existingIdentity = await tx.maybeOne<{ id: string }>(
+          sql`
+            SELECT id
+            FROM app_user
+            WHERE email = ${normalizedAdminEmail}
+            UNION ALL
+            SELECT id
+            FROM organization
+            WHERE deleted_at IS NULL AND lower(trim(owner_email)) = ${normalizedAdminEmail}
+            LIMIT 1
+          `,
+        );
+        if (existingIdentity)
+          throw new PlatformConflictError('This email address is already associated with another CRM account. Please use a different Super Admin email address.', 'adminEmail');
         const org = await tx.one<{
           id: string;
           code: string;
@@ -156,10 +172,12 @@ export async function createOrganization(
       },
     };
   } catch (error) {
-    if (error instanceof Error && (error as { code?: string }).code === '23505')
-      throw new PlatformConflictError(
-        'Organization code or another unique value already exists',
-      );
+    if (error instanceof Error && (error as { code?: string }).code === '23505') {
+      const constraint = String((error as { constraint?: string }).constraint ?? '');
+      if (constraint.includes('organization_code')) throw new PlatformConflictError('Company code is already in use.', 'code');
+      if (constraint.includes('email')) throw new PlatformConflictError('This email address is already associated with another CRM account.', 'adminEmail');
+      throw new PlatformConflictError('A company value is already in use.');
+    }
     throw error;
   }
 }
@@ -214,7 +232,14 @@ export async function updateOrganization(
   },
   actorId: string,
 ) {
-  const newEmail = input.adminEmail.trim().toLowerCase();
+  const newEmail = normalizeIdentityEmail(input.adminEmail);
+  const existingIdentity = await platformDb.maybeOne<{ organizationId: string }>(
+    'health-check',
+    'prevent changing a CRM identity to another account email',
+    sql`SELECT organization_id AS "organizationId" FROM app_user WHERE email = ${newEmail} LIMIT 1`,
+  );
+  if (existingIdentity && existingIdentity.organizationId !== id)
+    throw new PlatformConflictError('This email address is already associated with another CRM account.', 'adminEmail');
   try {
     const result = await platformDb.transactionForOrganization(
       id,
@@ -316,10 +341,12 @@ export async function updateOrganization(
     }
     return { organization: result.organization, invitation: invitationDelivery };
   } catch (error) {
-    if (error instanceof Error && (error as { code?: string }).code === '23505')
-      throw new PlatformConflictError(
-        'Organization code or another unique value already exists',
-      );
+    if (error instanceof Error && (error as { code?: string }).code === '23505') {
+      const constraint = String((error as { constraint?: string }).constraint ?? '');
+      if (constraint.includes('organization_code')) throw new PlatformConflictError('Company code is already in use.', 'code');
+      if (constraint.includes('email')) throw new PlatformConflictError('This email address is already associated with another CRM account.', 'adminEmail');
+      throw new PlatformConflictError('A company value is already in use.');
+    }
     throw error;
   }
 }
