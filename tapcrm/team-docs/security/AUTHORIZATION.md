@@ -251,6 +251,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/org/positions | `org:manage-positions` | — |
 | POST | /api/org/positions/preview | `org:manage-positions` | — |
 | PATCH | /api/org/positions/:id | `org:manage-positions` | id |
+| POST | /api/org/positions/:id/preview | `org:manage-positions` | id |
 | POST | /api/org/positions/:id/policies/preview | `org:manage-positions` | id |
 | PUT | /api/org/positions/:id/policies | `org:manage-positions` | id |
 | GET | /api/org/designations | `org:view-designations` | — |

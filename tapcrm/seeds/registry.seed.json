@@ -2605,6 +2605,12 @@
     },
     {
       "method": "POST",
+      "path": "/api/org/positions/:id/preview",
+      "action": "org:manage-positions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
       "path": "/api/org/positions/:id/policies/preview",
       "action": "org:manage-positions",
       "resourceParam": "id"
