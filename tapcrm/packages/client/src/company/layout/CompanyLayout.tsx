@@ -13,6 +13,9 @@ export function CompanyLayout({
   canViewTerritories,
   canViewLeads,
   canViewHandovers,
+  canViewChat,
+  canViewClients,
+  canViewProjects,
   title,
   onNavigate,
   onLogout,
@@ -35,6 +38,9 @@ export function CompanyLayout({
   canViewTerritories: boolean;
   canViewLeads: boolean;
   canViewHandovers: boolean;
+  canViewChat: boolean;
+  canViewClients: boolean;
+  canViewProjects: boolean;
   title: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -60,6 +66,9 @@ export function CompanyLayout({
         canViewTerritories={canViewTerritories}
         canViewLeads={canViewLeads}
         canViewHandovers={canViewHandovers}
+        canViewChat={canViewChat}
+        canViewClients={canViewClients}
+        canViewProjects={canViewProjects}
         onNavigate={onNavigate}
         onLogout={onLogout}
         open={sidebarOpen}

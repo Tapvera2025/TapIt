@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Modal, Notice } from '../../../ui/components.js';
+import { getProjects, type Project } from '../../../projects/api/projectsApi.js';
 import type {
   CreateTaskInput,
   TaskAssignModalProps,
@@ -17,6 +18,8 @@ export function TaskForm({
   onSubmitUpdate,
   onClose,
   disabled = false,
+  defaultProjectId,
+  lockProjectId = false,
 }: TaskFormProps): React.JSX.Element | null {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -26,6 +29,16 @@ export function TaskForm({
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    if (isOpen && projects.length === 0) {
+      void getProjects({})
+        .then((page) => setProjects(page.items))
+        .catch(() => setProjects([]));
+    }
+    // Deliberately omits `projects`: this only needs to run once per time the form opens.
+  }, [isOpen]);
 
   // Initialize or reset form values when opening or when initialTask changes
   useEffect(() => {
@@ -45,13 +58,13 @@ export function TaskForm({
       } else {
         setTitle('');
         setDescription('');
-        setProjectId('');
+        setProjectId(defaultProjectId ?? '');
         setDueDate('');
         setPriority('medium');
         setAssigneeIds([]);
       }
     }
-  }, [isOpen, mode, initialTask]);
+  }, [isOpen, mode, initialTask, defaultProjectId]);
 
   if (!isOpen) return null;
 
@@ -198,21 +211,29 @@ export function TaskForm({
           </label>
         </div>
 
-        {/* My Project (Optional) */}
+        {/* Project */}
         <label className="block text-xs font-semibold text-app-muted">
-          <span className="mb-1.5 block">Project Association (Optional)</span>
-          <input
-            type="text"
-            disabled={isBusy}
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            placeholder="Enter Project UUID if applicable"
-            className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
-          />
-          <span className="mt-1 block text-[11px] text-app-muted">
-            Note: No centralized Project module is currently configured in the
-            workspace.
-          </span>
+          <span className="mb-1.5 block">Project{!lockProjectId && ' (Optional)'}</span>
+          {lockProjectId ? (
+            <input
+              type="text"
+              disabled
+              value={projects.find((p) => p.id === projectId)?.name ?? 'Loading…'}
+              className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm text-app-muted outline-none disabled:opacity-70"
+            />
+          ) : (
+            <select
+              disabled={isBusy}
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
+            >
+              <option value="">No project</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>{project.name}</option>
+              ))}
+            </select>
+          )}
         </label>
 
         {/* Multi-Assignee Picker (Create mode only; Edit uses dedicated assign endpoint) */}

@@ -1,5 +1,6 @@
 import { BrandLogo } from './ui/BrandLogo.js';
 import { useEffect, useState } from 'react';
+import { APP_NAVIGATE_EVENT } from './navigationEvent.js';
 import { PlatformDashboard, PlatformLogin } from './platform/screen.js';
 import { AcceptInvitation } from './platform/accept.js';
 import { AUTH_EXPIRED_EVENT, getAccessToken } from './platform/api.js';
@@ -27,7 +28,16 @@ export function App(): React.JSX.Element {
 
   function navigate(nextPath: string): void {
     window.history.pushState({}, '', nextPath);
-    setPathname(nextPath);
+    // `pathname` always mirrors `window.location.pathname` (query-free, per its
+    // initial value above) — a caller linking to e.g. "/company/messages?x=1"
+    // (a notification deep link) must still match the exact-string routing
+    // checks throughout CompanyWorkspace; the destination page reads the query
+    // itself via `window.location.search`.
+    setPathname(nextPath.split('?')[0]!);
+    // Also fires when the path is unchanged (e.g. a second deep link while
+    // already on that page) — setPathname alone would be a no-op then, and a
+    // page relying only on a mount effect would never see the new query.
+    window.dispatchEvent(new CustomEvent(APP_NAVIGATE_EVENT, { detail: nextPath }));
   }
 
   useEffect(() => {

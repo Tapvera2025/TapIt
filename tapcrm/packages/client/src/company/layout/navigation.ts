@@ -52,6 +52,9 @@ export const companyNavigation: CompanyNavGroup[] = [
     items: [
       { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
       { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+      { label: 'Messages', path: '/company/messages', icon: 'message', requiredAction: 'chat:view' },
+      { label: 'Clients', path: '/company/clients', icon: 'briefcase', requiredAction: 'clients:view' },
+      { label: 'Projects', path: '/company/projects', icon: 'grid', requiredAction: 'projects:view' },
       myTodoNavItem,
       myNotepadNavItem,
     ],

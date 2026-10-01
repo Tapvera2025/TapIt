@@ -17,6 +17,16 @@ export const NOTIFICATION_TYPES = {
   TASK_UPDATED: 'task.updated',
   TASK_STATUS_CHANGED: 'task.status_changed',
   TASK_COMPLETED: 'task.completed',
+
+  // projects (see modules/projects/notifications.ts)
+  PROJECT_ASSIGNED: 'project.assigned',
+
+  // chat (see modules/chat/notifications.ts)
+  CHAT_MESSAGE: 'chat.message',
+  CHAT_REACTION: 'chat.reaction',
+  CHAT_GROUP_ADDED: 'chat.group_added',
+  CHAT_GROUP_REMOVED: 'chat.group_removed',
+  CHAT_MENTION: 'chat.mention',
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];

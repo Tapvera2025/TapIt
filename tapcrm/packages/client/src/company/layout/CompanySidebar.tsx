@@ -17,9 +17,12 @@ export function CompanySidebar({
   canRequestRoleChange,
   canViewAudit,
   canViewEmployees,
-  canViewTerritories,
-  canViewLeads,
-  canViewHandovers,
+  canViewTerritories = false,
+  canViewLeads = false,
+  canViewHandovers = false,
+  canViewChat = false,
+  canViewClients = false,
+  canViewProjects = false,
   onNavigate,
   onLogout,
   open,
@@ -39,9 +42,12 @@ export function CompanySidebar({
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
   canViewEmployees: boolean;
-  canViewTerritories: boolean;
-  canViewLeads: boolean;
-  canViewHandovers: boolean;
+  canViewTerritories?: boolean;
+  canViewLeads?: boolean;
+  canViewHandovers?: boolean;
+  canViewChat?: boolean;
+  canViewClients?: boolean;
+  canViewProjects?: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   open: boolean;
@@ -74,10 +80,20 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+              ...(canViewChat ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }] : []),
               myTodoNavItem,
               myNotepadNavItem,
             ],
           },
+          ...(canViewClients || canViewProjects
+            ? [{
+                label: 'Delivery',
+                items: [
+                  ...(canViewClients ? [{ label: 'Clients', path: '/company/clients', icon: 'briefcase' }] : []),
+                  ...(canViewProjects ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }] : []),
+                ],
+              }]
+            : []),
           {
             label: 'People',
             items: [
@@ -111,6 +127,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+              ...(canViewChat ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }] : []),
               myTodoNavItem,
               myNotepadNavItem,
             ],
@@ -122,6 +139,12 @@ export function CompanySidebar({
                   items: [{ label: 'Employees', path: '/company/employees', icon: 'users' }],
                 },
               ]
+            : []),
+          ...(canViewClients || canViewProjects
+            ? [{ label: 'Delivery', items: [
+              ...(canViewClients ? [{ label: 'Clients', path: '/company/clients', icon: 'briefcase' }] : []),
+              ...(canViewProjects ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }] : []),
+            ] }]
             : []),
           ...(canViewTerritories || canViewLeads || canViewHandovers
             ? [{ label: 'Sales', items: [

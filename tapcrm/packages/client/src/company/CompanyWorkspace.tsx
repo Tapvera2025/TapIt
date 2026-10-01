@@ -33,6 +33,9 @@ import {
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
+import { getConversations, MessagesPage } from '../chat/index.js';
+import { ClientsPage, getClients } from '../clients/index.js';
+import { getProjects, ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 import { MyTodoPage } from './todo/index.js';
 
 export function CompanyWorkspace({
@@ -54,6 +57,9 @@ export function CompanyWorkspace({
   const [canViewLeads, setCanViewLeads] = useState(false);
   const [canViewCallbacks, setCanViewCallbacks] = useState(false);
   const [canViewHandovers, setCanViewHandovers] = useState(false);
+  const [canViewChat, setCanViewChat] = useState(false);
+  const [canViewClients, setCanViewClients] = useState(false);
+  const [canViewProjects, setCanViewProjects] = useState(false);
 
   useEffect(() => {
     void getCompanyIdentity()
@@ -67,6 +73,9 @@ export function CompanyWorkspace({
           setCanViewLeads(true);
           setCanViewCallbacks(true);
           setCanViewHandovers(true);
+          setCanViewChat(true);
+          setCanViewClients(true);
+          setCanViewProjects(true);
         } else if (nextIdentity.user.accountType === 'employee') {
           // The API is the source of truth for employee-directory access.
           // This probe only controls navigation; EmployeesPage still uses
@@ -100,6 +109,22 @@ export function CompanyWorkspace({
           void getAuditEntries({ limit: 1 })
             .then(() => setCanViewAudit(true))
             .catch(() => setCanViewAudit(false));
+
+          // chat:view is granted to every employee position by default
+          // (CH-1: no hierarchy) — this probe is what actually shows the
+          // Messages link; without it the permission exists but nothing in
+          // the sidebar ever points at it.
+          void getConversations('direct')
+            .then(() => setCanViewChat(true))
+            .catch(() => setCanViewChat(false));
+
+          void getClients()
+            .then(() => setCanViewClients(true))
+            .catch(() => setCanViewClients(false));
+
+          void getProjects()
+            .then(() => setCanViewProjects(true))
+            .catch(() => setCanViewProjects(false));
         }
       })
       .catch((cause) =>
@@ -187,6 +212,10 @@ export function CompanyWorkspace({
       ? null
       : pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
 
+  const isClients = pathname === '/company/clients';
+  const isProjects = pathname === '/company/projects';
+  const projectDetailMatch = isProjects ? null : pathname.match(/^\/company\/projects\/([^/]+)$/);
+
   const title = isTodo
     ? 'My Todo'
     : isNotepad
@@ -211,22 +240,30 @@ export function CompanyWorkspace({
                         ? 'Geofencing'
                         : pathname === '/company/tasks'
                           ? 'Tasks'
-                          : isTerritories || territoryDetailMatch
-                            ? 'Territories'
-                            : isCallbacks ||
-                                isCallbackCalendar ||
-                                isCallbackBoard ||
-                                isCallbackSchedule ||
-                                callbackDetailMatch
-                              ? 'Callbacks'
-                              : isHandovers || isIncomingHandovers || isMyHandovers
-                                ? 'Handovers'
-                                : isLeads ||
-                                    isStalledLeads ||
-                                    isReengagement ||
-                                    leadDetailMatch
-                                  ? 'Leads'
-                                  : 'Dashboard';
+                          : pathname === '/company/messages'
+                            ? 'Messages'
+                            : isClients
+                              ? 'Clients'
+                              : isProjects
+                                ? 'Projects'
+                                : projectDetailMatch
+                                  ? 'Project'
+                                  : isTerritories || territoryDetailMatch
+                                    ? 'Territories'
+                                    : isCallbacks ||
+                                        isCallbackCalendar ||
+                                        isCallbackBoard ||
+                                        isCallbackSchedule ||
+                                        callbackDetailMatch
+                                      ? 'Callbacks'
+                                      : isHandovers || isIncomingHandovers || isMyHandovers
+                                        ? 'Handovers'
+                                        : isLeads ||
+                                            isStalledLeads ||
+                                            isReengagement ||
+                                            leadDetailMatch
+                                          ? 'Leads'
+                                          : 'Dashboard';
 
   const content = isTodo ? (
     <MyTodoPage />
@@ -279,6 +316,19 @@ export function CompanyWorkspace({
     )
   ) : pathname === '/company/tasks' ? (
     <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={identity.user.id} />
+  ) : pathname === '/company/messages' ? (
+    <MessagesPage currentUserId={identity.user.id} isSuperAdmin={isSuperAdmin} />
+  ) : isClients ? (
+    <ClientsPage />
+  ) : isProjects ? (
+    <ProjectsPage onOpenProject={(projectId) => onNavigate(`/company/projects/${projectId}`)} />
+  ) : projectDetailMatch ? (
+    <ProjectDetailPage
+      projectId={projectDetailMatch[1]!}
+      currentUserId={identity.user.id}
+      isSuperAdmin={isSuperAdmin}
+      onBack={() => onNavigate('/company/projects')}
+    />
   ) : isTerritories && (isSuperAdmin || canViewTerritories) ? (
     <TerritoriesPage
       canManage={isSuperAdmin || canViewTerritories}
@@ -348,6 +398,9 @@ export function CompanyWorkspace({
       canViewTerritories={canViewTerritories}
       canViewLeads={canViewLeads}
       canViewHandovers={canViewHandovers}
+      canViewChat={canViewChat}
+      canViewClients={canViewClients}
+      canViewProjects={canViewProjects}
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}
