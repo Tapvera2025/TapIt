@@ -5,12 +5,19 @@ import { sql } from '../../platform/dal/sql.js';
 import { hashToken } from '../../platform/auth/crypto.js';
 import { hashIdentityPassword } from './password/service.js';
 import { IdentityConflictError, IdentityNotFoundError, IdentityValidationError } from './errors.js';
+import { normalizeIdentityEmail } from './repository.js';
 
 const schema = z.object({
   token: z.string().min(20),
   password: z.string().min(12).max(200),
   fullName: z.string().trim().min(2).max(160),
 });
+
+function isGlobalIdentityEmailConflict(error: unknown): boolean {
+  return typeof error === 'object' && error !== null &&
+    'code' in error && (error as { code?: unknown }).code === '23505' &&
+    'constraint' in error && (error as { constraint?: unknown }).constraint === 'ux_app_user_email_global';
+}
 
 /** Company Admin accepts the Master Admin invitation and becomes tenant Super Admin. */
 export async function acceptAdminInvitation(req: Request, res: Response): Promise<void> {
@@ -65,12 +72,31 @@ export async function acceptAdminInvitation(req: Request, res: Response): Promis
       if (existing.length)
         throw new IdentityConflictError('IDENTITY_SUPER_ADMIN_EXISTS', 'This organization already has a Super Admin');
 
+      const registeredEmail = await tx.maybeOne<{ id: string }>(
+        sql`SELECT id FROM app_user WHERE email = ${normalizeIdentityEmail(invitation.email)} LIMIT 1`,
+      );
+      if (registeredEmail)
+        throw new IdentityConflictError(
+          'IDENTITY_EMAIL_ALREADY_IN_USE',
+          'This email address is already associated with another CRM account. Please contact the administrator and request an invitation using a different email address.',
+        );
+
       const passwordHash = await hashIdentityPassword(body.password);
-      const user = await tx.one<{ id: string }>(sql`
-      INSERT INTO app_user(organization_id, account_type, email, password_hash, status, email_verified_at, mfa_required, full_name)
-      VALUES (${invitation.organizationId}, 'super-admin', ${invitation.email}, ${passwordHash}, 'active', now(), true, ${body.fullName})
-      RETURNING id
-    `);
+      let user: { id: string };
+      try {
+        user = await tx.one<{ id: string }>(sql`
+        INSERT INTO app_user(organization_id, account_type, email, password_hash, status, email_verified_at, mfa_required, full_name)
+        VALUES (${invitation.organizationId}, 'super-admin', ${normalizeIdentityEmail(invitation.email)}, ${passwordHash}, 'active', now(), true, ${body.fullName})
+        RETURNING id
+      `);
+      } catch (error) {
+        if (isGlobalIdentityEmailConflict(error))
+          throw new IdentityConflictError(
+            'IDENTITY_EMAIL_ALREADY_IN_USE',
+            'This email address is already associated with another CRM account. Please contact the administrator and request an invitation using a different email address.',
+          );
+        throw error;
+      }
       await tx.query(
         sql`UPDATE admin_invitation SET accepted_at = now() WHERE id = ${invitation.id}`,
       );

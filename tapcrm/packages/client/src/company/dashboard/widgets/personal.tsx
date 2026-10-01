@@ -164,7 +164,7 @@ export function MyLeaveWidget({ ctx }: { ctx: WidgetContext }): React.JSX.Elemen
 
   useEffect(() => {
     const year = new Date().getFullYear();
-    Promise.allSettled([
+    void Promise.allSettled([
       getLeaveBalances(ctx.userId, year),
       listLeaves({ userId: ctx.userId, status: 'pending' }),
     ]).then(([b, p]) => {

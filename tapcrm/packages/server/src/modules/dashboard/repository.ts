@@ -38,7 +38,7 @@ export async function writePreferences(
         ${ctx.organizationId},
         ${ctx.principal.id},
         ${JSON.stringify(input.layout)}::jsonb,
-        ${input.hidden as unknown as string[]},
+        ${input.hidden},
         now()
       )
       ON CONFLICT (organization_id, user_id) DO UPDATE

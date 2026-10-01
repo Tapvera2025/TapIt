@@ -39,6 +39,7 @@ import {
   ReengagementSegmentsPage,
   CallbacksPage,
   CallbackDetailPage,
+  HandoverPage,
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
@@ -118,6 +119,7 @@ export function CompanyWorkspace({
   const canViewTerritories = isSuperAdmin || can('territories:view');
   const canViewLeads = isSuperAdmin || can('leads:view');
   const canViewCallbacks = isSuperAdmin || can('callbacks:view');
+  const canViewHandovers = isSuperAdmin || can('handovers:view');
   const canManageLeaveTypes = can('leave:manage-types');
   const canAcknowledgeLeave = can('leave:acknowledge');
   const canDecideLeave = can('leave:decide');
@@ -148,6 +150,9 @@ export function CompanyWorkspace({
     '/company/sales/callbacks/calendar': 'Callbacks',
     '/company/sales/callbacks/board': 'Callbacks',
     '/company/sales/callbacks/schedule': 'Callbacks',
+    '/company/sales/handovers': 'Handovers',
+    '/company/sales/handovers/incoming': 'Handovers',
+    '/company/sales/handovers/mine': 'Handovers',
     '/company/employees': 'Employees',
     '/company/sessions': 'Sessions & Devices',
     '/company/access': 'Access Explorer',
@@ -260,6 +265,9 @@ export function CompanyWorkspace({
         : <p role="alert" className="p-6 text-sm text-app-muted">You do not have access to manage leave types.</p>;
     }
     if (pathname === '/company/biometric' && can('biometric:manage')) return <BiometricPage />;
+    if (canViewHandovers && (pathname === '/company/sales/handovers' || pathname === '/company/sales/handovers/incoming' || pathname === '/company/sales/handovers/mine')) {
+      return <HandoverPage view={pathname.endsWith('/incoming') ? 'incoming' : pathname.endsWith('/mine') ? 'mine' : 'all'} currentUserId={userId} onNavigate={onNavigate} />;
+    }
     if (pathname === '/company/sales/territories' && canViewTerritories) return <TerritoriesPage canManage={isSuperAdmin || can('territories:manage')} onNavigate={onNavigate} />;
     const territoryDetail = pathname.match(/^\/company\/sales\/territories\/([^/]+)$/);
     if (territoryDetail && canViewTerritories) return <TerritoryDetailsPage id={territoryDetail[1]!} canManage={isSuperAdmin || can('territories:manage')} onBack={() => onNavigate('/company/sales/territories')} />;
@@ -292,6 +300,7 @@ export function CompanyWorkspace({
       canViewTerritories={canViewTerritories}
       canViewLeads={canViewLeads}
       canViewCallbacks={canViewCallbacks}
+      canViewHandovers={canViewHandovers}
       canViewLiveBoard={canBeyondOwn('attendance:view-live')}
       canReviewCorrections={can('attendance:correct')}
       canReviewBreaches={can('breaks:review-breach')}

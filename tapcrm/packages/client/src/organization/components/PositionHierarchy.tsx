@@ -151,9 +151,9 @@ export function PositionHierarchy({
       return next;
     });
   }
-  function changeZoom(amount: number): void {
+  function changeZoom(delta: number): void {
     setFitView(false);
-    setZoom((value) => Math.max(25, Math.min(140, value + amount)));
+    setZoom((value) => Math.max(25, Math.min(140, value + delta)));
   }
   function navigatePositions(event: KeyboardEvent<HTMLDivElement>): void {
     if (
@@ -732,7 +732,7 @@ function PositionNode({
           )}
         </div>
         <div className="position-node-quick-add" role="group" aria-label={`Add a position around ${position.name}`}>
-          <button type="button" className="position-node-add-above" disabled={!canAddAbove(position, positions)} title={canAddAbove(position, positions) ? `Insert a parent above ${position.name}` : 'No available level for a parent here'} aria-label={`Add position above ${position.name}`} onClick={() => onCreate(position, 'above')}><Icon name="plus" className="size-3" /></button>
+          <button type="button" className="position-node-add-above" disabled={!canAddAbove(position, positions)} title={canAddAbove(position, positions) ? `Add a parent above ${position.name}` : 'No available level for a parent here'} aria-label={`Add position above ${position.name}`} onClick={() => onCreate(position, 'above')}><Icon name="plus" className="size-3" /></button>
           <button type="button" className="position-node-add-beside" disabled={!position.parentPositionId} title={position.parentPositionId ? `Add alongside ${position.name}` : 'The department already has a top position'} aria-label={`Add position alongside ${position.name}`} onClick={() => onCreate(position, 'beside')}><Icon name="plus" className="size-3" /></button>
           <button type="button" className="position-node-add-below" disabled={position.status !== 'active' || position.organizationalLevel <= 1} title={position.organizationalLevel <= 1 ? 'Level 1 cannot have a child position' : `Add below ${position.name}`} aria-label={`Add position below ${position.name}`} onClick={() => onCreate(position, 'below')}><Icon name="plus" className="size-3" /></button>
         </div>

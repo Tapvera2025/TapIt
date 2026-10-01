@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Router } from 'express';
 import { createRequestContext } from '../../platform/dal/context.js';
-import { resolvePrincipal } from '../identity/service.js';
+import { resolvePrincipal } from '../identity/facade.js';
 import { getPreferences, savePreferences, preferencesInputSchema } from './service.js';
 
 /**

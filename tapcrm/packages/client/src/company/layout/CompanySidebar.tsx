@@ -19,6 +19,7 @@ export function CompanySidebar({
   canViewTerritories = false,
   canViewLeads = false,
   canViewCallbacks = false,
+  canViewHandovers = false,
   canViewLiveBoard = false,
   canReviewCorrections = false,
   canReviewBreaches = false,
@@ -54,6 +55,7 @@ export function CompanySidebar({
   canViewTerritories?: boolean;
   canViewLeads?: boolean;
   canViewCallbacks?: boolean;
+  canViewHandovers?: boolean;
   canViewLiveBoard?: boolean;
   canReviewCorrections?: boolean;
   canReviewBreaches?: boolean;
@@ -122,12 +124,13 @@ export function CompanySidebar({
           ],
         }]
       : []),
-    ...((canViewTerritories || canViewLeads || canViewCallbacks) ? [{
+    ...((canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers) ? [{
       label: 'Sales',
       items: [
         ...(canViewTerritories ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }] : []),
         ...(canViewLeads ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }] : []),
         ...(canViewCallbacks ? [{ label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar' }] : []),
+        ...(canViewHandovers ? [{ label: 'Handovers', path: '/company/sales/handovers', icon: 'share' }] : []),
       ],
     }] : []),
     {

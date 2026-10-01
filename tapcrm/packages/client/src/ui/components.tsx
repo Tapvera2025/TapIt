@@ -32,7 +32,7 @@ export function Page({
           </div>
           {action}
         </div>
-        {children}
+        <div className="mt-8">{children}</div>
       </div>
     </div>
   );
@@ -78,6 +78,7 @@ export function Field({
   required = false,
   placeholder,
   disabled = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -86,6 +87,7 @@ export function Field({
   required?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  error?: string | undefined;
 }): React.JSX.Element {
   return (
     <label className="text-xs font-semibold text-app-muted">
@@ -99,6 +101,7 @@ export function Field({
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
       />
+      {error && <span className="mt-1 block font-normal text-app-danger" role="alert">{error}</span>}
     </label>
   );
 }
@@ -109,6 +112,7 @@ export function Select({
   options,
   required = false,
   disabled = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -116,6 +120,7 @@ export function Select({
   options: Array<{ value: string; label: string }>;
   required?: boolean;
   disabled?: boolean;
+  error?: string | undefined;
 }): React.JSX.Element {
   return (
     <label className="text-xs font-semibold text-app-muted">
@@ -134,6 +139,7 @@ export function Select({
           </option>
         ))}
       </select>
+      {error && <span className="mt-1 block font-normal text-app-danger" role="alert">{error}</span>}
     </label>
   );
 }

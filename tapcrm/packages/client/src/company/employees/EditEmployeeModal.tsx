@@ -300,7 +300,7 @@ export function EditEmployeeModal({
       });
       setCurrentShiftId(selectedShiftId);
       const shift = shifts.find((s) => s.id === selectedShiftId);
-      onSaved(`Shift updated to ${shift?.name ?? 'selected shift'} from ${shiftEffectiveFrom}.`);
+      onSaved(`Shift changed to ${shift?.name ?? 'selected shift'} effective ${shiftEffectiveFrom}.`);
     } catch (err) {
       setError(errorText(err, 'Unable to save the shift.'));
     } finally {

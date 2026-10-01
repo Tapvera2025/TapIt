@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   listLeaveAcknowledgements,
   listLeaveDecisions,
-  type LeaveQueueItem,
 } from '../../api/leaveApi.js';
 import { listCorrections, type CorrectionListItem } from '../../attendance/attendanceApi.js';
 import { loadLiveBoard, type LiveBoard } from '../../live/liveApi.js';
@@ -20,10 +19,10 @@ function Loading(): React.JSX.Element {
 export function LeaveQueueWidget({ ctx }: { ctx: WidgetContext }): React.JSX.Element {
   const [total, setTotal] = useState<number | null>(null);
   useEffect(() => {
-    Promise.allSettled([listLeaveDecisions(), listLeaveAcknowledgements()])
+    void Promise.allSettled([listLeaveDecisions(), listLeaveAcknowledgements()])
       .then(([d, a]) => {
-        const decisions = d.status === 'fulfilled' ? (d.value as LeaveQueueItem[]) : [];
-        const acks = a.status === 'fulfilled' ? (a.value as LeaveQueueItem[]) : [];
+        const decisions = d.status === 'fulfilled' ? d.value : [];
+        const acks = a.status === 'fulfilled' ? a.value : [];
         setTotal(decisions.length + acks.length);
       });
   }, []);

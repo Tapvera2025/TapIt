@@ -183,6 +183,30 @@ export function assertTeamMemberDepartmentConsistency(
   }
 }
 
+export function assertTeamMoveAllowed(input: {
+  destinationTeamStatus: TeamRecord['status'];
+  destinationTeamId: string;
+  currentTeamId: string | null;
+  currentTeamLeadUserId: string | null;
+  userId: string;
+}): void {
+  if (input.destinationTeamStatus !== 'active')
+    throw new OrganizationValidationError(
+      ORGANIZATION_ERROR_CODES.TEAM_MEMBER_INVALID,
+      'Employees can only be assigned to an active team',
+    );
+  if (input.currentTeamId === input.destinationTeamId)
+    throw new OrganizationValidationError(
+      ORGANIZATION_ERROR_CODES.TEAM_MEMBER_ALREADY_ASSIGNED,
+      'Employee is already a member of this team.',
+    );
+  if (input.currentTeamLeadUserId === input.userId)
+    throw new OrganizationValidationError(
+      ORGANIZATION_ERROR_CODES.TEAM_LEAD_MOVE_FORBIDDEN,
+      'Change the current Team Lead before moving this employee to another team.',
+    );
+}
+
 export async function createTeam(
   ctx: RequestContext,
   input: CreateTeamInput,
@@ -290,6 +314,16 @@ export async function addTeamMember(
         'Team member must be an active employee in the same department',
       );
     assertTeamMemberDepartmentConsistency(user.departmentId, team.departmentId);
+    const currentTeam = user.teamId
+      ? await findTeam(tx, ctx.organizationId, user.teamId)
+      : null;
+    assertTeamMoveAllowed({
+      destinationTeamStatus: team.status,
+      destinationTeamId: team.id,
+      currentTeamId: user.teamId,
+      currentTeamLeadUserId: currentTeam?.leadUserId ?? null,
+      userId: user.id,
+    });
     const after = await assignUserToTeam(tx, ctx.organizationId, input.userId, teamId);
     await enqueueOrganizationAudit(tx, {
       organizationId: ctx.organizationId,

@@ -136,8 +136,11 @@ export function TeamsPage(): React.JSX.Element {
   );
   const selectedEmployee = (chart?.people ?? []).find((person) => person.id === memberUser);
   const eligibleDestinationTeams = teams.filter(
-    (team) => selectedEmployee !== undefined && team.departmentId === selectedEmployee.departmentId,
+    (team) => selectedEmployee !== undefined && team.status === 'active' && team.departmentId === selectedEmployee.departmentId && team.id !== selectedEmployee.teamId,
   );
+  const currentTeamName = selectedEmployee?.teamId
+    ? teams.find((team) => team.id === selectedEmployee.teamId)?.name ?? selectedEmployee.teamName ?? selectedEmployee.teamId
+    : null;
   return (
     <Page
       eyebrow="Organization"
@@ -182,7 +185,7 @@ export function TeamsPage(): React.JSX.Element {
                 }}
                 options={(chart?.people ?? []).map((person) => ({
                   value: person.id,
-                  label: person.fullName,
+                  label: `${person.fullName} · ${person.teamId ? (teams.find((team) => team.id === person.teamId)?.name ?? person.teamName ?? 'Current team') : 'Unassigned'}`,
                 }))}
                 required
               />
@@ -196,13 +199,16 @@ export function TeamsPage(): React.JSX.Element {
                 }))}
                 required
               />
+              {selectedEmployee && <p className="text-xs text-app-muted md:col-span-3">
+                Current team: <span className="font-semibold text-app-foreground">{currentTeamName ?? 'Unassigned'}</span>
+              </p>}
               {memberUser && eligibleDestinationTeams.length === 0 && (
                 <p className="text-xs text-app-muted md:col-span-3">
                   No teams are available in this employee&apos;s department.
                 </p>
               )}
               <Button type="submit" disabled={busy}>
-                Move employee
+                {selectedEmployee?.teamId ? 'Move employee' : 'Assign employee'}
               </Button>
             </form>
           </Card>

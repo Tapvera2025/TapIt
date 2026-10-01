@@ -164,9 +164,9 @@ export function OrgChartPage(): React.JSX.Element {
     viewport.current?.scrollTo({ left: 0, top: 0 });
   }
 
-  function changeZoom(amount: number): void {
+  function changeZoom(delta: number): void {
     setFitView(false);
-    setZoom((value) => Math.max(25, Math.min(140, value + amount)));
+    setZoom((value) => Math.max(25, Math.min(140, value + delta)));
   }
 
   function closeMove(): void {

@@ -16,6 +16,7 @@ export function CompanyLayout({
   canViewTerritories,
   canViewLeads,
   canViewCallbacks,
+  canViewHandovers,
   canViewLiveBoard,
   canReviewCorrections,
   canReviewBreaches,
@@ -51,6 +52,7 @@ export function CompanyLayout({
   canViewTerritories: boolean;
   canViewLeads: boolean;
   canViewCallbacks: boolean;
+  canViewHandovers: boolean;
   canViewLiveBoard: boolean;
   canReviewCorrections: boolean;
   canReviewBreaches: boolean;
@@ -89,6 +91,7 @@ export function CompanyLayout({
         canViewTerritories={canViewTerritories}
         canViewLeads={canViewLeads}
         canViewCallbacks={canViewCallbacks}
+        canViewHandovers={canViewHandovers}
         canViewLiveBoard={canViewLiveBoard}
         canReviewCorrections={canReviewCorrections}
         canReviewBreaches={canReviewBreaches}

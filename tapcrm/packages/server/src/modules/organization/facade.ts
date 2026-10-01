@@ -19,3 +19,5 @@ export {
   type ClearedReportingLine,
 } from './reporting/service.js';
 export { findTeam } from './teams/repository.js';
+export { findDepartment } from './departments/repository.js';
+export { enqueueOrganizationAudit } from './repository.js';
