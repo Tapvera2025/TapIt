@@ -1,16 +1,21 @@
-import { describe, expect, it } from 'vitest';
-import { isValidLifecycleTransition } from './service.js';
+import { describe, expect, it, vi } from 'vitest';
+import { closeLeadAsLostInTransaction, isTerminalLeadStatus } from './lifecycle.js';
 
-describe('Lead lifecycle transitions', () => {
-  it('allows the supported forward and callback paths', () => {
-    expect(isValidLifecycleTransition('new', 'assigned')).toBe(true);
-    expect(isValidLifecycleTransition('follow_up', 'callback_scheduled')).toBe(true);
-    expect(isValidLifecycleTransition('nurture', 'contacted')).toBe(true);
+describe('Lead lifecycle handover boundary', () => {
+  it('identifies only converted and closed-lost Leads as terminal', () => {
+    expect(isTerminalLeadStatus('converted')).toBe(true);
+    expect(isTerminalLeadStatus('closed_lost')).toBe(true);
+    expect(isTerminalLeadStatus('follow_up')).toBe(false);
   });
 
-  it('does not allow arbitrary or terminal fabrication', () => {
-    expect(isValidLifecycleTransition('new', 'proposal_sent')).toBe(false);
-    expect(isValidLifecycleTransition('assigned', 'closed_lost')).toBe(false);
-    expect(isValidLifecycleTransition('assigned', 'converted')).toBe(false);
+  it('closes an active Lead as lost through the existing owner-preserving lifecycle update', async () => {
+    const query = vi.fn().mockResolvedValue([{ id: 'lead-a' }]);
+    expect(await closeLeadAsLostInTransaction({ query } as never, 'org-a', 'lead-a', 'unqualified')).toBe(true);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report a closed Lead as newly closed', async () => {
+    const query = vi.fn().mockResolvedValue([]);
+    expect(await closeLeadAsLostInTransaction({ query } as never, 'org-a', 'lead-a', 'unqualified')).toBe(false);
   });
 });

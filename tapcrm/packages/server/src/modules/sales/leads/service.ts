@@ -8,15 +8,13 @@ import { sql } from '../../../platform/dal/sql.js';
 import { listTerritoriesForRouting } from '../territories/repository.js';
 import { getRoutingConfiguration } from '../territories/service.js';
 import { routeLead } from '../territories/router.js';
-import { HandoverConflictError, HandoverNotFoundError, LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from './errors.js';
-import { notifyHandoverOffered, notifyHandoverOutcome } from './handover-notifications.js';
-import { scheduleCallbackInTransaction } from './callback-service.js';
 import { normalizeLeadEmail, normalizeLeadPhone } from './normalization.js';
 import { leadPolicy } from './policy.js';
-import { canViewInternalHandoverState } from './handover-policy.js';
-import { acceptHandover, declineHandover, expirePendingHandovers, findCampaign, findDuplicatesTx, findHandover, findHandoverTx, findLead, findLeadHandoverResource, findLeadTx, findSource, findSourceTx, hasPendingHandover, insertActivity, insertAudit, insertHandover, insertLead, insertSource, listCampaigns, listHandoverTargets, listHandovers as listHandoverRows, listLeads as listRows, listSources, loadHandoverResource as loadHandoverResourceRow, loadLeadResource as loadResource, recordHandoverDisposition, updateLeadRow, updateSource } from './repository.js';
-import type { Campaign, Handover, HandoverTarget, Lead, LeadCreateResult, LeadResource, LeadSource, PaginatedLeads } from './types.js';
-import type { CreateHandoverInput, CreateLeadInput, DeclineHandoverInput, HandoverDispositionInput, HandoverListQuery, LeadListQuery, SourceInput, UpdateLeadInput, UpdateSourceInput } from './validators.js';
+import { LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from './errors.js';
+import { canViewInternalHandoverState } from '../handover/policy.js';
+import { findCampaign, findDuplicatesTx, findLead, findLeadTx, findSource, findSourceTx, insertActivity, insertAudit, insertLead, insertSource, listCampaigns, listLeads as listRows, listSources, loadLeadResource as loadResource, updateLeadRow, updateSource } from './repository.js';
+import type { Campaign, Lead, LeadCreateResult, LeadResource, LeadSource, PaginatedLeads } from './types.js';
+import type { CreateLeadInput, LeadListQuery, SourceInput, UpdateLeadInput, UpdateSourceInput } from './validators.js';
 
 const LIFECYCLE_TRANSITIONS: Record<string, readonly string[]> = {
   new: ['assigned'], assigned: ['contacted'], contacted: ['discovery'], discovery: ['proposal_sent'],
@@ -34,99 +32,6 @@ async function assertManageScope(ctx: RequestContext, resource: LeadResource): P
 
 export async function getSources(ctx: RequestContext): Promise<LeadSource[]> { return listSources(ctx); }
 export async function getCampaigns(ctx: RequestContext): Promise<Campaign[]> { return listCampaigns(ctx); }
-const HANDOVER_EXPIRY_MINUTES = 5;
-async function expireHandovers(ctx: RequestContext): Promise<void> {
-  await db.transaction(ctx, async (tx) => {
-    const expired = await expirePendingHandovers(tx, ctx.organizationId, HANDOVER_EXPIRY_MINUTES);
-    for (const handover of expired) {
-      await insertActivity(tx, ctx.organizationId, handover.leadId, 'handover.expired', ctx.principal.id, { handoverId: handover.id });
-      await insertAudit(tx, ctx, 'handover.expired', handover.id, { status: 'pending' }, { status: 'expired' });
-      await notifyHandoverOutcome(tx, ctx, handover.leadId, [handover.toUserId], 'expired');
-    }
-  });
-}
-
-export async function getHandoverTargets(ctx: RequestContext, leadId: string): Promise<HandoverTarget[]> {
-  const lead = await findLeadHandoverResource(ctx, leadId);
-  if (!lead || (!globalAccess(ctx.principal) && lead.currentHolderId !== ctx.principal.id)) throw new LeadNotFoundError();
-  return listHandoverTargets(ctx);
-}
-
-export async function createHandover(ctx: RequestContext, input: CreateHandoverInput): Promise<Handover> {
-  await expireHandovers(ctx);
-  const lead = await findLeadHandoverResource(ctx, input.leadId);
-  if (!lead) throw new LeadNotFoundError();
-  if (!globalAccess(ctx.principal) && lead.currentHolderId !== ctx.principal.id) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Only the current live-call handler may offer a handover');
-  const targets = await listHandoverTargets(ctx);
-  const target = targets.find((candidate) => candidate.id === input.toUserId);
-  if (!target) throw new LeadValidationError(LEAD_ERROR_CODES.HANDOVER_INVALID, 'Target is not an eligible Sales Supervisor or Team Lead');
-  if (!target.selectable) throw new LeadValidationError(LEAD_ERROR_CODES.HANDOVER_UNAVAILABLE, 'Target is not currently punched in or available');
-  if (await hasPendingHandover(ctx, input.leadId)) throw new HandoverConflictError(LEAD_ERROR_CODES.HANDOVER_INVALID, 'A handover is already pending for this lead');
-  return db.transaction(ctx, async (tx) => {
-    const id = await insertHandover(tx, ctx.organizationId, { leadId: input.leadId, fromUserId: ctx.principal.id, toUserId: input.toUserId, reason: input.reason ?? null, annotations: input.annotations ?? {} });
-    await insertActivity(tx, ctx.organizationId, input.leadId, 'handover.offered', ctx.principal.id, { handoverId: id, toUserId: input.toUserId });
-    await insertAudit(tx, ctx, 'handover.offered', id, null, { leadId: input.leadId, fromUserId: ctx.principal.id, toUserId: input.toUserId });
-    await notifyHandoverOffered(tx, ctx, input.leadId, input.toUserId);
-    const handover = await findHandoverTx(tx, ctx.organizationId, id); if (!handover) throw new HandoverNotFoundError(); return handover;
-  });
-}
-
-export async function listHandovers(ctx: RequestContext, query: HandoverListQuery): Promise<Handover[]> {
-  await expireHandovers(ctx);
-  const visibility = await visibilityFilter(ctx, 'handovers:view', 'handover');
-  const filter = query.leadId ? sql`${visibility} AND h.lead_id = ${query.leadId}` : visibility;
-  const handovers = await listHandoverRows(ctx, query.status !== 'all' ? sql`${filter} AND h.status = ${query.status}` : filter);
-  return globalAccess(ctx.principal) ? handovers : handovers.filter((handover) => handover.fromUserId !== ctx.principal.id || handover.status === 'pending');
-}
-export async function getHandover(ctx: RequestContext, id: string): Promise<Handover> { await expireHandovers(ctx); const handover = await findHandover(ctx, id); if (!handover || (!globalAccess(ctx.principal) && handover.fromUserId === ctx.principal.id && handover.status !== 'pending')) throw new HandoverNotFoundError(); return handover; }
-export const loadHandoverResource = loadHandoverResourceRow;
-
-export async function acceptLeadHandover(ctx: RequestContext, id: string): Promise<Handover> {
-  const existing = await getHandover(ctx, id);
-  if (existing.toUserId !== ctx.principal.id) throw new HandoverConflictError(LEAD_ERROR_CODES.HANDOVER_INVALID, 'Only the offered target may accept this handover');
-  if (existing.status !== 'pending') throw new HandoverConflictError(LEAD_ERROR_CODES.HANDOVER_FINALIZED, 'This handover is no longer pending');
-  const targets = await listHandoverTargets(ctx); const target = targets.find((candidate) => candidate.id === ctx.principal.id);
-  if (!target?.selectable) throw new HandoverConflictError(LEAD_ERROR_CODES.HANDOVER_UNAVAILABLE, 'You are not currently punched in or available');
-  return db.transaction(ctx, async (tx) => {
-    await acceptHandover(tx, ctx.organizationId, id);
-    await tx.query(sql`UPDATE lead SET current_holder_id = ${ctx.principal.id} WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId} AND current_holder_id = ${existing.fromUserId}`);
-    await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.accepted', ctx.principal.id, { handoverId: id, fromUserId: existing.fromUserId });
-    await insertAudit(tx, ctx, 'handover.accepted', id, { status: 'pending' }, { status: 'accepted', currentHolderId: ctx.principal.id, ownerId: existing.fromUserId });
-    await notifyHandoverOutcome(tx, ctx, existing.leadId, [existing.fromUserId], 'accepted');
-    const result = await findHandoverTx(tx, ctx.organizationId, id); if (!result) throw new HandoverNotFoundError(); return result;
-  });
-}
-
-export async function declineLeadHandover(ctx: RequestContext, id: string, input: DeclineHandoverInput): Promise<Handover> {
-  const existing = await getHandover(ctx, id);
-  if (existing.toUserId !== ctx.principal.id) throw new HandoverConflictError(LEAD_ERROR_CODES.HANDOVER_INVALID, 'Only the offered target may decline this handover');
-  if (existing.status !== 'pending') throw new HandoverConflictError(LEAD_ERROR_CODES.HANDOVER_FINALIZED, 'This handover is no longer pending');
-  return db.transaction(ctx, async (tx) => {
-    await declineHandover(tx, ctx.organizationId, id, input.reason);
-    await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.declined', ctx.principal.id, { handoverId: id, reason: input.reason });
-    await insertAudit(tx, ctx, 'handover.declined', id, { status: 'pending' }, { status: 'declined', reason: input.reason });
-    await notifyHandoverOutcome(tx, ctx, existing.leadId, [existing.fromUserId], 'declined');
-    const result = await findHandoverTx(tx, ctx.organizationId, id); if (!result) throw new HandoverNotFoundError(); return result;
-  });
-}
-
-export async function recordLeadHandoverDisposition(ctx: RequestContext, id: string, input: HandoverDispositionInput): Promise<Handover> {
-  const existing = await getHandover(ctx, id);
-  const lead = await findLeadHandoverResource(ctx, existing.leadId);
-  if (existing.toUserId !== ctx.principal.id) throw new HandoverConflictError(LEAD_ERROR_CODES.HANDOVER_INVALID, 'Only the receiving handler may record disposition');
-  if (existing.status !== 'accepted' || existing.disposition !== null) throw new HandoverConflictError(LEAD_ERROR_CODES.HANDOVER_FINALIZED, 'This handover cannot receive another disposition');
-  return db.transaction(ctx, async (tx) => {
-    await recordHandoverDisposition(tx, ctx.organizationId, id, input.disposition, input.reason ?? null, input.annotations ?? {});
-    if (input.disposition === 'rejected') await tx.query(sql`UPDATE lead SET status = 'closed_lost', loss_reason = ${input.lossReason!}, lost_at = now(), current_holder_id = owner_id WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId}`);
-    if (input.disposition === 'callback') { await tx.query(sql`UPDATE lead SET status = 'callback_scheduled' WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId}`); await scheduleCallbackInTransaction(tx, ctx, existing.leadId, input.scheduledAt!, input.reason ?? null, ctx.principal.id); }
-    const event = input.disposition === 'rejected' ? 'lead.closed_lost' : input.disposition === 'callback' ? 'callback.requested' : 'deal.creation_requested';
-    await insertActivity(tx, ctx.organizationId, existing.leadId, event, ctx.principal.id, { handoverId: id, disposition: input.disposition, reason: input.reason ?? null, lossReason: input.lossReason ?? null });
-    await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.disposition_recorded', ctx.principal.id, { handoverId: id, disposition: input.disposition });
-    await insertAudit(tx, ctx, `handover.${input.disposition}`, id, { status: 'accepted', disposition: null }, { status: 'accepted', disposition: input.disposition, ownerId: lead?.ownerId ?? null });
-    await notifyHandoverOutcome(tx, ctx, existing.leadId, [existing.fromUserId], input.disposition);
-    const result = await findHandoverTx(tx, ctx.organizationId, id); if (!result) throw new HandoverNotFoundError(); return result;
-  });
-}
 export async function createSource(ctx: RequestContext, input: SourceInput): Promise<LeadSource> { return db.transaction(ctx, (tx) => insertSource(tx, ctx.organizationId, input)); }
 export async function editSource(ctx: RequestContext, id: string, input: UpdateSourceInput): Promise<LeadSource> { return db.transaction(ctx, async (tx) => { const existing = await findSource(tx, ctx.organizationId, id); if (!existing) throw new LeadValidationError(LEAD_ERROR_CODES.SOURCE_INVALID, 'Lead source not found'); return updateSource(tx, ctx.organizationId, id, input); }); }
 

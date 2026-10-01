@@ -12,6 +12,7 @@ export function CompanyLayout({
   canViewEmployees,
   canViewTerritories,
   canViewLeads,
+  canViewHandovers,
   canViewChat,
   canViewClients,
   canViewProjects,
@@ -36,6 +37,7 @@ export function CompanyLayout({
   canViewEmployees: boolean;
   canViewTerritories: boolean;
   canViewLeads: boolean;
+  canViewHandovers: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
   canViewProjects: boolean;
@@ -63,6 +65,7 @@ export function CompanyLayout({
         canViewEmployees={canViewEmployees}
         canViewTerritories={canViewTerritories}
         canViewLeads={canViewLeads}
+        canViewHandovers={canViewHandovers}
         canViewChat={canViewChat}
         canViewClients={canViewClients}
         canViewProjects={canViewProjects}

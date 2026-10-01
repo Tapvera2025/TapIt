@@ -1,6 +1,11 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
-import { companyNavigation, myNotepadNavItem, type CompanyNavGroup } from './navigation.js';
+import {
+  companyNavigation,
+  myNotepadNavItem,
+  myTodoNavItem,
+  type CompanyNavGroup,
+} from './navigation.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
 
@@ -14,6 +19,7 @@ export function CompanySidebar({
   canViewEmployees,
   canViewTerritories = false,
   canViewLeads = false,
+  canViewHandovers = false,
   canViewChat = false,
   canViewClients = false,
   canViewProjects = false,
@@ -38,6 +44,7 @@ export function CompanySidebar({
   canViewEmployees: boolean;
   canViewTerritories?: boolean;
   canViewLeads?: boolean;
+  canViewHandovers?: boolean;
   canViewChat?: boolean;
   canViewClients?: boolean;
   canViewProjects?: boolean;
@@ -74,6 +81,7 @@ export function CompanySidebar({
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
               ...(canViewChat ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }] : []),
+              myTodoNavItem,
               myNotepadNavItem,
             ],
           },
@@ -120,6 +128,7 @@ export function CompanySidebar({
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
               ...(canViewChat ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }] : []),
+              myTodoNavItem,
               myNotepadNavItem,
             ],
           },
@@ -137,10 +146,11 @@ export function CompanySidebar({
               ...(canViewProjects ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }] : []),
             ] }]
             : []),
-          ...(canViewTerritories || canViewLeads
+          ...(canViewTerritories || canViewLeads || canViewHandovers
             ? [{ label: 'Sales', items: [
               ...(canViewTerritories ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }] : []),
               ...(canViewLeads ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }] : []),
+              ...(canViewHandovers ? [{ label: 'Handovers', path: '/company/sales/handovers', icon: 'share' }] : []),
             ] }]
             : []),
           {

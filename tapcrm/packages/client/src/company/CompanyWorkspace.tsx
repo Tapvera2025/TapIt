@@ -28,12 +28,15 @@ import {
   ReengagementSegmentsPage,
   CallbacksPage,
   CallbackDetailPage,
+  HandoverPage,
+  getAllHandovers,
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 import { getConversations, MessagesPage } from '../chat/index.js';
 import { ClientsPage, getClients } from '../clients/index.js';
 import { getProjects, ProjectDetailPage, ProjectsPage } from '../projects/index.js';
+import { MyTodoPage } from './todo/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -53,6 +56,7 @@ export function CompanyWorkspace({
   const [canViewTerritories, setCanViewTerritories] = useState(false);
   const [canViewLeads, setCanViewLeads] = useState(false);
   const [canViewCallbacks, setCanViewCallbacks] = useState(false);
+  const [canViewHandovers, setCanViewHandovers] = useState(false);
   const [canViewChat, setCanViewChat] = useState(false);
   const [canViewClients, setCanViewClients] = useState(false);
   const [canViewProjects, setCanViewProjects] = useState(false);
@@ -68,6 +72,7 @@ export function CompanyWorkspace({
           setCanViewTerritories(true);
           setCanViewLeads(true);
           setCanViewCallbacks(true);
+          setCanViewHandovers(true);
           setCanViewChat(true);
           setCanViewClients(true);
           setCanViewProjects(true);
@@ -92,6 +97,10 @@ export function CompanyWorkspace({
           void getAllCallbacks()
             .then(() => setCanViewCallbacks(true))
             .catch(() => setCanViewCallbacks(false));
+
+          void getAllHandovers()
+            .then(() => setCanViewHandovers(true))
+            .catch(() => setCanViewHandovers(false));
 
           void getRoleChangeRequestAccess()
             .then(() => setCanRequestRoleChange(true))
@@ -176,6 +185,8 @@ export function CompanyWorkspace({
   const isAudit = pathname === '/company/audit';
   const isEmployees = pathname === '/company/employees';
   const isEmployeeNotes = pathname === '/company/employee-notes';
+  const isTodo =
+    pathname === '/company/todo' || pathname === '/company/my-todo';
   const isNotepad =
     pathname === '/company/my-notepad' || pathname === '/company/notepad';
 
@@ -187,10 +198,10 @@ export function CompanyWorkspace({
   const isCallbackCalendar = pathname === '/company/sales/callbacks/calendar';
   const isCallbackBoard = pathname === '/company/sales/callbacks/board';
   const isCallbackSchedule = pathname === '/company/sales/callbacks/schedule';
-  const callbackDetailMatch =
-    isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule
-      ? null
-      : pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
+  const isHandovers = pathname === '/company/sales/handovers';
+  const isIncomingHandovers = pathname === '/company/sales/handovers/incoming';
+  const isMyHandovers = pathname === '/company/sales/handovers/mine';
+  const callbackDetailMatch = isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule ? null : pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
 
   const territoryDetailMatch = pathname.match(
     /^\/company\/sales\/territories\/([^/]+)$/,
@@ -205,45 +216,58 @@ export function CompanyWorkspace({
   const isProjects = pathname === '/company/projects';
   const projectDetailMatch = isProjects ? null : pathname.match(/^\/company\/projects\/([^/]+)$/);
 
-  const title = isNotepad
-    ? 'My Notepad'
-    : isEmployeeNotes
-      ? 'Employee Notes'
-      : isOrganization
-        ? 'Organization'
-        : isRecruitment
-          ? 'Recruitment'
-          : isEmployees
-            ? 'Employees'
-            : pathname === '/company/sessions'
-              ? 'Sessions & Devices'
-              : isAccess
-                ? 'Access Explorer'
-                : isRoleChangeRequest
-                  ? 'Request Role Change'
-                  : isAudit
-                    ? 'Audit Log'
-                    : pathname === '/company/geofencing'
-                      ? 'Geofencing'
-                      : pathname === '/company/tasks'
-                        ? 'Tasks'
-                        : pathname === '/company/messages'
-                          ? 'Messages'
-                          : isClients
-                            ? 'Clients'
-                            : isProjects
-                              ? 'Projects'
-                              : projectDetailMatch
-                                ? 'Project'
-                                : isTerritories || territoryDetailMatch
-                          ? 'Territories'
-                          : isCallbacks || isCallbackCalendar || isCallbackBoard || isCallbackSchedule || callbackDetailMatch
-                            ? 'Callbacks'
-                          : isLeads || isStalledLeads || isReengagement || leadDetailMatch
-                            ? 'Leads'
-                            : 'Dashboard';
+  const title = isTodo
+    ? 'My Todo'
+    : isNotepad
+      ? 'My Notepad'
+      : isEmployeeNotes
+        ? 'Employee Notes'
+        : isOrganization
+          ? 'Organization'
+          : isRecruitment
+            ? 'Recruitment'
+            : isEmployees
+              ? 'Employees'
+              : pathname === '/company/sessions'
+                ? 'Sessions & Devices'
+                : isAccess
+                  ? 'Access Explorer'
+                  : isRoleChangeRequest
+                    ? 'Request Role Change'
+                    : isAudit
+                      ? 'Audit Log'
+                      : pathname === '/company/geofencing'
+                        ? 'Geofencing'
+                        : pathname === '/company/tasks'
+                          ? 'Tasks'
+                          : pathname === '/company/messages'
+                            ? 'Messages'
+                            : isClients
+                              ? 'Clients'
+                              : isProjects
+                                ? 'Projects'
+                                : projectDetailMatch
+                                  ? 'Project'
+                                  : isTerritories || territoryDetailMatch
+                                    ? 'Territories'
+                                    : isCallbacks ||
+                                        isCallbackCalendar ||
+                                        isCallbackBoard ||
+                                        isCallbackSchedule ||
+                                        callbackDetailMatch
+                                      ? 'Callbacks'
+                                      : isHandovers || isIncomingHandovers || isMyHandovers
+                                        ? 'Handovers'
+                                        : isLeads ||
+                                            isStalledLeads ||
+                                            isReengagement ||
+                                            leadDetailMatch
+                                          ? 'Leads'
+                                          : 'Dashboard';
 
-  const content = isNotepad ? (
+  const content = isTodo ? (
+    <MyTodoPage />
+  ) : isNotepad ? (
     <MyNotepadPage />
   ) : isEmployeeNotes ? (
     isSuperAdmin ? (
@@ -323,6 +347,8 @@ export function CompanyWorkspace({
     ) : (
       <CallbacksPage view={isCallbackCalendar ? 'calendar' : isCallbackBoard ? 'board' : isCallbackSchedule ? 'schedule' : 'list'} organizationTimezone={identity.organization?.timezone ?? 'Asia/Kolkata'} onNavigate={onNavigate} />
     )
+  ) : (isHandovers || isIncomingHandovers || isMyHandovers) && (isSuperAdmin || canViewHandovers) ? (
+    <HandoverPage view={isIncomingHandovers ? 'incoming' : isMyHandovers ? 'mine' : 'all'} currentUserId={identity.user.id} onNavigate={onNavigate} />
   ) : (isLeads || isStalledLeads || isReengagement || leadDetailMatch) &&
     (isSuperAdmin || canViewLeads) ? (
     leadDetailMatch ? (
@@ -371,6 +397,7 @@ export function CompanyWorkspace({
       canViewEmployees={canViewEmployees}
       canViewTerritories={canViewTerritories}
       canViewLeads={canViewLeads}
+      canViewHandovers={canViewHandovers}
       canViewChat={canViewChat}
       canViewClients={canViewClients}
       canViewProjects={canViewProjects}

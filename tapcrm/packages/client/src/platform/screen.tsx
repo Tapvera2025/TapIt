@@ -1,6 +1,6 @@
 import { BrandLogo } from '../ui/BrandLogo.js';
 import { useEffect, useState } from 'react';
-import { api, clearTokens, saveTokens, updateOrganization } from './api.js';
+import { api, ApiError, clearTokens, saveTokens, updateOrganization } from './api.js';
 import { ModuleToggleModal } from './ModuleToggleModal.js';
 import { ThemeToggle } from '../theme/ThemeToggle.js';
 
@@ -94,6 +94,37 @@ function isValidUrl(value: string) {
   }
 }
 
+type FormErrors = {
+  name?: string; code?: string; companyEmail?: string; website?: string; ownerFullName?: string;
+  adminEmail?: string; ownerMobile?: string; primaryPhone?: string; alternatePhone?: string;
+  supportEmail?: string; addressLine1?: string; city?: string; state?: string; country?: string; postalCode?: string;
+  [key: string]: string | undefined;
+};
+
+function validationMessage(field: string, issue: string) {
+  const labels: Record<string, string> = {
+    name: 'Company name', code: 'Company code', companyEmail: 'Company email', ownerFullName: 'Owner name',
+    adminEmail: 'Owner/admin email', ownerMobile: 'Mobile number', primaryPhone: 'Primary phone',
+    addressLine1: 'Address line 1', city: 'City', state: 'State', country: 'Country', postalCode: 'Postal code',
+    website: 'Website', supportEmail: 'Support email',
+  };
+  const label = labels[field] ?? field;
+  if (issue.toLowerCase().includes('required') || issue.toLowerCase().includes('too_small')) return `${label} is required.`;
+  if (field === 'code') return 'Company code can contain only letters, numbers, underscores, and hyphens.';
+  if (field.toLowerCase().includes('email')) return `Enter a valid ${label.toLowerCase()}.`;
+  return issue;
+}
+
+function apiFieldErrors(error: unknown): FormErrors {
+  if (!(error instanceof ApiError)) return {};
+  const details = error.details as { fields?: Record<string, string>; issues?: Array<{ path?: string[]; message?: string }> } | undefined;
+  if (details?.fields) return details.fields;
+  return Object.fromEntries((details?.issues ?? []).flatMap((issue) => {
+    const field = issue.path?.[0];
+    return field ? [[field, validationMessage(field, issue.message ?? 'Invalid value')]] : [];
+  }));
+}
+
 function formatPhoneNumber(countryCode: string, phone: string) {
   return phone.trim() ? `${countryCode} ${phone.trim()}` : '';
 }
@@ -157,6 +188,7 @@ function TextField({
   maxLength,
   pattern,
   inputMode,
+  error,
 }: {
   label: string;
   value: string;
@@ -168,6 +200,7 @@ function TextField({
   maxLength?: number;
   pattern?: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  error?: string | undefined;
 }) {
   return (
     <label className="block min-w-0">
@@ -183,7 +216,9 @@ function TextField({
         maxLength={maxLength}
         pattern={pattern}
         inputMode={inputMode}
+        aria-invalid={Boolean(error)}
       />
+      {error && <span className="mt-1 block text-xs text-app-danger" role="alert">{error}</span>}
     </label>
   );
 }
@@ -223,6 +258,7 @@ function PhoneField({
   onChange,
   onCountryCodeChange,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -230,6 +266,7 @@ function PhoneField({
   onChange: (value: string) => void;
   onCountryCodeChange: (value: string) => void;
   required?: boolean;
+  error?: string | undefined;
 }) {
   return (
     <label className="block min-w-0">
@@ -254,8 +291,10 @@ function PhoneField({
           pattern="[0-9]{10}"
           placeholder="10-digit number"
           title="Enter exactly 10 digits"
+          aria-invalid={Boolean(error)}
         />
       </div>
+      {error && <span className="mt-1 block text-xs text-app-danger" role="alert">{error}</span>}
     </label>
   );
 }
@@ -372,6 +411,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [formStep, setFormStep] = useState(0);
   const [form, setForm] = useState({ ...INITIAL_FORM });
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [editingOrganizationId, setEditingOrganizationId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -527,6 +567,8 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     }
     setBusy(true);
     setMessage('');
+    setFormErrors({});
+    setInvitationPreview(null);
     try {
       const profile = organizationProfilePayload(form);
       if (formMode === 'edit' && editingOrganizationId) {
@@ -571,7 +613,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       setFormStep(0);
       await load();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Creation failed');
+      const fieldErrors = apiFieldErrors(err);
+      setFormErrors(fieldErrors);
+      setMessage(Object.keys(fieldErrors).length ? 'Please correct the highlighted fields.' : err instanceof Error ? err.message : 'Creation failed');
     } finally {
       setBusy(false);
     }
@@ -616,6 +660,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     setSelected([]);
     setFormStep(0);
     setMessage(`Editing ${org.name}.`);
+    setFormErrors({});
   }
 
   function cancelEdit() {
@@ -624,6 +669,17 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     setEditingOrganizationId(null);
     setFormStep(0);
     setMessage('');
+    setFormErrors({});
+  }
+
+  function setFormField(field: string, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFormErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
   }
 
   function goNext() {
@@ -635,29 +691,30 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       [],
       [],
     ] as const;
-    const missing = requiredByStep[formStep]?.some((field) => !form[field].trim());
-    if (missing) {
-      setMessage('Please complete all required fields before continuing.');
-      return;
+    const errors: FormErrors = {};
+    for (const field of requiredByStep[formStep] ?? []) if (!form[field].trim()) errors[field] = validationMessage(field, 'required');
+    if (formStep === 0) {
+      if (form.code.trim() && (!COMPANY_CODE.test(form.code) || form.code.trim().length < 2)) errors['code'] = validationMessage('code', 'format');
+      if (form.companyEmail.trim() && !isValidEmail(form.companyEmail)) errors['companyEmail'] = validationMessage('companyEmail', 'format');
+      if (form.website.trim() && !isValidUrl(form.website)) errors['website'] = 'Enter a valid website URL.';
     }
-    if (formStep === 0 && (!COMPANY_CODE.test(form.code) || !isValidEmail(form.companyEmail) || (form.website && !isValidUrl(form.website)))) {
-      setMessage('Enter a valid company code, company email, and website URL.');
-      return;
+    if (formStep === 1) {
+      if (form.ownerFullName.trim() && form.ownerFullName.trim().length < 2) errors['ownerFullName'] = 'Owner name must contain at least 2 characters.';
+      if (form.adminEmail.trim() && !isValidEmail(form.adminEmail)) errors['adminEmail'] = validationMessage('adminEmail', 'format');
+      if (form.ownerMobile.trim() && !TEN_DIGIT_PHONE.test(form.ownerMobile)) errors['ownerMobile'] = 'Mobile number must contain exactly 10 digits.';
     }
-    if (formStep === 1 && (form.ownerFullName.trim().length < 2 || !isValidEmail(form.adminEmail))) {
-      setMessage('Enter a valid owner name and admin email address.');
-      return;
+    if (formStep === 2) {
+      if (form.primaryPhone.trim() && !TEN_DIGIT_PHONE.test(form.primaryPhone)) errors['primaryPhone'] = 'Primary phone must contain exactly 10 digits.';
+      if (form.alternatePhone && !TEN_DIGIT_PHONE.test(form.alternatePhone)) errors['alternatePhone'] = 'Alternate phone must contain exactly 10 digits.';
+      if (form.supportEmail && !isValidEmail(form.supportEmail)) errors['supportEmail'] = 'Enter a valid support email.';
     }
-    if (formStep === 1 && !TEN_DIGIT_PHONE.test(form.ownerMobile)) {
-      setMessage('Owner mobile number must contain exactly 10 digits.');
-      return;
+    if (formStep === 3) {
+      if (form.postalCode.trim() && !POSTAL_CODE.test(form.postalCode)) errors['postalCode'] = 'Enter a valid postal code.';
+      for (const field of ['addressLine1', 'city', 'state', 'country'] as const) if (form[field].trim() && form[field].trim().length < 2) errors[field] = `${field === 'addressLine1' ? 'Address line 1' : field[0]!.toUpperCase() + field.slice(1)} must contain at least 2 characters.`;
     }
-    if (formStep === 2 && (!TEN_DIGIT_PHONE.test(form.primaryPhone) || (form.alternatePhone && !TEN_DIGIT_PHONE.test(form.alternatePhone)) || (form.supportEmail && !isValidEmail(form.supportEmail)))) {
-      setMessage('Enter valid 10-digit phone numbers and a valid support email.');
-      return;
-    }
-    if (formStep === 3 && (!POSTAL_CODE.test(form.postalCode) || [form.addressLine1, form.city, form.state, form.country].some((value) => value.trim().length < 2))) {
-      setMessage('Enter a valid address and postal code.');
+    setFormErrors(errors);
+    if (Object.keys(errors).length) {
+      setMessage('Please correct the highlighted fields before continuing.');
       return;
     }
     setMessage('');
@@ -802,42 +859,42 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           {formStep === 0 && <div className="mt-6 border-t border-app-border pt-[22px]">
             <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">1. Company Information</div>
             <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
-              <TextField label="Company Name" value={form.name} onChange={(name) => setForm({ ...form, name })} required />
-              <TextField label="Company Code" value={form.code} onChange={(code) => setForm({ ...form, code })} required placeholder="ABC001" />
-              <TextField label="Legal Company Name" value={form.legalCompanyName} onChange={(legalCompanyName) => setForm({ ...form, legalCompanyName })} />
+              <TextField label="Company Name" value={form.name} onChange={(name) => setFormField('name', name)} error={formErrors.name} required />
+              <TextField label="Company Code" value={form.code} onChange={(code) => setFormField('code', code)} error={formErrors.code} required placeholder="ABC001" />
+              <TextField label="Legal Company Name" value={form.legalCompanyName} onChange={(legalCompanyName) => setFormField('legalCompanyName', legalCompanyName)} />
               <SelectField label="Company Type" value={form.companyType} options={['Private', 'Public', 'Partnership', 'LLC', 'Other']} onChange={(companyType) => setForm({ ...form, companyType })} />
               <SelectField label="Industry" value={form.industry} options={['IT / Software', 'Finance', 'Healthcare', 'Education', 'Retail', 'Manufacturing', 'Other']} onChange={(industry) => setForm({ ...form, industry })} />
-              <TextField label="Website" value={form.website} onChange={(website) => setForm({ ...form, website })} type="url" placeholder="https://example.com" />
-              <TextField label="Company Email" value={form.companyEmail} onChange={(companyEmail) => setForm({ ...form, companyEmail })} type="email" required />
+              <TextField label="Website" value={form.website} onChange={(website) => setFormField('website', website)} error={formErrors.website} type="url" placeholder="https://example.com" />
+              <TextField label="Company Email" value={form.companyEmail} onChange={(companyEmail) => setFormField('companyEmail', companyEmail)} error={formErrors.companyEmail} type="email" required />
             </div>
           </div>}
           {formStep === 1 && <div className="mt-6 border-t border-app-border pt-[22px]">
             <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">2. Primary Owner / Company Admin</div>
             <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
-              <TextField label="Full Name" value={form.ownerFullName} onChange={(ownerFullName) => setForm({ ...form, ownerFullName })} required />
+              <TextField label="Full Name" value={form.ownerFullName} onChange={(ownerFullName) => setFormField('ownerFullName', ownerFullName)} error={formErrors.ownerFullName} required />
               <TextField label="Designation" value={form.ownerDesignation} onChange={(ownerDesignation) => setForm({ ...form, ownerDesignation })} />
-              <TextField label="Email" value={form.adminEmail} onChange={(adminEmail) => setForm({ ...form, adminEmail })} type="email" required />
-              <PhoneField label="Mobile Number" value={form.ownerMobile} countryCode={form.phoneCountryCode} onChange={(ownerMobile) => setForm({ ...form, ownerMobile })} onCountryCodeChange={(phoneCountryCode) => setForm({ ...form, phoneCountryCode })} required />
+              <TextField label="Email" value={form.adminEmail} onChange={(adminEmail) => setFormField('adminEmail', adminEmail)} error={formErrors.adminEmail} type="email" required />
+              <PhoneField label="Mobile Number" value={form.ownerMobile} countryCode={form.phoneCountryCode} onChange={(ownerMobile) => setFormField('ownerMobile', ownerMobile)} onCountryCodeChange={(phoneCountryCode) => setFormField('phoneCountryCode', phoneCountryCode)} error={formErrors.ownerMobile} required />
               <PhoneField label="Alternate Number" value={form.ownerAlternateNumber} countryCode={form.phoneCountryCode} onChange={(ownerAlternateNumber) => setForm({ ...form, ownerAlternateNumber })} onCountryCodeChange={(phoneCountryCode) => setForm({ ...form, phoneCountryCode })} />
             </div>
           </div>}
           {formStep === 2 && <div className="mt-6 border-t border-app-border pt-[22px]">
             <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">3. Company Contact Details</div>
             <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
-              <PhoneField label="Primary Phone" value={form.primaryPhone} countryCode={form.phoneCountryCode} onChange={(primaryPhone) => setForm({ ...form, primaryPhone })} onCountryCodeChange={(phoneCountryCode) => setForm({ ...form, phoneCountryCode })} required />
+              <PhoneField label="Primary Phone" value={form.primaryPhone} countryCode={form.phoneCountryCode} onChange={(primaryPhone) => setFormField('primaryPhone', primaryPhone)} onCountryCodeChange={(phoneCountryCode) => setFormField('phoneCountryCode', phoneCountryCode)} error={formErrors.primaryPhone} required />
               <PhoneField label="Alternate Phone" value={form.alternatePhone} countryCode={form.phoneCountryCode} onChange={(alternatePhone) => setForm({ ...form, alternatePhone })} onCountryCodeChange={(phoneCountryCode) => setForm({ ...form, phoneCountryCode })} />
-              <TextField label="Support Email" value={form.supportEmail} onChange={(supportEmail) => setForm({ ...form, supportEmail })} type="email" />
+              <TextField label="Support Email" value={form.supportEmail} onChange={(supportEmail) => setFormField('supportEmail', supportEmail)} error={formErrors.supportEmail} type="email" />
             </div>
           </div>}
           {formStep === 3 && <div className="mt-6 border-t border-app-border pt-[22px]">
             <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">4. Company Address</div>
             <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
-              <TextField label="Address Line 1" value={form.addressLine1} onChange={(addressLine1) => setForm({ ...form, addressLine1 })} required />
+              <TextField label="Address Line 1" value={form.addressLine1} onChange={(addressLine1) => setFormField('addressLine1', addressLine1)} error={formErrors.addressLine1} required />
               <TextField label="Address Line 2" value={form.addressLine2} onChange={(addressLine2) => setForm({ ...form, addressLine2 })} />
-              <TextField label="City" value={form.city} onChange={(city) => setForm({ ...form, city })} required />
-              <TextField label="State" value={form.state} onChange={(state) => setForm({ ...form, state })} required />
-              <TextField label="Country" value={form.country} onChange={(country) => setForm({ ...form, country })} required />
-              <TextField label="Postal / ZIP Code" value={form.postalCode} onChange={(postalCode) => setForm({ ...form, postalCode })} required />
+              <TextField label="City" value={form.city} onChange={(city) => setFormField('city', city)} error={formErrors.city} required />
+              <TextField label="State" value={form.state} onChange={(state) => setFormField('state', state)} error={formErrors.state} required />
+              <TextField label="Country" value={form.country} onChange={(country) => setFormField('country', country)} error={formErrors.country} required />
+              <TextField label="Postal / ZIP Code" value={form.postalCode} onChange={(postalCode) => setFormField('postalCode', postalCode)} error={formErrors.postalCode} required />
             </div>
           </div>}
           {formStep === 4 && <div className="mt-6 border-t border-app-border pt-[22px]">

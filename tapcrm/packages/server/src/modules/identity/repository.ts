@@ -2,11 +2,15 @@ import { bootstrapDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { IdentityUser } from './authentication/principal.js';
 
+export function normalizeIdentityEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export async function findUserByEmail(email: string): Promise<IdentityUser | null> {
   const directoryRows = await bootstrapDb.readIdentityDirectory<{ userId: string; organizationId: string }>(sql`
     SELECT user_id, organization_id
     FROM identity_email_directory
-    WHERE email = ${email.trim().toLowerCase()}
+    WHERE email = ${normalizeIdentityEmail(email)}
   `);
   const directoryEntry = directoryRows[0];
   if (!directoryEntry) return null;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createEmployee } from '../api/employeesApi.js';
+import { IdentityApiError } from '../../identity/api/authApi.js';
 import {
   getCompanyDepartments,
   getCompanyDesignations,
@@ -29,6 +30,18 @@ const blank = {
   specialization: '',
   reportsTo: '',
 };
+type EmployeeFieldErrors = {
+  fullName?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+  departmentId?: string;
+  positionId?: string;
+  teamId?: string;
+  designationId?: string;
+  specialization?: string;
+  reportsTo?: string;
+};
 
 export function EmployeesPage(): React.JSX.Element {
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
@@ -49,6 +62,17 @@ export function EmployeesPage(): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<EmployeeFieldErrors>({});
+
+  function setField(field: keyof typeof blank, value: string): void {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -136,6 +160,12 @@ export function EmployeesPage(): React.JSX.Element {
       designationId: keepDesignation ? form.designationId : '',
       specialization: keepDesignation ? form.specialization : '',
     });
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.departmentId;
+      delete next.positionId;
+      return next;
+    });
     setLadder(null);
   }
   useEffect(() => {
@@ -150,6 +180,20 @@ export function EmployeesPage(): React.JSX.Element {
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
+    const nextErrors: EmployeeFieldErrors = {};
+    if (!form.fullName.trim()) nextErrors.fullName = 'Full name is required.';
+    else if (form.fullName.trim().length < 2 || form.fullName.trim().length > 160) nextErrors.fullName = 'Enter a valid full name.';
+    if (!form.email.trim()) nextErrors.email = 'Email is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) || form.email.trim().length > 320) nextErrors.email = 'Enter a valid email address.';
+    if (!form.password) nextErrors.password = 'Password is required.';
+    else if (form.password.length < 12) nextErrors.password = 'Password must be at least 12 characters long.';
+    if (!form.confirmPassword) nextErrors.confirmPassword = 'Confirm password is required.';
+    else if (form.confirmPassword.length < 12) nextErrors.confirmPassword = 'Password must be at least 12 characters long.';
+    else if (form.confirmPassword !== form.password) nextErrors.confirmPassword = 'Passwords do not match.';
+    if (!form.departmentId) nextErrors.departmentId = 'Department is required.';
+    if (!form.positionId) nextErrors.positionId = 'Position is required.';
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setBusy(true);
     setError('');
     setMessage('');
@@ -170,10 +214,22 @@ export function EmployeesPage(): React.JSX.Element {
         `Employee ${result.employee.fullName} created. Credentials were sent by email.`,
       );
       setForm(blank);
+      setFieldErrors({});
       setShowCreate(false);
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to create employee.');
+      if (cause instanceof IdentityApiError) {
+        const mapped: Record<string, { field?: keyof EmployeeFieldErrors; message: string }> = {
+          IDENTITY_EMAIL_ALREADY_REGISTERED: { field: 'email', message: 'Email already exists. Please use a different email address.' },
+          IDENTITY_DEPARTMENT_INVALID: { field: 'departmentId', message: 'Select a valid active department.' },
+          IDENTITY_POSITION_INVALID: { field: 'positionId', message: 'Select a valid position for the selected department.' },
+        };
+        const result = mapped[cause.code];
+        if (result?.field) setFieldErrors({ [result.field]: result.message });
+        setError(result?.field ? '' : result?.message ?? cause.message);
+      } else {
+        setError(cause instanceof Error ? cause.message : 'Unable to create employee.');
+      }
     } finally {
       setBusy(false);
     }
@@ -222,41 +278,47 @@ export function EmployeesPage(): React.JSX.Element {
             <Field
               label="Full name"
               value={form.fullName}
-              onChange={(value) => setForm({ ...form, fullName: value })}
+              onChange={(value) => setField('fullName', value)}
+              error={fieldErrors.fullName}
               required
             />
             <Field
               label="Email"
               type="email"
               value={form.email}
-              onChange={(value) => setForm({ ...form, email: value })}
+              onChange={(value) => setField('email', value)}
+              error={fieldErrors.email}
               required
             />
             <Field
               label="Password"
               type="password"
               value={form.password}
-              onChange={(value) => setForm({ ...form, password: value })}
+              onChange={(value) => setField('password', value)}
+              error={fieldErrors.password}
               required
             />
             <Field
               label="Confirm password"
               type="password"
               value={form.confirmPassword}
-              onChange={(value) => setForm({ ...form, confirmPassword: value })}
+              onChange={(value) => setField('confirmPassword', value)}
+              error={fieldErrors.confirmPassword}
               required
             />
             <Select
               label="Department"
               value={form.departmentId}
               onChange={setDepartment}
+              error={fieldErrors.departmentId}
               options={departments.map((item) => ({ value: item.id, label: item.name }))}
               required
             />
             <Select
               label="Position"
               value={form.positionId}
-              onChange={(value) => setForm({ ...form, positionId: value })}
+              onChange={(value) => setField('positionId', value)}
+              error={fieldErrors.positionId}
               options={positionOptions}
               required
             />
@@ -335,34 +397,6 @@ export function EmployeesPage(): React.JSX.Element {
                 }))}
               />
             )}
-            {form.positionId && (
-              <section className="rounded-xl border border-app-border bg-app-background p-4 md:col-span-2">
-                <p className="text-sm font-semibold">Access preview</p>
-                <p className="mt-1 text-xs text-app-muted">
-                  Derived from this position&apos;s current policies. This preview does
-                  not grant or save access.
-                </p>
-                {accessPreview.length === 0 ? (
-                  <p className="mt-3 text-xs text-app-muted">
-                    No position policies are currently configured.
-                  </p>
-                ) : (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {accessPreview.map((policy) => (
-                      <div
-                        key={policy.action}
-                        className="rounded-lg border border-app-border px-3 py-2 text-xs"
-                      >
-                        <span className="font-semibold">{policy.action}</span>
-                        <span className="ml-2 text-app-muted">
-                          {policy.allowed ? policy.scope : 'Denied'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
             <button
               type="submit"
               disabled={busy}
@@ -370,6 +404,13 @@ export function EmployeesPage(): React.JSX.Element {
             >
               {busy ? 'Creating...' : 'Create employee and send credentials'}
             </button>
+            {form.positionId && (
+              <section className="rounded-xl border border-app-border bg-app-background p-4 md:col-span-2">
+                <p className="text-sm font-semibold">Access preview</p>
+                <p className="mt-1 text-xs text-app-muted">Derived from this position&apos;s current policies. This preview does not grant or save access.</p>
+                {accessPreview.length === 0 ? <p className="mt-3 text-xs text-app-muted">No position policies are currently configured.</p> : <div className="mt-3 grid gap-2 sm:grid-cols-2">{accessPreview.map((policy) => <div key={policy.action} className="rounded-lg border border-app-border px-3 py-2 text-xs"><span className="font-semibold">{policy.action}</span><span className="ml-2 text-app-muted">{policy.allowed ? policy.scope : 'Denied'}</span></div>)}</div>}
+              </section>
+            )}
           </form>
         )}
         {loading ? (
@@ -413,18 +454,13 @@ export function EmployeesPage(): React.JSX.Element {
                         : null
                     }
                   />
-                  <Detail label="Team" value={employee.teamName} />
-                  <Detail label="Designation" value={employee.designationName} />
-                  <div className="text-xs text-app-muted md:col-span-5">
-                    <span className="font-semibold text-app-foreground">
-                      Specialization:
-                    </span>{' '}
-                    {employee.specialization ?? '—'} ·{' '}
-                    <span className="font-semibold text-app-foreground">
-                      Reporting Manager:
-                    </span>{' '}
-                    {employee.reportsToName ?? '—'}
-                  </div>
+                  {employee.teamName && <Detail label="Team" value={employee.teamName} />}
+                  {employee.designationName && <Detail label="Designation" value={employee.designationName} />}
+                  {(employee.specialization || employee.reportsToName) && <div className="text-xs text-app-muted md:col-span-5">
+                    {employee.specialization && <><span className="font-semibold text-app-foreground">Specialization:</span>{' '}{employee.specialization}</>}
+                    {employee.specialization && employee.reportsToName && ' · '}
+                    {employee.reportsToName && <><span className="font-semibold text-app-foreground">Reporting Manager:</span>{' '}{employee.reportsToName}</>}
+                  </div>}
                 </div>
               ))}
             </div>
@@ -441,24 +477,60 @@ function Field({
   onChange,
   type = 'text',
   required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   required?: boolean;
+  error?: string | undefined;
 }): React.JSX.Element {
+  const [visible, setVisible] = useState(false);
+  const passwordField = type === 'password';
   return (
     <label className="text-xs font-semibold text-app-muted">
       <span className="mb-2 block">{label}</span>
-      <input
-        required={required}
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
-      />
+      <span className="relative block">
+        <input
+          required={required}
+          type={passwordField ? (visible ? 'text' : 'password') : type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent${passwordField ? ' pr-11' : ''}`}
+        />
+        {passwordField && <button
+          type="button"
+          className="absolute right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md border-0 bg-transparent p-0 text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+          aria-pressed={visible}
+        >
+          <PasswordVisibilityIcon visible={visible} />
+        </button>}
+      </span>
+      {error && <span className="mt-1 block text-xs font-normal text-app-danger" role="alert">{error}</span>}
     </label>
+  );
+}
+
+function PasswordVisibilityIcon({ visible }: { visible: boolean }): React.JSX.Element {
+  return (
+    <svg className="size-[17px] fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.8]" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {visible ? (
+        <>
+          <path d="M3 3l18 18" />
+          <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+          <path d="M9.9 4.3A10.8 10.8 0 0 1 12 4c5.2 0 8.7 4 10 8a13.7 13.7 0 0 1-3.1 5" />
+          <path d="M6.2 6.2C4.5 7.3 3.2 9.2 2 12c1.3 4 4.8 8 10 8a10.8 10.8 0 0 0 3.4-.5" />
+        </>
+      ) : (
+        <>
+          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+          <circle cx="12" cy="12" r="2.5" />
+        </>
+      )}
+    </svg>
   );
 }
 function Select({
@@ -467,12 +539,14 @@ function Select({
   onChange,
   options,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
   required?: boolean;
+  error?: string | undefined;
 }): React.JSX.Element {
   return (
     <label className="text-xs font-semibold text-app-muted">
@@ -490,6 +564,7 @@ function Select({
           </option>
         ))}
       </select>
+      {error && <span className="mt-1 block text-xs font-normal text-app-danger" role="alert">{error}</span>}
     </label>
   );
 }

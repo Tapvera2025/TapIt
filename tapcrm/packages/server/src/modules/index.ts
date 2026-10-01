@@ -14,8 +14,8 @@ import { registerTerritoryPolicies } from './sales/territories/policy.js';
 import { registerTerritoryRoutes } from './sales/territories/routes.js';
 import { registerLeadPolicies } from './sales/leads/policy.js';
 import { registerLeadRoutes } from './sales/leads/routes.js';
-import { registerHandoverPolicies } from './sales/leads/handover-policy.js';
-import { registerHandoverRoutes } from './sales/leads/handover-routes.js';
+import { registerHandoverPolicies } from './sales/handover/policy.js';
+import { registerHandoverRoutes } from './sales/handover/routes.js';
 import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
 import { registerCallbackRoutes } from './sales/leads/callback-routes.js';
 import { registerRecruitmentPolicies } from './recruitment/policy.js';
@@ -28,6 +28,7 @@ import {
 import { registerChatPolicies, registerChatRealtime, registerChatRoutes } from './chat/index.js';
 import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
 import { registerProjectPolicies, registerProjectRoutes } from './projects/index.js';
+import { registerMyTodoRoutes } from './myTodo/routes.js';
 
 /**
  * The module registry.
@@ -80,4 +81,5 @@ export function registerAllRoutes(): void {
   registerChatRoutes();
   registerClientRoutes();
   registerProjectRoutes();
+  registerMyTodoRoutes();
 }

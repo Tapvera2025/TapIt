@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { route } from '../../../platform/http/route.js';
-import { acceptLeadHandover, createHandover, declineLeadHandover, getHandover, getHandoverTargets, listHandovers, loadHandoverResource, recordLeadHandoverDisposition } from './service.js';
-import { createHandoverSchema, declineHandoverSchema, handoverDispositionSchema, handoverListQuerySchema, handoverTargetQuerySchema } from './validators.js';
+import { acceptLeadHandover, addHandoverAnnotation, createHandover, declineLeadHandover, getHandover, getHandoverTargets, listHandovers, loadHandoverResource, recordLeadHandoverDisposition } from './service.js';
+import { createHandoverSchema, declineHandoverSchema, handoverAnnotationSchema, handoverDispositionSchema, handoverListQuerySchema, handoverTargetQuerySchema } from './validators.js';
 
 const id = (value: string) => z.string().uuid().parse(value);
 
@@ -13,4 +13,5 @@ export function registerHandoverRoutes(): void {
   route({ method: 'POST', path: '/api/handovers/:id/disposition', action: 'handovers:record-disposition', module: 'handovers', resourceParam: 'id', loadResource: loadHandoverResource, handler: async ({ ctx, params, body }) => recordLeadHandoverDisposition(ctx, id(params['id']!), handoverDispositionSchema.parse(body)) });
   route({ method: 'GET', path: '/api/handovers', action: 'handovers:view', module: 'handovers', handler: async ({ ctx, query }) => listHandovers(ctx, handoverListQuerySchema.parse(query)) });
   route({ method: 'GET', path: '/api/handovers/:id', action: 'handovers:view', module: 'handovers', resourceParam: 'id', loadResource: loadHandoverResource, handler: async ({ ctx, params }) => getHandover(ctx, id(params['id']!)) });
+  route({ method: 'POST', path: '/api/handovers/:id/annotations', action: 'handovers:view', module: 'handovers', resourceParam: 'id', loadResource: loadHandoverResource, handler: async ({ ctx, params, body }) => addHandoverAnnotation(ctx, id(params['id']!), handoverAnnotationSchema.parse(body)) });
 }

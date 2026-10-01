@@ -23,6 +23,18 @@ export interface CompanyScreen {
 }
 
 /**
+ * Single universal navigation item for My Todo.
+ * Universally available to all authenticated company users without action or role gating.
+ */
+export const myTodoNavItem: CompanyNavItem = {
+  label: 'My Todo',
+  path: '/company/todo',
+  icon: 'pencil',
+};
+
+export const myTodoItem = myTodoNavItem;
+
+/**
  * Single universal navigation item for My Notepad.
  * Universally available to all authenticated company users without action or role gating.
  */
@@ -43,6 +55,7 @@ export const companyNavigation: CompanyNavGroup[] = [
       { label: 'Messages', path: '/company/messages', icon: 'message', requiredAction: 'chat:view' },
       { label: 'Clients', path: '/company/clients', icon: 'briefcase', requiredAction: 'clients:view' },
       { label: 'Projects', path: '/company/projects', icon: 'grid', requiredAction: 'projects:view' },
+      myTodoNavItem,
       myNotepadNavItem,
     ],
   },
@@ -78,6 +91,7 @@ export const companyNavigation: CompanyNavGroup[] = [
       { label: 'Territories', path: '/company/sales/territories', icon: 'map', requiredAction: 'territories:view' },
       { label: 'Leads', path: '/company/sales/leads', icon: 'users', requiredAction: 'leads:view' },
       { label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar', requiredAction: 'callbacks:view' },
+      { label: 'Handovers', path: '/company/sales/handovers', icon: 'share', requiredAction: 'handovers:view' },
     ],
   },
   {
