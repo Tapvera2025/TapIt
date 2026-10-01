@@ -23,6 +23,8 @@ const paths: Record<string, string> = {
   grip: 'M8 4h.01 M16 4h.01 M8 10h.01 M16 10h.01 M8 16h.01 M16 16h.01 M8 22h.01 M16 22h.01',
   close: 'M6 6l12 12 M18 6L6 18',
   refresh: 'M3 12a9 9 0 0 1 15-6.7l3-3v9h-9l3.7-3.7 M21 12a9 9 0 0 1-15 6.7l-3 3v-9h9l-3.7 3.7',
+  notepad: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8',
+  history: 'M12 8v4l3 3 M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5',
 };
 export function Icon({
   name,

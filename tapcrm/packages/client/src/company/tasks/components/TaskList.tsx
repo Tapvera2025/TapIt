@@ -35,6 +35,7 @@ function formatDate(dateValue: string | null): string {
 export function TaskList({
   tasks,
   loading = false,
+  currentUserId,
   onTransitionStatus,
   onEditTask,
   onAssignTask,
@@ -57,11 +58,15 @@ export function TaskList({
     );
   }
 
-  async function handleTransition(taskId: string, targetStatus: TaskStatus) {
+  async function handleTransition(
+    taskId: string,
+    targetStatus: TaskStatus,
+    userId?: string,
+  ) {
     try {
       setTransitioningTaskId(taskId);
       setTransitionError(null);
-      await onTransitionStatus(taskId, targetStatus);
+      await onTransitionStatus(taskId, targetStatus, userId);
     } catch (err) {
       setTransitionError({
         taskId,
@@ -79,7 +84,12 @@ export function TaskList({
     <div className="space-y-2.5">
       {tasks.map((task) => {
         const isBusy = transitioningTaskId === task.id;
-        const availableTransitions = VALID_TRANSITIONS[task.status] ?? [];
+        const myAssignment = currentUserId
+          ? task.assignees.find((a) => a.id === currentUserId)
+          : undefined;
+        const availableTransitions = myAssignment
+          ? (VALID_TRANSITIONS[myAssignment.status] ?? [])
+          : (VALID_TRANSITIONS[task.status] ?? []);
 
         return (
           <article
@@ -115,13 +125,16 @@ export function TaskList({
                         void handleTransition(
                           task.id,
                           e.target.value as TaskStatus,
+                          myAssignment?.id,
                         );
                       }
                     }}
                     className="h-7 rounded border border-app-border bg-app-surface px-2 text-xs text-app-muted hover:text-app-foreground hover:border-app-accent/60 outline-none transition cursor-pointer disabled:opacity-50"
-                    aria-label="Change task status"
+                    aria-label={myAssignment ? 'Change my task status' : 'Change task status'}
                   >
-                    <option value="">Move status ▾</option>
+                    <option value="">
+                      {myAssignment ? 'My status ▾' : 'Move status ▾'}
+                    </option>
                     {availableTransitions.map((status) => (
                       <option key={status} value={status}>
                         {TRANSITION_LABELS[status] ?? status}
@@ -188,23 +201,75 @@ export function TaskList({
               )}
             </div>
 
-            {/* 4. Assignment Row: Created by: Rahul Roy → Assigned to: Amit Das, Rohan */}
-            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-app-border/40 pt-2.5 text-xs text-app-muted">
-              <span className="text-app-muted">Created by:</span>
-              <span className="font-medium text-app-foreground">
-                {task.createdByName || 'Unknown'}
-              </span>
+            {/* 4. Assignment Row: Created by: Rahul Roy → Assigned to: Employee A [Status], Employee B [Status] */}
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-app-border/40 pt-2.5 text-xs text-app-muted">
+              <div className="flex items-center gap-1.5">
+                <span className="text-app-muted">Created by:</span>
+                <span className="font-medium text-app-foreground">
+                  {task.createdByName || 'Unknown'}
+                </span>
+              </div>
 
               <span className="mx-1 text-app-muted/50" aria-hidden="true">→</span>
 
-              <span className="text-app-muted">Assigned to:</span>
-              {task.assignees.length === 0 ? (
-                <span className="italic text-app-muted/80">Unassigned</span>
-              ) : (
-                <span className="font-medium text-app-foreground">
-                  {task.assignees.map((assignee) => assignee.fullName).join(', ')}
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-app-muted">Assigned to:</span>
+                {task.assignees.length === 0 ? (
+                  <span className="italic text-app-muted/80">Unassigned</span>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {task.assignees.map((assignee) => {
+                      const isSelf = currentUserId === assignee.id;
+                      const assigneeTransitions = VALID_TRANSITIONS[assignee.status] ?? [];
+                      return (
+                        <div
+                          key={assignee.id}
+                          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs ${
+                            isSelf
+                              ? 'border-app-accent/40 bg-app-accent/5'
+                              : 'border-app-border/60 bg-app-background'
+                          }`}
+                        >
+                          <span
+                            className={`font-medium ${
+                              isSelf
+                                ? 'text-app-accent font-semibold'
+                                : 'text-app-foreground'
+                            }`}
+                          >
+                            {assignee.fullName} {isSelf && '(You)'}
+                          </span>
+                          <TaskStatusBadge status={assignee.status} />
+                          {assigneeTransitions.length > 0 && (
+                            <select
+                              disabled={isBusy}
+                              value=""
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  void handleTransition(
+                                    task.id,
+                                    e.target.value as TaskStatus,
+                                    assignee.id,
+                                  );
+                                }
+                              }}
+                              className="h-5 rounded border border-app-border bg-app-surface px-1 text-[11px] text-app-muted hover:text-app-foreground hover:border-app-accent/60 outline-none transition cursor-pointer disabled:opacity-50"
+                              aria-label={`Change status for ${assignee.fullName}`}
+                            >
+                              <option value="">Move ▾</option>
+                              {assigneeTransitions.map((status) => (
+                                <option key={status} value={status}>
+                                  {TRANSITION_LABELS[status] ?? status}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </article>
         );

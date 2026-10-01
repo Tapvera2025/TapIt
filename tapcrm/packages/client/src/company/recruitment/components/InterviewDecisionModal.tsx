@@ -52,8 +52,8 @@ export function InterviewDecisionModal({
           onChange={(val) => setDecision(val as 'accepted' | 'rejected')}
           disabled={submitting}
           options={[
-            { value: 'accepted', label: '✓ Accept / Selected (Advance to Offer)' },
-            { value: 'rejected', label: '✕ Reject Candidate' },
+            { value: 'accepted', label: 'Accept / Selected (Advance to Offer)' },
+            { value: 'rejected', label: 'Reject Candidate' },
           ]}
         />
 

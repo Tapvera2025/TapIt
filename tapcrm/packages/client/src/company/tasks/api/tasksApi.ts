@@ -6,6 +6,7 @@ import type {
   Task,
   TaskAssignableUser,
   TaskListQuery,
+  TaskStatus,
   TransitionTaskInput,
   UpdateTaskInput,
 } from '../types/index.js';
@@ -45,6 +46,12 @@ export async function listTasks(
   }
   if (query.assigneeId?.trim()) {
     params.set('assigneeId', query.assigneeId.trim());
+  }
+  if (query.creatorId?.trim()) {
+    params.set('creatorId', query.creatorId.trim());
+  }
+  if (query.participantId?.trim()) {
+    params.set('participantId', query.participantId.trim());
   }
   if (query.page !== undefined && query.page > 0) {
     params.set('page', String(query.page));
@@ -135,10 +142,13 @@ export async function transitionTask(
   id: string,
   input: TransitionTaskInput,
 ): Promise<Task> {
-  const payload = {
+  const payload: Record<string, unknown> = {
     status: input.status,
     notes: input.notes?.trim() || null,
   };
+  if (input.userId?.trim()) {
+    payload['userId'] = input.userId.trim();
+  }
 
   return identityRequest<Task>(
     `/api/tasks/${encodeURIComponent(id)}/transition`,
@@ -147,6 +157,15 @@ export async function transitionTask(
       body: JSON.stringify(payload),
     },
   );
+}
+
+export async function updateAssignmentStatus(
+  taskId: string,
+  userId: string,
+  status: TaskStatus,
+  notes?: string | null,
+): Promise<Task> {
+  return transitionTask(taskId, { status, userId, notes });
 }
 
 export async function assignTask(

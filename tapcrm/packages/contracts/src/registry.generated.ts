@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 165   Bindings: 379
+ * Actions: 165   Bindings: 395
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -2983,13 +2983,25 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/performance/:userId/reviews', action: 'performance:manage', resourceParam: 'userId' },
   { method: 'POST', path: '/api/performance/cycles', action: 'performance:manage', resourceParam: null },
   { method: 'GET', path: '/api/territories', action: 'territories:view', resourceParam: null },
+  { method: 'GET', path: '/api/territories/routing', action: 'territories:view', resourceParam: null },
+  { method: 'GET', path: '/api/territories/coverage', action: 'territories:view', resourceParam: null },
+  { method: 'GET', path: '/api/territories/reporting', action: 'territories:view', resourceParam: null },
+  { method: 'GET', path: '/api/territories/:id', action: 'territories:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/territories', action: 'territories:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/territories/:id', action: 'territories:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/territories/:id/reassign', action: 'territories:manage', resourceParam: 'id' },
+  { method: 'PUT', path: '/api/territories/:id/status', action: 'territories:manage', resourceParam: 'id' },
   { method: 'PUT', path: '/api/territories/routing', action: 'territories:manage', resourceParam: null },
   { method: 'GET', path: '/api/leads', action: 'leads:view', resourceParam: null },
+  { method: 'GET', path: '/api/leads/stalled', action: 'leads:view', resourceParam: null },
+  { method: 'GET', path: '/api/leads/re-engagement/segments', action: 'leads:view', resourceParam: null },
   { method: 'GET', path: '/api/leads/:id', action: 'leads:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/leads/unrouted', action: 'leads:view', resourceParam: null },
   { method: 'POST', path: '/api/leads', action: 'leads:create', resourceParam: null },
+  { method: 'GET', path: '/api/lead-sources', action: 'leads:view', resourceParam: null },
+  { method: 'GET', path: '/api/campaigns', action: 'leads:view', resourceParam: null },
+  { method: 'POST', path: '/api/lead-sources', action: 'leads:create', resourceParam: null },
+  { method: 'PATCH', path: '/api/lead-sources/:id', action: 'leads:edit', resourceParam: null },
   { method: 'POST', path: '/api/leads/import', action: 'leads:create', resourceParam: null },
   { method: 'PATCH', path: '/api/leads/:id', action: 'leads:edit', resourceParam: 'id' },
   { method: 'POST', path: '/api/leads/:id/reassign', action: 'leads:reassign', resourceParam: 'id' },
@@ -3159,6 +3171,10 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/notices/:id', action: 'notices:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/workspace/notepads', action: 'notepad:view-all', resourceParam: null },
   { method: 'GET', path: '/api/workspace/notepads/:userId', action: 'notepad:view-all', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/admin/employee-notes', action: 'notepad:view-all', resourceParam: null },
+  { method: 'GET', path: '/api/admin/employee-notes/:userId', action: 'notepad:view-all', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/admin/employee-notes/:userId/history', action: 'notepad:view-all', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/admin/employee-notes/:userId/history/:historyId', action: 'notepad:view-all', resourceParam: 'userId' },
   { method: 'GET', path: '/api/workspace/sheets', action: 'sheets:manage', resourceParam: null },
   { method: 'POST', path: '/api/workspace/sheets', action: 'sheets:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/workspace/sheets/:id', action: 'sheets:manage', resourceParam: 'id' },

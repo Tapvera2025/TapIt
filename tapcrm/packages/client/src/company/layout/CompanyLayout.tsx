@@ -13,6 +13,9 @@ export function CompanyLayout({
   canViewLeaveBalances,
   canUseLeaveQueue,
   canViewEmployees,
+  canViewTerritories,
+  canViewLeads,
+  canViewCallbacks,
   canViewLiveBoard,
   canReviewCorrections,
   canReviewBreaches,
@@ -45,6 +48,9 @@ export function CompanyLayout({
   canViewLeaveBalances: boolean;
   canUseLeaveQueue: boolean;
   canViewEmployees: boolean;
+  canViewTerritories: boolean;
+  canViewLeads: boolean;
+  canViewCallbacks: boolean;
   canViewLiveBoard: boolean;
   canReviewCorrections: boolean;
   canReviewBreaches: boolean;
@@ -80,6 +86,9 @@ export function CompanyLayout({
         canViewLeaveBalances={canViewLeaveBalances}
         canUseLeaveQueue={canUseLeaveQueue}
         canViewEmployees={canViewEmployees}
+        canViewTerritories={canViewTerritories}
+        canViewLeads={canViewLeads}
+        canViewCallbacks={canViewCallbacks}
         canViewLiveBoard={canViewLiveBoard}
         canReviewCorrections={canReviewCorrections}
         canReviewBreaches={canReviewBreaches}

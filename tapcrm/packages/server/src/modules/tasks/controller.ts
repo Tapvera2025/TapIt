@@ -7,6 +7,7 @@ import {
   listTasks,
   loadTaskResource,
   transitionTask,
+  updateAssignmentStatus,
   updateTask,
 } from './service.js';
 import type {
@@ -32,6 +33,7 @@ export {
   listTasks,
   loadTaskResource,
   transitionTask,
+  updateAssignmentStatus,
   updateTask,
 };
 

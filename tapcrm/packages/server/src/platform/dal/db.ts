@@ -358,7 +358,8 @@ export type PlatformOperation =
   | 'organization-provisioning'
   | 'health-check'
   | 'job-scheduling'
-  | 'outbox-drain';
+  | 'outbox-drain'
+  | 'callback-automation';
 
 export const platformDb = {
   async one<T>(

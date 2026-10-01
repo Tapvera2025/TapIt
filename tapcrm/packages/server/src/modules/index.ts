@@ -41,9 +41,23 @@ import { registerPayrollPolicies } from './payroll/policy.js';
 import { registerPayrollRoutes } from './payroll/routes.js';
 import { registerTasksPolicies } from './tasks/policy.js';
 import { registerTasksRoutes } from './tasks/routes.js';
+import { registerTerritoryPolicies } from './sales/territories/policy.js';
+import { registerTerritoryRoutes } from './sales/territories/routes.js';
+import { registerLeadPolicies } from './sales/leads/policy.js';
+import { registerLeadRoutes } from './sales/leads/routes.js';
+import { registerHandoverPolicies } from './sales/leads/handover-policy.js';
+import { registerHandoverRoutes } from './sales/leads/handover-routes.js';
+import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
+import { registerCallbackRoutes } from './sales/leads/callback-routes.js';
+import { registerSalesJobs } from './sales/leads/jobs.js';
 import { registerRecruitmentPolicies } from './recruitment/policy.js';
 import { registerRecruitmentRoutes } from './recruitment/routes.js';
 import { registerNotificationJobs } from './notifications/jobs.js';
+import {
+  registerMyNotepadAdminRoutes,
+  registerMyNotepadRoutes,
+  registerNotepadPolicies,
+} from './myNotepad/index.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -71,7 +85,12 @@ export function registerAllPolicies(): void {
   registerBreakPolicies();
   registerPayrollPolicies();
   registerTasksPolicies();
+  registerTerritoryPolicies();
+  registerLeadPolicies();
+  registerHandoverPolicies();
+  registerCallbackPolicies();
   registerRecruitmentPolicies();
+  registerNotepadPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -90,7 +109,13 @@ export function registerAllRoutes(): void {
   registerBreakManagementRoutes();
   registerPayrollRoutes();
   registerTasksRoutes();
+  registerTerritoryRoutes();
+  registerLeadRoutes();
+  registerHandoverRoutes();
+  registerCallbackRoutes();
   registerRecruitmentRoutes();
+  registerMyNotepadRoutes();
+  registerMyNotepadAdminRoutes();
 }
 
 let jobsRegistered = false;
@@ -109,4 +134,5 @@ export function registerAllJobs(): void {
   registerBreakJobs();
   registerPayrollJobs();
   registerNotificationJobs();
+  registerSalesJobs();
 }

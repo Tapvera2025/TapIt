@@ -62,6 +62,42 @@ const registry: RegistryActionDefinition[] = [
     positionGrantable: true,
     superAdminOnly: false,
   },
+  {
+    action: 'tasks:view',
+    module: 'tasks',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'tasks:assign',
+    module: 'tasks',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'tasks:update',
+    module: 'tasks',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'tasks:review',
+    module: 'tasks',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'tasks:manage-dependencies',
+    module: 'tasks',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
+  {
+    action: 'tasks:log-time',
+    module: 'tasks',
+    positionGrantable: true,
+    superAdminOnly: false,
+  },
 ];
 
 function fakeTx(
@@ -223,6 +259,87 @@ describe('default tenant position policies', () => {
       scope: 'department',
     });
     expect(rows.has('org-hr:position-hr:access:view')).toBe(false);
+  });
+
+  it('provisions canonical department-scoped task policies for HR and HR Executive in new organizations', async () => {
+    const { tx, rows } = fakeTx();
+    const inserted = await provisionDefaultPositionPolicies(
+      tx,
+      'org-tasks-new',
+      ['tasks'],
+      [hrPosition, ORGANIZATION_TEMPLATE.positions.find((item) => item.code === 'hr-executive')!],
+      new Map([
+        ['hr', 'position-hr-tasks'],
+        ['hr-executive', 'position-hr-exec-tasks'],
+      ]),
+    );
+
+    // 6 actions each for hr and hr-executive = 12 policies
+    expect(inserted).toBe(12);
+
+    for (const posKey of ['position-hr-tasks', 'position-hr-exec-tasks']) {
+      expect(rows.get(`org-tasks-new:${posKey}:tasks:view`)).toMatchObject({
+        scope: 'department',
+      });
+      expect(rows.get(`org-tasks-new:${posKey}:tasks:assign`)).toMatchObject({
+        scope: 'department',
+      });
+      expect(rows.get(`org-tasks-new:${posKey}:tasks:update`)).toMatchObject({
+        scope: 'department',
+      });
+      expect(rows.get(`org-tasks-new:${posKey}:tasks:review`)).toMatchObject({
+        scope: 'department',
+      });
+      expect(rows.get(`org-tasks-new:${posKey}:tasks:manage-dependencies`)).toMatchObject({
+        scope: 'department',
+      });
+      expect(rows.get(`org-tasks-new:${posKey}:tasks:log-time`)).toMatchObject({
+        scope: 'department',
+      });
+    }
+
+    // Re-provisioning does not create duplicates (idempotent)
+    const reinserted = await provisionDefaultPositionPolicies(
+      tx,
+      'org-tasks-new',
+      ['tasks'],
+      [hrPosition, ORGANIZATION_TEMPLATE.positions.find((item) => item.code === 'hr-executive')!],
+      new Map([
+        ['hr', 'position-hr-tasks'],
+        ['hr-executive', 'position-hr-exec-tasks'],
+      ]),
+    );
+    expect(reinserted).toBe(0);
+    expect(rows.size).toBe(12);
+  });
+
+  it('does not overwrite existing customized policy rows for HR tasks', async () => {
+    // Pre-populate with a customized scope
+    const { tx, rows } = fakeTx([
+      {
+        organizationId: 'org-custom',
+        positionId: 'pos-hr-custom',
+        action: 'tasks:view',
+        scope: 'own', // custom scope
+      },
+    ]);
+
+    await provisionDefaultPositionPolicies(
+      tx,
+      'org-custom',
+      ['tasks'],
+      [hrPosition],
+      new Map([['hr', 'pos-hr-custom']]),
+    );
+
+    // Existing customized tasks:view remains 'own', NOT overwritten with 'department'
+    expect(rows.get('org-custom:pos-hr-custom:tasks:view')).toMatchObject({
+      scope: 'own',
+    });
+    // Missing actions like tasks:assign were inserted as 'department'
+    expect(rows.get('org-custom:pos-hr-custom:tasks:assign')).toMatchObject({
+      scope: 'department',
+    });
   });
 });
 

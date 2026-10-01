@@ -30,7 +30,18 @@ import { LeaveTypesPage } from './leave/LeaveTypesPage.js';
 import { LeaveBalancesPage } from './leave/LeaveBalancesPage.js';
 import { BiometricPage } from './biometric/BiometricPage.js';
 import { TasksPage } from './tasks/index.js';
+import {
+  TerritoriesPage,
+  TerritoryDetailsPage,
+  LeadsPage,
+  LeadDetailsPage,
+  StalledLeadsPage,
+  ReengagementSegmentsPage,
+  CallbacksPage,
+  CallbackDetailPage,
+} from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
+import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -104,6 +115,9 @@ export function CompanyWorkspace({
   const canViewEmployees = isSuperAdmin || can('users:view');
   const canRequestRoleChange = !isSuperAdmin && can('access:request-role-change');
   const canViewAudit = isSuperAdmin || can('audit:view');
+  const canViewTerritories = isSuperAdmin || can('territories:view');
+  const canViewLeads = isSuperAdmin || can('leads:view');
+  const canViewCallbacks = isSuperAdmin || can('callbacks:view');
   const canManageLeaveTypes = can('leave:manage-types');
   const canAcknowledgeLeave = can('leave:acknowledge');
   const canDecideLeave = can('leave:decide');
@@ -123,6 +137,17 @@ export function CompanyWorkspace({
   );
 
   const pageTitles: Record<string, string> = {
+    '/company/my-notepad': 'My Notepad',
+    '/company/notepad': 'My Notepad',
+    '/company/employee-notes': 'Employee Notes',
+    '/company/sales/territories': 'Territories',
+    '/company/sales/leads': 'Leads',
+    '/company/sales/leads/stalled': 'Stalled Leads',
+    '/company/sales/leads/re-engagement': 'Re-engagement',
+    '/company/sales/callbacks': 'Callbacks',
+    '/company/sales/callbacks/calendar': 'Callbacks',
+    '/company/sales/callbacks/board': 'Callbacks',
+    '/company/sales/callbacks/schedule': 'Callbacks',
     '/company/employees': 'Employees',
     '/company/sessions': 'Sessions & Devices',
     '/company/access': 'Access Explorer',
@@ -156,9 +181,11 @@ export function CompanyWorkspace({
     ? 'Organization'
     : isRecruitment
       ? 'Recruitment'
-      : pageTitles[pathname] ?? 'Dashboard';
+      : pageTitles[pathname] ?? (pathname.startsWith('/company/sales/territories/') ? 'Territories' : pathname.startsWith('/company/sales/callbacks/') ? 'Callbacks' : pathname.startsWith('/company/sales/leads/') ? 'Leads' : 'Dashboard');
 
   function renderContent(): React.JSX.Element {
+    if (pathname === '/company/my-notepad' || pathname === '/company/notepad') return <MyNotepadPage />;
+    if (pathname === '/company/employee-notes') return isSuperAdmin ? <EmployeeNotesPage /> : <p role="alert" className="p-6 text-sm text-app-muted">You do not have access to employee notes.</p>;
     if (isOrganization) return <OrganizationWorkspace pathname={pathname} />;
     if (isRecruitment) return <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />;
     if (pathname === '/company/access' && isSuperAdmin) return <AccessExplorerPage key="person" />;
@@ -233,6 +260,20 @@ export function CompanyWorkspace({
         : <p role="alert" className="p-6 text-sm text-app-muted">You do not have access to manage leave types.</p>;
     }
     if (pathname === '/company/biometric' && can('biometric:manage')) return <BiometricPage />;
+    if (pathname === '/company/sales/territories' && canViewTerritories) return <TerritoriesPage canManage={isSuperAdmin || can('territories:manage')} onNavigate={onNavigate} />;
+    const territoryDetail = pathname.match(/^\/company\/sales\/territories\/([^/]+)$/);
+    if (territoryDetail && canViewTerritories) return <TerritoryDetailsPage id={territoryDetail[1]!} canManage={isSuperAdmin || can('territories:manage')} onBack={() => onNavigate('/company/sales/territories')} />;
+    const callbackView = pathname === '/company/sales/callbacks/calendar' ? 'calendar' : pathname === '/company/sales/callbacks/board' ? 'board' : pathname === '/company/sales/callbacks/schedule' ? 'schedule' : 'list';
+    if (pathname === '/company/sales/callbacks' || pathname === '/company/sales/callbacks/calendar' || pathname === '/company/sales/callbacks/board' || pathname === '/company/sales/callbacks/schedule') {
+      if (canViewCallbacks) return <CallbacksPage view={callbackView} organizationTimezone={organizationTimeZone} onNavigate={onNavigate} />;
+    }
+    const callbackDetail = pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
+    if (callbackDetail && canViewCallbacks) return <CallbackDetailPage id={callbackDetail[1]!} currentUserId={userId} onBack={() => onNavigate('/company/sales/callbacks')} onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/leads/stalled' && canViewLeads) return <StalledLeadsPage onBack={() => onNavigate('/company/sales/leads')} onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/leads/re-engagement' && canViewLeads) return <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />;
+    if (pathname === '/company/sales/leads' && canViewLeads) return <LeadsPage onNavigate={onNavigate} />;
+    const leadDetail = pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
+    if (leadDetail && canViewLeads) return <LeadDetailsPage id={leadDetail[1]!} currentUserId={userId} organizationTimezone={organizationTimeZone} onBack={() => onNavigate('/company/sales/leads')} />;
     return <DashboardPage identity={identity!} onNavigate={onNavigate} />;
   }
 
@@ -248,6 +289,9 @@ export function CompanyWorkspace({
       canViewLeaveBalances={canManageLeaveTypes || canViewScopedLeaveCoverage}
       canUseLeaveQueue={canUseLeaveQueue}
       canViewEmployees={canViewEmployees}
+      canViewTerritories={canViewTerritories}
+      canViewLeads={canViewLeads}
+      canViewCallbacks={canViewCallbacks}
       canViewLiveBoard={canBeyondOwn('attendance:view-live')}
       canReviewCorrections={can('attendance:correct')}
       canReviewBreaches={can('breaks:review-breach')}

@@ -23,18 +23,37 @@ export interface CompanyScreen {
   requiredAction: Action;
 }
 
+/**
+ * Single universal navigation item for My Notepad.
+ * Universally available to all authenticated company users without action or role gating.
+ */
+export const myNotepadNavItem: CompanyNavItem = {
+  label: 'My Notepad',
+  path: '/company/my-notepad',
+  icon: 'notepad',
+};
+
+export const myNotepadItem = myNotepadNavItem;
+
 export const companyNavigation: CompanyNavGroup[] = [
   {
     label: 'Overview',
     items: [
       { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
       { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+      myNotepadNavItem,
     ],
   },
   {
     label: 'People',
     items: [
       { label: 'Employees', path: '/company/employees', icon: 'users', requiredAction: 'users:view' },
+      {
+        label: 'Employee Notes',
+        path: '/company/employee-notes',
+        icon: 'notepad',
+        requiredAction: 'notepad:view-all',
+      },
       {
         label: 'Recruitment',
         path: '/company/recruitment',
@@ -51,6 +70,14 @@ export const companyNavigation: CompanyNavGroup[] = [
       },
     ],
 
+  },
+  {
+    label: 'Sales',
+    items: [
+      { label: 'Territories', path: '/company/sales/territories', icon: 'map', requiredAction: 'territories:view' },
+      { label: 'Leads', path: '/company/sales/leads', icon: 'users', requiredAction: 'leads:view' },
+      { label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar', requiredAction: 'callbacks:view' },
+    ],
   },
   {
     label: 'Organization',

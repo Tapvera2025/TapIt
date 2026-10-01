@@ -3,29 +3,32 @@ import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
-import type { CompanyNavGroup } from './navigation.js';
+import { myNotepadNavItem, type CompanyNavGroup } from './navigation.js';
 
 export function CompanySidebar({
   pathname,
   identity,
   organizationName,
   accountType,
-  canRequestRoleChange,
-  canViewAudit,
-  canManageLeaveTypes,
-  canViewLeaveBalances,
-  canUseLeaveQueue,
-  canViewEmployees,
-  canViewLiveBoard,
-  canReviewCorrections,
-  canReviewBreaches,
-  canManageBreakPolicies,
-  canManageShifts,
-  canManagePayroll,
-  canManagePayrollConfig,
-  canManageBiometric,
-  isHr,
-  hasRecruitment,
+  canRequestRoleChange = false,
+  canViewAudit = false,
+  canManageLeaveTypes = false,
+  canViewLeaveBalances = false,
+  canUseLeaveQueue = false,
+  canViewEmployees = false,
+  canViewTerritories = false,
+  canViewLeads = false,
+  canViewCallbacks = false,
+  canViewLiveBoard = false,
+  canReviewCorrections = false,
+  canReviewBreaches = false,
+  canManageBreakPolicies = false,
+  canManageShifts = false,
+  canManagePayroll = false,
+  canManagePayrollConfig = false,
+  canManageBiometric = false,
+  isHr = false,
+  hasRecruitment = false,
   onNavigate,
   onLogout,
   open,
@@ -36,25 +39,31 @@ export function CompanySidebar({
     fullName: string;
     email: string;
     accountType?: string;
+    departmentCode?: string | null;
+    departmentName?: string | null;
+    positionCode?: string | null;
   };
   organizationName: string | null;
   accountType: string;
-  canRequestRoleChange: boolean;
-  canViewAudit: boolean;
-  canManageLeaveTypes: boolean;
-  canViewLeaveBalances: boolean;
-  canUseLeaveQueue: boolean;
-  canViewEmployees: boolean;
-  canViewLiveBoard: boolean;
-  canReviewCorrections: boolean;
-  canReviewBreaches: boolean;
-  canManageBreakPolicies: boolean;
-  canManageShifts: boolean;
-  canManagePayroll: boolean;
-  canManagePayrollConfig: boolean;
-  canManageBiometric: boolean;
-  isHr: boolean;
-  hasRecruitment: boolean;
+  canRequestRoleChange?: boolean;
+  canViewAudit?: boolean;
+  canManageLeaveTypes?: boolean;
+  canViewLeaveBalances?: boolean;
+  canUseLeaveQueue?: boolean;
+  canViewEmployees?: boolean;
+  canViewTerritories?: boolean;
+  canViewLeads?: boolean;
+  canViewCallbacks?: boolean;
+  canViewLiveBoard?: boolean;
+  canReviewCorrections?: boolean;
+  canReviewBreaches?: boolean;
+  canManageBreakPolicies?: boolean;
+  canManageShifts?: boolean;
+  canManagePayroll?: boolean;
+  canManagePayrollConfig?: boolean;
+  canManageBiometric?: boolean;
+  isHr?: boolean;
+  hasRecruitment?: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   open: boolean;
@@ -71,6 +80,7 @@ export function CompanySidebar({
       items: [
         { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
         { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+        myNotepadNavItem,
       ],
     },
     ...(isSuperAdmin
@@ -87,11 +97,12 @@ export function CompanySidebar({
           ],
         }]
       : []),
-    ...(isHr || canViewEmployees
+    ...(isHr || canViewEmployees || isSuperAdmin
       ? [{
           label: 'People',
           items: [
             { label: 'Employees', path: '/company/employees', icon: 'users' },
+            ...(isSuperAdmin ? [{ label: 'Employee Notes', path: '/company/employee-notes', icon: 'notepad' }] : []),
             ...(isHr && hasRecruitment
               ? [{
                   label: 'Recruitment',
@@ -111,6 +122,14 @@ export function CompanySidebar({
           ],
         }]
       : []),
+    ...((canViewTerritories || canViewLeads || canViewCallbacks) ? [{
+      label: 'Sales',
+      items: [
+        ...(canViewTerritories ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }] : []),
+        ...(canViewLeads ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }] : []),
+        ...(canViewCallbacks ? [{ label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar' }] : []),
+      ],
+    }] : []),
     {
       label: 'Attendance',
       items: [
