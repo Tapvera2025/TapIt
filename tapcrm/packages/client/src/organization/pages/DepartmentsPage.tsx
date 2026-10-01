@@ -13,8 +13,10 @@ import {
   Select,
 } from '../components/OrganizationUi.js';
 import type { OrganizationDepartment } from '../types/index.js';
+import { IdentityApiError } from '../../identity/api/authApi.js';
 
 const empty = { code: '', name: '', kind: 'support', status: 'active' };
+type DepartmentFieldErrors = { code?: string; name?: string };
 export function DepartmentsPage(): React.JSX.Element {
   const [items, setItems] = useState<OrganizationDepartment[]>([]);
   const [form, setForm] = useState(empty);
@@ -35,6 +37,18 @@ export function DepartmentsPage(): React.JSX.Element {
       setLoading(false);
     }
   }
+  const [fieldErrors, setFieldErrors] = useState<DepartmentFieldErrors>({});
+  const [formError, setFormError] = useState('');
+  function setFormField(field: keyof typeof empty, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (field !== 'code' && field !== 'name') return current;
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
   useEffect(() => {
     void load();
   }, []);
@@ -43,15 +57,27 @@ export function DepartmentsPage(): React.JSX.Element {
     setForm(empty);
     setOpen(true);
     setMessage('');
+    setFieldErrors({});
+    setFormError('');
   }
   function startEdit(item: OrganizationDepartment) {
     setEditing(item);
     setForm({ code: item.code, name: item.name, kind: item.kind, status: item.status });
     setOpen(true);
     setMessage('');
+    setFieldErrors({});
+    setFormError('');
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    const nextErrors: DepartmentFieldErrors = {};
+    if (!form.name.trim()) nextErrors.name = 'Department name is required.';
+    else if (form.name.trim().length > 160) nextErrors.name = 'Department name must be at most 160 characters.';
+    if (!editing && !form.code.trim()) nextErrors.code = 'Department code is required.';
+    else if (!editing && (form.code.trim().length > 64 || !/^[a-z0-9][a-z0-9-]*$/.test(form.code.trim()))) nextErrors.code = 'Code can use only lowercase letters, numbers, and hyphens.';
+    setFieldErrors(nextErrors);
+    setFormError('');
+    if (Object.keys(nextErrors).length) return;
     setBusy(true);
     setError(null);
     try {
@@ -65,7 +91,14 @@ export function DepartmentsPage(): React.JSX.Element {
       setMessage('Department saved.');
       await load();
     } catch (cause) {
-      setError(cause);
+      if (cause instanceof IdentityApiError && cause.code === 'ORG_DEPARTMENT_CODE_EXISTS') {
+        setFieldErrors({ code: 'Department code already exists. Please use a different code.' });
+        setFormError('');
+      } else if (cause instanceof Error) {
+        setFormError(cause.message);
+      } else {
+        setFormError('Unable to save department.');
+      }
     } finally {
       setBusy(false);
     }
@@ -132,19 +165,21 @@ export function DepartmentsPage(): React.JSX.Element {
             <Field
               label="Code"
               value={form.code}
-              onChange={(value) => setForm({ ...form, code: value })}
+              onChange={(value) => setFormField('code', value)}
+              error={fieldErrors.code}
               required
             />
             <Field
               label="Name"
               value={form.name}
-              onChange={(value) => setForm({ ...form, name: value })}
+              onChange={(value) => setFormField('name', value)}
+              error={fieldErrors.name}
               required
             />
             <Select
               label="Department type / kind"
               value={form.kind}
-              onChange={(value) => setForm({ ...form, kind: value })}
+              onChange={(value) => setFormField('kind', value)}
               options={[
                 { value: 'support', label: 'Support' },
                 { value: 'delivery', label: 'Delivery' },
@@ -154,7 +189,7 @@ export function DepartmentsPage(): React.JSX.Element {
             <Select
               label="Status"
               value={form.status}
-              onChange={(value) => setForm({ ...form, status: value })}
+              onChange={(value) => setFormField('status', value)}
               options={[
                 { value: 'active', label: 'Active' },
                 { value: 'inactive', label: 'Inactive' },
@@ -163,6 +198,7 @@ export function DepartmentsPage(): React.JSX.Element {
             <Button type="submit" disabled={busy}>
               {busy ? 'Saving…' : 'Save department'}
             </Button>
+            {formError && <ErrorMessage cause={new Error(formError)} />}
           </form>
         </Modal>
       )}

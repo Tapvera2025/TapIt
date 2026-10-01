@@ -7,10 +7,18 @@ export function AcceptInvitation() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; password?: string }>({});
   const [busy, setBusy] = useState(false);
   const success = message.startsWith('Account created');
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const nextErrors: { fullName?: string; password?: string } = {};
+    if (!fullName.trim()) nextErrors.fullName = 'Full name is required.';
+    else if (fullName.trim().length < 2) nextErrors.fullName = 'Enter a valid full name.';
+    if (!password) nextErrors.password = 'Password is required.';
+    else if (password.length < 12) nextErrors.password = 'Password must be at least 12 characters long.';
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setBusy(true);
     setMessage('');
     try {
@@ -19,8 +27,15 @@ export function AcceptInvitation() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token, fullName, password }),
       });
-      const b = (await r.json()) as { message?: string };
-      if (!r.ok) throw new Error(b.message ?? 'Invitation failed');
+      const b = (await r.json()) as { message?: string; code?: string };
+      if (!r.ok) {
+        const messages: Record<string, string> = {
+          IDENTITY_INVITATION_INVALID: 'This invitation has expired or has already been used.',
+          IDENTITY_ORGANIZATION_SUSPENDED: 'This company is suspended and cannot accept invitations.',
+          IDENTITY_EMAIL_ALREADY_IN_USE: 'This email address is already associated with another CRM account. Please contact the administrator and request an invitation using a different email address.',
+        };
+        throw new Error(messages[b.code ?? ''] ?? b.message ?? 'Invitation failed');
+      }
       setMessage('Account created. You can now sign in to the company CRM.');
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Invitation failed');
@@ -63,12 +78,14 @@ export function AcceptInvitation() {
               <form onSubmit={(e) => { void submit(e); }}>
                 <label className="mt-[19px] block">
                   <span className="mb-2 block text-xs font-semibold text-app-muted">Full name</span>
-                  <input className="block w-full rounded-[9px] border border-app-border bg-app-background px-3.5 py-[13px] text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="name" placeholder="Your full name" />
+                  <input className="block w-full rounded-[9px] border border-app-border bg-app-background px-3.5 py-[13px] text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" value={fullName} onChange={(e) => { setFullName(e.target.value); setFieldErrors((current) => { const next = { ...current }; delete next.fullName; return next; }); }} autoComplete="name" placeholder="Your full name" aria-invalid={Boolean(fieldErrors.fullName)} />
+                  {fieldErrors.fullName && <span className="mt-1 block text-xs text-app-danger" role="alert">{fieldErrors.fullName}</span>}
                 </label>
                 <label className="mt-[19px] block">
                   <span className="mb-2 block text-xs font-semibold text-app-muted">Create password</span>
                   <span className="relative block">
-                    <input className="block w-full rounded-[9px] border border-app-border bg-app-background px-3.5 py-[13px] pr-12 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type={showPassword ? 'text' : 'password'} minLength={12} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" placeholder="At least 12 characters" />
+                    <input className="block w-full rounded-[9px] border border-app-border bg-app-background px-3.5 py-[13px] pr-12 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => { setPassword(e.target.value); setFieldErrors((current) => { const next = { ...current }; delete next.password; return next; }); }} autoComplete="new-password" placeholder="At least 12 characters" aria-invalid={Boolean(fieldErrors.password)} />
+                    {fieldErrors.password && <span className="mt-1 block text-xs text-app-danger" role="alert">{fieldErrors.password}</span>}
                     <button
                       type="button"
                       className="absolute right-2 top-1/2 grid size-[34px] -translate-y-1/2 place-items-center rounded-[7px] border-0 bg-transparent p-0 text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1"

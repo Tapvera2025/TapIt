@@ -6,7 +6,7 @@ import { sql } from '../../platform/dal/sql.js';
 import { sendAdminInvitation } from '../../modules/identity/notifications/invitation-email.js';
 import { sendPasswordResetEmail } from '../../modules/identity/notifications/authentication-email.js';
 import { createIdentityContext } from '../../modules/identity/authentication/principal.js';
-import { findUserById } from '../../modules/identity/repository.js';
+import { findUserById, normalizeIdentityEmail } from '../../modules/identity/repository.js';
 import { PlatformConflictError, PlatformNotFoundError, PlatformValidationError } from '../errors.js';
 import * as invitationRepo from './repository.js';
 
@@ -110,7 +110,7 @@ export async function resendInvitation(input: {
   email: string;
   createdBy: string;
 }) {
-  const normalizedEmail = input.email.toLowerCase();
+  const normalizedEmail = normalizeIdentityEmail(input.email);
   const result = await platformDb.transaction(
     'organization-provisioning',
     'resend company admin invitation',
