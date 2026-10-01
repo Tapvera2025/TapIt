@@ -3396,6 +3396,12 @@
       "resourceParam": "id"
     },
     {
+      "method": "POST",
+      "path": "/api/handovers/:id/annotations",
+      "action": "handovers:view",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/deals",
       "action": "deals:view",

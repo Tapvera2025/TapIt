@@ -6,6 +6,18 @@ export interface ApiResult<T> {
   details?: unknown;
 }
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: string,
+    public readonly details?: unknown,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 const ACCESS_KEY = 'tapcrm.platform.access';
 const REFRESH_KEY = 'tapcrm.platform.refresh';
 export const AUTH_EXPIRED_EVENT = 'tapcrm:auth-expired';
@@ -59,7 +71,7 @@ export async function api<T>(
     window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   }
   if (!response.ok || !body.success)
-    throw new Error(body.message ?? body.code ?? `HTTP ${response.status}`);
+    throw new ApiError(body.message ?? body.code ?? `HTTP ${response.status}`, body.code, body.details, response.status);
   return body.data as T;
 }
 

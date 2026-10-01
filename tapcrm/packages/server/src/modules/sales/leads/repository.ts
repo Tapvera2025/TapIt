@@ -2,7 +2,7 @@ import type { SqlFragment } from '@tapcrm/authz';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
-import type { Campaign, DuplicateWarning, Handover, HandoverTarget, Lead, LeadActivity, LeadActivityEvent, LeadSource, LeadStatus } from './types.js';
+import type { Campaign, DuplicateWarning, Lead, LeadActivity, LeadActivityEvent, LeadSource, LeadStatus } from './types.js';
 import type { LeadListQuery, SourceInput, UpdateLeadInput, UpdateSourceInput } from './validators.js';
 
 type SourceRow = LeadSource;
@@ -52,7 +52,7 @@ export async function listLeads(ctx: RequestContext, filter: SqlFragment, query:
 }
 export async function findLead(ctx: RequestContext, id: string): Promise<Lead | null> { const row = await db.maybeOne<LeadRow>(ctx, sql`${LEAD_SELECT} WHERE l.organization_id = ${ctx.organizationId} AND l.id = ${id}`); return row ? mapLead(row) : null; }
 export async function findLeadTx(tx: Tx, organizationId: string, id: string): Promise<Lead | null> { const row = await tx.maybeOne<LeadRow>(sql`${LEAD_SELECT} WHERE l.organization_id = ${organizationId} AND l.id = ${id}`); return row ? mapLead(row) : null; }
-export async function loadLeadResource(ctx: RequestContext, id: string) { return db.maybeOne<{ id: string; organizationId: string; ownerId: string | null; currentHolderId: string | null; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null }>(ctx, sql`SELECT l.id, l.organization_id AS "organizationId", l.owner_id AS "ownerId", l.current_holder_id AS "currentHolderId", l.sales_team_id AS "salesTeamId", l.sales_pool_id AS "salesPoolId", team.department_id AS "departmentId" FROM lead l LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id WHERE l.organization_id = ${ctx.organizationId} AND l.id = ${id}`).then((row) => row ? { type: 'lead' as const, ...row } : null); }
+export async function loadLeadResource(ctx: RequestContext, id: string) { return db.maybeOne<{ id: string; organizationId: string; ownerId: string | null; currentHolderId: string | null; status: string; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null }>(ctx, sql`SELECT l.id, l.organization_id AS "organizationId", l.owner_id AS "ownerId", l.current_holder_id AS "currentHolderId", l.status, l.sales_team_id AS "salesTeamId", l.sales_pool_id AS "salesPoolId", team.department_id AS "departmentId" FROM lead l LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id WHERE l.organization_id = ${ctx.organizationId} AND l.id = ${id}`).then((row) => row ? { type: 'lead' as const, ...row } : null); }
 
 export async function findSourceTx(tx: Tx, organizationId: string, id: string): Promise<LeadSource | null> { return findSource(tx, organizationId, id); }
 export async function insertLead(tx: Tx, organizationId: string, input: { sourceId: string; campaignId: string | null; previousLeadId: string | null; ownerId: string | null; currentHolderId: string | null; territoryId: string | null; salesTeamId: string | null; salesPoolId: string | null; status: LeadStatus; routingStatus: 'assigned' | 'unrouted'; contactName: string; companyName: string | null; phone: string | null; email: string | null; phoneNormalized: string | null; emailNormalized: string | null; createdBy: string }): Promise<string> {
@@ -68,65 +68,7 @@ export async function findDuplicates(ctx: RequestContext, filter: SqlFragment, p
   const row = await db.query<{ leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null }>(ctx, sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${ctx.organizationId} AND ${filter} AND ((${phone} IS NOT NULL AND l.phone_normalized = ${phone}) OR (${email} IS NOT NULL AND l.email_normalized = ${email})) ORDER BY l.created_at DESC LIMIT 10`);
   return row;
 }
-
 export async function findDuplicatesTx(tx: Tx, organizationId: string, filter: SqlFragment, phone: string | null, email: string | null): Promise<DuplicateWarning[]> {
   if (!phone && !email) return [];
   return tx.query<DuplicateWarning>(sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${organizationId} AND ${filter} AND ((${phone} IS NOT NULL AND l.phone_normalized = ${phone}) OR (${email} IS NOT NULL AND l.email_normalized = ${email})) ORDER BY l.created_at DESC LIMIT 10`);
 }
-
-const HANDOVER_SELECT = sql`
-  SELECT h.id, h.organization_id AS "organizationId", h.lead_id AS "leadId",
-         h.from_user_id AS "fromUserId", from_user.full_name AS "fromUserName",
-         h.to_user_id AS "toUserId", to_user.full_name AS "toUserName",
-         h.status, h.offered_at AS "offeredAt", h.accepted_at AS "acceptedAt",
-         h.declined_at AS "declinedAt", h.expired_at AS "expiredAt",
-         h.disposition, h.disposition_at AS "dispositionAt", h.reason,
-         h.annotations, h.time_to_accept_seconds AS "timeToAcceptSeconds",
-         h.time_to_outcome_seconds AS "timeToOutcomeSeconds"
-  FROM lead_handover h
-  JOIN app_user from_user ON from_user.organization_id = h.organization_id AND from_user.id = h.from_user_id
-  JOIN app_user to_user ON to_user.organization_id = h.organization_id AND to_user.id = h.to_user_id
-  JOIN lead l ON l.organization_id = h.organization_id AND l.id = h.lead_id
-  LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id
-`;
-
-function mapHandover(row: Handover): Handover { return { ...row, offeredAt: new Date(row.offeredAt), acceptedAt: row.acceptedAt ? new Date(row.acceptedAt) : null, declinedAt: row.declinedAt ? new Date(row.declinedAt) : null, expiredAt: row.expiredAt ? new Date(row.expiredAt) : null, dispositionAt: row.dispositionAt ? new Date(row.dispositionAt) : null }; }
-
-export async function findHandover(ctx: RequestContext, id: string): Promise<Handover | null> { const row = await db.maybeOne<Handover>(ctx, sql`${HANDOVER_SELECT} WHERE h.organization_id = ${ctx.organizationId} AND h.id = ${id}`); return row ? mapHandover(row) : null; }
-export async function findHandoverTx(tx: Tx, organizationId: string, id: string): Promise<Handover | null> { const row = await tx.maybeOne<Handover>(sql`${HANDOVER_SELECT} WHERE h.organization_id = ${organizationId} AND h.id = ${id}`); return row ? mapHandover(row) : null; }
-export async function hasPendingHandover(ctx: RequestContext, leadId: string): Promise<boolean> { const row = await db.maybeOne<{ id: string }>(ctx, sql`SELECT id FROM lead_handover WHERE organization_id = ${ctx.organizationId} AND lead_id = ${leadId} AND status = 'pending'`); return row !== null; }
-export async function listHandovers(ctx: RequestContext, filter: SqlFragment): Promise<Handover[]> { const rows = await db.query<Handover>(ctx, sql`${HANDOVER_SELECT} WHERE h.organization_id = ${ctx.organizationId} AND ${filter} ORDER BY h.offered_at DESC`); return rows.map(mapHandover); }
-export async function loadHandoverResource(ctx: RequestContext, id: string) {
-  return db.maybeOne<{ id: string; organizationId: string; leadId: string; fromUserId: string; toUserId: string; status: string; disposition: string | null; ownerId: string | null; currentHolderId: string | null; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null }>(ctx, sql`
-    SELECT h.id, h.organization_id AS "organizationId", h.lead_id AS "leadId", h.from_user_id AS "fromUserId", h.to_user_id AS "toUserId", h.status, h.disposition,
-           l.owner_id AS "ownerId", l.current_holder_id AS "currentHolderId", l.sales_team_id AS "salesTeamId", l.sales_pool_id AS "salesPoolId", team.department_id AS "departmentId"
-    FROM lead_handover h JOIN lead l ON l.organization_id = h.organization_id AND l.id = h.lead_id
-    LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id
-    WHERE h.organization_id = ${ctx.organizationId} AND h.id = ${id}
-  `).then((row) => row ? { type: 'handover' as const, ...row } : null);
-}
-
-export async function findLeadHandoverResource(ctx: RequestContext, leadId: string) {
-  return db.maybeOne<{ id: string; organizationId: string; ownerId: string | null; currentHolderId: string | null; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null }>(ctx, sql`SELECT l.id, l.organization_id AS "organizationId", l.owner_id AS "ownerId", l.current_holder_id AS "currentHolderId", l.sales_team_id AS "salesTeamId", l.sales_pool_id AS "salesPoolId", team.department_id AS "departmentId" FROM lead l LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id WHERE l.organization_id = ${ctx.organizationId} AND l.id = ${leadId}`).then((row) => row ? { type: 'lead' as const, ...row } : null);
-}
-
-export async function listHandoverTargets(ctx: RequestContext): Promise<HandoverTarget[]> {
-  const rows = await db.query<HandoverTarget>(ctx, sql`
-    SELECT u.id, u.full_name AS "fullName", p.code AS "positionCode", u.team_id AS "teamId",
-           'not_punched_in'::text AS availability, false AS selectable
-    FROM app_user u
-    JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id AND d.code = 'sales' AND d.status = 'active'
-    JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id AND p.code IN ('sales-supervisor', 'sales-team-lead') AND p.status = 'active'
-    WHERE u.organization_id = ${ctx.organizationId} AND u.account_type = 'employee' AND u.status = 'active'
-      AND EXISTS (SELECT 1 FROM position_policy pp WHERE pp.organization_id = u.organization_id AND pp.position_id = u.position_id AND pp.action = 'handovers:receive' AND pp.allowed = true)
-      AND NOT EXISTS (SELECT 1 FROM user_override denied WHERE denied.organization_id = u.organization_id AND denied.user_id = u.id AND denied.action = 'handovers:receive' AND denied.allowed = false AND denied.revoked_at IS NULL AND (denied.expires_at IS NULL OR denied.expires_at > now()))
-    ORDER BY CASE WHEN p.code = 'sales-supervisor' THEN 0 ELSE 1 END, u.full_name
-  `);
-  return rows;
-}
-
-export async function insertHandover(tx: Tx, organizationId: string, input: { leadId: string; fromUserId: string; toUserId: string; reason: string | null; annotations: unknown }): Promise<string> { const row = await tx.one<{ id: string }>(sql`INSERT INTO lead_handover (organization_id, lead_id, from_user_id, to_user_id, reason, annotations) VALUES (${organizationId}, ${input.leadId}, ${input.fromUserId}, ${input.toUserId}, ${input.reason}, ${JSON.stringify(input.annotations ?? {})}::jsonb) RETURNING id`); return row.id; }
-export async function expirePendingHandovers(tx: Tx, organizationId: string, expiryMinutes: number): Promise<Array<{ id: string; leadId: string; toUserId: string }>> { return tx.query<{ id: string; leadId: string; toUserId: string }>(sql`UPDATE lead_handover SET status = 'expired', expired_at = now() WHERE organization_id = ${organizationId} AND status = 'pending' AND offered_at < now() - (${expiryMinutes} * interval '1 minute') RETURNING id, lead_id AS "leadId", to_user_id AS "toUserId"`); }
-export async function acceptHandover(tx: Tx, organizationId: string, id: string): Promise<void> { await tx.query(sql`UPDATE lead_handover SET status = 'accepted', accepted_at = now(), time_to_accept_seconds = EXTRACT(EPOCH FROM (now() - offered_at))::integer WHERE organization_id = ${organizationId} AND id = ${id} AND status = 'pending'`); }
-export async function declineHandover(tx: Tx, organizationId: string, id: string, reason: string): Promise<void> { await tx.query(sql`UPDATE lead_handover SET status = 'declined', declined_at = now(), reason = ${reason} WHERE organization_id = ${organizationId} AND id = ${id} AND status = 'pending'`); }
-export async function recordHandoverDisposition(tx: Tx, organizationId: string, id: string, disposition: string, reason: string | null, annotations: unknown): Promise<void> { await tx.query(sql`UPDATE lead_handover SET disposition = ${disposition}, disposition_at = now(), time_to_outcome_seconds = EXTRACT(EPOCH FROM (now() - COALESCE(accepted_at, offered_at)))::integer, reason = COALESCE(${reason}, reason), annotations = annotations || ${JSON.stringify(annotations ?? {})}::jsonb WHERE organization_id = ${organizationId} AND id = ${id} AND status = 'accepted' AND disposition IS NULL`); }

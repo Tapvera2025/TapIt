@@ -20,7 +20,7 @@ export class PlatformNotFoundError extends Error {
 }
 
 export class PlatformConflictError extends Error {
-  constructor(message: string) {
+  constructor(message: string, public readonly conflictingKey?: string) {
     super(message);
     this.name = 'PlatformConflictError';
   }

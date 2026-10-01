@@ -9,6 +9,18 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [location, setLocation] = useState<GeolocationInput | undefined>();
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+
+  function authenticationMessage(cause: unknown) {
+    if (!(cause instanceof IdentityApiError)) return cause instanceof Error ? cause.message : 'Company login failed';
+    switch (cause.code) {
+      case 'IDENTITY_INVALID_CREDENTIALS': return 'Email or password is incorrect.';
+      case 'IDENTITY_ACCOUNT_LOCKED': return 'Your account is temporarily locked. Please try again later.';
+      case 'IDENTITY_ORGANIZATION_SUSPENDED': return 'This company workspace is currently suspended.';
+      case 'IDENTITY_LOCATION_REQUIRED': return 'Location access is required to sign in. Please allow browser location access and try again.';
+      default: return cause.message;
+    }
+  }
 
   function requestLocation(): Promise<GeolocationInput> {
     return new Promise((resolve, reject) => {
@@ -23,6 +35,12 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const nextErrors: { email?: string; password?: string } = {};
+    if (!email.trim()) nextErrors.email = 'Email is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = 'Enter a valid email address.';
+    if (!password) nextErrors.password = 'Password is required.';
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setBusy(true);
     setError('');
     try {
@@ -37,7 +55,7 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
       }
       onSuccess(result);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Company login failed');
+      setError(authenticationMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -53,12 +71,13 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
       <p className="mt-3 text-sm leading-6 text-app-muted">Sign in with your company account to continue to your workspace.</p>
       <label className="mt-7 block">
         <span className="mb-2 block text-xs font-semibold text-app-muted">Email address</span>
-        <input className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="admin@company.com" required />
+        <input className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type="email" autoComplete="username" value={email} onChange={(event) => { setEmail(event.target.value); setFieldErrors((current) => { const next = { ...current }; delete next.email; return next; }); }} placeholder="admin@company.com" aria-invalid={Boolean(fieldErrors.email)} />
+        {fieldErrors.email && <span className="mt-1 block text-xs text-app-danger" role="alert">{fieldErrors.email}</span>}
       </label>
       <label className="mt-4 block">
         <span className="mb-2 block text-xs font-semibold text-app-muted">Password</span>
         <span className="relative block">
-          <input className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 pr-12 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Your password" required />
+          <input className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 pr-12 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => { setPassword(event.target.value); setFieldErrors((current) => { const next = { ...current }; delete next.password; return next; }); }} placeholder="Your password" aria-invalid={Boolean(fieldErrors.password)} />
           <button
             type="button"
             className="absolute right-2 top-1/2 grid size-[34px] -translate-y-1/2 place-items-center rounded-[7px] border-0 bg-transparent p-0 text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1"
@@ -83,6 +102,7 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
             </svg>
           </button>
         </span>
+        {fieldErrors.password && <span className="mt-1 block text-xs text-app-danger" role="alert">{fieldErrors.password}</span>}
       </label>
       <button className="mt-6 block w-full rounded-[10px] bg-app-accent px-4 py-3 font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={busy}>
         {busy ? 'Signing in...' : 'Sign in to company workspace'}

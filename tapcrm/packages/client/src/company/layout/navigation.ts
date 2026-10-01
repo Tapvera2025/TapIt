@@ -88,6 +88,7 @@ export const companyNavigation: CompanyNavGroup[] = [
       { label: 'Territories', path: '/company/sales/territories', icon: 'map', requiredAction: 'territories:view' },
       { label: 'Leads', path: '/company/sales/leads', icon: 'users', requiredAction: 'leads:view' },
       { label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar', requiredAction: 'callbacks:view' },
+      { label: 'Handovers', path: '/company/sales/handovers', icon: 'share', requiredAction: 'handovers:view' },
     ],
   },
   {

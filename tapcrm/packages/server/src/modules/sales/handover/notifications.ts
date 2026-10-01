@@ -13,3 +13,7 @@ export async function notifyHandoverOutcome(tx: Tx, ctx: RequestContext, leadId:
   const audience = recipients(userIds, ctx); if (!audience.length) return;
   await notify(tx, ctx, { type: `handover.${outcome}`, audience: { users: audience }, title: `Handover ${outcome}`, body: `The lead handover was ${outcome}.`, link: link(leadId), metadata: { leadId, outcome } });
 }
+export async function notifyHandoverQueued(tx: Tx, ctx: RequestContext, leadId: string, targetIds: string[]): Promise<void> {
+  const audience = recipients(targetIds, ctx); if (!audience.length) return;
+  await notify(tx, ctx, { type: 'handover.offered', priority: 'operational', audience: { users: audience }, title: 'New queued lead handover', body: 'A Sales handover is waiting for an eligible receiver.', link: link(leadId), metadata: { leadId, handoverMode: 'team_queue' } });
+}
