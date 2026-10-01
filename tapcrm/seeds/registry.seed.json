@@ -541,6 +541,51 @@
       "description": ""
     },
     {
+      "action": "chat:manage-groups",
+      "module": "chat",
+      "resource": "chatConversation",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": false,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "chat:send",
+      "module": "chat",
+      "resource": "chatConversation",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "chat:view",
+      "module": "chat",
+      "resource": "chatConversation",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "clients:manage",
       "module": "clients",
       "resource": "client",
@@ -3798,6 +3843,18 @@
       "resourceParam": "id"
     },
     {
+      "method": "POST",
+      "path": "/api/projects/:id/discussion-group",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/:id/discussion-group",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/projects/:id/profitability",
       "action": "projects:view-financials",
@@ -4407,6 +4464,102 @@
       "method": "POST",
       "path": "/api/projects/:id/messages/client",
       "action": "communication:client-thread",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations",
+      "action": "chat:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/colleagues",
+      "action": "chat:send",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/messages",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/read",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/direct",
+      "action": "chat:send",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/group",
+      "action": "chat:manage-groups",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/chat/conversations/:id",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/members",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/conversations/:id/members/:userId",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/archive",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/messages",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/forward",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/react",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/messages/:id/react",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/unsend",
+      "action": "chat:send",
       "resourceParam": "id"
     },
     {

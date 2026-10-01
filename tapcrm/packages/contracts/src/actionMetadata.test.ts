@@ -15,9 +15,7 @@ import {
 
 describe('canonical action presentation metadata', () => {
   it('provides catalogue presentation data for every registered action', () => {
-    // 163 + users:change-placement (Super Admin moves someone directly) and
-    // status:punch (web punch in/out), added on 29 Sep 2026.
-    expect(ACTIONS).toHaveLength(165);
+    expect(ACTIONS).toHaveLength(168);
     for (const action of ACTIONS) {
       const definition = REGISTRY[action];
       expect(actionDescription(definition)).not.toBe('');

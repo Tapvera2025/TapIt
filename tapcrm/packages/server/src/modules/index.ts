@@ -58,6 +58,10 @@ import {
   registerMyNotepadRoutes,
   registerNotepadPolicies,
 } from './myNotepad/index.js';
+import { registerChatPolicies, registerChatRealtime, registerChatRoutes } from './chat/index.js';
+import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
+import { registerProjectPolicies, registerProjectRoutes } from './projects/index.js';
+import { registerMyTodoRoutes } from './myTodo/routes.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -91,6 +95,14 @@ export function registerAllPolicies(): void {
   registerCallbackPolicies();
   registerRecruitmentPolicies();
   registerNotepadPolicies();
+  registerChatPolicies();
+  registerClientPolicies();
+  registerProjectPolicies();
+}
+
+/** Realtime wiring that has no route/policy shape of its own (the typing relay). */
+export function registerAllRealtime(): void {
+  registerChatRealtime();
 }
 
 export function registerAllRoutes(): void {
@@ -116,6 +128,10 @@ export function registerAllRoutes(): void {
   registerRecruitmentRoutes();
   registerMyNotepadRoutes();
   registerMyNotepadAdminRoutes();
+  registerChatRoutes();
+  registerClientRoutes();
+  registerProjectRoutes();
+  registerMyTodoRoutes();
 }
 
 let jobsRegistered = false;

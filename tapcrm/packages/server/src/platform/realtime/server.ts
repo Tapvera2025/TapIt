@@ -56,7 +56,15 @@ interface SocketData {
   rooms: string[];
   token: string;
 }
-type RealtimeServer = Server<Record<string, never>, Record<string, (payload: Record<string, unknown>) => void>, Record<string, never>, SocketData>;
+type RealtimeServer = Server<Record<string, (payload: unknown) => void>, Record<string, (payload: Record<string, unknown>) => void>, Record<string, never>, SocketData>;
+
+export type TypingAuthorizer = (organizationId: string, userId: string, conversationId: string) => Promise<readonly string[] | null>;
+let typingAuthorizer: TypingAuthorizer | null = null;
+
+/** Chat registers its membership check before the realtime listener starts. */
+export function installTypingAuthorizer(authorizer: TypingAuthorizer): void {
+  typingAuthorizer = authorizer;
+}
 
 let resolveSocket: SocketPrincipalResolver = async () => null;
 const channels = new Map<string, PeopleChannel>();
@@ -212,6 +220,24 @@ export async function startRealtime(httpServer: HttpServer, options: { redisUrl?
   server.on('connection', (socket) => {
     const { identity, rooms } = socket.data;
     void socket.join(rooms);
+    socket.on('chat:typing', (payload: unknown) => {
+      void (async () => {
+        if (!typingAuthorizer || typeof payload !== 'object' || payload === null) return;
+        const { conversationId, state } = payload as Record<string, unknown>;
+        if (typeof conversationId !== 'string' || (state !== 'start' && state !== 'stop')) return;
+        const userId = identity.principal?.id ?? identity.userId;
+        if (!userId) return;
+        const memberIds = await typingAuthorizer(identity.organizationId, userId, conversationId);
+        if (!memberIds) return;
+        for (const memberId of memberIds) {
+          if (memberId !== userId) {
+            server.to(personalRoom(identity.organizationId, memberId)).emit('chat:typing', { conversationId, userId, state });
+          }
+        }
+      })().catch((error) => {
+        console.error(JSON.stringify({ level: 'warn', msg: 'chat typing relay failed', error: String(error) }));
+      });
+    });
     const expiry = setTimeout(() => socket.disconnect(true), identity.expiresAt.getTime() - Date.now());
     expiry.unref();
     const revalidate = setInterval(() => {

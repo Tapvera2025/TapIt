@@ -17,6 +17,9 @@ export function CompanyLayout({
   canViewLeads,
   canViewCallbacks,
   canViewHandovers,
+  canViewChat,
+  canViewClients,
+  canViewProjects,
   canViewLiveBoard,
   canReviewCorrections,
   canReviewBreaches,
@@ -53,6 +56,9 @@ export function CompanyLayout({
   canViewLeads: boolean;
   canViewCallbacks: boolean;
   canViewHandovers: boolean;
+  canViewChat: boolean;
+  canViewClients: boolean;
+  canViewProjects: boolean;
   canViewLiveBoard: boolean;
   canReviewCorrections: boolean;
   canReviewBreaches: boolean;
@@ -92,6 +98,9 @@ export function CompanyLayout({
         canViewLeads={canViewLeads}
         canViewCallbacks={canViewCallbacks}
         canViewHandovers={canViewHandovers}
+        canViewChat={canViewChat}
+        canViewClients={canViewClients}
+        canViewProjects={canViewProjects}
         canViewLiveBoard={canViewLiveBoard}
         canReviewCorrections={canReviewCorrections}
         canReviewBreaches={canReviewBreaches}

@@ -43,6 +43,10 @@ import {
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
+import { MessagesPage } from '../chat/index.js';
+import { ClientsPage } from '../clients/index.js';
+import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
+import { MyTodoPage } from './todo/index.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -120,6 +124,9 @@ export function CompanyWorkspace({
   const canViewLeads = isSuperAdmin || can('leads:view');
   const canViewCallbacks = isSuperAdmin || can('callbacks:view');
   const canViewHandovers = isSuperAdmin || can('handovers:view');
+  const canViewChat = isSuperAdmin || can('chat:view');
+  const canViewClients = isSuperAdmin || can('clients:view');
+  const canViewProjects = isSuperAdmin || can('projects:view');
   const canManageLeaveTypes = can('leave:manage-types');
   const canAcknowledgeLeave = can('leave:acknowledge');
   const canDecideLeave = can('leave:decide');
@@ -139,6 +146,11 @@ export function CompanyWorkspace({
   );
 
   const pageTitles: Record<string, string> = {
+    '/company/todo': 'My Todo',
+    '/company/my-todo': 'My Todo',
+    '/company/messages': 'Messages',
+    '/company/clients': 'Clients',
+    '/company/projects': 'Projects',
     '/company/my-notepad': 'My Notepad',
     '/company/notepad': 'My Notepad',
     '/company/employee-notes': 'Employee Notes',
@@ -186,9 +198,10 @@ export function CompanyWorkspace({
     ? 'Organization'
     : isRecruitment
       ? 'Recruitment'
-      : pageTitles[pathname] ?? (pathname.startsWith('/company/sales/territories/') ? 'Territories' : pathname.startsWith('/company/sales/callbacks/') ? 'Callbacks' : pathname.startsWith('/company/sales/leads/') ? 'Leads' : 'Dashboard');
+      : pageTitles[pathname] ?? (pathname.startsWith('/company/projects/') ? 'Project' : pathname.startsWith('/company/sales/territories/') ? 'Territories' : pathname.startsWith('/company/sales/callbacks/') ? 'Callbacks' : pathname.startsWith('/company/sales/leads/') ? 'Leads' : 'Dashboard');
 
   function renderContent(): React.JSX.Element {
+    if (pathname === '/company/todo' || pathname === '/company/my-todo') return <MyTodoPage />;
     if (pathname === '/company/my-notepad' || pathname === '/company/notepad') return <MyNotepadPage />;
     if (pathname === '/company/employee-notes') return isSuperAdmin ? <EmployeeNotesPage /> : <p role="alert" className="p-6 text-sm text-app-muted">You do not have access to employee notes.</p>;
     if (isOrganization) return <OrganizationWorkspace pathname={pathname} />;
@@ -238,6 +251,11 @@ export function CompanyWorkspace({
     if (pathname === '/company/tasks') {
       return <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={userId} />;
     }
+    if (pathname === '/company/messages' && canViewChat) return <MessagesPage currentUserId={userId} isSuperAdmin={isSuperAdmin} />;
+    if (pathname === '/company/clients' && canViewClients) return <ClientsPage />;
+    if (pathname === '/company/projects' && canViewProjects) return <ProjectsPage onOpenProject={(projectId) => onNavigate(`/company/projects/${projectId}`)} />;
+    const projectDetail = pathname.match(/^\/company\/projects\/([^/]+)$/);
+    if (projectDetail && canViewProjects) return <ProjectDetailPage projectId={projectDetail[1]!} currentUserId={userId} isSuperAdmin={isSuperAdmin} onBack={() => onNavigate('/company/projects')} />;
     if (pathname === '/company/attendance/today') return <TodayPage fullName={fullName} userId={userId} />;
     if (pathname === '/company/attendance/my') return <AttendancePage userId={userId} />;
     if (pathname === '/company/attendance/live' && canBeyondOwn('attendance:view-live')) return <LiveBoardPage />;
@@ -301,6 +319,9 @@ export function CompanyWorkspace({
       canViewLeads={canViewLeads}
       canViewCallbacks={canViewCallbacks}
       canViewHandovers={canViewHandovers}
+      canViewChat={canViewChat}
+      canViewClients={canViewClients}
+      canViewProjects={canViewProjects}
       canViewLiveBoard={canBeyondOwn('attendance:view-live')}
       canReviewCorrections={can('attendance:correct')}
       canReviewBreaches={can('breaks:review-breach')}

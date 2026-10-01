@@ -3,7 +3,7 @@ import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
-import { myNotepadNavItem, type CompanyNavGroup } from './navigation.js';
+import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
 
 export function CompanySidebar({
   pathname,
@@ -20,6 +20,9 @@ export function CompanySidebar({
   canViewLeads = false,
   canViewCallbacks = false,
   canViewHandovers = false,
+  canViewChat = false,
+  canViewClients = false,
+  canViewProjects = false,
   canViewLiveBoard = false,
   canReviewCorrections = false,
   canReviewBreaches = false,
@@ -56,6 +59,9 @@ export function CompanySidebar({
   canViewLeads?: boolean;
   canViewCallbacks?: boolean;
   canViewHandovers?: boolean;
+  canViewChat?: boolean;
+  canViewClients?: boolean;
+  canViewProjects?: boolean;
   canViewLiveBoard?: boolean;
   canReviewCorrections?: boolean;
   canReviewBreaches?: boolean;
@@ -82,6 +88,8 @@ export function CompanySidebar({
       items: [
         { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
         { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+        ...(canViewChat ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }] : []),
+        myTodoNavItem,
         myNotepadNavItem,
       ],
     },
@@ -124,6 +132,13 @@ export function CompanySidebar({
           ],
         }]
       : []),
+    ...((canViewClients || canViewProjects) ? [{
+      label: 'Delivery',
+      items: [
+        ...(canViewClients ? [{ label: 'Clients', path: '/company/clients', icon: 'briefcase' }] : []),
+        ...(canViewProjects ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }] : []),
+      ],
+    }] : []),
     ...((canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers) ? [{
       label: 'Sales',
       items: [

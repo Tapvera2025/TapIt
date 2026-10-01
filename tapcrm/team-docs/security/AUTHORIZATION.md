@@ -183,6 +183,9 @@
 | `renewals:view` | post-closure | renewalOpportunity | business | no | no | — | yes | yes | no |
 | `communication:view` | project-communication | message | derived | no | no | — | yes | yes | no |
 | `communication:client-thread` | project-communication | message | derived | no | no | — | yes | yes | no |
+| `chat:view` | chat | chatConversation | business | no | no | — | yes | yes | no |
+| `chat:send` | chat | chatConversation | business | no | no | — | yes | yes | no |
+| `chat:manage-groups` | chat | chatConversation | business | no | no | — | no | no | yes |
 | `documents:view` | documents | document | derived | no | no | — | yes | yes | no |
 | `documents:upload` | documents | document | derived | no | no | — | yes | yes | no |
 | `documents:share-client` | documents | document | derived | yes | no | — | yes | no | no |
@@ -450,6 +453,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PATCH | /api/projects/:id | `projects:manage` | id |
 | POST | /api/projects/:id/team | `projects:manage` | id |
 | POST | /api/projects/:id/archive | `projects:manage` | id |
+| POST | /api/projects/:id/discussion-group | `projects:manage` | id |
+| PATCH | /api/projects/:id/discussion-group | `projects:manage` | id |
 | GET | /api/projects/:id/profitability | `projects:view-financials` | id |
 | GET | /api/tasks | `tasks:view` | — |
 | GET | /api/tasks/:id | `tasks:view` | id |
@@ -552,6 +557,22 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/communication/tracker | `communication:view` | — |
 | GET | /api/projects/:id/messages/client | `communication:client-thread` | id |
 | POST | /api/projects/:id/messages/client | `communication:client-thread` | id |
+| GET | /api/chat/conversations | `chat:view` | — |
+| GET | /api/chat/colleagues | `chat:send` | — |
+| GET | /api/chat/conversations/:id | `chat:view` | id |
+| GET | /api/chat/conversations/:id/messages | `chat:view` | id |
+| POST | /api/chat/conversations/:id/read | `chat:view` | id |
+| POST | /api/chat/conversations/direct | `chat:send` | — |
+| POST | /api/chat/conversations/group | `chat:manage-groups` | — |
+| PATCH | /api/chat/conversations/:id | `chat:manage-groups` | id |
+| POST | /api/chat/conversations/:id/members | `chat:manage-groups` | id |
+| DELETE | /api/chat/conversations/:id/members/:userId | `chat:manage-groups` | id |
+| POST | /api/chat/conversations/:id/archive | `chat:manage-groups` | id |
+| POST | /api/chat/conversations/:id/messages | `chat:send` | id |
+| POST | /api/chat/messages/:id/forward | `chat:send` | id |
+| POST | /api/chat/messages/:id/react | `chat:send` | id |
+| DELETE | /api/chat/messages/:id/react | `chat:send` | id |
+| POST | /api/chat/messages/:id/unsend | `chat:send` | id |
 | GET | /api/documents | `documents:view` | — |
 | GET | /api/documents/:id | `documents:view` | id |
 | POST | /api/documents | `documents:upload` | — |

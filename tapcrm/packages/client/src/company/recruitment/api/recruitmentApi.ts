@@ -959,25 +959,39 @@ export async function updateResumeSubmissionStatus(
 export async function convertResumeSubmission(
   id: string,
   input?: ConvertSubmissionInput,
-): Promise<{ message: string; candidateId: string; submission: CandidateResumeSubmission }> {
-  return await identityRequest<{
-    message: string;
-    candidateId: string;
+): Promise<{
+  candidate?: Candidate;
+  candidateId: string;
+  submission: CandidateResumeSubmission;
+  message?: string;
+}> {
+  const result = await identityRequest<{
+    message?: string;
+    candidate?: Candidate;
+    candidateId?: string;
     submission: CandidateResumeSubmission;
   }>(`/api/recruitment/resume-submissions/${encodeURIComponent(id)}/convert`, {
     method: 'POST',
     body: JSON.stringify(input ?? {}),
   });
+  return {
+    ...result,
+    candidateId: result.candidateId ?? result.candidate?.id ?? result.submission?.candidateId ?? '',
+    submission: result.submission,
+  };
 }
 
 export async function getResumeDownloadUrl(
   submissionId: string,
-): Promise<{ downloadUrl: string }> {
-  // The server signs a short-lived storage link (15 minutes).
-  const signed = await identityRequest<{ url: string; filename: string }>(
+): Promise<{ downloadUrl: string; url: string; filename: string }> {
+  const result = await identityRequest<{ url: string; filename: string }>(
     `/api/recruitment/resume-submissions/${encodeURIComponent(submissionId)}/resume-url`,
   );
-  return { downloadUrl: signed.url };
+  return {
+    downloadUrl: result.url,
+    url: result.url,
+    filename: result.filename,
+  };
 }
 
 // ---------------------------------------------------------------------

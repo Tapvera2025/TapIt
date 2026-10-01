@@ -52,8 +52,9 @@ export function ResumeReviewModal({
     setError(null);
     try {
       const res = await getResumeDownloadUrl(submission.id);
-      if (res.downloadUrl) {
-        window.open(res.downloadUrl, '_blank', 'noopener,noreferrer');
+      const url = res.downloadUrl || res.url;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to retrieve resume download link');
@@ -101,7 +102,7 @@ export function ResumeReviewModal({
       setSuccessMsg('Candidate created successfully from resume submission!');
 
       if (onCandidateCreated) {
-        onCandidateCreated(res.candidateId);
+        onCandidateCreated(res.candidateId || res.candidate?.id || res.submission?.candidateId || '');
       }
     } catch (cause) {
       if (cause instanceof Error && (cause.message.includes('already exists') || cause.message.includes('409'))) {

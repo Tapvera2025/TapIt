@@ -1,6 +1,6 @@
 import type { SqlFragment } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
-import { bootstrapDb, db } from '../../platform/dal/db.js';
+import { bootstrapDb, db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type {
   Candidate,
@@ -278,39 +278,38 @@ export async function listCandidates(
 export async function findCandidateById(
   ctx: RequestContext,
   id: string,
+  tx?: Tx,
 ): Promise<Candidate | null> {
-  return db.maybeOne<Candidate>(
-    ctx,
-    sql`
-      SELECT
-        c.id,
-        c.organization_id,
-        c.requisition_id,
-        r.title AS requisition_title,
-        r.requisition_number AS requisition_number,
-        c.first_name,
-        c.last_name,
-        concat(c.first_name, ' ', c.last_name) AS full_name,
-        c.email,
-        c.phone,
-        c.resume_url,
-        c.resume_object_key,
-        c.resume_file_name,
-        c.resume_mime_type,
-        c.resume_size,
-        c.resume_uploaded_at,
-        c.source,
-        c.status,
-        c.screening_notes,
-        c.rejection_reason,
-        c.created_by,
-        c.created_at,
-        c.updated_at
-      FROM candidate c
-      JOIN job_requisition r ON r.organization_id = c.organization_id AND r.id = c.requisition_id
-      WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${id}
-    `,
-  );
+  const query = sql`
+    SELECT
+      c.id,
+      c.organization_id,
+      c.requisition_id,
+      r.title AS requisition_title,
+      r.requisition_number AS requisition_number,
+      c.first_name,
+      c.last_name,
+      concat(c.first_name, ' ', c.last_name) AS full_name,
+      c.email,
+      c.phone,
+      c.resume_url,
+      c.resume_object_key,
+      c.resume_file_name,
+      c.resume_mime_type,
+      c.resume_size,
+      c.resume_uploaded_at,
+      c.source,
+      c.status,
+      c.screening_notes,
+      c.rejection_reason,
+      c.created_by,
+      c.created_at,
+      c.updated_at
+    FROM candidate c
+    JOIN job_requisition r ON r.organization_id = c.organization_id AND r.id = c.requisition_id
+    WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${id}
+  `;
+  return tx ? tx.maybeOne<Candidate>(query) : db.maybeOne<Candidate>(ctx, query);
 }
 
 export async function createCandidate(
@@ -1692,38 +1691,39 @@ export async function createResumeSubmission(
 export async function findResumeSubmissionById(
   ctx: RequestContext,
   id: string,
+  tx?: Tx,
 ): Promise<CandidateResumeSubmission | null> {
-  const row = await db.maybeOne<CandidateResumeSubmission>(
-    ctx,
-    sql`
-      SELECT
-        s.id,
-        s.organization_id,
-        s.requisition_id,
-        r.title AS requisition_title,
-        r.requisition_number,
-        s.application_link_id,
-        s.first_name,
-        s.last_name,
-        s.email,
-        s.phone,
-        s.resume_object_key,
-        s.resume_filename,
-        s.resume_mime_type,
-        s.resume_file_size,
-        s.parsed_data,
-        s.status,
-        s.candidate_id,
-        s.rejection_reason,
-        s.reviewed_by,
-        s.reviewed_at,
-        s.created_at,
-        s.updated_at
-      FROM candidate_resume_submission s
-      JOIN job_requisition r ON r.organization_id = s.organization_id AND r.id = s.requisition_id
-      WHERE s.organization_id = ${ctx.organizationId} AND s.id = ${id}
-    `,
-  );
+  const query = sql`
+    SELECT
+      s.id,
+      s.organization_id,
+      s.requisition_id,
+      r.title AS requisition_title,
+      r.requisition_number,
+      s.application_link_id,
+      s.first_name,
+      s.last_name,
+      s.email,
+      s.phone,
+      s.resume_object_key,
+      s.resume_filename,
+      s.resume_mime_type,
+      s.resume_file_size,
+      s.parsed_data,
+      s.status,
+      s.candidate_id,
+      s.rejection_reason,
+      s.reviewed_by,
+      s.reviewed_at,
+      s.created_at,
+      s.updated_at
+    FROM candidate_resume_submission s
+    JOIN job_requisition r ON r.organization_id = s.organization_id AND r.id = s.requisition_id
+    WHERE s.organization_id = ${ctx.organizationId} AND s.id = ${id}
+  `;
+  const row = tx
+    ? await tx.maybeOne<CandidateResumeSubmission>(query)
+    : await db.maybeOne<CandidateResumeSubmission>(ctx, query);
 
   if (!row) return null;
   return {
@@ -1870,9 +1870,10 @@ export async function convertSubmissionToCandidate(
     }
 
     if (submission.status === 'converted' && submission.candidateId) {
-      const existingCandidate = await findCandidateById(ctx, submission.candidateId);
+      const existingCandidate = await findCandidateById(ctx, submission.candidateId, tx);
       if (existingCandidate) {
-        return { candidate: existingCandidate, submission };
+        const fullSubmission = await findResumeSubmissionById(ctx, submission.id, tx);
+        return { candidate: existingCandidate, submission: fullSubmission ?? submission };
       }
     }
 
@@ -1955,10 +1956,10 @@ export async function convertSubmissionToCandidate(
       `,
     );
 
-    const candidate = await findCandidateById(ctx, candidateId);
+    const candidate = await findCandidateById(ctx, candidateId, tx);
     if (!candidate) throw new Error('Failed to retrieve converted candidate');
 
-    const updatedSubmission = await findResumeSubmissionById(ctx, submission.id);
+    const updatedSubmission = await findResumeSubmissionById(ctx, submission.id, tx);
     if (!updatedSubmission) throw new Error('Failed to retrieve updated submission');
 
     return { candidate, submission: updatedSubmission };

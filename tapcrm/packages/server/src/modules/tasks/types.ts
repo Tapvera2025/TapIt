@@ -22,6 +22,7 @@ export interface Task {
   readonly title: string;
   readonly description: string | null;
   readonly projectId: string | null;
+  readonly projectName?: string | null | undefined;
   readonly priority: TaskPriority;
   readonly status: TaskStatus;
   readonly dueDate: Date | null;

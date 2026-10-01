@@ -19,6 +19,10 @@ export interface ActionCopy {
 }
 
 export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
+  // Conversations
+  'chat:manage-groups': { title: 'Manage internal groups', description: 'Create groups and manage their members and settings.' },
+  'chat:send': { title: 'Send messages', description: 'Send messages and respond in conversations you can access.' },
+  'chat:view': { title: 'See conversations', description: 'Read conversations and messages available to you.' },
   // Access & position changes
   'access:decide-role-change': { title: 'Approve position changes', description: "Approve or reject HR's requests to move someone to a different position." },
   'access:delegate': { title: 'Hand out extra powers', description: 'Give a person an extra power for a while, on top of what their position allows.' },

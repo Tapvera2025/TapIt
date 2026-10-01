@@ -11,7 +11,7 @@ import { installDevPrincipalResolver } from './platform/http/dev-resolver.js';
 import { errorHandler } from './platform/http/error-handler.js';
 import { assertManifest, buildRouter, checkManifest } from './platform/http/router.js';
 import { registeredBindings } from './platform/http/route.js';
-import { initializePorts, registerAllPolicies, registerAllRoutes } from './modules/index.js';
+import { initializePorts, registerAllPolicies, registerAllRealtime, registerAllRoutes } from './modules/index.js';
 import { buildPlatformRouter } from './platform/routes.js';
 import { registerIdentityPublicRoutes } from './modules/identity/index.js';
 import { registerDashboardRoutes } from './modules/dashboard/index.js';
@@ -52,6 +52,7 @@ function registerAll(): void {
   initializePorts();
   registerAllPolicies();
   registerAllRoutes();
+  registerAllRealtime();
 }
 
 export function buildApp(options: BuildOptions = {}): Express {

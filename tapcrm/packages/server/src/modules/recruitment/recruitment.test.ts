@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { RequestContext } from '../../platform/dal/context.js';
 import * as repo from './repository.js';
 import { PlatformValidationError } from '../../platform/errors.js';
-import { NotFoundError } from '../../platform/http/error-handler.js';
+import { NotFoundError, ConflictError } from '../../platform/http/error-handler.js';
 import type {
   Candidate,
   CandidateJoining,
@@ -64,6 +64,9 @@ import {
   submitPublicApplication,
   createApplicationLink,
   updateApplicationLinkStatus,
+  convertResumeSubmissionToCandidate,
+  getResumeSignedUrl,
+  getResumeFile,
 } from './service.js';
 import {
   notifyCandidateRejection,
@@ -2922,5 +2925,259 @@ describe('Recruitment — Public Application Link Lifecycle', () => {
 
     const noExpiryResolved = await resolvePublicApplicationLink(linkWithoutExpiry.token);
     expect(noExpiryResolved.requisition.title).toBe(validRequisitionA.title);
+  });
+});
+
+describe('Resume Submission -> Candidate Conversion (BUG 1)', () => {
+  const orgId = 'org-test-uuid';
+  const mockCtx = {
+    organizationId: orgId,
+    principal: { id: 'user-hr-1', type: 'user' as const, roles: ['hr'] },
+    requestId: 'req-convert-1',
+  } as unknown as RequestContext;
+
+  const reqId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const subId = 'sub-1111-1111-1111-111111111111';
+  const candId = 'cand-2222-2222-2222-222222222222';
+
+  const mockSubmission: CandidateResumeSubmission = {
+    id: subId,
+    organizationId: orgId,
+    requisitionId: reqId,
+    requisitionTitle: 'Software Engineer',
+    requisitionNumber: 'REQ-0001',
+    applicationLinkId: null,
+    firstName: 'Jane',
+    lastName: 'Doe',
+    fullName: 'Jane Doe',
+    email: 'jane.doe@example.com',
+    phone: '+1-555-0100',
+    resumeObjectKey: 'recruitment/resumes/org-test-uuid/sub-1111/resume.pdf',
+    resumeFilename: 'Jane_Doe_Resume.pdf',
+    resumeMimeType: 'application/pdf',
+    resumeFileSize: 102400,
+    parsedData: { name: 'Jane Doe', email: 'jane.doe@example.com', skills: ['TypeScript', 'React'] },
+    status: 'submitted',
+    candidateId: null,
+    rejectionReason: null,
+    reviewedBy: null,
+    reviewedAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const mockConvertedCandidate: Candidate = {
+    id: candId,
+    organizationId: orgId,
+    requisitionId: reqId,
+    firstName: 'Jane',
+    lastName: 'Doe',
+    fullName: 'Jane Doe',
+    email: 'jane.doe@example.com',
+    phone: '+1-555-0100',
+    resumeUrl: `/api/recruitment/resume-submissions/${subId}/resume`,
+    resumeObjectKey: 'recruitment/resumes/org-test-uuid/sub-1111/resume.pdf',
+    resumeFileName: 'Jane_Doe_Resume.pdf',
+    resumeMimeType: 'application/pdf',
+    resumeSize: 102400,
+    resumeUploadedAt: new Date().toISOString(),
+    source: 'career_site',
+    status: 'screening',
+    screeningNotes: 'Strong applicant',
+    rejectionReason: null,
+    createdBy: 'user-hr-1',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('valid submission converts successfully, candidate is created with resume metadata, and submission becomes converted', async () => {
+    const updatedSub: CandidateResumeSubmission = {
+      ...mockSubmission,
+      status: 'converted',
+      candidateId: candId,
+      reviewedBy: 'user-hr-1',
+      reviewedAt: new Date().toISOString(),
+    };
+
+    const convertSpy = vi.spyOn(repo, 'convertSubmissionToCandidate').mockResolvedValue({
+      candidate: mockConvertedCandidate,
+      submission: updatedSub,
+    });
+
+    const result = await convertResumeSubmissionToCandidate(
+      mockCtx,
+      subId,
+      convertSubmissionSchema.parse({
+        screeningNotes: 'Strong applicant',
+      }),
+    );
+
+    expect(convertSpy).toHaveBeenCalledWith(mockCtx, subId, {
+      screeningNotes: 'Strong applicant',
+      source: 'career_site',
+    });
+    expect(result.candidate).toBeDefined();
+    expect(result.candidate.id).toBe(candId);
+    expect(result.candidateId).toBe(candId);
+    expect(result.candidate.resumeObjectKey).toBe(mockSubmission.resumeObjectKey);
+    expect(result.candidate.resumeFileName).toBe(mockSubmission.resumeFilename);
+    expect(result.candidate.resumeMimeType).toBe(mockSubmission.resumeMimeType);
+    expect(result.candidate.resumeSize).toBe(mockSubmission.resumeFileSize);
+    expect(result.submission.status).toBe('converted');
+    expect(result.submission.candidateId).toBe(candId);
+  });
+
+  it('duplicate conversion does not create another candidate (idempotent)', async () => {
+    const alreadyConvertedSub: CandidateResumeSubmission = {
+      ...mockSubmission,
+      status: 'converted',
+      candidateId: candId,
+    };
+
+    vi.spyOn(repo, 'convertSubmissionToCandidate').mockResolvedValue({
+      candidate: mockConvertedCandidate,
+      submission: alreadyConvertedSub,
+    });
+
+    const firstResult = await convertResumeSubmissionToCandidate(mockCtx, subId);
+    const retryResult = await convertResumeSubmissionToCandidate(mockCtx, subId);
+
+    expect(firstResult.candidate.id).toBe(candId);
+    expect(retryResult.candidate.id).toBe(candId);
+    expect(retryResult.submission.status).toBe('converted');
+    expect(retryResult.candidateId).toBe(candId);
+  });
+
+  it('duplicate email for same requisition remains correctly rejected with ConflictError (409)', async () => {
+    const duplicateError = new Error('Candidate with this email already exists for this job requisition');
+    (duplicateError as Error & { code?: string }).code = 'DUPLICATE_CANDIDATE';
+
+    vi.spyOn(repo, 'convertSubmissionToCandidate').mockRejectedValue(duplicateError);
+
+    await expect(
+      convertResumeSubmissionToCandidate(
+        mockCtx,
+        subId,
+        convertSubmissionSchema.parse({ email: 'jane.doe@example.com' }),
+      ),
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('repository findCandidateById and findResumeSubmissionById query with tx when provided', async () => {
+    const mockTx = {
+      query: vi.fn(),
+      one: vi.fn(),
+      maybeOne: vi.fn().mockImplementation(async () => ({
+        id: 'test-cand-id',
+        organizationId: orgId,
+        requisitionId: reqId,
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: 'jane@example.com',
+      })),
+    };
+
+    const cand = await repo.findCandidateById(mockCtx, 'test-cand-id', mockTx);
+    expect(mockTx.maybeOne).toHaveBeenCalled();
+    expect(cand?.id).toBe('test-cand-id');
+
+    const sub = await repo.findResumeSubmissionById(mockCtx, 'test-sub-id', mockTx);
+    expect(mockTx.maybeOne).toHaveBeenCalledTimes(2);
+    expect(sub?.id).toBe('test-cand-id');
+    expect(sub?.fullName).toBe('Jane Doe');
+  });
+});
+
+describe('Resume Access & Signed URL (BUG 2)', () => {
+  const orgA = 'org-test-uuid';
+  const orgB = 'org-tenant-b';
+
+  const mockCtxA = {
+    organizationId: orgA,
+    principal: { id: 'user-hr-1', type: 'user' as const, roles: ['hr'] },
+    requestId: 'req-resume-1',
+  } as unknown as RequestContext;
+
+  const mockCtxB = {
+    organizationId: orgB,
+    principal: { id: 'user-hr-2', type: 'user' as const, roles: ['hr'] },
+    requestId: 'req-resume-2',
+  } as unknown as RequestContext;
+
+  const subId = 'sub-1111-1111-1111-111111111111';
+  const resumeObjectKey = `recruitment/resumes/${orgA}/${subId}/test-resume.pdf`;
+
+  const mockSubmission: CandidateResumeSubmission = {
+    id: subId,
+    organizationId: orgA,
+    requisitionId: 'req-1',
+    applicationLinkId: null,
+    firstName: 'Jane',
+    lastName: 'Doe',
+    fullName: 'Jane Doe',
+    email: 'jane.doe@example.com',
+    phone: null,
+    resumeObjectKey,
+    resumeFilename: 'test-resume.pdf',
+    resumeMimeType: 'application/pdf',
+    resumeFileSize: 1024,
+    parsedData: {},
+    status: 'submitted',
+    candidateId: null,
+    rejectionReason: null,
+    reviewedBy: null,
+    reviewedAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('/resume-url returns a valid signed URL and filename for an authorized submission', async () => {
+    vi.spyOn(repo, 'findResumeSubmissionById').mockImplementation(async (ctx, id) => {
+      if (ctx.organizationId === orgA && id === subId) return mockSubmission;
+      return null;
+    });
+
+    const storage = getStorageService();
+    await storage.putObject(resumeObjectKey, Buffer.from('PDF file content'), 'application/pdf');
+
+    const result = await getResumeSignedUrl(mockCtxA, subId);
+    expect(result).toBeDefined();
+    expect(result.url).toBeDefined();
+    expect(result.url.length).toBeGreaterThan(0);
+    expect(result.filename).toBe('test-resume.pdf');
+  });
+
+  it('resume file retrieval returns file buffer, mimeType, and filename', async () => {
+    vi.spyOn(repo, 'findResumeSubmissionById').mockImplementation(async (ctx, id) => {
+      if (ctx.organizationId === orgA && id === subId) return mockSubmission;
+      return null;
+    });
+
+    const storage = getStorageService();
+    const fileContent = Buffer.from('Sample PDF content for test');
+    await storage.putObject(resumeObjectKey, fileContent, 'application/pdf');
+
+    const file = await getResumeFile(mockCtxA, subId);
+    expect(file.buffer.toString()).toBe('Sample PDF content for test');
+    expect(file.mimeType).toBe('application/pdf');
+    expect(file.filename).toBe('test-resume.pdf');
+  });
+
+  it('enforces organization boundaries: cross-tenant submission access throws NotFoundError', async () => {
+    vi.spyOn(repo, 'findResumeSubmissionById').mockImplementation(async (ctx, id) => {
+      if (ctx.organizationId === orgA && id === subId) return mockSubmission;
+      return null; // Tenant B cannot see Tenant A's submission
+    });
+
+    await expect(getResumeSignedUrl(mockCtxB, subId)).rejects.toThrow(NotFoundError);
+    await expect(getResumeFile(mockCtxB, subId)).rejects.toThrow(NotFoundError);
   });
 });

@@ -47,6 +47,7 @@ export function TaskList({
     taskId: string;
     message: string;
   } | null>(null);
+  const [openStatusMenu, setOpenStatusMenu] = useState<string | null>(null);
 
   if (loading) {
     return <Loading />;
@@ -113,34 +114,37 @@ export function TaskList({
 
               {/* Status and Actions cluster */}
               <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start">
-                <TaskStatusBadge status={task.status} />
-
-                {/* Status Transition Select */}
-                {availableTransitions.length > 0 && (
-                  <select
-                    disabled={isBusy}
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        void handleTransition(
-                          task.id,
-                          e.target.value as TaskStatus,
-                          myAssignment?.id,
-                        );
-                      }
-                    }}
-                    className="h-7 rounded border border-app-border bg-app-surface px-2 text-xs text-app-muted hover:text-app-foreground hover:border-app-accent/60 outline-none transition cursor-pointer disabled:opacity-50"
-                    aria-label={myAssignment ? 'Change my task status' : 'Change task status'}
-                  >
-                    <option value="">
-                      {myAssignment ? 'My status ▾' : 'Move status ▾'}
-                    </option>
-                    {availableTransitions.map((status) => (
-                      <option key={status} value={status}>
-                        {TRANSITION_LABELS[status] ?? status}
-                      </option>
-                    ))}
-                  </select>
+                {availableTransitions.length === 0 ? (
+                  <TaskStatusBadge status={task.status} />
+                ) : (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => setOpenStatusMenu(openStatusMenu === task.id ? null : task.id)}
+                      className="disabled:opacity-50"
+                      aria-label={myAssignment ? 'Change my task status' : 'Change task status'}
+                    >
+                      <TaskStatusBadge status={task.status} className="cursor-pointer hover:ring-1 hover:ring-app-accent/40" />
+                    </button>
+                    {openStatusMenu === task.id && (
+                      <div className="absolute left-0 top-full z-20 mt-1 min-w-32 rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg">
+                        {availableTransitions.map((status) => (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => {
+                              setOpenStatusMenu(null);
+                              void handleTransition(task.id, status, myAssignment?.id);
+                            }}
+                            className="block w-full px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                          >
+                            {TRANSITION_LABELS[status] ?? status}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Edit Button */}
@@ -185,8 +189,8 @@ export function TaskList({
               {task.projectId && (
                 <>
                   <span className="text-app-muted/40" aria-hidden="true">·</span>
-                  <span className="inline-flex items-center gap-1 font-mono text-[11px]">
-                    Project: {task.projectId.slice(0, 8)}...
+                  <span className="inline-flex items-center gap-1 text-[11px]">
+                    Project: {task.projectName ?? 'Unknown'}
                   </span>
                 </>
               )}
@@ -239,30 +243,37 @@ export function TaskList({
                           >
                             {assignee.fullName} {isSelf && '(You)'}
                           </span>
-                          <TaskStatusBadge status={assignee.status} />
-                          {assigneeTransitions.length > 0 && (
-                            <select
-                              disabled={isBusy}
-                              value=""
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  void handleTransition(
-                                    task.id,
-                                    e.target.value as TaskStatus,
-                                    assignee.id,
-                                  );
-                                }
-                              }}
-                              className="h-5 rounded border border-app-border bg-app-surface px-1 text-[11px] text-app-muted hover:text-app-foreground hover:border-app-accent/60 outline-none transition cursor-pointer disabled:opacity-50"
-                              aria-label={`Change status for ${assignee.fullName}`}
-                            >
-                              <option value="">Move ▾</option>
-                              {assigneeTransitions.map((status) => (
-                                <option key={status} value={status}>
-                                  {TRANSITION_LABELS[status] ?? status}
-                                </option>
-                              ))}
-                            </select>
+                          {assigneeTransitions.length === 0 ? (
+                            <TaskStatusBadge status={assignee.status} />
+                          ) : (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => setOpenStatusMenu(openStatusMenu === `${task.id}:${assignee.id}` ? null : `${task.id}:${assignee.id}`)}
+                                className="disabled:opacity-50"
+                                aria-label={`Change status for ${assignee.fullName}`}
+                              >
+                                <TaskStatusBadge status={assignee.status} className="cursor-pointer hover:ring-1 hover:ring-app-accent/40" />
+                              </button>
+                              {openStatusMenu === `${task.id}:${assignee.id}` && (
+                                <div className="absolute left-0 top-full z-20 mt-1 min-w-28 rounded-lg border border-app-border bg-app-surface py-1 text-[11px] shadow-lg">
+                                  {assigneeTransitions.map((status) => (
+                                    <button
+                                      key={status}
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenStatusMenu(null);
+                                        void handleTransition(task.id, status, assignee.id);
+                                      }}
+                                      className="block w-full px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                                    >
+                                      {TRANSITION_LABELS[status] ?? status}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       );
