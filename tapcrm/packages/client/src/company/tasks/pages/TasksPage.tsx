@@ -41,7 +41,7 @@ export function TasksPage({
     pageSize: 20,
     sortBy: 'createdAt',
     sortOrder: 'desc',
-    assigneeId:
+    participantId:
       propIsSuperAdmin && propCurrentUserId ? propCurrentUserId : undefined,
   }));
   const [data, setData] = useState<PaginatedTasks | null>(null);
@@ -78,14 +78,14 @@ export function TasksPage({
     };
   }, [propIsSuperAdmin, propCurrentUserId]);
 
-  // Synchronize assigneeId with viewScope when identity resolves
+  // Synchronize participantId with viewScope when identity resolves
   useEffect(() => {
     if (isSuperAdmin && currentUserId && viewScope === 'my_tasks') {
       setQuery((prev) => {
-        if (prev.assigneeId === currentUserId) return prev;
+        if (prev.participantId === currentUserId) return prev;
         return {
           ...prev,
-          assigneeId: currentUserId,
+          participantId: currentUserId,
         };
       });
     }
@@ -95,7 +95,7 @@ export function TasksPage({
     setViewScope(nextScope);
     setQuery((prev) => ({
       ...prev,
-      assigneeId: nextScope === 'my_tasks' ? currentUserId : undefined,
+      participantId: nextScope === 'my_tasks' ? currentUserId : undefined,
       page: 1,
     }));
   }
@@ -211,9 +211,13 @@ export function TasksPage({
     }
   }
 
-  async function handleTransitionStatus(taskId: string, status: TaskStatus) {
+  async function handleTransitionStatus(
+    taskId: string,
+    status: TaskStatus,
+    userId?: string,
+  ) {
     try {
-      const updated = await transitionTask(taskId, { status });
+      const updated = await transitionTask(taskId, { status, userId });
       setNotification({ message: `Task status updated to ${status}` });
 
       // Immediate state update
@@ -313,6 +317,7 @@ export function TasksPage({
         <TaskList
           tasks={data?.items ?? []}
           loading={loading && !data}
+          currentUserId={currentUserId}
           onTransitionStatus={handleTransitionStatus}
           onEditTask={(task) => setEditingTask(task)}
           onAssignTask={(task) => setAssigningTask(task)}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
+import { Icon } from '../../../ui/Icon.js';
 import {
   createCandidate,
   parseCandidateResume,
@@ -190,7 +191,7 @@ export function CandidateFormModal({
         setParseNotice({
           type: 'success',
           message:
-            'Resume parsed successfully ✓ Candidate information has been pre-filled. Please review before creating the candidate.',
+            'Resume parsed successfully. Candidate information has been pre-filled. Please review before creating the candidate.',
         });
       } else {
         setParseNotice({
@@ -307,7 +308,7 @@ export function CandidateFormModal({
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-xl border border-app-border bg-app-background p-3 text-sm">
                 <div className="flex items-center gap-2.5 truncate">
-                  <span className="text-2xl" aria-hidden="true">📄</span>
+                  <Icon name="notepad" className="size-6 text-app-muted shrink-0" />
                   <div className="truncate">
                     <p className="font-semibold text-app-foreground truncate">{file.name}</p>
                     <p className="text-xs text-app-muted">
@@ -340,7 +341,7 @@ export function CandidateFormModal({
 
               {uploading && (
                 <div className="flex items-center gap-2 text-xs text-app-muted animate-pulse">
-                  <span>⏳</span>
+                  <span className="size-3.5 animate-spin rounded-full border-2 border-app-muted border-t-transparent" />
                   <span>Uploading resume...</span>
                 </div>
               )}
@@ -348,7 +349,8 @@ export function CandidateFormModal({
               {!uploading && !parseSuccess && (
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-xs text-emerald-400 flex items-center gap-1.5">
-                    <span>✓</span> Resume uploaded successfully
+                    <Icon name="check" className="size-3.5 text-emerald-500" />
+                    <span>Resume uploaded successfully</span>
                   </span>
                   <Button
                     type="button"
@@ -364,7 +366,7 @@ export function CandidateFormModal({
 
               {parsing && (
                 <div className="flex items-center gap-2 rounded-lg border border-app-accent/30 bg-app-accent/10 p-2.5 text-xs text-app-accent">
-                  <span className="animate-spin">🔄</span>
+                  <span className="size-3.5 animate-spin rounded-full border-2 border-app-accent border-t-transparent" />
                   <span>Analyzing resume... Extracting candidate information...</span>
                 </div>
               )}
@@ -394,7 +396,7 @@ export function CandidateFormModal({
                   : 'border-app-border bg-app-background hover:border-app-accent hover:bg-app-accent/5'
               }`}
             >
-              <span className="text-3xl" aria-hidden="true">📄</span>
+              <Icon name="notepad" className="size-8 text-app-muted" />
               <p className="mt-2 text-sm font-semibold text-app-foreground">
                 Upload Resume
               </p>

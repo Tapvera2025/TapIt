@@ -49,7 +49,7 @@ export function JoiningPage({
         <button
           type="button"
           onClick={onNavigateToEmployees}
-          className="rounded-lg border border-app-border bg-app-surface px-4 py-2.5 text-sm font-bold text-app-foreground hover:border-app-accent hover:text-app-accent"
+          className="w-full rounded-xl border border-app-border bg-app-surface px-5 py-2.5 text-center text-sm font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent sm:w-auto"
         >
           View Employee Directory →
         </button>

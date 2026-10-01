@@ -452,7 +452,7 @@ export function CandidateDetailModal({
                             <div className="flex items-center justify-between">
                               <span className="font-bold">{fb.interviewerName ?? 'Evaluator'}</span>
                               <span className="font-semibold uppercase text-app-accent">
-                                {fb.recommendation.replace(/_/g, ' ')} {fb.rating ? `(${fb.rating}/5★)` : ''}
+                                {fb.recommendation.replace(/_/g, ' ')} {fb.rating ? `(${fb.rating}/5)` : ''}
                               </span>
                             </div>
                             <p className="text-app-foreground">{fb.feedback}</p>
@@ -566,11 +566,11 @@ export function CandidateDetailModal({
                     </div>
                     {joinings[0]?.status === 'joined' ? (
                       <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">
-                        ✓ Officially Hired
+                        Officially Hired
                       </span>
                     ) : (
                       <Button kind="primary" onClick={() => setHiringOpen(true)}>
-                        🤝 Hire as Employee
+                        Hire as Employee
                       </Button>
                     )}
                   </div>

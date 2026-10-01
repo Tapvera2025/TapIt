@@ -39,6 +39,11 @@ export const taskPolicy: ResourcePolicy = {
       (Array.isArray(resource['assigneeIds']) &&
         resource['assigneeIds'].includes(ctx.principal.id));
 
+    // Conceptual access model: user is creator OR user is eligible assignee/participant OR user has authorized scope
+    if (_action === 'tasks:view' && (isCreator || isAssigned)) {
+      return true;
+    }
+
     if (scope === 'own' || scope === 'participant') {
       return isCreator || isAssigned;
     }

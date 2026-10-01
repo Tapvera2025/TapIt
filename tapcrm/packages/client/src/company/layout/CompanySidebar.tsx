@@ -1,6 +1,6 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
-import { companyNavigation, type CompanyNavGroup } from './navigation.js';
+import { companyNavigation, myNotepadNavItem, type CompanyNavGroup } from './navigation.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
 
@@ -49,10 +49,12 @@ export function CompanySidebar({
     pathname.startsWith('/company/recruitment'),
   );
 
-  const isSuperAdmin = accountType === 'super-admin';
+  const isSuperAdmin =
+    accountType?.toLowerCase() === 'super-admin' ||
+    identity.accountType?.toLowerCase() === 'super-admin';
   const isHr =
     isSuperAdmin ||
-    (accountType === 'employee' &&
+    ((accountType === 'employee' || identity.accountType === 'employee') &&
       (identity.departmentCode?.toLowerCase().includes('hr') ||
         identity.departmentName?.toLowerCase().includes('human resources') ||
         identity.departmentName?.toLowerCase().includes('people') ||
@@ -67,6 +69,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+              myNotepadNavItem,
             ],
           },
           {
@@ -102,6 +105,7 @@ export function CompanySidebar({
             items: [
               { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
               { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+              myNotepadNavItem,
             ],
           },
           ...(canViewEmployees
@@ -190,20 +194,27 @@ export function CompanySidebar({
                     const isRecruitmentItem = item.label === 'Recruitment';
                     const isItemActive =
                       pathname === item.path ||
+                      (item.path === '/company/my-notepad' &&
+                        pathname === '/company/notepad') ||
                       (item.path !== '/company/organization' &&
                         pathname.startsWith(`${item.path}/`));
-                    const showChildren =
+                    const showChildren = Boolean(
                       item.children &&
-                      (recruitmentOpen || pathname.startsWith(item.path));
+                        (isRecruitmentItem
+                          ? recruitmentOpen
+                          : pathname.startsWith(item.path)),
+                    );
 
                     return (
                       <div key={item.path}>
                         <button
                           aria-current={isItemActive ? 'page' : undefined}
+                          aria-expanded={item.children ? showChildren : undefined}
                           type="button"
                           onClick={() => {
                             if (isRecruitmentItem) {
                               setRecruitmentOpen((prev) => !prev);
+                              return;
                             }
                             onNavigate(item.path);
                             onClose();
@@ -228,8 +239,7 @@ export function CompanySidebar({
                           )}
                         </button>
 
-                        {item.children &&
-                          (recruitmentOpen || pathname.startsWith(item.path)) && (
+                        {item.children && showChildren && (
                             <div className="ml-7 mt-1 space-y-1 border-l border-app-border pl-2">
                             {item.children.map((sub) => {
                               const isSubActive =

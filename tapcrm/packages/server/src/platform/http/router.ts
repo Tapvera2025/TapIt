@@ -20,12 +20,20 @@ import { requireModuleEnabled } from '../module-entitlement.js';
  * That ordering is why a handler never needs to remember an authorization
  * check, and why forgetting one is not possible: there is no path to a handler
  * that does not pass through step 3.
+ *
+ * Authentication-only routes (`authOnly: true`) intentionally skip steps 1–3
+ * and 5. They still require a valid RequestContext (authentication + tenant).
  */
 
 declare module 'express-serve-static-core' {
   interface Request {
     ctx?: RequestContext;
   }
+}
+
+/** Type guard: does this binding carry an Action? */
+function isAuthorizedRoute(binding: RouteBinding<never, unknown>): binding is RouteBinding<never, unknown> & { action: Action } {
+  return 'action' in binding && binding.action !== undefined;
 }
 
 /**
@@ -36,6 +44,9 @@ declare module 'express-serve-static-core' {
  *
  * RM-1 makes an unbound route a STARTUP failure: "A missing binding is a defect
  * and should surface at deploy, not on a request."
+ *
+ * Auth-only routes are excluded from action/manifest validation since they
+ * intentionally carry no Action. They still participate in duplicate detection.
  */
 export interface ManifestDrift {
   readonly routesWithoutBinding: readonly string[];
@@ -47,25 +58,27 @@ export interface ManifestDrift {
 }
 
 export function checkManifest(): ManifestDrift {
-  const declared = registeredBindings();
-  const declaredKeys = new Set(declared.map((b) => `${b.method} ${b.path}`));
+  const all = registeredBindings();
+  const authorized = all.filter(isAuthorizedRoute);
+  const authorizedKeys = new Set(authorized.map((b) => `${b.method} ${b.path}`));
   const manifestKeys = new Set(BINDINGS.map((b) => `${b.method} ${b.path}`));
   const manifestByKey = new Map(
     BINDINGS.map((binding) => [`${binding.method} ${binding.path}`, binding]),
   );
 
+  // Duplicate detection covers ALL routes (including auth-only).
   const duplicates: string[] = [];
   const seen = new Set<string>();
-  for (const binding of declared) {
+  for (const binding of all) {
     const key = `${binding.method} ${binding.path}`;
     if (seen.has(key)) duplicates.push(key);
     seen.add(key);
   }
 
-  const boundActions = new Set<Action>(declared.map((b) => b.action));
+  const boundActions = new Set<Action>(authorized.map((b) => b.action));
   const actionMismatches: string[] = [];
   const resourceMismatches: string[] = [];
-  for (const binding of declared) {
+  for (const binding of authorized) {
     const key = `${binding.method} ${binding.path}`;
     const manifest = manifestByKey.get(key);
     if (!manifest) continue;
@@ -85,10 +98,11 @@ export function checkManifest(): ManifestDrift {
 
   return {
     // A route the code registers that AUTHORIZATION.md §6.5 does not know about.
-    routesWithoutBinding: [...declaredKeys].filter((k) => !manifestKeys.has(k)).sort(),
+    // Auth-only routes are excluded — they have no manifest entry by design.
+    routesWithoutBinding: [...authorizedKeys].filter((k) => !manifestKeys.has(k)).sort(),
     // A binding in the document with no implementation yet. Expected during
     // phased delivery — reported, not fatal, and surfaced so the gap is visible.
-    bindingsWithoutRoute: [...manifestKeys].filter((k) => !declaredKeys.has(k)).sort(),
+    bindingsWithoutRoute: [...manifestKeys].filter((k) => !authorizedKeys.has(k)).sort(),
     actionsWithoutBinding: (Object.keys(REGISTRY) as Action[])
       .filter((a) => !boundActions.has(a))
       .sort(),
@@ -165,7 +179,8 @@ export function buildRouter(): Router {
 }
 
 function makeHandler(binding: RouteBinding<never, unknown>) {
-  const definition = REGISTRY[binding.action];
+  const hasAction = isAuthorizedRoute(binding);
+  const definition = hasAction ? REGISTRY[binding.action] : undefined;
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -187,8 +202,10 @@ function makeHandler(binding: RouteBinding<never, unknown>) {
       // Skipped when the action names no resource, even if the path has a
       // parameter — `PUT /api/system/integrations/:key` addresses a config key,
       // not an object, so there is nothing to perform an object check against.
+      // Also skipped for auth-only routes which have no action/definition.
       let resource;
       if (
+        definition &&
         definition.resource !== null &&
         binding.resourceParam !== undefined &&
         binding.loadResource !== undefined
@@ -203,7 +220,11 @@ function makeHandler(binding: RouteBinding<never, unknown>) {
       }
 
       /* ---- 3. Authorize. Steps 2–8 and 10 of the pipeline. ---- */
-      await authorize(ctx, binding.action, resource);
+      // Auth-only routes skip action-based authorization — they require only
+      // a valid authenticated RequestContext (ensured by step 1 above).
+      if (hasAction) {
+        await authorize(ctx, binding.action, resource);
+      }
 
       /* ---- 4. Handler. Business logic only (API-1). ---- */
       const result = await binding.handler({
@@ -222,7 +243,10 @@ function makeHandler(binding: RouteBinding<never, unknown>) {
       // AZ-I4: "every response passes through it. A handler that assembles JSON
       // by hand bypasses field policy, so handlers return domain objects and
       // the framework serializes."
-      const projected = await projectResult(ctx, binding.action, result);
+      // Auth-only routes return the result directly — no field projection.
+      const projected = hasAction
+        ? await projectResult(ctx, binding.action, result)
+        : result;
 
       const status =
         binding.status ??

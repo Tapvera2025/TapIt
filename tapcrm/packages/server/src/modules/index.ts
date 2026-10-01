@@ -20,6 +20,11 @@ import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
 import { registerCallbackRoutes } from './sales/leads/callback-routes.js';
 import { registerRecruitmentPolicies } from './recruitment/policy.js';
 import { registerRecruitmentRoutes } from './recruitment/routes.js';
+import {
+  registerMyNotepadAdminRoutes,
+  registerMyNotepadRoutes,
+  registerNotepadPolicies,
+} from './myNotepad/index.js';
 
 /**
  * The module registry.
@@ -43,6 +48,7 @@ export function registerAllPolicies(): void {
   registerHandoverPolicies();
   registerCallbackPolicies();
   registerRecruitmentPolicies();
+  registerNotepadPolicies();
 }
 
 export function registerAllRoutes(): void {
@@ -58,4 +64,6 @@ export function registerAllRoutes(): void {
   registerHandoverRoutes();
   registerCallbackRoutes();
   registerRecruitmentRoutes();
+  registerMyNotepadRoutes();
+  registerMyNotepadAdminRoutes();
 }

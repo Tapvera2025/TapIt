@@ -4321,6 +4321,30 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/employee-notes",
+      "action": "notepad:view-all",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/employee-notes/:userId",
+      "action": "notepad:view-all",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/employee-notes/:userId/history",
+      "action": "notepad:view-all",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/employee-notes/:userId/history/:historyId",
+      "action": "notepad:view-all",
+      "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
       "path": "/api/workspace/sheets",
       "action": "sheets:manage",
       "resourceParam": null
