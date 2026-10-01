@@ -18,6 +18,7 @@ interface TaskDbRow {
   title: string;
   description: string | null;
   projectId: string | null;
+  projectName?: string | null;
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: Date | null;
@@ -73,6 +74,7 @@ function mapTaskRow(row: TaskDbRow): Task {
     title: row.title,
     description: row.description,
     projectId: row.projectId,
+    projectName: row.projectName ?? null,
     priority: row.priority,
     status: row.status,
     dueDate: row.dueDate ? new Date(row.dueDate) : null,
@@ -289,6 +291,7 @@ const TASK_SELECT = sql`
     t.title,
     t.description,
     t.project_id,
+    project.name AS "projectName",
     t.priority,
     t.status,
     t.due_date,
@@ -317,6 +320,7 @@ const TASK_SELECT = sql`
     ) AS assignees
   FROM task t
   LEFT JOIN app_user creator ON creator.id = t.created_by AND creator.organization_id = t.organization_id
+  LEFT JOIN project ON project.id = t.project_id AND project.organization_id = t.organization_id
 `;
 
 const UUID_REGEX =
@@ -629,6 +633,16 @@ export async function findAssignableUsers(
       // Fallback: own user record
       whereClauses.push(sql`u.id = ${ctx.principal.id}`);
     }
+  }
+
+  // Creating a task from inside a project restricts candidates to that
+  // project's own team — narrower than whatever the caller's broader
+  // department/team scope would otherwise allow, never wider.
+  if (query.projectId) {
+    whereClauses.push(sql`EXISTS (
+      SELECT 1 FROM project_assignee pa
+      WHERE pa.organization_id = u.organization_id AND pa.project_id = ${query.projectId} AND pa.user_id = u.id
+    )`);
   }
 
   if (query.search?.trim()) {

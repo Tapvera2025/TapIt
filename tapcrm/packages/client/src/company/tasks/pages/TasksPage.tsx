@@ -24,11 +24,14 @@ import type {
 export interface TasksPageProps {
   readonly isSuperAdmin?: boolean | undefined;
   readonly currentUserId?: string | undefined;
+  /** Pre-filters to one project — the "Task Assignment" tab on a project's detail page passes this. */
+  readonly initialProjectId?: string | undefined;
 }
 
 export function TasksPage({
   isSuperAdmin: propIsSuperAdmin,
   currentUserId: propCurrentUserId,
+  initialProjectId,
 }: TasksPageProps = {}): React.JSX.Element {
   const [isSuperAdmin, setIsSuperAdmin] = useState(propIsSuperAdmin ?? false);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(
@@ -41,6 +44,7 @@ export function TasksPage({
     pageSize: 20,
     sortBy: 'createdAt',
     sortOrder: 'desc',
+    projectId: initialProjectId,
     participantId:
       propIsSuperAdmin && propCurrentUserId ? propCurrentUserId : undefined,
   }));
@@ -376,6 +380,8 @@ export function TasksPage({
           mode="create"
           onSubmitCreate={handleCreateTask}
           onClose={() => setIsCreateOpen(false)}
+          defaultProjectId={initialProjectId}
+          lockProjectId={Boolean(initialProjectId)}
         />
 
         {/* Edit Task Modal */}

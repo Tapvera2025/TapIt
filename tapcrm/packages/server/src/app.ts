@@ -10,7 +10,7 @@ import { requestContext, requestId } from './platform/http/context.js';
 import { installDevPrincipalResolver } from './platform/http/dev-resolver.js';
 import { errorHandler } from './platform/http/error-handler.js';
 import { assertManifest, buildRouter, checkManifest } from './platform/http/router.js';
-import { registerAllPolicies, registerAllRoutes } from './modules/index.js';
+import { registerAllPolicies, registerAllRealtime, registerAllRoutes } from './modules/index.js';
 import { buildPlatformRouter } from './platform/routes.js';
 import { registerIdentityPublicRoutes } from './modules/identity/index.js';
 import { buildPublicRecruitmentRouter } from './modules/recruitment/index.js';
@@ -48,6 +48,7 @@ function registerAll(): void {
 
   registerAllPolicies();
   registerAllRoutes();
+  registerAllRealtime();
 }
 
 export function buildApp(options: BuildOptions = {}): Express {
