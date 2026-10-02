@@ -9,7 +9,10 @@ import {
 } from '@tapcrm/contracts';
 import { getCompanyIdentity } from '../../company/api/companyApi.js';
 import { organizationApi } from '../api/organizationApi.js';
-import { PositionHierarchy, type PositionPlacement } from '../components/PositionHierarchy.js';
+import {
+  PositionHierarchy,
+  type PositionPlacement,
+} from '../components/PositionHierarchy.js';
 import {
   availableParents,
   flattenPositions,
@@ -32,12 +35,14 @@ import {
 } from '../components/OrganizationUi.js';
 import type {
   OrganizationDepartment,
+  OrganizationChart,
   OrganizationLadder,
   OrganizationPosition,
   PolicyImpactPreview,
   PositionImpactPreview,
   PositionPolicy,
 } from '../types/index.js';
+import { IdentityApiError } from '../../identity/api/authApi.js';
 
 type PositionForm = {
   departmentId: string;
@@ -49,6 +54,8 @@ type PositionForm = {
   adoptLowerPositions: boolean;
   insertAboveId: string | null;
 };
+type PositionField = 'code' | 'name' | 'organizationalLevel' | 'parentPositionId';
+type PositionFieldErrors = Partial<Record<PositionField, string>>;
 const blank: PositionForm = {
   departmentId: '',
   code: '',
@@ -72,6 +79,7 @@ export function PositionsPage(): React.JSX.Element {
   const [departments, setDepartments] = useState<OrganizationDepartment[]>([]);
   const [departmentId, setDepartmentId] = useState('');
   const [ladder, setLadder] = useState<OrganizationLadder | null>(null);
+  const [chart, setChart] = useState<OrganizationChart | null>(null);
   const [form, setForm] = useState(blank);
   const [editing, setEditing] = useState<OrganizationPosition | null>(null);
   const [impact, setImpact] = useState<PositionImpactPreview | null>(null);
@@ -94,6 +102,8 @@ export function PositionsPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [fieldErrors, setFieldErrors] = useState<PositionFieldErrors>({});
+  const [formError, setFormError] = useState('');
   const [message, setMessage] = useState('');
   const ladderRequest = useRef(0);
   const policyRequest = useRef(0);
@@ -144,31 +154,45 @@ export function PositionsPage(): React.JSX.Element {
     () => flattenPositions(ladder?.positions ?? []),
     [ladder],
   );
-  function startCreate(reference?: OrganizationPosition, placement: PositionPlacement = 'below') {
+
+  function startCreate(
+    reference?: OrganizationPosition,
+    placement: PositionPlacement = 'below',
+  ) {
     setEditing(null);
     setImpact(null);
     setPendingCreate(null);
     setPendingUpdate(null);
-    const parent = placement === 'below'
-      ? reference
-      : flatPositions.find((position) => position.id === reference?.parentPositionId);
+    setFieldErrors({});
+    setFormError('');
+
+    const parent =
+      placement === 'below'
+        ? reference
+        : flatPositions.find((position) => position.id === reference?.parentPositionId);
+
     const level = reference
       ? placement === 'below'
         ? Math.max(1, reference.organizationalLevel - 1)
         : placement === 'beside'
           ? reference.organizationalLevel
           : Math.min(parent!.organizationalLevel - 1, reference.organizationalLevel + 1)
-      : flatPositions.length === 0 ? 100 : 1;
-    const allCodes = flatPositions.map((p) => p.code);
+      : flatPositions.length === 0
+        ? 100
+        : 1;
+
+    const allCodes = flatPositions.map((position) => position.code);
     const seed = lastCodeByDept[departmentId];
+
     setForm({
       ...blank,
       departmentId,
       parentPositionId: parent?.id ?? '',
       organizationalLevel: String(level),
-      insertAboveId: placement === 'above' ? reference?.id ?? null : null,
+      insertAboveId: placement === 'above' ? (reference?.id ?? null) : null,
       code: suggestNextCode(allCodes, seed),
     });
+
     setOpen(true);
   }
   function startEdit(position: OrganizationPosition) {
@@ -184,7 +208,19 @@ export function PositionsPage(): React.JSX.Element {
       adoptLowerPositions: false,
       insertAboveId: null,
     });
+    setFieldErrors({});
+    setFormError('');
     setOpen(true);
+  }
+  function updateFormField(field: PositionField, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setFormError('');
   }
   function payload(confirmImpact = false): Record<string, unknown> {
     return {
@@ -195,12 +231,31 @@ export function PositionsPage(): React.JSX.Element {
       parentPositionId: form.parentPositionId || null,
       status: form.status,
       ...(editing ? {} : { adoptLowerPositions: form.adoptLowerPositions }),
-      ...(!editing && form.insertAboveId ? { adoptPositionIds: [form.insertAboveId] } : {}),
+      ...(!editing && form.insertAboveId
+        ? { adoptPositionIds: [form.insertAboveId] }
+        : {}),
       confirmImpact,
     };
   }
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    const nextErrors: PositionFieldErrors = {};
+    if (!form.code.trim()) nextErrors.code = 'Position code is required.';
+    else if (!editing && !/^[a-z0-9][a-z0-9-]*$/.test(form.code.trim()))
+      nextErrors.code = 'Code can use only lowercase letters, numbers, and hyphens.';
+    if (!form.name.trim()) nextErrors.name = 'Position name is required.';
+    if (
+      !form.organizationalLevel ||
+      Number(form.organizationalLevel) < 1 ||
+      !Number.isInteger(Number(form.organizationalLevel))
+    )
+      nextErrors.organizationalLevel =
+        'Organizational level must be a whole number of at least 1.';
+    if (!editing && !form.parentPositionId)
+      nextErrors.parentPositionId = 'Parent position is required.';
+    setFieldErrors(nextErrors);
+    setFormError('');
+    if (Object.keys(nextErrors).length > 0) return;
     setBusy(true);
     setError(null);
     try {
@@ -212,10 +267,17 @@ export function PositionsPage(): React.JSX.Element {
           editing.organizationalLevel !== Number(form.organizationalLevel) ||
           editing.departmentId !== form.departmentId
         ) {
-          const preview = await organizationApi.previewPositionUpdate(editing.id, updateBody);
-          setPendingUpdate({ position: editing, body: updateBody, impact: preview,
+          const preview = await organizationApi.previewPositionUpdate(
+            editing.id,
+            updateBody,
+          );
+          setPendingUpdate({
+            position: editing,
+            body: updateBody,
+            impact: preview,
             parentPositionId: form.parentPositionId || null,
-            organizationalLevel: Number(form.organizationalLevel) });
+            organizationalLevel: Number(form.organizationalLevel),
+          });
           setOpen(false);
         } else {
           await organizationApi.updatePosition(editing.id, updateBody);
@@ -228,6 +290,7 @@ export function PositionsPage(): React.JSX.Element {
         if (preview.positionParentChanges && preview.positionParentChanges.length > 0) {
           setPendingCreate(body);
           setImpact(preview);
+          setChart(await organizationApi.chart().catch(() => null));
         } else {
           await organizationApi.createPosition(body);
           setLastCodeByDept((prev) => ({ ...prev, [form.departmentId]: form.code }));
@@ -237,19 +300,36 @@ export function PositionsPage(): React.JSX.Element {
         }
       }
     } catch (cause) {
-      setError(cause);
+      if (
+        cause instanceof IdentityApiError &&
+        cause.code === 'ORG_POSITION_CODE_EXISTS'
+      ) {
+        setFieldErrors({ code: 'A position with this code already exists.' });
+      } else if (cause instanceof Error) {
+        setFormError(cause.message);
+      } else {
+        setFormError('Unable to save position.');
+      }
     } finally {
       setBusy(false);
     }
   }
-  async function previewMove(position: OrganizationPosition, parent: OrganizationPosition) {
+  async function previewMove(
+    position: OrganizationPosition,
+    parent: OrganizationPosition,
+  ) {
     setError(null);
     setBusy(true);
     try {
       const body = { parentPositionId: parent.id };
       const preview = await organizationApi.previewPositionUpdate(position.id, body);
-      setPendingUpdate({ position, body, impact: preview,
-        parentPositionId: parent.id, organizationalLevel: position.organizationalLevel });
+      setPendingUpdate({
+        position,
+        body,
+        impact: preview,
+        parentPositionId: parent.id,
+        organizationalLevel: position.organizationalLevel,
+      });
     } catch (cause) {
       setError(cause);
     } finally {
@@ -262,7 +342,8 @@ export function PositionsPage(): React.JSX.Element {
     setBusy(true);
     try {
       await organizationApi.updatePosition(pendingUpdate.position.id, {
-        ...pendingUpdate.body, confirmImpact: true,
+        ...pendingUpdate.body,
+        confirmImpact: true,
       });
       setMessage(`${pendingUpdate.position.name} hierarchy updated.`);
       setPendingUpdate(null);
@@ -278,8 +359,14 @@ export function PositionsPage(): React.JSX.Element {
     setBusy(true);
     try {
       await organizationApi.createPosition({ ...pendingCreate, confirmImpact: true });
-      if (typeof pendingCreate['code'] === 'string' && typeof pendingCreate['departmentId'] === 'string') {
-        setLastCodeByDept((prev) => ({ ...prev, [pendingCreate['departmentId'] as string]: pendingCreate['code'] as string }));
+      if (
+        typeof pendingCreate['code'] === 'string' &&
+        typeof pendingCreate['departmentId'] === 'string'
+      ) {
+        setLastCodeByDept((prev) => ({
+          ...prev,
+          [pendingCreate['departmentId'] as string]: pendingCreate['code'] as string,
+        }));
       }
       setImpact(null);
       setPendingCreate(null);
@@ -287,7 +374,9 @@ export function PositionsPage(): React.JSX.Element {
       setMessage('Position created and hierarchy updated.');
       await loadLadder();
     } catch (cause) {
-      setError(cause);
+      setFormError(
+        cause instanceof Error ? cause.message : 'Unable to apply hierarchy change.',
+      );
     } finally {
       setBusy(false);
     }
@@ -441,7 +530,9 @@ export function PositionsPage(): React.JSX.Element {
           }}
           onEdit={startEdit}
           onCreate={startCreate}
-          onMove={(position, parent) => { void previewMove(position, parent); }}
+          onMove={(position, parent) => {
+            void previewMove(position, parent);
+          }}
           onPolicies={(position) => {
             void openPolicies(position);
           }}
@@ -464,6 +555,7 @@ export function PositionsPage(): React.JSX.Element {
             </div>
           )}
           <form
+            noValidate
             onSubmit={(event) => {
               void save(event);
             }}
@@ -474,28 +566,43 @@ export function PositionsPage(): React.JSX.Element {
                 label="Code"
                 disabled={Boolean(editing)}
                 value={form.code}
-                onChange={(value) => setForm({ ...form, code: value.toUpperCase() })}
+                onChange={(value) => updateFormField('code', value)}
+                error={fieldErrors.code}
                 required
               />
-              {!editing && <p className="mt-1 text-xs text-app-muted">Auto-generated — edit as needed.</p>}
+
+              {!editing && (
+                <p className="mt-1 text-xs text-app-muted">
+                  Auto-generated — edit as needed.
+                </p>
+              )}
             </div>
             <Field
               label="Name"
               value={form.name}
-              onChange={(value) => setForm({ ...form, name: value })}
+              onChange={(value) => updateFormField('name', value)}
+              error={fieldErrors.name}
               required
             />
             <Field
               label="Organizational level"
               type="number"
               value={form.organizationalLevel}
-              onChange={(value) => setForm({ ...form, organizationalLevel: value })}
+              onChange={(value) => updateFormField('organizationalLevel', value)}
+              error={fieldErrors.organizationalLevel}
               required
             />
             <Select
               label="Parent position"
               value={form.parentPositionId}
-              onChange={(value) => setForm({ ...form, parentPositionId: value, insertAboveId: null })}
+              onChange={(value) => {
+                updateFormField('parentPositionId', value);
+                setForm((current) => ({
+                  ...current,
+                  parentPositionId: value,
+                  insertAboveId: null,
+                }));
+              }}
               options={availableParents(flatPositions, editing).map((item) => ({
                 value: item.id,
                 label: `${item.name} · L${item.organizationalLevel}`,
@@ -506,6 +613,7 @@ export function PositionsPage(): React.JSX.Element {
                 (!editing || editing.parentPositionId !== null)
               }
               disabled={!editing && flatPositions.length === 0}
+              error={fieldErrors.parentPositionId}
             />
             <p className="text-xs text-app-muted md:col-span-2">
               Levels range from 1 to 100. A parent must have a higher level than the
@@ -541,8 +649,13 @@ export function PositionsPage(): React.JSX.Element {
             {form.insertAboveId && (
               <p className="text-xs text-app-muted md:col-span-2">
                 This new position will become the direct parent of{' '}
-                <strong>{flatPositions.find((position) => position.id === form.insertAboveId)?.name}</strong>.
-                You can review the change before it is saved.
+                <strong>
+                  {
+                    flatPositions.find((position) => position.id === form.insertAboveId)
+                      ?.name
+                  }
+                </strong>
+                . You can review the change before it is saved.
               </p>
             )}
             <Select
@@ -557,6 +670,7 @@ export function PositionsPage(): React.JSX.Element {
             <Button type="submit" disabled={busy} className="md:col-span-2">
               {busy ? 'Saving…' : 'Save position'}
             </Button>
+            {formError && <ErrorMessage cause={new Error(formError)} />}
           </form>
         </Modal>
       )}
@@ -570,12 +684,9 @@ export function PositionsPage(): React.JSX.Element {
         >
           <ImpactPreview
             impact={impact}
-            nameOf={(id) =>
-              id === null
-                ? 'the Super Admin'
-                : (flatPositions.find((item) => item.id === id)?.name ??
-                  'another position')
-            }
+            positions={flatPositions}
+            chart={chart}
+            formError={formError}
             onConfirm={() => {
               void confirmCreate();
             }}
@@ -583,6 +694,7 @@ export function PositionsPage(): React.JSX.Element {
             onCancel={() => {
               setImpact(null);
               setPendingCreate(null);
+              setFormError('');
             }}
           />
         </Modal>
@@ -591,24 +703,44 @@ export function PositionsPage(): React.JSX.Element {
         <Modal title="Review hierarchy change" onClose={() => setPendingUpdate(null)}>
           <p className="text-sm text-app-muted">
             {pendingUpdate.position.name} will move from under{' '}
-            <strong>{nameOfParent(pendingUpdate.position.parentPositionId, flatPositions)}</strong>{' '}
-            to under <strong>{nameOfParent(pendingUpdate.parentPositionId, flatPositions)}</strong>
-            {pendingUpdate.organizationalLevel !== pendingUpdate.position.organizationalLevel &&
-              `, at level ${pendingUpdate.organizationalLevel}`}. This can change access inherited through the hierarchy.
+            <strong>
+              {nameOfParent(pendingUpdate.position.parentPositionId, flatPositions)}
+            </strong>{' '}
+            to under{' '}
+            <strong>{nameOfParent(pendingUpdate.parentPositionId, flatPositions)}</strong>
+            {pendingUpdate.organizationalLevel !==
+              pendingUpdate.position.organizationalLevel &&
+              `, at level ${pendingUpdate.organizationalLevel}`}
+            . This can change access inherited through the hierarchy.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-app-border p-3">
               <p className="text-xs text-app-muted">Positions affected</p>
-              <p className="mt-1 text-xl font-bold">{pendingUpdate.impact.affectedPositionIds.length}</p>
+              <p className="mt-1 text-xl font-bold">
+                {pendingUpdate.impact.affectedPositionIds.length}
+              </p>
             </div>
             <div className="rounded-lg border border-app-border p-3">
               <p className="text-xs text-app-muted">People affected</p>
-              <p className="mt-1 text-xl font-bold">{pendingUpdate.impact.affectedHolderIds.length}</p>
+              <p className="mt-1 text-xl font-bold">
+                {pendingUpdate.impact.affectedHolderIds.length}
+              </p>
             </div>
           </div>
           <div className="mt-5 flex justify-end gap-3">
-            <Button kind="secondary" disabled={busy} onClick={() => setPendingUpdate(null)}>Cancel</Button>
-            <Button disabled={busy} onClick={() => { void confirmUpdate(); }}>
+            <Button
+              kind="secondary"
+              disabled={busy}
+              onClick={() => setPendingUpdate(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                void confirmUpdate();
+              }}
+            >
               {busy ? 'Applying…' : 'Confirm change'}
             </Button>
           </div>
@@ -657,7 +789,10 @@ export function PositionsPage(): React.JSX.Element {
     </Page>
   );
 }
-function nameOfParent(id: string | null, positions: readonly OrganizationPosition[]): string {
+function nameOfParent(
+  id: string | null,
+  positions: readonly OrganizationPosition[],
+): string {
   return id === null
     ? 'Super Admin'
     : (positions.find((position) => position.id === id)?.name ?? 'another position');
@@ -681,17 +816,29 @@ function stripPolicy(policy: PositionPolicy) {
 }
 function ImpactPreview({
   impact,
-  nameOf,
+  positions,
+  chart,
+  formError,
   onConfirm,
   busy,
   onCancel,
 }: {
   impact: PositionImpactPreview;
-  nameOf: (positionId: string | null) => string;
+  positions: OrganizationPosition[];
+  chart: OrganizationChart | null;
+  formError: string;
   onConfirm: () => void;
   busy: boolean;
   onCancel: () => void;
 }): React.JSX.Element {
+  const positionNames = new Map(
+    positions.map((position) => [position.id, position.name]),
+  );
+  const employeeNames = new Map(
+    (chart?.people ?? []).map((person) => [person.id, person.fullName]),
+  );
+  const proposedPositionName = impact.position?.name ?? 'the new position';
+
   return (
     <div>
       <p className="text-sm text-app-muted">
@@ -714,8 +861,24 @@ function ImpactPreview({
             key={change.positionId}
             className="rounded-lg border border-app-border p-3 text-sm"
           >
-            <strong>{nameOf(change.positionId)}</strong> moves from under{' '}
-            {nameOf(change.currentParentPositionId)} to under the new position.
+            Position <strong>{positionName(change.positionId, positionNames)}</strong>{' '}
+            will be re-parented from{' '}
+            <strong>{positionName(change.currentParentPositionId, positionNames)}</strong>{' '}
+            to{' '}
+            <strong>
+              {change.proposedParentPositionId
+                ? positionName(change.proposedParentPositionId, positionNames)
+                : proposedPositionName}
+            </strong>
+            .
+          </p>
+        ))}
+        {(impact.reportingRelationships ?? []).map((line, index) => (
+          <p key={index} className="rounded-lg border border-app-border p-3 text-sm">
+            Reporting line for{' '}
+            <strong>{personName(line['userId'], employeeNames)}</strong>:{' '}
+            {personName(line['currentReportsTo'], employeeNames)} →{' '}
+            {personName(line['proposedReportsTo'], employeeNames)}
           </p>
         ))}
       </div>
@@ -727,6 +890,19 @@ function ImpactPreview({
           {busy ? 'Applying…' : 'Confirm and apply'}
         </Button>
       </div>
+      {formError && (
+        <div className="mt-4">
+          <ErrorMessage cause={new Error(formError)} />
+        </div>
+      )}
     </div>
   );
+}
+function positionName(id: unknown, names: Map<string, string>): string {
+  if (typeof id !== 'string' || id.length === 0) return 'none';
+  return names.get(id) ?? 'unavailable position';
+}
+function personName(id: unknown, names: Map<string, string>): string {
+  if (typeof id !== 'string' || id.length === 0) return 'none';
+  return names.get(id) ?? 'unavailable employee';
 }
