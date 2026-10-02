@@ -6,13 +6,16 @@ import {
   actionDescription,
   actionScopes,
   actionScreens,
+  moduleTitle,
+  scopeHint,
+  scopeLabel,
   isPositionPolicyGrantable,
   protectedCapabilityReason,
 } from './index.js';
 
 describe('canonical action presentation metadata', () => {
   it('provides catalogue presentation data for every registered action', () => {
-    expect(ACTIONS).toHaveLength(164);
+    expect(ACTIONS).toHaveLength(168);
     for (const action of ACTIONS) {
       const definition = REGISTRY[action];
       expect(actionDescription(definition)).not.toBe('');
@@ -48,6 +51,21 @@ describe('canonical action presentation metadata', () => {
       expect(isPositionPolicyGrantable(definition)).toBe(!locked);
       expect(protectedCapabilityReason(definition) !== null).toBe(locked);
     }
+  });
+
+  it('names every power in plain words for the people handing them out', () => {
+    for (const action of ACTIONS) {
+      const title = actionTitle(action);
+      const description = actionDescription(REGISTRY[action]);
+      expect(title.length).toBeGreaterThan(3);
+      expect(title).not.toContain(':');
+      expect(description.endsWith('.')).toBe(true);
+    }
+    expect(actionTitle('leave:decide')).toBe('Approve or reject leave');
+    expect(moduleTitle('live-status')).toBe('Punching');
+    expect(scopeLabel('all-people')).toBe('Everyone in the company');
+    expect(scopeHint('team')).toContain('teams under it');
+    expect(scopeLabel('unknown-scope')).toBe('unknown-scope');
   });
 
   it('formats audit event names that are not registry actions', () => {

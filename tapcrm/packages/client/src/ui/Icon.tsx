@@ -1,4 +1,9 @@
 const paths: Record<string, string> = {
+  hierarchy: 'M9 3h6v5H9z M2 16h6v5H2z M16 16h6v5h-6z M12 8v4 M5 16v-4h14v4',
+  search: 'M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+  'chevron-up': 'M6 15l6-6 6 6',
+  'chevron-down': 'M6 9l6 6 6-6',
+  fit: 'M8 3H3v5 M16 3h5v5 M3 16v5h5 M21 16v5h-5',
   grid: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
   users:
     'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M16 3a4 4 0 0 1 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
@@ -15,6 +20,11 @@ const paths: Record<string, string> = {
   pencil: 'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z M15 5l4 4',
   calendar: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18',
   bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10.3 21a1.94 1.94 0 0 0 3.4 0',
+  clock: 'M12 6v6l4 2 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z',
+  plus: 'M12 5v14 M5 12h14',
+  grip: 'M8 4h.01 M16 4h.01 M8 10h.01 M16 10h.01 M8 16h.01 M16 16h.01 M8 22h.01 M16 22h.01',
+  close: 'M6 6l12 12 M18 6L6 18',
+  refresh: 'M3 12a9 9 0 0 1 15-6.7l3-3v9h-9l3.7-3.7 M21 12a9 9 0 0 1-15 6.7l-3 3v-9h9l-3.7 3.7',
   notepad: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8',
   history: 'M12 8v4l3 3 M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5',
   message: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',

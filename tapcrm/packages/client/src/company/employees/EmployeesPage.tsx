@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { createEmployee } from '../api/employeesApi.js';
+import {
+  createEmployee,
+  listInactiveEmployees,
+  resetEmployeePassword,
+  type InactiveEmployee,
+} from '../api/employeesApi.js';
+import { EditEmployeeModal } from './EditEmployeeModal.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 import {
   getCompanyDepartments,
@@ -17,6 +23,7 @@ import {
   type CompanyReportingManager,
   type CompanyTeam,
 } from '../api/companyApi.js';
+import { listShifts, assignShiftToEmployee, type ShiftTemplate } from '../api/shiftsApi.js';
 
 const blank = {
   fullName: '',
@@ -29,6 +36,8 @@ const blank = {
   designationId: '',
   specialization: '',
   reportsTo: '',
+  joiningDate: '',
+  shiftId: '',
 };
 type EmployeeFieldErrors = {
   fullName?: string;
@@ -43,8 +52,21 @@ type EmployeeFieldErrors = {
   reportsTo?: string;
 };
 
-export function EmployeesPage(): React.JSX.Element {
+export function EmployeesPage({
+  canManage = true,
+  isSuperAdmin = false,
+  canRequestRoleChange = false,
+  onNavigate,
+}: {
+  canManage?: boolean;
+  isSuperAdmin?: boolean;
+  canRequestRoleChange?: boolean;
+  onNavigate?: (path: string) => void;
+} = {}): React.JSX.Element {
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [inactive, setInactive] = useState<InactiveEmployee[] | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
   const [departments, setDepartments] = useState<CompanyDepartment[]>([]);
   const [teams, setTeams] = useState<CompanyTeam[]>([]);
   const [designations, setDesignations] = useState<CompanyDesignation[]>([]);
@@ -55,6 +77,7 @@ export function EmployeesPage(): React.JSX.Element {
   const [accessPreview, setAccessPreview] = useState<
     Awaited<ReturnType<typeof getCompanyPositionPolicies>>
   >([]);
+  const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
   const [form, setForm] = useState(blank);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -62,14 +85,20 @@ export function EmployeesPage(): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [resetTarget, setResetTarget] = useState<{ id: string; fullName: string } | null>(null);
+  const [resetPw, setResetPw] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetDone, setResetDone] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<EmployeeFieldErrors>({});
 
   function setField(field: keyof typeof blank, value: string): void {
     setForm((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => {
-      if (!current[field]) return current;
+      if (!current[field as keyof EmployeeFieldErrors]) return current;
       const next = { ...current };
-      delete next[field];
+      delete next[field as keyof EmployeeFieldErrors];
       return next;
     });
   }
@@ -77,17 +106,19 @@ export function EmployeesPage(): React.JSX.Element {
   async function load(): Promise<void> {
     setLoading(true);
     try {
-      const [nextEmployees, nextDepartments, nextTeams, nextDesignations] =
+      const [nextEmployees, nextDepartments, nextTeams, nextDesignations, nextShifts] =
         await Promise.all([
           getCompanyEmployees(),
           getCompanyDepartments(),
           getCompanyTeams(),
           getCompanyDesignations(),
+          listShifts(),
         ]);
       setEmployees(nextEmployees);
       setDepartments(nextDepartments.filter((item) => item.status === 'active'));
       setTeams(nextTeams);
       setDesignations(nextDesignations.filter((item) => item.status === 'active'));
+      setShifts(nextShifts.filter((s) => s.status === 'active'));
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load employees.');
@@ -98,6 +129,12 @@ export function EmployeesPage(): React.JSX.Element {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    if (!showInactive) return;
+    listInactiveEmployees()
+      .then(setInactive)
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Unable to load deactivated employees.'));
+  }, [showInactive]);
   useEffect(() => {
     const department = departments.find((item) => item.id === form.departmentId);
     if (!department) {
@@ -209,7 +246,16 @@ export function EmployeesPage(): React.JSX.Element {
         ...(form.designationId ? { designationId: form.designationId } : {}),
         ...(form.specialization ? { specialization: form.specialization } : {}),
         reportsTo: form.reportsTo || null,
+        ...(form.joiningDate ? { joiningDate: form.joiningDate } : {}),
       });
+      if (form.shiftId) {
+        await assignShiftToEmployee({
+          kind: 'template',
+          userId: result.employee.id,
+          shiftId: form.shiftId,
+          effectiveFrom: form.joiningDate || new Date().toISOString().slice(0, 10),
+        });
+      }
       setMessage(
         `Employee ${result.employee.fullName} created. Credentials were sent by email.`,
       );
@@ -250,13 +296,24 @@ export function EmployeesPage(): React.JSX.Element {
               Manage employee accounts in your organization.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowCreate((open) => !open)}
-            className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent"
-          >
-            {showCreate ? 'Close form' : 'Create employee'}
-          </button>
+          {canManage && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowInactive((open) => !open)}
+                className="rounded-lg border border-app-border px-4 py-2.5 text-sm font-bold hover:border-app-accent"
+              >
+                {showInactive ? 'Hide deactivated' : 'Deactivated employees'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate((open) => !open)}
+                className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent"
+              >
+                {showCreate ? 'Close form' : 'Create employee'}
+              </button>
+            </div>
+          )}
         </div>
         {message && (
           <p className="mt-5 rounded-xl border border-app-accent/30 bg-app-accent/10 p-4 text-sm text-app-accent">
@@ -306,6 +363,12 @@ export function EmployeesPage(): React.JSX.Element {
               error={fieldErrors.confirmPassword}
               required
             />
+            <Field
+              label="Joining date (optional)"
+              type="date"
+              value={form.joiningDate}
+              onChange={(value) => setForm({ ...form, joiningDate: value })}
+            />
             <Select
               label="Department"
               value={form.departmentId}
@@ -321,6 +384,12 @@ export function EmployeesPage(): React.JSX.Element {
               error={fieldErrors.positionId}
               options={positionOptions}
               required
+            />
+            <Select
+              label="Shift (optional)"
+              value={form.shiftId}
+              onChange={(value) => setForm({ ...form, shiftId: value })}
+              options={shifts.map((s) => ({ value: s.id, label: `${s.name} (${s.kind})` }))}
             />
             <Select
               label="Team (optional)"
@@ -454,19 +523,188 @@ export function EmployeesPage(): React.JSX.Element {
                         : null
                     }
                   />
-                  {employee.teamName && <Detail label="Team" value={employee.teamName} />}
-                  {employee.designationName && <Detail label="Designation" value={employee.designationName} />}
-                  {(employee.specialization || employee.reportsToName) && <div className="text-xs text-app-muted md:col-span-5">
-                    {employee.specialization && <><span className="font-semibold text-app-foreground">Specialization:</span>{' '}{employee.specialization}</>}
-                    {employee.specialization && employee.reportsToName && ' · '}
-                    {employee.reportsToName && <><span className="font-semibold text-app-foreground">Reporting Manager:</span>{' '}{employee.reportsToName}</>}
-                  </div>}
+                  <Detail label="Team" value={employee.teamName} />
+                  <Detail label="Designation" value={employee.designationName} />
+                  <div className="text-xs text-app-muted md:col-span-5">
+                    <span className="font-semibold text-app-foreground">
+                      Specialization:
+                    </span>{' '}
+                    {employee.specialization ?? '—'} ·{' '}
+                    <span className="font-semibold text-app-foreground">
+                      Reporting Manager:
+                    </span>{' '}
+                    {employee.reportsToName ?? '—'}
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(employee.id)}
+                        className="ml-4 rounded border border-app-border px-2 py-0.5 text-xs text-app-foreground hover:border-app-accent"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {canManage && <button
+                      type="button"
+                      onClick={() => {
+                        setResetTarget({ id: employee.id, fullName: employee.fullName });
+                        setResetPw('');
+                        setResetConfirm('');
+                        setResetError('');
+                        setResetDone(false);
+                      }}
+                      className="ml-4 rounded border border-app-border px-2 py-0.5 text-xs text-app-muted hover:border-app-accent hover:text-app-foreground"
+                    >
+                      Reset password
+                    </button>}
+                  </div>
                 </div>
               ))}
             </div>
           </section>
         )}
       </div>
+
+      {showInactive && inactive && (
+        <div className="mx-auto mt-6 max-w-7xl px-5 md:px-8">
+          <section className="rounded-2xl border border-app-border bg-app-surface">
+            <p className="border-b border-app-border p-4 text-sm font-semibold">Deactivated employees ({inactive.length})</p>
+            {inactive.length === 0 ? (
+              <p className="p-4 text-sm text-app-muted">Nobody is deactivated.</p>
+            ) : (
+              <div className="divide-y divide-app-border">
+                {inactive.map((person) => (
+                  <div key={person.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
+                    <div>
+                      <p className="font-semibold">{person.fullName}</p>
+                      <p className="text-xs text-app-muted">
+                        {[person.employeeId, person.departmentName, person.positionName].filter(Boolean).join(' · ')}
+                        {person.leftOn ? ` · left ${person.leftOn}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(person.id)}
+                      className="rounded border border-app-border px-3 py-1 text-xs hover:border-app-accent"
+                    >
+                      Open
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {editingId && (
+        <EditEmployeeModal
+          userId={editingId}
+          departments={departments}
+          teams={teams}
+          designations={designations}
+          isSuperAdmin={isSuperAdmin}
+          canRequestRoleChange={canRequestRoleChange}
+          onClose={() => setEditingId(null)}
+          onSaved={(text) => {
+            setMessage(text);
+            setEditingId(null);
+            setInactive(null);
+            if (showInactive) void listInactiveEmployees().then(setInactive).catch(() => undefined);
+            void load();
+          }}
+          {...(onNavigate ? { onRequestRoleChange: () => onNavigate('/company/role-change-request') } : {})}
+        />
+      )}
+
+      {resetTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reset employee password"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-app-border bg-app-surface p-6 shadow-xl">
+            <h2 className="font-display text-lg font-bold">Reset password</h2>
+            <p className="mt-1 text-sm text-app-muted">
+              Set a new temporary password for{' '}
+              <span className="font-semibold text-app-foreground">{resetTarget.fullName}</span>.
+              They will be required to change it on next login.
+            </p>
+
+            {resetDone ? (
+              <div className="mt-4 rounded-lg bg-emerald-500/12 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+                Password reset. The employee must change it on their next login.
+              </div>
+            ) : (
+              <form
+                className="mt-4 space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (resetPw.length < 12) { setResetError('Password must be at least 12 characters.'); return; }
+                  if (resetPw !== resetConfirm) { setResetError('Passwords do not match.'); return; }
+                  setResetBusy(true);
+                  setResetError('');
+                  resetEmployeePassword(resetTarget.id, resetPw)
+                    .then(() => { setResetDone(true); })
+                    .catch((err: unknown) => { setResetError(err instanceof Error ? err.message : 'Failed to reset password.'); })
+                    .finally(() => { setResetBusy(false); });
+                }}
+              >
+                <label className="block text-xs font-semibold text-app-muted">
+                  <span className="mb-1.5 block">New password (min 12 characters)</span>
+                  <input
+                    type="password"
+                    value={resetPw}
+                    onChange={(e) => setResetPw(e.target.value)}
+                    required
+                    autoFocus
+                    className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-app-muted">
+                  <span className="mb-1.5 block">Confirm password</span>
+                  <input
+                    type="password"
+                    value={resetConfirm}
+                    onChange={(e) => setResetConfirm(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
+                  />
+                </label>
+                {resetError && (
+                  <p className="text-xs text-app-danger">{resetError}</p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={resetBusy}
+                    className="rounded-lg bg-app-accent px-4 py-2 text-sm font-bold text-app-on-accent disabled:opacity-50"
+                  >
+                    {resetBusy ? 'Resetting…' : 'Reset password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResetTarget(null)}
+                    className="rounded-lg border border-app-border px-4 py-2 text-sm hover:border-app-accent"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {resetDone && (
+              <button
+                type="button"
+                onClick={() => setResetTarget(null)}
+                className="mt-4 rounded-lg border border-app-border px-4 py-2 text-sm hover:border-app-accent"
+              >
+                Close
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

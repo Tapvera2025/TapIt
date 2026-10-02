@@ -78,4 +78,3 @@ export interface TaskAssigneesQuery {
   readonly projectId?: string | undefined;
   readonly search?: string | undefined;
 }
-

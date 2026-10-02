@@ -146,7 +146,7 @@ export const policyStore: PolicyStorePort = {
                  'position'::text AS source, NULL::timestamptz AS expires_at
           FROM position_policy p
           WHERE p.organization_id = $1
-            AND p.position_id = $2
+            AND p.position_id = NULLIF($2, '')::uuid
 
           UNION ALL
 

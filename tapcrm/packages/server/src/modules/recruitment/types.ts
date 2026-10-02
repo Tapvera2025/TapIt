@@ -371,4 +371,3 @@ export interface PublicJobRequisitionDetails {
   readonly description: string | null;
   readonly requirements: string | null;
 }
-

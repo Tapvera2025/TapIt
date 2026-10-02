@@ -432,8 +432,9 @@ export async function positionInsertionImpact(
   parentPositionId: string | null,
   organizationalLevel: number,
   proposedParentPositionId: string | null,
+  adoptPositionIds: readonly string[] | null = null,
 ): Promise<PositionInsertionImpactRecord> {
-  if (parentPositionId === null) {
+  if (parentPositionId === null && adoptPositionIds === null) {
     return {
       positionIds: [],
       holderIds: [],
@@ -447,9 +448,10 @@ export async function positionInsertionImpact(
            ${proposedParentPositionId} AS proposed_parent_position_id
     FROM position
     WHERE organization_id = ${organizationId}
-      AND parent_position_id = ${parentPositionId}
+      AND parent_position_id IS NOT DISTINCT FROM ${parentPositionId}::uuid
       AND status = 'active'
       AND organizational_level < ${organizationalLevel}
+      AND (${adoptPositionIds}::uuid[] IS NULL OR id = ANY(${adoptPositionIds}::uuid[]))
     ORDER BY organizational_level DESC, name
   `);
   if (parentChanges.length === 0) {

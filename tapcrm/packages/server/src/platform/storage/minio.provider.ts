@@ -57,6 +57,41 @@ async function signedRequest(method: string, bucket: StorageBucket, key: string,
   return response;
 }
 
+/** RFC 3986 encoding, as SigV4 requires for query strings. */
+function rfc3986(value: string): string {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/**
+ * A SigV4 query-string signature (a "presigned URL"). Signed against the host
+ * browsers reach — S3_PUBLIC_ENDPOINT when set, else S3_ENDPOINT — because
+ * the host is part of what is signed.
+ */
+function presign(bucket: StorageBucket, key: string, expiresInSeconds: number, now: Date): string {
+  const config = loadConfig();
+  if (!config.S3_ACCESS_KEY_ID || !config.S3_SECRET_ACCESS_KEY) throw new Error('S3 credentials are required for centralized storage.');
+  const endpoint = config.S3_PUBLIC_ENDPOINT ?? config.S3_ENDPOINT;
+  if (!endpoint) throw new Error('S3_ENDPOINT is required for centralized storage.');
+  const url = new URL(endpoint);
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/${encodeURIComponent(bucketName(bucket))}${encodedPath(key)}`;
+  const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  const date = amzDate.slice(0, 8);
+  const scope = `${date}/${config.S3_REGION}/s3/aws4_request`;
+  const query: [string, string][] = [
+    ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
+    ['X-Amz-Credential', `${config.S3_ACCESS_KEY_ID}/${scope}`],
+    ['X-Amz-Date', amzDate],
+    ['X-Amz-Expires', String(expiresInSeconds)],
+    ['X-Amz-SignedHeaders', 'host'],
+  ];
+  const canonicalQuery = query.map(([name, value]) => `${rfc3986(name)}=${rfc3986(value)}`).sort().join('&');
+  const canonicalRequest = ['GET', url.pathname, canonicalQuery, `host:${url.host}\n`, 'host', 'UNSIGNED-PAYLOAD'].join('\n');
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256(canonicalRequest)].join('\n');
+  const signingKey = hmac(hmac(hmac(hmac(`AWS4${config.S3_SECRET_ACCESS_KEY}`, date), config.S3_REGION), 's3'), 'aws4_request');
+  const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex');
+  return `${url.origin}${url.pathname}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+}
+
 export class MinioStorageProvider implements StorageService {
   async putObject(input: { bucket: StorageBucket; key: string; body: Buffer; contentType: string; metadata?: Readonly<Record<string, string>> }): Promise<{ checksumSha256: string }> {
     const checksumSha256 = sha256(input.body);
@@ -77,5 +112,9 @@ export class MinioStorageProvider implements StorageService {
 
   async deleteObject(input: { bucket: StorageBucket; key: string }): Promise<void> {
     await signedRequest('DELETE', input.bucket, input.key, null);
+  }
+
+  presignedGetUrl(input: { bucket: StorageBucket; key: string; expiresInSeconds: number; now?: Date }): string {
+    return presign(input.bucket, input.key, input.expiresInSeconds, input.now ?? new Date());
   }
 }

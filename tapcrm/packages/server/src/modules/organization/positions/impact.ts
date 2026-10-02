@@ -97,6 +97,43 @@ export function toPositionImpactPreview(
   };
 }
 
+export function toPositionUpdateImpactPreview(
+  before: PositionRecord,
+  proposed: Pick<
+    PositionRecord,
+    'name' | 'departmentId' | 'organizationalLevel' | 'parentPositionId'
+  >,
+  impact: PositionImpactRecord,
+  hierarchyChanged: boolean,
+) {
+  return {
+    ...toPositionImpactPreview(before, impact),
+    preview: true as const,
+    operation: 'update' as const,
+    position: {
+      id: before.id,
+      name: before.name,
+      departmentId: before.departmentId,
+      organizationalLevel: before.organizationalLevel,
+      parentPositionId: before.parentPositionId,
+    },
+    proposedPosition: {
+      name: proposed.name,
+      departmentId: proposed.departmentId,
+      organizationalLevel: proposed.organizationalLevel,
+      parentPositionId: proposed.parentPositionId,
+    },
+    positionParentChanges: before.parentPositionId === proposed.parentPositionId
+      ? []
+      : [{
+          positionId: before.id,
+          currentParentPositionId: before.parentPositionId,
+          proposedParentPositionId: proposed.parentPositionId,
+        }],
+    requiresConfirmation: hierarchyChanged,
+  };
+}
+
 export function toPositionInsertionImpactPreview(
   position: {
     code: string;

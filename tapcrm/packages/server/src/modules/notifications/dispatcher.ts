@@ -3,7 +3,7 @@ import { createJobContext, type RequestContext } from '../../platform/dal/contex
 import { db, platformDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { loadConfig } from '../../config.js';
-import { emitToUser } from '../../platform/realtime/index.js';
+import { emitToUser } from '../../platform/realtime/server.js';
 import { resolveAudience } from './audience.js';
 import {
   claimOutboxRow,

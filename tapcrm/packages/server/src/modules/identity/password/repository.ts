@@ -10,8 +10,13 @@ export class PasswordBreachServiceError extends Error {
   }
 }
 
+/** The built-in list: checked always, even when the online check is off or down. */
+export function isCommonPassword(password: string): boolean {
+  return COMMON_BREACHED_PASSWORDS.has(password.toLowerCase());
+}
+
 export async function isBreachedPassword(password: string): Promise<boolean> {
-  if (COMMON_BREACHED_PASSWORDS.has(password.toLowerCase())) return true;
+  if (isCommonPassword(password)) return true;
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(password)));
   const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
   let response: Response;

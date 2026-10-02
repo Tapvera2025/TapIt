@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method -- Vitest assertions inspect Express method spies. */
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';

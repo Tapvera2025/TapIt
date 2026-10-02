@@ -1,7 +1,9 @@
 # TapCRM
 
 A role-based operating system for a services company — Sales, Delivery and People
-as one chain of custody. See `docs/PRD.md` for what it does and why.
+as one chain of custody. See `team-docs/product/PRD.md` for what it does and why.
+
+Project documentation is grouped by topic in [`team-docs/`](team-docs/README.md).
 
 **Status: P0 Foundation scaffold.** The platform layer is built and verified;
 most of the 42 modules are not yet implemented. `npm run ci` prints exactly
@@ -12,7 +14,7 @@ what is missing.
 ## Quick start
 
 ```bash
-nvm use                 # Node 24 (TECH.md §2.3)
+nvm use                 # Node 24 (TECH.md §2.3; see team-docs/architecture/TECH.md)
 npm install
 cp .env.example .env    # never commit this file
 # edit .env: every `replace-me` value is a secret to generate (openssl rand -hex 32).
@@ -50,12 +52,13 @@ variables first (`set -a; source .env; set +a`); it does not load `.env` itself.
 
 ## How this repository is wired
 
-The load-bearing idea, from `TECH.md` NF-21: **the action registry is the single
+The load-bearing idea, from [`TECH.md`](team-docs/architecture/TECH.md) NF-21:
+**the action registry is the single
 source of authorization truth.** Neither the server routes nor the client routes
 are the source — both reference it, and drift fails the build.
 
 ```
-docs/AUTHORIZATION.md §6.4, §6.5     ← authoritative: 147 actions, 292 bindings
+team-docs/security/AUTHORIZATION.md §6.4, §6.5     ← authoritative: 147 actions, 292 bindings
             │
             ▼  tools/extract-registry.ts   (asserts RG-1…RG-6 at build time)
 packages/contracts/src/registry.generated.ts
@@ -66,7 +69,8 @@ packages/contracts/src/registry.generated.ts
             └──► seeds/registry.seed.json              → registry_action projection
 ```
 
-`docs/AUTHORIZATION.md` is generated from the delivered PDF by
+[`team-docs/security/AUTHORIZATION.md`](team-docs/security/AUTHORIZATION.md) is
+generated from the [delivered PDF](team-docs/security/source/TapCRM_AUTHORIZATION_v1.8.pdf) by
 `tools/convert-authorization-pdf.py`, which asserts every total the document
 states about itself (147 actions, 65 sensitive, 25 approval-bearing, 82
 delegable, 38 people-domain, 101 business-domain) and refuses to write the file
@@ -81,7 +85,7 @@ if any disagree.
 | `server` | 42 modules + the platform layer | `contracts`, `authz`, `platform` |
 | `client` | React 19 + Vite | `contracts` |
 
-**Module boundary rule** (`TECH.md` §3): a module may import `contracts`, `authz`
+**Module boundary rule** ([`TECH.md`](team-docs/architecture/TECH.md) §3): a module may import `contracts`, `authz`
 and `platform`. It may **not** import another module's `service`, `repository` or
 `policy`. Cross-module work goes through a façade, a transactional outbox event,
 or a queue — chosen by the *transactional relationship*, not by preference
@@ -173,7 +177,7 @@ the authorization engine.**
 | Command | Does |
 | --- | --- |
 | `npm run verify` | The full chain. Run before pushing. |
-| `npm run registry:extract` | Regenerate the registry from `docs/AUTHORIZATION.md` |
+| `npm run registry:extract` | Regenerate the registry from `team-docs/security/AUTHORIZATION.md` |
 | `npm run registry:extract -- --check` | CI-9 drift check, no write |
 | `npm run migrate` / `migrate:status` | Forward-only migrations |
 | `npm run seed` | Idempotent (SD-1) |

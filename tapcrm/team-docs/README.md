@@ -1,43 +1,32 @@
-# team-docs — shared working documents
+# Team documentation
 
-A place for **any developer** to drop notes, guides, how-tos and drafts that the
-team should be able to find. It is deliberately informal and **temporary**.
+This folder is the home for TapCRM's maintained product, engineering, security,
+design, and delivery documents. Use the section names below to find a document;
+the project overview remains in the repository [README](../README.md).
 
-## How this folder differs from `docs/`
+## Document map
 
-| | `docs/` | `team-docs/` (this folder) |
+| Folder | What belongs here | Key documents |
 |---|---|---|
-| Purpose | The official spec: PRD, TECH, AUTHORIZATION | Working notes, onboarding guides, drafts |
-| Authority | **Source of truth.** Some files generate code (`AUTHORIZATION.md` → the registry) | **Not authoritative.** If it disagrees with `docs/` or the code, the code and `docs/` win |
-| Who edits | Deliberately, with review | Anyone, any time |
-| Lifetime | Permanent | Temporary — expect to clean up |
+| [`product/`](product/) | Product purpose, scope, and requirements | [PRD](product/PRD.md) |
+| [`architecture/`](architecture/) | Technical rules and platform architecture | [TECH](architecture/TECH.md), [PLATFORM](architecture/PLATFORM.md) |
+| [`setup/`](setup/) | Environment and platform setup instructions | [Platform setup](setup/PLATFORM_SETUP.md) |
+| [`security/`](security/) | Authorization source of truth and its source artifact | [Authorization registry source](security/AUTHORIZATION.md), [delivered PDF](security/source/TapCRM_AUTHORIZATION_v1.8.pdf) |
+| [`design/`](design/) | Shared UI and visual system guidance | [UI design system](design/ui-design-system.md) |
+| [`specs/`](specs/) | Approved or proposed feature designs, grouped by area | [People design](specs/people/2026-09-22-attendance-shifts-payroll-design.md), [access design](specs/security/2026-09-21-access-management-design.md) |
+| [`plans/people/`](plans/people/) | Dated implementation plans grouped by People feature | Attendance, shifts, holidays, biometric, leave, corrections, breaks, payroll, and frontend completion |
+| [`guides/`](guides/) | Practical engineering and operational guides | [Notification engine](guides/notifications/notification-engine-guide.md) |
+| [`evidence/`](evidence/) | Dated verification records and release evidence | [People evidence folder](evidence/people/README.md) |
 
-**Never put a file here that a build depends on.** Nothing in this folder is read
-by code, CI or the registry generator.
+## Source-of-truth notes
 
-## House rules
-
-1. **One topic per file**, named in lowercase-with-dashes: `notification-engine-guide.md`,
-   `local-setup-windows.md`. If several people might write about the same thing,
-   add a date: `2026-10-02-migration-renumbering.md`.
-2. **Start every document with a small header** so readers can judge it quickly:
-   ```
-   > Owner: <your name> · Written: <date> · Status: draft | current | outdated
-   > Audience: <who this is for>
-   ```
-3. **No secrets, ever.** No passwords, tokens, `.env` contents, connection strings
-   with credentials, customer data or personal data. Use placeholders.
-4. **Keep files small and text-based.** Markdown preferred. No large binaries,
-   screenshots dumps or exports; link to them instead.
-5. **Update or delete what you own.** If you notice a document is wrong, fix it or
-   set `Status: outdated`. If it is no longer useful, delete it — git history
-   keeps it.
-6. **Add yourself to the index below** when you add a file (one line).
-7. **Something turned out to be permanent?** Move it into `docs/` through a normal
-   pull request so it gets reviewed, and remove it from here.
-
-## Index
-
-| Document | Owner | Status | What it is |
-|---|---|---|---|
-| [notification-engine-guide.md](notification-engine-guide.md) | Anish | current | How the notification engine is built and how to send a notification from your feature |
+- `security/AUTHORIZATION.md` is read by `tools/extract-registry.ts` to generate
+  the authorization registry. Update the document and generated outputs through
+  the documented registry workflow; do not edit generated files by hand.
+- The delivered authorization PDF is retained under `security/source/` as the
+  source artifact for the Markdown registry document.
+- Technical and product documents describe intended rules. When an
+  implementation differs, record and resolve that gap instead of silently
+  changing the source document's meaning.
+- Keep cross-document links relative to this folder so files remain navigable
+  when opened from an editor or repository browser.

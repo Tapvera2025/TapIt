@@ -256,6 +256,21 @@
       "description": ""
     },
     {
+      "action": "attendance:raise-correction",
+      "module": "attendance",
+      "resource": "attendanceCorrection",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "attendance:request-correction",
       "module": "attendance",
       "resource": "attendanceCorrection",
@@ -386,6 +401,21 @@
       "grantPolicy": {
         "positionGrantable": true,
         "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "breaks:explain",
+      "module": "break-management",
+      "resource": "breakBreach",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
         "superAdminOnly": false
       },
       "description": ""
@@ -2251,6 +2281,21 @@
       "description": ""
     },
     {
+      "action": "status:punch",
+      "module": "live-status",
+      "resource": null,
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "system:manage-integrations",
       "module": "system-administration",
       "resource": null,
@@ -2431,6 +2476,21 @@
       "description": ""
     },
     {
+      "action": "users:change-placement",
+      "module": "employee-directory",
+      "resource": "user",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
       "action": "users:manage",
       "module": "employee-directory",
       "resource": "user",
@@ -2585,6 +2645,12 @@
     {
       "method": "PATCH",
       "path": "/api/org/positions/:id",
+      "action": "org:manage-positions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/positions/:id/preview",
       "action": "org:manage-positions",
       "resourceParam": "id"
     },
@@ -2806,6 +2872,12 @@
     },
     {
       "method": "POST",
+      "path": "/api/users/:id/placement",
+      "action": "users:change-placement",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
       "path": "/api/users/:id/manager-reassignment",
       "action": "users:manage",
       "resourceParam": "id"
@@ -2825,6 +2897,12 @@
     {
       "method": "POST",
       "path": "/api/users/:id/status",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/reset-password",
       "action": "users:manage",
       "resourceParam": "id"
     },
@@ -2859,6 +2937,12 @@
       "resourceParam": null
     },
     {
+      "method": "POST",
+      "path": "/api/status/punch",
+      "action": "status:punch",
+      "resourceParam": null
+    },
+    {
       "method": "GET",
       "path": "/api/attendance",
       "action": "attendance:view",
@@ -2877,9 +2961,15 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/attendance/exports/:jobId",
+      "action": "attendance:export",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/attendance/corrections",
-      "action": "attendance:correct",
+      "action": "attendance:raise-correction",
       "resourceParam": null
     },
     {
@@ -2891,7 +2981,7 @@
     {
       "method": "POST",
       "path": "/api/attendance/corrections/bulk",
-      "action": "attendance:correct",
+      "action": "attendance:raise-correction",
       "resourceParam": null
     },
     {
@@ -2899,6 +2989,18 @@
       "path": "/api/attendance/corrections/request",
       "action": "attendance:request-correction",
       "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance/corrections",
+      "action": "attendance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/corrections/:id/reject",
+      "action": "attendance:correct",
+      "resourceParam": "id"
     },
     {
       "method": "GET",
@@ -2943,6 +3045,12 @@
       "resourceParam": "id"
     },
     {
+      "method": "POST",
+      "path": "/api/breaks/breaches/:id/explanation",
+      "action": "breaks:explain",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/breaks/breaches",
       "action": "breaks:view",
@@ -2959,6 +3067,12 @@
       "path": "/api/breaks/policies/resolve/:userId",
       "action": "breaks:view",
       "resourceParam": "userId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/breaks/prompts/me",
+      "action": "breaks:view",
+      "resourceParam": null
     },
     {
       "method": "GET",
@@ -3040,15 +3154,39 @@
     },
     {
       "method": "GET",
+      "path": "/api/leaves/acknowledgements",
+      "action": "leave:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/decisions",
+      "action": "leave:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/leaves/:id",
       "action": "leave:view",
       "resourceParam": "id"
     },
     {
       "method": "GET",
+      "path": "/api/leaves/balances",
+      "action": "leave:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/leaves/balances/:userId",
       "action": "leave:view",
-      "resourceParam": "userId"
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves/balances/:userId/adjust",
+      "action": "leave:manage-types",
+      "resourceParam": null
     },
     {
       "method": "GET",
@@ -3102,6 +3240,12 @@
       "method": "GET",
       "path": "/api/leaves/types",
       "action": "leave:manage-types",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/types/available",
+      "action": "leave:request",
       "resourceParam": null
     },
     {
@@ -3199,6 +3343,60 @@
       "path": "/api/payroll/config",
       "action": "payroll:manage-config",
       "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/cycle",
+      "action": "payroll:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/runs/:id",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/runs/:id/employees",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/runs/:id/drifts",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payroll/runs/:id/drifts/:driftId/remediate",
+      "action": "payroll:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payroll/inputs",
+      "action": "payroll:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/payroll/inputs/:id/revoke",
+      "action": "payroll:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/inputs",
+      "action": "payroll:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payroll/payslips/:id/document",
+      "action": "payroll:view",
+      "resourceParam": "id"
     },
     {
       "method": "GET",
@@ -3814,7 +4012,7 @@
     },
     {
       "method": "GET",
-      "path": "/api/changes",
+      "path": "/api/changes/queue",
       "action": "changes:classify",
       "resourceParam": null
     },

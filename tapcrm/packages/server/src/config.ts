@@ -46,11 +46,19 @@ const schema = z.object({
   // replicas and survive a deploy. `memory` is a single-process fallback for
   // local work only, and is refused in production at boot.
   SECURITY_COUNTER_STORE: z.enum(['redis', 'memory']).default('redis'),
+  // New passwords are checked against Have I Been Pwned (k-anonymity range API).
+  //   best-effort  refuse a breached password; if the service can't be reached,
+  //                accept the password and log a warning (default)
+  //   strict       refuse to set any password while the service can't be reached
+  //   off          only the built-in list of common passwords (air-gapped installs)
+  PASSWORD_BREACH_CHECK: z.enum(['best-effort', 'strict', 'off']).default('best-effort'),
   // Optional header written by a trusted edge IP-geolocation provider. Empty
   // means country signals remain unavailable rather than client-controlled.
   TRUSTED_IP_COUNTRY_HEADER: z.string().trim().default(''),
 
   S3_ENDPOINT: z.string().url().optional(),
+  /** The storage address browsers reach, for signed download links; defaults to S3_ENDPOINT. */
+  S3_PUBLIC_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string().default('tapcrm-files'),
   // FS-6 — statutory artifacts go to a write-once bucket with object lock.
@@ -155,6 +163,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * PASSWORD_BREACH_CHECK on its own. The password policy runs in places that
+ * never load the whole configuration (unit tests, the password scripts), and
+ * the setting has a safe default, so it is read without requiring every secret.
+ * An invalid value still fails the boot through `loadConfig()`.
+ */
+export function passwordBreachCheckMode(env: NodeJS.ProcessEnv = process.env): Config['PASSWORD_BREACH_CHECK'] {
+  if (cached) return cached.PASSWORD_BREACH_CHECK;
+  const parsed = schema.shape.PASSWORD_BREACH_CHECK.safeParse(env['PASSWORD_BREACH_CHECK']);
+  return parsed.success ? parsed.data : 'best-effort';
 }
 
 /** Test-only. */

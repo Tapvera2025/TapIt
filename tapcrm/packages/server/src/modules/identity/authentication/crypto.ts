@@ -34,7 +34,8 @@ export async function verifyIdentityAccessToken(token: string) {
   try {
     const { payload } = await jwtVerify(token, accessSecret(), { algorithms: ['HS256'] });
     if (payload['typ'] !== 'identity-access' || typeof payload.sub !== 'string' || typeof payload['organizationId'] !== 'string' || typeof payload['sessionId'] !== 'string' || typeof payload['sessionVersion'] !== 'number' || typeof payload['accountType'] !== 'string') throw new Error('invalid claims');
-    return { userId: payload.sub, organizationId: payload['organizationId'], sessionId: payload['sessionId'], sessionVersion: payload['sessionVersion'], accountType: payload['accountType'] };
+    if (typeof payload.exp !== 'number') throw new Error('invalid claims');
+    return { userId: payload.sub, organizationId: payload['organizationId'], sessionId: payload['sessionId'], sessionVersion: payload['sessionVersion'], accountType: payload['accountType'], expiresAt: new Date(payload.exp * 1000) };
   } catch {
     throw new IdentityAuthenticationError('IDENTITY_ACCESS_TOKEN_INVALID');
   }
@@ -44,6 +45,9 @@ export async function signIdentityRefreshToken(sessionId: string, organizationId
   const config = loadConfig();
   return new SignJWT({ typ: 'identity-refresh', sessionId, organizationId, familyId })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    // A unique id per token: two rotations inside one second used to produce the
+    // same token (same claims, same iat), whose hash then collided with the last one.
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime(`${config.REFRESH_TOKEN_TTL_SECONDS}s`)
     .sign(refreshSecret());

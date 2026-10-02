@@ -14,6 +14,7 @@ import {
   findReportingUser,
   isPositionAncestor,
   listActiveReportingUsers,
+  listDirectReports,
   listReportingSubtree,
   updateReportingManagers,
   type ReportingUser,
@@ -100,6 +101,78 @@ export async function validateManagerAssignment(
       'Reports-to assignment would create a reporting cycle',
     );
   }
+}
+
+/** Whether `managerUserId` is still a valid explicit manager for `subject`. */
+async function isValidReportingLine(
+  tx: Tx,
+  organizationId: string,
+  subject: ReportingUser,
+  managerUserId: string,
+): Promise<boolean> {
+  if (subject.departmentId === null || subject.positionId === null) return false;
+  try {
+    await validateManagerAssignment(tx, {
+      organizationId,
+      subjectUserId: subject.id,
+      subjectDepartmentId: subject.departmentId,
+      subjectPositionId: subject.positionId,
+      subjectTeamId: subject.teamId,
+      managerUserId,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof OrganizationValidationError) return false;
+    throw error;
+  }
+}
+
+export interface ClearedReportingLine {
+  readonly userId: string;
+  readonly previousManagerId: string;
+}
+
+/**
+ * After someone's position, department or team changed, clear every explicit
+ * reporting line the move made invalid: their own (a manager who is no longer
+ * above them) and their direct reports' (people they can no longer manage).
+ * A cleared line falls back to the position tree — the holder of the parent
+ * position, or Super Admin for a root position — so nobody is left pointing at
+ * an invalid manager, which used to block every later reassignment.
+ */
+/**
+ * Who someone effectively reports to, for telling a manager about their team:
+ * their own valid reporting line, else the holder of the parent position, else
+ * the Super Admin for a top position. Null when nobody active is above them.
+ */
+export async function effectiveManagerId(tx: Tx, organizationId: string, userId: string): Promise<string | null> {
+  const manager = await findEffectiveManager(tx, organizationId, userId);
+  return manager !== null && manager.status === 'active' && manager.id !== userId ? manager.id : null;
+}
+
+export async function repairReportingLinesAfterMove(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+): Promise<ClearedReportingLine[]> {
+  const cleared: ClearedReportingLine[] = [];
+  const subject = await findReportingUser(tx, organizationId, userId);
+  if (subject === null) return cleared;
+  if (subject.reportsTo !== null && !(await isValidReportingLine(tx, organizationId, subject, subject.reportsTo))) {
+    cleared.push({ userId: subject.id, previousManagerId: subject.reportsTo });
+  }
+  for (const report of await listDirectReports(tx, organizationId, userId)) {
+    if (report.status !== 'active' || !report.isEmployee) continue;
+    if (!(await isValidReportingLine(tx, organizationId, report, userId))) {
+      cleared.push({ userId: report.id, previousManagerId: userId });
+    }
+  }
+  await updateReportingManagers(
+    tx,
+    organizationId,
+    cleared.map((line) => ({ userId: line.userId, managerUserId: null })),
+  );
+  return cleared;
 }
 
 export async function auditManagerAssignment(
@@ -242,7 +315,13 @@ export async function confirmManagerReassignmentSubtree(
         managerUserId: relationship.proposedManagerId,
       })),
     );
-    await validateCompleteReportingGraph(tx, ctx.organizationId);
+    // Only the lines this operation wrote are re-checked: an unrelated stale
+    // line elsewhere in the company must not block every reassignment.
+    await validateReportingLines(
+      tx,
+      ctx.organizationId,
+      changes.map((relationship) => relationship.userId),
+    );
     await auditManagerAssignment(ctx, tx, {
       userId,
       operation: 'subtree',
@@ -342,11 +421,13 @@ export function toSubtreeReassignmentPreview(
   };
 }
 
-async function validateCompleteReportingGraph(
+async function validateReportingLines(
   tx: Tx,
   organizationId: string,
+  userIds: readonly string[],
 ): Promise<void> {
-  const users = await listActiveReportingUsers(tx, organizationId);
+  const only = new Set(userIds);
+  const users = (await listActiveReportingUsers(tx, organizationId)).filter((user) => only.has(user.id));
   for (const user of users) {
     if (user.reportsTo === null) continue;
     if (user.departmentId === null || user.positionId === null) {

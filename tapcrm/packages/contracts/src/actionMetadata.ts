@@ -1,7 +1,16 @@
+import { ACTION_COPY } from './actionCopy.js';
 import type { Action } from './registry.generated.js';
 import type { ActionDefinition } from './registry.types.js';
 import type { Scope } from './scope.js';
 import { SCOPES } from './scope.js';
+
+export { ACTION_COPY, type ActionCopy } from './actionCopy.js';
+
+function copyFor(action: string) {
+  return Object.prototype.hasOwnProperty.call(ACTION_COPY, action)
+    ? ACTION_COPY[action as Action]
+    : undefined;
+}
 
 /**
  * Presentation helpers for the canonical action registry.
@@ -11,6 +20,8 @@ import { SCOPES } from './scope.js';
  * protected-capability flags remain owned by registry.generated.ts.
  */
 export function actionTitle(action: string): string {
+  const copy = copyFor(action);
+  if (copy) return copy.title;
   const name = action.includes(':') ? action.slice(action.indexOf(':') + 1) : action;
   return name
     .split(/[._-]/g)
@@ -18,15 +29,44 @@ export function actionTitle(action: string): string {
     .join(' ');
 }
 
+/** Everyday names for the modules, as the people handing out powers know them. */
+const MODULE_TITLES: Partial<Record<ActionDefinition['module'], string>> = {
+  identity: 'Sign-in & accounts',
+  organization: 'Organization structure',
+  'access-management': 'Access & position changes',
+  audit: 'Audit log',
+  'system-administration': 'System settings',
+  'employee-directory': 'Employees',
+  'live-status': 'Punching',
+  'break-management': 'Breaks',
+  biometric: 'Attendance machines',
+  leave: 'Leave & work from home',
+  handoff: 'Project handoff',
+  'resource-planning': 'Resource planning',
+  'post-closure': 'Renewals',
+  'client-portal': 'Client portal',
+  'billing-terms': 'Billing terms',
+  payables: 'Payables & expenses',
+  'project-communication': 'Project conversations',
+  reporting: 'Reports',
+};
+
 export function moduleTitle(moduleName: ActionDefinition['module']): string {
+  const named = MODULE_TITLES[moduleName];
+  if (named) return named;
   return moduleName
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
-/** A useful fallback for registry rows whose source description is empty. */
+/**
+ * One sentence of what the power means in practice. The plain-language copy
+ * wins; the registry's own description and a derived phrase are fallbacks.
+ */
 export function actionDescription(definition: ActionDefinition<Action>): string {
+  const copy = copyFor(definition.action);
+  if (copy) return copy.description;
   const sourceDescription = definition.description.trim();
   if (sourceDescription) return sourceDescription;
   const resource = definition.resource
@@ -61,6 +101,26 @@ export function actionScopes(definition: ActionDefinition<Action>): Scope[] {
   return [...SCOPES];
 }
 
+const SCOPE_LABELS: Record<Scope, { label: string; hint: string }> = {
+  own: { label: 'Just their own', hint: 'Only their own records.' },
+  participant: { label: "Things they're part of", hint: 'Records they are named on, such as a deal or delivery they work on.' },
+  // A pool is the holder's own team, without the teams under it (a supervisor's view).
+  pool: { label: 'Their own team only', hint: 'The people in their own team, not the teams under it.' },
+  team: { label: 'Their team and teams below', hint: 'Everyone in their team and in the teams under it.' },
+  department: { label: 'Their department', hint: 'Everyone in their department.' },
+  'all-people': { label: 'Everyone in the company', hint: 'Every employee in the company.' },
+};
+
+/** "Who does this power reach?" in everyday words: "Their team". */
+export function scopeLabel(scope: string): string {
+  return (SCOPE_LABELS as Record<string, { label: string } | undefined>)[scope]?.label ?? scope;
+}
+
+/** A short explanation of a scope choice: "Their team and the teams under it." */
+export function scopeHint(scope: string): string {
+  return (SCOPE_LABELS as Record<string, { hint: string } | undefined>)[scope]?.hint ?? '';
+}
+
 /**
  * Position policies may grant only actions that are both explicitly
  * position-grantable and not reserved for the Super Admin authorization path.
@@ -81,9 +141,9 @@ export function protectedCapabilityReason(
       definition.grantPolicy.positionGrantable &&
       definition.grantPolicy.superAdminOnly
     ) {
-      return 'Protected: Super Admin only.';
+      return 'Only the Super Admin can do this.';
     }
-    return 'Protected: this capability is Super Admin only and cannot be granted by a position policy.';
+    return 'Only the Super Admin can do this; it cannot be given to a position.';
   }
   return null;
 }

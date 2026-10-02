@@ -1,0 +1,85 @@
+// packages/contracts/src/leave.ts
+import type { DateOnly } from './people.js';
+
+export type LeaveKind = 'absence' | 'attendance-mode';
+export type LeaveStatus = 'pending' | 'acknowledged' | 'approved' | 'rejected' | 'cancelled';
+export type LeaveHalf = 'full' | 'first' | 'second';
+export type LeaveBalanceEntryKind = 'opening' | 'accrual' | 'consumption' | 'reversal';
+
+export interface LeaveTypeDto {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly kind: LeaveKind;
+  readonly accrualDays: number;
+  readonly enforcement: boolean;
+  readonly paidLeave: boolean;
+  readonly isActive: boolean;
+}
+
+export interface LeaveRequestSummary {
+  readonly id: string;
+  readonly userId: string;
+  readonly userFullName: string;
+  readonly leaveTypeId: string;
+  readonly leaveTypeName: string;
+  readonly kind: LeaveKind;
+  readonly fromDate: DateOnly;
+  readonly toDate: DateOnly;
+  readonly fromHalf: LeaveHalf;
+  readonly toHalf: LeaveHalf;
+  readonly daysConsumed: number;
+  readonly reason: string;
+  readonly status: LeaveStatus;
+  readonly requestedBy: string;
+  readonly acknowledgedAt: string | null;
+  readonly decidedAt: string | null;
+  readonly decisionNote: string | null;
+  readonly revokedAt: string | null;
+  readonly recurrenceType: 'daily' | null;
+  readonly recurrenceEnd: DateOnly | null;
+  readonly createdAt: string;
+  /** Present on authorized list/detail reads; mutations re-authorize server-side. */
+  readonly allowedActions?: LeaveRequestAllowedActions;
+}
+
+/** Server-computed controls for a visible leave request. */
+export interface LeaveRequestAllowedActions {
+  readonly cancel: boolean;
+  readonly acknowledge: boolean;
+  readonly approve: boolean;
+  readonly reject: boolean;
+  readonly revoke: boolean;
+}
+
+export interface LeaveQueueItem extends LeaveRequestSummary {
+  readonly allowedActions: LeaveRequestAllowedActions;
+}
+
+export interface LeaveBalanceDto {
+  readonly leaveTypeId: string;
+  readonly leaveTypeName: string;
+  /** Whether requests beyond the balance are refused for this type. */
+  readonly enforced: boolean;
+  readonly paid: boolean;
+  /** The year's entitlement, pro-rated to the employed days of the year. */
+  readonly entitlement: number;
+  readonly opening: number;
+  /** Entitlement plus any accrual entries. */
+  readonly accrued: number;
+  /** HR adjustments, signed. */
+  readonly adjustments: number;
+  /** Used by approved leave, net of revocations. */
+  readonly consumed: number;
+  /** Asked for in requests still awaiting a decision. */
+  readonly pending: number;
+  readonly available: number;
+}
+
+export interface LeaveCalendarEvent {
+  readonly date: DateOnly;
+  readonly kind: LeaveKind;
+  readonly status: LeaveStatus;
+  readonly leaveTypeName: string;
+  readonly requestId: string;
+}

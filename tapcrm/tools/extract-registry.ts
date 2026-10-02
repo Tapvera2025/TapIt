@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
 
-const SOURCE = resolve(ROOT, 'docs/AUTHORIZATION.md');
+const SOURCE = resolve(ROOT, 'team-docs/security/AUTHORIZATION.md');
 const OUT_TS = resolve(ROOT, 'packages/contracts/src/registry.generated.ts');
 const OUT_JSON = resolve(ROOT, 'seeds/registry.seed.json');
 
@@ -457,7 +457,7 @@ function emitTypeScript(actions: ActionRow[], bindings: BindingRow[]): string {
 /**
  * GENERATED FILE — DO NOT EDIT.
  *
- * Source:    docs/AUTHORIZATION.md §6.4, §6.5
+ * Source:    team-docs/security/AUTHORIZATION.md §6.4, §6.5
  * Generator: tools/extract-registry.ts
  * Regenerate: npm run registry:extract
  *
@@ -529,7 +529,7 @@ binding and no permission matrix seed.`);
   if (errors.length > 0) {
     console.error(`✗ Registry invariants violated (RG-I4 — an invalid registry cannot compile):\n`);
     console.error(errors.join('\n'));
-    console.error(`\n${errors.length} problem(s) in docs/AUTHORIZATION.md.`);
+    console.error(`\n${errors.length} problem(s) in team-docs/security/AUTHORIZATION.md.`);
     process.exit(1);
   }
 
@@ -567,7 +567,7 @@ binding and no permission matrix seed.`);
   if (actions.length < EXPECTED_ACTIONS) {
     console.warn(
       `\n⚠ TECH.md §1 cites ${EXPECTED_ACTIONS} actions and ${EXPECTED_BINDINGS} bindings.\n` +
-        `  docs/AUTHORIZATION.md currently defines ${actions.length} and ${bindings.length}.\n` +
+        `  team-docs/security/AUTHORIZATION.md currently defines ${actions.length} and ${bindings.length}.\n` +
         `  This is expected while the document is a scaffold. It is a GO-LIVE BLOCKER.`,
     );
   }

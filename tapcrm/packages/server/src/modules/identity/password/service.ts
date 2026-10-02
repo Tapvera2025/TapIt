@@ -1,20 +1,40 @@
 import argon2 from 'argon2';
-import { isBreachedPassword, PasswordBreachServiceError } from './repository.js';
+import { passwordBreachCheckMode } from '../../../config.js';
+import { isBreachedPassword, isCommonPassword, PasswordBreachServiceError } from './repository.js';
 import { IdentityServiceUnavailableError, IdentityValidationError } from '../errors.js';
+
+const BREACHED_MESSAGE = 'Choose a password that has not appeared in a known data breach';
 
 export function validatePasswordShape(password: string): void {
   if (password.length < 12) throw new IdentityValidationError('IDENTITY_PASSWORD_POLICY_INVALID', 'Password must be at least 12 characters');
   if (password.length > 200) throw new IdentityValidationError('IDENTITY_PASSWORD_POLICY_INVALID', 'Password must be at most 200 characters');
 }
 
+/**
+ * PASSWORD_BREACH_CHECK decides what an unreachable breach service means. It
+ * used to always fail closed, so a network blip (or a server without internet
+ * access) stopped every sign-up, invitation and password change.
+ */
 export async function assertPasswordPolicy(password: string): Promise<void> {
   validatePasswordShape(password);
+  const mode = passwordBreachCheckMode();
+  if (mode === 'off') {
+    if (isCommonPassword(password)) throw new IdentityValidationError('IDENTITY_PASSWORD_BREACHED', BREACHED_MESSAGE);
+    return;
+  }
   try {
-    if (await isBreachedPassword(password)) throw new IdentityValidationError('IDENTITY_PASSWORD_BREACHED', 'Choose a password that has not appeared in a known data breach');
+    if (await isBreachedPassword(password)) throw new IdentityValidationError('IDENTITY_PASSWORD_BREACHED', BREACHED_MESSAGE);
   } catch (error) {
     if (error instanceof IdentityValidationError) throw error;
-    if (error instanceof PasswordBreachServiceError)
-      throw new IdentityServiceUnavailableError('IDENTITY_PASSWORD_BREACH_CHECK_UNAVAILABLE', 'Password security validation is temporarily unavailable');
+    if (error instanceof PasswordBreachServiceError) {
+      if (mode === 'strict')
+        throw new IdentityServiceUnavailableError('IDENTITY_PASSWORD_BREACH_CHECK_UNAVAILABLE', 'Password security validation is temporarily unavailable');
+      console.warn(JSON.stringify({
+        level: 'warn',
+        msg: 'password breach check unavailable; password accepted (PASSWORD_BREACH_CHECK=best-effort)',
+      }));
+      return;
+    }
     throw error;
   }
 }

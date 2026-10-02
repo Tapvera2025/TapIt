@@ -18,9 +18,8 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { scopeResolver } from '../../platform/authz-adapter.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
-import { userResource } from '../identity/security/unlock.js';
-import { validateManagerAssignment } from '../organization/reporting/service.js';
-import { findTeam } from '../organization/teams/repository.js';
+import { userResource } from '../identity/facade.js';
+import { findTeam, repairReportingLinesAfterMove, validateManagerAssignment } from '../organization/facade.js';
 import { assertDelegationAllowed } from './delegation.js';
 import { ACCESS_ERROR_CODES, AccessNotFoundError, AccessValidationError } from './errors.js';
 import {
@@ -46,6 +45,7 @@ import {
   type OverrideOverviewRecord,
   type RoleChangeRequestRecord,
 } from './repository.js';
+import { notifyRoleChangeDecided, notifyRoleChangeRequested } from './notifications.js';
 
 export interface RoleChangeRequestView {
   readonly id: string;
@@ -807,6 +807,13 @@ export async function requestRoleChange(
       },
       reason,
     });
+    await notifyRoleChangeRequested(tx, ctx, {
+      id: created.id,
+      subjectUserId: input.subjectUserId,
+      fromPositionId: subject.positionId,
+      toPositionId: input.toPositionId,
+      requestedBy: ctx.principal.id,
+    });
     return { id: created.id, status: 'pending' as const };
   });
 }
@@ -842,6 +849,7 @@ export async function decideRoleChange(
         after: { status },
         reason,
       });
+      await notifyRoleChangeDecided(tx, ctx, request, false, reason);
       return { id: requestId, status };
     }
     const position = await findPositionForRoleChange(tx, ctx.organizationId, request.toPositionId);
@@ -873,6 +881,9 @@ export async function decideRoleChange(
       teamId,
       request.requestedReportsTo,
     );
+    // The move can leave the person under a manager who is no longer above
+    // them, or leave their own reports under someone who can't manage them.
+    const clearedLines = await repairReportingLinesAfterMove(tx, ctx.organizationId, request.subjectUserId);
     const cleared = await clearActiveOverridesForPositionChange(tx, ctx.organizationId, request.subjectUserId);
     for (const override of cleared) {
       await enqueueAccessAudit(tx, ctx, {
@@ -893,9 +904,11 @@ export async function decideRoleChange(
         teamId,
         reportsTo: request.requestedReportsTo,
         overridesCleared: cleared.length,
+        reportingLinesCleared: clearedLines,
       },
       reason,
     });
+    await notifyRoleChangeDecided(tx, ctx, request, true, reason);
     return { id: requestId, status };
   });
 }

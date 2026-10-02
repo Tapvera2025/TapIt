@@ -1,0 +1,51 @@
+@import 'react-grid-layout/css/styles.css';
+@import 'react-resizable/css/styles.css';
+
+/* Widget card chrome. Inline with app-surface tokens. */
+.dashboard-grid .react-grid-item {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  box-shadow: var(--app-shadow);
+  padding: 1rem;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+
+.dashboard-grid.editing .react-grid-item {
+  cursor: move;
+  border-color: var(--app-accent);
+}
+
+.dashboard-grid .react-grid-item.react-grid-placeholder {
+  background: var(--app-accent);
+  opacity: 0.15;
+  border-radius: 1rem;
+}
+
+.dashboard-grid .react-resizable-handle {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.dashboard-grid.editing .react-resizable-handle {
+  opacity: 0.6;
+}
+
+.dashboard-widget-remove {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  z-index: 2;
+  display: none;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  color: var(--app-danger);
+  line-height: 0;
+}
+
+.dashboard-grid.editing .dashboard-widget-remove {
+  display: inline-flex;
+}

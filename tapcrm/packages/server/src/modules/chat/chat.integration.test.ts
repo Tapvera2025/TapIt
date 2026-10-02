@@ -5,7 +5,7 @@ import { closePools } from '../../platform/dal/pool.js';
 import { createRequestContext, type RequestContext } from '../../platform/dal/context.js';
 import { platformDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
-import { dispatchOrganization } from '../notifications/dispatcher.js';
+import { dispatchOrganization } from '../notifications/facade.js';
 import { ChatNotFoundError, ChatNotSenderError, ChatValidationError } from './errors.js';
 import {
   addGroupMembers,

@@ -1,4 +1,4 @@
-import { escapeHtml, sendEmail } from '../identity/notifications/mailer.js';
+import { escapeHtml, sendEmail } from '../identity/facade.js';
 
 export interface InterviewEmailInput {
   readonly to: string;

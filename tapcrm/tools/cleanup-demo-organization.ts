@@ -1,14 +1,17 @@
 #!/usr/bin/env tsx
-import { loadDotEnv, organizationArgument, DEMO_EMAIL_DOMAIN, DEMO_EMAIL_PREFIX } from './demo-fixture.js';
+import { loadDotEnv, organizationArgument, DEMO_EMPLOYEES } from './demo-fixture.js';
+import { cleanupDemoActivity } from './demo-activity.js';
 
 loadDotEnv();
 const organizationCode = organizationArgument(true);
+const dryRun = process.argv.includes('--dry-run');
 const [{ platformDb }, { sql }] = await Promise.all([
   import('../packages/server/src/platform/dal/db.js'),
   import('../packages/server/src/platform/dal/sql.js'),
 ]);
 
 const result = await platformDb.transaction('seed', `remove development demo fixture from ${organizationCode}`, async (tx) => {
+  if (dryRun) await tx.query(sql.raw('SAVEPOINT demo_cleanup_dry_run'));
   const organization = await tx.maybeOne<{ id: string }>(sql`
     SELECT id FROM organization WHERE code = ${organizationCode} AND status = 'active'
   `);
@@ -16,7 +19,7 @@ const result = await platformDb.transaction('seed', `remove development demo fix
   await tx.query(sql`SELECT set_config('app.organization_id', ${organization.id}, true)`);
   const users = await tx.query<{ id: string }>(sql`
     SELECT id FROM app_user WHERE organization_id = ${organization.id} AND account_type = 'employee'
-      AND email LIKE ${DEMO_EMAIL_PREFIX + '%' + '@' + DEMO_EMAIL_DOMAIN}
+      AND email = ANY(${DEMO_EMPLOYEES.map((employee) => employee.email)}::citext[])
   `);
   const userIds = users.map((user) => user.id);
   const teams = await tx.query<{ id: string }>(sql`
@@ -37,6 +40,7 @@ const result = await platformDb.transaction('seed', `remove development demo fix
   if (externalTeamMember) throw new Error('Cleanup refused: a non-demo employee belongs to a demo team');
 
   if (userIds.length > 0) {
+    await cleanupDemoActivity(tx, organization.id, userIds);
     await tx.query(sql`DELETE FROM refresh_token WHERE organization_id = ${organization.id} AND session_id IN (SELECT id FROM session WHERE organization_id = ${organization.id} AND user_id = ANY(${userIds}::uuid[]))`);
     await tx.query(sql`DELETE FROM session WHERE organization_id = ${organization.id} AND user_id = ANY(${userIds}::uuid[])`);
     await tx.query(sql`DELETE FROM mfa_challenge WHERE organization_id = ${organization.id} AND user_id = ANY(${userIds}::uuid[])`);
@@ -54,7 +58,10 @@ const result = await platformDb.transaction('seed', `remove development demo fix
     await tx.query(sql`DELETE FROM app_user WHERE organization_id = ${organization.id} AND id = ANY(${userIds}::uuid[])`);
   }
   if (teamIds.length > 0) await tx.query(sql`DELETE FROM team WHERE organization_id = ${organization.id} AND id = ANY(${teamIds}::uuid[])`);
+  if (dryRun) await tx.query(sql.raw('ROLLBACK TO SAVEPOINT demo_cleanup_dry_run'));
   return { users: userIds.length, teams: teamIds.length };
 });
 
-console.log(`✓ Removed ${result.users} demo employees and ${result.teams} demo teams from ${organizationCode}`);
+console.log(dryRun
+  ? `✓ Dry run passed: ${result.users} demo employees and ${result.teams} demo teams can be removed from ${organizationCode}`
+  : `✓ Removed ${result.users} demo employees and ${result.teams} demo teams from ${organizationCode}`);

@@ -24,7 +24,11 @@ import { countUnread, listForRecipient, markAllReadForRecipient, markOneRead, pr
  *   REDIS_URL=... JWT_ACCESS_SECRET=... JWT_REFRESH_SECRET=... \
  *   npx vitest run packages/server/src/modules/notifications
  */
-vi.mock('../identity/index.js', () => ({
+// The routes take the principal from the identity FACADE (MB-1); mocking
+// `identity/index.js` — as this file used to — left the real resolver in place,
+// so every HTTP test here answered 401.
+vi.mock('../identity/facade.js', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   resolvePrincipal: async (req: { header(name: string): string | undefined }) => {
     const userId = req.header('x-test-user');
     const organizationId = req.header('x-test-org');

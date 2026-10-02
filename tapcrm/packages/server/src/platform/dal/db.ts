@@ -31,11 +31,15 @@ export interface Tx {
   maybeOne<T>(fragment: SqlFragment): Promise<T | null>;
 }
 
+export interface TransactionOptions {
+  isolation?: 'repeatable read';
+}
+
 export interface Db {
   query<T>(ctx: RequestContext, fragment: SqlFragment): Promise<T[]>;
   one<T>(ctx: RequestContext, fragment: SqlFragment): Promise<T>;
   maybeOne<T>(ctx: RequestContext, fragment: SqlFragment): Promise<T | null>;
-  transaction<T>(ctx: RequestContext, fn: (tx: Tx) => Promise<T>): Promise<T>;
+  transaction<T>(ctx: RequestContext, fn: (tx: Tx) => Promise<T>, options?: TransactionOptions): Promise<T>;
 }
 
 /**
@@ -72,6 +76,7 @@ const SET_TENANT = `SELECT set_config('app.organization_id', $1, true)`;
 async function withTenantTransaction<T>(
   ctx: RequestContext,
   fn: (client: PgPoolClient) => Promise<T>,
+  options?: TransactionOptions,
 ): Promise<T> {
   if (!ctx.organizationId) {
     throw new MissingTenantContextError('RequestContext has no organizationId');
@@ -80,6 +85,9 @@ async function withTenantTransaction<T>(
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    if (options?.isolation === 'repeatable read') {
+      await client.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    }
     await client.query(SET_TENANT, [ctx.organizationId]);
     const result = await fn(client);
     await client.query('COMMIT');
@@ -158,9 +166,20 @@ async function withRetry<T>(
  * ==================================================================== */
 
 function makeTx(client: PgPoolClient): Tx {
+  // A connection runs one statement at a time. A caller may still start several
+  // at once (Promise.all); they wait their turn here, in call order, rather than
+  // in the driver, which pg@9 will refuse.
+  let previous: Promise<unknown> = Promise.resolve();
+  const run = (fragment: SqlFragment) => {
+    const next = previous.then(() =>
+      client.query(fragment.sql, [...fragment.parameters]),
+    );
+    previous = next.catch(() => undefined);
+    return next;
+  };
   return {
     async query<T>(fragment: SqlFragment): Promise<T[]> {
-      const result = await client.query(fragment.sql, [...fragment.parameters]);
+      const result = await run(fragment);
       // §5.1 — the query layer performs the mapping. Every row leaves the DAL
       // in camelCase, so the field names AUTHORIZATION.md declares (initiator
       // fields, participant fields) are the field names the engine reads.
@@ -216,9 +235,9 @@ export const db: Db = {
    * TX-5 — cross-module façades receive this `tx` so atomic operations share
    *        one PostgreSQL transaction (MB-2).
    */
-  async transaction<T>(ctx: RequestContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  async transaction<T>(ctx: RequestContext, fn: (tx: Tx) => Promise<T>, options?: TransactionOptions): Promise<T> {
     return withRetry(
-      () => withTenantTransaction(ctx, async (client) => fn(makeTx(client))),
+      () => withTenantTransaction(ctx, async (client) => fn(makeTx(client)), options),
       null,
     );
   },
@@ -248,6 +267,17 @@ export const db: Db = {
 export const bootstrapDb = {
   /** Read the global Identity email directory before a tenant is known. */
   async readIdentityDirectory<T>(fragment: SqlFragment): Promise<T[]> {
+    const result = await getPool().query(fragment.sql, [...fragment.parameters]);
+    return camelizeRows<T>(result.rows as Record<string, unknown>[]);
+  },
+
+  /**
+   * G2 — the machine endpoint's one read before a tenant exists: which
+   * organization and device own a serial. The biometric module owns the SQL
+   * (its global device directory, read-only for this role); the device itself
+   * is then read under RLS in that tenant's context.
+   */
+  async readBiometricDirectory<T>(fragment: SqlFragment): Promise<T[]> {
     const result = await getPool().query(fragment.sql, [...fragment.parameters]);
     return camelizeRows<T>(result.rows as Record<string, unknown>[]);
   },
@@ -327,6 +357,8 @@ export type PlatformOperation =
   | 'audit-archiving'
   | 'organization-provisioning'
   | 'health-check'
+  | 'job-scheduling'
+  | 'outbox-drain'
   | 'callback-automation';
 
 export const platformDb = {

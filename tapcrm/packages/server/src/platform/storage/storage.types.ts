@@ -18,4 +18,14 @@ export interface StorageService {
   getObject(input: { bucket: StorageBucket; key: string }): Promise<StoredObject>;
   headObject(input: { bucket: StorageBucket; key: string }): Promise<{ checksumSha256: string; contentLength: number }>;
   deleteObject(input: { bucket: StorageBucket; key: string }): Promise<void>;
+  /**
+   * A short-lived link that downloads one object without other credentials
+   * (SE-6). Signing is local: nothing is sent to storage.
+   */
+  presignedGetUrl(input: {
+    bucket: StorageBucket;
+    key: string;
+    expiresInSeconds: number;
+    now?: Date;
+  }): string;
 }
