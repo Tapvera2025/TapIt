@@ -1,7 +1,7 @@
 import { visibilityFilter, type Resource } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
-import { hashIdentityPassword } from '../identity/password/service.js';
+import { hashIdentityPassword } from '../identity/facade.js';
 import { ClientEmailTakenError, ClientNotFoundError } from './errors.js';
 import {
   clientEmailExists,

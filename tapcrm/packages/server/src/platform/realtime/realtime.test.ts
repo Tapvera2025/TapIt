@@ -31,6 +31,7 @@ describe('realtime', () => {
   const open = (token?: string): Socket => {
     const socket = connect(url, {
       auth: token === undefined ? {} : { token },
+      path: '/api/socket.io',
       transports: ['websocket'],
       reconnection: false,
     });
@@ -63,8 +64,8 @@ describe('realtime', () => {
   });
 
   it('rejects a handshake with no token or an invalid token (RT-1)', async () => {
-    await expect(connected(open())).rejects.toThrow('unauthorized');
-    await expect(connected(open('forged'))).rejects.toThrow('unauthorized');
+    await expect(connected(open())).rejects.toThrow('UNAUTHENTICATED');
+    await expect(connected(open('forged'))).rejects.toThrow('UNAUTHENTICATED');
   });
 
   it('delivers only to the addressed user, and never across tenants (RT-2)', async () => {

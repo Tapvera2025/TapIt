@@ -36,9 +36,19 @@ if (existsSync(envFile)) {
 
 const BASE_URL = process.env['API_BASE_URL'] ?? 'http://localhost:4000';
 const PLATFORM_ADMIN_EMAIL = process.env['PLATFORM_ADMIN_EMAIL'] ?? 'master@tapvera.io';
-const PLATFORM_ADMIN_PASSWORD = process.env['PLATFORM_ADMIN_PASSWORD'] ?? 'f3926c52f7f275df80af45c7f2d39b139858917d';
-const TENANT_ADMIN_EMAIL = 'admin@tapvera.io';
-const TENANT_ADMIN_PASSWORD = 'TestAdmin@2026!Tapvera';
+const TENANT_ADMIN_EMAIL = process.env['TEST_TENANT_ADMIN_EMAIL'] ?? 'admin@tapvera.io';
+
+// Credentials come from the environment (or .env) only — never from source.
+function requiredEnv(name: string, purpose: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    console.error(`Set ${name} (${purpose}) in the environment or .env to run the API test suite.`);
+    process.exit(2);
+  }
+  return value;
+}
+const PLATFORM_ADMIN_PASSWORD = requiredEnv('PLATFORM_ADMIN_PASSWORD', 'the Master Admin password');
+const TENANT_ADMIN_PASSWORD = requiredEnv('TEST_TENANT_ADMIN_PASSWORD', `the password of ${TENANT_ADMIN_EMAIL} in the test tenant`);
 
 interface TestResult {
   readonly category: string;

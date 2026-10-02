@@ -86,11 +86,23 @@ export function App(): React.JSX.Element {
       <PlatformLogin onLogin={() => setAuthenticated(true)} />
     );
   if (pathname === '/login') {
-    return companyAuthenticated ? (
-      <main className="grid min-h-screen place-items-center bg-app-background p-6 text-app-foreground">
-        <p className="text-sm text-app-muted">Redirecting to the company dashboard...</p>
-      </main>
-    ) : (
+    if (companyAuthenticated) {
+      window.history.replaceState({}, '', '/company/dashboard');
+      return (
+        <CompanyWorkspace
+          pathname="/company/dashboard"
+          onNavigate={navigate}
+          onLogout={() => {
+            void identityLogout().finally(() => {
+              setCompanyAuthenticated(false);
+              setPasswordChangeRequired(false);
+              navigate('/login');
+            });
+          }}
+        />
+      );
+    }
+    return (
       <IdentityLoginPage
         onSuccess={handleIdentityLogin}
         onForgotPassword={() => navigate('/forgot-password')}

@@ -68,6 +68,24 @@ export function createRequestContext(input: {
 }
 
 /**
+ * The principal background work runs as — the job runner and the outbox
+ * drainer (attendance design §5.4, §5.5). A service identity that holds no
+ * action, so it can never pass `authorize()`: jobs act as the system, and a
+ * job that needs a person's authority takes it from its input, not from here.
+ */
+export function systemPrincipal(organizationId: string): Principal {
+  return {
+    id: '00000000-0000-0000-0000-000000000000',
+    organizationId,
+    sessionVersion: 0,
+    accountType: 'service',
+    allowedActions: [],
+    allowedResources: [],
+    expiresAt: new Date(0),
+  };
+}
+
+/**
  * TN-9 / JB-3 — "Background jobs construct a context PER ORGANIZATION. A job
  * iterating organizations does so explicitly; it never runs with an absent
  * tenant context."

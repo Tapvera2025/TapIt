@@ -1,6 +1,7 @@
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { Icon } from '../../ui/Icon.js';
 import { NotificationBell } from '../../notifications/NotificationBell.js';
+import { AiPetButton } from './AiPet.js';
 
 export function CompanyHeader({
   title,
@@ -33,9 +34,8 @@ export function CompanyHeader({
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <NotificationBell onNavigate={onNavigate} />
-        <div className="md:hidden">
-          <ThemeToggle />
-        </div>
+        <ThemeToggle />
+        <AiPetButton />
         <button
           type="button"
           onClick={onLogout}

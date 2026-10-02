@@ -119,6 +119,8 @@ export function ResumeReviewModal({
     <Modal
       title={`${submission.firstName} ${submission.lastName} — ${submission.requisitionNumber ?? 'Requisition'}`}
       onClose={onClose}
+      // The window stays open after a rejection or conversion, so only a half-done one counts as unsaved.
+      dirty={rejecting || converting}
     >
       <div className="space-y-6">
         {error && <Notice error>{error}</Notice>}

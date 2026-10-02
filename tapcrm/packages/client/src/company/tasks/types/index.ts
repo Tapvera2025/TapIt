@@ -154,4 +154,3 @@ export interface TaskAssigneePickerProps {
   readonly disabled?: boolean | undefined;
   readonly projectId?: string | undefined;
 }
-

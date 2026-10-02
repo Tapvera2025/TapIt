@@ -6,6 +6,40 @@ export interface PositionNode extends PositionRecord {
   children: PositionNode[];
 }
 
+/** Resolve a requested insertion to exact direct children; never silently adopt siblings. */
+export function selectPositionsToAdopt(
+  positions: readonly PositionRecord[],
+  input: {
+    parentPositionId: string | null;
+    organizationalLevel: number;
+    adoptLowerPositions: boolean;
+    adoptPositionIds: readonly string[];
+  },
+): PositionRecord[] {
+  const eligible = positions.filter((position) =>
+    position.parentPositionId === input.parentPositionId &&
+    position.status === 'active' &&
+    position.organizationalLevel < input.organizationalLevel,
+  );
+  const requested = new Set(input.adoptPositionIds);
+  const adopted = requested.size > 0
+    ? eligible.filter((position) => requested.has(position.id))
+    : input.adoptLowerPositions ? eligible : [];
+  if (adopted.length !== requested.size && requested.size > 0) {
+    throw new OrganizationValidationError(
+      ORGANIZATION_ERROR_CODES.POSITION_DEPARTMENT_INVALID,
+      'Each selected position must be an active direct child in this department, below the new level',
+    );
+  }
+  if (adopted.some((position) => position.isSeeded)) {
+    throw new OrganizationValidationError(
+      ORGANIZATION_ERROR_CODES.POSITION_SEEDED_IMMUTABLE,
+      'Seeded position hierarchy cannot be changed',
+    );
+  }
+  return adopted;
+}
+
 export function buildPositionTree(
   rows: Array<PositionRecord & { holderCount: number }>,
 ): PositionNode[] {

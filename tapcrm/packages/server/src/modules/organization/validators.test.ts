@@ -57,7 +57,7 @@ describe('generic organization validators', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects a custom position without a parent', () => {
+  it('accepts a position without a parent: only a department\'s first position may be one, which the service checks', () => {
     const result = createPositionSchema.safeParse({
       departmentId: '00000000-0000-0000-0000-000000000001',
       code: 'engineering-head',
@@ -66,6 +66,42 @@ describe('generic organization validators', () => {
       parentPositionId: null,
     });
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    expect(result.data?.parentPositionId).toBeNull();
+    expect(result.data?.adoptLowerPositions).toBe(false);
+  });
+
+  it('accepts one targeted direct-child adoption for inserting a position above it', () => {
+    const result = createPositionSchema.safeParse({
+      departmentId: '00000000-0000-0000-0000-000000000001',
+      code: 'engineering-manager',
+      name: 'Engineering Manager',
+      organizationalLevel: 70,
+      parentPositionId: '00000000-0000-0000-0000-000000000002',
+      adoptPositionIds: ['00000000-0000-0000-0000-000000000003'],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.adoptPositionIds).toEqual([
+      '00000000-0000-0000-0000-000000000003',
+    ]);
+  });
+
+  it('rejects ambiguous, duplicate, or inactive targeted adoptions', () => {
+    const input = {
+      departmentId: '00000000-0000-0000-0000-000000000001',
+      code: 'engineering-manager',
+      name: 'Engineering Manager',
+      organizationalLevel: 70,
+      parentPositionId: '00000000-0000-0000-0000-000000000002',
+      adoptPositionIds: ['00000000-0000-0000-0000-000000000003'],
+    };
+    expect(createPositionSchema.safeParse({ ...input, adoptLowerPositions: true }).success)
+      .toBe(false);
+    expect(createPositionSchema.safeParse({
+      ...input,
+      adoptPositionIds: [input.adoptPositionIds[0], input.adoptPositionIds[0]],
+    }).success).toBe(false);
+    expect(createPositionSchema.safeParse({ ...input, status: 'inactive' }).success)
+      .toBe(false);
   });
 });

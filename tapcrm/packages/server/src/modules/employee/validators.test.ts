@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEmployeeSchema } from './validators.js';
+import { createEmployeeSchema, updateEmployeeSchema } from './validators.js';
 
 const valid = {
   email: 'employee@example.com',
@@ -47,5 +47,33 @@ describe('employee creation validation', () => {
     const parsed = createEmployeeSchema.safeParse(valid);
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.employeeId).toBeUndefined();
+  });
+});
+
+describe('employment dates', () => {
+  it('a joining date is optional at creation, and must be a real date', () => {
+    expect(
+      createEmployeeSchema.safeParse({ ...valid, joiningDate: '2026-10-05' }).success,
+    ).toBe(true);
+    expect(
+      createEmployeeSchema.safeParse({ ...valid, joiningDate: '2026-02-30' }).success,
+    ).toBe(false);
+  });
+
+  it('an update says exactly what it changes', () => {
+    expect(updateEmployeeSchema.parse({ leavingDate: '2026-10-10' })).toEqual({
+      leavingDate: '2026-10-10',
+    });
+    expect(updateEmployeeSchema.parse({ joiningDate: null })).toEqual({
+      joiningDate: null,
+    });
+    expect(updateEmployeeSchema.parse({ fullName: '  Someone Else ', employeeId: 'emp-7' })).toEqual({
+      fullName: 'Someone Else',
+      employeeId: 'EMP-7',
+    });
+    expect(updateEmployeeSchema.safeParse({}).success).toBe(false);
+    // Placement is a separate, Super Admin step.
+    expect(updateEmployeeSchema.safeParse({ positionId: '00000000-0000-0000-0000-000000000001' }).success).toBe(false);
+    expect(updateEmployeeSchema.safeParse({ email: 'not-an-email' }).success).toBe(false);
   });
 });

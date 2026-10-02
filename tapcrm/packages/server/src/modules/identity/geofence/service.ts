@@ -7,14 +7,19 @@ import { getUserGeofenceNotice } from './privacy.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { createIdentityContext, type IdentityUser } from '../authentication/principal.js';
 import { findUserById } from '../repository.js';
+import { organizationToday } from '../../../platform/organization-time.js';
+import { systemClock, type Clock } from '../../../platform/time.js';
 
-export async function enforceGeofencedLogin(input: { organizationId: string; userId: string; accountType: AccountType; user: IdentityUser; latitude?: number; longitude?: number; accuracyMetres?: number | null; ip?: string | null }) {
+export async function enforceGeofencedLogin(input: { organizationId: string; userId: string; accountType: AccountType; user: IdentityUser; latitude?: number; longitude?: number; accuracyMetres?: number | null; ip?: string | null }, clock: Clock = systemClock) {
   // ID-17 — the root principal is never geofenced.
   if (globalAccess(input)) return;
   const exception = await db.transaction(createIdentityContext(input.user, `identity:geofence-exception:${input.userId}`), async (tx) => {
+    // WFH-2 / ID-18b — approved WFH is for the organization's date, not the
+    // database's: before 05:30 IST, CURRENT_DATE was still yesterday (UTC).
+    const today = await organizationToday(tx, clock);
     const wfh = await tx.maybeOne<{ id: string }>(sql`
       SELECT id FROM work_from_home_day
-      WHERE organization_id = ${input.organizationId} AND user_id = ${input.userId} AND work_date = CURRENT_DATE
+      WHERE organization_id = ${input.organizationId} AND user_id = ${input.userId} AND work_date = ${today}
     `);
     const bypass = await tx.maybeOne<{ id: string }>(sql`
       SELECT a.location_id AS id FROM geofence_assignment a

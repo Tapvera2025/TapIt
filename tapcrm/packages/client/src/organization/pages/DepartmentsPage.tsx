@@ -12,6 +12,7 @@ import {
   Page,
   Select,
 } from '../components/OrganizationUi.js';
+import { suggestNextCode } from '../../ui/code-suggest.js';
 import type { OrganizationDepartment } from '../types/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 
@@ -21,6 +22,7 @@ export function DepartmentsPage(): React.JSX.Element {
   const [items, setItems] = useState<OrganizationDepartment[]>([]);
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState<OrganizationDepartment | null>(null);
+  const [lastCode, setLastCode] = useState('');
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -54,7 +56,7 @@ export function DepartmentsPage(): React.JSX.Element {
   }, []);
   function startCreate() {
     setEditing(null);
-    setForm(empty);
+    setForm({ ...empty, code: suggestNextCode(items.map((i) => i.code), lastCode || undefined) });
     setOpen(true);
     setMessage('');
     setFieldErrors({});
@@ -81,12 +83,15 @@ export function DepartmentsPage(): React.JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      if (editing)
+      if (editing) {
         await organizationApi.updateDepartment(editing.id, {
           name: form.name,
           status: form.status,
         });
-      else await organizationApi.createDepartment(form);
+      } else {
+        await organizationApi.createDepartment(form);
+        setLastCode(form.code);
+      }
       setOpen(false);
       setMessage('Department saved.');
       await load();
@@ -165,10 +170,12 @@ export function DepartmentsPage(): React.JSX.Element {
             <Field
               label="Code"
               value={form.code}
-              onChange={(value) => setFormField('code', value)}
+              onChange={(value) => setFormField('code', value.toLowerCase())}
               error={fieldErrors.code}
+              disabled={Boolean(editing)}
               required
             />
+            {!editing && <p className="-mt-3 text-xs text-app-muted">Auto-generated — edit as needed.</p>}
             <Field
               label="Name"
               value={form.name}

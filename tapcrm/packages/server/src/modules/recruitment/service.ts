@@ -7,7 +7,7 @@ import {
   NotFoundError,
 } from '../../platform/http/error-handler.js';
 import { PlatformValidationError } from '../../platform/errors.js';
-import { provisionEmployee } from '../employee/index.js';
+import { provisionEmployee } from '../employee/facade.js';
 import {
   notifyCandidateRejection,
   notifyInterviewRescheduled,

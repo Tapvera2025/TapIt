@@ -6,9 +6,8 @@ import { createRequestContext, type RequestContext } from '../../platform/dal/co
 import { platformDb } from '../../platform/dal/db.js';
 import { closePools } from '../../platform/dal/pool.js';
 import { sql } from '../../platform/dal/sql.js';
-import { dispatchOrganization } from '../notifications/dispatcher.js';
-import { registerClientPolicies } from '../clients/policy.js';
-import { createClient } from '../clients/service.js';
+import { dispatchOrganization } from '../notifications/facade.js';
+import { registerClientPolicies, createClient } from '../clients/facade.js';
 import { ProjectClientNotFoundError, ProjectDiscussionGroupExistsError, ProjectValidationError } from './errors.js';
 import { registerProjectPolicies } from './policy.js';
 import {

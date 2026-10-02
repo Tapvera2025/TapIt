@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { getIdentityAccessToken } from '../identity/api/authApi.js';
+import { getIdentityAccessToken, identityApiBasePath } from '../identity/api/authApi.js';
 import {
   getConversation,
   getConversations,
@@ -107,7 +107,7 @@ export function useChat(kind: ConversationKind): {
   useEffect(() => {
     void refreshConversations();
 
-    let socket: Socket | null = io({ path: '/socket.io', auth: (send) => send({ token: getIdentityAccessToken() ?? '' }), reconnectionDelayMax: 30_000 });
+    let socket: Socket | null = io({ path: `${identityApiBasePath()}/socket.io`, auth: (send) => send({ token: getIdentityAccessToken() ?? '' }), reconnectionDelayMax: 30_000 });
     let retry: ReturnType<typeof setTimeout> | undefined;
 
     const onConversationEvent = (payload: { conversationId?: string }) => {

@@ -6,7 +6,7 @@ import type { UpdateTaskInput } from './validators.js';
 
 /**
  * Task notifications — the REFERENCE example of wiring a module to the
- * notification engine. Read team-docs/notification-engine-guide.md first.
+ * notification engine. Read team-docs/guides/notifications/notification-engine-guide.md first.
  *
  * The pattern, which any module can copy:
  *

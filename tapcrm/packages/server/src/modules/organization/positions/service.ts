@@ -12,6 +12,8 @@ import {
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
+import { enabledModuleKeys } from '../../../platform/module-entitlement.js';
+import { provisionDefaultPositionPolicies } from '../../../platform/organizations/policy-matrix.js';
 import { findDepartment } from '../departments/repository.js';
 import { enqueueOrganizationAudit } from '../repository.js';
 import {
@@ -29,11 +31,12 @@ import {
   assertPositionApprovalLimits,
   assertPositionLevel,
   buildPositionTree,
+  selectPositionsToAdopt,
 } from './hierarchy.js';
 import {
   describePositionPolicyScopes,
-  toPositionImpactPreview,
   toPositionInsertionImpactPreview,
+  toPositionUpdateImpactPreview,
   toPositionPolicyImpactPreview,
   type PositionScopeDescriptionContext,
 } from './impact.js';
@@ -95,7 +98,7 @@ async function validatePosition(
     if (!allowRoot)
       throw new OrganizationValidationError(
         ORGANIZATION_ERROR_CODES.POSITION_CANNOT_BE_ROOT,
-        'Custom positions must have a parent position',
+        'This department already has a top position. Choose the position the new one reports to.',
       );
     return;
   }
@@ -203,10 +206,13 @@ export async function createPosition(
   ctx: RequestContext,
   input: CreatePositionInput,
 ): Promise<PositionRecord> {
+  const moduleKeys = await enabledModuleKeys(ctx.organizationId);
   return db.transaction(ctx, async (tx) => {
     const canCreateRoot =
       input.parentPositionId === null &&
-      (await listPositionsTx(tx, ctx.organizationId, input.departmentId)).length === 0;
+      ((await listPositionsTx(tx, ctx.organizationId, input.departmentId)).length === 0 ||
+        input.adoptPositionIds.length > 0 ||
+        input.adoptLowerPositions === true);
     const preview = await buildPositionInsertionPreview(tx, ctx, input);
     if (preview.positionParentChanges.length > 0 && !input.confirmImpact) {
       throw new OrganizationValidationError(
@@ -255,6 +261,38 @@ export async function createPosition(
       before: null,
       after: position,
     });
+    // A new position starts with what an ordinary employee has in the starter
+    // matrix (base-employee: own-scope self-service — punch in/out, own
+    // attendance and breaks, leave and WFH requests, own payslips, tasks). It
+    // used to start with nothing, so people placed in a new department could
+    // not even punch in until someone granted each action by hand. Widen it in
+    // the position's policy editor.
+    const defaulted = await provisionDefaultPositionPolicies(
+      tx,
+      ctx.organizationId,
+      moduleKeys,
+      [{
+        code: position.code,
+        name: position.name,
+        department: '',
+        level: position.organizationalLevel,
+        parent: null,
+        status: 'active',
+        matrixColumn: 'base-employee',
+      }],
+      new Map([[position.code, position.id]]),
+    );
+    if (defaulted > 0) {
+      await enqueueOrganizationAudit(tx, {
+        ...auditContext(ctx),
+        action: 'organization.position.policies.defaulted',
+        resourceType: 'position',
+        resourceId: position.id,
+        before: [],
+        after: await listPositionPoliciesTx(tx, ctx.organizationId, position.id),
+        stream: 'access',
+      });
+    }
     for (const change of reparented) {
       await enqueueOrganizationAudit(tx, {
         ...auditContext(ctx),
@@ -302,14 +340,30 @@ async function buildPositionInsertionPreview(
   };
   const canCreateRoot =
     input.parentPositionId === null &&
-    (await listPositionsTx(tx, ctx.organizationId, input.departmentId)).length === 0;
+    ((await listPositionsTx(tx, ctx.organizationId, input.departmentId)).length === 0 ||
+      input.adoptPositionIds.length > 0 ||
+      input.adoptLowerPositions === true);
   await validatePosition(tx, ctx, values, undefined, canCreateRoot);
+  const adopted = selectPositionsToAdopt(
+    await listPositionsTx(tx, ctx.organizationId, input.departmentId),
+    input,
+  );
+  assertPositionApprovalLimits({
+    positionId: input.code,
+    maxDealValue: input.maxDealValue ?? null,
+    maxDiscountPercent: input.maxDiscountPercent ?? null,
+    allowsCustomTerms: input.allowsCustomTerms,
+    children: adopted,
+  });
+  // Siblings move only when the caller explicitly requests an insertion.
+  const insertAbove = input.adoptLowerPositions || input.adoptPositionIds.length > 0;
   const impact = await positionInsertionImpact(
     tx,
     ctx.organizationId,
-    input.parentPositionId,
+    insertAbove ? input.parentPositionId : null,
     input.organizationalLevel,
     null,
+    insertAbove ? adopted.map((position) => position.id) : null,
   );
   return toPositionInsertionImpactPreview(
     {
@@ -397,54 +451,9 @@ export async function updatePositionById(
   input: UpdatePositionInput,
 ): Promise<PositionRecord> {
   return db.transaction(ctx, async (tx) => {
-    const before = await findPosition(tx, ctx.organizationId, id);
-    if (!before)
-      throw new OrganizationNotFoundError(
-        ORGANIZATION_ERROR_CODES.POSITION_NOT_FOUND,
-        'Position not found',
-      );
-    if (
-      before.isSeeded &&
-      (input.departmentId !== undefined ||
-        input.parentPositionId !== undefined ||
-        input.organizationalLevel !== undefined)
-    ) {
-      throw new OrganizationValidationError(
-        ORGANIZATION_ERROR_CODES.POSITION_SEEDED_IMMUTABLE,
-        'Seeded position hierarchy and department cannot be changed',
-      );
-    }
-    const next = {
-      departmentId: input.departmentId ?? before.departmentId,
-      name: input.name ?? before.name,
-      organizationalLevel: input.organizationalLevel ?? before.organizationalLevel,
-      parentPositionId:
-        input.parentPositionId === undefined
-          ? before.parentPositionId
-          : input.parentPositionId,
-      status: input.status ?? before.status,
-      maxDealValue:
-        input.maxDealValue === undefined
-          ? before.maxDealValue === null
-            ? null
-            : Number(before.maxDealValue)
-          : input.maxDealValue,
-      maxDiscountPercent:
-        input.maxDiscountPercent === undefined
-          ? before.maxDiscountPercent === null
-            ? null
-            : Number(before.maxDiscountPercent)
-          : input.maxDiscountPercent,
-      allowsCustomTerms: input.allowsCustomTerms ?? before.allowsCustomTerms,
-    };
-    await validatePosition(tx, ctx, next, id, before.isSeeded);
-    await validatePositionChildrenAgainstLimits(tx, ctx.organizationId, id, next);
-    const hierarchyChanged =
-      next.departmentId !== before.departmentId ||
-      next.parentPositionId !== before.parentPositionId ||
-      next.organizationalLevel !== before.organizationalLevel;
+    const { before, next, hierarchyChanged } = await preparePositionUpdate(tx, ctx, id, input);
     const impact = hierarchyChanged
-      ? toPositionImpactPreview(before, await positionImpact(tx, ctx.organizationId, id))
+      ? await buildPositionUpdatePreview(tx, ctx, before, next, hierarchyChanged)
       : null;
     if (hierarchyChanged && !input.confirmImpact) {
       throw new OrganizationValidationError(
@@ -476,6 +485,86 @@ export async function updatePositionById(
     });
     return impact === null ? after : { ...after, impact };
   });
+}
+
+/** Preview exactly the validation and affected subtree used by PATCH, without writing. */
+export async function previewUpdatePosition(
+  ctx: RequestContext,
+  id: string,
+  input: UpdatePositionInput,
+) {
+  return db.transaction(ctx, async (tx) => {
+    const { before, next, hierarchyChanged } = await preparePositionUpdate(tx, ctx, id, input);
+    return buildPositionUpdatePreview(tx, ctx, before, next, hierarchyChanged);
+  });
+}
+
+async function preparePositionUpdate(
+  tx: Tx,
+  ctx: RequestContext,
+  id: string,
+  input: UpdatePositionInput,
+) {
+  const before = await findPosition(tx, ctx.organizationId, id);
+  if (!before)
+    throw new OrganizationNotFoundError(
+      ORGANIZATION_ERROR_CODES.POSITION_NOT_FOUND,
+      'Position not found',
+    );
+  if (
+    before.isSeeded &&
+    (input.departmentId !== undefined ||
+      input.parentPositionId !== undefined ||
+      input.organizationalLevel !== undefined)
+  ) {
+    throw new OrganizationValidationError(
+      ORGANIZATION_ERROR_CODES.POSITION_SEEDED_IMMUTABLE,
+      'Seeded position hierarchy and department cannot be changed',
+    );
+  }
+  const next = {
+    departmentId: input.departmentId ?? before.departmentId,
+    name: input.name ?? before.name,
+    organizationalLevel: input.organizationalLevel ?? before.organizationalLevel,
+    parentPositionId:
+      input.parentPositionId === undefined
+        ? before.parentPositionId
+        : input.parentPositionId,
+    status: input.status ?? before.status,
+    maxDealValue:
+      input.maxDealValue === undefined
+        ? before.maxDealValue === null
+          ? null
+          : Number(before.maxDealValue)
+        : input.maxDealValue,
+    maxDiscountPercent:
+      input.maxDiscountPercent === undefined
+        ? before.maxDiscountPercent === null
+          ? null
+          : Number(before.maxDiscountPercent)
+        : input.maxDiscountPercent,
+    allowsCustomTerms: input.allowsCustomTerms ?? before.allowsCustomTerms,
+  };
+  await validatePosition(tx, ctx, next, id, before.isSeeded);
+  await validatePositionChildrenAgainstLimits(tx, ctx.organizationId, id, next);
+  const hierarchyChanged =
+    next.departmentId !== before.departmentId ||
+    next.parentPositionId !== before.parentPositionId ||
+    next.organizationalLevel !== before.organizationalLevel;
+  return { before, next, hierarchyChanged };
+}
+
+async function buildPositionUpdatePreview(
+  tx: Tx,
+  ctx: RequestContext,
+  before: PositionRecord,
+  next: Awaited<ReturnType<typeof preparePositionUpdate>>['next'],
+  hierarchyChanged: boolean,
+) {
+  const impact = hierarchyChanged
+    ? await positionImpact(tx, ctx.organizationId, before.id)
+    : { positionIds: [], holderIds: [], reportingRelationships: [] };
+  return toPositionUpdateImpactPreview(before, next, impact, hierarchyChanged);
 }
 
 async function validatePositionChildrenAgainstLimits(

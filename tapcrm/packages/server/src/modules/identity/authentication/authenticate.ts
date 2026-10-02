@@ -33,7 +33,9 @@ export async function resolvePrincipalFromToken(token: string, options: { touch?
   if (user.organizationStatus !== 'active') throw new IdentityAuthenticationError('IDENTITY_ORGANIZATION_SUSPENDED');
   if (user.lockedUntil && user.lockedUntil > new Date()) throw new IdentityAuthenticationError('IDENTITY_ACCOUNT_LOCKED', undefined, 429);
   if (user.mustChangePassword) throw new IdentityAuthenticationError('IDENTITY_PASSWORD_CHANGE_REQUIRED');
-  if (options.touch === false) return { principal: toPrincipal(user), organizationId: user.organizationId };
+  if (options.touch === false) {
+    return { principal: toPrincipal(user), organizationId: user.organizationId, expiresAt: claims.expiresAt };
+  }
   await db.transaction(
     createIdentityContext(user, `identity:session:${claims.sessionId}`),
     (tx) => tx.query(sql`
@@ -41,5 +43,5 @@ export async function resolvePrincipalFromToken(token: string, options: { touch?
       WHERE organization_id = ${user.organizationId} AND id = ${claims.sessionId} AND revoked_at IS NULL
     `).then(() => undefined),
   );
-  return { principal: toPrincipal(user), organizationId: user.organizationId };
+  return { principal: toPrincipal(user), organizationId: user.organizationId, expiresAt: claims.expiresAt };
 }

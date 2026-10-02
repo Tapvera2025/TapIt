@@ -9,13 +9,27 @@ export function CompanyLayout({
   accountType,
   canRequestRoleChange,
   canViewAudit,
+  canManageLeaveTypes,
+  canViewLeaveBalances,
+  canUseLeaveQueue,
   canViewEmployees,
   canViewTerritories,
   canViewLeads,
+  canViewCallbacks,
   canViewHandovers,
   canViewChat,
   canViewClients,
   canViewProjects,
+  canViewLiveBoard,
+  canReviewCorrections,
+  canReviewBreaches,
+  canManageBreakPolicies,
+  canManageShifts,
+  canManagePayroll,
+  canManagePayrollConfig,
+  canManageBiometric,
+  isHr,
+  hasRecruitment,
   title,
   onNavigate,
   onLogout,
@@ -34,13 +48,27 @@ export function CompanyLayout({
   accountType: string;
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
+  canManageLeaveTypes: boolean;
+  canViewLeaveBalances: boolean;
+  canUseLeaveQueue: boolean;
   canViewEmployees: boolean;
   canViewTerritories: boolean;
   canViewLeads: boolean;
+  canViewCallbacks: boolean;
   canViewHandovers: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
   canViewProjects: boolean;
+  canViewLiveBoard: boolean;
+  canReviewCorrections: boolean;
+  canReviewBreaches: boolean;
+  canManageBreakPolicies: boolean;
+  canManageShifts: boolean;
+  canManagePayroll: boolean;
+  canManagePayrollConfig: boolean;
+  canManageBiometric: boolean;
+  isHr: boolean;
+  hasRecruitment: boolean;
   title: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -62,13 +90,27 @@ export function CompanyLayout({
         accountType={accountType}
         canRequestRoleChange={canRequestRoleChange}
         canViewAudit={canViewAudit}
+        canManageLeaveTypes={canManageLeaveTypes}
+        canViewLeaveBalances={canViewLeaveBalances}
+        canUseLeaveQueue={canUseLeaveQueue}
         canViewEmployees={canViewEmployees}
         canViewTerritories={canViewTerritories}
         canViewLeads={canViewLeads}
+        canViewCallbacks={canViewCallbacks}
         canViewHandovers={canViewHandovers}
         canViewChat={canViewChat}
         canViewClients={canViewClients}
         canViewProjects={canViewProjects}
+        canViewLiveBoard={canViewLiveBoard}
+        canReviewCorrections={canReviewCorrections}
+        canReviewBreaches={canReviewBreaches}
+        canManageBreakPolicies={canManageBreakPolicies}
+        canManageShifts={canManageShifts}
+        canManagePayroll={canManagePayroll}
+        canManagePayrollConfig={canManagePayrollConfig}
+        canManageBiometric={canManageBiometric}
+        isHr={isHr}
+        hasRecruitment={hasRecruitment}
         onNavigate={onNavigate}
         onLogout={onLogout}
         open={sidebarOpen}

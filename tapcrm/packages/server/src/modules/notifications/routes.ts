@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { createRequestContext, type RequestContext } from '../../platform/dal/context.js';
 import { NotFoundError } from '../../platform/http/error-handler.js';
-import { emitToUser } from '../../platform/realtime/index.js';
-import { resolvePrincipal } from '../identity/index.js';
+import { emitToUser } from '../../platform/realtime/server.js';
+import { resolvePrincipal } from '../identity/facade.js';
 import {
   countUnread,
   decodeCursor,

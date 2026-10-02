@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { getIdentityAccessToken } from '../identity/api/authApi.js';
+import { getIdentityAccessToken, identityApiBasePath } from '../identity/api/authApi.js';
 import {
   getNotifications,
   getUnreadCount,
@@ -70,7 +70,7 @@ export function useNotifications(): {
     void refresh();
 
     let socket: Socket | null = io({
-      path: '/socket.io',
+      path: `${identityApiBasePath()}/socket.io`,
       // A function, so every reconnect presents the CURRENT token.
       auth: (send) => send({ token: getIdentityAccessToken() ?? '' }),
       reconnectionDelayMax: 30_000,

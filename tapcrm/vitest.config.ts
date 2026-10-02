@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['packages/**/src/**/*.test.ts'],
+    include: ['packages/**/src/**/*.test.ts', 'tools/**/*.test.ts'],
     // TS-I3: results must be comparable across runs.
     sequence: { shuffle: false },
   },

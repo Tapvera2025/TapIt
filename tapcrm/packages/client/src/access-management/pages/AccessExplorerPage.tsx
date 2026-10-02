@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ACTIONS,
   REGISTRY,
+  actionTitle,
   moduleTitle,
+  scopeLabel,
   type Action,
   type ModuleName,
   type Scope,
@@ -42,8 +44,9 @@ import {
 
 type ExplorerTab = 'person' | 'capability' | 'overrides' | 'role-changes';
 
-export function AccessExplorerPage(): React.JSX.Element {
-  const [tab, setTab] = useState<ExplorerTab>('person');
+/** `initialTab` lets a link (a notification) open the role-change review directly. */
+export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: ExplorerTab } = {}): React.JSX.Element {
+  const [tab, setTab] = useState<ExplorerTab>(initialTab);
   const [people, setPeople] = useState<AccessPerson[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedAction, setSelectedAction] = useState<Action>('payroll:view');
@@ -83,7 +86,7 @@ export function AccessExplorerPage(): React.JSX.Element {
           id: identity.user.id,
           fullName: identity.user.fullName,
           email: identity.user.email,
-          accountType: identity.user.accountType as AccessPerson['accountType'],
+          accountType: identity.user.accountType,
           position: null,
           department: null,
           team: null,
@@ -91,6 +94,13 @@ export function AccessExplorerPage(): React.JSX.Element {
         };
         setPeople([current]);
         setSelectedUserId(current.id);
+        // Opened straight on another tab (a notification link): the Person tab's
+        // load is what reveals the other tabs, so probe it once here.
+        if (initialTab !== 'person') {
+          void getEffectiveAccess(current.id)
+            .then(() => setCanViewAccess(true))
+            .catch(() => setCanViewAccess(false));
+        }
         return getCompanyEmployees()
           .then((employees) => {
             const employeeOptions: AccessPerson[] = employees.map((person) => ({
@@ -121,7 +131,7 @@ export function AccessExplorerPage(): React.JSX.Element {
       })
       .catch(setError)
       .finally(() => setLoading(false));
-  }, []);
+  }, [initialTab]);
 
   useEffect(() => {
     if (tab !== 'person' || !selectedUserId) return;
@@ -232,7 +242,7 @@ export function AccessExplorerPage(): React.JSX.Element {
     <Page
       eyebrow="Access Management"
       title="Access Explorer"
-      description="Inspect effective access from the same position-policy, override, and reporting resolution used by authorization."
+      description="See what each person can do and why, who has a particular power, and the powers given to people directly."
     >
       <div className="mt-6 flex gap-2 border-b border-app-border">
         {canViewAccess ? (
@@ -241,7 +251,7 @@ export function AccessExplorerPage(): React.JSX.Element {
             className={`border-b-2 px-4 py-3 text-sm font-bold ${tab === 'person' ? 'border-app-accent text-app-accent' : 'border-transparent text-app-muted'}`}
             onClick={() => setTab('person')}
           >
-            Person
+            By person
           </button>
         ) : null}
         <button
@@ -257,7 +267,7 @@ export function AccessExplorerPage(): React.JSX.Element {
             className={`border-b-2 px-4 py-3 text-sm font-bold ${tab === 'capability' ? 'border-app-accent text-app-accent' : 'border-transparent text-app-muted'}`}
             onClick={() => setTab('capability')}
           >
-            Capability
+            By power
           </button>
         ) : null}
         {canViewAccess ? (
@@ -266,7 +276,7 @@ export function AccessExplorerPage(): React.JSX.Element {
             className={`border-b-2 px-4 py-3 text-sm font-bold ${tab === 'overrides' ? 'border-app-accent text-app-accent' : 'border-transparent text-app-muted'}`}
             onClick={() => setTab('overrides')}
           >
-            Override review
+            Given directly
           </button>
         ) : null}
       </div>
@@ -303,12 +313,12 @@ export function AccessExplorerPage(): React.JSX.Element {
         <>
           <Card className="mt-6">
             <Select
-              label="Capability"
+              label="Power"
               value={selectedAction}
               onChange={(value) => setSelectedAction(value as Action)}
               options={ACTIONS.map((action) => ({
                 value: action,
-                label: `${action} · ${moduleTitle(REGISTRY[action].module)}`,
+                label: `${actionTitle(action)} · ${moduleTitle(REGISTRY[action].module)}`,
               }))}
             />
           </Card>
@@ -581,7 +591,7 @@ function PersonResult({
         </div>
       </Card>
       <Card>
-        <h2 className="font-display text-xl font-bold">Effective policies</h2>
+        <h2 className="font-display text-xl font-bold">What they can do</h2>
         <div className="mt-4 space-y-5">
           {[...grouped.entries()].map(([moduleName, policies]) => (
             <section key={moduleName}>
@@ -593,15 +603,22 @@ function PersonResult({
                     className="rounded-lg border border-app-border p-3 text-sm"
                   >
                     <div className="flex flex-wrap justify-between gap-2">
-                      <span className="font-semibold">{policy.action}</span>
+                      <span>
+                        <span className="font-semibold">{actionTitle(policy.action)}</span>
+                        <span className="ml-2 font-mono text-[11px] text-app-muted opacity-70">
+                          {policy.action}
+                        </span>
+                      </span>
                       <span
                         className={policy.allowed ? 'text-app-accent' : 'text-app-muted'}
                       >
-                        {policy.allowed ? `Allow · ${policy.scope ?? 'Global'}` : 'Deny'}
+                        {policy.allowed
+                          ? `Allowed · ${policy.scope ? scopeLabel(policy.scope) : 'Everyone'}`
+                          : 'Not allowed'}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-app-muted">
-                      Source: {policy.source}
+                      {sourceLabel(policy.source)}
                       {policy.override ? ` · ${policy.override.reason}` : ''}
                     </p>
                     {screensByAction.get(policy.action)?.length ? (
@@ -655,6 +672,22 @@ function PersonResult({
   );
 }
 
+/** Where a power comes from, in plain words. */
+function sourceLabel(source: string): string {
+  switch (source) {
+    case 'position':
+      return 'From their position';
+    case 'override':
+      return 'Given to them directly';
+    case 'super-admin':
+      return 'Super Admin';
+    case 'none':
+      return 'Not given';
+    default:
+      return source;
+  }
+}
+
 function CapabilityResult({
   action,
   holders,
@@ -664,7 +697,7 @@ function CapabilityResult({
 }): React.JSX.Element {
   return (
     <Card className="mt-6">
-      <h2 className="font-display text-xl font-bold">Who can use {action}?</h2>
+      <h2 className="font-display text-xl font-bold">Who has “{actionTitle(action)}”?</h2>
       <div className="mt-4 space-y-3">
         {holders.length === 0 ? (
           <p className="text-sm text-app-muted">No active holders.</p>
@@ -676,10 +709,12 @@ function CapabilityResult({
             >
               <div className="flex flex-wrap justify-between gap-2">
                 <span className="font-semibold">{holder.user.fullName}</span>
-                <span className="text-app-accent">{holder.scope ?? 'Global'}</span>
+                <span className="text-app-accent">
+                  {holder.scope ? scopeLabel(holder.scope) : 'Everyone'}
+                </span>
               </div>
               <p className="mt-1 text-xs text-app-muted">
-                {holder.user.email ?? holder.user.accountType} · {holder.source} ·{' '}
+                {holder.user.email ?? holder.user.accountType} · {sourceLabel(holder.source)} ·{' '}
                 {holder.reason}
               </p>
             </div>
@@ -705,11 +740,11 @@ function OverrideOverviewResult({
 }): React.JSX.Element {
   return (
     <Card className="mt-6">
-      <h2 className="font-display text-xl font-bold">Active overrides</h2>
+      <h2 className="font-display text-xl font-bold">Powers given directly</h2>
       {message ? <Notice error={messageError}>{message}</Notice> : null}
       <div className="mt-4 space-y-3">
         {overrides.length === 0 ? (
-          <p className="text-sm text-app-muted">No active overrides.</p>
+          <p className="text-sm text-app-muted">No powers have been given to people directly.</p>
         ) : (
           overrides.map((override) => (
             <div
@@ -718,7 +753,7 @@ function OverrideOverviewResult({
             >
               <div className="flex flex-wrap justify-between gap-2">
                 <span className="font-semibold">
-                  {override.user.fullName} · {override.action}
+                  {override.user.fullName} · {actionTitle(override.action)}
                 </span>
                 <span
                   className={
@@ -731,8 +766,8 @@ function OverrideOverviewResult({
                 </span>
               </div>
               <p className="mt-1 text-xs text-app-muted">
-                {override.position?.name ?? 'No position'} · {override.scope} ·{' '}
-                Effect: {override.allowed ? 'Allow' : 'Deny'} · Source: User override
+                {override.position?.name ?? 'No position'} · {scopeLabel(override.scope)} ·{' '}
+                {override.allowed ? 'Allowed' : 'Not allowed'} · Given to this person directly
               </p>
               <p className="mt-1 text-xs text-app-muted">Reason: {override.reason}</p>
               {override.fields ? (
@@ -815,8 +850,8 @@ function DelegationPanel({
     <Card className="mt-6">
       <h2 className="font-display text-xl font-bold">Delegation</h2>
       <p className="mt-1 text-sm text-app-muted">
-        Grant controls are enabled only when the backend confirms root-of-trust, ceiling,
-        boundary, and seniority constraints.
+        You can give someone a power only if you have it yourself, they are below you and
+        within your reach, and no wider than you have it.
       </p>
       <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
         <Select
@@ -826,7 +861,7 @@ function DelegationPanel({
           options={people.map((person) => ({ value: person.id, label: person.fullName }))}
         />
         <label className="text-xs font-semibold text-app-muted">
-          <span className="mb-2 block">Capability</span>
+          <span className="mb-2 block">Power</span>
           <select
             value={selectedAction}
             onChange={(event) => onActionChange(event.target.value as Action)}
@@ -839,7 +874,7 @@ function DelegationPanel({
                 disabled={!option.canGrant}
                 title={option.reason ?? undefined}
               >
-                {option.action}
+                {actionTitle(option.action)}
                 {option.canGrant ? '' : ` — ${option.reason ?? 'Not grantable'}`}
               </option>
             ))}
@@ -857,7 +892,7 @@ function DelegationPanel({
                   .filter((option) => !option.canGrant)
                   .map((option) => (
                     <div key={option.action} className="text-xs">
-                      <span className="font-semibold">{option.action}</span>
+                      <span className="font-semibold">{actionTitle(option.action)}</span>
                       <span className="ml-2 text-app-muted">
                         {option.reason ?? 'The backend found no grantable scope.'}
                       </span>
@@ -882,12 +917,12 @@ function DelegationPanel({
           disabled={busy}
         />
         <Select
-          label="Scope"
+          label="Applies to"
           value={selectedScope}
           onChange={(value) => onScopeChange(value as Scope)}
           options={(selected?.scopes ?? []).map((scope) => ({
             value: scope,
-            label: scope,
+            label: scopeLabel(scope),
           }))}
           disabled={!selected?.canGrant || busy}
         />

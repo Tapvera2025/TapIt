@@ -99,4 +99,3 @@ export type TransitionTaskInput = z.infer<typeof transitionTaskSchema>;
 export type AssignTaskInput = z.infer<typeof assignTaskSchema>;
 export type TaskListQueryInput = z.infer<typeof taskListQuerySchema>;
 export type TaskAssigneesQueryInput = z.infer<typeof taskAssigneesQuerySchema>;
-

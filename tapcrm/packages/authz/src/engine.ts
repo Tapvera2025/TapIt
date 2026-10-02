@@ -80,6 +80,21 @@ export async function authorize(
   action: Action,
   resource?: Resource,
 ): Promise<void> {
+  return evaluateAuthorization(ctx, action, resource, true);
+}
+
+/**
+ * Read-only authorization check for server-computed resource affordances.
+ * Unlike `authorize`, this does not write a sensitive-use audit event. Mutations
+ * must still call `authorize` at the route boundary.
+ */
+/** Shared decision path for route enforcement and read-only UI affordances. */
+async function evaluateAuthorization(
+  ctx: AuthzContext,
+  action: Action,
+  resource: Resource | undefined,
+  auditUse: boolean,
+): Promise<void> {
   const p = requirePorts();
 
   // SE-2 — unknown actions DENY. The system fails closed.
@@ -97,7 +112,10 @@ export async function authorize(
   // account active. See platform/http/context.ts.
 
   // ── 2. Segregation of duties — BEFORE any privilege ────────────────
-  await assertSegregationOfDuties(ctx, action, resource, p.audit);
+  await assertSegregationOfDuties(
+    ctx, action, resource,
+    auditUse ? p.audit : { ...p.audit, segregationBlocked: () => undefined },
+  );
 
   // ── 3. Absolute constraints A1..A4 — also before privilege ─────────
   await assertConstraints(ctx, action, resource, 'absolute');
@@ -105,7 +123,7 @@ export async function authorize(
   // ── 4. Super Admin bypass ──────────────────────────────────────────
   // globalAccess is DERIVED, never read from storage (PRD §4.7).
   if (globalAccess(ctx.principal)) {
-    p.audit.superAdminBypass(ctx, action, resource);
+    if (auditUse) p.audit.superAdminBypass(ctx, action, resource);
     return;
   }
 
@@ -133,7 +151,7 @@ export async function authorize(
       );
     }
     await assertConstraints(ctx, action, resource, 'privileged');
-    if (definition.sensitive) p.audit.sensitiveUse(ctx, action, resource);
+    if (auditUse && definition.sensitive) p.audit.sensitiveUse(ctx, action, resource);
     return;
   }
 
@@ -200,7 +218,7 @@ export async function authorize(
   // ── 10. Audit — sensitive actions on USE, not only on grant (SE-7) ─
   // 65 of the 147 registry actions are sensitive.
   if (definition.sensitive) {
-    p.audit.sensitiveUse(ctx, action, resource);
+    if (auditUse) p.audit.sensitiveUse(ctx, action, resource);
   }
 }
 
@@ -336,7 +354,16 @@ async function heldActions(ctx: AuthzContext): Promise<ReadonlySet<Action>> {
  * on a request path. CI-19 asserts no route handler calls it in place of the
  * framework's binding.
  */
-export async function holdsPolicy(ctx: AuthzContext, action: Action): Promise<boolean> {
+export async function holdsPolicy(ctx: AuthzContext, action: Action, resource?: Resource): Promise<boolean> {
+  if (resource !== undefined) {
+    try {
+      await evaluateAuthorization(ctx, action, resource, false);
+      return true;
+    } catch (error) {
+      if (error instanceof AuthorizationError) return false;
+      throw error;
+    }
+  }
   if (globalAccess(ctx.principal)) return true;
   const policy = await resolvePolicy(ctx, action);
   return policy?.allowed === true;

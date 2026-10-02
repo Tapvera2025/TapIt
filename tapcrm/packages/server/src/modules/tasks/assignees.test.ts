@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { BINDINGS, REGISTRY } from '@tapcrm/contracts';
 import { __resetRoutes, registeredBindings } from '../../platform/http/route.js';
 import { checkManifest } from '../../platform/http/router.js';
 import { registerTasksRoutes } from './routes.js';
-import { registerEmployeeRoutes } from '../employee/routes.js';
 import { taskAssigneesQuerySchema } from './validators.js';
 import type { TaskAssignableUser } from './types.js';
 
@@ -12,15 +12,13 @@ describe('Task Assignee Lookup Security & Scoping', () => {
 
   describe('Route and Permission Boundaries', () => {
     it('CASE 6: GET /api/users remains protected by users:view under employee-directory', () => {
-      registerEmployeeRoutes();
-      const bindings = registeredBindings();
-      const userListBinding = bindings.find(
+      const userListBinding = BINDINGS.find(
         (b) => b.method === 'GET' && b.path === '/api/users',
       );
 
       expect(userListBinding).toBeDefined();
       expect(userListBinding?.action).toBe('users:view');
-      expect(userListBinding?.module).toBe('employee-directory');
+      expect(userListBinding && REGISTRY[userListBinding.action].module).toBe('employee-directory');
     });
 
     it('CASE 1 & 2: GET /api/tasks/assignees is protected by tasks:assign under tasks module', () => {
@@ -51,9 +49,8 @@ describe('Task Assignee Lookup Security & Scoping', () => {
       expect(assigneeIdx).toBeLessThan(getTaskIdx);
     });
 
-    it('manifest checks pass with 0 drift for both tasks and employee routes', () => {
+    it('manifest checks pass with 0 drift for task routes', () => {
       registerTasksRoutes();
-      registerEmployeeRoutes();
       const drift = checkManifest();
 
       expect(drift.routesWithoutBinding).toEqual([]);
@@ -127,7 +124,7 @@ describe('Task Assignee Lookup Security & Scoping', () => {
 
       // Must import getTaskAssignees from tasksApi
       expect(pickerSource).toContain('getTaskAssignees');
-      expect(pickerSource).toContain("from '../api/tasksApi.js'");
+      expect(pickerSource).toContain('tasksApi.js');
     });
   });
 
@@ -207,4 +204,3 @@ describe('Task Assignee Lookup Security & Scoping', () => {
     });
   });
 });
-

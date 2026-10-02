@@ -88,14 +88,14 @@ describe('My Todo Validators', () => {
         createTodoSchema.parse({
           title: 'Task',
           userId: '11111111-1111-4111-8111-111111111111',
-        } as never),
+        }),
       ).toThrow();
 
       expect(() =>
         createTodoSchema.parse({
           title: 'Task',
           organizationId: '22222222-2222-4222-8222-222222222222',
-        } as never),
+        }),
       ).toThrow();
     });
   });
@@ -124,7 +124,7 @@ describe('My Todo Validators', () => {
       expect(() =>
         updateTodoSchema.parse({
           userId: '11111111-1111-4111-8111-111111111111',
-        } as never),
+        }),
       ).toThrow();
     });
   });

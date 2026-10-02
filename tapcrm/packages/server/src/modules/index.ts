@@ -1,3 +1,8 @@
+import { registerBreakPolicyResolver } from './attendance/facade.js';
+import { breakPolicyResolverImpl } from './break-management/resolver-service.js';
+import { registerPayrollJobs, registerPayrollPorts } from './payroll/facade.js';
+import { registerBreakPolicies } from './break-management/policy.js';
+import { registerBreakManagementRoutes } from './break-management/routes.js';
 import { registerOrganizationPolicies } from './organization/policy.js';
 import { registerOrganizationRoutes } from './organization/routes.js';
 import { registerEmployeePolicies } from './employee/policy.js';
@@ -8,6 +13,32 @@ import { registerIdentityRoutes } from './identity/routes.js';
 import { registerAccessManagementRoutes } from './access-management/routes.js';
 import { registerAuditPolicies } from './audit/policy.js';
 import { registerAuditRoutes } from './audit/routes.js';
+import { registerShiftPolicies } from './shifts/policy.js';
+import { registerShiftRoutes } from './shifts/routes.js';
+import { registerHolidayPolicies } from './holidays/policy.js';
+import { registerHolidayRoutes } from './holidays/routes.js';
+import { registerIdentityJobs } from './identity/jobs.js';
+import { registerAccessManagementJobs } from './access-management/jobs.js';
+import { registerAuditJobs } from './audit/jobs.js';
+import { registerAttendanceJobs } from './attendance/jobs.js';
+import { registerAttendancePolicies } from './attendance/policy.js';
+import { registerAttendanceRoutes } from './attendance/routes.js';
+import {
+  registerBiometricJobs,
+  registerBiometricPolicies,
+  registerBiometricRoutes,
+} from './biometric/index.js';
+import {
+  registerLiveStatusJobs,
+  registerLiveStatusPolicies,
+  registerLiveStatusProjector,
+  registerLiveStatusRoutes,
+  registerStatusChannel,
+} from './live-status/index.js';
+import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from './leave/index.js';
+import { registerBreakJobs } from './break-management/jobs.js';
+import { registerPayrollPolicies } from './payroll/policy.js';
+import { registerPayrollRoutes } from './payroll/routes.js';
 import { registerTasksPolicies } from './tasks/policy.js';
 import { registerTasksRoutes } from './tasks/routes.js';
 import { registerTerritoryPolicies } from './sales/territories/policy.js';
@@ -18,8 +49,10 @@ import { registerHandoverPolicies } from './sales/handover/policy.js';
 import { registerHandoverRoutes } from './sales/handover/routes.js';
 import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
 import { registerCallbackRoutes } from './sales/leads/callback-routes.js';
+import { registerSalesJobs } from './sales/leads/jobs.js';
 import { registerRecruitmentPolicies } from './recruitment/policy.js';
 import { registerRecruitmentRoutes } from './recruitment/routes.js';
+import { registerNotificationJobs } from './notifications/jobs.js';
 import {
   registerMyNotepadAdminRoutes,
   registerMyNotepadRoutes,
@@ -31,21 +64,30 @@ import { registerProjectPolicies, registerProjectRoutes } from './projects/index
 import { registerMyTodoRoutes } from './myTodo/routes.js';
 
 /**
- * The module registry.
- *
- * One place that names every implemented module, so that both the application
- * bootstrap and the CI coverage check see the SAME set. Grepping source for
- * registrations would undercount any policy created by a factory, and a
- * coverage gate that silently undercounts is worse than none.
- *
- * Modules are added here as their phase lands. PRD §18 sequencing:
- * P0 Foundation → P1 People / P3 Sales → P2, P4 → P5 → P6; P7 any time after P0.
+ * Port initialization — MUST run before policies, routes and jobs. The
+ * attendance and break modules depend on these ports without importing one
+ * another's internals.
  */
+export function initializePorts(): void {
+  registerBreakPolicyResolver(breakPolicyResolverImpl);
+  registerPayrollPorts();
+}
+
 export function registerAllPolicies(): void {
   registerOrganizationPolicies();
   registerEmployeePolicies();
   registerGeofencePolicies();
   registerAuditPolicies();
+  registerShiftPolicies();
+  registerHolidayPolicies();
+  registerAttendancePolicies();
+  registerLiveStatusPolicies();
+  registerStatusChannel();
+  registerLiveStatusProjector();
+  registerBiometricPolicies();
+  registerLeavePolicies();
+  registerBreakPolicies();
+  registerPayrollPolicies();
   registerTasksPolicies();
   registerTerritoryPolicies();
   registerLeadPolicies();
@@ -70,6 +112,14 @@ export function registerAllRoutes(): void {
   registerEmployeeRoutes();
   registerGeofenceRoutes();
   registerAuditRoutes();
+  registerShiftRoutes();
+  registerHolidayRoutes();
+  registerAttendanceRoutes();
+  registerLiveStatusRoutes();
+  registerBiometricRoutes();
+  registerLeaveRoutes();
+  registerBreakManagementRoutes();
+  registerPayrollRoutes();
   registerTasksRoutes();
   registerTerritoryRoutes();
   registerLeadRoutes();
@@ -82,4 +132,23 @@ export function registerAllRoutes(): void {
   registerClientRoutes();
   registerProjectRoutes();
   registerMyTodoRoutes();
+}
+
+let jobsRegistered = false;
+
+/** Background jobs are declared once before the durable runner starts. */
+export function registerAllJobs(): void {
+  if (jobsRegistered) return;
+  jobsRegistered = true;
+  registerIdentityJobs();
+  registerAccessManagementJobs();
+  registerAuditJobs();
+  registerAttendanceJobs();
+  registerLiveStatusJobs();
+  registerBiometricJobs();
+  registerLeaveJobs();
+  registerBreakJobs();
+  registerPayrollJobs();
+  registerNotificationJobs();
+  registerSalesJobs();
 }

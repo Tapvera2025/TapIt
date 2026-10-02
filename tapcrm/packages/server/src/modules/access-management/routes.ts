@@ -1,5 +1,5 @@
 import { route } from '../../platform/http/route.js';
-import { userResource } from '../identity/security/unlock.js';
+import { userResource } from '../identity/facade.js';
 import { z } from 'zod';
 import { loadOverrideResource, loadRoleChangeResource } from './repository.js';
 import {

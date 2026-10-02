@@ -3081,11 +3081,11 @@ describe('Resume Submission -> Candidate Conversion (BUG 1)', () => {
       })),
     };
 
-    const cand = await repo.findCandidateById(mockCtx, 'test-cand-id', mockTx as any);
+    const cand = await repo.findCandidateById(mockCtx, 'test-cand-id', mockTx);
     expect(mockTx.maybeOne).toHaveBeenCalled();
     expect(cand?.id).toBe('test-cand-id');
 
-    const sub = await repo.findResumeSubmissionById(mockCtx, 'test-sub-id', mockTx as any);
+    const sub = await repo.findResumeSubmissionById(mockCtx, 'test-sub-id', mockTx);
     expect(mockTx.maybeOne).toHaveBeenCalledTimes(2);
     expect(sub?.id).toBe('test-cand-id');
     expect(sub?.fullName).toBe('Jane Doe');
@@ -3181,7 +3181,3 @@ describe('Resume Access & Signed URL (BUG 2)', () => {
     await expect(getResumeFile(mockCtxB, subId)).rejects.toThrow(NotFoundError);
   });
 });
-
-
-
-

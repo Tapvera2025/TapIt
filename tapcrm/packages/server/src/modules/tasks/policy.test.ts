@@ -1122,4 +1122,3 @@ describe('Task policy authorization', () => {
     });
   });
 });
-

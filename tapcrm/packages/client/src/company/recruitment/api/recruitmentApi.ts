@@ -912,7 +912,7 @@ export async function submitHrManualResume(
   input: HrManualSubmissionInput,
 ): Promise<CandidateResumeSubmission> {
   return await identityRequest<CandidateResumeSubmission>(
-    '/api/recruitment/resume-submissions/manual',
+    '/api/recruitment/resume-submissions/upload',
     {
       method: 'POST',
       body: JSON.stringify(input),

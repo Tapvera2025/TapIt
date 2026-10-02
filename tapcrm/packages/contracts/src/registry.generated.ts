@@ -2,7 +2,7 @@
 /**
  * GENERATED FILE — DO NOT EDIT.
  *
- * Source:    docs/AUTHORIZATION.md §6.4, §6.5
+ * Source:    team-docs/security/AUTHORIZATION.md §6.4, §6.5
  * Generator: tools/extract-registry.ts
  * Regenerate: npm run registry:extract
  *
@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 164   Bindings: 392
+ * Actions: 168   Bindings: 415
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -37,6 +37,7 @@ export type Action =
   | 'approvals:delegate'
   | 'attendance:correct'
   | 'attendance:export'
+  | 'attendance:raise-correction'
   | 'attendance:request-correction'
   | 'attendance:view'
   | 'attendance:view-live'
@@ -46,6 +47,7 @@ export type Action =
   | 'billing:set-terms'
   | 'billing:view-terms'
   | 'biometric:manage'
+  | 'breaks:explain'
   | 'breaks:manage-policy'
   | 'breaks:review-breach'
   | 'breaks:view'
@@ -170,6 +172,7 @@ export type Action =
   | 'shifts:approve'
   | 'shifts:manage'
   | 'shifts:view'
+  | 'status:punch'
   | 'system:manage-integrations'
   | 'system:manage-retention'
   | 'system:manage-settings'
@@ -182,6 +185,7 @@ export type Action =
   | 'tasks:view'
   | 'territories:manage'
   | 'territories:view'
+  | 'users:change-placement'
   | 'users:manage'
   | 'users:view';
 
@@ -203,6 +207,7 @@ export const ACTIONS: readonly Action[] = [
   'approvals:delegate',
   'attendance:correct',
   'attendance:export',
+  'attendance:raise-correction',
   'attendance:request-correction',
   'attendance:view',
   'attendance:view-live',
@@ -212,6 +217,7 @@ export const ACTIONS: readonly Action[] = [
   'billing:set-terms',
   'billing:view-terms',
   'biometric:manage',
+  'breaks:explain',
   'breaks:manage-policy',
   'breaks:review-breach',
   'breaks:view',
@@ -336,6 +342,7 @@ export const ACTIONS: readonly Action[] = [
   'shifts:approve',
   'shifts:manage',
   'shifts:view',
+  'status:punch',
   'system:manage-integrations',
   'system:manage-retention',
   'system:manage-settings',
@@ -348,6 +355,7 @@ export const ACTIONS: readonly Action[] = [
   'tasks:view',
   'territories:manage',
   'territories:view',
+  'users:change-placement',
   'users:manage',
   'users:view',
 ] as const;
@@ -608,6 +616,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'attendance:raise-correction': {
+    action: 'attendance:raise-correction',
+    module: 'attendance',
+    resource: 'attendanceCorrection',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'attendance:request-correction': {
     action: 'attendance:request-correction',
     module: 'attendance',
@@ -739,6 +762,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'breaks:explain': {
+    action: 'breaks:explain',
+    module: 'break-management',
+    resource: 'breakBreach',
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
       superAdminOnly: false,
     },
     description: "",
@@ -2603,6 +2641,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'status:punch': {
+    action: 'status:punch',
+    module: 'live-status',
+    resource: null,
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'system:manage-integrations': {
     action: 'system:manage-integrations',
     module: 'system-administration',
@@ -2783,6 +2836,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'users:change-placement': {
+    action: 'users:change-placement',
+    module: 'employee-directory',
+    resource: 'user',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: true,
+    },
+    description: "",
+  },
   'users:manage': {
     action: 'users:manage',
     module: 'employee-directory',
@@ -2837,6 +2905,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/org/positions', action: 'org:manage-positions', resourceParam: null },
   { method: 'POST', path: '/api/org/positions/preview', action: 'org:manage-positions', resourceParam: null },
   { method: 'PATCH', path: '/api/org/positions/:id', action: 'org:manage-positions', resourceParam: 'id' },
+  { method: 'POST', path: '/api/org/positions/:id/preview', action: 'org:manage-positions', resourceParam: 'id' },
   { method: 'POST', path: '/api/org/positions/:id/policies/preview', action: 'org:manage-positions', resourceParam: 'id' },
   { method: 'PUT', path: '/api/org/positions/:id/policies', action: 'org:manage-positions', resourceParam: 'id' },
   { method: 'GET', path: '/api/org/designations', action: 'org:view-designations', resourceParam: null },
@@ -2873,22 +2942,28 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/users/:id', action: 'users:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/users', action: 'users:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/users/:id', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/placement', action: 'users:change-placement', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/manager-reassignment', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/manager-reassignment/preview', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/manager-reassignment/confirm', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/status', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/reset-password', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/import', action: 'users:manage', resourceParam: null },
   { method: 'GET', path: '/api/onboarding', action: 'onboarding:manage', resourceParam: null },
   { method: 'POST', path: '/api/onboarding', action: 'onboarding:manage', resourceParam: null },
   { method: 'POST', path: '/api/onboarding/:id/steps/:stepId/complete', action: 'onboarding:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/attendance/live', action: 'attendance:view-live', resourceParam: null },
+  { method: 'POST', path: '/api/status/punch', action: 'status:punch', resourceParam: null },
   { method: 'GET', path: '/api/attendance', action: 'attendance:view', resourceParam: null },
   { method: 'GET', path: '/api/attendance/:userId/:date', action: 'attendance:view', resourceParam: 'userId' },
   { method: 'POST', path: '/api/attendance/export', action: 'attendance:export', resourceParam: null },
-  { method: 'POST', path: '/api/attendance/corrections', action: 'attendance:correct', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/exports/:jobId', action: 'attendance:export', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/corrections', action: 'attendance:raise-correction', resourceParam: null },
   { method: 'POST', path: '/api/attendance/corrections/:id/approve', action: 'attendance:correct', resourceParam: 'id' },
-  { method: 'POST', path: '/api/attendance/corrections/bulk', action: 'attendance:correct', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/corrections/bulk', action: 'attendance:raise-correction', resourceParam: null },
   { method: 'POST', path: '/api/attendance/corrections/request', action: 'attendance:request-correction', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/corrections', action: 'attendance:view', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/corrections/:id/reject', action: 'attendance:correct', resourceParam: 'id' },
   { method: 'GET', path: '/api/breaks/policies', action: 'breaks:manage-policy', resourceParam: null },
   { method: 'POST', path: '/api/breaks/policies', action: 'breaks:manage-policy', resourceParam: null },
   { method: 'PATCH', path: '/api/breaks/policies/:id', action: 'breaks:manage-policy', resourceParam: 'id' },
@@ -2896,9 +2971,11 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/breaks/policies/:id/assign', action: 'breaks:manage-policy', resourceParam: 'id' },
   { method: 'POST', path: '/api/breaks/breaches/:id/confirm', action: 'breaks:review-breach', resourceParam: 'id' },
   { method: 'POST', path: '/api/breaks/breaches/:id/waive', action: 'breaks:review-breach', resourceParam: 'id' },
+  { method: 'POST', path: '/api/breaks/breaches/:id/explanation', action: 'breaks:explain', resourceParam: 'id' },
   { method: 'GET', path: '/api/breaks/breaches', action: 'breaks:view', resourceParam: null },
   { method: 'GET', path: '/api/breaks/allowance/me', action: 'breaks:view', resourceParam: null },
   { method: 'GET', path: '/api/breaks/policies/resolve/:userId', action: 'breaks:view', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/breaks/prompts/me', action: 'breaks:view', resourceParam: null },
   { method: 'GET', path: '/api/shifts', action: 'shifts:view', resourceParam: null },
   { method: 'GET', path: '/api/shifts/assignments', action: 'shifts:view', resourceParam: null },
   { method: 'POST', path: '/api/shifts', action: 'shifts:manage', resourceParam: null },
@@ -2912,8 +2989,12 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/biometric/punches', action: 'biometric:manage', resourceParam: null },
   { method: 'POST', path: '/api/biometric/punches/replay', action: 'biometric:manage', resourceParam: null },
   { method: 'GET', path: '/api/leaves', action: 'leave:view', resourceParam: null },
+  { method: 'GET', path: '/api/leaves/acknowledgements', action: 'leave:view', resourceParam: null },
+  { method: 'GET', path: '/api/leaves/decisions', action: 'leave:view', resourceParam: null },
   { method: 'GET', path: '/api/leaves/:id', action: 'leave:view', resourceParam: 'id' },
-  { method: 'GET', path: '/api/leaves/balances/:userId', action: 'leave:view', resourceParam: 'userId' },
+  { method: 'GET', path: '/api/leaves/balances', action: 'leave:view', resourceParam: null },
+  { method: 'GET', path: '/api/leaves/balances/:userId', action: 'leave:view', resourceParam: null },
+  { method: 'POST', path: '/api/leaves/balances/:userId/adjust', action: 'leave:manage-types', resourceParam: null },
   { method: 'GET', path: '/api/leaves/calendar', action: 'leave:view', resourceParam: null },
   { method: 'POST', path: '/api/leaves', action: 'leave:request', resourceParam: null },
   { method: 'DELETE', path: '/api/leaves/:id', action: 'leave:request', resourceParam: 'id' },
@@ -2923,6 +3004,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/leaves/:id/acknowledge', action: 'leave:acknowledge', resourceParam: 'id' },
   { method: 'POST', path: '/api/leaves/:id/decide', action: 'leave:decide', resourceParam: 'id' },
   { method: 'GET', path: '/api/leaves/types', action: 'leave:manage-types', resourceParam: null },
+  { method: 'GET', path: '/api/leaves/types/available', action: 'leave:request', resourceParam: null },
   { method: 'POST', path: '/api/leaves/types', action: 'leave:manage-types', resourceParam: null },
   { method: 'PUT', path: '/api/leaves/types/:id', action: 'leave:manage-types', resourceParam: 'id' },
   { method: 'GET', path: '/api/holidays', action: 'holidays:view', resourceParam: null },
@@ -2939,6 +3021,15 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PUT', path: '/api/payroll/structures/:userId', action: 'payroll:manage', resourceParam: 'userId' },
   { method: 'GET', path: '/api/payroll/config', action: 'payroll:manage-config', resourceParam: null },
   { method: 'PUT', path: '/api/payroll/config', action: 'payroll:manage-config', resourceParam: null },
+  { method: 'GET', path: '/api/payroll/cycle', action: 'payroll:view', resourceParam: null },
+  { method: 'GET', path: '/api/payroll/runs/:id', action: 'payroll:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payroll/runs/:id/employees', action: 'payroll:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payroll/runs/:id/drifts', action: 'payroll:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payroll/runs/:id/drifts/:driftId/remediate', action: 'payroll:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payroll/inputs', action: 'payroll:manage', resourceParam: null },
+  { method: 'PATCH', path: '/api/payroll/inputs/:id/revoke', action: 'payroll:manage', resourceParam: null },
+  { method: 'GET', path: '/api/payroll/inputs', action: 'payroll:manage', resourceParam: null },
+  { method: 'GET', path: '/api/payroll/payslips/:id/document', action: 'payroll:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/performance/:userId', action: 'performance:view', resourceParam: 'userId' },
   { method: 'GET', path: '/api/performance/:userId/kpis', action: 'performance:view-aggregates', resourceParam: 'userId' },
   { method: 'POST', path: '/api/performance/:userId/reviews', action: 'performance:manage', resourceParam: 'userId' },
@@ -3041,7 +3132,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/changes', action: 'delivery:view', resourceParam: null },
   { method: 'POST', path: '/api/delivery/:id/signoff', action: 'delivery:signoff', resourceParam: 'id' },
   { method: 'POST', path: '/api/changes/:id/classify', action: 'changes:classify', resourceParam: 'id' },
-  { method: 'GET', path: '/api/changes', action: 'changes:classify', resourceParam: null },
+  { method: 'GET', path: '/api/changes/queue', action: 'changes:classify', resourceParam: null },
   { method: 'POST', path: '/api/changes/:id/assign', action: 'changes:assign', resourceParam: 'id' },
   { method: 'GET', path: '/api/billing/terms/:clientId', action: 'billing:view-terms', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/billing/rate-cards', action: 'billing:view-terms', resourceParam: null },

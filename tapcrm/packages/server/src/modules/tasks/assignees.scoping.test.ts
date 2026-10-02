@@ -16,9 +16,8 @@ vi.mock('./repository.js', () => ({
   replaceTaskAssignees: vi.fn(),
   updateTaskRow: vi.fn(),
   validateAssigneeIds: vi.fn(),
-  validateAssigneesInTeamScope: vi.fn(),
-  validateAssigneesInDepartmentScope: vi.fn(),
-  validateAssigneesInPoolScope: vi.fn(),
+  findUsersInAssignableScope: vi.fn(),
+  findLedTeamIds: vi.fn(),
   enqueueTaskAudit: vi.fn(),
 }));
 
@@ -30,13 +29,15 @@ vi.mock('@tapcrm/authz', () => ({
 const mockDepartmentId = vi.fn<(_ctx: unknown) => Promise<string | null>>();
 const mockTeamIds = vi.fn<(_ctx: unknown) => Promise<ReadonlySet<string>>>();
 const mockPoolMemberIds = vi.fn<(_ctx: unknown) => Promise<ReadonlySet<string>>>();
+const mockPoolIds = vi.fn<(_ctx: unknown) => Promise<ReadonlySet<string>>>();
+const mockSubordinateIds = vi.fn<(_ctx: unknown) => Promise<ReadonlySet<string>>>();
 
 vi.mock('../../platform/authz-adapter.js', () => ({
   scopeResolver: {
     departmentId: (_ctx: unknown): Promise<string | null> => mockDepartmentId(_ctx),
     teamIds: (_ctx: unknown): Promise<ReadonlySet<string>> => mockTeamIds(_ctx),
-    poolIds: vi.fn(),
-    subordinateIds: vi.fn(),
+    poolIds: (_ctx: unknown): Promise<ReadonlySet<string>> => mockPoolIds(_ctx),
+    subordinateIds: (_ctx: unknown): Promise<ReadonlySet<string>> => mockSubordinateIds(_ctx),
     poolMemberIds: (_ctx: unknown): Promise<ReadonlySet<string>> => mockPoolMemberIds(_ctx),
   },
 }));
@@ -72,9 +73,15 @@ function makeContext(principalOverrides: Partial<Principal> = {}): RequestContex
   };
 }
 
+const SELF = '00000000-0000-0000-0000-000000000002';
+const REPORT = '00000000-0000-0000-0000-000000000077';
+
 describe('listTaskAssignees Scope Resolution (Service Layer)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The subordinate CTE includes the principal (VIS-1).
+    mockSubordinateIds.mockResolvedValue(new Set([SELF, REPORT]));
+    vi.mocked(repo.findLedTeamIds).mockResolvedValue([]);
   });
 
   it('CASE 7: Super Admin accesses all active users across the organization', async () => {
@@ -85,15 +92,11 @@ describe('listTaskAssignees Scope Resolution (Service Layer)', () => {
 
     const result = await listTaskAssignees(ctx, {});
 
-    expect(repo.findAssignableUsers).toHaveBeenCalledWith(
-      ctx,
-      { kind: 'all' },
-      {},
-    );
+    expect(repo.findAssignableUsers).toHaveBeenCalledWith(ctx, { kind: 'all' }, {});
     expect(result).toHaveLength(1);
   });
 
-  it('CASE 1 & 5: Dev Dept Head with department scope resolves to creator departmentId', async () => {
+  it('CASE 1 & 5: Dev Dept Head with department scope: department plus reports', async () => {
     const ctx = makeContext();
     vi.mocked(authz.effectivePolicy).mockResolvedValueOnce(mockPolicy('department'));
     mockDepartmentId.mockResolvedValueOnce('dept-development-id');
@@ -103,73 +106,69 @@ describe('listTaskAssignees Scope Resolution (Service Layer)', () => {
 
     expect(repo.findAssignableUsers).toHaveBeenCalledWith(
       ctx,
-      { kind: 'department', departmentId: 'dept-development-id' },
+      { kind: 'scoped', userIds: [SELF, REPORT], departmentId: 'dept-development-id' },
       { search: 'Alice' },
     );
   });
 
-  it('CASE 1 & 5: Sub-team Manager with team scope resolves to descendant teamIds', async () => {
+  it('CASE 1 & 5: Sub-team Manager with team scope: team tree, led teams and reports', async () => {
     const ctx = makeContext();
     vi.mocked(authz.effectivePolicy).mockResolvedValueOnce(mockPolicy('team'));
-    mockTeamIds.mockResolvedValueOnce(
-      new Set(['team-dev-1', 'team-dev-2']),
-    );
+    mockTeamIds.mockResolvedValueOnce(new Set(['team-dev-1', 'team-dev-2']));
+    vi.mocked(repo.findLedTeamIds).mockResolvedValueOnce(['team-led-1']);
     vi.mocked(repo.findAssignableUsers).mockResolvedValueOnce([]);
 
     await listTaskAssignees(ctx, {});
 
     expect(repo.findAssignableUsers).toHaveBeenCalledWith(
       ctx,
-      { kind: 'team', teamIds: ['team-dev-1', 'team-dev-2'] },
+      { kind: 'scoped', userIds: [SELF, REPORT], teamIds: ['team-dev-1', 'team-dev-2', 'team-led-1'] },
       {},
     );
   });
 
-  it('CASE 1 & 5: Sales Supervisor with pool scope resolves to pool member IDs', async () => {
+  it('CASE 1 & 5: Sales Supervisor with pool scope: pool members, pool and reports', async () => {
     const ctx = makeContext();
     vi.mocked(authz.effectivePolicy).mockResolvedValueOnce(mockPolicy('pool'));
-    mockPoolMemberIds.mockResolvedValueOnce(
-      new Set(['pool-member-1', 'pool-member-2']),
-    );
+    mockPoolMemberIds.mockResolvedValueOnce(new Set(['pool-member-1', 'pool-member-2']));
+    mockPoolIds.mockResolvedValueOnce(new Set(['pool-1']));
     vi.mocked(repo.findAssignableUsers).mockResolvedValueOnce([]);
 
     await listTaskAssignees(ctx, {});
 
     expect(repo.findAssignableUsers).toHaveBeenCalledWith(
       ctx,
-      { kind: 'pool', poolMemberIds: ['pool-member-1', 'pool-member-2'] },
+      { kind: 'scoped', userIds: [SELF, REPORT, 'pool-member-1', 'pool-member-2'], teamIds: ['pool-1'] },
       {},
     );
   });
 
-  it('CASE 1 & 5: Project Manager with own scope resolves as Project Manager', async () => {
+  it('CASE 1 & 5: Project Manager with own scope directs the development department', async () => {
     const ctx = makeContext();
     vi.mocked(authz.effectivePolicy).mockResolvedValueOnce(mockPolicy('own'));
     vi.mocked(repo.isPrincipalProjectManager).mockResolvedValueOnce(true);
-    mockDepartmentId.mockResolvedValueOnce('00000000-0000-0000-0000-000000000020');
     vi.mocked(repo.findAssignableUsers).mockResolvedValueOnce([]);
 
     await listTaskAssignees(ctx, { projectId: '00000000-0000-0000-0000-000000000099' });
 
     expect(repo.findAssignableUsers).toHaveBeenCalledWith(
       ctx,
-      { kind: 'own', isProjectManager: true, departmentId: '00000000-0000-0000-0000-000000000020' },
+      { kind: 'scoped', userIds: [SELF, REPORT], departmentCode: 'development' },
       { projectId: '00000000-0000-0000-0000-000000000099' },
     );
   });
 
-  it('CASE 1 & 5: Regular Developer / IC with own scope resolves departmentId for peer assignment', async () => {
+  it('CASE 1 & 5: Regular Developer / IC with own scope: only themselves and their reports', async () => {
     const ctx = makeContext();
     vi.mocked(authz.effectivePolicy).mockResolvedValueOnce(mockPolicy('own'));
     vi.mocked(repo.isPrincipalProjectManager).mockResolvedValueOnce(false);
-    mockDepartmentId.mockResolvedValueOnce('00000000-0000-0000-0000-000000000020');
     vi.mocked(repo.findAssignableUsers).mockResolvedValueOnce([]);
 
     await listTaskAssignees(ctx, {});
 
     expect(repo.findAssignableUsers).toHaveBeenCalledWith(
       ctx,
-      { kind: 'own', isProjectManager: false, departmentId: '00000000-0000-0000-0000-000000000020' },
+      { kind: 'scoped', userIds: [SELF, REPORT] },
       {},
     );
   });

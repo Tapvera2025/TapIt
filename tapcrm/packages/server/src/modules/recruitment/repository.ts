@@ -2186,4 +2186,3 @@ export async function finalizeCandidateJoining(
   if (!updated) throw new Error('Failed to retrieve finalized joining record');
   return updated;
 }
-
