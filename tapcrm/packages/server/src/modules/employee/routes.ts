@@ -4,6 +4,7 @@ import {
   adminResetPassword,
   changePlacement,
   getEmployee,
+  getNextEmployeeId,
   listDeactivatedEmployees,
   provisionEmployee,
   setEmployeeStatus,
@@ -26,6 +27,10 @@ export function registerEmployeeRoutes(): void {
     action: 'users:view',
     module: 'employee-directory',
     handler: async ({ ctx, query }) => {
+      if (query['nextEmployeeId'] === 'true') {
+        const current = typeof query['current'] === 'string' ? query['current'] : undefined;
+        return { nextEmployeeId: await getNextEmployeeId(ctx, current) };
+      }
       if (query['status'] === 'inactive') return listDeactivatedEmployees(ctx);
       if (query['departmentId'] !== undefined && query['positionId'] !== undefined) {
         return listReportingManagerOptions(

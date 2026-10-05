@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { __resetConfig, loadConfig } from '../../config.js';
 import { MinioStorageProvider } from './minio.provider.js';
 
@@ -53,5 +53,67 @@ describe('presigned download links', () => {
     expect(url.startsWith('https://downloads.example.com/tapcrm-files/a.csv?')).toBe(
       true,
     );
+  });
+});
+
+describe('MinioStorageProvider putObject', () => {
+  afterEach(() => {
+    __resetConfig();
+    vi.restoreAllMocks();
+  });
+
+  it('correctly sets and signs the provided content-type header for document uploads', async () => {
+    __resetConfig();
+    loadConfig(ENV);
+
+    let capturedUrl: string | undefined;
+    let capturedMethod: string | undefined;
+    let capturedHeaders: Headers | undefined;
+    let capturedBody: unknown;
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      capturedUrl = input.toString();
+      capturedMethod = init?.method;
+      capturedHeaders = new Headers(init?.headers as any);
+      capturedBody = init?.body;
+      return new Response('', { status: 200 });
+    });
+
+    const body = Buffer.from('%PDF-1.4 test document content');
+    const provider = new MinioStorageProvider();
+    const result = await provider.putObject({
+      bucket: 'files',
+      key: 'verification/org-1/emp-1/PAN/doc.pdf',
+      body,
+      contentType: 'application/pdf',
+    });
+
+    expect(result.checksumSha256).toBeDefined();
+    expect(capturedMethod).toBe('PUT');
+    expect(capturedUrl).toBe('https://files.example.com/tapcrm-files/verification/org-1/emp-1/PAN/doc.pdf');
+    expect(capturedHeaders?.get('content-type')).toBe('application/pdf');
+    expect(capturedHeaders?.get('x-amz-meta-checksum-sha256')).toBe(result.checksumSha256);
+    expect(capturedHeaders?.get('authorization')).toContain('SignedHeaders=');
+    expect(capturedHeaders?.get('authorization')).toContain('content-type');
+    expect(capturedBody).toEqual(body);
+  });
+
+  it('includes storage error details when S3 request fails', async () => {
+    __resetConfig();
+    loadConfig(ENV);
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('<Error><Code>AccessDenied</Code></Error>', { status: 403 }),
+    );
+
+    const provider = new MinioStorageProvider();
+    await expect(
+      provider.putObject({
+        bucket: 'files',
+        key: 'test.pdf',
+        body: Buffer.from('content'),
+        contentType: 'application/pdf',
+      }),
+    ).rejects.toThrow(/HTTP 403.*AccessDenied/);
   });
 });

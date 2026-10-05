@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 168   Bindings: 415
+ * Actions: 168   Bindings: 423
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -2949,6 +2949,14 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/users/:id/status', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/:id/reset-password', action: 'users:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/users/import', action: 'users:manage', resourceParam: null },
+  { method: 'GET', path: '/api/users/:id/verification', action: 'users:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/verification', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/verification/documents', action: 'users:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/users/:id/verification/documents/:docId/download', action: 'users:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/verification/documents/:docId/approve', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/verification/documents/:docId/reject', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/verification/complete', action: 'users:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/users/:id/verification/reject', action: 'users:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/onboarding', action: 'onboarding:manage', resourceParam: null },
   { method: 'POST', path: '/api/onboarding', action: 'onboarding:manage', resourceParam: null },
   { method: 'POST', path: '/api/onboarding/:id/steps/:stepId/complete', action: 'onboarding:manage', resourceParam: 'id' },

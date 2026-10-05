@@ -5,6 +5,7 @@ import { PlatformDashboard, PlatformLogin } from './platform/screen.js';
 import { AcceptInvitation } from './platform/accept.js';
 import { AUTH_EXPIRED_EVENT, getAccessToken } from './platform/api.js';
 import {
+  EmployeeSetupPage,
   ForgotPasswordPage,
   IdentityLoginPage,
   PasswordChangePage,
@@ -85,6 +86,16 @@ export function App(): React.JSX.Element {
     ) : (
       <PlatformLogin onLogin={() => setAuthenticated(true)} />
     );
+  if (pathname === '/employee/setup') {
+    const params = new URLSearchParams(window.location.search);
+    return (
+      <EmployeeSetupPage
+        token={params.get('token') ?? ''}
+        organizationCode={params.get('org') ?? params.get('organizationCode') ?? ''}
+        onComplete={openCompanyLogin}
+      />
+    );
+  }
   if (pathname === '/login') {
     if (companyAuthenticated) {
       window.history.replaceState({}, '', '/company/dashboard');

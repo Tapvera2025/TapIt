@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import React, { useState } from 'react';
+import { describe, it, expect } from 'vitest';
+import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CompanySidebar } from './CompanySidebar.js';
 import { ThemeProvider } from '../../theme/ThemeContext.js';

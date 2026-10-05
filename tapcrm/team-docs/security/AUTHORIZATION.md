@@ -298,6 +298,14 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/users/:id/status | `users:manage` | id |
 | POST | /api/users/:id/reset-password | `users:manage` | id |
 | POST | /api/users/import | `users:manage` | — |
+| GET | /api/users/:id/verification | `users:view` | id |
+| POST | /api/users/:id/verification | `users:manage` | id |
+| POST | /api/users/:id/verification/documents | `users:manage` | id |
+| GET | /api/users/:id/verification/documents/:docId/download | `users:view` | id |
+| POST | /api/users/:id/verification/documents/:docId/approve | `users:manage` | id |
+| POST | /api/users/:id/verification/documents/:docId/reject | `users:manage` | id |
+| POST | /api/users/:id/verification/complete | `users:manage` | id |
+| POST | /api/users/:id/verification/reject | `users:manage` | id |
 | GET | /api/onboarding | `onboarding:manage` | — |
 | POST | /api/onboarding | `onboarding:manage` | — |
 | POST | /api/onboarding/:id/steps/:stepId/complete | `onboarding:manage` | id |
