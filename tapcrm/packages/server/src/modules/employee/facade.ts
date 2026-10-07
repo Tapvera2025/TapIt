@@ -9,3 +9,4 @@
  */
 export { EMPLOYEE_EVENTS, type EmploymentChanged } from './events.js';
 export { provisionEmployee } from './service.js';
+export { getEmployeeWorkStatus, type Employee360WorkSummary, type EmployeeWorkStatus } from './work-status.js';

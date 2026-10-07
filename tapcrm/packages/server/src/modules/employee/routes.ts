@@ -10,6 +10,7 @@ import {
   setEmployeeStatus,
   updateEmployee,
 } from './service.js';
+import { getEmployeeWorkStatus } from './work-status.js';
 import {
   createEmployeeSchema,
   employeeStatusSchema,
@@ -110,5 +111,23 @@ export function registerEmployeeRoutes(): void {
       const { password } = resetPasswordSchema.parse(body);
       return adminResetPassword(ctx, params['id']!, password);
     },
+  });
+  route({
+    method: 'GET',
+    path: '/api/users/:id/work-status',
+    action: 'users:view',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    handler: async ({ ctx, params }) => getEmployeeWorkStatus(ctx, params['id']!),
+  });
+  route({
+    method: 'GET',
+    path: '/api/users/:id/work',
+    action: 'users:view',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    handler: async ({ ctx, params }) => getEmployeeWorkStatus(ctx, params['id']!),
   });
 }

@@ -2919,6 +2919,18 @@
       "resourceParam": "id"
     },
     {
+      "method": "GET",
+      "path": "/api/users/:id/work-status",
+      "action": "users:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/:id/work",
+      "action": "users:view",
+      "resourceParam": "id"
+    },
+    {
       "method": "POST",
       "path": "/api/users/:id/verification",
       "action": "users:manage",
