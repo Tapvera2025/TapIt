@@ -557,7 +557,7 @@ export function LiveBoardPage(): React.JSX.Element {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-app-foreground">
-            Workforce / Live Status
+            Employee Workforce
           </h1>
           <p className="mt-0.5 text-xs sm:text-sm text-app-muted">
             Live employee status and workforce presence
@@ -647,20 +647,18 @@ export function LiveBoardPage(): React.JSX.Element {
             <button
               type="button"
               onClick={() => setSelectedStatus('all')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                selectedStatus === 'all'
+              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'all'
                   ? 'bg-app-foreground text-app-background border-app-foreground shadow-2xs font-semibold'
                   : 'border-app-border bg-app-surface text-app-muted hover:border-app-accent hover:text-app-foreground'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-1.5 min-w-0 truncate">
                 <span className="size-1.5 rounded-full bg-current opacity-60 shrink-0" aria-hidden="true" />
                 <span className="truncate">All Employees</span>
               </span>
               <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${
-                  selectedStatus === 'all' ? 'opacity-90' : 'opacity-75'
-                }`}
+                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'all' ? 'opacity-90' : 'opacity-75'
+                  }`}
               >
                 ({counts.all})
               </span>
@@ -670,20 +668,18 @@ export function LiveBoardPage(): React.JSX.Element {
             <button
               type="button"
               onClick={() => setSelectedStatus(selectedStatus === 'Working' ? 'all' : 'Working')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                selectedStatus === 'Working'
+              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'Working'
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-semibold'
                   : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 hover:border-emerald-500'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-1.5 min-w-0 truncate">
                 <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
                 <span className="truncate">Working</span>
               </span>
               <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${
-                  selectedStatus === 'Working' ? 'text-white/90' : 'opacity-75'
-                }`}
+                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'Working' ? 'text-white/90' : 'opacity-75'
+                  }`}
               >
                 ({counts.working})
               </span>
@@ -693,20 +689,18 @@ export function LiveBoardPage(): React.JSX.Element {
             <button
               type="button"
               onClick={() => setSelectedStatus(selectedStatus === 'On Break' ? 'all' : 'On Break')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                selectedStatus === 'On Break'
+              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'On Break'
                   ? 'bg-amber-600 text-white border-amber-600 shadow-2xs font-semibold'
                   : 'border-amber-500/25 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:border-amber-500'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-1.5 min-w-0 truncate">
                 <span className="size-1.5 rounded-full bg-amber-400 shrink-0" aria-hidden="true" />
                 <span className="truncate">On Break</span>
               </span>
               <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${
-                  selectedStatus === 'On Break' ? 'text-white/90' : 'opacity-75'
-                }`}
+                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'On Break' ? 'text-white/90' : 'opacity-75'
+                  }`}
               >
                 ({counts.onBreak})
               </span>
@@ -716,20 +710,18 @@ export function LiveBoardPage(): React.JSX.Element {
             <button
               type="button"
               onClick={() => setSelectedStatus(selectedStatus === 'Not Checked In' ? 'all' : 'Not Checked In')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                selectedStatus === 'Not Checked In'
+              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'Not Checked In'
                   ? 'bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 border-neutral-700 dark:border-neutral-200 shadow-2xs font-semibold'
                   : 'border-app-border bg-app-surface text-app-muted hover:border-app-accent hover:text-app-foreground'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-1.5 min-w-0 truncate">
                 <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" aria-hidden="true" />
                 <span className="truncate">Not Checked In</span>
               </span>
               <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${
-                  selectedStatus === 'Not Checked In' ? 'opacity-90' : 'opacity-75'
-                }`}
+                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'Not Checked In' ? 'opacity-90' : 'opacity-75'
+                  }`}
               >
                 ({counts.notCheckedIn})
               </span>
@@ -739,20 +731,18 @@ export function LiveBoardPage(): React.JSX.Element {
             <button
               type="button"
               onClick={() => setSelectedStatus(selectedStatus === 'On Leave' ? 'all' : 'On Leave')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                selectedStatus === 'On Leave'
+              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'On Leave'
                   ? 'bg-sky-600 text-white border-sky-600 shadow-2xs font-semibold'
                   : 'border-sky-500/25 bg-sky-500/10 text-sky-800 dark:text-sky-200 hover:border-sky-500'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-1.5 min-w-0 truncate">
                 <span className="size-1.5 rounded-full bg-sky-400 shrink-0" aria-hidden="true" />
                 <span className="truncate">On Leave</span>
               </span>
               <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${
-                  selectedStatus === 'On Leave' ? 'text-white/90' : 'opacity-75'
-                }`}
+                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'On Leave' ? 'text-white/90' : 'opacity-75'
+                  }`}
               >
                 ({counts.onLeave})
               </span>
@@ -762,20 +752,18 @@ export function LiveBoardPage(): React.JSX.Element {
             <button
               type="button"
               onClick={() => setSelectedStatus(selectedStatus === 'Finished' ? 'all' : 'Finished')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                selectedStatus === 'Finished'
+              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'Finished'
                   ? 'bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 border-neutral-700 dark:border-neutral-200 shadow-2xs font-semibold'
                   : 'border-app-border bg-app-surface text-app-muted hover:border-app-accent hover:text-app-foreground'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-1.5 min-w-0 truncate">
                 <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" aria-hidden="true" />
                 <span className="truncate">Finished</span>
               </span>
               <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${
-                  selectedStatus === 'Finished' ? 'opacity-90' : 'opacity-75'
-                }`}
+                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'Finished' ? 'opacity-90' : 'opacity-75'
+                  }`}
               >
                 ({counts.finished})
               </span>
