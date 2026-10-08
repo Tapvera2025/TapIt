@@ -1,56 +1,49 @@
 import { useEffect, useState } from 'react';
 import {
-  createEmployee,
   listInactiveEmployees,
   resetEmployeePassword,
   type InactiveEmployee,
 } from '../api/employeesApi.js';
 import { EditEmployeeModal } from './EditEmployeeModal.js';
-import { IdentityApiError } from '../../identity/api/authApi.js';
+import { AddEmployeeWizardModal } from './AddEmployeeWizardModal.js';
+import { OnboardingChecklistDrawer } from './OnboardingChecklistDrawer.js';
+import { EmployeeVerificationModal } from './EmployeeVerificationModal.js';
 import {
   getCompanyDepartments,
   getCompanyDesignations,
   getCompanyEmployees,
-  getCompanyLadder,
-  getCompanyPositionPolicies,
   getCompanyTeams,
   type CompanyDepartment,
   type CompanyDesignation,
-  getCompanyReportingManagers,
   type CompanyEmployee,
-  type CompanyLadder,
-  type CompanyLadderPosition,
-  type CompanyReportingManager,
   type CompanyTeam,
 } from '../api/companyApi.js';
-import { listShifts, assignShiftToEmployee, type ShiftTemplate } from '../api/shiftsApi.js';
+import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
 
-const blank = {
-  fullName: '',
-  email: '',
-  password: '',
-  confirmPassword: '',
-  departmentId: '',
-  positionId: '',
-  teamId: '',
-  designationId: '',
-  specialization: '',
-  reportsTo: '',
-  joiningDate: '',
-  shiftId: '',
-};
-type EmployeeFieldErrors = {
-  fullName?: string;
-  email?: string;
-  password?: string;
-  confirmPassword?: string;
-  departmentId?: string;
-  positionId?: string;
-  teamId?: string;
-  designationId?: string;
-  specialization?: string;
-  reportsTo?: string;
-};
+// ── Avatar helpers ────────────────────────────────────────────────────────────
+
+const AVATAR_PALETTES = [
+  { bg: '#fff4e6', fg: '#b94c0c' },
+  { bg: '#e6f4ea', fg: '#2e7d32' },
+  { bg: '#e8f0fe', fg: '#1a5fb4' },
+  { bg: '#fce4ec', fg: '#b71c1c' },
+  { bg: '#ede7f6', fg: '#4527a0' },
+  { bg: '#e0f7fa', fg: '#006064' },
+  { bg: '#fff8e1', fg: '#f57f17' },
+  { bg: '#f3e5f5', fg: '#6a1b9a' },
+];
+
+function getAvatarStyle(name: string) {
+  return AVATAR_PALETTES[name.charCodeAt(0) % AVATAR_PALETTES.length]!;
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function EmployeesPage({
   canManage = true,
@@ -70,19 +63,12 @@ export function EmployeesPage({
   const [departments, setDepartments] = useState<CompanyDepartment[]>([]);
   const [teams, setTeams] = useState<CompanyTeam[]>([]);
   const [designations, setDesignations] = useState<CompanyDesignation[]>([]);
-  const [reportingManagers, setReportingManagers] = useState<CompanyReportingManager[]>(
-    [],
-  );
-  const [ladder, setLadder] = useState<CompanyLadder | null>(null);
-  const [accessPreview, setAccessPreview] = useState<
-    Awaited<ReturnType<typeof getCompanyPositionPolicies>>
-  >([]);
   const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
-  const [form, setForm] = useState(blank);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [onboardingEmployee, setOnboardingEmployee] = useState<{ id: string; name: string; setupUrl?: string | null | undefined } | null>(null);
+  const [verifyingEmployee, setVerifyingEmployee] = useState<{ id: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [resetTarget, setResetTarget] = useState<{ id: string; fullName: string } | null>(null);
@@ -91,17 +77,6 @@ export function EmployeesPage({
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState('');
   const [resetDone, setResetDone] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<EmployeeFieldErrors>({});
-
-  function setField(field: keyof typeof blank, value: string): void {
-    setForm((current) => ({ ...current, [field]: value }));
-    setFieldErrors((current) => {
-      if (!current[field as keyof EmployeeFieldErrors]) return current;
-      const next = { ...current };
-      delete next[field as keyof EmployeeFieldErrors];
-      return next;
-    });
-  }
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -126,164 +101,29 @@ export function EmployeesPage({
       setLoading(false);
     }
   }
+
   useEffect(() => {
     void load();
   }, []);
+
   useEffect(() => {
     if (!showInactive) return;
     listInactiveEmployees()
       .then(setInactive)
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Unable to load deactivated employees.'));
+      .catch((cause: unknown) =>
+        setError(cause instanceof Error ? cause.message : 'Unable to load deactivated employees.'),
+      );
   }, [showInactive]);
-  useEffect(() => {
-    const department = departments.find((item) => item.id === form.departmentId);
-    if (!department) {
-      setLadder(null);
-      return;
-    }
-    void getCompanyLadder(department.code)
-      .then(setLadder)
-      .catch(() => setError('Unable to load positions for this department.'));
-  }, [form.departmentId, departments]);
 
-  // Root positions on the ladder are the ones whose parent is Super Admin —
-  // the tree API only puts roots at the top level, so an id in this set means
-  // the position has no in-org manager and reports to the Super Admin.
-  const rootPositionIds = new Set((ladder?.positions ?? []).map((p) => p.id));
-  const isRootPosition = form.positionId !== '' && rootPositionIds.has(form.positionId);
-
-  useEffect(() => {
-    // Root positions have exactly one possible manager (the Super Admin),
-    // resolved server-side by findEffectiveManager when reports_to is null.
-    // Skip the fetch entirely and clear any stale selection.
-    if (!form.departmentId || !form.positionId || isRootPosition) {
-      setReportingManagers([]);
-      if (isRootPosition && form.reportsTo !== '') {
-        setForm((current) => ({ ...current, reportsTo: '' }));
-      }
-      return;
-    }
-    void getCompanyReportingManagers(
-      form.departmentId,
-      form.positionId,
-      undefined,
-      form.teamId || undefined,
-    )
-      .then(setReportingManagers)
-      .catch(() => setError('Unable to load reporting managers.'));
-  }, [form.departmentId, form.positionId, form.teamId]);
-
-  const departmentTeams = teams.filter((team) => team.departmentId === form.departmentId);
-  const designation = designations.find((item) => item.id === form.designationId);
   const visible = employees.filter((employee) =>
     employee.fullName.toLowerCase().includes(search.toLowerCase()),
   );
-  const positionOptions = flattenPositions(ladder?.positions ?? []);
-  function setDepartment(departmentId: string): void {
-    // If the currently selected designation doesn't belong to the new
-    // department, drop it (and its specialization) so the form doesn't
-    // submit a mismatched pair.
-    const currentDesignation = designations.find(
-      (item) => item.id === form.designationId,
-    );
-    const keepDesignation =
-      currentDesignation && currentDesignation.departmentId === departmentId;
-    setForm({
-      ...form,
-      departmentId,
-      positionId: '',
-      teamId: '',
-      reportsTo: '',
-      designationId: keepDesignation ? form.designationId : '',
-      specialization: keepDesignation ? form.specialization : '',
-    });
-    setFieldErrors((current) => {
-      const next = { ...current };
-      delete next.departmentId;
-      delete next.positionId;
-      return next;
-    });
-    setLadder(null);
-  }
-  useEffect(() => {
-    if (!form.positionId) {
-      setAccessPreview([]);
-      return;
-    }
-    void getCompanyPositionPolicies(form.positionId)
-      .then(setAccessPreview)
-      .catch(() => setError('Unable to load position access preview.'));
-  }, [form.positionId]);
-
-  async function submit(event: React.FormEvent): Promise<void> {
-    event.preventDefault();
-    const nextErrors: EmployeeFieldErrors = {};
-    if (!form.fullName.trim()) nextErrors.fullName = 'Full name is required.';
-    else if (form.fullName.trim().length < 2 || form.fullName.trim().length > 160) nextErrors.fullName = 'Enter a valid full name.';
-    if (!form.email.trim()) nextErrors.email = 'Email is required.';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) || form.email.trim().length > 320) nextErrors.email = 'Enter a valid email address.';
-    if (!form.password) nextErrors.password = 'Password is required.';
-    else if (form.password.length < 12) nextErrors.password = 'Password must be at least 12 characters long.';
-    if (!form.confirmPassword) nextErrors.confirmPassword = 'Confirm password is required.';
-    else if (form.confirmPassword.length < 12) nextErrors.confirmPassword = 'Password must be at least 12 characters long.';
-    else if (form.confirmPassword !== form.password) nextErrors.confirmPassword = 'Passwords do not match.';
-    if (!form.departmentId) nextErrors.departmentId = 'Department is required.';
-    if (!form.positionId) nextErrors.positionId = 'Position is required.';
-    setFieldErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
-    setBusy(true);
-    setError('');
-    setMessage('');
-    try {
-      const result = await createEmployee({
-        fullName: form.fullName,
-        email: form.email,
-        password: form.password,
-        confirmPassword: form.confirmPassword,
-        departmentId: form.departmentId,
-        positionId: form.positionId,
-        ...(form.teamId ? { teamId: form.teamId } : {}),
-        ...(form.designationId ? { designationId: form.designationId } : {}),
-        ...(form.specialization ? { specialization: form.specialization } : {}),
-        reportsTo: form.reportsTo || null,
-        ...(form.joiningDate ? { joiningDate: form.joiningDate } : {}),
-      });
-      if (form.shiftId) {
-        await assignShiftToEmployee({
-          kind: 'template',
-          userId: result.employee.id,
-          shiftId: form.shiftId,
-          effectiveFrom: form.joiningDate || new Date().toISOString().slice(0, 10),
-        });
-      }
-      setMessage(
-        `Employee ${result.employee.fullName} created. Credentials were sent by email.`,
-      );
-      setForm(blank);
-      setFieldErrors({});
-      setShowCreate(false);
-      await load();
-    } catch (cause) {
-      if (cause instanceof IdentityApiError) {
-        const mapped: Record<string, { field?: keyof EmployeeFieldErrors; message: string }> = {
-          IDENTITY_EMAIL_ALREADY_REGISTERED: { field: 'email', message: 'Email already exists. Please use a different email address.' },
-          IDENTITY_DEPARTMENT_INVALID: { field: 'departmentId', message: 'Select a valid active department.' },
-          IDENTITY_POSITION_INVALID: { field: 'positionId', message: 'Select a valid position for the selected department.' },
-        };
-        const result = mapped[cause.code];
-        if (result?.field) setFieldErrors({ [result.field]: result.message });
-        setError(result?.field ? '' : result?.message ?? cause.message);
-      } else {
-        setError(cause instanceof Error ? cause.message : 'Unable to create employee.');
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div className="p-5 md:p-8">
       <div className="mx-auto max-w-7xl">
+
+        {/* ── Page header ─────────────────────────────────────────────────── */}
         <div className="page-heading flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">
@@ -293,309 +133,323 @@ export function EmployeesPage({
               Employees
             </h1>
             <p className="mt-2 text-sm text-app-muted">
-              Manage employee accounts in your organization.
+              {loading
+                ? 'Loading…'
+                : `${employees.length} member${employees.length !== 1 ? 's' : ''} in your organization`}
             </p>
           </div>
           {canManage && (
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                id="toggle-deactivated-btn"
                 onClick={() => setShowInactive((open) => !open)}
-                className="rounded-lg border border-app-border px-4 py-2.5 text-sm font-bold hover:border-app-accent"
+                className="rounded-xl border border-app-border px-4 py-2.5 text-sm font-semibold hover:border-app-accent"
               >
                 {showInactive ? 'Hide deactivated' : 'Deactivated employees'}
               </button>
               <button
                 type="button"
-                onClick={() => setShowCreate((open) => !open)}
-                className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent"
+                id="create-employee-btn"
+                onClick={() => setShowCreate(true)}
+                className="ui-primary flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold"
               >
-                {showCreate ? 'Close form' : 'Create employee'}
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                </svg>
+                Create employee
               </button>
             </div>
           )}
         </div>
+
+        {/* ── Alerts ──────────────────────────────────────────────────────── */}
         {message && (
-          <p className="mt-5 rounded-xl border border-app-accent/30 bg-app-accent/10 p-4 text-sm text-app-accent">
+          <div className="mt-4 flex items-center gap-3 rounded-xl border border-app-accent/30 bg-app-accent/8 px-4 py-3 text-sm text-app-accent">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
+              <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M5.5 8l2 2 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             {message}
-          </p>
+          </div>
         )}
         {error && (
-          <p className="mt-5 rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-4 text-sm text-app-danger">
+          <p className="mt-4 rounded-xl border border-app-danger/30 bg-app-danger/8 px-4 py-3 text-sm text-app-danger">
             {error}
           </p>
         )}
+
+        {/* ── Add employee wizard ──────────────────────────────────────────── */}
         {showCreate && (
-          <form
-            onSubmit={(event) => {
-              void submit(event);
+          <AddEmployeeWizardModal
+            isOpen={showCreate}
+            onClose={() => setShowCreate(false)}
+            onSuccess={(name, employeeId, _workflowId, setupUrl) => {
+              setMessage(`Employee ${name} created and 9-step onboarding workflow initialized.`);
+              setShowCreate(false);
+              void load();
+              setOnboardingEmployee({ id: employeeId, name, setupUrl: setupUrl ?? null });
             }}
-            className="mt-6 grid gap-4 rounded-2xl border border-app-border bg-app-surface p-6 md:grid-cols-2"
-          >
-            <Field
-              label="Full name"
-              value={form.fullName}
-              onChange={(value) => setField('fullName', value)}
-              error={fieldErrors.fullName}
-              required
-            />
-            <Field
-              label="Email"
-              type="email"
-              value={form.email}
-              onChange={(value) => setField('email', value)}
-              error={fieldErrors.email}
-              required
-            />
-            <Field
-              label="Password"
-              type="password"
-              value={form.password}
-              onChange={(value) => setField('password', value)}
-              error={fieldErrors.password}
-              required
-            />
-            <Field
-              label="Confirm password"
-              type="password"
-              value={form.confirmPassword}
-              onChange={(value) => setField('confirmPassword', value)}
-              error={fieldErrors.confirmPassword}
-              required
-            />
-            <Field
-              label="Joining date (optional)"
-              type="date"
-              value={form.joiningDate}
-              onChange={(value) => setForm({ ...form, joiningDate: value })}
-            />
-            <Select
-              label="Department"
-              value={form.departmentId}
-              onChange={setDepartment}
-              error={fieldErrors.departmentId}
-              options={departments.map((item) => ({ value: item.id, label: item.name }))}
-              required
-            />
-            <Select
-              label="Position"
-              value={form.positionId}
-              onChange={(value) => setField('positionId', value)}
-              error={fieldErrors.positionId}
-              options={positionOptions}
-              required
-            />
-            <Select
-              label="Shift (optional)"
-              value={form.shiftId}
-              onChange={(value) => setForm({ ...form, shiftId: value })}
-              options={shifts.map((s) => ({ value: s.id, label: `${s.name} (${s.kind})` }))}
-            />
-            <Select
-              label="Team (optional)"
-              value={form.teamId}
-              onChange={(value) => setForm({ ...form, teamId: value })}
-              options={departmentTeams.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-            />
-            <Select
-              label="Designation (optional)"
-              value={form.designationId}
-              onChange={(value) => {
-                // Filter/auto-fill: picking a designation without a department
-                // yet also selects the designation's department. If a
-                // department is already chosen and the designation belongs to
-                // a different one, keep the department (the option list is
-                // already filtered so this branch should be unreachable in
-                // normal use).
-                const chosen = designations.find((item) => item.id === value);
-                setForm((current) => ({
-                  ...current,
-                  designationId: value,
-                  specialization: '',
-                  departmentId:
-                    chosen && current.departmentId === ''
-                      ? chosen.departmentId
-                      : current.departmentId,
-                  // If the department changed as a side effect, clear
-                  // position/team/reportsTo the same way setDepartment does.
-                  ...(chosen && current.departmentId === ''
-                    ? { positionId: '', teamId: '', reportsTo: '' }
-                    : {}),
-                }));
-                if (chosen && form.departmentId === '') {
-                  setLadder(null);
-                }
-              }}
-              options={designations
-                .filter(
-                  (item) =>
-                    form.departmentId === '' || item.departmentId === form.departmentId,
-                )
-                .map((item) => ({ value: item.id, label: item.name }))}
-            />
-            {designation && (
-              <Select
-                label="Specialization (optional)"
-                value={form.specialization}
-                onChange={(value) => setForm({ ...form, specialization: value })}
-                options={designation.specializations.map((item) => ({
-                  value: item,
-                  label: item,
-                }))}
-              />
-            )}
-            {isRootPosition ? (
-              <div className="rounded-xl border border-app-border bg-app-background p-4 text-xs text-app-muted">
-                This position reports directly to the Company Super Admin. No reporting
-                manager is required.
-              </div>
-            ) : (
-              <Select
-                label="Reporting manager (optional)"
-                value={form.reportsTo}
-                onChange={(value) => setForm({ ...form, reportsTo: value })}
-                options={reportingManagers.map((item) => ({
-                  value: item.id,
-                  label:
-                    item.accountType === 'super-admin'
-                      ? `${item.fullName} (Company Super Admin)`
-                      : item.fullName,
-                }))}
-              />
-            )}
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-lg bg-app-accent px-4 py-2.5 text-sm font-bold text-app-on-accent disabled:opacity-50 md:col-span-2"
-            >
-              {busy ? 'Creating...' : 'Create employee and send credentials'}
-            </button>
-            {form.positionId && (
-              <section className="rounded-xl border border-app-border bg-app-background p-4 md:col-span-2">
-                <p className="text-sm font-semibold">Access preview</p>
-                <p className="mt-1 text-xs text-app-muted">Derived from this position&apos;s current policies. This preview does not grant or save access.</p>
-                {accessPreview.length === 0 ? <p className="mt-3 text-xs text-app-muted">No position policies are currently configured.</p> : <div className="mt-3 grid gap-2 sm:grid-cols-2">{accessPreview.map((policy) => <div key={policy.action} className="rounded-lg border border-app-border px-3 py-2 text-xs"><span className="font-semibold">{policy.action}</span><span className="ml-2 text-app-muted">{policy.allowed ? policy.scope : 'Denied'}</span></div>)}</div>}
-              </section>
-            )}
-          </form>
+            departments={departments}
+            teams={teams}
+            designations={designations}
+            shifts={shifts}
+          />
         )}
-        {loading ? (
-          <div className="mt-6 h-56 animate-pulse rounded-2xl border border-app-border bg-app-surface" />
-        ) : visible.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-app-border bg-app-surface p-8 text-center">
-            <h2 className="font-display text-xl font-bold">No employees found</h2>
-            <p className="mt-2 text-sm text-app-muted">
-              Try another search or create an employee account.
-            </p>
-          </div>
-        ) : (
-          <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface">
-            <div className="border-b border-app-border p-4">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search employees"
-                className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
-                aria-label="Search employees"
-              />
-            </div>
-            <div className="divide-y divide-app-border">
-              {visible.map((employee) => (
-                <div
-                  key={employee.id}
-                  className="grid gap-3 px-5 py-4 md:grid-cols-[1.3fr_1fr_1fr_1fr_1fr] md:items-center"
-                >
-                  <div>
-                    <p className="font-semibold">{employee.fullName}</p>
-                    <p className="text-xs text-app-muted">
-                      {employee.email ?? 'Employee account'}
-                    </p>
+
+        {/* ── Employee list ────────────────────────────────────────────────── */}
+        <div className="mt-6">
+          {loading ? (
+            /* Skeleton */
+            <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-app-border px-5 py-4 last:border-b-0">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="h-11 w-11 shrink-0 animate-pulse rounded-xl bg-app-border opacity-60" />
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-2 h-3.5 w-2/5 animate-pulse rounded-md bg-app-border opacity-60" />
+                      <div className="h-3 w-3/5 animate-pulse rounded-md bg-app-border opacity-40" />
+                    </div>
                   </div>
-                  <Detail label="Department" value={employee.departmentName} />
-                  <Detail
-                    label="Position"
-                    value={
-                      employee.positionName
-                        ? `${employee.positionName}${employee.positionCode ? ` (${employee.positionCode})` : ''}`
-                        : null
-                    }
-                  />
-                  <Detail label="Team" value={employee.teamName} />
-                  <Detail label="Designation" value={employee.designationName} />
-                  <div className="text-xs text-app-muted md:col-span-5">
-                    <span className="font-semibold text-app-foreground">
-                      Specialization:
-                    </span>{' '}
-                    {employee.specialization ?? '—'} ·{' '}
-                    <span className="font-semibold text-app-foreground">
-                      Reporting Manager:
-                    </span>{' '}
-                    {employee.reportsToName ?? '—'}
-                    {canManage && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(employee.id)}
-                        className="ml-4 rounded border border-app-border px-2 py-0.5 text-xs text-app-foreground hover:border-app-accent"
-                      >
-                        Edit
-                      </button>
-                    )}
-                    {canManage && <button
-                      type="button"
-                      onClick={() => {
-                        setResetTarget({ id: employee.id, fullName: employee.fullName });
-                        setResetPw('');
-                        setResetConfirm('');
-                        setResetError('');
-                        setResetDone(false);
-                      }}
-                      className="ml-4 rounded border border-app-border px-2 py-0.5 text-xs text-app-muted hover:border-app-accent hover:text-app-foreground"
-                    >
-                      Reset password
-                    </button>}
+                  <div className="hidden shrink-0 gap-2 sm:flex">
+                    {[62, 82, 56, 100].map((w, j) => (
+                      <div key={j} style={{ width: w }} className="h-7 animate-pulse rounded-lg bg-app-border opacity-40" />
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
-          </section>
+          ) : employees.length === 0 ? (
+            /* Empty state */
+            <div className="rounded-2xl border border-app-border bg-app-surface px-6 py-14 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-app-accent/10">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true" className="text-app-accent">
+                  <circle cx="13" cy="9" r="5" stroke="currentColor" strokeWidth="2" />
+                  <path d="M4 22c0-4.97 4.03-9 9-9s9 4.03 9 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </div>
+              <h2 className="font-display text-xl font-bold">No employees yet</h2>
+              <p className="mt-2 text-sm text-app-muted">
+                Get started by creating the first employee account.
+              </p>
+              {canManage && (
+                <button
+                  type="button"
+                  id="empty-create-btn"
+                  onClick={() => setShowCreate(true)}
+                  className="ui-primary mt-5 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold"
+                >
+                  Create first employee
+                </button>
+              )}
+            </div>
+          ) : (
+            <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
+              {/* Search */}
+              <div className="flex items-center gap-3 border-b border-app-border px-4 py-3">
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true" className="shrink-0 text-app-muted">
+                  <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M10 10l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <input
+                  id="employee-search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name…"
+                  aria-label="Search employees"
+                  className="flex-1 bg-transparent text-sm outline-none"
+                  style={{ border: 'none', boxShadow: 'none' }}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearch('')}
+                    className="flex items-center rounded-md p-1 text-app-muted hover:text-app-foreground"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+                      <path d="M1 1l9 9M10 1L1 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
+                <span className="shrink-0 text-xs text-app-muted">
+                  {visible.length}/{employees.length}
+                </span>
+              </div>
+
+              {/* Column header row */}
+              <div className="grid grid-cols-[1fr_auto] border-b border-app-border bg-app-surface-raised px-5 py-2">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-app-muted">Employee</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-app-muted">Actions</span>
+              </div>
+
+              {/* Rows */}
+              {visible.length === 0 ? (
+                <p className="px-5 py-10 text-center text-sm text-app-muted">
+                  No employees match &ldquo;{search}&rdquo;
+                </p>
+              ) : (
+                <div className="divide-y divide-app-border">
+                  {visible.map((employee, idx) => {
+                    const av = getAvatarStyle(employee.fullName);
+                    const metaParts = [
+                      employee.departmentName,
+                      employee.positionName
+                        ? `${employee.positionName}${employee.positionCode ? ` (${employee.positionCode})` : ''}`
+                        : null,
+                      employee.teamName,
+                      employee.designationName,
+                    ].filter(Boolean);
+
+                    return (
+                      <div
+                        key={employee.id}
+                        id={`employee-row-${employee.id}`}
+                        className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 px-5 py-4 transition-colors duration-150 hover:bg-app-accent/[0.03] sm:items-center"
+                        style={{ animationDelay: `${Math.min(idx * 35, 280)}ms` }}
+                      >
+                        {/* Identity — takes the flexible left column */}
+                        <div className="flex min-w-0 items-start gap-3.5">
+                          {/* Avatar */}
+                          <div
+                            className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[13px] font-extrabold"
+                            style={{
+                              background: av.bg,
+                              color: av.fg,
+                              border: `1.5px solid ${av.fg}22`,
+                              letterSpacing: '-0.02em',
+                            }}
+                          >
+                            {getInitials(employee.fullName)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-bold text-app-foreground">
+                              {employee.fullName}
+                            </p>
+                            <p className="break-all text-xs text-app-muted">
+                              {employee.email ?? 'Employee account'}
+                            </p>
+                            {metaParts.length > 0 && (
+                              <p className="mt-0.5 break-words text-[11.5px] text-app-muted">
+                                {metaParts.join(' · ')}
+                              </p>
+                            )}
+                            {(employee.specialization || employee.reportsToName) && (
+                              <p className="mt-0.5 break-words text-[11px] text-app-muted">
+                                {employee.specialization && (
+                                  <>
+                                    <span className="font-semibold text-app-foreground">Spec:</span>{' '}
+                                    {employee.specialization}
+                                    {employee.reportsToName ? ' · ' : ''}
+                                  </>
+                                )}
+                                {employee.reportsToName && (
+                                  <>
+                                    <span className="font-semibold text-app-foreground">Reports to:</span>{' '}
+                                    {employee.reportsToName}
+                                  </>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/*
+                          Actions — independent right column on desktop (auto width, never pushed out).
+                          On mobile this column is a 2×2 grid spanning both grid columns
+                          so all four actions are fully visible and touchable.
+                        */}
+                        <div className="col-span-2 grid grid-cols-2 gap-1.5 sm:col-span-1 sm:flex sm:shrink-0 sm:flex-wrap">
+                          {canManage && (
+                            <ActionPill
+                              id={`edit-btn-${employee.id}`}
+                              label="Edit"
+                              variant="neutral"
+                              onClick={() => setEditingId(employee.id)}
+                            />
+                          )}
+                          <ActionPill
+                            id={`onboarding-btn-${employee.id}`}
+                            label="Onboarding"
+                            variant="accent"
+                            onClick={() => setOnboardingEmployee({ id: employee.id, name: employee.fullName })}
+                          />
+                          <ActionPill
+                            id={`verify-btn-${employee.id}`}
+                            label="Verify"
+                            variant="success"
+                            onClick={() => setVerifyingEmployee({ id: employee.id, name: employee.fullName })}
+                          />
+                          {canManage && (
+                            <ActionPill
+                              id={`reset-pw-btn-${employee.id}`}
+                              label="Reset password"
+                              variant="neutral"
+                              onClick={() => {
+                                setResetTarget({ id: employee.id, fullName: employee.fullName });
+                                setResetPw('');
+                                setResetConfirm('');
+                                setResetError('');
+                                setResetDone(false);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+
+        {/* ── Deactivated employees ────────────────────────────────────────── */}
+        {showInactive && inactive && (
+          <div className="mt-5">
+            <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
+              <div className="flex items-center gap-2 border-b border-app-border bg-app-surface-raised px-5 py-3">
+                <span className="text-sm font-semibold text-app-foreground">Deactivated employees</span>
+                <span className="rounded-full bg-app-border px-2 py-0.5 text-[11px] font-bold text-app-muted">
+                  {inactive.length}
+                </span>
+              </div>
+              {inactive.length === 0 ? (
+                <p className="px-5 py-5 text-sm text-app-muted">Nobody is deactivated.</p>
+              ) : (
+                <div className="divide-y divide-app-border">
+                  {inactive.map((person) => (
+                    <div
+                      key={person.id}
+                      className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-app-foreground">{person.fullName}</p>
+                        <p className="text-xs text-app-muted">
+                          {[person.employeeId, person.departmentName, person.positionName]
+                            .filter(Boolean)
+                            .join(' · ')}
+                          {person.leftOn ? ` · left ${person.leftOn}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        id={`open-inactive-${person.id}`}
+                        onClick={() => setEditingId(person.id)}
+                        className="rounded-lg border border-app-border px-3 py-1.5 text-xs font-semibold hover:border-app-accent"
+                      >
+                        Open
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         )}
       </div>
 
-      {showInactive && inactive && (
-        <div className="mx-auto mt-6 max-w-7xl px-5 md:px-8">
-          <section className="rounded-2xl border border-app-border bg-app-surface">
-            <p className="border-b border-app-border p-4 text-sm font-semibold">Deactivated employees ({inactive.length})</p>
-            {inactive.length === 0 ? (
-              <p className="p-4 text-sm text-app-muted">Nobody is deactivated.</p>
-            ) : (
-              <div className="divide-y divide-app-border">
-                {inactive.map((person) => (
-                  <div key={person.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
-                    <div>
-                      <p className="font-semibold">{person.fullName}</p>
-                      <p className="text-xs text-app-muted">
-                        {[person.employeeId, person.departmentName, person.positionName].filter(Boolean).join(' · ')}
-                        {person.leftOn ? ` · left ${person.leftOn}` : ''}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(person.id)}
-                      className="rounded border border-app-border px-3 py-1 text-xs hover:border-app-accent"
-                    >
-                      Open
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-      )}
-
+      {/* ── Modals ───────────────────────────────────────────────────────── */}
       {editingId && (
         <EditEmployeeModal
           userId={editingId}
@@ -618,26 +472,26 @@ export function EmployeesPage({
 
       {resetTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Reset employee password"
         >
-          <div className="w-full max-w-sm rounded-2xl border border-app-border bg-app-surface p-6 shadow-xl">
-            <h2 className="font-display text-lg font-bold">Reset password</h2>
-            <p className="mt-1 text-sm text-app-muted">
+          <div className="w-full max-w-sm rounded-2xl border border-app-border bg-app-surface p-7 shadow-2xl">
+            <h2 className="font-display text-lg font-extrabold text-app-foreground">Reset password</h2>
+            <p className="mt-1.5 text-sm text-app-muted leading-relaxed">
               Set a new temporary password for{' '}
-              <span className="font-semibold text-app-foreground">{resetTarget.fullName}</span>.
+              <span className="font-bold text-app-foreground">{resetTarget.fullName}</span>.
               They will be required to change it on next login.
             </p>
 
             {resetDone ? (
-              <div className="mt-4 rounded-lg bg-emerald-500/12 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+              <div className="mt-4 rounded-xl border border-app-success/25 bg-app-success/10 px-4 py-3 text-sm text-app-success">
                 Password reset. The employee must change it on their next login.
               </div>
             ) : (
               <form
-                className="mt-4 space-y-3"
+                className="mt-5 space-y-3.5"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (resetPw.length < 12) { setResetError('Password must be at least 12 characters.'); return; }
@@ -650,25 +504,27 @@ export function EmployeesPage({
                     .finally(() => { setResetBusy(false); });
                 }}
               >
-                <label className="block text-xs font-semibold text-app-muted">
-                  <span className="mb-1.5 block">New password (min 12 characters)</span>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold text-app-muted">
+                    New password (min 12 characters)
+                  </span>
                   <input
                     type="password"
                     value={resetPw}
                     onChange={(e) => setResetPw(e.target.value)}
                     required
                     autoFocus
-                    className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
+                    className="w-full rounded-xl border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
                   />
                 </label>
-                <label className="block text-xs font-semibold text-app-muted">
-                  <span className="mb-1.5 block">Confirm password</span>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold text-app-muted">Confirm password</span>
                   <input
                     type="password"
                     value={resetConfirm}
                     onChange={(e) => setResetConfirm(e.target.value)}
                     required
-                    className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
+                    className="w-full rounded-xl border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
                   />
                 </label>
                 {resetError && (
@@ -677,15 +533,16 @@ export function EmployeesPage({
                 <div className="flex gap-2 pt-1">
                   <button
                     type="submit"
+                    id="reset-pw-submit-btn"
                     disabled={resetBusy}
-                    className="rounded-lg bg-app-accent px-4 py-2 text-sm font-bold text-app-on-accent disabled:opacity-50"
+                    className="ui-primary flex-1 rounded-xl py-2.5 text-sm font-bold disabled:opacity-50"
                   >
                     {resetBusy ? 'Resetting…' : 'Reset password'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setResetTarget(null)}
-                    className="rounded-lg border border-app-border px-4 py-2 text-sm hover:border-app-accent"
+                    className="flex-1 rounded-xl border border-app-border py-2.5 text-sm font-semibold hover:border-app-accent"
                   >
                     Cancel
                   </button>
@@ -697,7 +554,7 @@ export function EmployeesPage({
               <button
                 type="button"
                 onClick={() => setResetTarget(null)}
-                className="mt-4 rounded-lg border border-app-border px-4 py-2 text-sm hover:border-app-accent"
+                className="mt-4 w-full rounded-xl border border-app-border py-2.5 text-sm font-semibold hover:border-app-accent"
               >
                 Close
               </button>
@@ -705,130 +562,65 @@ export function EmployeesPage({
           </div>
         </div>
       )}
+
+      {onboardingEmployee && (
+        <OnboardingChecklistDrawer
+          isOpen={true}
+          employeeId={onboardingEmployee.id}
+          employeeName={onboardingEmployee.name}
+          setupUrl={onboardingEmployee.setupUrl}
+          onClose={() => setOnboardingEmployee(null)}
+        />
+      )}
+
+      {verifyingEmployee && (
+        <EmployeeVerificationModal
+          isOpen={true}
+          employeeId={verifyingEmployee.id}
+          employeeName={verifyingEmployee.name}
+          canManage={canManage}
+          onClose={() => setVerifyingEmployee(null)}
+        />
+      )}
     </div>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  required = false,
-  error,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  required?: boolean;
-  error?: string | undefined;
-}): React.JSX.Element {
-  const [visible, setVisible] = useState(false);
-  const passwordField = type === 'password';
-  return (
-    <label className="text-xs font-semibold text-app-muted">
-      <span className="mb-2 block">{label}</span>
-      <span className="relative block">
-        <input
-          required={required}
-          type={passwordField ? (visible ? 'text' : 'password') : type}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent${passwordField ? ' pr-11' : ''}`}
-        />
-        {passwordField && <button
-          type="button"
-          className="absolute right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md border-0 bg-transparent p-0 text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1"
-          onClick={() => setVisible((current) => !current)}
-          aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
-          aria-pressed={visible}
-        >
-          <PasswordVisibilityIcon visible={visible} />
-        </button>}
-      </span>
-      {error && <span className="mt-1 block text-xs font-normal text-app-danger" role="alert">{error}</span>}
-    </label>
-  );
-}
+// ── Sub-components ────────────────────────────────────────────────────────────
 
-function PasswordVisibilityIcon({ visible }: { visible: boolean }): React.JSX.Element {
-  return (
-    <svg className="size-[17px] fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.8]" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      {visible ? (
-        <>
-          <path d="M3 3l18 18" />
-          <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-          <path d="M9.9 4.3A10.8 10.8 0 0 1 12 4c5.2 0 8.7 4 10 8a13.7 13.7 0 0 1-3.1 5" />
-          <path d="M6.2 6.2C4.5 7.3 3.2 9.2 2 12c1.3 4 4.8 8 10 8a10.8 10.8 0 0 0 3.4-.5" />
-        </>
-      ) : (
-        <>
-          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
-          <circle cx="12" cy="12" r="2.5" />
-        </>
-      )}
-    </svg>
-  );
-}
-function Select({
+const PILL_CLASSES: Record<string, string> = {
+  neutral:
+    'border-app-border text-app-foreground hover:border-app-accent hover:text-app-accent',
+  accent:
+    'border-app-accent/35 bg-app-accent/8 text-app-accent hover:bg-app-accent hover:text-app-on-accent hover:border-app-accent',
+  success:
+    'border-emerald-500/35 bg-emerald-500/8 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white hover:border-emerald-500',
+};
+
+function ActionPill({
   label,
-  value,
-  onChange,
-  options,
-  required = false,
-  error,
+  variant,
+  onClick,
+  id,
 }: {
   label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-  required?: boolean;
-  error?: string | undefined;
+  variant: 'neutral' | 'accent' | 'success';
+  onClick: () => void;
+  id?: string;
 }): React.JSX.Element {
   return (
-    <label className="text-xs font-semibold text-app-muted">
-      <span className="mb-2 block">{label}</span>
-      <select
-        required={required}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
-      >
-        <option value="">Select {label.toLowerCase()}</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      {error && <span className="mt-1 block text-xs font-normal text-app-danger" role="alert">{error}</span>}
-    </label>
+    <button
+      type="button"
+      id={id}
+      onClick={onClick}
+      /*
+       * w-full makes the button fill its grid cell on mobile (2-col grid),
+       * giving each action a 50%-minus-gap width that never overflows.
+       * On sm+ the parent switches to flex so w-full is overridden by auto flex sizing.
+       */
+      className={`w-full justify-center rounded-lg border px-2.5 py-2 text-xs font-semibold transition-colors duration-150 sm:w-auto sm:justify-start sm:py-1 ${PILL_CLASSES[variant] ?? ''}`}
+    >
+      {label}
+    </button>
   );
-}
-function Detail({
-  label,
-  value,
-}: {
-  label: string;
-  value?: string | null | undefined;
-}): React.JSX.Element {
-  return (
-    <p className="text-xs text-app-muted">
-      <span className="block font-semibold text-app-foreground">{label}</span>
-      {value ?? '—'}
-    </p>
-  );
-}
-function flattenPositions(
-  positions: CompanyLadderPosition[],
-  depth = 0,
-): Array<{ value: string; label: string }> {
-  return positions.flatMap((position) => [
-    {
-      value: position.id,
-      label: `${'— '.repeat(depth)}${position.name} (${position.code})`,
-    },
-    ...flattenPositions(position.children ?? [], depth + 1),
-  ]);
 }

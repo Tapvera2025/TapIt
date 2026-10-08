@@ -26,7 +26,14 @@ function requestUrl(bucket: StorageBucket, key: string): URL {
   return url;
 }
 
-async function signedRequest(method: string, bucket: StorageBucket, key: string, body: Buffer | null, metadata: Readonly<Record<string, string>> = {}): Promise<Response> {
+async function signedRequest(
+  method: string,
+  bucket: StorageBucket,
+  key: string,
+  body: Buffer | null,
+  metadata: Readonly<Record<string, string>> = {},
+  contentType?: string,
+): Promise<Response> {
   const config = loadConfig();
   if (!config.S3_ACCESS_KEY_ID || !config.S3_SECRET_ACCESS_KEY) throw new Error('S3 credentials are required for centralized storage.');
   const url = requestUrl(bucket, key);
@@ -40,8 +47,14 @@ async function signedRequest(method: string, bucket: StorageBucket, key: string,
     'x-amz-content-sha256': payloadHash,
     'x-amz-date': amzDate,
   });
-  for (const [name, value] of Object.entries(metadata)) headers.set(`x-amz-meta-${name.toLowerCase()}`, value);
-  if (body !== null) headers.set('content-type', 'application/octet-stream');
+  for (const [name, value] of Object.entries(metadata)) {
+    if (name.toLowerCase() === 'content-type') continue;
+    headers.set(`x-amz-meta-${name.toLowerCase()}`, value);
+  }
+  if (body !== null) {
+    const finalContentType = contentType ?? metadata['content-type'] ?? 'application/octet-stream';
+    headers.set('content-type', finalContentType);
+  }
   const signedHeaders = [...headers.keys()].map((name) => name.toLowerCase()).sort();
   const canonicalHeaders = signedHeaders.map((name) => `${name}:${headers.get(name)!.trim()}\n`).join('');
   const canonicalRequest = [method, url.pathname, url.search.slice(1), canonicalHeaders, signedHeaders.join(';'), payloadHash].join('\n');
@@ -53,7 +66,10 @@ async function signedRequest(method: string, bucket: StorageBucket, key: string,
   const response = body === null
     ? await fetch(url, { method, headers })
     : await fetch(url, { method, headers, body });
-  if (!response.ok) throw new Error(`Storage ${method} ${key} failed with HTTP ${response.status}.`);
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(`Storage ${method} ${key} failed with HTTP ${response.status}${errorBody ? `: ${errorBody.slice(0, 200)}` : ''}.`);
+  }
   return response;
 }
 
@@ -95,7 +111,7 @@ function presign(bucket: StorageBucket, key: string, expiresInSeconds: number, n
 export class MinioStorageProvider implements StorageService {
   async putObject(input: { bucket: StorageBucket; key: string; body: Buffer; contentType: string; metadata?: Readonly<Record<string, string>> }): Promise<{ checksumSha256: string }> {
     const checksumSha256 = sha256(input.body);
-    await signedRequest('PUT', input.bucket, input.key, input.body, { ...input.metadata, 'checksum-sha256': checksumSha256, 'content-type': input.contentType });
+    await signedRequest('PUT', input.bucket, input.key, input.body, { ...input.metadata, 'checksum-sha256': checksumSha256 }, input.contentType);
     return { checksumSha256 };
   }
 

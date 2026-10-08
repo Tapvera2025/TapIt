@@ -11,9 +11,19 @@ const valid = {
 };
 
 describe('employee creation validation', () => {
-  it('requires matching initial password confirmation', () => {
+  it('requires matching initial password confirmation when password is provided', () => {
     expect(createEmployeeSchema.safeParse(valid).success).toBe(true);
     expect(createEmployeeSchema.safeParse({ ...valid, confirmPassword: 'different-password-123!' }).success).toBe(false);
+  });
+
+  it('accepts employee creation without password (employee password setup link flow)', () => {
+    const { password: _p, confirmPassword: _cp, ...withoutPassword } = valid;
+    const parsed = createEmployeeSchema.safeParse(withoutPassword);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.password).toBeUndefined();
+      expect(parsed.data.confirmPassword).toBeUndefined();
+    }
   });
 
   it('rejects passwords shorter than the existing identity policy', () => {
@@ -75,5 +85,62 @@ describe('employment dates', () => {
     // Placement is a separate, Super Admin step.
     expect(updateEmployeeSchema.safeParse({ positionId: '00000000-0000-0000-0000-000000000001' }).success).toBe(false);
     expect(updateEmployeeSchema.safeParse({ email: 'not-an-email' }).success).toBe(false);
+  });
+});
+
+describe('extended employee onboarding fields', () => {
+  it('accepts personal info, shiftId, qualifications, and skills', () => {
+    const extended = {
+      ...valid,
+      phone: '+91 9876543210',
+      personalInfo: {
+        dateOfBirth: '1995-05-15',
+        gender: 'Female',
+        addressLine1: '123 Tech Park',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        postalCode: '560001',
+        emergencyContactName: 'Jane Doe',
+        emergencyContactPhone: '+91 9876543211',
+        emergencyContactRelation: 'Spouse',
+      },
+      shiftId: '00000000-0000-0000-0000-000000000009',
+      qualifications: [
+        {
+          institution: 'National Institute of Technology',
+          degree: 'B.Tech',
+          fieldOfStudy: 'Computer Science',
+          passingYear: 2017,
+          grade: 'A',
+        },
+      ],
+      skills: [
+        { skillName: 'TypeScript', proficiency: 'expert' as const },
+        { skillName: 'PostgreSQL', proficiency: 'advanced' as const },
+      ],
+    };
+
+    const parsed = createEmployeeSchema.safeParse(extended);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.phone).toBe('+91 9876543210');
+      expect(parsed.data.personalInfo?.city).toBe('Bengaluru');
+      expect(parsed.data.qualifications?.[0]?.degree).toBe('B.Tech');
+      expect(parsed.data.skills?.[0]?.skillName).toBe('TypeScript');
+    }
+  });
+
+  it('rejects invalid qualification passing year', () => {
+    const invalidYear = {
+      ...valid,
+      qualifications: [
+        {
+          institution: 'Test College',
+          degree: 'B.Sc',
+          passingYear: 1899,
+        },
+      ],
+    };
+    expect(createEmployeeSchema.safeParse(invalidYear).success).toBe(false);
   });
 });

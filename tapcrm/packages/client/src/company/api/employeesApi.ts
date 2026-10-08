@@ -2,6 +2,7 @@ import { identityRequest } from '../../identity/api/authApi.js';
 import { peopleMutation } from './client.js';
 
 export interface CreateEmployeeInput {
+  employeeId?: string;
   email: string;
   fullName: string;
   password: string;
@@ -9,13 +10,52 @@ export interface CreateEmployeeInput {
   departmentId: string;
   positionId: string;
   teamId?: string;
+  designationId?: string;
   specialization?: string;
   reportsTo?: string | null;
   /** YYYY-MM-DD: the first day they work here. */
   joiningDate?: string;
+  phone?: string;
+  personalInfo?: {
+    phone?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    emergencyContactRelation?: string;
+  };
+  shiftId?: string;
+  qualifications?: Array<{
+    institution: string;
+    degree: string;
+    fieldOfStudy?: string;
+    passingYear?: number;
+    grade?: string;
+  }>;
+  skills?: Array<{
+    skillName: string;
+    proficiency?: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  }>;
 }
 
-export async function createEmployee(input: CreateEmployeeInput): Promise<{ employee: { id: string; email: string; fullName: string; status: string }; credentials: { delivery: string; status: string } }> {
+export async function getNextEmployeeId(current?: string): Promise<{ nextEmployeeId: string }> {
+  const url = current
+    ? `/api/users?nextEmployeeId=true&current=${encodeURIComponent(current)}`
+    : '/api/users?nextEmployeeId=true';
+  return identityRequest(url);
+}
+
+export async function createEmployee(input: CreateEmployeeInput): Promise<{
+  employee: { id: string; email: string; fullName: string; status: string };
+  onboardingWorkflowId: string;
+  credentials: { delivery: string; status: string };
+  setupUrl?: string;
+}> {
   return identityRequest('/api/users', { method: 'POST', body: JSON.stringify(input) });
 }
 
