@@ -12,10 +12,11 @@ import {
   Page,
   Select,
 } from '../components/OrganizationUi.js';
-import type {
-  OrganizationDepartment,
-  OrganizationDesignation,
-} from '../types/index.js';
+import type { OrganizationDepartment, OrganizationDesignation } from '../types/index.js';
+import { IdentityApiError } from '../../identity/api/authApi.js';
+
+type DesignationField = 'departmentId' | 'name' | 'specializations';
+type DesignationFieldErrors = Partial<Record<DesignationField, string>>;
 
 export function DesignationsPage(): React.JSX.Element {
   const [items, setItems] = useState<OrganizationDesignation[]>([]);
@@ -29,6 +30,8 @@ export function DesignationsPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [fieldErrors, setFieldErrors] = useState<DesignationFieldErrors>({});
+  const [formError, setFormError] = useState('');
   const [message, setMessage] = useState('');
   const departmentLookup = new Map(departments.map((item) => [item.id, item] as const));
   const departmentOptions = departments
@@ -59,6 +62,8 @@ export function DesignationsPage(): React.JSX.Element {
     setName('');
     setSpecializations('');
     setStatus('active');
+    setFieldErrors({});
+    setFormError('');
     setOpen(true);
   }
   function edit(item: OrganizationDesignation) {
@@ -67,14 +72,35 @@ export function DesignationsPage(): React.JSX.Element {
     setName(item.name);
     setSpecializations(item.specializations.join(', '));
     setStatus(item.status);
+    setFieldErrors({});
+    setFormError('');
     setOpen(true);
+  }
+  function updateField(field: DesignationField, value: string) {
+    const setters = {
+      departmentId: setDepartmentId,
+      name: setName,
+      specializations: setSpecializations,
+    };
+    setters[field](value);
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setFormError('');
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!departmentId) {
-      setError(new Error('Please choose a department for this designation.'));
-      return;
-    }
+    const nextErrors: DesignationFieldErrors = {};
+    if (!departmentId) nextErrors.departmentId = 'Department is required.';
+    if (!name.trim()) nextErrors.name = 'Designation name is required.';
+    else if (name.trim().length > 160)
+      nextErrors.name = 'Designation name must be at most 160 characters.';
+    setFieldErrors(nextErrors);
+    setFormError('');
+    if (Object.keys(nextErrors).length > 0) return;
     setBusy(true);
     setError(null);
     try {
@@ -99,7 +125,21 @@ export function DesignationsPage(): React.JSX.Element {
       setMessage('Designation saved.');
       await load();
     } catch (cause) {
-      setError(cause);
+      if (
+        cause instanceof IdentityApiError &&
+        cause.code === 'ORG_DESIGNATION_NAME_EXISTS'
+      ) {
+        setFieldErrors({ name: 'A designation with this name already exists.' });
+      } else if (
+        cause instanceof IdentityApiError &&
+        cause.code === 'ORG_DESIGNATION_SPECIALIZATION_DUPLICATE'
+      ) {
+        setFieldErrors({ specializations: 'Specializations must be unique.' });
+      } else if (cause instanceof Error) {
+        setFormError(cause.message);
+      } else {
+        setFormError('Unable to save designation.');
+      }
     } finally {
       setBusy(false);
     }
@@ -136,7 +176,8 @@ export function DesignationsPage(): React.JSX.Element {
                 <div>
                   <p className="font-semibold">{item.name}</p>
                   <p className="mt-1 text-xs text-app-muted">
-                    {departmentLookup.get(item.departmentId)?.name ?? 'Unassigned department'}
+                    {departmentLookup.get(item.departmentId)?.name ??
+                      'Unassigned department'}
                   </p>
                   <p className="mt-1 text-xs text-app-muted">
                     {item.specializations.length
@@ -161,6 +202,7 @@ export function DesignationsPage(): React.JSX.Element {
           onClose={() => setOpen(false)}
         >
           <form
+            noValidate
             onSubmit={(event) => {
               void submit(event);
             }}
@@ -169,15 +211,24 @@ export function DesignationsPage(): React.JSX.Element {
             <Select
               label="Department"
               value={departmentId}
-              onChange={setDepartmentId}
+              onChange={(value) => updateField('departmentId', value)}
               options={departmentOptions}
+              error={fieldErrors.departmentId}
+              required
             />
-            <Field label="Designation name" value={name} onChange={setName} required />
+            <Field
+              label="Designation name"
+              value={name}
+              onChange={(value) => updateField('name', value)}
+              error={fieldErrors.name}
+              required
+            />
             <Field
               label="Specializations"
               value={specializations}
-              onChange={setSpecializations}
+              onChange={(value) => updateField('specializations', value)}
               placeholder="Comma-separated values"
+              error={fieldErrors.specializations}
             />
             {editing && (
               <Select
@@ -196,6 +247,7 @@ export function DesignationsPage(): React.JSX.Element {
             <Button type="submit" disabled={busy}>
               {busy ? 'Saving…' : 'Save designation'}
             </Button>
+            {formError && <ErrorMessage cause={new Error(formError)} />}
           </form>
         </Modal>
       )}
