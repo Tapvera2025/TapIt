@@ -3154,6 +3154,66 @@
     },
     {
       "method": "GET",
+      "path": "/api/users/:id/verification",
+      "action": "users:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/:id/work-status",
+      "action": "users:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/:id/work",
+      "action": "users:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/verification",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/verification/documents",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/:id/verification/documents/:docId/download",
+      "action": "users:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/verification/documents/:docId/approve",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/verification/documents/:docId/reject",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/verification/complete",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/verification/reject",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
       "path": "/api/onboarding",
       "action": "onboarding:manage",
       "resourceParam": null

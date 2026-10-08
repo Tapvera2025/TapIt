@@ -7,6 +7,9 @@ import { registerOrganizationPolicies } from './organization/policy.js';
 import { registerOrganizationRoutes } from './organization/routes.js';
 import { registerEmployeePolicies } from './employee/policy.js';
 import { registerEmployeeRoutes } from './employee/routes.js';
+import { registerOnboardingPolicies } from './onboarding/policy.js';
+import { registerOnboardingRoutes } from './onboarding/routes.js';
+import { registerVerificationRoutes } from './verification/facade.js';
 import { registerGeofencePolicies } from './identity/geofence/policy.js';
 import { registerGeofenceRoutes } from './identity/geofence/routes.js';
 import { registerIdentityRoutes } from './identity/routes.js';
@@ -88,6 +91,7 @@ export function initializePorts(): void {
 export function registerAllPolicies(): void {
   registerOrganizationPolicies();
   registerEmployeePolicies();
+  registerOnboardingPolicies();
   registerGeofencePolicies();
   registerAuditPolicies();
   registerShiftPolicies();
@@ -151,6 +155,8 @@ export function registerAllRoutes(): void {
   registerClientRoutes();
   registerProjectRoutes();
   registerMyTodoRoutes();
+  registerOnboardingRoutes();
+  registerVerificationRoutes();
 }
 
 let jobsRegistered = false;

@@ -1,5 +1,6 @@
 import type { Router } from 'express';
 import { acceptAdminInvitation } from './invitations.js';
+import { setupEmployeePassword, verifyEmployeeSetupToken } from './setup.js';
 import { installPrincipalResolver } from '../../platform/http/context.js';
 import { installSocketPrincipalResolver } from '../../platform/realtime/server.js';
 import { resolvePrincipal, resolvePrincipalFromToken } from './service.js';
@@ -26,6 +27,7 @@ import { enabledModuleKeys } from '../../platform/module-entitlement.js';
 import { effectivePolicy } from '@tapcrm/authz';
 import { REGISTRY, globalAccess, isModuleName, type IdentityBootstrap, type IdentityBootstrapCapability } from '@tapcrm/contracts';
 import { randomUUID } from 'node:crypto';
+import { loadConfig } from '../../config.js';
 
 async function bootstrapCapabilities(
   ctx: RequestContext,
@@ -74,6 +76,15 @@ export function registerIdentityPublicRoutes(router: Router): void {
   router.post('/identity/password/reset', resetPasswordController);
   router.post('/identity/password/change', changeTemporaryPasswordController);
   router.post('/identity/invitations/accept', acceptAdminInvitation);
+  router.post('/identity/employee/setup', setupEmployeePassword);
+  router.get('/identity/employee/setup/verify', verifyEmployeeSetupToken);
+  const handleEmployeeSetupRedirect = (req: { url: string }, res: { redirect: (status: number, url: string) => void }) => {
+    const config = loadConfig();
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(302, `${config.CLIENT_ORIGIN}/employee/setup${query}`);
+  };
+  router.get('/identity/employee/setup', handleEmployeeSetupRedirect);
+  router.get('/employee/setup', handleEmployeeSetupRedirect);
   router.get('/identity/me', async (req, res, next) => {
     try {
       const resolved = await resolvePrincipal(req);

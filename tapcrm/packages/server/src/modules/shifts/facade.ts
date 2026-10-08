@@ -9,7 +9,7 @@
 import type { DateOnly, PlacementsByDate, ResolvedShift } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { addDays, localDateOf } from '../../platform/time.js';
-import { findShift, loadShiftInputs } from './repository.js';
+import { findShift, insertAssignment, loadShiftInputs } from './repository.js';
 import { resolveShift } from './resolve.js';
 import {
   dayWindow as windowOf,
@@ -115,4 +115,32 @@ export async function shiftDays(
     days.push({ shift: resolveShift(inputs, date), window: windowOf(inputs, date) });
   }
   return days;
+}
+
+/** Assigns a shift template to a user from their joining date. */
+export async function assignTemplateShift(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    userId: string;
+    shiftId: string;
+    effectiveFrom: DateOnly;
+    createdBy: string;
+  },
+): Promise<string> {
+  const shift = await findShift(tx, input.shiftId);
+  if (!shift || shift.status !== 'active') {
+    throw new Error('Shift template is invalid or inactive');
+  }
+  return insertAssignment(tx, {
+    organizationId: input.organizationId,
+    userId: input.userId,
+    kind: 'template',
+    shiftId: input.shiftId,
+    rotationId: null,
+    effectiveFrom: input.effectiveFrom,
+    effectiveTo: null,
+    reason: 'Initial onboarding shift assignment',
+    createdBy: input.createdBy,
+  });
 }

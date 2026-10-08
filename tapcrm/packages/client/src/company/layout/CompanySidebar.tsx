@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
@@ -95,12 +95,19 @@ export function CompanySidebar({
   open: boolean;
   onClose: () => void;
 }): React.JSX.Element {
-  const [organizationOpen, setOrganizationOpen] = useState(
-    pathname.startsWith('/company/organization'),
-  );
-  const [recruitmentOpen, setRecruitmentOpen] = useState(
-    pathname.startsWith('/company/recruitment'),
-  );
+  const [organizationOpen, setOrganizationOpen] = useState(pathname.startsWith('/company/organization'));
+  const [recruitmentOpen, setRecruitmentOpen] = useState(pathname.startsWith('/company/recruitment'));
+  const prevPathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
+    const isRecruitment = pathname.startsWith('/company/recruitment');
+    if (!wasRecruitment && isRecruitment) {
+      setRecruitmentOpen(true);
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname]);
+
   const isSuperAdmin = accountType === 'super-admin';
   const { activePet } = useAiPet();
 
@@ -526,24 +533,28 @@ export function CompanySidebar({
               {(!isOrganization || organizationOpen) && (
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
-                    const isActive =
-                      pathname === item.path ||
-                      (item.path !== '/company/organization' &&
-                        pathname.startsWith(`${item.path}/`));
-                    const showChildren = Boolean(
-                      item.children &&
-                      (recruitmentOpen || pathname.startsWith(item.path)),
-                    );
+                    const isRecruitmentItem = item.label === 'Recruitment';
+                    const isActive = pathname === item.path || (item.path !== '/company/organization' && pathname.startsWith(`${item.path}/`));
+                    const showChildren = Boolean(item.children && (isRecruitmentItem ? recruitmentOpen : true));
                     return (
                       <div key={item.path}>
                         <button
                           aria-current={isActive ? 'page' : undefined}
                           type="button"
+                          aria-expanded={item.children ? showChildren : undefined}
                           onClick={() => {
-                            if (item.label === 'Recruitment')
-                              setRecruitmentOpen((prev) => !prev);
-                            onNavigate(item.path);
-                            onClose();
+                            if (isRecruitmentItem) {
+                              if (!pathname.startsWith(item.path)) {
+                                setRecruitmentOpen(true);
+                                onNavigate(item.path);
+                                onClose();
+                              } else {
+                                setRecruitmentOpen((prev) => !prev);
+                              }
+                            } else {
+                              onNavigate(item.path);
+                              onClose();
+                            }
                           }}
                           className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${isActive ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
                         >

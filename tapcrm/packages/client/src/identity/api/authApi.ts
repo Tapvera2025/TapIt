@@ -331,3 +331,61 @@ export async function resetPassword(token: string, organizationCode: string, pas
   const body = (await response.json()) as { success?: boolean; message?: string };
   if (!response.ok || !body.success) throw new Error(body.message ?? 'Password reset failed');
 }
+
+export interface EmployeeSetupVerification {
+  valid: boolean;
+  email: string;
+  fullName: string;
+  organizationName: string;
+  organizationCode: string;
+}
+
+export async function verifyEmployeeSetupToken(
+  token: string,
+  organizationCode: string,
+): Promise<EmployeeSetupVerification> {
+  const params = new URLSearchParams({ token, organizationCode, org: organizationCode });
+  const response = await fetch(
+    `${identityApiPath('/api/identity/employee/setup/verify')}?${params.toString()}`,
+  );
+  const body = (await response.json()) as {
+    success?: boolean;
+    data?: EmployeeSetupVerification;
+    message?: string;
+    code?: string;
+  };
+  if (!response.ok || !body.success || !body.data) {
+    const error = new Error(body.message ?? 'Invalid or expired setup link');
+    if (body.code !== undefined) {
+      (error as Error & { code?: string | undefined }).code = body.code;
+    }
+    throw error;
+  }
+  return body.data;
+}
+
+export async function setupEmployeePassword(
+  token: string,
+  organizationCode: string,
+  password: string,
+): Promise<{ email: string; fullName: string }> {
+  const response = await fetch(identityApiPath('/api/identity/employee/setup'), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token, organizationCode, org: organizationCode, password }),
+  });
+  const body = (await response.json()) as {
+    success?: boolean;
+    data?: { email: string; fullName: string };
+    message?: string;
+    code?: string;
+  };
+  if (!response.ok || !body.success || !body.data) {
+    const error = new Error(body.message ?? 'Failed to set permanent password');
+    if (body.code !== undefined) {
+      (error as Error & { code?: string | undefined }).code = body.code;
+    }
+    throw error;
+  }
+  return body.data;
+}

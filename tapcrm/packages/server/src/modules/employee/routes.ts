@@ -4,11 +4,13 @@ import {
   adminResetPassword,
   changePlacement,
   getEmployee,
+  getNextEmployeeId,
   listDeactivatedEmployees,
   provisionEmployee,
   setEmployeeStatus,
   updateEmployee,
 } from './service.js';
+import { getEmployeeWorkStatus } from './work-status.js';
 import {
   createEmployeeSchema,
   employeeStatusSchema,
@@ -26,6 +28,10 @@ export function registerEmployeeRoutes(): void {
     action: 'users:view',
     module: 'employee-directory',
     handler: async ({ ctx, query }) => {
+      if (query['nextEmployeeId'] === 'true') {
+        const current = typeof query['current'] === 'string' ? query['current'] : undefined;
+        return { nextEmployeeId: await getNextEmployeeId(ctx, current) };
+      }
       if (query['status'] === 'inactive') return listDeactivatedEmployees(ctx);
       if (query['departmentId'] !== undefined && query['positionId'] !== undefined) {
         return listReportingManagerOptions(
@@ -105,5 +111,23 @@ export function registerEmployeeRoutes(): void {
       const { password } = resetPasswordSchema.parse(body);
       return adminResetPassword(ctx, params['id']!, password);
     },
+  });
+  route({
+    method: 'GET',
+    path: '/api/users/:id/work-status',
+    action: 'users:view',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    handler: async ({ ctx, params }) => getEmployeeWorkStatus(ctx, params['id']!),
+  });
+  route({
+    method: 'GET',
+    path: '/api/users/:id/work',
+    action: 'users:view',
+    module: 'employee-directory',
+    resourceParam: 'id',
+    loadResource: userResource,
+    handler: async ({ ctx, params }) => getEmployeeWorkStatus(ctx, params['id']!),
   });
 }

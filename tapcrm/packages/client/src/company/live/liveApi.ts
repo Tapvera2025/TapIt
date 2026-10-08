@@ -33,6 +33,10 @@ export interface LiveRow {
   dayGroup: 'leave' | 'holiday' | null;
   shiftStartAt: string | null;
   shiftEndAt: string | null;
+  graceMinutes?: number | null;
+  arrivalAt?: string | null;
+  departureAt?: string | null;
+  lateMinutes?: number | null;
   updatedAt: string;
 }
 
