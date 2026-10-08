@@ -32,14 +32,51 @@ const OUT_JSON = resolve(ROOT, 'seeds/registry.seed.json');
  * asserts the two lists agree.
  * ------------------------------------------------------------------ */
 const MODULES = new Set([
-  'identity', 'organization', 'access-management', 'audit', 'system-administration',
-  'employee-directory', 'onboarding', 'live-status', 'attendance', 'break-management',
-  'shifts', 'biometric', 'leave', 'holidays', 'payroll', 'performance',
-  'territories', 'leads', 'callbacks', 'handovers', 'deals', 'approvals',
-  'handoff', 'projects', 'tasks', 'resource-planning', 'delivery',
-  'clients', 'post-closure', 'client-portal',
-  'billing-terms', 'invoicing', 'payments', 'receivables', 'payables', 'accounting',
-  'chat', 'project-communication', 'documents', 'reporting', 'notifications', 'workspace',
+  'identity',
+  'organization',
+  'access-management',
+  'audit',
+  'system-administration',
+  'employee-directory',
+  'onboarding',
+  'live-status',
+  'attendance',
+  'break-management',
+  'shifts',
+  'biometric',
+  'leave',
+  'holidays',
+  'ta',
+  'payroll',
+  'advance',
+  'penalties',
+  'performance',
+  'territories',
+  'leads',
+  'callbacks',
+  'handovers',
+  'deals',
+  'approvals',
+  'handoff',
+  'projects',
+  'tasks',
+  'resource-planning',
+  'delivery',
+  'clients',
+  'post-closure',
+  'client-portal',
+  'billing-terms',
+  'invoicing',
+  'payments',
+  'receivables',
+  'payables',
+  'accounting',
+  'chat',
+  'project-communication',
+  'documents',
+  'reporting',
+  'notifications',
+  'workspace',
   'recruitment',
 ]);
 
@@ -72,6 +109,7 @@ const NAMESPACE_TO_MODULE: Record<string, string> = {
   reports: 'reporting',
   renewals: 'post-closure',
   breaks: 'break-management',
+  penalty: 'penalties',
   wfh: 'leave',
   status: 'live-status',
   portal: 'client-portal',
@@ -120,7 +158,9 @@ function isSeparator(line: string): boolean {
  */
 function findTable(markdown: string, heading: string, required: string[]): Row[] {
   const lines = markdown.split('\n');
-  const start = lines.findIndex((l) => l.trim().toLowerCase().startsWith(`## ${heading.toLowerCase()}`));
+  const start = lines.findIndex((l) =>
+    l.trim().toLowerCase().startsWith(`## ${heading.toLowerCase()}`),
+  );
   if (start === -1) {
     throw new ExtractionError(`Section "## ${heading}" not found in ${SOURCE}`);
   }
@@ -193,7 +233,11 @@ interface ActionRow {
   sensitive: boolean;
   approvalBearing: boolean;
   initiatorField: string | null;
-  grantPolicy: { positionGrantable: boolean; delegationAllowed: boolean; superAdminOnly: boolean };
+  grantPolicy: {
+    positionGrantable: boolean;
+    delegationAllowed: boolean;
+    superAdminOnly: boolean;
+  };
   description: string;
 }
 
@@ -205,9 +249,16 @@ interface BindingRow {
 }
 
 const ACTION_COLUMNS = [
-  'Action', 'Module', 'Resource', 'Domain', 'Sensitive',
-  'ApprovalBearing', 'InitiatorField', 'PositionGrantable',
-  'DelegationAllowed', 'SuperAdminOnly',
+  'Action',
+  'Module',
+  'Resource',
+  'Domain',
+  'Sensitive',
+  'ApprovalBearing',
+  'InitiatorField',
+  'PositionGrantable',
+  'DelegationAllowed',
+  'SuperAdminOnly',
 ];
 
 function extractActions(markdown: string): ActionRow[] {
@@ -239,7 +290,10 @@ function extractActions(markdown: string): ActionRow[] {
     if (expected === undefined) {
       fail('RG-1', `${where}: namespace "${match[1]}" maps to no known module`);
     } else if (expected !== declaredModule) {
-      fail('RG-1', `${where}: namespace implies module "${expected}", row declares "${declaredModule}"`);
+      fail(
+        'RG-1',
+        `${where}: namespace implies module "${expected}", row declares "${declaredModule}"`,
+      );
     }
     if (!MODULES.has(declaredModule)) {
       fail('RG-1', `${where}: "${declaredModule}" is not one of the 42 modules`);
@@ -265,7 +319,10 @@ function extractActions(markdown: string): ActionRow[] {
     // RG-1 — Del = Y requires Sens = ·. "A sensitive action is never delegable
     // — a delegate may hold it, but only Super Admin may hand it out."
     if (delegationAllowed && sensitive) {
-      fail('RG-1', `${where}: delegable but sensitive — a sensitive action is never delegable`);
+      fail(
+        'RG-1',
+        `${where}: delegable but sensitive — a sensitive action is never delegable`,
+      );
     }
 
     // RG-2 — SA = Y implies Del = · (GP-2).
@@ -314,7 +371,12 @@ function extractActions(markdown: string): ActionRow[] {
 }
 
 function extractBindings(markdown: string, actions: ActionRow[]): BindingRow[] {
-  const rows = findTable(markdown, '6.5 API Bindings', ['Method', 'Path', 'Action', 'ResourceParam']);
+  const rows = findTable(markdown, '6.5 API Bindings', [
+    'Method',
+    'Path',
+    'Action',
+    'ResourceParam',
+  ]);
   const byAction = new Map(actions.map((a) => [a.action, a]));
   const seen = new Set<string>();
   const routeOwners = new Map<string, string>();
@@ -373,7 +435,10 @@ function extractBindings(markdown: string, actions: ActionRow[]): BindingRow[] {
     // authority with a heuristic.
     const pathParams = [...path.matchAll(/:([a-zA-Z][a-zA-Z0-9_]*)/g)].map((m) => m[1]!);
     if (resourceParam !== null && !pathParams.includes(resourceParam)) {
-      fail('CI-6', `${where}: ResourceParam ":${resourceParam}" is not a parameter of the path`);
+      fail(
+        'CI-6',
+        `${where}: ResourceParam ":${resourceParam}" is not a parameter of the path`,
+      );
     }
     if (resourceParam !== null && def.resource === null) {
       // Not a failure. The Param column records the path parameter, which is
@@ -527,9 +592,13 @@ binding and no permission matrix seed.`);
   }
 
   if (errors.length > 0) {
-    console.error(`✗ Registry invariants violated (RG-I4 — an invalid registry cannot compile):\n`);
+    console.error(
+      `✗ Registry invariants violated (RG-I4 — an invalid registry cannot compile):\n`,
+    );
     console.error(errors.join('\n'));
-    console.error(`\n${errors.length} problem(s) in team-docs/security/AUTHORIZATION.md.`);
+    console.error(
+      `\n${errors.length} problem(s) in team-docs/security/AUTHORIZATION.md.`,
+    );
     process.exit(1);
   }
 
@@ -550,7 +619,9 @@ binding and no permission matrix seed.`);
       );
       process.exit(1);
     }
-    console.log(`✓ CI-9: registry in sync (${actions.length} actions, ${bindings.length} bindings)`);
+    console.log(
+      `✓ CI-9: registry in sync (${actions.length} actions, ${bindings.length} bindings)`,
+    );
     return;
   }
 

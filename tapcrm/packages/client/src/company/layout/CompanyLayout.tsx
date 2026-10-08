@@ -21,13 +21,22 @@ export function CompanyLayout({
   canViewClients,
   canViewProjects,
   canViewLiveBoard,
+  canViewAttendanceReports,
   canReviewCorrections,
   canReviewBreaches,
   canManageBreakPolicies,
   canManageShifts,
   canManagePayroll,
   canManagePayrollConfig,
+  canViewTa,
+  canManageTa,
   canManageBiometric,
+  canViewAdvances,
+  canManageAdvances,
+  canViewPenalties,
+  canManagePenalties,
+  canViewExpenses,
+  canApproveExpenses,
   isHr,
   hasRecruitment,
   title,
@@ -60,13 +69,22 @@ export function CompanyLayout({
   canViewClients: boolean;
   canViewProjects: boolean;
   canViewLiveBoard: boolean;
+  canViewAttendanceReports: boolean;
   canReviewCorrections: boolean;
   canReviewBreaches: boolean;
   canManageBreakPolicies: boolean;
   canManageShifts: boolean;
   canManagePayroll: boolean;
   canManagePayrollConfig: boolean;
+  canViewTa: boolean;
+  canManageTa: boolean;
   canManageBiometric: boolean;
+  canViewAdvances: boolean;
+  canManageAdvances: boolean;
+  canViewPenalties: boolean;
+  canManagePenalties: boolean;
+  canViewExpenses: boolean;
+  canApproveExpenses: boolean;
   isHr: boolean;
   hasRecruitment: boolean;
   title: string;
@@ -76,7 +94,7 @@ export function CompanyLayout({
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
-    <div className="flex h-dvh overflow-hidden bg-app-background text-app-foreground">
+    <div className="flex h-full min-h-full overflow-hidden bg-app-background text-app-foreground">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
@@ -102,13 +120,22 @@ export function CompanyLayout({
         canViewClients={canViewClients}
         canViewProjects={canViewProjects}
         canViewLiveBoard={canViewLiveBoard}
+        canViewAttendanceReports={canViewAttendanceReports}
         canReviewCorrections={canReviewCorrections}
         canReviewBreaches={canReviewBreaches}
         canManageBreakPolicies={canManageBreakPolicies}
         canManageShifts={canManageShifts}
         canManagePayroll={canManagePayroll}
         canManagePayrollConfig={canManagePayrollConfig}
+        canViewTa={canViewTa}
+        canManageTa={canManageTa}
         canManageBiometric={canManageBiometric}
+        canViewAdvances={canViewAdvances}
+        canManageAdvances={canManageAdvances}
+        canViewPenalties={canViewPenalties}
+        canManagePenalties={canManagePenalties}
+        canViewExpenses={canViewExpenses}
+        canApproveExpenses={canApproveExpenses}
         isHr={isHr}
         hasRecruitment={hasRecruitment}
         onNavigate={onNavigate}
@@ -124,7 +151,7 @@ export function CompanyLayout({
           aria-label="Close navigation overlay"
         />
       )}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="fixed inset-y-0 right-0 left-0 flex min-h-0 min-w-0 flex-col overflow-hidden md:left-64">
         <CompanyHeader
           title={title}
           onMenu={() => setSidebarOpen(true)}

@@ -6,6 +6,7 @@ export interface CompanyEmployee {
   id: string;
   email?: string;
   fullName: string;
+  employeeId?: string;
   positionId: string | null;
   departmentId: string | null;
   teamId: string | null;

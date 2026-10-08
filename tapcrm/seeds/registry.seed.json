@@ -196,6 +196,96 @@
       "description": ""
     },
     {
+      "action": "advance:approve",
+      "module": "advance",
+      "resource": "employeeAdvance",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "requestedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "advance:export",
+      "module": "advance",
+      "resource": "employeeAdvance",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "advance:manage",
+      "module": "advance",
+      "resource": "employeeAdvance",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "advance:request",
+      "module": "advance",
+      "resource": "employeeAdvance",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "advance:view",
+      "module": "advance",
+      "resource": "employeeAdvance",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "advance:view-own",
+      "module": "advance",
+      "resource": "employeeAdvance",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "approvals:decide",
       "module": "approvals",
       "resource": "approvalRequest",
@@ -1570,7 +1660,7 @@
       "initiatorField": "claimedBy",
       "grantPolicy": {
         "positionGrantable": true,
-        "delegationAllowed": true,
+        "delegationAllowed": false,
         "superAdminOnly": false
       },
       "description": ""
@@ -1751,6 +1841,66 @@
       "grantPolicy": {
         "positionGrantable": true,
         "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "penalty:export",
+      "module": "penalties",
+      "resource": "employeePenalty",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "penalty:manage",
+      "module": "penalties",
+      "resource": "employeePenalty",
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "penalty:view",
+      "module": "penalties",
+      "resource": "employeePenalty",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "penalty:view-own",
+      "module": "penalties",
+      "resource": "employeePenalty",
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
         "superAdminOnly": false
       },
       "description": ""
@@ -2356,6 +2506,96 @@
       "description": ""
     },
     {
+      "action": "ta:export",
+      "module": "ta",
+      "resource": null,
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "ta:manage",
+      "module": "ta",
+      "resource": null,
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "ta:recalculate",
+      "module": "ta",
+      "resource": null,
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "ta:send",
+      "module": "ta",
+      "resource": null,
+      "domain": "people",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "ta:view",
+      "module": "ta",
+      "resource": null,
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "ta:view-own",
+      "module": "ta",
+      "resource": null,
+      "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "tasks:assign",
       "module": "tasks",
       "resource": "task",
@@ -2950,6 +3190,66 @@
     },
     {
       "method": "GET",
+      "path": "/api/attendance/reports/employees",
+      "action": "attendance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance/reports/monthly",
+      "action": "attendance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance/reports/daily",
+      "action": "attendance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/reports/daily/export",
+      "action": "attendance:export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance/reports/late/daily",
+      "action": "attendance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance/reports/late/monthly",
+      "action": "attendance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/reports/late/daily/export",
+      "action": "attendance:export",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/reports/late/monthly/export",
+      "action": "attendance:export",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/attendance/reports/monthly/export",
+      "action": "attendance:export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/attendance/reports/employee/:userId",
+      "action": "attendance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/attendance/:userId/:date",
       "action": "attendance:view",
       "resourceParam": "userId"
@@ -3397,6 +3697,168 @@
       "path": "/api/payroll/payslips/:id/document",
       "action": "payroll:view",
       "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ta/assignments",
+      "action": "ta:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/ta/assignments",
+      "action": "ta:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/ta/assignments/:id/deactivate",
+      "action": "ta:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/ta/assignments/:id/reactivate",
+      "action": "ta:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/ta/report",
+      "action": "ta:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/ta/statements/recalculate",
+      "action": "ta:recalculate",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/ta/statements/send",
+      "action": "ta:send",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/ta/export",
+      "action": "ta:export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/ta/my",
+      "action": "ta:view-own",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/advances/mine",
+      "action": "advance:view-own",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/advances",
+      "action": "advance:request",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/advances",
+      "action": "advance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/advances/:id",
+      "action": "advance:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/advances/:id/approve",
+      "action": "advance:approve",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/advances/:id/reject",
+      "action": "advance:approve",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/advances/manual",
+      "action": "advance:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/advances/deductions",
+      "action": "advance:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/advances/:id/deductions",
+      "action": "advance:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/advances/deductions/:id",
+      "action": "advance:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/advances/deductions/export",
+      "action": "advance:export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/penalties/mine",
+      "action": "penalty:view-own",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/penalties/mine/:id",
+      "action": "penalty:view-own",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/penalties",
+      "action": "penalty:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/penalties",
+      "action": "penalty:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/penalties/:id",
+      "action": "penalty:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/penalties/:id/cancel",
+      "action": "penalty:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/penalties/export",
+      "action": "penalty:export",
+      "resourceParam": null
     },
     {
       "method": "GET",
@@ -4261,6 +4723,42 @@
       "path": "/api/payables/claims/:id/approve",
       "action": "payables:approve-claim",
       "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/claims/approvals",
+      "action": "payables:claim",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/payables/claims/:id",
+      "action": "payables:claim",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/payables/claims/:id",
+      "action": "payables:claim",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/claims/:id/reject",
+      "action": "payables:approve-claim",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/claims/:id",
+      "action": "payables:claim",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/claims/:claimId/attachments/:attachmentId",
+      "action": "payables:claim",
+      "resourceParam": "claimId"
     },
     {
       "method": "GET",

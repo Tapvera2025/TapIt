@@ -146,7 +146,9 @@ function mapError(error: unknown): Mapped {
       body: {
         success: false,
         code: ERROR_CODES.VALIDATION_FAILED,
-        message: error instanceof ZodError ? 'Please correct the highlighted fields.' : error.message,
+        message: error instanceof ZodError
+          ? error.issues.map((issue) => `${issue.path.join('.') || 'request'}: ${issue.message}`).join(' ')
+          : error.message,
         details: error instanceof ZodError ? {
           fields: Object.fromEntries(error.issues.filter((issue) => issue.path.length).map((issue) => [issue.path.join('.'), issue.message])),
           issues: error.issues.map((issue) => ({ path: issue.path, message: issue.message })),
@@ -272,6 +274,9 @@ function mapError(error: unknown): Mapped {
   /* ---- Database ---- */
   const classified = classifyDatabaseError(error);
   if (classified.failureClass !== 'unclassified') {
+    const expenseMessage = classified.failureClass === 'check_violation'
+      ? expenseValidationMessage(classified.message)
+      : undefined;
     return {
       status: classified.status,
       defect: classified.engineeringDefect,
@@ -281,7 +286,9 @@ function mapError(error: unknown): Mapped {
         message:
           classified.status >= 500
             ? 'Internal error'
-            : `Request could not be completed: ${classified.failureClass}`,
+            : expenseMessage ?? (classified.failureClass === 'check_violation'
+              ? 'Some submitted data failed validation. Check the entered values and try again.'
+              : `Request could not be completed: ${classified.failureClass}`),
       },
     };
   }
@@ -291,6 +298,19 @@ function mapError(error: unknown): Mapped {
     defect: true,
     body: { success: false, code: ERROR_CODES.INTERNAL_ERROR, message: 'Internal error' },
   };
+}
+
+function expenseValidationMessage(databaseMessage: string): string | undefined {
+  if (!databaseMessage.includes('expense_claim')) return undefined;
+  if (databaseMessage.includes('amount_paise')) return 'Expense amount must be greater than zero and within the supported limit.';
+  if (databaseMessage.includes('remarks')) return 'Expense remarks must be between 3 and 500 characters.';
+  if (databaseMessage.includes('category')) return 'Select a valid expense category.';
+  if (databaseMessage.includes('attachment') && databaseMessage.includes('size_bytes')) return 'Each receipt must be larger than 0 bytes and no bigger than 5 MB.';
+  if (databaseMessage.includes('rejected_reason') || databaseMessage.includes('expense_claim_check') && !databaseMessage.includes('check2')) return 'Rejected expenses require a rejection reason, while pending expenses must not have reviewer details.';
+  if (databaseMessage.includes('pending_review')) return 'A pending expense cannot already have reviewer details. Refresh the page and try again.';
+  if (databaseMessage.includes('approved_reason') || databaseMessage.includes('expense_claim_check2')) return 'An approved expense cannot have a rejection reason.';
+  if (databaseMessage.includes('status')) return 'The expense status change is invalid. Refresh the page and try again.';
+  return 'Expense details failed validation. Check the date, amount, category, remarks, and receipts.';
 }
 
 /** `req.route` is untyped in Express; narrow it rather than trusting `any`. */

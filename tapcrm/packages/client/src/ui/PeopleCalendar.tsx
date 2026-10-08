@@ -114,6 +114,8 @@ export function PeopleCalendar({
     const isCurrentMonth = date.startsWith(month);
     const label = day?.label ?? 'No attendance record';
     const markers = (day?.markers ?? []).slice(0, 2);
+    const lateMarker = markers.find((marker) => marker.startsWith('Late +'));
+    const extraMarkers = markers.filter((marker) => marker !== lateMarker);
     const statusClass = TONE_CLASSES[day?.tone ?? 'muted'];
     const base = 'group relative min-w-0 rounded-xl border text-left transition-colors duration-150 focus-visible:z-10';
     const sizing = surface === 'grid'
@@ -133,8 +135,9 @@ export function PeopleCalendar({
         onKeyDown={(event) => handleDateKeyDown(event, date)}
         className={`${base} ${sizing} ${isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : 'border-app-border bg-app-surface hover:border-app-accent/50'} ${isCurrentMonth ? '' : 'opacity-45'}`}
       >
-        <span className={`${surface === 'list' ? 'w-12 shrink-0' : 'block'} text-sm font-bold tabular-nums`}>
-          {surface === 'list' ? calendarDateLabel(date).split(',')[0] : Number(date.slice(-2))}
+        <span className={`${surface === 'list' ? 'w-12 shrink-0' : 'flex items-start justify-between gap-1'} text-sm font-bold tabular-nums`}>
+          <span>{surface === 'list' ? calendarDateLabel(date).split(',')[0] : Number(date.slice(-2))}</span>
+          {surface !== 'list' && lateMarker && <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold leading-none text-amber-800 dark:text-amber-200">{lateMarker}</span>}
         </span>
         {surface === 'list' && <span className="sr-only">{calendarDateLabel(date)}</span>}
         <span className={surface === 'list' ? 'min-w-0 flex-1' : 'mt-2 block'}>
@@ -145,10 +148,10 @@ export function PeopleCalendar({
           {surface !== 'strip' && day?.shiftLabel && (
             <span className="mt-1 block truncate text-[11px] tabular-nums text-app-muted">{day.shiftLabel}</span>
           )}
-          {surface !== 'strip' && markers.length > 0 && (
+          {surface !== 'strip' && extraMarkers.length > 0 && (
             <span className="mt-1 flex flex-wrap gap-1" aria-hidden="true">
-              {markers.map((marker) => (
-                <span key={marker} className="rounded bg-app-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-app-muted">
+              {extraMarkers.map((marker) => (
+                <span key={marker} className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-200">
                   {marker}
                 </span>
               ))}

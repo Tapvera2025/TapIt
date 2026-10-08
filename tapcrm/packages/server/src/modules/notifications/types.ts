@@ -41,6 +41,12 @@ export const NOTIFICATION_TYPES = {
   // payroll (modules/payroll/notifications.ts)
   PAYSLIP_PUBLISHED: 'payroll.payslip_published',
   PAYSLIP_REVISED: 'payroll.payslip_revised',
+
+  // penalties (modules/penalties/service.ts)
+  PENALTY_CREATED: 'penalty.created',
+  EXPENSE_CLAIM_SUBMITTED: 'expense.claim_submitted',
+  EXPENSE_CLAIM_APPROVED: 'expense.claim_approved',
+  EXPENSE_CLAIM_REJECTED: 'expense.claim_rejected',
   // projects (see modules/projects/notifications.ts)
   PROJECT_ASSIGNED: 'project.assigned',
 

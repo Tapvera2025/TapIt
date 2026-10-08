@@ -21,6 +21,7 @@ function currentMonth(): string {
 }
 
 function dayTone(day: AttendanceDayView): PeopleCalendarDay['tone'] {
+  if (day.minutes.late > 0) return 'warning';
   if (day.dayType === 'holiday' || day.dayType === 'leave') return 'neutral';
   const status = day.status?.toLowerCase() ?? '';
   if (status === 'present' || status === 'full-day') return 'positive';
@@ -116,6 +117,7 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
       ? `${fmtTime(day.shift.start)}–${fmtTime(day.shift.end)}`
       : null,
     halfDay: day.status?.toLowerCase().includes('half') ?? false,
+    ...(day.minutes.late > 0 ? { markers: [`Late +${day.minutes.late}m`] } : {}),
   }));
 
   async function submitCorrection(): Promise<void> {
