@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fixedClock } from '../../platform/time.js';
 
 // `vi.hoisted` runs before `vi.mock` so the spy can be shared.
-const { appendEventMock, findClientEventMock, loadTodayMock } = vi.hoisted(() => ({
+const { appendEventMock, findClientEventMock, loadTodayMock, overlaysForDayMock } = vi.hoisted(() => ({
   appendEventMock: vi.fn(async () => ({
     eventId: 'evt-1',
     workDate: '2026-10-05',
@@ -11,12 +11,15 @@ const { appendEventMock, findClientEventMock, loadTodayMock } = vi.hoisted(() =>
   })),
   findClientEventMock: vi.fn(async (): Promise<unknown> => null),
   loadTodayMock: vi.fn(async () => ({ row: null, allowedMoves: ['in'] as string[] })),
+  overlaysForDayMock: vi.fn(async () => [] as { sourceKind: string }[]),
 }));
 
 vi.mock('../attendance/facade.js', () => ({
   appendEvent: appendEventMock,
   lockPerson: vi.fn(async () => undefined),
   findClientEvent: findClientEventMock,
+  overlaysForDay: overlaysForDayMock,
+  currentDayFor: vi.fn(async () => '2026-10-05'),
 }));
 
 vi.mock('./today.js', () => ({ loadToday: loadTodayMock }));
@@ -38,6 +41,8 @@ beforeEach(() => {
   findClientEventMock.mockResolvedValue(null);
   loadTodayMock.mockReset();
   loadTodayMock.mockResolvedValue({ row: null, allowedMoves: ['in'] });
+  overlaysForDayMock.mockReset();
+  overlaysForDayMock.mockResolvedValue([]);
 });
 
 describe('punch — refuses a move the person cannot make now', () => {
@@ -49,6 +54,24 @@ describe('punch — refuses a move the person cannot make now', () => {
       details: { kind: 'out', allowedMoves: ['in'] },
     });
     expect(appendEventMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects punch in during approved absence leave', async () => {
+    overlaysForDayMock.mockResolvedValue([{ sourceKind: 'leave' }]);
+    const clock = fixedClock('2026-10-05T09:00:00Z');
+    await expect(punch(ctx, { kind: 'in', clientEventId: UUID }, clock)).rejects.toMatchObject({
+      status: 422,
+      code: 'STATUS_PUNCH_NOT_ALLOWED',
+      message: 'You cannot punch in because approved leave exists for today.',
+    });
+    expect(appendEventMock).not.toHaveBeenCalled();
+  });
+
+  it('allows punch in during approved WFH', async () => {
+    overlaysForDayMock.mockResolvedValue([{ sourceKind: 'wfh' }]);
+    const clock = fixedClock('2026-10-05T09:00:00Z');
+    await punch(ctx, { kind: 'in', clientEventId: UUID }, clock);
+    expect(appendEventMock).toHaveBeenCalledOnce();
   });
 
   it('a break can start only while working', async () => {

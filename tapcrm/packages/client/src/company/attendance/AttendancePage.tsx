@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PeopleCalendar, type PeopleCalendarDay } from '../../ui/PeopleCalendar.js';
 import {
+  attendanceErrorMessage,
   getAttendanceDays,
   getAttendanceDayDetail,
   listCorrections,
@@ -21,6 +22,7 @@ function currentMonth(): string {
 }
 
 function dayTone(day: AttendanceDayView): PeopleCalendarDay['tone'] {
+  if (day.state === 'open' && !day.status) return 'warning';
   if (day.minutes.late > 0) return 'warning';
   if (day.dayType === 'holiday' || day.dayType === 'leave') return 'neutral';
   const status = day.status?.toLowerCase() ?? '';
@@ -34,6 +36,7 @@ function dayTone(day: AttendanceDayView): PeopleCalendarDay['tone'] {
 function dayLabel(day: AttendanceDayView): string {
   if (day.dayType === 'holiday') return 'Holiday';
   if (day.dayType === 'leave') return 'On leave';
+  if (day.state === 'open' && !day.status) return 'In progress — punch out pending';
   if (day.status) return day.status;
   if (day.minutes.worked > 0) return `${Math.floor(day.minutes.worked / 60)}h ${day.minutes.worked % 60}m`;
   return 'No record';
@@ -56,6 +59,8 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
   const [selectedDate, setSelectedDate] = useState(today);
   const [view, setView] = useState<'month' | 'week'>('month');
   const [days, setDays] = useState<AttendanceDayView[]>([]);
+  const [daysLoading, setDaysLoading] = useState(true);
+  const [daysError, setDaysError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AttendanceDayDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
@@ -86,7 +91,19 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
     daysAbort.current?.abort();
     daysAbort.current = new AbortController();
     const sig = daysAbort.current.signal;
-    void (async () => { try { setDays(await getAttendanceDays(from, to, userId, sig)); } catch { /* optional */ } })();
+    void (async () => {
+      setDaysLoading(true);
+      setDaysError(null);
+      try {
+        setDays(await getAttendanceDays(from, to, userId, sig));
+      } catch (cause) {
+        if (!(cause instanceof Error && cause.name === 'AbortError')) {
+          setDaysError(attendanceErrorMessage(cause, 'Unable to load your attendance calendar.'));
+        }
+      } finally {
+        if (!sig.aborted) setDaysLoading(false);
+      }
+    })();
     return () => { daysAbort.current?.abort(); };
   }, [month, userId]);
 
@@ -167,6 +184,8 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
         onViewChange={setView}
         idPrefix="attendance"
       />
+      {daysLoading && <p role="status" className="text-sm text-app-muted">Loading attendance calendar…</p>}
+      {daysError && <p role="alert" className="rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2 text-sm text-app-danger">{daysError}</p>}
 
       <div className="rounded-2xl border border-app-border bg-app-surface p-4 sm:p-5">
         <div className="mb-3 flex items-center justify-between gap-3">

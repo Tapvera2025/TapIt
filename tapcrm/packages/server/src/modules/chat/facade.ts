@@ -2,12 +2,14 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import type { Tx } from '../../platform/dal/db.js';
 import {
   addConversationMembers,
+  archiveConversation,
   renameConversation,
+  removeConversationMember,
   validateMemberIds,
   createGroupConversation as insertGroupConversation,
 } from './repository.js';
 import { ChatValidationError } from './errors.js';
-import { notifyGroupMembersAdded } from './notifications.js';
+import { notifyGroupMemberRemoved, notifyGroupMembersAdded } from './notifications.js';
 
 /**
  * ChatFacade — the surface other modules call (MB-1). Not exercised by any
@@ -91,4 +93,23 @@ export async function addProjectConversationMembers(
   if (validIds.length === 0) return;
   await addConversationMembers(tx, ctx.organizationId, conversationId, validIds);
   await notifyGroupMembersAdded(tx, ctx, { id: conversationId, name: groupName }, validIds);
+}
+
+export async function removeProjectConversationMember(
+  tx: Tx,
+  ctx: Pick<RequestContext, 'organizationId' | 'principal'>,
+  conversationId: string,
+  userId: string,
+  groupName: string,
+): Promise<void> {
+  await removeConversationMember(tx, ctx.organizationId, conversationId, userId);
+  await notifyGroupMemberRemoved(tx, ctx, { id: conversationId, name: groupName }, userId);
+}
+
+export async function archiveProjectConversation(
+  tx: Tx,
+  organizationId: string,
+  conversationId: string,
+): Promise<void> {
+  await archiveConversation(tx, organizationId, conversationId);
 }

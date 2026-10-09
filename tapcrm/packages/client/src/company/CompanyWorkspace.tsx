@@ -328,7 +328,7 @@ export function CompanyWorkspace({
       return <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={userId} />;
     }
     if (pathname === '/company/messages' && canViewChat)
-      return <MessagesPage currentUserId={userId} isSuperAdmin={isSuperAdmin} />;
+      return <MessagesPage currentUserId={userId} isSuperAdmin={isSuperAdmin} canManageProjects={isSuperAdmin || can('projects:manage')} />;
     if (pathname === '/company/clients' && canViewClients) return <ClientsPage />;
     if (pathname === '/company/projects' && canViewProjects)
       return (

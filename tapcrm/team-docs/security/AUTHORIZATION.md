@@ -518,6 +518,9 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/projects/:id/archive | `projects:manage` | id |
 | POST | /api/projects/:id/discussion-group | `projects:manage` | id |
 | PATCH | /api/projects/:id/discussion-group | `projects:manage` | id |
+| POST | /api/projects/:id/discussion-group/members | `projects:manage` | id |
+| DELETE | /api/projects/:id/discussion-group/members/:userId | `projects:manage` | id |
+| POST | /api/projects/:id/discussion-group/archive | `projects:manage` | id |
 | GET | /api/projects/:id/profitability | `projects:view-financials` | id |
 | GET | /api/tasks | `tasks:view` | — |
 | GET | /api/tasks/:id | `tasks:view` | id |

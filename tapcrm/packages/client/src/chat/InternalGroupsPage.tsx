@@ -189,24 +189,39 @@ function CreateGroupModal({
   );
 }
 
+export type GroupManagementActions = {
+  rename: (name: string, description: string | null) => Promise<unknown>;
+  addMembers: (memberIds: string[]) => Promise<unknown>;
+  removeMember: (userId: string) => Promise<unknown>;
+  archive: () => Promise<unknown>;
+};
+
 export function ManageGroupModal({
   conversation,
   colleagues,
   onClose,
   onRefresh,
   onError,
+  actions,
 }: {
   conversation: Conversation;
   colleagues: { id: string; fullName: string }[];
   onClose: () => void;
   onRefresh: () => void;
   onError: (message: string) => void;
+  actions?: GroupManagementActions;
 }): React.JSX.Element {
   const [name, setName] = useState(conversation.name ?? '');
   const [description, setDescription] = useState(conversation.description ?? '');
   const [addingMemberId, setAddingMemberId] = useState('');
   const memberIds = new Set(conversation.members.map((m) => m.userId));
   const addable = colleagues.filter((c) => !memberIds.has(c.id));
+  const groupActions = actions ?? {
+    rename: (name: string, description: string | null) => renameGroup(conversation.id, name, description),
+    addMembers: (memberIds: string[]) => addGroupMembers(conversation.id, memberIds),
+    removeMember: (userId: string) => removeGroupMember(conversation.id, userId),
+    archive: () => archiveGroup(conversation.id),
+  };
 
   const run = async (action: () => Promise<unknown>): Promise<void> => {
     try {
@@ -238,7 +253,7 @@ export function ManageGroupModal({
           <div className="flex justify-end">
             <Button
               kind="secondary"
-              onClick={() => void run(() => renameGroup(conversation.id, name.trim(), description.trim() || null))}
+              onClick={() => void run(() => groupActions.rename(name.trim(), description.trim() || null))}
               disabled={!name.trim() || (name.trim() === conversation.name && description.trim() === (conversation.description ?? ''))}
               className="!px-3 !py-1.5 !text-xs"
             >
@@ -253,7 +268,7 @@ export function ManageGroupModal({
             <li key={member.userId} className="flex items-center justify-between gap-2 py-1 text-sm">
               <span>{member.fullName}</span>
               {member.userId !== conversation.createdBy && (
-                <button type="button" onClick={() => void run(() => removeGroupMember(conversation.id, member.userId))} className="text-xs text-app-danger hover:underline">
+                <button type="button" onClick={() => void run(() => groupActions.removeMember(member.userId))} className="text-xs text-app-danger hover:underline">
                   Remove
                 </button>
               )}
@@ -275,7 +290,7 @@ export function ManageGroupModal({
             </select>
             <Button
               kind="secondary"
-              onClick={() => void run(() => addGroupMembers(conversation.id, [addingMemberId])).then(() => setAddingMemberId(''))}
+              onClick={() => void run(() => groupActions.addMembers([addingMemberId])).then(() => setAddingMemberId(''))}
               disabled={!addingMemberId}
               className="!px-3 !py-1.5 !text-xs"
             >
@@ -287,7 +302,7 @@ export function ManageGroupModal({
         <div className="flex justify-between gap-2">
           <Button
             kind="danger"
-            onClick={() => void run(() => archiveGroup(conversation.id)).then(onClose)}
+            onClick={() => void run(groupActions.archive).then(onClose)}
             className="!px-3 !py-1.5 !text-xs"
           >
             Archive group

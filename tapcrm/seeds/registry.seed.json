@@ -4377,6 +4377,24 @@
       "resourceParam": "id"
     },
     {
+      "method": "POST",
+      "path": "/api/projects/:id/discussion-group/members",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/projects/:id/discussion-group/members/:userId",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/:id/discussion-group/archive",
+      "action": "projects:manage",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/projects/:id/profitability",
       "action": "projects:view-financials",
