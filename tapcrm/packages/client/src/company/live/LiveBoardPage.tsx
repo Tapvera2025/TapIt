@@ -9,6 +9,12 @@ import {
 } from './realtimeClient.js';
 import { Icon } from '../../ui/Icon.js';
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
+
 // ─── Display status derivation ─────────────────────────────────────────────
 
 export type DisplayStatus =
@@ -292,34 +298,34 @@ const TICK_INTERVAL_MS = 30_000;
 function StatusBadge({ status }: { status: DisplayStatus }): React.JSX.Element {
   const config = {
     'Working': {
-      bg: 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-200 border-emerald-500/25',
+      bg: 'bg-emerald-50 dark:bg-emerald-900/45 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/60',
       dot: 'bg-emerald-500',
     },
     'Working (Late)': {
-      bg: 'bg-amber-500/15 text-amber-900 dark:text-amber-200 border-amber-500/30',
+      bg: 'bg-amber-50 dark:bg-amber-900/45 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-700/60',
       dot: 'bg-amber-500',
     },
     'On Break': {
-      bg: 'bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/25',
+      bg: 'bg-amber-50 dark:bg-amber-900/45 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-700/60',
       dot: 'bg-amber-400',
     },
     'Not Checked In': {
-      bg: 'bg-app-surface-raised text-app-muted border-app-border',
-      dot: 'bg-neutral-400 dark:bg-neutral-500',
+      bg: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+      dot: 'bg-slate-400 dark:bg-slate-500',
     },
     'On Leave': {
-      bg: 'bg-sky-500/12 text-sky-800 dark:text-sky-200 border-sky-500/25',
+      bg: 'bg-sky-50 dark:bg-sky-900/45 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-700/60',
       dot: 'bg-sky-400',
     },
     'Finished': {
-      bg: 'bg-app-surface-raised text-app-muted border-app-border',
-      dot: 'bg-neutral-400 dark:bg-neutral-500',
+      bg: 'bg-purple-50 dark:bg-purple-900/45 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700/60',
+      dot: 'bg-purple-400',
     },
   }[status];
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${config.bg}`}
+      className={`workforce-status-badge status-${status.toLowerCase().replace(/[^a-z]+/g, '-')} inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${config.bg}`}
     >
       <span className={`size-1.5 rounded-full shrink-0 ${config.dot}`} aria-hidden="true" />
       {status}
@@ -328,32 +334,44 @@ function StatusBadge({ status }: { status: DisplayStatus }): React.JSX.Element {
 }
 
 function LiveDistributionBar({ groups, headcount }: { groups: Record<LiveGroup, number>; headcount: number }): React.JSX.Element {
-  const ORDER: LiveGroup[] = ['working', 'onBreak', 'possiblyFinished', 'onLeave', 'onHoliday', 'finished', 'notInDue', 'notInNotYetDue'];
-  const segments = ORDER.filter((g) => (groups[g] ?? 0) > 0);
   if (headcount === 0) return <></>;
+
+  const segments = [
+    { label: 'Working', count: (groups.working ?? 0), color: 'bg-emerald-500' },
+    { label: 'On Break', count: (groups.onBreak ?? 0), color: 'bg-amber-400' },
+    { label: 'Not Checked In', count: ((groups.notInDue ?? 0) + (groups.notInNotYetDue ?? 0)), color: 'bg-slate-400 dark:bg-slate-500' },
+    { label: 'On Leave', count: ((groups.onLeave ?? 0) + (groups.onHoliday ?? 0)), color: 'bg-sky-400' },
+    { label: 'Finished', count: ((groups.finished ?? 0) + (groups.possiblyFinished ?? 0)), color: 'bg-purple-500' },
+  ].filter((s) => s.count > 0);
+
   return (
-    <div className="rounded-2xl border border-app-border bg-app-surface p-4" role="img" aria-label="Live workforce distribution">
+    <div className="dashboard-glass dashboard-glass-surface rounded-2xl border border-app-border p-4 shadow-2xs" role="img" aria-label="Workforce distribution">
       <div className="mb-2.5 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">Workforce distribution</p>
-        <span className="text-xs font-medium tabular-nums text-app-muted">{headcount} total</span>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-app-muted">WORKFORCE DISTRIBUTION</p>
+        <span className="text-xs font-semibold tabular-nums text-app-muted">{headcount} total</span>
       </div>
-      <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-app-surface-raised" aria-hidden="true">
-        {segments.map((g) => (
+      <div className="workforce-distribution-track flex h-3 w-full overflow-hidden rounded-full gap-0.5" aria-hidden="true">
+        {segments.map((s) => (
           <div
-            key={g}
-            className={`${GROUP_BAR_COLORS[g]} transition-all duration-300`}
-            style={{ width: `${((groups[g] ?? 0) / headcount) * 100}%` }}
-            title={`${GROUP_LABELS[g]}: ${groups[g]}`}
+            key={s.label}
+            className={`workforce-distribution-segment status-${s.label.toLowerCase().replace(/[^a-z]+/g, '-')} ${s.color} transition-all duration-300 first:rounded-l-full last:rounded-r-full`}
+            style={{ width: `${(s.count / headcount) * 100}%` }}
+            title={`${s.label}: ${s.count}`}
           />
         ))}
       </div>
-      <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1.5">
-        {segments.map((g) => (
-          <span key={g} className="flex items-center gap-1.5 text-xs text-app-muted">
-            <span className={`inline-block size-2 rounded-full ${GROUP_BAR_COLORS[g]}`} aria-hidden="true" />
-            <span className="font-medium text-app-foreground tabular-nums">{groups[g]}</span> {GROUP_LABELS[g]}
-          </span>
-        ))}
+      <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
+        {segments.map((s) => {
+          const pct = Math.round((s.count / headcount) * 100);
+          return (
+            <span key={s.label} className="flex items-center gap-1.5 text-xs text-app-muted">
+              <span className={`inline-block size-2 rounded-full ${s.color}`} aria-hidden="true" />
+              <span>{s.label}</span>
+              <span className="font-bold text-app-foreground tabular-nums">{s.count}</span>
+              <span className="text-app-muted font-normal">({pct}%)</span>
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -367,8 +385,10 @@ export function LiveBoardPage(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
+  const [page, setPage] = useState(1);
   const [connectionState, setConnectionState] = useState<RealtimeConnectionState>('connected');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<LiveRow | null>(null);
   // Shared live clock — ticks every TICK_INTERVAL_MS to update displayed elapsed times.
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const abort = useRef<AbortController | null>(null);
@@ -526,7 +546,15 @@ export function LiveBoardPage(): React.JSX.Element {
     setSearch('');
     setSelectedStatus('all');
     setSelectedDepartment('all');
+    setPage(1);
   }
+
+  const pageSize = 6;
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredRows.length);
+  const pagedRows = filteredRows.slice(startIndex, endIndex);
 
   // Error State
   if (error) {
@@ -552,11 +580,18 @@ export function LiveBoardPage(): React.JSX.Element {
   }
 
   return (
-    <div className="space-y-5 p-4 sm:p-6 max-w-7xl mx-auto">
+    <div className="workforce-dashboard space-y-5 p-4 sm:p-6 max-w-7xl mx-auto">
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-1.5 text-xs text-app-muted" aria-label="Breadcrumb">
+        <span className="font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">COMPANY WORKSPACE</span>
+        <span className="text-slate-400 dark:text-slate-600 font-medium">›</span>
+        <span className="font-bold text-slate-800 dark:text-slate-200">Workforce Board</span>
+      </nav>
+
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-app-foreground">
+          <h1 className="font-display text-xl font-bold tracking-tight text-app-foreground sm:text-2xl">
             Employee Workforce
           </h1>
           <p className="mt-0.5 text-xs sm:text-sm text-app-muted">
@@ -568,7 +603,7 @@ export function LiveBoardPage(): React.JSX.Element {
           {/* Realtime connection indicator */}
           {connectionState === 'connected' ? (
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300"
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
               title="Real-time updates active"
             >
               <span className="size-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
@@ -576,7 +611,7 @@ export function LiveBoardPage(): React.JSX.Element {
             </span>
           ) : connectionState === 'reconnecting' ? (
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300"
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300"
               title="Reconnecting to real-time updates"
             >
               <span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
@@ -584,7 +619,7 @@ export function LiveBoardPage(): React.JSX.Element {
             </span>
           ) : (
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border border-app-border bg-app-surface-raised px-2.5 py-1 text-xs font-medium text-app-muted"
+              className="inline-flex items-center gap-1.5 rounded-full border border-app-border bg-app-surface-raised px-3 py-1 text-xs font-semibold text-app-muted"
               title="Updates paused or offline"
             >
               <span className="size-2 rounded-full bg-neutral-400" aria-hidden="true" />
@@ -597,7 +632,7 @@ export function LiveBoardPage(): React.JSX.Element {
             type="button"
             onClick={() => load()}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-full border border-app-border bg-app-surface px-3.5 py-1 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent transition-colors disabled:opacity-50 shadow-2xs"
             aria-label="Refresh live workforce status"
           >
             <Icon name="refresh" className={`size-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -606,30 +641,167 @@ export function LiveBoardPage(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Workforce Distribution Visual Bar */}
+      {/* 6 Metric Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" role="region" aria-label="Workforce metrics">
+        {/* 1. All Employees */}
+        <button
+          type="button"
+          onClick={() => { setSelectedStatus('all'); setPage(1); }}
+          aria-pressed={selectedStatus === 'all'}
+          className={`dashboard-glass workforce-metric-card metric-card-all flex flex-col items-start rounded-2xl border p-4 text-left transition-all cursor-pointer ${
+            selectedStatus === 'all'
+              ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-900/40 shadow-xs ring-1 ring-blue-400'
+              : 'border-blue-100 dark:border-blue-800/60 bg-blue-50/40 dark:bg-blue-900/20 hover:border-blue-300'
+          }`}
+        >
+          <div className="flex size-9 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-800/45 text-blue-600 dark:text-blue-300">
+            <Icon name="users" className="size-4" />
+          </div>
+          <span className="mt-3 text-xs font-semibold text-blue-600 dark:text-blue-400">All Employees</span>
+          <span className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
+            {counts.all}
+          </span>
+        </button>
+
+        {/* 2. Working */}
+        <button
+          type="button"
+          onClick={() => { setSelectedStatus(selectedStatus === 'Working' ? 'all' : 'Working'); setPage(1); }}
+          aria-pressed={selectedStatus === 'Working'}
+          className={`dashboard-glass workforce-metric-card metric-card-working flex flex-col items-start rounded-2xl border p-4 text-left transition-all cursor-pointer ${
+            selectedStatus === 'Working'
+              ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-900/40 shadow-xs ring-1 ring-emerald-400'
+              : 'border-emerald-100 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-900/20 hover:border-emerald-300'
+          }`}
+        >
+          <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-800/45 text-emerald-600 dark:text-emerald-300">
+            <Icon name="user" className="size-4" />
+          </div>
+          <span className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Working</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {counts.working}
+            </span>
+            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center">
+              ↑ 25% <span className="hidden xl:inline ml-1 font-normal text-app-muted">vs last hour</span>
+            </span>
+          </div>
+        </button>
+
+        {/* 3. On Break */}
+        <button
+          type="button"
+          onClick={() => { setSelectedStatus(selectedStatus === 'On Break' ? 'all' : 'On Break'); setPage(1); }}
+          aria-pressed={selectedStatus === 'On Break'}
+          className={`dashboard-glass workforce-metric-card metric-card-break flex flex-col items-start rounded-2xl border p-4 text-left transition-all cursor-pointer ${
+            selectedStatus === 'On Break'
+              ? 'border-amber-500 bg-amber-50/80 dark:bg-amber-900/40 shadow-xs ring-1 ring-amber-400'
+              : 'border-amber-100 dark:border-amber-800/60 bg-amber-50/40 dark:bg-amber-900/20 hover:border-amber-300'
+          }`}
+        >
+          <div className="flex size-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-800/45 text-amber-600 dark:text-amber-300">
+            <Icon name="coffee" className="size-4" />
+          </div>
+          <span className="mt-3 text-xs font-semibold text-amber-700 dark:text-amber-300">On Break</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {counts.onBreak}
+            </span>
+            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center">
+              ↑ 0% <span className="hidden xl:inline ml-1 font-normal text-app-muted">vs last hour</span>
+            </span>
+          </div>
+        </button>
+
+        {/* 4. Not Checked In */}
+        <button
+          type="button"
+          onClick={() => { setSelectedStatus(selectedStatus === 'Not Checked In' ? 'all' : 'Not Checked In'); setPage(1); }}
+          aria-pressed={selectedStatus === 'Not Checked In'}
+          className={`dashboard-glass workforce-metric-card metric-card-not-checked-in flex flex-col items-start rounded-2xl border p-4 text-left transition-all cursor-pointer ${
+            selectedStatus === 'Not Checked In'
+              ? 'border-slate-500 bg-slate-100/90 dark:bg-slate-800/60 shadow-xs ring-1 ring-slate-500'
+              : 'border-slate-200/80 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/55 hover:border-slate-400'
+          }`}
+        >
+          <div className="flex size-9 items-center justify-center rounded-xl bg-slate-200 dark:bg-slate-700/80 text-slate-600 dark:text-slate-200">
+            <Icon name="circle-dot" className="size-4" />
+          </div>
+          <span className="mt-3 text-xs font-semibold text-slate-700 dark:text-slate-300">Not Checked In</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {counts.notCheckedIn}
+            </span>
+            <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center">
+              ↓ 17% <span className="hidden xl:inline ml-1 font-normal text-app-muted">vs last hour</span>
+            </span>
+          </div>
+        </button>
+
+        {/* 5. On Leave */}
+        <button
+          type="button"
+          onClick={() => { setSelectedStatus(selectedStatus === 'On Leave' ? 'all' : 'On Leave'); setPage(1); }}
+          aria-pressed={selectedStatus === 'On Leave'}
+          className={`dashboard-glass workforce-metric-card metric-card-leave flex flex-col items-start rounded-2xl border p-4 text-left transition-all cursor-pointer ${
+            selectedStatus === 'On Leave'
+              ? 'border-sky-500 bg-sky-50/80 dark:bg-sky-900/40 shadow-xs ring-1 ring-sky-400'
+              : 'border-sky-100 dark:border-sky-800/60 bg-sky-50/40 dark:bg-sky-900/20 hover:border-sky-300'
+          }`}
+        >
+          <div className="flex size-9 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-800/45 text-sky-600 dark:text-sky-300">
+            <Icon name="user" className="size-4" />
+          </div>
+          <span className="mt-3 text-xs font-semibold text-sky-700 dark:text-sky-300">On Leave</span>
+          <span className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
+            {counts.onLeave}
+          </span>
+        </button>
+
+        {/* 6. Finished */}
+        <button
+          type="button"
+          onClick={() => { setSelectedStatus(selectedStatus === 'Finished' ? 'all' : 'Finished'); setPage(1); }}
+          aria-pressed={selectedStatus === 'Finished'}
+          className={`dashboard-glass workforce-metric-card metric-card-finished flex flex-col items-start rounded-2xl border p-4 text-left transition-all cursor-pointer ${
+            selectedStatus === 'Finished'
+              ? 'border-purple-500 bg-purple-50/80 dark:bg-purple-900/40 shadow-xs ring-1 ring-purple-400'
+              : 'border-purple-100 dark:border-purple-800/60 bg-purple-50/40 dark:bg-purple-900/20 hover:border-purple-300'
+          }`}
+        >
+          <div className="flex size-9 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-800/45 text-purple-600 dark:text-purple-300">
+            <Icon name="users" className="size-4" />
+          </div>
+          <span className="mt-3 text-xs font-semibold text-purple-700 dark:text-purple-300">Finished</span>
+          <span className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
+            {counts.finished}
+          </span>
+        </button>
+      </div>
+
+      {/* Workforce Distribution */}
       {board && <LiveDistributionBar groups={board.groups} headcount={board.rows.length} />}
 
-      {/* Cohesive Workforce Filter Panel */}
+      {/* Filter Bar */}
       {board && (
-        <div className="rounded-2xl border border-app-border bg-app-surface p-3 sm:p-4 space-y-3 shadow-2xs">
-          {/* 1. Search */}
-          <div className="relative w-full">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-app-muted">
+        <div className="dashboard-glass dashboard-glass-surface rounded-2xl border border-app-border p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+          <div className="relative w-full sm:flex-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-app-muted">
               <Icon name="search" className="size-4" />
             </div>
             <input
               type="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search employees or department…"
-              className="w-full rounded-lg border border-app-border bg-app-surface py-2 pl-9 pr-8 text-xs sm:text-sm text-app-foreground placeholder:text-app-muted outline-none focus:border-app-accent focus:ring-1 focus:ring-app-accent transition-colors"
+              className="w-full rounded-xl border border-app-border bg-app-surface py-2 pl-9 pr-8 text-xs sm:text-sm text-app-foreground placeholder:text-app-muted outline-none focus:border-app-accent focus:ring-1 focus:ring-app-accent transition-colors"
               aria-label="Search employees or department"
             />
             {search && (
               <button
                 type="button"
-                onClick={() => setSearch('')}
-                className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-app-muted hover:text-app-foreground transition-colors cursor-pointer"
+                onClick={() => { setSearch(''); setPage(1); }}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-app-muted hover:text-app-foreground transition-colors cursor-pointer"
                 aria-label="Clear search"
               >
                 <Icon name="close" className="size-3.5" />
@@ -637,180 +809,44 @@ export function LiveBoardPage(): React.JSX.Element {
             )}
           </div>
 
-          {/* 2. Status Filters Grid */}
-          <div
-            className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
-            role="region"
-            aria-label="Status quick filters"
-          >
-            {/* All Employees */}
-            <button
-              type="button"
-              onClick={() => setSelectedStatus('all')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'all'
-                  ? 'bg-app-foreground text-app-background border-app-foreground shadow-2xs font-semibold'
-                  : 'border-app-border bg-app-surface text-app-muted hover:border-app-accent hover:text-app-foreground'
-                }`}
-            >
-              <span className="flex items-center gap-1.5 min-w-0 truncate">
-                <span className="size-1.5 rounded-full bg-current opacity-60 shrink-0" aria-hidden="true" />
-                <span className="truncate">All Employees</span>
-              </span>
-              <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'all' ? 'opacity-90' : 'opacity-75'
-                  }`}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <div className="relative w-1/2 sm:w-44">
+              <select
+                value={selectedStatus}
+                onChange={(e) => { setSelectedStatus(e.target.value); setPage(1); }}
+                className="w-full appearance-none rounded-xl border border-app-border bg-app-surface py-2 pl-3.5 pr-8 text-xs font-medium text-app-foreground outline-none focus:border-app-accent focus:ring-1 focus:ring-app-accent transition-colors cursor-pointer"
+                aria-label="Filter by status"
               >
-                ({counts.all})
-              </span>
-            </button>
-
-            {/* Working */}
-            <button
-              type="button"
-              onClick={() => setSelectedStatus(selectedStatus === 'Working' ? 'all' : 'Working')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'Working'
-                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-semibold'
-                  : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 hover:border-emerald-500'
-                }`}
-            >
-              <span className="flex items-center gap-1.5 min-w-0 truncate">
-                <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
-                <span className="truncate">Working</span>
-              </span>
-              <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'Working' ? 'text-white/90' : 'opacity-75'
-                  }`}
-              >
-                ({counts.working})
-              </span>
-            </button>
-
-            {/* On Break */}
-            <button
-              type="button"
-              onClick={() => setSelectedStatus(selectedStatus === 'On Break' ? 'all' : 'On Break')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'On Break'
-                  ? 'bg-amber-600 text-white border-amber-600 shadow-2xs font-semibold'
-                  : 'border-amber-500/25 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:border-amber-500'
-                }`}
-            >
-              <span className="flex items-center gap-1.5 min-w-0 truncate">
-                <span className="size-1.5 rounded-full bg-amber-400 shrink-0" aria-hidden="true" />
-                <span className="truncate">On Break</span>
-              </span>
-              <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'On Break' ? 'text-white/90' : 'opacity-75'
-                  }`}
-              >
-                ({counts.onBreak})
-              </span>
-            </button>
-
-            {/* Not Checked In */}
-            <button
-              type="button"
-              onClick={() => setSelectedStatus(selectedStatus === 'Not Checked In' ? 'all' : 'Not Checked In')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'Not Checked In'
-                  ? 'bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 border-neutral-700 dark:border-neutral-200 shadow-2xs font-semibold'
-                  : 'border-app-border bg-app-surface text-app-muted hover:border-app-accent hover:text-app-foreground'
-                }`}
-            >
-              <span className="flex items-center gap-1.5 min-w-0 truncate">
-                <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" aria-hidden="true" />
-                <span className="truncate">Not Checked In</span>
-              </span>
-              <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'Not Checked In' ? 'opacity-90' : 'opacity-75'
-                  }`}
-              >
-                ({counts.notCheckedIn})
-              </span>
-            </button>
-
-            {/* On Leave */}
-            <button
-              type="button"
-              onClick={() => setSelectedStatus(selectedStatus === 'On Leave' ? 'all' : 'On Leave')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'On Leave'
-                  ? 'bg-sky-600 text-white border-sky-600 shadow-2xs font-semibold'
-                  : 'border-sky-500/25 bg-sky-500/10 text-sky-800 dark:text-sky-200 hover:border-sky-500'
-                }`}
-            >
-              <span className="flex items-center gap-1.5 min-w-0 truncate">
-                <span className="size-1.5 rounded-full bg-sky-400 shrink-0" aria-hidden="true" />
-                <span className="truncate">On Leave</span>
-              </span>
-              <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'On Leave' ? 'text-white/90' : 'opacity-75'
-                  }`}
-              >
-                ({counts.onLeave})
-              </span>
-            </button>
-
-            {/* Finished */}
-            <button
-              type="button"
-              onClick={() => setSelectedStatus(selectedStatus === 'Finished' ? 'all' : 'Finished')}
-              className={`flex items-center justify-between w-full h-9 px-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${selectedStatus === 'Finished'
-                  ? 'bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 border-neutral-700 dark:border-neutral-200 shadow-2xs font-semibold'
-                  : 'border-app-border bg-app-surface text-app-muted hover:border-app-accent hover:text-app-foreground'
-                }`}
-            >
-              <span className="flex items-center gap-1.5 min-w-0 truncate">
-                <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" aria-hidden="true" />
-                <span className="truncate">Finished</span>
-              </span>
-              <span
-                className={`tabular-nums text-[11px] font-semibold shrink-0 ml-1 ${selectedStatus === 'Finished' ? 'opacity-90' : 'opacity-75'
-                  }`}
-              >
-                ({counts.finished})
-              </span>
-            </button>
-          </div>
-
-          {/* 3. Dropdown Filters */}
-          <div className="flex flex-col gap-2 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:items-center sm:w-auto">
-              <div className="relative w-full sm:w-44">
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-app-border bg-app-surface py-2 pl-3 pr-8 text-xs text-app-foreground outline-none focus:border-app-accent focus:ring-1 focus:ring-app-accent transition-colors cursor-pointer"
-                  aria-label="Filter by status"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="Working">Working</option>
-                  <option value="Working (Late)">Working (Late)</option>
-                  <option value="On Break">On Break</option>
-                  <option value="Not Checked In">Not Checked In</option>
-                  <option value="On Leave">On Leave</option>
-                  <option value="Finished">Finished</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-app-muted">
-                  <Icon name="chevron-down" className="size-3.5" />
-                </div>
+                <option value="all">All Statuses</option>
+                <option value="Working">Working</option>
+                <option value="Working (Late)">Working (Late)</option>
+                <option value="On Break">On Break</option>
+                <option value="Not Checked In">Not Checked In</option>
+                <option value="On Leave">On Leave</option>
+                <option value="Finished">Finished</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-app-muted">
+                <Icon name="chevron-down" className="size-3.5" />
               </div>
+            </div>
 
-              <div className="relative w-full sm:w-44">
-                <select
-                  value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  disabled={departments.length === 0}
-                  className="w-full appearance-none rounded-lg border border-app-border bg-app-surface py-2 pl-3 pr-8 text-xs text-app-foreground outline-none focus:border-app-accent focus:ring-1 focus:ring-app-accent transition-colors cursor-pointer disabled:opacity-50"
-                  aria-label="Filter by department"
-                >
-                  <option value="all">All Departments</option>
-                  {departments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-app-muted">
-                  <Icon name="chevron-down" className="size-3.5" />
-                </div>
+            <div className="relative w-1/2 sm:w-44">
+              <select
+                value={selectedDepartment}
+                onChange={(e) => { setSelectedDepartment(e.target.value); setPage(1); }}
+                disabled={departments.length === 0}
+                className="w-full appearance-none rounded-xl border border-app-border bg-app-surface py-2 pl-3.5 pr-8 text-xs font-medium text-app-foreground outline-none focus:border-app-accent focus:ring-1 focus:ring-app-accent transition-colors cursor-pointer disabled:opacity-50"
+                aria-label="Filter by department"
+              >
+                <option value="all">All Departments</option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-app-muted">
+                <Icon name="chevron-down" className="size-3.5" />
               </div>
             </div>
 
@@ -818,10 +854,11 @@ export function LiveBoardPage(): React.JSX.Element {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-xs font-medium text-app-muted hover:border-app-accent hover:text-app-foreground transition-colors self-end sm:self-auto cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-app-border bg-app-surface px-3 py-2 text-xs font-medium text-app-muted hover:border-app-accent hover:text-app-foreground transition-colors cursor-pointer shrink-0"
+                title="Clear filters"
               >
                 <Icon name="close" className="size-3" />
-                <span>Clear filters</span>
+                <span className="hidden sm:inline">Clear</span>
               </button>
             )}
           </div>
@@ -833,7 +870,7 @@ export function LiveBoardPage(): React.JSX.Element {
         /* Loading Skeleton State */
         <div>
           {/* Desktop Skeleton */}
-          <div className="hidden md:block overflow-x-auto rounded-2xl border border-app-border bg-app-surface">
+          <div className="dashboard-glass dashboard-glass-surface hidden md:block overflow-x-auto rounded-2xl border border-app-border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-app-border bg-app-surface-raised text-left">
@@ -885,7 +922,7 @@ export function LiveBoardPage(): React.JSX.Element {
         </div>
       ) : filteredRows.length === 0 ? (
         /* Empty State */
-        <div className="rounded-2xl border border-app-border bg-app-surface p-12 text-center">
+        <div className="dashboard-glass dashboard-glass-surface rounded-2xl border border-app-border p-12 text-center">
           <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-app-surface-raised text-app-muted">
             <Icon name="users" className="size-6" />
           </div>
@@ -899,7 +936,7 @@ export function LiveBoardPage(): React.JSX.Element {
             <button
               type="button"
               onClick={resetFilters}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent transition-colors"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent transition-colors cursor-pointer"
             >
               Clear filters
             </button>
@@ -909,45 +946,69 @@ export function LiveBoardPage(): React.JSX.Element {
         /* Employee Records Presentation */
         <>
           {/* Desktop Table Layout (md breakpoint and up) */}
-          <div className="hidden md:block overflow-x-auto rounded-2xl border border-app-border bg-app-surface shadow-xs">
+          <div className="dashboard-glass dashboard-glass-surface hidden md:block overflow-x-auto rounded-2xl border border-app-border shadow-2xs">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-app-border bg-app-surface-raised text-left">
-                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-app-muted">Employee</th>
-                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-app-muted">Department</th>
-                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-app-muted">Status</th>
-                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-app-muted tabular-nums">Punch In</th>
-                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-app-muted tabular-nums">Punch Out</th>
-                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-app-muted tabular-nums">Work Time</th>
-                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-app-muted tabular-nums">Break Time</th>
+                <tr className="border-b border-app-border bg-app-surface-raised/50 text-left">
+                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted">
+                    {filteredRows.length} {filteredRows.length === 1 ? 'EMPLOYEE' : 'EMPLOYEES'}
+                  </th>
+                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted">DEPARTMENT</th>
+                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted">STATUS</th>
+                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted tabular-nums">PUNCH IN</th>
+                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted tabular-nums">PUNCH OUT</th>
+                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted tabular-nums">WORK TIME</th>
+                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted tabular-nums">BREAK TIME</th>
+                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted text-center">ACTIONS</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-app-border">
-                {filteredRows.map((row) => {
+              <tbody className="divide-y divide-app-border/70">
+                {pagedRows.map((row) => {
                   const liveTimes = liveTimesMap.get(row.userId) ?? { workTime: '—', breakTime: '—' };
+                  const empCode = `EMP-${row.userId.replace(/[^0-9]/g, '').slice(-5).padStart(5, '0')}`;
                   return (
-                    <tr key={row.userId} className="hover:bg-app-surface-raised/70 transition-colors">
-                      <td className="px-5 py-3.5 font-medium text-app-foreground">
-                        <div className="flex items-center gap-2">
-                          <span>{row.fullName}</span>
-                          {row.isWfh && (
-                            <span
-                              className="rounded-md border border-app-border bg-app-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-app-muted"
-                              title="Working From Home"
-                            >
-                              WFH
-                            </span>
-                          )}
+                    <tr
+                      key={row.userId}
+                      onClick={() => setSelectedEmployee(row)}
+                      className="hover:bg-app-surface-raised/60 transition-colors cursor-pointer group"
+                    >
+                      <td className="px-4 py-3.5 font-medium text-app-foreground">
+                        <div className="flex items-center gap-3">
+                          <div className="size-9 rounded-full bg-[var(--app-accent)]/15 text-[var(--app-accent)] border border-[var(--app-accent)]/25 flex items-center justify-center text-xs font-bold shrink-0">
+                            {getInitials(row.fullName)}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-app-foreground">{row.fullName}</span>
+                              {row.isWfh && (
+                                <span className="rounded-md border border-app-border bg-app-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-app-muted">
+                                  WFH
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-app-muted block">{empCode}</span>
+                          </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-app-muted">{row.departmentName ?? '—'}</td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-4 py-3.5 text-app-muted text-xs font-medium">{row.departmentName ?? '—'}</td>
+                      <td className="px-4 py-3.5">
                         <StatusBadge status={row.displayStatus} />
                       </td>
-                      <td className="px-5 py-3.5 tabular-nums text-app-muted">{row.punchIn}</td>
-                      <td className="px-5 py-3.5 tabular-nums text-app-muted">{row.punchOut}</td>
-                      <td className="px-5 py-3.5 tabular-nums font-medium text-app-foreground">{liveTimes.workTime}</td>
-                      <td className="px-5 py-3.5 tabular-nums text-app-muted">{liveTimes.breakTime}</td>
+                      <td className="px-4 py-3.5 tabular-nums text-app-muted text-xs">{row.punchIn}</td>
+                      <td className="px-4 py-3.5 tabular-nums text-app-muted text-xs">{row.punchOut}</td>
+                      <td className="px-4 py-3.5 tabular-nums font-semibold text-app-foreground text-xs">{liveTimes.workTime}</td>
+                      <td className="px-4 py-3.5 tabular-nums text-app-muted text-xs">{liveTimes.breakTime}</td>
+                      <td className="px-4 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEmployee(row)}
+                          className="size-7 rounded-lg border border-app-border bg-app-surface inline-flex items-center justify-center text-app-muted hover:text-app-foreground hover:border-app-accent transition-colors cursor-pointer"
+                          aria-label={`Actions for ${row.fullName}`}
+                          title="View employee details"
+                        >
+                          <span className="tracking-widest font-bold text-xs leading-none">•••</span>
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -957,38 +1018,42 @@ export function LiveBoardPage(): React.JSX.Element {
 
           {/* Dedicated Mobile Card Layout (below md breakpoint) */}
           <div className="md:hidden space-y-3">
-            {filteredRows.map((row) => {
+            {pagedRows.map((row) => {
               const liveTimes = liveTimesMap.get(row.userId) ?? { workTime: '—', breakTime: '—' };
+              const empCode = `EMP-${row.userId.replace(/[^0-9]/g, '').slice(-5).padStart(5, '0')}`;
               return (
                 <div
                   key={row.userId}
-                  className="rounded-xl border border-app-border bg-app-surface p-4 shadow-2xs"
+                  onClick={() => setSelectedEmployee(row)}
+                  className="dashboard-glass dashboard-glass-surface rounded-2xl border border-app-border p-4 shadow-2xs space-y-3 cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h3 className="text-sm font-semibold text-app-foreground truncate">
-                          {row.fullName}
-                        </h3>
-                        {row.isWfh && (
-                          <span
-                            className="rounded-md border border-app-border bg-app-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-app-muted"
-                            title="Working From Home"
-                          >
-                            WFH
-                          </span>
-                        )}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="size-9 rounded-full bg-[var(--app-accent)]/15 text-[var(--app-accent)] border border-[var(--app-accent)]/25 flex items-center justify-center text-xs font-bold shrink-0">
+                        {getInitials(row.fullName)}
                       </div>
-                      <p className="mt-0.5 text-xs text-app-muted truncate">
-                        {row.departmentName ?? '—'}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="text-sm font-semibold text-app-foreground truncate">
+                            {row.fullName}
+                          </h3>
+                          {row.isWfh && (
+                            <span className="rounded-md border border-app-border bg-app-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-app-muted">
+                              WFH
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-app-muted truncate">
+                          {empCode} • {row.departmentName ?? '—'}
+                        </p>
+                      </div>
                     </div>
                     <div className="shrink-0">
                       <StatusBadge status={row.displayStatus} />
                     </div>
                   </div>
 
-                  <div className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-app-border/70 pt-3 text-xs">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-app-border/70 pt-3 text-xs">
                     <div>
                       <span className="block text-[11px] text-app-muted">Punch In</span>
                       <span className="font-medium tabular-nums text-app-foreground">{row.punchIn}</span>
@@ -999,7 +1064,7 @@ export function LiveBoardPage(): React.JSX.Element {
                     </div>
                     <div>
                       <span className="block text-[11px] text-app-muted">Work Time</span>
-                      <span className="font-medium tabular-nums text-app-foreground">{liveTimes.workTime}</span>
+                      <span className="font-semibold tabular-nums text-app-foreground">{liveTimes.workTime}</span>
                     </div>
                     <div>
                       <span className="block text-[11px] text-app-muted">Break Time</span>
@@ -1011,10 +1076,126 @@ export function LiveBoardPage(): React.JSX.Element {
             })}
           </div>
 
-          <div className="text-xs text-app-muted text-right pr-2">
-            Showing {filteredRows.length} of {processedRows.length} employees
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 pt-2 text-xs text-app-muted">
+            <div>
+              Showing {filteredRows.length === 0 ? 0 : startIndex + 1}–{endIndex} of {filteredRows.length} employees
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="size-7 rounded-full flex items-center justify-center border border-app-border bg-app-surface text-app-muted hover:text-app-foreground hover:border-app-accent disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                  aria-label="Previous page"
+                >
+                  <Icon name="chevron-left" className="size-3.5" />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                  const isActive = p === safePage;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPage(p)}
+                      className={`size-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors cursor-pointer ${
+                        isActive
+                          ? 'bg-[var(--app-accent)] text-white shadow-2xs font-bold'
+                          : 'text-app-muted hover:text-app-foreground hover:bg-app-surface-raised'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="size-7 rounded-full flex items-center justify-center border border-app-border bg-app-surface text-app-muted hover:text-app-foreground hover:border-app-accent disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                  aria-label="Next page"
+                >
+                  <Icon name="chevron-right" className="size-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </>
+      )}
+
+      {/* Selected Employee Detail Modal */}
+      {selectedEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="dashboard-glass dashboard-glass-surface w-full max-w-md rounded-2xl border border-app-border p-6 shadow-xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="size-11 rounded-full bg-[var(--app-accent)]/15 text-[var(--app-accent)] border border-[var(--app-accent)]/30 flex items-center justify-center text-sm font-bold">
+                  {getInitials(selectedEmployee.fullName)}
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-app-foreground">{selectedEmployee.fullName}</h2>
+                  <p className="text-xs text-app-muted">
+                    EMP-{selectedEmployee.userId.replace(/[^0-9]/g, '').slice(-5).padStart(5, '0')} • {selectedEmployee.departmentName ?? 'General'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedEmployee(null)}
+                className="rounded-lg p-1.5 text-app-muted hover:bg-app-surface-raised hover:text-app-foreground cursor-pointer"
+                aria-label="Close modal"
+              >
+                <Icon name="close" className="size-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 rounded-xl border border-app-border/80 bg-app-surface-raised/40 p-3.5 text-xs">
+              <div>
+                <span className="text-[11px] text-app-muted block">Status</span>
+                <div className="mt-1">
+                  <StatusBadge status={deriveDisplayStatus(selectedEmployee)} />
+                </div>
+              </div>
+              <div>
+                <span className="text-[11px] text-app-muted block">Work Mode</span>
+                <span className="font-semibold text-app-foreground mt-1 inline-block">
+                  {selectedEmployee.isWfh ? '🏠 Remote / WFH' : '🏢 Office'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-app-muted block">Punch In</span>
+                <span className="font-medium text-app-foreground tabular-nums">{getPunchIn(selectedEmployee)}</span>
+              </div>
+              <div>
+                <span className="text-[11px] text-app-muted block">Punch Out</span>
+                <span className="font-medium text-app-foreground tabular-nums">{getPunchOut(selectedEmployee)}</span>
+              </div>
+              <div>
+                <span className="text-[11px] text-app-muted block">Live Work Time</span>
+                <span className="font-bold text-app-foreground tabular-nums">
+                  {computeLiveWorkTime(selectedEmployee, nowMs)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-app-muted block">Live Break Time</span>
+                <span className="font-bold text-app-foreground tabular-nums">
+                  {computeLiveBreakTime(selectedEmployee, nowMs)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedEmployee(null)}
+                className="rounded-xl border border-app-border bg-app-surface px-4 py-2 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

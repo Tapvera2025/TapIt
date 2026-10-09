@@ -116,19 +116,19 @@ export function CompanyLayout({
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      {sidebarOpen && (
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          aria-label="Close navigation overlay"
-        />
-      )}
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(false)}
+        className={`mobile-sidebar-backdrop fixed inset-0 z-30 bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out md:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+        aria-label="Close navigation overlay"
+        aria-hidden={!sidebarOpen}
+        tabIndex={sidebarOpen ? 0 : -1}
+      />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <CompanyHeader
           title={title}
+          pathname={pathname}
           onMenu={() => setSidebarOpen(true)}
-          onLogout={onLogout}
           onNavigate={onNavigate}
         />
         <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto">

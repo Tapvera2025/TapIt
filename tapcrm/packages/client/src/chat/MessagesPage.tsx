@@ -53,8 +53,8 @@ export function MessagesPage({ currentUserId, isSuperAdmin }: { currentUserId: s
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex gap-1 border-b border-app-border px-4 pt-3">
+    <div className="flex h-full min-h-0 flex-col px-3 pb-3 sm:px-4 sm:pb-4 md:px-8 md:pb-8">
+      <div className="flex shrink-0 gap-1 border-b border-app-border px-1 pt-3">
         {([['direct', 'Direct Messages'], ['group', 'Internal Groups'], ['project', 'Project Groups']] as const).map(([value, tabLabel]) => (
           <button
             key={value}
@@ -66,13 +66,14 @@ export function MessagesPage({ currentUserId, isSuperAdmin }: { currentUserId: s
               setDeepLink(undefined);
               setTab(value);
             }}
-            className={`rounded-t-lg px-3 py-2 text-sm font-semibold ${tab === value ? 'border-b-2 border-app-accent text-app-accent' : 'text-app-muted hover:text-app-foreground'}`}
+            className={`whitespace-nowrap rounded-t-lg px-2 py-2 text-xs font-semibold sm:px-3 sm:text-sm ${tab === value ? 'border-b-2 border-app-accent text-app-accent' : 'text-app-muted hover:text-app-foreground'}`}
           >
-            {tabLabel}
+            <span className="sm:hidden">{value === 'direct' ? 'Direct' : value === 'group' ? 'Internal' : 'Project'}</span>
+            <span className="hidden sm:inline">{tabLabel}</span>
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="ui-card mt-3 min-h-0 flex-1 overflow-hidden">
         {tab === 'direct' ? (
           <DirectMessagesPage currentUserId={currentUserId} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
         ) : tab === 'group' ? (

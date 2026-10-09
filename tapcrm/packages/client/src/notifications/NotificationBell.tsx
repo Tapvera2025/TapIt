@@ -19,7 +19,7 @@ function timeAgo(iso: string): string {
  * The header bell: unread badge, a dropdown notification centre, and a
  * transient toast for notifications that arrive while the app is open.
  */
-export function NotificationBell({ onNavigate }: { onNavigate: (path: string) => void }): React.JSX.Element {
+export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (path: string) => void; className?: string }): React.JSX.Element {
   const { items, unreadCount, hasMore, loading, error, incoming, dismissIncoming, loadMore, markRead, markAllRead } =
     useNotifications();
   const [open, setOpen] = useState(false);
@@ -61,7 +61,7 @@ export function NotificationBell({ onNavigate }: { onNavigate: (path: string) =>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative rounded-lg border border-app-border p-2.5 text-app-muted hover:text-app-accent"
+        className={`navbar-action-button relative rounded-lg border border-app-border p-2.5 text-app-muted hover:text-app-accent ${className}`}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-haspopup="true"
         aria-expanded={open}

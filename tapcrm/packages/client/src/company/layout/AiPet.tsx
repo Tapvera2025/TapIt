@@ -916,7 +916,7 @@ function PetPicker({
   );
 }
 
-export function AiPetButton(): React.JSX.Element {
+export function AiPetButton({ className = '' }: { className?: string }): React.JSX.Element {
   const { activePet, activePetId, setActivePetId } = useAiPet();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -925,7 +925,7 @@ export function AiPetButton(): React.JSX.Element {
       <button
         type="button"
         onClick={() => setPickerOpen((prev) => !prev)}
-        className={`flex items-center gap-1.5 rounded-lg border p-2 text-sm transition-all ${
+        className={`navbar-action-button flex items-center gap-1.5 rounded-lg border p-2 text-sm transition-all ${className} ${
           activePet
             ? 'border-app-accent/50 bg-app-accent/10 text-app-accent shadow-sm'
             : 'border-app-border text-app-muted hover:border-app-accent hover:text-app-accent'
@@ -938,7 +938,7 @@ export function AiPetButton(): React.JSX.Element {
             <AnimatedSvgPet petId={activePet.id} isWalking={false} />
           </div>
         ) : (
-          <span className="block text-base leading-none">🐾</span>
+          <span className="pet-button-paw block text-base leading-none">🐾</span>
         )}
       </button>
 

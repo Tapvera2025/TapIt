@@ -29,7 +29,7 @@ export function NotepadEditor({
         disabled={disabled}
         maxLength={maxLength}
         placeholder="Start typing your notes here..."
-        className="w-full min-h-[340px] sm:min-h-[420px] md:min-h-[480px] resize-y rounded-xl border border-app-border bg-app-surface p-4 text-sm leading-relaxed text-app-foreground outline-none transition-colors focus:border-app-accent focus:ring-1 focus:ring-app-accent disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full min-h-[340px] sm:min-h-[420px] md:min-h-[340px] resize-y rounded-xl border border-app-border bg-app-surface p-4 text-sm leading-relaxed text-app-foreground outline-none transition-colors focus:border-app-accent focus:ring-1 focus:ring-app-accent disabled:cursor-not-allowed disabled:opacity-50"
         aria-label="Note content"
         spellCheck="true"
       />

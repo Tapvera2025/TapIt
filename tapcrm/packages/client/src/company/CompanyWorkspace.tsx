@@ -47,6 +47,7 @@ import { MessagesPage } from '../chat/index.js';
 import { ClientsPage } from '../clients/index.js';
 import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 import { MyTodoPage } from './todo/index.js';
+import { SettingsPage } from './settings/SettingsPage.js';
 
 export function CompanyWorkspace({
   pathname,
@@ -179,6 +180,7 @@ export function CompanyWorkspace({
     '/company/payroll/salaries': 'Salary Structures',
     '/company/payroll/inputs': 'Bonuses & Deductions',
     '/company/payroll/settings': 'Payroll Settings',
+    '/company/settings': 'Settings',
     '/company/geofencing': 'Geofencing',
     '/company/attendance/today': 'Today',
     '/company/attendance/my': 'My Attendance',
@@ -222,6 +224,7 @@ export function CompanyWorkspace({
     if (pathname === '/company/payroll/salaries' && can('payroll:manage')) return <SalariesPage />;
     if (pathname === '/company/payroll/inputs' && can('payroll:manage')) return <PayrollInputsPage />;
     if (pathname === '/company/payroll/settings' && can('payroll:manage-config')) return <PayrollSettingsPage />;
+    if (pathname === '/company/settings') return <SettingsPage />;
     if (pathname === '/company/sessions') {
       return <SessionsPage onBack={() => onNavigate('/company/dashboard')} onSignedOut={onLogout} />;
     }

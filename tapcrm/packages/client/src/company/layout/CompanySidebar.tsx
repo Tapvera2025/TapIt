@@ -1,9 +1,58 @@
 import { useState, useEffect, useRef } from 'react';
+import Lenis from 'lenis';
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
-import { ThemeToggle } from '../../theme/ThemeToggle.js';
+import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
+
+function ThemePromoIllustration({ accent }: { accent: AccentColor }): React.JSX.Element {
+  const common = {
+    className: 'sidebar-decoration-symbol size-14',
+    viewBox: '0 0 64 64',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2.5,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  };
+
+  if (accent === 'green') {
+    return (
+      <svg {...common}>
+        <path d="M32 52V26" />
+        <path d="M32 35c-9 0-15-5-16-14 9 0 15 5 16 14Z" fill="currentColor" fillOpacity=".18" />
+        <path d="M32 29c1-9 7-14 16-14-1 9-7 14-16 14Z" fill="currentColor" fillOpacity=".28" />
+        <path d="M25 52h14" />
+      </svg>
+    );
+  }
+  if (accent === 'blue') {
+    return (
+      <svg {...common}>
+        <path d="M32 10c-5 8-12 14-12 23a12 12 0 0 0 24 0c0-9-7-15-12-23Z" fill="currentColor" fillOpacity=".18" />
+        <path d="M14 47c5-4 10-4 15 0s10 4 15 0 7-4 10-2" />
+      </svg>
+    );
+  }
+  if (accent === 'orange') {
+    return (
+      <svg {...common}>
+        <path d="M34 53c-10 0-16-6-16-15 0-7 5-11 10-17 3-4 4-8 4-12 8 6 13 13 13 22 0 4-1 7-3 9 1-7-2-12-6-15 1 8-9 11-9 18 0 6 3 9 7 10Z" fill="currentColor" fillOpacity=".22" />
+        <path d="M27 52c-3-2-5-5-5-9 0-4 2-7 5-10-1 7 2 9 5 12 2 2 2 5 1 7" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="m32 9 10 16-10 30-10-30L32 9Z" fill="currentColor" fillOpacity=".2" />
+      <path d="m32 9 10 16-10 30-10-30L32 9Z" />
+      <path d="m22 25 10 5 10-5M32 30v25" />
+      <path d="M49 10v9M44.5 14.5h9" strokeWidth="2" />
+    </svg>
+  );
+}
 
 export function CompanySidebar({
   pathname,
@@ -80,6 +129,23 @@ export function CompanySidebar({
   const [organizationOpen, setOrganizationOpen] = useState(pathname.startsWith('/company/organization'));
   const [recruitmentOpen, setRecruitmentOpen] = useState(pathname.startsWith('/company/recruitment'));
   const prevPathnameRef = useRef(pathname);
+  const navigationRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (!navigation) return;
+
+    const lenis = new Lenis({
+      wrapper: navigation,
+      content: navigation,
+      duration: 0.9,
+      smoothWheel: true,
+      syncTouch: true,
+      autoRaf: true,
+    });
+
+    return () => lenis.destroy();
+  }, []);
 
   useEffect(() => {
     const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
@@ -92,6 +158,7 @@ export function CompanySidebar({
 
   const isSuperAdmin = accountType === 'super-admin';
   const { activePet } = useAiPet();
+  const { accent } = useTheme();
 
   const navigation: CompanyNavGroup[] = [
     {
@@ -195,7 +262,7 @@ export function CompanySidebar({
             ]
           : []),
         ...(canManagePayrollConfig
-          ? [{ label: 'Payroll Settings', path: '/company/payroll/settings', icon: 'settings' }]
+          ? [{ label: 'Payroll Settings', path: '/company/payroll/settings', icon: 'wallet' }]
           : []),
       ],
     },
@@ -211,48 +278,54 @@ export function CompanySidebar({
           : []),
       ],
     },
+    {
+      label: 'Preferences',
+      items: [
+        { label: 'Settings', path: '/company/settings', icon: 'settings' },
+      ],
+    },
   ];
 
   return (
     <aside
-      className={`workspace-sidebar fixed inset-y-0 left-0 z-40 flex h-dvh min-h-0 w-64 flex-col border-r border-app-border bg-app-surface px-4 py-5 transition-transform md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
+      className={`workspace-sidebar fixed inset-y-0 left-0 z-40 flex h-dvh min-h-0 w-64 flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
     >
       <div className="flex shrink-0 items-center justify-between px-3">
         <div>
           <BrandLogo className="w-[176px]" />
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted">
             Company Workspace
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-2 text-app-muted hover:bg-app-background md:hidden"
+          className="rounded-lg p-2 text-sidebar-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground md:hidden"
           aria-label="Close navigation"
         >
           ×
         </button>
       </div>
-      <nav className="mt-8 min-h-0 flex-1 space-y-7 overflow-y-auto" aria-label="Company navigation">
+      <nav ref={navigationRef} className="mt-8 min-h-0 flex-1 space-y-7 overflow-y-auto" aria-label="Company navigation">
         {navigation.map((group) => {
           const isOrganization = group.label === 'Organization';
           const activeChild = group.items.some(
             (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
           );
           return (
-            <div key={group.label}>
+            <div key={group.label} className={group.label === 'Preferences' ? 'sidebar-preferences-group' : undefined}>
               {isOrganization ? (
                 <button
                   type="button"
                   onClick={() => setOrganizationOpen((openState) => !openState)}
                   aria-expanded={organizationOpen}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.16em] ${activeChild ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
                 >
                   <span>Organization</span>
                   <span aria-hidden="true">{organizationOpen ? '−' : '+'}</span>
                 </button>
               ) : (
-                <p className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">{group.label}</p>
+                <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted">{group.label}</p>
               )}
               {(!isOrganization || organizationOpen) && (
                 <div className="mt-2 space-y-1">
@@ -280,13 +353,13 @@ export function CompanySidebar({
                               onClose();
                             }
                           }}
-                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${isActive ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
                         >
                           <span className="flex items-center gap-3"><Icon name={item.icon} /><span>{item.label}</span></span>
-                          {item.children && <span aria-hidden="true" className="text-xs text-app-muted">{showChildren ? '▾' : '▸'}</span>}
+                          {item.children && <span aria-hidden="true" className="text-xs text-sidebar-muted">{showChildren ? '▾' : '▸'}</span>}
                         </button>
                         {showChildren && (
-                          <div className="ml-7 mt-1 space-y-1 border-l border-app-border pl-2">
+                          <div className="ml-7 mt-1 space-y-1 border-l border-sidebar-border pl-2">
                             {item.children!.map((sub) => {
                               const active = sub.path === '/company/recruitment'
                                 ? pathname === sub.path
@@ -297,7 +370,7 @@ export function CompanySidebar({
                                   type="button"
                                   aria-current={active ? 'page' : undefined}
                                   onClick={() => { onNavigate(sub.path); onClose(); }}
-                                  className={`w-full rounded-lg px-3 py-2 text-left text-xs font-semibold ${active ? 'text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
+                                  className={`w-full rounded-lg px-3 py-2 text-left text-xs font-medium ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
                                 >
                                   {sub.label}
                                 </button>
@@ -314,25 +387,51 @@ export function CompanySidebar({
           );
         })}
         <div className="sidebar-decoration">
-          <p className="text-sm font-medium leading-5">Work smarter.<br />Grow together.</p>
-          <div className="mt-3 h-1 w-10 rounded-full bg-app-accent" />
+          <div className="relative z-10 max-w-[76%]">
+            <p className="text-sm font-medium leading-5">Work smarter.<br />Grow together.</p>
+            <div className="mt-3 h-1 w-10 rounded-full bg-app-accent" />
+          </div>
+          <ThemePromoIllustration accent={accent} />
         </div>
       </nav>
       {activePet && <SidebarPet pet={activePet} />}
-      <div className="shrink-0 border-t border-app-border pt-4">
-        <div className="mb-4 px-3"><ThemeToggle /></div>
-        <p className="truncate px-3 text-sm font-bold">{identity.fullName}</p>
-        <p className="mt-1 truncate px-3 text-xs text-app-muted">{identity.email}</p>
-        <p className="mt-1 truncate px-3 text-[11px] font-semibold text-app-accent" title={organizationName ?? undefined}>
-          {organizationName ?? 'Organization unavailable'}
-        </p>
-        <button
-          type="button"
-          onClick={onLogout}
-          className="mt-3 w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-app-danger hover:bg-[#d86b6b]/10"
-        >
-          Log out
-        </button>
+      <div className="shrink-0 border-t border-sidebar-border pt-4">
+        <div className="sidebar-profile-card">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="sidebar-profile-avatar flex size-10 items-center justify-center rounded-full text-xs font-bold shrink-0">
+              {identity.fullName
+                ? identity.fullName
+                    .trim()
+                    .split(/\s+/)
+                    .map((p) => p[0])
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase()
+                : 'U'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-sidebar-foreground">{identity.fullName}</p>
+              <p className="truncate text-[11px] leading-4 text-sidebar-muted">{identity.email}</p>
+              <span
+                className="mt-1 inline-flex rounded-md bg-amber-400/12 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-600 dark:text-amber-300"
+                title={organizationName ?? undefined}
+              >
+                {organizationName ? organizationName.slice(0, 3).toUpperCase() : 'ABP'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 border-t border-sidebar-border/70 pt-3">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="sidebar-logout flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition-colors cursor-pointer dark:text-rose-300"
+          >
+            <Icon name="logout" className="size-3.5" />
+            <span>Log out</span>
+          </button>
+        </div>
       </div>
     </aside>
   );
