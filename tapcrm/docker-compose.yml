@@ -239,9 +239,8 @@ services:
     depends_on:
       server:
         condition: service_healthy
-    command: ['npm', 'run', 'dev', '--workspace', '@tapcrm/client', '--', '--host', '0.0.0.0']
     ports:
-      - '127.0.0.1:${WEB_PORT:-5173}:5173'
+      - '${WEB_BIND:-127.0.0.1}:${WEB_PORT:-5173}:5173'
 
 volumes:
   postgres_data:

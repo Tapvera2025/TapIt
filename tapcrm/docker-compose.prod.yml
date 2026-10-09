@@ -1,0 +1,19 @@
+# Production overlay. Used together with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# It swaps the dev-server client for the nginx static build. Set these in the
+# server's /opt/tapcrm/.env:
+#   NODE_ENV=production
+#   WEB_BIND=0.0.0.0     # reachable from the office LAN (default is localhost only)
+#   WEB_PORT=80
+#   CLIENT_ORIGIN=http://<server-name-or-ip>   CORS_ORIGIN=<same>
+
+services:
+  client:
+    build:
+      context: .
+      dockerfile: packages/client/Dockerfile.prod
+    restart: unless-stopped
+
+  server:
+    restart: unless-stopped
