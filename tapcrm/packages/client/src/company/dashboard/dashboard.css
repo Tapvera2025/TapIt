@@ -2,6 +2,12 @@
 @import 'react-resizable/css/styles.css';
 
 /* Widget card chrome. Inline with app-surface tokens. */
+.dashboard-grid,
+.dashboard-grid .layout {
+  width: 100%;
+  min-width: 0;
+}
+
 .dashboard-grid .react-grid-item {
   background: var(--app-surface);
   border: 1px solid var(--app-border);

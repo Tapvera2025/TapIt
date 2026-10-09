@@ -22,13 +22,15 @@ function fmtDateFull(date: Date): string {
   return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function fmtElapsed(startIso: string | null, now: Date): string {
-  if (!startIso) return '00:00:00';
-  const diff = Math.max(0, Math.floor((now.getTime() - new Date(startIso).getTime()) / 1000));
-  const h = Math.floor(diff / 3600);
-  const m = Math.floor((diff % 3600) / 60);
-  const s = diff % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+function elapsedSeconds(startIso: string | null, now: Date): number {
+  if (!startIso) return 0;
+  return Math.max(0, Math.floor((now.getTime() - new Date(startIso).getTime()) / 1000));
+}
+
+function fmtBreakTimer(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
 }
 
 function fmtShortDuration(minutes: number): string {
@@ -60,18 +62,10 @@ function getGreeting(hour: number): string {
 
 function getMotivation(hour: number): string {
   const tod = getTimeOfDay(hour);
-  if (tod === 'dawn' || tod === 'morning') return "Let's make it a productive day! 🚀";
-  if (tod === 'afternoon') return 'Keep up the great work! 💪';
-  if (tod === 'evening') return 'Almost there — finishing strong! ⭐';
-  return 'Rest well, see you tomorrow! 🌙';
-}
-
-function getCardBg(hour: number): string {
-  const tod = getTimeOfDay(hour);
-  if (tod === 'night') return 'bg-gradient-to-br from-indigo-50 via-slate-50 to-purple-50 dark:from-indigo-950/40 dark:via-slate-900/40 dark:to-purple-950/30';
-  if (tod === 'evening') return 'bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 dark:from-orange-950/40 dark:via-amber-950/30 dark:to-rose-950/20';
-  if (tod === 'dawn') return 'bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-yellow-950/20';
-  return 'bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50 dark:from-orange-950/40 dark:via-amber-950/30 dark:to-orange-950/20';
+  if (tod === 'dawn' || tod === 'morning') return "Let's make it a productive day!";
+  if (tod === 'afternoon') return 'Keep up the great work!';
+  if (tod === 'evening') return 'Almost there — finishing strong!';
+  return 'Rest well, see you tomorrow!';
 }
 
 // ── SVG Icons ────────────────────────────────────────────────────────────────
@@ -96,22 +90,6 @@ function IconCalendar({ className = 'h-5 w-5' }: { className?: string }): React.
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}
-
-function IconBars({ className = 'h-5 w-5' }: { className?: string }): React.JSX.Element {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
-  );
-}
-
-function IconStopwatch({ className = 'h-12 w-12' }: { className?: string }): React.JSX.Element {
-  return (
-    <svg className={className} viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="24" cy="28" r="16" /><polyline points="24 20 24 28 29 33" /><line x1="19" y1="4" x2="29" y2="4" /><line x1="24" y1="4" x2="24" y2="8" /><line x1="38" y1="12" x2="41" y2="9" />
     </svg>
   );
 }
@@ -152,73 +130,6 @@ function IconPlay({ className = 'h-4 w-4' }: { className?: string }): React.JSX.
   );
 }
 
-// ── Day / Night Orb ──────────────────────────────────────────────────────────
-
-function SunSvg({ color }: { color: string }): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 48 48" className="h-9 w-9" fill="none">
-      <circle cx="24" cy="24" r="9" fill={color} />
-      {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
-        const rad = (deg * Math.PI) / 180;
-        const x1 = 24 + 13 * Math.cos(rad);
-        const y1 = 24 + 13 * Math.sin(rad);
-        const x2 = 24 + 19 * Math.cos(rad);
-        const y2 = 24 + 19 * Math.sin(rad);
-        return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth="2.5" strokeLinecap="round" />;
-      })}
-    </svg>
-  );
-}
-
-function DawnSvg(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 48 48" className="h-9 w-9" fill="none">
-      <circle cx="24" cy="30" r="9" fill="#FDBA74" />
-      {[-90, -45, 0, 45, 90].map((deg) => {
-        const rad = (deg * Math.PI) / 180;
-        const x1 = 24 + 13 * Math.cos(rad);
-        const y1 = 30 + 13 * Math.sin(rad);
-        const x2 = 24 + 19 * Math.cos(rad);
-        const y2 = 30 + 19 * Math.sin(rad);
-        return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#FDBA74" strokeWidth="2.5" strokeLinecap="round" />;
-      })}
-      <line x1="6" y1="38" x2="42" y2="38" stroke="#FDBA74" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function MoonSvg(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 48 48" className="h-9 w-9" fill="none">
-      <path d="M32 24c0 8.837-7.163 16-16 16 0 0 3 5 10 5 9 0 16-7.163 16-16S34 9 25 9c0 0 7 6.163 7 15z" fill="#94A3B8" />
-      <circle cx="16" cy="12" r="1.5" fill="#CBD5E1" />
-      <circle cx="10" cy="20" r="1" fill="#CBD5E1" />
-      <circle cx="20" cy="8" r="1" fill="#CBD5E1" />
-    </svg>
-  );
-}
-
-function DayNightOrb({ hour }: { hour: number }): React.JSX.Element {
-  const tod = getTimeOfDay(hour);
-  const orbBg: Record<TimeOfDay, string> = {
-    dawn:      'bg-amber-100 dark:bg-amber-900/50 shadow-amber-200/60 dark:shadow-amber-800/30',
-    morning:   'bg-orange-100 dark:bg-orange-900/50 shadow-orange-200/60 dark:shadow-orange-800/30',
-    afternoon: 'bg-amber-100 dark:bg-amber-900/50 shadow-amber-200/60 dark:shadow-amber-800/30',
-    evening:   'bg-rose-100 dark:bg-rose-900/50 shadow-rose-200/60 dark:shadow-rose-800/30',
-    night:     'bg-indigo-100 dark:bg-indigo-900/50 shadow-indigo-200/60 dark:shadow-indigo-800/30',
-  };
-  return (
-    <div className={`relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full shadow-lg ${orbBg[tod]}`}
-         style={{ animation: 'orbPulse 3s ease-in-out infinite' }}>
-      {tod === 'dawn' && <DawnSvg />}
-      {tod === 'morning' && <SunSvg color="#F97316" />}
-      {tod === 'afternoon' && <SunSvg color="#EAB308" />}
-      {tod === 'evening' && <SunSvg color="#EA580C" />}
-      {tod === 'night' && <MoonSvg />}
-    </div>
-  );
-}
-
 // ── Greeting Card ────────────────────────────────────────────────────────────
 
 function GreetingCard({
@@ -237,11 +148,15 @@ function GreetingCard({
   const hour = now.getHours();
   const [busy, setBusy] = useState<PunchKind | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const state = row?.state ?? 'NOT_IN';
 
-  const hasIn = allowedMoves.includes('in') || allowedMoves.includes('scan');
+  const hasIn = state === 'NOT_IN' && (allowedMoves.includes('in') || allowedMoves.includes('scan'));
   const hasOut = allowedMoves.includes('out');
   const hasBreakStart = allowedMoves.includes('break-start');
   const hasBreakEnd = allowedMoves.includes('break-end');
+  const showBreakAction = state === 'WORKING' || state === 'ON_BREAK';
+  const breakAction: Extract<PunchKind, 'break-start' | 'break-end'> = state === 'ON_BREAK' ? 'break-end' : 'break-start';
+  const canBreak = breakAction === 'break-end' ? hasBreakEnd : hasBreakStart;
 
   async function handle(kind: PunchKind, label: string): Promise<void> {
     setBusy(kind);
@@ -249,7 +164,9 @@ function GreetingCard({
     try {
       const result = await punch(kind);
       const at = fmtTime12(new Date());
-      setMsg({ ok: true, text: result.replayed ? `${label} already recorded.` : `${label} at ${at}.` });
+      setMsg(kind === 'break-start' || kind === 'break-end'
+        ? null
+        : { ok: true, text: result.replayed ? `${label} already recorded.` : `${label} at ${at}.` });
       onPunched();
     } catch (err) {
       setMsg({ ok: false, text: err instanceof Error ? err.message : 'Failed. Try again.' });
@@ -258,28 +175,21 @@ function GreetingCard({
     }
   }
 
-  const state = row?.state ?? 'NOT_IN';
-
   return (
-    <div className={`rounded-2xl border border-orange-100 dark:border-orange-900/30 p-5 sm:p-6 ${getCardBg(hour)}`}>
-      {/* Top: orb + greeting + date */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <DayNightOrb hour={hour} />
-          <div>
-            <p className="text-sm font-medium text-app-muted">{getGreeting(hour)}</p>
-            <p className="text-2xl font-bold text-app-foreground">{fullName}</p>
-            <p className="mt-0.5 text-sm text-app-muted">{getMotivation(hour)}</p>
-          </div>
+    <div className="today-greeting-card dashboard-glass dashboard-glass-surface relative flex flex-col overflow-visible rounded-2xl border border-app-border p-4 lg:h-full">
+      <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-app-muted">{getGreeting(hour)}</p>
+          <p className="mt-1 max-w-full break-words text-xl font-bold tracking-tight text-app-foreground sm:text-2xl">{fullName}</p>
+          <p className="mt-2 text-sm text-app-muted">{getMotivation(hour)}</p>
         </div>
-        <div className="flex items-center gap-2 rounded-xl border border-orange-200/60 bg-white/60 px-3 py-1.5 text-xs font-semibold text-app-foreground dark:border-orange-800/30 dark:bg-white/5">
+        <div className="flex shrink-0 items-center gap-2 rounded-xl border border-app-border bg-app-background/50 px-3 py-2 text-xs font-semibold text-app-foreground">
           <IconCalendar className="h-3.5 w-3.5 text-app-accent" />
           {fmtDateFull(now)}
         </div>
       </div>
 
-      {/* Status + shift */}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <StatusPill state={state} isWfh={row?.isWfh ?? false} />
         {(row?.shiftStartAt || row?.shiftEndAt) && (
           <span className="text-xs text-app-muted">
@@ -288,29 +198,28 @@ function GreetingCard({
         )}
       </div>
 
-      {/* Punch buttons */}
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <button
           type="button"
           disabled={busy !== null || !hasIn}
           onClick={() => hasIn && void handle('in', 'Punch In')}
-          className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
+          className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
             hasIn
-              ? 'border-app-border bg-white/80 text-app-foreground hover:border-app-accent dark:bg-white/10 dark:hover:border-app-accent'
+              ? 'border-app-accent bg-app-accent text-app-on-accent hover:brightness-105'
               : 'border-app-border/40 bg-white/40 text-app-muted/40 dark:bg-white/5 cursor-not-allowed'
           } disabled:cursor-not-allowed`}
         >
-          <IconLogIn className={`h-4 w-4 shrink-0 ${hasIn ? 'text-app-foreground' : 'text-app-muted/40'}`} />
+          <IconLogIn className={`h-4 w-4 shrink-0 ${hasIn ? 'text-app-on-accent' : 'text-app-muted/40'}`} />
           {busy === 'in' ? 'Recording…' : 'Punch In'}
         </button>
         <button
           type="button"
           disabled={busy !== null || !hasOut}
           onClick={() => hasOut && void handle('out', 'Punch Out')}
-          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
             hasOut
-              ? 'bg-app-accent text-app-on-accent hover:brightness-105 shadow-md shadow-orange-300/30 dark:shadow-orange-900/30'
-              : 'bg-app-surface-raised text-app-muted/40 cursor-not-allowed'
+              ? 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
+              : 'border border-app-border bg-app-surface-raised text-app-muted/40 cursor-not-allowed'
           } disabled:cursor-not-allowed`}
         >
           <IconLogOut className={`h-4 w-4 shrink-0 ${hasOut ? 'text-app-on-accent' : 'text-app-muted/40'}`} />
@@ -318,32 +227,30 @@ function GreetingCard({
         </button>
       </div>
 
-      {/* Break buttons (if applicable) */}
-      {(hasBreakStart || hasBreakEnd) && (
-        <div className="mt-2 grid grid-cols-1 gap-2">
-          {hasBreakStart && (
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={() => void handle('break-start', 'Break Start')}
-              className="flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 transition-all active:scale-[0.97] hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300 disabled:opacity-60"
-            >
-              <IconCoffee className="h-4 w-4" />
-              {busy === 'break-start' ? 'Recording…' : 'Start Break'}
-            </button>
-          )}
-        </div>
+      {showBreakAction && (
+        <button
+          type="button"
+          disabled={busy !== null || !canBreak}
+          onClick={() => canBreak && void handle(breakAction, breakAction === 'break-start' ? 'Break Start' : 'Break End')}
+          className={`mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${
+            breakAction === 'break-start'
+              ? 'border border-app-accent/30 bg-app-accent/10 text-app-accent hover:bg-app-accent/15'
+              : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
+          }`}
+        >
+          {breakAction === 'break-start' ? <IconCoffee className="h-4 w-4" /> : <IconSquare className="h-4 w-4" />}
+          {busy === 'break-start' ? 'Starting break…' : busy === 'break-end' ? 'Ending break…' : breakAction === 'break-start' ? 'Start Break' : 'End Break'}
+        </button>
       )}
 
-      {msg && (
-        <p role="status" className={`mt-2 text-xs font-medium ${msg.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-app-danger'}`}>
-          {msg.text}
-        </p>
-      )}
+      <div className="mt-2 h-4 min-h-4 overflow-hidden">
+        {msg && (
+          <p role="status" className={`truncate text-xs font-medium ${msg.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-app-danger'}`}>
+            {msg.text}
+          </p>
+        )}
+      </div>
 
-      {allowedMoves.length === 0 && (
-        <p className="mt-4 text-center text-sm text-app-muted">You're done for today! 🎉</p>
-      )}
     </div>
   );
 }
@@ -387,38 +294,20 @@ function StatusPill({ state, isWfh }: { state: string; isWfh?: boolean }): React
 
 function BreakStatusCard({
   row,
-  allowedMoves,
   now,
-  onPunched,
 }: {
   row: LiveRow | null;
-  allowedMoves: readonly string[];
   now: Date;
-  onPunched: () => void;
 }): React.JSX.Element {
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
   const isOnBreak = row?.state === 'ON_BREAK';
-  const hasBreakEnd = allowedMoves.includes('break-end');
-  const elapsed = fmtElapsed(isOnBreak ? (row?.since ?? null) : null, now);
-
-  async function endBreak(): Promise<void> {
-    setBusy(true);
-    setMsg(null);
-    try {
-      await punch('break-end');
-      setMsg({ ok: true, text: 'Break ended.' });
-      onPunched();
-    } catch (err) {
-      setMsg({ ok: false, text: err instanceof Error ? err.message : 'Failed.' });
-    } finally {
-      setBusy(false);
-    }
-  }
+  const breakSeconds = elapsedSeconds(isOnBreak ? (row?.since ?? null) : null, now);
+  const breakLimitSeconds = 60 * 60;
+  const progress = Math.min(breakSeconds / breakLimitSeconds, 1);
+  const circumference = 2 * Math.PI * 47;
+  const strokeOffset = circumference * (1 - progress);
 
   return (
-    <div className="flex flex-col rounded-2xl border border-app-border bg-app-surface p-5">
+    <div className="today-break-status-card dashboard-glass dashboard-glass-surface flex flex-col rounded-2xl border border-app-border p-4 lg:h-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <p className="text-base font-bold text-app-foreground">Break Status</p>
@@ -434,149 +323,37 @@ function BreakStatusCard({
         )}
       </div>
 
-      {/* Timer + meta */}
-      <div className="mt-4 flex flex-1 items-center gap-4">
-        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${isOnBreak ? 'bg-orange-100 dark:bg-orange-950/40' : 'bg-app-surface-raised'}`}>
-          <IconStopwatch className={`h-7 w-7 ${isOnBreak ? 'text-app-accent' : 'text-app-muted'}`} />
+      <div className="mt-2 flex flex-1 flex-col items-center justify-center">
+        <div className="today-break-timer relative grid size-28 place-items-center rounded-full sm:size-32">
+          <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
+            <circle cx="56" cy="56" r="47" fill="none" stroke="currentColor" strokeWidth="7" className="text-app-accent/15" />
+            <circle
+              cx="56"
+              cy="56"
+              r="47"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="7"
+              strokeLinecap="round"
+              className="text-app-accent transition-[stroke-dashoffset] duration-500"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeOffset}
+            />
+          </svg>
+          <div className="text-center">
+            <p className="text-2xl font-bold tabular-nums tracking-tight text-app-foreground">
+              {isOnBreak ? fmtBreakTimer(breakSeconds) : '00:00'}
+            </p>
+            <p className="mt-0.5 text-[11px] font-medium text-app-muted">/ 01:00</p>
+          </div>
         </div>
-        <div className="flex-1">
-          <p className={`text-3xl font-bold tabular-nums tracking-tight ${isOnBreak ? 'text-app-foreground' : 'text-app-muted'}`}>
-            {isOnBreak ? elapsed : '—'}
-          </p>
-          <p className={`mt-0.5 text-sm font-medium ${isOnBreak ? 'text-app-accent' : 'text-app-muted'}`}>
-            {isOnBreak ? 'On Break' : 'Not on break'}
-          </p>
+      </div>
+
+      <div className="mt-3">
+        <div className="rounded-xl border border-app-border bg-app-surface-raised px-2.5 py-1.5 text-center">
+          <p className="text-[11px] text-app-muted">Total break today</p>
+          <p className="mt-0.5 text-base font-bold tabular-nums text-app-foreground">{fmtHm(row?.breakMinutes ?? 0)}</p>
         </div>
-        {isOnBreak && row?.since && (
-          <div className="text-right">
-            <p className="text-xs text-app-muted">Break Started</p>
-            <p className="text-sm font-bold text-app-foreground">{fmtTime12(row.since)}</p>
-          </div>
-        )}
-      </div>
-
-      {/* End break / info */}
-      <div className="mt-5">
-        {hasBreakEnd ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void endBreak()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-bold text-app-accent transition-all active:scale-[0.97] hover:bg-orange-100 dark:border-orange-800/40 dark:bg-orange-950/30 dark:hover:bg-orange-950/50 disabled:opacity-60"
-          >
-            <IconSquare className="h-4 w-4 text-app-accent" />
-            {busy ? 'Ending break…' : 'End Break'}
-          </button>
-        ) : row?.breakMinutes ? (
-          <div className="rounded-xl border border-app-border bg-app-surface-raised p-3 text-center">
-            <p className="text-xs text-app-muted">Total break today</p>
-            <p className="mt-0.5 text-lg font-bold tabular-nums text-app-foreground">{fmtHm(row.breakMinutes)}</p>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-app-border bg-app-surface-raised p-3 text-center text-xs text-app-muted">
-            No breaks taken yet
-          </div>
-        )}
-        {msg && (
-          <p className={`mt-2 text-center text-xs font-medium ${msg.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-app-danger'}`}>
-            {msg.text}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Today Stats Card ─────────────────────────────────────────────────────────
-
-function TodayStatsCard({
-  row,
-  breakCount,
-  shiftStatus,
-}: {
-  row: LiveRow | null;
-  breakCount: number;
-  shiftStatus: string | null;
-}): React.JSX.Element {
-  const worked = row?.workedMinutes ?? 0;
-  const breaks = row?.breakMinutes ?? 0;
-  const shiftStart = row?.shiftStartAt ?? null;
-  const shiftEnd = row?.shiftEndAt ?? null;
-
-  const isOnTrack = shiftStatus === 'on-time' || shiftStatus === null && worked > 0;
-  const statusLabel =
-    shiftStatus === 'on-time' ? 'On Time' :
-    shiftStatus === 'late' ? 'Late' :
-    shiftStatus === 'early-exit' ? 'Early Exit' :
-    shiftStatus === 'absent' ? 'Absent' :
-    row?.state === 'WORKING' ? 'On Time' :
-    row?.state === 'ON_BREAK' ? 'On Break' :
-    '—';
-
-  const statItems = [
-    {
-      icon: <IconClock className="h-5 w-5 text-app-accent" />,
-      label: 'Total Working Hours',
-      value: fmtHm(worked),
-      sub: null,
-    },
-    {
-      icon: <IconCoffee className="h-5 w-5 text-app-accent" />,
-      label: 'Total Break Time',
-      value: fmtHm(breaks),
-      sub: breakCount > 0 ? `${breakCount} break${breakCount > 1 ? 's' : ''}` : null,
-    },
-    {
-      icon: <IconCalendar className="h-5 w-5 text-app-accent" />,
-      label: 'Expected Shift',
-      value: (shiftStart || shiftEnd) ? `${fmtTime12(shiftStart)} – ${fmtTime12(shiftEnd)}` : '—',
-      sub: null,
-    },
-    {
-      icon: <IconBars className="h-5 w-5 text-app-accent" />,
-      label: 'Shift Status',
-      value: statusLabel,
-      isStatus: true,
-      onTrack: isOnTrack,
-    },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-app-border bg-app-surface p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-base font-bold text-app-foreground">Today's Status</p>
-        {row && row.state !== 'NOT_IN' && (
-          <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-            isOnTrack
-              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-          }`}>
-            <span className={`h-2 w-2 rounded-full ${isOnTrack ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-            {isOnTrack ? 'On Track' : 'Off Track'}
-          </span>
-        )}
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {statItems.map((item) => (
-          <div key={item.label} className="flex items-start gap-3 rounded-xl border border-app-border bg-app-surface-raised/40 p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-950/30">
-              {item.icon}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-app-muted leading-tight">{item.label}</p>
-              {'isStatus' in item && item.isStatus ? (
-                <p className={`mt-1 text-base font-bold flex items-center gap-1.5 ${item.onTrack ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                  <span className={`h-2 w-2 rounded-full ${item.onTrack ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                  {item.value}
-                </p>
-              ) : (
-                <p className="mt-1 text-base font-bold tabular-nums text-app-foreground">{item.value}</p>
-              )}
-              {item.sub && <p className="text-[11px] text-app-muted mt-0.5">{item.sub}</p>}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -631,30 +408,37 @@ function dotColor(kind: ActivityItem['kind']): string {
 
 function TodayActivityCard({
   items,
-  onViewAll,
 }: {
   items: ActivityItem[];
-  onViewAll?: () => void;
 }): React.JSX.Element {
+  const initialVisibleCount = Math.min(items.length, 3);
+  const activityScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const activityList = activityScrollRef.current;
+    if (!activityList || items.length <= 3) return;
+    activityList.scrollTop = activityList.scrollHeight;
+  }, [items.length]);
+
   return (
-    <div className="rounded-2xl border border-app-border bg-app-surface p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-base font-bold text-app-foreground">Today's Activity</p>
-        {onViewAll && (
-          <button
-            type="button"
-            onClick={onViewAll}
-            className="flex items-center gap-1 text-xs font-semibold text-app-accent hover:underline"
-          >
-            View All <IconArrowRight className="h-3.5 w-3.5" />
-          </button>
-        )}
+    <div className="dashboard-glass dashboard-glass-surface flex min-h-0 flex-col rounded-2xl border border-app-border p-5 lg:h-full">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 text-base font-bold text-app-foreground">Today's Activity</p>
+        <span className="shrink-0 text-[11px] font-medium text-app-muted">
+          Showing {initialVisibleCount} of {items.length} activit{items.length === 1 ? 'y' : 'ies'}
+        </span>
       </div>
 
       {items.length === 0 ? (
-        <div className="mt-6 text-center text-sm text-app-muted">No activity yet today.</div>
+        <div className="mt-7 flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-app-border bg-app-background/25 px-4 text-center">
+          <span className="grid size-10 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
+            <IconClock className="size-5" />
+          </span>
+          <p className="mt-3 text-sm font-semibold text-app-foreground">No activity yet today.</p>
+          <p className="mt-1 max-w-[15rem] text-xs leading-5 text-app-muted">Your punch in/out and break activity will appear here.</p>
+        </div>
       ) : (
-        <div className="mt-4 space-y-0">
+        <div ref={activityScrollRef} className="today-activity-scroll mt-4 min-h-0 max-h-[18rem] flex-1 space-y-0 overflow-y-auto overscroll-contain pr-2 lg:max-h-none">
           {items.map((item, idx) => (
             <div key={item.id} className="flex gap-3">
               {/* Left: time */}
@@ -671,16 +455,19 @@ function TodayActivityCard({
               </div>
 
               {/* Right: icon + text */}
-              <div className="flex flex-1 items-start gap-3 pb-4">
+              <div className="flex min-w-0 flex-1 items-start gap-3 pb-4">
                 {activityIcon(item.kind)}
-                <div>
-                  <p className="text-sm font-semibold text-app-foreground leading-tight">{item.label}</p>
-                  <p className="mt-0.5 text-xs text-app-muted">{item.sub}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-semibold leading-tight text-app-foreground">{item.label}</p>
+                  <p className="mt-0.5 break-words text-xs text-app-muted">{item.sub}</p>
                 </div>
               </div>
             </div>
           ))}
         </div>
+      )}
+      {items.length > 3 && (
+        <p className="mt-2 text-center text-[11px] text-app-muted">Scroll to view more activity</p>
       )}
     </div>
   );
@@ -835,7 +622,6 @@ export function TodayPage({
 }): React.JSX.Element {
   const [status, setStatus] = useState<{ row: LiveRow | null; allowedMoves: readonly string[] } | null>(null);
   const [events, setEvents] = useState<AttendanceEventView[]>([]);
-  const [shiftStatus, setShiftStatus] = useState<string | null>(null);
   const [prompts, setPrompts] = useState<BreakPrompt[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -864,7 +650,6 @@ export function TodayPage({
         try {
           const detail = await getAttendanceDayDetail(userId, today, sig);
           setEvents(detail.events.effective);
-          setShiftStatus(detail.record.status ?? null);
         } catch {
           // day detail is optional — don't block on it
         }
@@ -900,48 +685,29 @@ export function TodayPage({
   }
 
   const { row, allowedMoves } = status;
-  const breakCount = events.filter((e) => !e.isVoid && e.kind === 'break-start').length;
   const activityItems = buildActivityItems(events, row);
 
   return (
     <>
-      <style>{`
-        @keyframes orbPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.3); }
-          50% { box-shadow: 0 0 0 10px rgba(249, 115, 22, 0); }
-        }
-      `}</style>
-
-      <div className="space-y-4 p-4 sm:p-6">
-        {/* Row 1: Greeting + Break Status */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <GreetingCard
-              row={row}
-              allowedMoves={allowedMoves}
-              fullName={fullName}
-              now={now}
-              onPunched={refresh}
-            />
+      <div className="min-w-0 space-y-4 p-4 sm:p-6 lg:p-4">
+        <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-[calc(100dvh-9rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-stretch">
+          <div className="flex min-h-0 min-w-0 flex-col gap-4 lg:h-full">
+            <div className="min-h-0 lg:flex-1">
+              <GreetingCard
+                row={row}
+                allowedMoves={allowedMoves}
+                fullName={fullName}
+                now={now}
+                onPunched={refresh}
+              />
+            </div>
+            <div className="min-h-0 lg:flex-1">
+              <BreakStatusCard row={row} now={now} />
+            </div>
           </div>
-          <div>
-            <BreakStatusCard
-              row={row}
-              allowedMoves={allowedMoves}
-              now={now}
-              onPunched={refresh}
-            />
+          <div className="min-h-0 min-w-0 overflow-hidden">
+            <TodayActivityCard items={activityItems} />
           </div>
-        </div>
-
-        {/* Row 2: Today's Status + Today's Activity */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <TodayStatsCard
-            row={row}
-            breakCount={breakCount}
-            shiftStatus={shiftStatus}
-          />
-          <TodayActivityCard items={activityItems} />
         </div>
 
         {/* Break prompts (if any) */}

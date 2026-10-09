@@ -15,15 +15,15 @@ export function RingChart({
     max > 0 ? Math.round(Math.max(0, Math.min(value / max, 1)) * 100) : 0;
   return (
     <div
-      className="relative mx-auto size-44"
+      className="chart-glass chart-glass-ring relative mx-auto size-44"
       role="img"
       aria-label={`${label}: ${value} of ${max}${max ? `, ${percent}%` : ''}`}
     >
       <svg viewBox="0 0 180 180" className="size-full -rotate-90" aria-hidden="true">
         <defs>
           <linearGradient id={id}>
-            <stop stopColor="#ee8235" />
-            <stop offset="1" stopColor="#ffbe70" />
+            <stop stopColor="var(--theme-primary)" />
+            <stop offset="1" stopColor="color-mix(in srgb, var(--theme-primary) 58%, white)" />
           </linearGradient>
         </defs>
         <circle
@@ -75,7 +75,7 @@ export function BarChart({
       </div>
     );
   return (
-    <div role="group" aria-label={label} className="relative">
+    <div role="group" aria-label={label} className="chart-glass relative rounded-2xl border border-app-border p-3">
       <div
         className="pointer-events-none absolute inset-x-0 top-5 bottom-10 flex flex-col justify-between"
         aria-hidden="true"
@@ -144,7 +144,7 @@ export function Progress({
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={Math.max(max, 1)}
-        className="h-2 overflow-hidden rounded-full bg-app-border"
+        className="chart-progress-track h-2 overflow-hidden rounded-full bg-app-border"
       >
         <div
           className="chart-progress h-full rounded-full bg-app-accent"

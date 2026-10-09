@@ -77,4 +77,26 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
     expect(html).not.toContain('Resume Inbox');
     expect(html).not.toContain('Candidates');
   });
+
+  it('renders Settings in the responsive sidebar without the appearance palette', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(CompanySidebar, {
+          pathname: '/company/dashboard',
+          identity: baseIdentity,
+          organizationName: 'Test Corp',
+          accountType: 'employee',
+          onNavigate: () => {},
+          onLogout: () => {},
+          open: true,
+          onClose: () => {},
+        })
+      )
+    );
+
+    expect(html).toContain('Settings');
+    expect(html).not.toContain('aria-label="Color appearance themes"');
+  });
 });
