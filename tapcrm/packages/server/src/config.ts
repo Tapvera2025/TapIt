@@ -95,6 +95,7 @@ const schema = z.object({
 
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_BASE_PATH: z.string().default('/api'),
+  TAPCRM_UPLOAD_DIR: z.string().trim().min(1).default('storage'),
   // Not enforced today: there is no CORS middleware, and the web app reaches the
   // API same-origin through its dev proxy. Emailed links use CLIENT_ORIGIN.
   CORS_ORIGIN: z.string().default('http://localhost:5173'),

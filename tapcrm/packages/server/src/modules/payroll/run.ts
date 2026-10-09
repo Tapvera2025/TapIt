@@ -24,7 +24,8 @@ import {
 
 export { fingerprint } from './freeze.js';
 
-export type RunStatus = 'draft' | 'computing' | 'review' | 'publishing' | 'published' | 'failed' | 'cancelled';
+export type RunStatus =
+  'draft' | 'computing' | 'review' | 'publishing' | 'published' | 'failed' | 'cancelled';
 
 export interface PayrollRunRow {
   readonly id: string;
@@ -64,7 +65,7 @@ export function periodEndFor(periodStart: string): string {
 }
 
 export interface CreateRunInput {
-  readonly periodStart: string;  // first of month
+  readonly periodStart: string; // first of month
 }
 
 export interface RunBlocker {
@@ -98,7 +99,11 @@ const VERB: Record<string, string> = {
   publish: 'published',
 };
 
-function wrongStatus(run: PayrollRunRow, action: string, allowed: readonly RunStatus[]): PayrollConflictError {
+function wrongStatus(
+  run: PayrollRunRow,
+  action: string,
+  allowed: readonly RunStatus[],
+): PayrollConflictError {
   return new PayrollConflictError(
     PAYROLL_ERROR_CODES.WRONG_STATUS,
     `The ${monthLabel(run.periodStart)} run is ${run.status}, so it can't be ${VERB[action] ?? action}. ` +
@@ -122,65 +127,72 @@ export async function createRun(
   const periodEnd = periodEndFor(input.periodStart);
   const month = monthLabel(input.periodStart);
 
-  return db.transaction(ctx, async (tx) => {
-    const existing = await tx.maybeOne<{ id: string; status: RunStatus }>(sql`
+  return db.transaction(
+    ctx,
+    async (tx) => {
+      const existing = await tx.maybeOne<{ id: string; status: RunStatus }>(sql`
       SELECT id, status FROM payroll_run
       WHERE organization_id = ${ctx.organizationId}
         AND period_start = ${input.periodStart}::date
         AND status NOT IN ('failed', 'cancelled')
       LIMIT 1
     `);
-    if (existing) {
-      throw new PayrollConflictError(
-        PAYROLL_ERROR_CODES.RUN_EXISTS,
-        existing.status === 'published'
-          ? `Payroll for ${month} is already published. To correct someone's pay, revise their payslip.`
-          : `A payroll run for ${month} already exists (${existing.status}). Open it, or cancel it before creating another.`,
-        { runId: existing.id, status: existing.status },
+      if (existing) {
+        throw new PayrollConflictError(
+          PAYROLL_ERROR_CODES.RUN_EXISTS,
+          existing.status === 'published'
+            ? `Payroll for ${month} is already published. To correct someone's pay, revise their payslip.`
+            : `A payroll run for ${month} already exists (${existing.status}). Open it, or cancel it before creating another.`,
+          { runId: existing.id, status: existing.status },
+        );
+      }
+
+      const config = await resolveConfig(tx, ctx.organizationId, input.periodStart);
+      if (!config) {
+        throw new PayrollValidationError(
+          PAYROLL_ERROR_CODES.NO_CONFIG,
+          `Payroll settings haven't been accepted for ${month} yet. Accept them under Payroll → Settings, then create the run.`,
+        );
+      }
+
+      const employees = await employeesInPeriod(
+        tx,
+        ctx.organizationId,
+        input.periodStart,
+        periodEnd,
       );
-    }
+      if (employees.length === 0) {
+        throw new PayrollValidationError(
+          PAYROLL_ERROR_CODES.NO_EMPLOYEES,
+          `Nobody was employed in ${month}. Check the employees' joining and leaving dates.`,
+        );
+      }
+      const userIds = employees.map((e) => e.userId);
 
-    const config = await resolveConfig(tx, ctx.organizationId, input.periodStart);
-    if (!config) {
-      throw new PayrollValidationError(
-        PAYROLL_ERROR_CODES.NO_CONFIG,
-        `Payroll settings haven't been accepted for ${month} yet. Accept them under Payroll → Settings, then create the run.`,
+      const breakEvaluation = await breakEvaluationRequired(tx, ctx.organizationId);
+      const open = await AttFacade.openItems(
+        tx,
+        userIds,
+        input.periodStart as DateOnly,
+        periodEnd as DateOnly,
+        { breakEvaluation },
       );
-    }
+      const blockers: RunBlocker[] = open.map((o) => ({
+        userId: o.userId,
+        workDate: o.workDate ?? null,
+        kind: o.kind,
+        sourceId: o.sourceId,
+      }));
 
-    const employees = await employeesInPeriod(tx, ctx.organizationId, input.periodStart, periodEnd);
-    if (employees.length === 0) {
-      throw new PayrollValidationError(
-        PAYROLL_ERROR_CODES.NO_EMPLOYEES,
-        `Nobody was employed in ${month}. Check the employees' joining and leaving dates.`,
+      const frozen = await freezeEmployees(
+        tx,
+        ctx.organizationId,
+        { start: input.periodStart, end: periodEnd },
+        config,
+        employees,
       );
-    }
-    const userIds = employees.map((e) => e.userId);
 
-    const breakEvaluation = await breakEvaluationRequired(tx, ctx.organizationId);
-    const open = await AttFacade.openItems(
-      tx,
-      userIds,
-      input.periodStart as DateOnly,
-      periodEnd as DateOnly,
-      { breakEvaluation },
-    );
-    const blockers: RunBlocker[] = open.map((o) => ({
-      userId: o.userId,
-      workDate: o.workDate ?? null,
-      kind: o.kind,
-      sourceId: o.sourceId,
-    }));
-
-    const frozen = await freezeEmployees(
-      tx,
-      ctx.organizationId,
-      { start: input.periodStart, end: periodEnd },
-      config,
-      employees,
-    );
-
-    const runRow = await tx.one<{ id: string }>(sql`
+      const runRow = await tx.one<{ id: string }>(sql`
       INSERT INTO payroll_run
         (organization_id, period_start, period_end, config_id, created_by,
          config_fingerprint, population_fingerprint)
@@ -193,8 +205,8 @@ export async function createRun(
       RETURNING id
     `);
 
-    for (const emp of frozen) {
-      await tx.query(sql`
+      for (const emp of frozen) {
+        await tx.query(sql`
         INSERT INTO payroll_run_employee
           (organization_id, run_id, user_id, employment_window_start, employment_window_end, inputs, inputs_fingerprint)
         VALUES (
@@ -203,26 +215,36 @@ export async function createRun(
           ${JSON.stringify(emp.inputs)}::jsonb, ${emp.fingerprint}
         )
       `);
-    }
+      }
 
-    await writePayrollAudit(tx, ctx, {
-      action: 'payroll.run-created',
-      targetType: 'payrollRun',
-      targetId: runRow.id,
-      after: { periodStart: input.periodStart, employees: frozen.length, blockers: blockers.length },
-    });
+      await writePayrollAudit(tx, ctx, {
+        action: 'payroll.run-created',
+        targetType: 'payrollRun',
+        targetId: runRow.id,
+        after: {
+          periodStart: input.periodStart,
+          employees: frozen.length,
+          blockers: blockers.length,
+        },
+      });
 
-    return {
-      runId: runRow.id,
-      employeeCount: frozen.length,
-      blockers,
-      warnings: runWarnings(employees, frozen),
-    };
-  }, { isolation: 'repeatable read' });
+      return {
+        runId: runRow.id,
+        employeeCount: frozen.length,
+        blockers,
+        warnings: runWarnings(employees, frozen),
+      };
+    },
+    { isolation: 'repeatable read' },
+  );
 }
 
 /** Lock a run for a state change, or refuse with 404. */
-export async function lockRun(tx: Tx, organizationId: string, runId: string): Promise<PayrollRunRow> {
+export async function lockRun(
+  tx: Tx,
+  organizationId: string,
+  runId: string,
+): Promise<PayrollRunRow> {
   const run = await tx.maybeOne<PayrollRunRow>(sql`
     SELECT ${RUN_COLUMNS}
     FROM payroll_run
@@ -234,7 +256,11 @@ export async function lockRun(tx: Tx, organizationId: string, runId: string): Pr
 }
 
 /** Write the run's queue request; the handler queues its pending employees after commit (TX-2). */
-async function requestComputation(tx: Tx, organizationId: string, runId: string): Promise<void> {
+async function requestComputation(
+  tx: Tx,
+  organizationId: string,
+  runId: string,
+): Promise<void> {
   const payload: RunStarted = { runId };
   await tx.query(sql`
     INSERT INTO domain_outbox (organization_id, event_name, payload)
@@ -273,7 +299,10 @@ const CANCELLABLE: readonly RunStatus[] = ['draft', 'computing', 'review'];
  * Cancel a run that has not been published. Its draft slips are kept for the
  * record, marked cancelled; a new run for the month can then be created.
  */
-export async function cancelRun(ctx: RequestContext, runId: string): Promise<{ status: RunStatus }> {
+export async function cancelRun(
+  ctx: RequestContext,
+  runId: string,
+): Promise<{ status: RunStatus }> {
   return db.transaction(ctx, async (tx) => {
     const run = await lockRun(tx, ctx.organizationId, runId);
     if (!CANCELLABLE.includes(run.status)) throw wrongStatus(run, 'cancel', CANCELLABLE);
@@ -303,47 +332,63 @@ export async function recalculateRun(
   ctx: RequestContext,
   runId: string,
 ): Promise<{ status: RunStatus; recalculated: number }> {
-  return db.transaction(ctx, async (tx) => {
-    const run = await lockRun(tx, ctx.organizationId, runId);
-    if (run.status !== 'review') throw wrongStatus(run, 'recalculate', ['review']);
-    const month = monthLabel(run.periodStart);
+  return db.transaction(
+    ctx,
+    async (tx) => {
+      const run = await lockRun(tx, ctx.organizationId, runId);
+      if (run.status !== 'review') throw wrongStatus(run, 'recalculate', ['review']);
+      const month = monthLabel(run.periodStart);
 
-    const config = await resolveConfig(tx, ctx.organizationId, run.periodStart);
-    if (!config || config.id !== run.configId) {
-      throw new PayrollConflictError(
-        PAYROLL_ERROR_CODES.CONFIG_CHANGED,
-        `Payroll settings for ${month} changed after this run was created. Cancel this run and create a new one.`,
-      );
-    }
+      const config = await resolveConfig(tx, ctx.organizationId, run.periodStart);
+      if (!config || config.id !== run.configId) {
+        throw new PayrollConflictError(
+          PAYROLL_ERROR_CODES.CONFIG_CHANGED,
+          `Payroll settings for ${month} changed after this run was created. Cancel this run and create a new one.`,
+        );
+      }
 
-    const rows = await tx.query<{ id: string; userId: string; inputsFingerprint: string; status: string }>(sql`
+      const rows = await tx.query<{
+        id: string;
+        userId: string;
+        inputsFingerprint: string;
+        status: string;
+      }>(sql`
       SELECT id, user_id AS "userId", inputs_fingerprint AS "inputsFingerprint", status
       FROM payroll_run_employee
       WHERE organization_id = ${ctx.organizationId} AND run_id = ${runId}::uuid
     `);
-    const employees = await employeesInPeriod(tx, ctx.organizationId, run.periodStart, run.periodEnd);
-    const change = populationChange(rows.map((r) => r.userId), employees.map((e) => e.userId));
-    if (change.joined.length > 0 || change.left.length > 0) {
-      throw new PayrollConflictError(
-        PAYROLL_ERROR_CODES.POPULATION_CHANGED,
-        `Employees joined or left ${month} after this run was created. Cancel this run and create a new one.`,
-        change,
+      const employees = await employeesInPeriod(
+        tx,
+        ctx.organizationId,
+        run.periodStart,
+        run.periodEnd,
       );
-    }
+      const change = populationChange(
+        rows.map((r) => r.userId),
+        employees.map((e) => e.userId),
+      );
+      if (change.joined.length > 0 || change.left.length > 0) {
+        throw new PayrollConflictError(
+          PAYROLL_ERROR_CODES.POPULATION_CHANGED,
+          `Employees joined or left ${month} after this run was created. Cancel this run and create a new one.`,
+          change,
+        );
+      }
 
-    const frozen = await freezeEmployees(
-      tx,
-      ctx.organizationId,
-      { start: run.periodStart, end: run.periodEnd },
-      config,
-      employees,
-    );
-    const byUser = new Map(rows.map((r) => [r.userId, r]));
-    let recalculated = 0;
-    for (const emp of frozen) {
-      const row = byUser.get(emp.userId)!;
-      if (row.inputsFingerprint === emp.fingerprint && row.status === 'computed') continue;
-      await tx.query(sql`
+      const frozen = await freezeEmployees(
+        tx,
+        ctx.organizationId,
+        { start: run.periodStart, end: run.periodEnd },
+        config,
+        employees,
+      );
+      const byUser = new Map(rows.map((r) => [r.userId, r]));
+      let recalculated = 0;
+      for (const emp of frozen) {
+        const row = byUser.get(emp.userId)!;
+        if (row.inputsFingerprint === emp.fingerprint && row.status === 'computed')
+          continue;
+        await tx.query(sql`
         UPDATE payroll_run_employee
         SET inputs = ${JSON.stringify(emp.inputs)}::jsonb,
             inputs_fingerprint = ${emp.fingerprint},
@@ -353,24 +398,26 @@ export async function recalculateRun(
             computed_at = NULL
         WHERE id = ${row.id}::uuid
       `);
-      recalculated += 1;
-    }
-    await tx.query(sql`
+        recalculated += 1;
+      }
+      await tx.query(sql`
       UPDATE payroll_run SET inputs_changed = false
       WHERE organization_id = ${ctx.organizationId} AND id = ${runId}::uuid
     `);
-    if (recalculated === 0) return { status: 'review', recalculated: 0 };
+      if (recalculated === 0) return { status: 'review', recalculated: 0 };
 
-    await transitionRun(tx, runId, ctx.organizationId, 'review', 'computing');
-    await requestComputation(tx, ctx.organizationId, runId);
-    await writePayrollAudit(tx, ctx, {
-      action: 'payroll.run-recalculated',
-      targetType: 'payrollRun',
-      targetId: runId,
-      after: { periodStart: run.periodStart, employees: recalculated },
-    });
-    return { status: 'computing', recalculated };
-  }, { isolation: 'repeatable read' });
+      await transitionRun(tx, runId, ctx.organizationId, 'review', 'computing');
+      await requestComputation(tx, ctx.organizationId, runId);
+      await writePayrollAudit(tx, ctx, {
+        action: 'payroll.run-recalculated',
+        targetType: 'payrollRun',
+        targetId: runId,
+        after: { periodStart: run.periodStart, employees: recalculated },
+      });
+      return { status: 'computing', recalculated };
+    },
+    { isolation: 'repeatable read' },
+  );
 }
 
 export function populationChange(
@@ -408,10 +455,7 @@ export async function transitionRun(
 }
 
 /** The run, locked for the caller's transaction (publication). */
-export async function getRunById(
-  tx: Tx,
-  runId: string,
-): Promise<PayrollRunRow | null> {
+export async function getRunById(tx: Tx, runId: string): Promise<PayrollRunRow | null> {
   return tx.maybeOne<PayrollRunRow>(sql`
     SELECT ${RUN_COLUMNS}
     FROM payroll_run WHERE id = ${runId}::uuid
@@ -452,7 +496,11 @@ export async function listRuns(tx: Tx, organizationId: string): Promise<RunSumma
   `);
 }
 
-export async function readRun(tx: Tx, organizationId: string, runId: string): Promise<RunSummaryRow | null> {
+export async function readRun(
+  tx: Tx,
+  organizationId: string,
+  runId: string,
+): Promise<RunSummaryRow | null> {
   return tx.maybeOne<RunSummaryRow>(sql`
     ${RUN_SUMMARY}
     WHERE r.organization_id = ${organizationId} AND r.id = ${runId}::uuid
@@ -515,7 +563,9 @@ export async function listRunEmployeesForReview(
   organizationId: string,
   runId: string,
 ): Promise<ReviewEmployee[]> {
-  const rows = await tx.query<Omit<ReviewEmployee, 'lines' | 'paidDayCount' | 'periodDayCount'>>(sql`
+  const rows = await tx.query<
+    Omit<ReviewEmployee, 'lines' | 'paidDayCount' | 'periodDayCount'>
+  >(sql`
     SELECT e.user_id AS "userId", u.full_name AS "fullName", u.employee_id AS "employeeCode",
            d.name AS "departmentName", e.status, e.computed_at::text AS "computedAt",
            e.employment_window_start::text AS "employmentWindowStart",
@@ -539,9 +589,12 @@ export async function listRunEmployeesForReview(
     ORDER BY u.full_name, e.user_id
   `);
   const slipIds = rows.flatMap((r) => (r.payslipId === null ? [] : [r.payslipId]));
-  const lines = slipIds.length === 0
-    ? []
-    : await tx.query<ReviewLine & { payslipId: string; basis: Record<string, unknown> | null }>(sql`
+  const lines =
+    slipIds.length === 0
+      ? []
+      : await tx.query<
+          ReviewLine & { payslipId: string; basis: Record<string, unknown> | null }
+        >(sql`
         SELECT payslip_id AS "payslipId", code, label, kind, amount_paise::text AS "amountPaise",
                sort_order AS "sortOrder", basis
         FROM payslip_line
@@ -555,16 +608,23 @@ export async function listRunEmployeesForReview(
     linesBySlip.set(line.payslipId, list);
   }
   return rows.map((row) => {
-    const slipLines = row.payslipId === null ? [] : (linesBySlip.get(row.payslipId) ?? []);
+    const slipLines =
+      row.payslipId === null ? [] : (linesBySlip.get(row.payslipId) ?? []);
     const prorated = slipLines.find((l) => l.basis?.['prorated'] === true)?.basis ?? null;
-    const paidUnits = typeof prorated?.['paidUnits'] === 'number' ? prorated['paidUnits'] : null;
-    const totalUnits = typeof prorated?.['totalUnits'] === 'number' ? prorated['totalUnits'] : null;
+    const paidUnits =
+      typeof prorated?.['paidUnits'] === 'number' ? prorated['paidUnits'] : null;
+    const totalUnits =
+      typeof prorated?.['totalUnits'] === 'number' ? prorated['totalUnits'] : null;
     return {
       ...row,
       paidDayCount: paidUnits === null ? null : paidUnits / 2,
       periodDayCount: totalUnits === null ? null : totalUnits / 2,
       lines: slipLines.map(({ code, label, kind, amountPaise, sortOrder }) => ({
-        code, label, kind, amountPaise, sortOrder,
+        code,
+        label,
+        kind,
+        amountPaise,
+        sortOrder,
       })),
     };
   });

@@ -14,7 +14,7 @@ const TAB_FOR_KIND: Record<string, Tab> = { direct: 'direct', group: 'group', pr
  * and Project Groups (Phase 4) — one conversation per project, created by
  * the project wizard's second step.
  */
-export function MessagesPage({ currentUserId, isSuperAdmin }: { currentUserId: string; isSuperAdmin: boolean }): React.JSX.Element {
+export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }: { currentUserId: string; isSuperAdmin: boolean; canManageProjects: boolean }): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('direct');
   const [deepLink, setDeepLink] = useState<{ conversationId: string; messageId?: string | undefined } | undefined>(undefined);
 
@@ -78,7 +78,7 @@ export function MessagesPage({ currentUserId, isSuperAdmin }: { currentUserId: s
         ) : tab === 'group' ? (
           <InternalGroupsPage currentUserId={currentUserId} isSuperAdmin={isSuperAdmin} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
         ) : (
-          <ProjectGroupsPage currentUserId={currentUserId} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
+          <ProjectGroupsPage currentUserId={currentUserId} canManageProjects={canManageProjects} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
         )}
       </div>
     </div>

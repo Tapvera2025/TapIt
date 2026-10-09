@@ -15,6 +15,7 @@ const HR_MODULES = [
   'biometric',
   'leave',
   'holidays',
+  'ta',
   'payroll',
   'performance',
   'recruitment',

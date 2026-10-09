@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Field, Loading, Modal, Notice, Page, Select } from '../ui/components.js';
+import { Icon } from '../ui/Icon.js';
 import {
   CLIENT_REGIONS,
   CLIENT_REGION_LABELS,
@@ -30,6 +31,8 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
   const [formError, setFormError] = useState('');
   const [credentialsFor, setCredentialsFor] = useState<Client | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -55,6 +58,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
       await createClient(form);
       setShowCreate(false);
       setForm(blankForm);
+      setShowPassword(false);
       await load();
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'Unable to create client.');
@@ -72,6 +76,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
       await setClientCredentials(credentialsFor.id, newPassword);
       setCredentialsFor(null);
       setNewPassword('');
+      setShowNewPassword(false);
       await load();
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'Unable to set the password.');
@@ -85,7 +90,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
       eyebrow="Clients"
       title="Clients"
       description="The companies your projects are delivered for."
-      action={<Button onClick={() => setShowCreate(true)}>Add client</Button>}
+      action={<Button onClick={() => { setShowCreate(true); setShowPassword(false); }}>Add client</Button>}
     >
       <Card className="mt-6">
         <div className="flex flex-wrap items-end gap-3">
@@ -133,7 +138,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
                     {client.hasActiveLogin ? <span className="text-app-accent">Active</span> : <span className="text-app-muted">None</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button type="button" onClick={() => { setCredentialsFor(client); setNewPassword(generateStrongPassword()); }} className="text-xs font-semibold text-app-accent hover:underline">
+                    <button type="button" onClick={() => { setCredentialsFor(client); setNewPassword(generateStrongPassword()); setShowNewPassword(false); }} className="text-xs font-semibold text-app-accent hover:underline">
                       {client.hasActiveLogin ? 'Reset password' : 'Set password'}
                     </button>
                     {client.hasActiveLogin && (
@@ -154,7 +159,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
       )}
 
       {showCreate && (
-        <Modal title="Add client" onClose={() => setShowCreate(false)}>
+        <Modal title="Add client" onClose={() => { setShowCreate(false); setShowPassword(false); }}>
           <form onSubmit={(event) => void submitCreate(event)} className="space-y-4">
             {formError && <Notice error>{formError}</Notice>}
             <Field label="Client name" value={form.clientName} onChange={(v) => setForm((f) => ({ ...f, clientName: v }))} required />
@@ -178,15 +183,26 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
                   Generate password
                 </button>
               </div>
-              <input
-                type="text"
-                required
-                minLength={12}
-                value={form.password}
-                onChange={(event) => setForm((f) => ({ ...f, password: event.target.value }))}
-                placeholder="At least 12 characters"
-                className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
-              />
+              <div className="relative mt-2">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={12}
+                  value={form.password}
+                  onChange={(event) => setForm((f) => ({ ...f, password: event.target.value }))}
+                  placeholder="At least 12 characters"
+                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 pr-12 text-sm outline-none focus:border-app-accent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md text-app-muted hover:bg-app-surface-raised hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent"
+                >
+                  <Icon name={showPassword ? 'eye-off' : 'eye'} className="size-[18px]" />
+                </button>
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button kind="secondary" type="button" onClick={() => setShowCreate(false)}>Cancel</Button>
@@ -197,7 +213,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
       )}
 
       {credentialsFor && (
-        <Modal title={`${credentialsFor.hasActiveLogin ? 'Reset' : 'Set'} password — ${credentialsFor.clientName}`} onClose={() => setCredentialsFor(null)}>
+        <Modal title={`${credentialsFor.hasActiveLogin ? 'Reset' : 'Set'} password — ${credentialsFor.clientName}`} onClose={() => { setCredentialsFor(null); setShowNewPassword(false); }}>
           <form onSubmit={(event) => void submitCredentials(event)} className="space-y-4">
             {formError && <Notice error>{formError}</Notice>}
             <div>
@@ -207,14 +223,25 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
                   Generate password
                 </button>
               </div>
-              <input
-                type="text"
-                required
-                minLength={12}
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
-              />
+              <div className="relative mt-2">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  minLength={12}
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 pr-12 text-sm outline-none focus:border-app-accent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((visible) => !visible)}
+                  aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showNewPassword}
+                  className="absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md text-app-muted hover:bg-app-surface-raised hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent"
+                >
+                  <Icon name={showNewPassword ? 'eye-off' : 'eye'} className="size-[18px]" />
+                </button>
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button kind="secondary" type="button" onClick={() => setCredentialsFor(null)}>Cancel</Button>

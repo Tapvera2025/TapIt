@@ -38,7 +38,11 @@ import {
   registerLiveStatusRoutes,
   registerStatusChannel,
 } from './live-status/index.js';
-import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from './leave/index.js';
+import {
+  registerLeavePolicies,
+  registerLeaveRoutes,
+  registerLeaveJobs,
+} from './leave/index.js';
 import { registerBreakJobs } from './break-management/jobs.js';
 import { registerPayrollPolicies } from './payroll/policy.js';
 import { registerPayrollRoutes } from './payroll/routes.js';
@@ -61,10 +65,18 @@ import {
   registerMyNotepadRoutes,
   registerNotepadPolicies,
 } from './myNotepad/index.js';
-import { registerChatPolicies, registerChatRealtime, registerChatRoutes } from './chat/index.js';
+import {
+  registerChatPolicies,
+  registerChatRealtime,
+  registerChatRoutes,
+} from './chat/index.js';
 import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
 import { registerProjectPolicies, registerProjectRoutes } from './projects/index.js';
 import { registerMyTodoRoutes } from './myTodo/routes.js';
+import { registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
+import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
+import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
+import { registerTaRoutes } from './ta/routes.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -92,6 +104,9 @@ export function registerAllPolicies(): void {
   registerLeavePolicies();
   registerBreakPolicies();
   registerPayrollPolicies();
+  registerAdvancePolicies();
+  registerPenaltyPolicies();
+  registerExpensePolicies();
   registerTasksPolicies();
   registerTerritoryPolicies();
   registerLeadPolicies();
@@ -124,6 +139,10 @@ export function registerAllRoutes(): void {
   registerLeaveRoutes();
   registerBreakManagementRoutes();
   registerPayrollRoutes();
+  registerTaRoutes();
+  registerAdvanceRoutes();
+  registerPenaltyRoutes();
+  registerExpenseRoutes();
   registerTasksRoutes();
   registerTerritoryRoutes();
   registerLeadRoutes();

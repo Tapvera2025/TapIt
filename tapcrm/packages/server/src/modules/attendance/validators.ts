@@ -32,6 +32,7 @@ export const exportSchema = z
     from: dateSchema,
     to: dateSchema,
     userIds: z.array(z.string().uuid()).min(1).max(10_000).optional(),
+    format: z.enum(['csv', 'xlsx']).default('csv'),
   })
   .refine((body) => body.to >= body.from, {
     path: ['to'],

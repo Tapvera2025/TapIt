@@ -2,17 +2,21 @@ import { z } from 'zod';
 import { route } from '../../platform/http/route.js';
 import {
   archiveProject,
+  archiveDiscussionGroup,
+  addDiscussionGroupMembers,
   createDiscussionGroup,
   createProject,
   getProject,
   listProjects,
   loadProjectResource,
   setProjectTeam,
+  removeDiscussionGroupMember,
   updateDiscussionGroup,
   updateProject,
 } from './service.js';
 import {
   createDiscussionGroupSchema,
+  discussionGroupMembersSchema,
   createProjectSchema,
   projectListQuerySchema,
   projectTeamSchema,
@@ -108,5 +112,38 @@ export function registerProjectRoutes(): void {
     resourceParam: 'id',
     loadResource: loadProjectResource,
     handler: async ({ ctx, params, body }) => updateDiscussionGroup(ctx, idParam.parse(params).id, updateDiscussionGroupSchema.parse(body)),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/projects/:id/discussion-group/members',
+    action: 'projects:manage',
+    module: 'projects',
+    resourceParam: 'id',
+    loadResource: loadProjectResource,
+    handler: async ({ ctx, params, body }) => addDiscussionGroupMembers(ctx, idParam.parse(params).id, discussionGroupMembersSchema.parse(body).memberIds),
+  });
+
+  route({
+    method: 'DELETE',
+    path: '/api/projects/:id/discussion-group/members/:userId',
+    action: 'projects:manage',
+    module: 'projects',
+    resourceParam: 'id',
+    loadResource: loadProjectResource,
+    handler: async ({ ctx, params }) => {
+      const parsed = z.object({ id: z.string().uuid(), userId: z.string().uuid() }).parse(params);
+      return removeDiscussionGroupMember(ctx, parsed.id, parsed.userId);
+    },
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/projects/:id/discussion-group/archive',
+    action: 'projects:manage',
+    module: 'projects',
+    resourceParam: 'id',
+    loadResource: loadProjectResource,
+    handler: async ({ ctx, params }) => archiveDiscussionGroup(ctx, idParam.parse(params).id),
   });
 }

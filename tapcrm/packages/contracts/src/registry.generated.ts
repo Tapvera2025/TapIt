@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 168   Bindings: 425
+ * Actions: 184   Bindings: 458
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -33,6 +33,12 @@ export type Action =
   | 'accounting:view-statements'
   | 'accounts:manage-ownership'
   | 'accounts:view-revenue'
+  | 'advance:approve'
+  | 'advance:export'
+  | 'advance:manage'
+  | 'advance:request'
+  | 'advance:view'
+  | 'advance:view-own'
   | 'approvals:decide'
   | 'approvals:delegate'
   | 'attendance:correct'
@@ -137,6 +143,10 @@ export type Action =
   | 'payroll:manage'
   | 'payroll:manage-config'
   | 'payroll:view'
+  | 'penalty:export'
+  | 'penalty:manage'
+  | 'penalty:view'
+  | 'penalty:view-own'
   | 'performance:manage'
   | 'performance:view'
   | 'performance:view-aggregates'
@@ -177,6 +187,12 @@ export type Action =
   | 'system:manage-retention'
   | 'system:manage-settings'
   | 'system:manage-thresholds'
+  | 'ta:export'
+  | 'ta:manage'
+  | 'ta:recalculate'
+  | 'ta:send'
+  | 'ta:view'
+  | 'ta:view-own'
   | 'tasks:assign'
   | 'tasks:log-time'
   | 'tasks:manage-dependencies'
@@ -203,6 +219,12 @@ export const ACTIONS: readonly Action[] = [
   'accounting:view-statements',
   'accounts:manage-ownership',
   'accounts:view-revenue',
+  'advance:approve',
+  'advance:export',
+  'advance:manage',
+  'advance:request',
+  'advance:view',
+  'advance:view-own',
   'approvals:decide',
   'approvals:delegate',
   'attendance:correct',
@@ -307,6 +329,10 @@ export const ACTIONS: readonly Action[] = [
   'payroll:manage',
   'payroll:manage-config',
   'payroll:view',
+  'penalty:export',
+  'penalty:manage',
+  'penalty:view',
+  'penalty:view-own',
   'performance:manage',
   'performance:view',
   'performance:view-aggregates',
@@ -347,6 +373,12 @@ export const ACTIONS: readonly Action[] = [
   'system:manage-retention',
   'system:manage-settings',
   'system:manage-thresholds',
+  'ta:export',
+  'ta:manage',
+  'ta:recalculate',
+  'ta:send',
+  'ta:view',
+  'ta:view-own',
   'tasks:assign',
   'tasks:log-time',
   'tasks:manage-dependencies',
@@ -552,6 +584,96 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'advance:approve': {
+    action: 'advance:approve',
+    module: 'advance',
+    resource: 'employeeAdvance',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: true,
+    initiatorField: 'requestedBy',
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'advance:export': {
+    action: 'advance:export',
+    module: 'advance',
+    resource: 'employeeAdvance',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'advance:manage': {
+    action: 'advance:manage',
+    module: 'advance',
+    resource: 'employeeAdvance',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'advance:request': {
+    action: 'advance:request',
+    module: 'advance',
+    resource: 'employeeAdvance',
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'advance:view': {
+    action: 'advance:view',
+    module: 'advance',
+    resource: 'employeeAdvance',
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'advance:view-own': {
+    action: 'advance:view-own',
+    module: 'advance',
+    resource: 'employeeAdvance',
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
       superAdminOnly: false,
     },
     description: "",
@@ -1931,7 +2053,7 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     initiatorField: 'claimedBy',
     grantPolicy: {
       positionGrantable: true,
-      delegationAllowed: true,
+      delegationAllowed: false,
       superAdminOnly: false,
     },
     description: "",
@@ -2112,6 +2234,66 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'penalty:export': {
+    action: 'penalty:export',
+    module: 'penalties',
+    resource: 'employeePenalty',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'penalty:manage': {
+    action: 'penalty:manage',
+    module: 'penalties',
+    resource: 'employeePenalty',
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'penalty:view': {
+    action: 'penalty:view',
+    module: 'penalties',
+    resource: 'employeePenalty',
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'penalty:view-own': {
+    action: 'penalty:view-own',
+    module: 'penalties',
+    resource: 'employeePenalty',
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
       superAdminOnly: false,
     },
     description: "",
@@ -2716,6 +2898,96 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'ta:export': {
+    action: 'ta:export',
+    module: 'ta',
+    resource: null,
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'ta:manage': {
+    action: 'ta:manage',
+    module: 'ta',
+    resource: null,
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'ta:recalculate': {
+    action: 'ta:recalculate',
+    module: 'ta',
+    resource: null,
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'ta:send': {
+    action: 'ta:send',
+    module: 'ta',
+    resource: null,
+    domain: 'people',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'ta:view': {
+    action: 'ta:view',
+    module: 'ta',
+    resource: null,
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'ta:view-own': {
+    action: 'ta:view-own',
+    module: 'ta',
+    resource: null,
+    domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'tasks:assign': {
     action: 'tasks:assign',
     module: 'tasks',
@@ -2965,6 +3237,16 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/attendance/live', action: 'attendance:view-live', resourceParam: null },
   { method: 'POST', path: '/api/status/punch', action: 'status:punch', resourceParam: null },
   { method: 'GET', path: '/api/attendance', action: 'attendance:view', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/reports/employees', action: 'attendance:view', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/reports/monthly', action: 'attendance:view', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/reports/daily', action: 'attendance:view', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/reports/daily/export', action: 'attendance:export', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/reports/late/daily', action: 'attendance:view', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/reports/late/monthly', action: 'attendance:view', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/reports/late/daily/export', action: 'attendance:export', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/reports/late/monthly/export', action: 'attendance:export', resourceParam: null },
+  { method: 'POST', path: '/api/attendance/reports/monthly/export', action: 'attendance:export', resourceParam: null },
+  { method: 'GET', path: '/api/attendance/reports/employee/:userId', action: 'attendance:view', resourceParam: null },
   { method: 'GET', path: '/api/attendance/:userId/:date', action: 'attendance:view', resourceParam: 'userId' },
   { method: 'POST', path: '/api/attendance/export', action: 'attendance:export', resourceParam: null },
   { method: 'GET', path: '/api/attendance/exports/:jobId', action: 'attendance:export', resourceParam: null },
@@ -3040,6 +3322,33 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/payroll/inputs/:id/revoke', action: 'payroll:manage', resourceParam: null },
   { method: 'GET', path: '/api/payroll/inputs', action: 'payroll:manage', resourceParam: null },
   { method: 'GET', path: '/api/payroll/payslips/:id/document', action: 'payroll:view', resourceParam: 'id' },
+  { method: 'GET', path: '/api/ta/assignments', action: 'ta:manage', resourceParam: null },
+  { method: 'POST', path: '/api/ta/assignments', action: 'ta:manage', resourceParam: null },
+  { method: 'POST', path: '/api/ta/assignments/:id/deactivate', action: 'ta:manage', resourceParam: null },
+  { method: 'POST', path: '/api/ta/assignments/:id/reactivate', action: 'ta:manage', resourceParam: null },
+  { method: 'GET', path: '/api/ta/report', action: 'ta:view', resourceParam: null },
+  { method: 'POST', path: '/api/ta/statements/recalculate', action: 'ta:recalculate', resourceParam: null },
+  { method: 'POST', path: '/api/ta/statements/send', action: 'ta:send', resourceParam: null },
+  { method: 'GET', path: '/api/ta/export', action: 'ta:export', resourceParam: null },
+  { method: 'GET', path: '/api/ta/my', action: 'ta:view-own', resourceParam: null },
+  { method: 'GET', path: '/api/advances/mine', action: 'advance:view-own', resourceParam: null },
+  { method: 'POST', path: '/api/advances', action: 'advance:request', resourceParam: null },
+  { method: 'GET', path: '/api/advances', action: 'advance:view', resourceParam: null },
+  { method: 'GET', path: '/api/advances/:id', action: 'advance:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/advances/:id/approve', action: 'advance:approve', resourceParam: 'id' },
+  { method: 'POST', path: '/api/advances/:id/reject', action: 'advance:approve', resourceParam: 'id' },
+  { method: 'POST', path: '/api/advances/manual', action: 'advance:manage', resourceParam: null },
+  { method: 'GET', path: '/api/advances/deductions', action: 'advance:view', resourceParam: null },
+  { method: 'POST', path: '/api/advances/:id/deductions', action: 'advance:manage', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/advances/deductions/:id', action: 'advance:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/advances/deductions/export', action: 'advance:export', resourceParam: null },
+  { method: 'GET', path: '/api/penalties/mine', action: 'penalty:view-own', resourceParam: null },
+  { method: 'GET', path: '/api/penalties/mine/:id', action: 'penalty:view-own', resourceParam: 'id' },
+  { method: 'GET', path: '/api/penalties', action: 'penalty:view', resourceParam: null },
+  { method: 'POST', path: '/api/penalties', action: 'penalty:manage', resourceParam: null },
+  { method: 'GET', path: '/api/penalties/:id', action: 'penalty:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/penalties/:id/cancel', action: 'penalty:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/penalties/export', action: 'penalty:export', resourceParam: null },
   { method: 'GET', path: '/api/performance/:userId', action: 'performance:view', resourceParam: 'userId' },
   { method: 'GET', path: '/api/performance/:userId/kpis', action: 'performance:view-aggregates', resourceParam: 'userId' },
   { method: 'POST', path: '/api/performance/:userId/reviews', action: 'performance:manage', resourceParam: 'userId' },
@@ -3116,6 +3425,9 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/projects/:id/archive', action: 'projects:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/discussion-group', action: 'projects:manage', resourceParam: 'id' },
   { method: 'PATCH', path: '/api/projects/:id/discussion-group', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/discussion-group/members', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/projects/:id/discussion-group/members/:userId', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/discussion-group/archive', action: 'projects:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/projects/:id/profitability', action: 'projects:view-financials', resourceParam: 'id' },
   { method: 'GET', path: '/api/tasks', action: 'tasks:view', resourceParam: null },
   { method: 'GET', path: '/api/tasks/:id', action: 'tasks:view', resourceParam: 'id' },
@@ -3184,6 +3496,12 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/payables/claims/mine', action: 'payables:claim', resourceParam: null },
   { method: 'POST', path: '/api/payables/claims', action: 'payables:claim', resourceParam: null },
   { method: 'POST', path: '/api/payables/claims/:id/approve', action: 'payables:approve-claim', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payables/claims/approvals', action: 'payables:claim', resourceParam: null },
+  { method: 'PATCH', path: '/api/payables/claims/:id', action: 'payables:claim', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/payables/claims/:id', action: 'payables:claim', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payables/claims/:id/reject', action: 'payables:approve-claim', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payables/claims/:id', action: 'payables:claim', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payables/claims/:claimId/attachments/:attachmentId', action: 'payables:claim', resourceParam: 'claimId' },
   { method: 'GET', path: '/api/payables/runs', action: 'payables:execute-run', resourceParam: null },
   { method: 'POST', path: '/api/payables/runs', action: 'payables:execute-run', resourceParam: null },
   { method: 'POST', path: '/api/payables/runs/:id/execute', action: 'payables:execute-run', resourceParam: 'id' },
