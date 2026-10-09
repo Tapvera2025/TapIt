@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Notice } from '../../../ui/components.js';
+import { Card, Notice, SkeletonNotepadPage } from '../../../ui/components.js';
 import {
   clearNote,
   getCurrentNote,
@@ -150,6 +150,8 @@ export function MyNotepadPage(): React.JSX.Element {
   const wordCount =
     content.trim().length === 0 ? 0 : content.trim().split(/\s+/).length;
   const lineCount = content.length === 0 ? 0 : content.split('\n').length;
+
+  if (loadingNote && !generalError) return <div className="p-4 sm:p-6 md:p-8"><SkeletonNotepadPage /></div>;
 
   return (
     <div className="p-4 sm:p-6 md:p-8">

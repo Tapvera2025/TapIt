@@ -22,7 +22,7 @@ import {
   type RunStatus,
   type RunSummary,
 } from '../api/payrollApi.js';
-import { Button, Card, Modal, Notice, Page } from '../../ui/components.js';
+import { Button, Card, Modal, Notice, Page, SkeletonDetail, SkeletonTable } from '../../ui/components.js';
 
 const STATUS_CLASSES: Record<RunStatus, string> = {
   draft: 'bg-app-background text-app-muted',
@@ -313,7 +313,7 @@ function RunDetailPanel({
   }
 
   if (!run) {
-    return <Card>{error ? <Notice error>{error}</Notice> : <p className="text-sm text-app-muted">Loading run…</p>}</Card>;
+    return error ? <Card><Notice error>{error}</Notice></Card> : <SkeletonDetail sections={2} />;
   }
 
   const month = formatMonth(run.periodStart);
@@ -628,7 +628,7 @@ export function RunsPage({ onNavigate }: { onNavigate?: (path: string) => void }
 
       {created && <CreatedSummary result={created} onDismiss={() => setCreated(null)} />}
       {error && <div className="mt-6"><Notice error>{error}</Notice></div>}
-      {loading && <p className="mt-6 text-sm text-app-muted">Loading runs…</p>}
+      {loading && <div className="mt-6"><SkeletonTable columns={6} rows={5} /></div>}
       {!loading && runs.length === 0 && !showCreate && (
         <Card className="mt-6 text-center">
           <p className="text-sm text-app-muted">

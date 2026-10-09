@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
 import { listCandidates, listInterviews, listRequisitions, updateInterviewStatus } from '../api/recruitmentApi.js';
 import { InterviewFeedbackModal } from '../components/InterviewFeedbackModal.js';
 import { InterviewScheduleModal } from '../components/InterviewScheduleModal.js';
@@ -129,7 +129,7 @@ export function InterviewsPage({
       {/* Interviews Table */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : interviews.length === 0 ? (
         <Empty>

@@ -15,7 +15,7 @@ import {
   Card,
   ErrorMessage,
   Field,
-  Loading,
+  SkeletonForm,
   Notice,
   Page,
   Select,
@@ -177,7 +177,7 @@ export function RoleChangeRequestPage(): React.JSX.Element {
     >
       <Card className="mt-6">
         {loading ? (
-          <Loading />
+          <SkeletonForm fields={5} />
         ) : (
           <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
             <Select

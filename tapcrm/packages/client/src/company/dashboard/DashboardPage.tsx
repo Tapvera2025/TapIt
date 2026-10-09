@@ -26,7 +26,7 @@ type Layout = RGLLayoutItem;
 
 const GridLayout = GridLayoutDefault;
 const rglModule = GridLayoutDefault as unknown as RGLModule;
-import { Page } from '../../ui/components.js';
+import { Page, SkeletonCard } from '../../ui/components.js';
 import { Icon } from '../../ui/Icon.js';
 import type { CompanyIdentity } from '../api/companyApi.js';
 import { getDashboardPreferences, saveDashboardPreferences } from './dashboardApi.js';
@@ -233,9 +233,7 @@ export function DashboardPage({
     return (
       <Page eyebrow="Workspace" title="Dashboard" description="Loading your dashboard…">
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="h-36 animate-pulse rounded-2xl bg-app-surface" />
-          ))}
+          {[1, 2, 3].map((item) => <SkeletonCard key={item} className="h-36" />)}
         </div>
       </Page>
     );

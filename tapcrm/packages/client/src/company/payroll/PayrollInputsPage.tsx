@@ -14,7 +14,7 @@ import {
   type PayrollInputState,
   type StructureSummary,
 } from '../api/payrollApi.js';
-import { Button, Card, Modal, Notice, Page, SearchableSelect } from '../../ui/components.js';
+import { Button, Card, Modal, Notice, Page, SearchableSelect, SkeletonTable } from '../../ui/components.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -214,7 +214,7 @@ export function PayrollInputsPage(): React.JSX.Element {
         </div>
       )}
       {loading ? (
-        <p className="mt-6 text-sm text-app-muted">Loading entries…</p>
+        <div className="mt-6"><SkeletonTable columns={6} rows={5} /></div>
       ) : inputs.length === 0 ? (
         <Card className="mt-6 text-center"><p className="text-sm text-app-muted">No entries for {formatMonth(periodStart)}.</p></Card>
       ) : (

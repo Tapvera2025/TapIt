@@ -5,7 +5,7 @@ import {
   Card,
   Empty,
   ErrorMessage,
-  Loading,
+  SkeletonTable,
   Modal,
   Notice,
   Select,
@@ -105,7 +105,7 @@ export function ReportingPage(): React.JSX.Element {
         </div>
       )}
       {loading ? (
-        <Loading />
+        <SkeletonTable columns={4} rows={5} />
       ) : employees.length === 0 ? (
         <Empty>No employee reporting data is visible.</Empty>
       ) : (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { organizationApi } from '../api/organizationApi.js';
-import { Card, ErrorMessage, Loading, Page } from '../components/OrganizationUi.js';
+import { Card, ErrorMessage, Page, SkeletonPage } from '../components/OrganizationUi.js';
 import type {
   OrganizationChart,
   OrganizationDepartment,
@@ -43,7 +43,7 @@ export function OrganizationOverview({
           <ErrorMessage cause={error} />
         </div>
       )}
-      {!error && !data && <Loading />}
+      {!error && !data && <SkeletonPage cards={4} rows={4} />}
       {data && (
         <>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

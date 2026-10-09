@@ -6,7 +6,7 @@ import {
   listConfigs,
   type PayrollConfig,
 } from '../api/payrollApi.js';
-import { Button, Card, Notice, Page } from '../../ui/components.js';
+import { Button, Card, Notice, Page, SkeletonTable } from '../../ui/components.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -161,7 +161,7 @@ export function PayrollSettingsPage(): React.JSX.Element {
       )}
       {notice && <div className="mt-4"><Notice>{notice}</Notice></div>}
       {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
-      {loading && <p className="mt-6 text-sm text-app-muted">Loading settings…</p>}
+      {loading && <div className="mt-6"><SkeletonTable columns={5} rows={5} /></div>}
       {configs.length > 0 && (
         <div className="mt-6 overflow-x-auto rounded-2xl border border-app-border bg-app-surface">
           <table className="w-full text-sm">

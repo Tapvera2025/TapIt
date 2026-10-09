@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Notice, Page, SkeletonPage } from '../../../ui/components.js';
 import { Icon } from '../../../ui/Icon.js';
 import {
   getRecruitmentMetrics,
@@ -104,9 +104,7 @@ export function RecruitmentOverviewPage({
       )}
 
       {loading && !metrics ? (
-        <div className="mt-6 space-y-4">
-          <Loading />
-        </div>
+        <div className="mt-6"><SkeletonPage cards={4} rows={4} /></div>
       ) : (
         <div className="mt-6 space-y-8">
            {/* Visual Recruitment Pipeline Workflow */}

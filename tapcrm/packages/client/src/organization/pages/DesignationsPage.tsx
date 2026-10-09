@@ -6,7 +6,7 @@ import {
   Empty,
   ErrorMessage,
   Field,
-  Loading,
+  SkeletonTable,
   Modal,
   Notice,
   Page,
@@ -122,7 +122,7 @@ export function DesignationsPage(): React.JSX.Element {
         </div>
       )}
       {loading ? (
-        <Loading />
+        <SkeletonTable columns={4} rows={5} />
       ) : items.length === 0 ? (
         <Empty>No designations are visible to this account.</Empty>
       ) : (

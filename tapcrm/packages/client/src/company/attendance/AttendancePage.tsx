@@ -11,6 +11,7 @@ import {
   type CorrectionRequest,
 } from './attendanceApi.js';
 import { calendarMonth } from '../../ui/calendar-model.js';
+import { Skeleton, SkeletonMetric } from '../../ui/components.js';
 
 function todayDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -183,7 +184,15 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
         </div>
 
         {correctionNotice && <p role="status" className="mb-2 text-sm text-emerald-700 dark:text-emerald-300">{correctionNotice}</p>}
-        {detailLoading && <p className="text-sm text-app-muted">Loading…</p>}
+        {detailLoading && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="status" aria-label="Loading attendance details">
+            {Array.from({ length: 4 }, (_, index) => <SkeletonMetric key={index} />)}
+            <div className="sm:col-span-2 lg:col-span-4 space-y-2 rounded-xl bg-app-surface-raised p-4">
+              <Skeleton className="h-3 w-20" />
+              {Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-8 w-full" />)}
+            </div>
+          </div>
+        )}
 
         {!detailLoading && !detail && (
           <p className="text-sm text-app-muted">No attendance record for this date.</p>

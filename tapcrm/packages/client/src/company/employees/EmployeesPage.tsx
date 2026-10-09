@@ -19,6 +19,7 @@ import {
   type CompanyTeam,
 } from '../api/companyApi.js';
 import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
+import { SkeletonTableRows } from '../../ui/components.js';
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -200,25 +201,7 @@ export function EmployeesPage({
         {/* ── Employee list ────────────────────────────────────────────────── */}
         <div className="mt-6">
           {loading ? (
-            /* Skeleton */
-            <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-app-border px-5 py-4 last:border-b-0">
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="h-11 w-11 shrink-0 animate-pulse rounded-xl bg-app-border opacity-60" />
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-2 h-3.5 w-2/5 animate-pulse rounded-md bg-app-border opacity-60" />
-                      <div className="h-3 w-3/5 animate-pulse rounded-md bg-app-border opacity-40" />
-                    </div>
-                  </div>
-                  <div className="hidden shrink-0 gap-2 sm:flex">
-                    {[62, 82, 56, 100].map((w, j) => (
-                      <div key={j} style={{ width: w }} className="h-7 animate-pulse rounded-lg bg-app-border opacity-40" />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <SkeletonTableRows count={5} />
           ) : employees.length === 0 ? (
             /* Empty state */
             <div className="rounded-2xl border border-app-border bg-app-surface px-6 py-14 text-center">

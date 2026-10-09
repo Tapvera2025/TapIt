@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
 import { listJoinings } from '../api/recruitmentApi.js';
 import { JoiningStatusModal } from '../components/JoiningStatusModal.js';
 import { JoiningStatusBadge } from '../components/StatusBadge.js';
@@ -94,7 +94,7 @@ export function JoiningPage({
       {/* Joining Table */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : joinings.length === 0 ? (
         <Empty>

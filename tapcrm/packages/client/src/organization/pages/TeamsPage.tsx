@@ -6,7 +6,7 @@ import {
   Empty,
   ErrorMessage,
   Field,
-  Loading,
+  SkeletonTable,
   Modal,
   Notice,
   Page,
@@ -159,7 +159,7 @@ export function TeamsPage(): React.JSX.Element {
         </div>
       )}
       {loading ? (
-        <Loading />
+        <SkeletonTable columns={4} rows={5} />
       ) : (
         <>
           <Card className="mt-6">

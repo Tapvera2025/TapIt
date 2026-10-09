@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
 import {
   listRequisitions,
   listResumeSubmissions,
@@ -134,7 +134,7 @@ export function ResumeInboxPage({
       {/* Submissions Table / List */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : visible.length === 0 ? (
         <Empty>

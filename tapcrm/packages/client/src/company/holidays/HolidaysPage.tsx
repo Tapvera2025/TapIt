@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listHolidays, type Holiday } from '../api/holidaysApi.js';
+import { SkeletonTable } from '../../ui/components.js';
 
 function currentYear(): number {
   return new Date().getFullYear();
@@ -58,7 +59,7 @@ export function HolidaysPage(): React.JSX.Element {
       </div>
 
       {error && <p className="text-sm text-app-danger">{error}</p>}
-      {loading && <p className="text-sm text-app-muted">Loading holidays…</p>}
+      {loading && <SkeletonTable columns={3} rows={5} />}
 
       {!loading && active.length === 0 && (
         <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">

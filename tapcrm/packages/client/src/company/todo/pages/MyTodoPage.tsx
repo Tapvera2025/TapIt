@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Card, Loading, Notice } from '../../../ui/components.js';
+import { Card, Notice, SkeletonCard } from '../../../ui/components.js';
 import {
   completeTodo,
   createTodo,
@@ -294,7 +294,7 @@ export function MyTodoPage(): React.JSX.Element {
 
         {/* Content / Loading / Sections */}
         {loading ? (
-          <Loading />
+          <div className="space-y-3" role="status" aria-label="Loading todos">{Array.from({ length: 4 }, (_, index) => <SkeletonCard key={index} className="h-20" />)}</div>
         ) : (
           <div className="space-y-4 sm:space-y-5 w-full min-w-0">
             {/* Today Section */}

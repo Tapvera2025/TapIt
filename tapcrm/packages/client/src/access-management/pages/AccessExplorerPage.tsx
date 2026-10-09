@@ -36,7 +36,8 @@ import {
   Button,
   ErrorMessage,
   Field,
-  Loading,
+  SkeletonDetail,
+  SkeletonTable,
   Notice,
   Page,
   Select,
@@ -295,7 +296,7 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
             />
           </Card>
           {loading ? (
-            <Loading />
+            <SkeletonDetail sections={2} />
           ) : accessViewError ? (
             <Notice error>
               Access Explorer details are not available for this account. Use Role changes
@@ -323,7 +324,7 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
             />
           </Card>
           {loading ? (
-            <Loading />
+            <SkeletonTable columns={4} rows={5} />
           ) : (
             <CapabilityResult action={selectedAction} holders={holders} />
           )}
@@ -331,7 +332,7 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
       ) : tab === 'overrides' ? (
         <>
           {loading ? (
-            <Loading />
+            <SkeletonTable columns={4} rows={5} />
           ) : (
             <OverrideOverviewResult
               overrides={overrides}
@@ -478,7 +479,7 @@ function RoleChangeReviewPanel({
       <h2 className="font-display text-xl font-bold">Pending position-change requests</h2>
       {message ? <Notice error={messageError}>{message}</Notice> : null}
       {loading ? (
-        <Loading />
+        <SkeletonTable columns={5} rows={4} />
       ) : error ? (
         <ErrorMessage cause={error} />
       ) : requests.length === 0 ? (

@@ -4,7 +4,7 @@ import {
   Button,
   Empty,
   ErrorMessage,
-  Loading,
+  SkeletonDetail,
   Modal,
   Notice,
   Page,
@@ -333,7 +333,7 @@ export function OrgChartPage(): React.JSX.Element {
       description="Leadership, departments, and reporting relationships."
     >
       {loading ? (
-        <Loading />
+        <SkeletonDetail sections={2} />
       ) : error ? (
         <div className="mt-6 space-y-3">
           <ErrorMessage cause={error} />

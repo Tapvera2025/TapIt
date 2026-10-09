@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Loading, Modal, Notice, Page, Select } from '../ui/components.js';
+import { Button, Card, Field, Modal, Notice, Page, Select, SkeletonTable } from '../ui/components.js';
 import {
   CLIENT_REGIONS,
   CLIENT_REGION_LABELS,
@@ -98,7 +98,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
 
       {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
       {loading ? (
-        <Loading />
+        <SkeletonTable columns={4} rows={5} />
       ) : clients.length === 0 ? (
         <Card className="mt-6 text-center text-sm text-app-muted">No clients yet.</Card>
       ) : (

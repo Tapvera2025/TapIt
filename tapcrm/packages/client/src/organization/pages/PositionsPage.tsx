@@ -24,7 +24,7 @@ import {
   Empty,
   ErrorMessage,
   Field,
-  Loading,
+  SkeletonTable,
   Modal,
   Notice,
   Page,
@@ -411,7 +411,7 @@ export function PositionsPage(): React.JSX.Element {
             />
           </div>
           {loading ? (
-            <Loading />
+            <SkeletonTable columns={4} rows={6} />
           ) : departments.length === 0 ? (
             <Empty>No departments are available yet.</Empty>
           ) : error ? (

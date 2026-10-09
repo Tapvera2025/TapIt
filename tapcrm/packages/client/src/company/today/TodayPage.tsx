@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { loadTodayStatus, punch, type PunchKind, type LiveRow } from '../live/liveApi.js';
 import { getBreakPrompts, submitBreachExplanation, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
+import { SkeletonTodayPage } from '../../ui/components.js';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
 
@@ -674,14 +675,7 @@ export function TodayPage({
   }
 
   if (!status) {
-    return (
-      <div className="flex min-h-64 items-center justify-center p-6">
-        <div className="space-y-2 text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-app-accent border-t-transparent" />
-          <p className="text-sm text-app-muted">Loading today's status…</p>
-        </div>
-      </div>
-    );
+    return <div className="p-4 sm:p-6 lg:p-4"><SkeletonTodayPage /></div>;
   }
 
   const { row, allowedMoves } = status;

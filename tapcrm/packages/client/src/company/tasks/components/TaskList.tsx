@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Empty, Loading } from '../../../ui/components.js';
+import { Empty, SkeletonTable } from '../../../ui/components.js';
 import type { TaskListProps, TaskStatus } from '../types/index.js';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskStatusBadge.js';
 
@@ -50,7 +50,7 @@ export function TaskList({
   const [openStatusMenu, setOpenStatusMenu] = useState<string | null>(null);
 
   if (loading) {
-    return <Loading />;
+    return <SkeletonTable columns={5} rows={7} />;
   }
 
   if (tasks.length === 0) {

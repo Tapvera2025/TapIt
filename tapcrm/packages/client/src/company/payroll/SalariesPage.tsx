@@ -10,7 +10,7 @@ import {
   type StructureLineKind,
   type StructureSummary,
 } from '../api/payrollApi.js';
-import { Button, Modal, Notice, Page } from '../../ui/components.js';
+import { Button, Modal, Notice, Page, SkeletonTable } from '../../ui/components.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -388,7 +388,7 @@ export function SalariesPage(): React.JSX.Element {
       {notice && <div className="mt-4"><Notice>{notice}</Notice></div>}
       {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
       {loading ? (
-        <p className="mt-6 text-sm text-app-muted">Loading salaries…</p>
+        <div className="mt-6"><SkeletonTable columns={5} rows={5} /></div>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-2xl border border-app-border bg-app-surface">
           <table className="w-full text-sm">

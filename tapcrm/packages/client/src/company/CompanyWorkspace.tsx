@@ -48,9 +48,10 @@ import { ClientsPage } from '../clients/index.js';
 import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 import { MyTodoPage } from './todo/index.js';
 import { SettingsPage } from './settings/SettingsPage.js';
+import { WorkspaceSkeleton } from '../ui/components.js';
 
 export function CompanyWorkspace({
-  pathname,
+  pathname: rawPathname,
   onNavigate,
   onLogout,
 }: {
@@ -58,6 +59,7 @@ export function CompanyWorkspace({
   onNavigate: (path: string) => void;
   onLogout: () => void;
 }): React.JSX.Element {
+  const pathname = (rawPathname.split('?')[0] ?? rawPathname).replace(/\/+$/, '') || '/';
   const [identity, setIdentity] = useState<CompanyIdentity | null>(null);
   const [error, setError] = useState('');
 
@@ -96,11 +98,7 @@ export function CompanyWorkspace({
   }
 
   if (!identity) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-app-background text-sm text-app-muted">
-        Loading company workspace...
-      </div>
-    );
+    return <WorkspaceSkeleton pathname={pathname} />;
   }
 
   const isSuperAdmin = identity.user.accountType === 'super-admin';

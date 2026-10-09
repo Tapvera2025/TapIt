@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Empty, Loading } from '../ui/components.js';
+import { Button, Empty, SkeletonMessageThread } from '../ui/components.js';
 import { Icon } from '../ui/Icon.js';
 import {
   REACTION_EMOJI,
@@ -341,7 +341,7 @@ export function ConversationWorkspace({
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {chat.loadingMessages && chat.messages.length === 0 ? (
-                <Loading />
+                <SkeletonMessageThread />
               ) : (
                 <>
                   {chat.hasMore && (
