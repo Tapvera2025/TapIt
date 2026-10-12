@@ -16,7 +16,7 @@ import {
 import { IDENTITY_EXPIRED_EVENT } from './identity/api/authApi.js';
 import { CompanyWorkspace } from './company/CompanyWorkspace.js';
 import { PublicApplicationPage } from './company/recruitment/pages/PublicApplicationPage.js';
-import type { IdentityLoginResult } from './identity/api/authApi.js';
+import type { DevPasswordReset, IdentityLoginResult } from './identity/api/authApi.js';
 
 export function App(): React.JSX.Element {
   const [pathname, setPathname] = useState(window.location.pathname);
@@ -25,6 +25,10 @@ export function App(): React.JSX.Element {
     Boolean(getIdentityAccessToken()),
   );
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
+  // The address typed on the login page, carried to the "Forgot password" page.
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  // Development only (DEV_INSTANT_PASSWORD_RESET): a new admin password to show on the login page.
+  const [devPasswordReset, setDevPasswordReset] = useState<DevPasswordReset | null>(null);
 
   function navigate(nextPath: string): void {
     window.history.pushState({}, '', nextPath);
@@ -57,6 +61,7 @@ export function App(): React.JSX.Element {
   }, []);
 
   function handleIdentityLogin(result: IdentityLoginResult) {
+    setDevPasswordReset(null);
     setCompanyAuthenticated(true);
     setPasswordChangeRequired(result.passwordChangeRequired);
     navigate(
@@ -65,6 +70,17 @@ export function App(): React.JSX.Element {
   }
 
   function openCompanyLogin() {
+    navigate('/login');
+  }
+
+  function openForgotPassword(email = '') {
+    setDevPasswordReset(null);
+    setForgotPasswordEmail(email);
+    navigate('/forgot-password');
+  }
+
+  function showDevPasswordReset(reset: DevPasswordReset) {
+    setDevPasswordReset(reset);
     navigate('/login');
   }
 
@@ -105,12 +121,19 @@ export function App(): React.JSX.Element {
     return (
       <IdentityLoginPage
         onSuccess={handleIdentityLogin}
-        onForgotPassword={() => navigate('/forgot-password')}
+        onForgotPassword={openForgotPassword}
+        devReset={devPasswordReset}
       />
     );
   }
   if (pathname === '/forgot-password')
-    return <ForgotPasswordPage onBack={openCompanyLogin} />;
+    return (
+      <ForgotPasswordPage
+        onBack={openCompanyLogin}
+        initialEmail={forgotPasswordEmail}
+        onDevReset={showDevPasswordReset}
+      />
+    );
   if (pathname === '/reset-password') {
     const params = new URLSearchParams(window.location.search);
     return (
@@ -127,7 +150,7 @@ export function App(): React.JSX.Element {
       return (
         <IdentityLoginPage
           onSuccess={handleIdentityLogin}
-          onForgotPassword={() => navigate('/forgot-password')}
+          onForgotPassword={openForgotPassword}
         />
       );
     }
@@ -148,7 +171,7 @@ export function App(): React.JSX.Element {
       return (
         <IdentityLoginPage
           onSuccess={handleIdentityLogin}
-          onForgotPassword={() => navigate('/forgot-password')}
+          onForgotPassword={openForgotPassword}
         />
       );
     }
@@ -172,7 +195,7 @@ export function App(): React.JSX.Element {
       return (
         <IdentityLoginPage
           onSuccess={handleIdentityLogin}
-          onForgotPassword={() => navigate('/forgot-password')}
+          onForgotPassword={openForgotPassword}
         />
       );
     }
@@ -197,7 +220,7 @@ export function App(): React.JSX.Element {
       return (
         <IdentityLoginPage
           onSuccess={handleIdentityLogin}
-          onForgotPassword={() => navigate('/forgot-password')}
+          onForgotPassword={openForgotPassword}
         />
       );
     }

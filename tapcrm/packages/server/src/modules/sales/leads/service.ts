@@ -116,3 +116,21 @@ export async function getLead(ctx: RequestContext, id: string): Promise<Lead> {
 }
 export async function updateLead(ctx: RequestContext, id: string, input: UpdateLeadInput): Promise<Lead> { const before = await getLead(ctx, id); const resource = await loadResource(ctx, id) as LeadResource | null; if (!resource) throw new LeadNotFoundError(); await assertManageScope(ctx, resource); if (input.status) { assertLifecycleTransition(before.status, input.status); if (input.status === 'assigned' && !resource.ownerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot be marked assigned'); } return db.transaction(ctx, async (tx) => { await updateLeadRow(tx, ctx.organizationId, id, input, before, { phone: normalizeLeadPhone(input.phone === undefined ? before.phone : input.phone), email: normalizeLeadEmail(input.email === undefined ? before.email : input.email) }); const updated = await findLeadTx(tx, ctx.organizationId, id); if (!updated) throw new LeadNotFoundError(); if (input.status && input.status !== before.status) await insertActivity(tx, ctx.organizationId, id, input.status === 'nurture' ? 'lead.nurtured' : 'lead.status_changed', ctx.principal.id, { from: before.status, to: input.status }); await insertAudit(tx, ctx, 'lead.updated', id, { status: before.status }, { status: updated.status }); return updated; }); }
 export const loadLeadResource = loadResource;
+
+/**
+ * Live duplicate check for the Add-Lead drawer (R1 plan step 1.12).
+ * Returns the same warnings the create flow surfaces so the caller can
+ * decide between "Open existing" / "Add enquiry" / "Create separate".
+ */
+export async function checkDuplicateLeads(
+  ctx: RequestContext,
+  input: { phone?: string | null | undefined; email?: string | null | undefined },
+): Promise<{ duplicates: Array<{ leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null }> }> {
+  const phone = normalizeLeadPhone(input.phone ?? null);
+  const email = normalizeLeadEmail(input.email ?? null);
+  if (!phone && !email) return { duplicates: [] };
+  const scope = await visibilityFilter(ctx, 'leads:view', 'lead');
+  const { findDuplicates } = await import('./repository.js');
+  const duplicates = await findDuplicates(ctx, scope, phone, email);
+  return { duplicates };
+}

@@ -38,7 +38,7 @@ export async function loadHandoverResource(ctx: RequestContext, id: string) {
 }
 
 export async function findLeadHandoverResource(ctx: RequestContext, leadId: string) {
-  return db.maybeOne<{ id: string; organizationId: string; ownerId: string | null; currentHolderId: string | null; status: string; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null }>(ctx, sql`SELECT l.id, l.organization_id AS "organizationId", l.owner_id AS "ownerId", l.current_holder_id AS "currentHolderId", l.status, l.sales_team_id AS "salesTeamId", l.sales_pool_id AS "salesPoolId", team.department_id AS "departmentId" FROM lead l LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id WHERE l.organization_id = ${ctx.organizationId} AND l.id = ${leadId}`).then((row) => row ? { type: 'lead' as const, ...row } : null);
+  return db.maybeOne<{ id: string; organizationId: string; ownerId: string | null; currentHolderId: string | null; originatingAgentId: string | null; status: string; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null }>(ctx, sql`SELECT l.id, l.organization_id AS "organizationId", l.owner_id AS "ownerId", l.current_holder_id AS "currentHolderId", l.originating_agent_id AS "originatingAgentId", l.status, l.sales_team_id AS "salesTeamId", l.sales_pool_id AS "salesPoolId", team.department_id AS "departmentId" FROM lead l LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id WHERE l.organization_id = ${ctx.organizationId} AND l.id = ${leadId}`).then((row) => row ? { type: 'lead' as const, ...row } : null);
 }
 
 const handoverTargetSelect = (organizationId: string) => sql`

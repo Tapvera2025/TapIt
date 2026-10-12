@@ -20,6 +20,10 @@ export function CompanySidebar({
   canViewLeads = false,
   canViewCallbacks = false,
   canViewHandovers = false,
+  canViewDeals = false,
+  canRecordWin = false,
+  canDecideApprovals = false,
+  canForecast = false,
   canViewChat = false,
   canViewClients = false,
   canViewProjects = false,
@@ -33,6 +37,7 @@ export function CompanySidebar({
   canManageBiometric = false,
   isHr = false,
   hasRecruitment = false,
+  hasInterviews = false,
   onNavigate,
   onLogout,
   open,
@@ -59,6 +64,10 @@ export function CompanySidebar({
   canViewLeads?: boolean;
   canViewCallbacks?: boolean;
   canViewHandovers?: boolean;
+  canViewDeals?: boolean;
+  canRecordWin?: boolean;
+  canDecideApprovals?: boolean;
+  canForecast?: boolean;
   canViewChat?: boolean;
   canViewClients?: boolean;
   canViewProjects?: boolean;
@@ -72,6 +81,8 @@ export function CompanySidebar({
   canManageBiometric?: boolean;
   isHr?: boolean;
   hasRecruitment?: boolean;
+  /** Shown only while this user has interviews (assigned rounds or panels). */
+  hasInterviews?: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   open: boolean;
@@ -88,6 +99,7 @@ export function CompanySidebar({
       items: [
         { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
         { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+        ...(hasInterviews ? [{ label: 'My Interviews', path: '/company/my-interviews', icon: 'calendar' }] : []),
         ...(canViewChat ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }] : []),
         myTodoNavItem,
         myNotepadNavItem,
@@ -139,13 +151,17 @@ export function CompanySidebar({
         ...(canViewProjects ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }] : []),
       ],
     }] : []),
-    ...((canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers) ? [{
+    ...((canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers || canViewDeals || canDecideApprovals || canRecordWin || canForecast) ? [{
       label: 'Sales',
       items: [
         ...(canViewTerritories ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }] : []),
         ...(canViewLeads ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }] : []),
+        ...(canViewDeals ? [{ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase' }] : []),
+        ...(canDecideApprovals ? [{ label: 'Approvals', path: '/company/sales/approvals', icon: 'check' }] : []),
+        ...(canRecordWin ? [{ label: 'Wins to record', path: '/company/sales/wins', icon: 'check' }] : []),
         ...(canViewCallbacks ? [{ label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar' }] : []),
         ...(canViewHandovers ? [{ label: 'Handovers', path: '/company/sales/handovers', icon: 'share' }] : []),
+        ...(canForecast ? [{ label: 'Reports', path: '/company/sales/reports', icon: 'chart' }] : []),
       ],
     }] : []),
     {
@@ -247,22 +263,33 @@ export function CompanySidebar({
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
                     const isActive = pathname === item.path || (item.path !== '/company/organization' && pathname.startsWith(`${item.path}/`));
-                    const showChildren = Boolean(item.children && (recruitmentOpen || pathname.startsWith(item.path)));
+                    const showChildren = Boolean(item.children && recruitmentOpen);
                     return (
                       <div key={item.path}>
-                        <button
-                          aria-current={isActive ? 'page' : undefined}
-                          type="button"
-                          onClick={() => {
-                            if (item.label === 'Recruitment') setRecruitmentOpen((prev) => !prev);
-                            onNavigate(item.path);
-                            onClose();
-                          }}
-                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${isActive ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
-                        >
-                          <span className="flex items-center gap-3"><Icon name={item.icon} /><span>{item.label}</span></span>
-                          {item.children && <span aria-hidden="true" className="text-xs text-app-muted">{showChildren ? '▾' : '▸'}</span>}
-                        </button>
+                        <div className={`flex w-full items-center justify-between rounded-xl text-sm font-semibold transition ${isActive ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}>
+                          <button
+                            aria-current={isActive ? 'page' : undefined}
+                            type="button"
+                            onClick={() => {
+                              onNavigate(item.path);
+                              onClose();
+                            }}
+                            className="flex flex-1 items-center gap-3 px-3 py-2.5 text-left"
+                          >
+                            <Icon name={item.icon} /><span>{item.label}</span>
+                          </button>
+                          {item.children && (
+                            <button
+                              type="button"
+                              aria-expanded={showChildren}
+                              aria-label={showChildren ? 'Collapse Recruitment' : 'Expand Recruitment'}
+                              onClick={() => setRecruitmentOpen((prev) => !prev)}
+                              className="px-3 py-2.5 text-xs"
+                            >
+                              {showChildren ? '▾' : '▸'}
+                            </button>
+                          )}
+                        </div>
                         {showChildren && (
                           <div className="ml-7 mt-1 space-y-1 border-l border-app-border pl-2">
                             {item.children!.map((sub) => {

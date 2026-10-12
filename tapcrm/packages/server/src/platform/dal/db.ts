@@ -359,7 +359,9 @@ export type PlatformOperation =
   | 'health-check'
   | 'job-scheduling'
   | 'outbox-drain'
-  | 'callback-automation';
+  | 'callback-automation'
+  | 'webhook-dispatch'
+  | 'public-portal';
 
 export const platformDb = {
   async one<T>(

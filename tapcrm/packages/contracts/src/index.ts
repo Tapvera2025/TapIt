@@ -27,3 +27,5 @@ export * from './presence.js';
 export * from './biometric.js';
 export * from './leave.js';
 export * from './dashboard.js';
+export * from './recruitment-ats.js';
+export * from './recruitment-resume.js';

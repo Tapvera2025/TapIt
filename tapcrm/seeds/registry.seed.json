@@ -1216,6 +1216,21 @@
       "description": ""
     },
     {
+      "action": "leads:claim",
+      "module": "leads",
+      "resource": "lead",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "leads:create",
       "module": "leads",
       "resource": "lead",
@@ -1246,7 +1261,52 @@
       "description": ""
     },
     {
+      "action": "leads:pass",
+      "module": "leads",
+      "resource": "lead",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "leads:reassign",
+      "module": "leads",
+      "resource": "lead",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "leads:reassign-with-credit",
+      "module": "leads",
+      "resource": "lead",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "leads:rescue-from-triage",
       "module": "leads",
       "resource": "lead",
       "domain": "business",
@@ -1891,9 +1951,39 @@
       "description": ""
     },
     {
+      "action": "recruitment:manage-candidate-rounds",
+      "module": "recruitment",
+      "resource": "candidate",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "recruitment:manage-candidates",
       "module": "recruitment",
       "resource": "candidate",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "recruitment:manage-email-templates",
+      "module": "recruitment",
+      "resource": null,
       "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
@@ -1966,6 +2056,21 @@
       "description": ""
     },
     {
+      "action": "recruitment:manage-pipeline",
+      "module": "recruitment",
+      "resource": "jobRequisition",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "recruitment:manage-requisitions",
       "module": "recruitment",
       "resource": "jobRequisition",
@@ -1984,6 +2089,51 @@
       "action": "recruitment:manage-submissions",
       "module": "recruitment",
       "resource": "candidateResumeSubmission",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "recruitment:send-joining-email",
+      "module": "recruitment",
+      "resource": "candidateJoining",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "recruitment:submit-round-feedback",
+      "module": "recruitment",
+      "resource": "candidate",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "recruitment:view-candidate-events",
+      "module": "recruitment",
+      "resource": "candidate",
       "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
@@ -3567,6 +3717,78 @@
       "resourceParam": null
     },
     {
+      "method": "POST",
+      "path": "/api/leads/:id/reassign-with-credit",
+      "action": "leads:reassign-with-credit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads/:id/rescue",
+      "action": "leads:rescue-from-triage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/bid-pool",
+      "action": "leads:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/bid-pool/:leadId/card",
+      "action": "leads:view",
+      "resourceParam": "leadId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/bid-pool/:leadId/claim",
+      "action": "leads:claim",
+      "resourceParam": "leadId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/bid-pool/:leadId/pass",
+      "action": "leads:pass",
+      "resourceParam": "leadId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales/connectors",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/sales/connectors",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/sales/connectors/:id",
+      "action": "system:manage-integrations",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sales/connectors/:id/pause",
+      "action": "system:manage-integrations",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sales/connectors/:id/resume",
+      "action": "system:manage-integrations",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sales/connectors/:id/retry",
+      "action": "system:manage-integrations",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/callbacks",
       "action": "callbacks:view",
@@ -4803,6 +5025,12 @@
       "resourceParam": "id"
     },
     {
+      "method": "DELETE",
+      "path": "/api/recruitment/candidates/:id",
+      "action": "recruitment:manage-candidates",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/recruitment/interviews",
       "action": "recruitment:view-interviews",
@@ -5009,6 +5237,162 @@
     {
       "method": "POST",
       "path": "/api/recruitment/resume-submissions/:id/convert",
+      "action": "recruitment:manage-submissions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/pipeline-rounds",
+      "action": "recruitment:view-requisitions",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruitment/pipeline-rounds",
+      "action": "recruitment:manage-pipeline",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruitment/pipeline-rounds/reorder",
+      "action": "recruitment:manage-pipeline",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/recruitment/pipeline-rounds/:id",
+      "action": "recruitment:manage-pipeline",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/recruitment/pipeline-rounds/:id",
+      "action": "recruitment:manage-pipeline",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/candidate-rounds",
+      "action": "recruitment:manage-candidate-rounds",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruitment/candidate-rounds",
+      "action": "recruitment:manage-candidate-rounds",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/recruitment/candidate-rounds/:id/assign",
+      "action": "recruitment:manage-candidate-rounds",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/recruitment/candidate-rounds/:id/feedback",
+      "action": "recruitment:submit-round-feedback",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/recruitment/candidate-rounds/:id/decision",
+      "action": "recruitment:manage-candidate-rounds",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/my-interviews",
+      "action": "recruitment:submit-round-feedback",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/my-interviews/rounds/:id/resume",
+      "action": "recruitment:submit-round-feedback",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/my-interviews/interviews/:id/resume",
+      "action": "recruitment:submit-round-feedback",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/recruitment/my-interviews/interviews/:id/feedback",
+      "action": "recruitment:submit-round-feedback",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/candidate-events",
+      "action": "recruitment:view-candidate-events",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/email-templates",
+      "action": "recruitment:manage-email-templates",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruitment/email-templates",
+      "action": "recruitment:manage-email-templates",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/email-templates/:id",
+      "action": "recruitment:manage-email-templates",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/recruitment/email-templates/:id",
+      "action": "recruitment:manage-email-templates",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/recruitment/email-templates/:id",
+      "action": "recruitment:manage-email-templates",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruitment/joining/:id/send-email",
+      "action": "recruitment:send-joining-email",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruitment/joinings/:id/send-email",
+      "action": "recruitment:send-joining-email",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/requisitions/:id/ats-criteria",
+      "action": "recruitment:view-requisitions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/recruitment/requisitions/:id/ats-criteria",
+      "action": "recruitment:manage-requisitions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruitment/resume-submissions/:id/ats",
+      "action": "recruitment:manage-submissions",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruitment/resume-submissions/:id/ats-scans",
       "action": "recruitment:manage-submissions",
       "resourceParam": "id"
     }

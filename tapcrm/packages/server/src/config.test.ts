@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig, __resetConfig } from './config.js';
+import { devInstantPasswordResetEnabled, loadConfig, __resetConfig } from './config.js';
 
 const BASE = {
   DATABASE_URL: 'postgres://app:pw@localhost:5432/db',
@@ -87,7 +87,20 @@ describe('production safety', () => {
     expect(() => load({ ...PROD, SECURITY_COUNTER_STORE: 'memory' })).toThrow(/SECURITY_COUNTER_STORE/);
   });
 
+  it('refuses the development-only instant password reset', () => {
+    expect(() => load({ ...PROD, DEV_INSTANT_PASSWORD_RESET: 'true' })).toThrow(/DEV_INSTANT_PASSWORD_RESET/);
+    expect(() => load({ ...PROD, DEV_INSTANT_PASSWORD_RESET: 'false' })).not.toThrow();
+  });
+
   it('does not apply those rules in development', () => {
     expect(() => load({ JWT_ACCESS_SECRET: 'replace-me-in-every-real-environment'.padEnd(40, 'x') })).not.toThrow();
+  });
+});
+
+describe('instant password reset switch', () => {
+  it('is off unless the flag is set, and never on in production', () => {
+    expect(devInstantPasswordResetEnabled(load())).toBe(false);
+    expect(devInstantPasswordResetEnabled(load({ DEV_INSTANT_PASSWORD_RESET: 'true' }))).toBe(true);
+    expect(devInstantPasswordResetEnabled({ ...load({ DEV_INSTANT_PASSWORD_RESET: 'true' }), NODE_ENV: 'production' })).toBe(false);
   });
 });

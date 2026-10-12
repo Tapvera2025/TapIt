@@ -17,29 +17,47 @@ import type { CallbackListQuery, CallbackOutcomeInput, CreateCallbackInput, Upda
 
 export const loadCallbackResource = loadCallbackResourceRow;
 
-async function assertLeadAccess(ctx: RequestContext, leadId: string): Promise<{ operationalOwnerId: string }> {
+/**
+ * Resolve the agent who should own a new callback. Per PRD §12 R-HAND-04
+ * and R1 plan step 1.18: callbacks route to the relationship owner —
+ * `originating_agent_id` — not the temporary `current_holder_id`. The
+ * operational permission check (who may create the callback) still uses
+ * the current holder, so a supervisor finishing a handover call can
+ * schedule the follow-up back to the originating agent.
+ */
+function resolveCallbackAssignee(lead: {
+  originatingAgentId: string | null;
+  currentHolderId: string | null;
+  ownerId: string | null;
+}): string | null {
+  return lead.originatingAgentId ?? lead.ownerId ?? lead.currentHolderId;
+}
+
+async function assertLeadAccess(ctx: RequestContext, leadId: string): Promise<{ operationalOwnerId: string; callbackAssigneeId: string }> {
   const lead = await findLeadHandoverResource(ctx, leadId);
   if (!lead) throw new LeadNotFoundError();
   const operationalOwnerId = lead.currentHolderId ?? lead.ownerId;
   if (!operationalOwnerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot have a callback');
+  const callbackAssigneeId = resolveCallbackAssignee(lead);
+  if (!callbackAssigneeId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot have a callback');
   if (!globalAccess(ctx.principal)) {
     const policy = await effectivePolicy(ctx, 'leads:view');
     const resource = await loadLeadResource(ctx, leadId);
     const inScope = Boolean(policy?.allowed && resource && await leadPolicy.check({ ...ctx, scope: scopeResolver }, 'leads:view', resource, policy.scope));
     if (!inScope || operationalOwnerId !== ctx.principal.id) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Only the current operational holder may create a callback');
   }
-  return { operationalOwnerId };
+  return { operationalOwnerId, callbackAssigneeId };
 }
 
 export async function scheduleCallbackInTransaction(tx: Tx, ctx: RequestContext, leadId: string, scheduledAt: Date, reason: string | null, createdBy: string): Promise<string> {
   const lead = await findLeadHandoverResource(ctx, leadId);
   if (lead && isTerminalLeadStatus(lead.status)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'A converted or closed-lost Lead cannot have a callback');
-  const operationalOwnerId = lead?.currentHolderId ?? lead?.ownerId;
-  if (!operationalOwnerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot have a callback');
-  const id = await insertCallback(tx, ctx.organizationId, { leadId, ownerId: operationalOwnerId, scheduledAt, reason, createdBy });
+  const callbackAssigneeId = lead ? resolveCallbackAssignee(lead) : null;
+  if (!callbackAssigneeId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot have a callback');
+  const id = await insertCallback(tx, ctx.organizationId, { leadId, ownerId: callbackAssigneeId, scheduledAt, reason, createdBy });
   await tx.query(sql`UPDATE lead SET status = 'callback_scheduled' WHERE organization_id = ${ctx.organizationId} AND id = ${leadId} AND status NOT IN ('converted', 'closed_lost')`);
-  await insertActivity(tx, ctx.organizationId, leadId, 'callback.scheduled', ctx.principal.id, { callbackId: id, ownerId: operationalOwnerId, scheduledAt: scheduledAt.toISOString() });
-  await notifyCallback(tx, ctx, operationalOwnerId, leadId, 'scheduled');
+  await insertActivity(tx, ctx.organizationId, leadId, 'callback.scheduled', ctx.principal.id, { callbackId: id, ownerId: callbackAssigneeId, scheduledAt: scheduledAt.toISOString() });
+  await notifyCallback(tx, ctx, callbackAssigneeId, leadId, 'scheduled');
   return id;
 }
 

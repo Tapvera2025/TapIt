@@ -104,6 +104,10 @@
 | `leads:create` | leads | lead | business | no | no | — | yes | yes | no |
 | `leads:edit` | leads | lead | business | no | no | — | yes | yes | no |
 | `leads:reassign` | leads | lead | business | no | no | — | yes | yes | no |
+| `leads:claim` | leads | lead | business | no | no | — | yes | yes | no |
+| `leads:pass` | leads | lead | business | no | no | — | yes | yes | no |
+| `leads:reassign-with-credit` | leads | lead | business | yes | no | — | yes | no | yes |
+| `leads:rescue-from-triage` | leads | lead | business | no | no | — | yes | yes | no |
 | `callbacks:view` | callbacks | callback | business | no | no | — | yes | yes | no |
 | `callbacks:create` | callbacks | callback | business | no | no | — | yes | yes | no |
 | `callbacks:edit` | callbacks | callback | business | no | no | — | yes | yes | no |
@@ -211,6 +215,12 @@
 | `recruitment:manage-joining` | recruitment | candidateJoining | business | no | no | — | yes | yes | no |
 | `recruitment:manage-links` | recruitment | recruitmentApplicationLink | business | no | no | — | yes | yes | no |
 | `recruitment:manage-submissions` | recruitment | candidateResumeSubmission | business | no | no | — | yes | yes | no |
+| `recruitment:manage-pipeline` | recruitment | jobRequisition | business | no | no | — | yes | yes | no |
+| `recruitment:manage-candidate-rounds` | recruitment | candidate | business | no | no | — | yes | yes | no |
+| `recruitment:submit-round-feedback` | recruitment | candidate | business | no | no | — | yes | yes | no |
+| `recruitment:view-candidate-events` | recruitment | candidate | business | no | no | — | yes | yes | no |
+| `recruitment:manage-email-templates` | recruitment | — | business | no | no | — | yes | yes | no |
+| `recruitment:send-joining-email` | recruitment | candidateJoining | business | no | no | — | yes | yes | no |
 
 ---
 
@@ -407,6 +417,18 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PATCH | /api/leads/:id | `leads:edit` | id |
 | POST | /api/leads/:id/reassign | `leads:reassign` | id |
 | POST | /api/leads/bulk-reassign | `leads:reassign` | — |
+| POST | /api/leads/:id/reassign-with-credit | `leads:reassign-with-credit` | id |
+| POST | /api/leads/:id/rescue | `leads:rescue-from-triage` | id |
+| GET | /api/bid-pool | `leads:view` | — |
+| GET | /api/bid-pool/:leadId/card | `leads:view` | leadId |
+| POST | /api/bid-pool/:leadId/claim | `leads:claim` | leadId |
+| POST | /api/bid-pool/:leadId/pass | `leads:pass` | leadId |
+| GET | /api/sales/connectors | `system:manage-integrations` | — |
+| POST | /api/sales/connectors | `system:manage-integrations` | — |
+| PATCH | /api/sales/connectors/:id | `system:manage-integrations` | id |
+| POST | /api/sales/connectors/:id/pause | `system:manage-integrations` | id |
+| POST | /api/sales/connectors/:id/resume | `system:manage-integrations` | id |
+| POST | /api/sales/connectors/:id/retry | `system:manage-integrations` | id |
 | GET | /api/callbacks | `callbacks:view` | — |
 | GET | /api/callbacks/:id | `callbacks:view` | id |
 | POST | /api/callbacks | `callbacks:create` | — |
@@ -613,6 +635,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PATCH | /api/recruitment/candidates/:id/status | `recruitment:manage-candidates` | id |
 | PATCH | /api/recruitment/candidates/:id/screening | `recruitment:manage-candidates` | id |
 | POST | /api/recruitment/candidates/:id/hire | `recruitment:manage-candidates` | id |
+| DELETE | /api/recruitment/candidates/:id | `recruitment:manage-candidates` | id |
 | GET | /api/recruitment/interviews | `recruitment:view-interviews` | — |
 | POST | /api/recruitment/interviews | `recruitment:manage-interviews` | — |
 | GET | /api/recruitment/interviews/:id | `recruitment:view-interviews` | id |
@@ -648,3 +671,29 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/recruitment/resume-submissions/:id/resume-url | `recruitment:manage-submissions` | id |
 | PATCH | /api/recruitment/resume-submissions/:id/status | `recruitment:manage-submissions` | id |
 | POST | /api/recruitment/resume-submissions/:id/convert | `recruitment:manage-submissions` | id |
+| GET | /api/recruitment/pipeline-rounds | `recruitment:view-requisitions` | — |
+| POST | /api/recruitment/pipeline-rounds | `recruitment:manage-pipeline` | — |
+| POST | /api/recruitment/pipeline-rounds/reorder | `recruitment:manage-pipeline` | — |
+| PATCH | /api/recruitment/pipeline-rounds/:id | `recruitment:manage-pipeline` | id |
+| DELETE | /api/recruitment/pipeline-rounds/:id | `recruitment:manage-pipeline` | id |
+| GET | /api/recruitment/candidate-rounds | `recruitment:manage-candidate-rounds` | — |
+| POST | /api/recruitment/candidate-rounds | `recruitment:manage-candidate-rounds` | — |
+| PATCH | /api/recruitment/candidate-rounds/:id/assign | `recruitment:manage-candidate-rounds` | id |
+| PATCH | /api/recruitment/candidate-rounds/:id/feedback | `recruitment:submit-round-feedback` | id |
+| PATCH | /api/recruitment/candidate-rounds/:id/decision | `recruitment:manage-candidate-rounds` | id |
+| GET | /api/recruitment/my-interviews | `recruitment:submit-round-feedback` | — |
+| GET | /api/recruitment/my-interviews/rounds/:id/resume | `recruitment:submit-round-feedback` | id |
+| GET | /api/recruitment/my-interviews/interviews/:id/resume | `recruitment:submit-round-feedback` | id |
+| PUT | /api/recruitment/my-interviews/interviews/:id/feedback | `recruitment:submit-round-feedback` | id |
+| GET | /api/recruitment/candidate-events | `recruitment:view-candidate-events` | — |
+| GET | /api/recruitment/email-templates | `recruitment:manage-email-templates` | — |
+| POST | /api/recruitment/email-templates | `recruitment:manage-email-templates` | — |
+| GET | /api/recruitment/email-templates/:id | `recruitment:manage-email-templates` | id |
+| PATCH | /api/recruitment/email-templates/:id | `recruitment:manage-email-templates` | id |
+| DELETE | /api/recruitment/email-templates/:id | `recruitment:manage-email-templates` | id |
+| POST | /api/recruitment/joining/:id/send-email | `recruitment:send-joining-email` | id |
+| POST | /api/recruitment/joinings/:id/send-email | `recruitment:send-joining-email` | id |
+| GET | /api/recruitment/requisitions/:id/ats-criteria | `recruitment:view-requisitions` | id |
+| PUT | /api/recruitment/requisitions/:id/ats-criteria | `recruitment:manage-requisitions` | id |
+| GET | /api/recruitment/resume-submissions/:id/ats | `recruitment:manage-submissions` | id |
+| POST | /api/recruitment/resume-submissions/:id/ats-scans | `recruitment:manage-submissions` | id |

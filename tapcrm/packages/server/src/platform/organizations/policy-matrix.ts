@@ -165,13 +165,42 @@ export const SELF_SERVICE_ACTIONS: ReadonlySet<string> = new Set([
   'status:punch',
 ]);
 
+/**
+ * Actions every employee position holds, at `participant` scope, even when its
+ * cell gives no access to the module: reach comes from being named on a record,
+ * not from the position. HR can assign an interview round to anyone — a
+ * Developer Team Manager or a Department Head has no other recruitment access —
+ * and that interviewer must see the round and submit feedback on it.
+ */
+export const PARTICIPANT_EVERYWHERE_ACTIONS: ReadonlySet<string> = new Set([
+  'recruitment:submit-round-feedback',
+]);
+
 export function expandPermissionCell(
   module: string,
   cell: Cell,
   position: string,
   actionsByModule: ReadonlyMap<string, readonly RegistryActionDefinition[]>,
 ): EmittedPolicy[] {
-  if (cell === 'glob' || cell === 'acct' || cell === '—') return [];
+  if (cell === 'glob' || cell === 'acct') return [];
+  const emitted = expandAccessCell(module, cell, position, actionsByModule);
+  if (position === 'client') return emitted;
+  const excluded = new Set(CARVE_OUTS[position as MatrixPosition] ?? []);
+  const participant = (actionsByModule.get(module) ?? [])
+    .filter((definition) => PARTICIPANT_EVERYWHERE_ACTIONS.has(definition.action) && definition.positionGrantable)
+    .filter((definition) => !excluded.has(definition.action))
+    .filter((definition) => !emitted.some((policy) => policy.action === definition.action))
+    .map((definition) => ({ action: definition.action, scope: 'participant' }));
+  return [...emitted, ...participant];
+}
+
+function expandAccessCell(
+  module: string,
+  cell: Cell,
+  position: string,
+  actionsByModule: ReadonlyMap<string, readonly RegistryActionDefinition[]>,
+): EmittedPolicy[] {
+  if (cell === '—') return [];
   const readOnly = cell.endsWith('*');
   const scope = readOnly ? cell.slice(0, -1) : cell;
   const excluded = new Set(CARVE_OUTS[position as MatrixPosition] ?? []);

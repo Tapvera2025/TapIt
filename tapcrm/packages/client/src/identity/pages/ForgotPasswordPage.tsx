@@ -1,10 +1,19 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { useState } from 'react';
 import { IdentityLayout } from '../components/IdentityLayout.js';
-import { requestPasswordReset } from '../api/authApi.js';
+import { devInstantPasswordReset, IdentityApiError, requestPasswordReset, type DevPasswordReset } from '../api/authApi.js';
 
-export function ForgotPasswordPage({ onBack }: { onBack: () => void }) {
-  const [email, setEmail] = useState('');
+export function ForgotPasswordPage({ onBack, initialEmail = '', onDevReset }: {
+  onBack: () => void;
+  /** The address typed on the login page, if any. */
+  initialEmail?: string;
+  /**
+   * Development only: with DEV_INSTANT_PASSWORD_RESET on in the API, a company
+   * admin gets a new password at once, shown on the login page, instead of an email.
+   */
+  onDevReset?: (reset: DevPasswordReset) => void;
+}) {
+  const [email, setEmail] = useState(initialEmail);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -14,6 +23,17 @@ export function ForgotPasswordPage({ onBack }: { onBack: () => void }) {
     setBusy(true);
     setError('');
     try {
+      if (onDevReset) {
+        const reset = await devInstantPasswordReset(email.trim()).catch((cause: unknown) => {
+          // Employees keep the emailed link.
+          if (cause instanceof IdentityApiError && cause.code === 'IDENTITY_DEV_RESET_ADMIN_ONLY') return null;
+          throw cause;
+        });
+        if (reset) {
+          onDevReset(reset);
+          return;
+        }
+      }
       await requestPasswordReset(email);
       setSubmitted(true);
     } catch (cause) {

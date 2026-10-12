@@ -9,7 +9,8 @@ export type LeadLossReason = (typeof LEAD_LOSS_REASONS)[number];
 
 export interface LeadSource { id: string; organizationId: string; name: string; direction: LeadDirection; status: LeadSourceStatus; createdAt: Date; updatedAt: Date; }
 export interface Campaign { id: string; organizationId: string; name: string; status: LeadSourceStatus; createdAt: Date; updatedAt: Date; }
-export type LeadActivityEvent = 'lead.created' | 'lead.assigned' | 'lead.status_changed' | 'lead.nurtured' | 'lead.stalled' | 'call.recorded' | 'handover.offered' | 'handover.accepted' | 'handover.declined' | 'handover.expired' | 'handover.disposition_recorded' | 'callback.scheduled' | 'callback.rescheduled' | 'callback.completed' | 'callback.missed' | 'callback.cancelled' | 'callback.requested' | 'deal.creation_requested' | 'lead.closed_lost' | 'duplicate.warning' | 'lead.reengaged';
+import type { LeadActivityEvent } from './activity-types.js';
+export type { LeadActivityEvent } from './activity-types.js';
 export interface LeadActivity { id: string; eventName: LeadActivityEvent; actorId: string | null; metadata: Record<string, unknown>; createdAt: Date; }
 export interface Lead {
   id: string; organizationId: string; leadNumber: string; ownerId: string | null; ownerName: string | null;
