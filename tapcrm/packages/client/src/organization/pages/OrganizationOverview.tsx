@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { WorkspacePageContainer } from '../../ui/components.js';
 import { organizationApi } from '../api/organizationApi.js';
-import { Card, ErrorMessage, Page, SkeletonPage } from '../components/OrganizationUi.js';
+import { Card, ErrorMessage, SkeletonPage } from '../components/OrganizationUi.js';
 import type {
   OrganizationChart,
   OrganizationDepartment,
@@ -33,11 +34,7 @@ export function OrganizationOverview({
       .catch(setError);
   }, []);
   return (
-    <Page
-      eyebrow="Organization"
-      title="Organization overview"
-      description="Review the structure, people, and reporting information available to your account."
-    >
+    <WorkspacePageContainer>
       {Boolean(error) && (
         <div className="mt-6">
           <ErrorMessage cause={error} />
@@ -46,7 +43,7 @@ export function OrganizationOverview({
       {!error && !data && <SkeletonPage cards={4} rows={4} />}
       {data && (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Metric
               label="Departments"
               value={data.departments.length}
@@ -131,7 +128,7 @@ export function OrganizationOverview({
           </div>
         </>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }
 function Metric({

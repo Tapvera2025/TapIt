@@ -73,7 +73,7 @@ export function InterviewsPage({
   }
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Interview Rounds"
       description="Panel coordination, technical & culture evaluations, scoring, and feedback logs."

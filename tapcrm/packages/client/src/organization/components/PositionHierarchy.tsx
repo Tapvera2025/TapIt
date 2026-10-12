@@ -260,7 +260,7 @@ export function PositionHierarchy({
   }
 
   return (
-    <section className="org-chart position-explorer mt-6" aria-label="Position explorer">
+    <section className="org-chart position-explorer" aria-label="Position explorer">
       <div className="org-chart-overview">
         <div className="org-chart-overview-title">
           <h2>{department?.name ?? 'Department'} hierarchy</h2>
@@ -313,6 +313,9 @@ export function PositionHierarchy({
             <option value="inactive">Inactive</option>
           </select>
         </label>
+        <Button onClick={() => onCreate()}>
+          <span aria-hidden="true">+</span> Add position
+        </Button>
         <div className="position-view-toggle" role="group" aria-label="Position view">
           <button
             type="button"

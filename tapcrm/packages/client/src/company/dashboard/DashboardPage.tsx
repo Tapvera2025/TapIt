@@ -26,7 +26,7 @@ type Layout = RGLLayoutItem;
 
 const GridLayout = GridLayoutDefault;
 const rglModule = GridLayoutDefault as unknown as RGLModule;
-import { Page, SkeletonCard } from '../../ui/components.js';
+import { SkeletonCard, WorkspacePageContainer } from '../../ui/components.js';
 import { Icon } from '../../ui/Icon.js';
 import type { CompanyIdentity } from '../api/companyApi.js';
 import { getDashboardPreferences, saveDashboardPreferences } from './dashboardApi.js';
@@ -231,21 +231,28 @@ export function DashboardPage({
 
   if (!prefs) {
     return (
-      <Page eyebrow="Workspace" title="Dashboard" description="Loading your dashboard…">
+      <WorkspacePageContainer className="dashboard-workspace">
+        <section className="dashboard-command-bar">
+          <div className="min-w-0">
+            <h1>Today at a glance</h1>
+            <p>Preparing your workboard…</p>
+          </div>
+        </section>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {[1, 2, 3].map((item) => <SkeletonCard key={item} className="h-36" />)}
         </div>
-      </Page>
+      </WorkspacePageContainer>
     );
   }
 
   return (
-    <Page
-      eyebrow="Your workspace"
-      title="Dashboard"
-      description={`Good to see you, ${identity.user.fullName}.`}
-      action={
-        !isMobile ? (
+    <WorkspacePageContainer className="dashboard-workspace">
+      <section className="dashboard-command-bar">
+        <div className="min-w-0">
+          <h1>Today at a glance</h1>
+          <p>{identity.user.fullName}&rsquo;s operational workboard</p>
+        </div>
+        {!isMobile && (
           <div className="flex flex-wrap items-center gap-2">
             {editing && (
               <>
@@ -276,9 +283,8 @@ export function DashboardPage({
               {editing ? 'Done' : 'Customize'}
             </button>
           </div>
-        ) : undefined
-      }
-    >
+        )}
+      </section>
       {editing && pickerOpen && (
         <div className="mt-5 rounded-2xl border border-app-border bg-app-surface p-4">
           <p className="text-sm font-semibold">Add a widget</p>
@@ -366,6 +372,6 @@ export function DashboardPage({
           </ResponsiveGrid>
         </div>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }

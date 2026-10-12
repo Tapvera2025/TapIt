@@ -75,47 +75,15 @@ export function CompanyLayout({
   children: React.ReactNode;
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   return (
-    <div className="flex h-dvh overflow-hidden bg-app-background text-app-foreground">
+    <div className="flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
       >
         Skip to content
       </a>
-      <CompanySidebar
-        pathname={pathname}
-        identity={identity}
-        organizationName={organizationName}
-        accountType={accountType}
-        canRequestRoleChange={canRequestRoleChange}
-        canViewAudit={canViewAudit}
-        canManageLeaveTypes={canManageLeaveTypes}
-        canViewLeaveBalances={canViewLeaveBalances}
-        canUseLeaveQueue={canUseLeaveQueue}
-        canViewEmployees={canViewEmployees}
-        canViewTerritories={canViewTerritories}
-        canViewLeads={canViewLeads}
-        canViewCallbacks={canViewCallbacks}
-        canViewHandovers={canViewHandovers}
-        canViewChat={canViewChat}
-        canViewClients={canViewClients}
-        canViewProjects={canViewProjects}
-        canViewLiveBoard={canViewLiveBoard}
-        canReviewCorrections={canReviewCorrections}
-        canReviewBreaches={canReviewBreaches}
-        canManageBreakPolicies={canManageBreakPolicies}
-        canManageShifts={canManageShifts}
-        canManagePayroll={canManagePayroll}
-        canManagePayrollConfig={canManagePayrollConfig}
-        canManageBiometric={canManageBiometric}
-        isHr={isHr}
-        hasRecruitment={hasRecruitment}
-        onNavigate={onNavigate}
-        onLogout={onLogout}
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
       <button
         type="button"
         onClick={() => setSidebarOpen(false)}
@@ -124,16 +92,59 @@ export function CompanyLayout({
         aria-hidden={!sidebarOpen}
         tabIndex={sidebarOpen ? 0 : -1}
       />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <CompanyHeader
-          title={title}
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <CompanySidebar
           pathname={pathname}
-          onMenu={() => setSidebarOpen(true)}
+          identity={identity}
+          organizationName={organizationName}
+          accountType={accountType}
+          canRequestRoleChange={canRequestRoleChange}
+          canViewAudit={canViewAudit}
+          canManageLeaveTypes={canManageLeaveTypes}
+          canViewLeaveBalances={canViewLeaveBalances}
+          canUseLeaveQueue={canUseLeaveQueue}
+          canViewEmployees={canViewEmployees}
+          canViewTerritories={canViewTerritories}
+          canViewLeads={canViewLeads}
+          canViewCallbacks={canViewCallbacks}
+          canViewHandovers={canViewHandovers}
+          canViewChat={canViewChat}
+          canViewClients={canViewClients}
+          canViewProjects={canViewProjects}
+          canViewLiveBoard={canViewLiveBoard}
+          canReviewCorrections={canReviewCorrections}
+          canReviewBreaches={canReviewBreaches}
+          canManageBreakPolicies={canManageBreakPolicies}
+          canManageShifts={canManageShifts}
+          canManagePayroll={canManagePayroll}
+          canManagePayrollConfig={canManagePayrollConfig}
+          canManageBiometric={canManageBiometric}
+          isHr={isHr}
+          hasRecruitment={hasRecruitment}
           onNavigate={onNavigate}
+          onLogout={onLogout}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
         />
-        <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          {children}
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="company-header-shell shrink-0 p-5 pb-0 md:p-8 md:pb-0">
+            <div className="mx-auto w-full max-w-7xl">
+              <CompanyHeader
+                title={title}
+                pathname={pathname}
+                onMenu={() => setSidebarOpen(true)}
+                onNavigate={onNavigate}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
+              />
+            </div>
+          </div>
+          <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

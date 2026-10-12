@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../../ui/Icon.js';
+import { WorkspacePageContainer } from '../../ui/components.js';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,
@@ -9,7 +11,6 @@ import {
   SkeletonTable,
   Modal,
   Notice,
-  Page,
   Select,
 } from '../components/OrganizationUi.js';
 import type {
@@ -105,12 +106,7 @@ export function DesignationsPage(): React.JSX.Element {
     }
   }
   return (
-    <Page
-      eyebrow="Organization"
-      title="Designations"
-      description="Manage job titles and specializations. These values do not grant authorization."
-      action={<Button onClick={create}>Add designation</Button>}
-    >
+    <WorkspacePageContainer>
       {message && (
         <div className="mt-5">
           <Notice>{message}</Notice>
@@ -121,12 +117,25 @@ export function DesignationsPage(): React.JSX.Element {
           <ErrorMessage cause={error} />
         </div>
       )}
-      {loading ? (
-        <SkeletonTable columns={4} rows={5} />
-      ) : items.length === 0 ? (
-        <Empty>No designations are visible to this account.</Empty>
-      ) : (
-        <Card className="mt-6 overflow-hidden p-0">
+      <Card className="mt-5 overflow-hidden p-0">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-b-[color:var(--app-border)] px-5 py-5 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
+              <Icon name="building" className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-muted">Organization</p>
+              <h1 className="mt-0.5 text-base font-bold text-app-foreground">Designation directory</h1>
+              <p className="mt-0.5 text-xs text-app-muted">Manage job titles and specializations. These values do not grant authorization.</p>
+            </div>
+          </div>
+          <Button onClick={create}><span aria-hidden="true">+</span> Add designation</Button>
+        </div>
+        {loading ? (
+          <div className="p-5"><SkeletonTable columns={4} rows={5} /></div>
+        ) : items.length === 0 ? (
+          <div className="p-8"><Empty>No designations are visible to this account.</Empty></div>
+        ) : (
           <div className="divide-y divide-app-border">
             {items.map((item) => (
               <div
@@ -153,8 +162,8 @@ export function DesignationsPage(): React.JSX.Element {
               </div>
             ))}
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
       {open && (
         <Modal
           title={editing ? 'Edit designation' : 'Create designation'}
@@ -199,6 +208,6 @@ export function DesignationsPage(): React.JSX.Element {
           </form>
         </Modal>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }

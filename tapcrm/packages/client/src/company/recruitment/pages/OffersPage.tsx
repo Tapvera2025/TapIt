@@ -70,7 +70,7 @@ export function OffersPage({
   }
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Job Offers"
       description="Compensation structuring, formal letter issuance, candidate acceptance, and terms tracking."

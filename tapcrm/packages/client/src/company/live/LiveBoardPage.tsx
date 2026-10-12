@@ -8,6 +8,7 @@ import {
   type RealtimeConnectionState,
 } from './realtimeClient.js';
 import { Icon } from '../../ui/Icon.js';
+import { WorkspacePageContainer } from '../../ui/components.js';
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -559,7 +560,7 @@ export function LiveBoardPage(): React.JSX.Element {
   // Error State
   if (error) {
     return (
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+      <WorkspacePageContainer>
         <div className="rounded-2xl border border-app-danger/30 bg-app-danger/5 p-8 text-center">
           <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-app-danger/10 text-app-danger">
             <Icon name="clock" className="size-6" />
@@ -575,12 +576,12 @@ export function LiveBoardPage(): React.JSX.Element {
             Retry
           </button>
         </div>
-      </div>
+      </WorkspacePageContainer>
     );
   }
 
   return (
-    <div className="workforce-dashboard space-y-5 p-4 sm:p-6 max-w-7xl mx-auto">
+    <WorkspacePageContainer className="workforce-dashboard space-y-5">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-1.5 text-xs text-app-muted" aria-label="Breadcrumb">
         <span className="font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">COMPANY WORKSPACE</span>
@@ -1197,6 +1198,6 @@ export function LiveBoardPage(): React.JSX.Element {
           </div>
         </div>
       )}
-    </div>
+    </WorkspacePageContainer>
   );
 }

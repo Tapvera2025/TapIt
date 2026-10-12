@@ -77,18 +77,18 @@ export function SessionsPage({ onBack, onSignedOut }: { onBack: () => void; onSi
   return <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-app-background p-4 sm:p-6 text-app-foreground md:p-10">
     <div className="mx-auto w-full max-w-5xl">
       <button type="button" onClick={onBack} className="mb-6 text-sm font-bold text-app-accent hover:underline">Back to CRM</button>
-      <div className="page-heading flex flex-wrap items-center justify-between gap-4 sm:gap-5">
+      <header className="page-toolbar">
         <div className="min-w-0 max-w-full">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-app-accent">Account security</p>
-          <h1 className="mt-2 break-words font-display text-2xl font-bold tracking-[-0.05em] sm:text-3xl md:text-4xl">
-            Sessions &amp; Devices
+          <h1 className="mt-1 break-words font-display text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
+            Active sessions
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-app-muted sm:mt-3">
             Review where your TapCRM account is currently signed in. These are your sessions only.
           </p>
         </div>
-        {!loading && sessions.length > 0 && <button type="button" onClick={() => setConfirm({ kind: 'all' })} className="w-full sm:w-auto rounded-lg border border-[#d86b6b]/40 px-4 py-2.5 text-sm font-bold text-app-danger hover:bg-[#d86b6b]/10">Sign out everywhere</button>}
-      </div>
+        {!loading && sessions.length > 0 && <div className="page-toolbar-action"><button type="button" onClick={() => setConfirm({ kind: 'all' })} className="w-full rounded-lg border border-[#d86b6b]/40 px-4 py-2.5 text-sm font-bold text-app-danger hover:bg-[#d86b6b]/10 sm:w-auto">Sign out everywhere</button></div>}
+      </header>
       {notice && <p className="mt-6 rounded-lg border border-app-accent/30 bg-app-accent/10 px-4 py-3 text-sm text-app-accent">{notice}</p>}
       {error && <div className="mt-6 rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-4 text-sm text-app-danger"><p>{error}</p><button type="button" onClick={() => { void load(); }} className="mt-2 font-bold underline">Retry</button></div>}
       {loading && <div className="mt-8 grid gap-4 md:grid-cols-2" aria-label="Loading sessions" aria-busy="true">{[1, 2].map((item) => <div key={item} className="h-48 animate-pulse rounded-2xl border border-app-border bg-app-surface" />)}</div>}

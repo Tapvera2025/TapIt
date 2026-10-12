@@ -75,7 +75,7 @@ export function CandidatesPage({
   });
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Candidate Pipeline"
       description="Talent pool management, applicant tracking, screening, evaluation stages, and selection records."

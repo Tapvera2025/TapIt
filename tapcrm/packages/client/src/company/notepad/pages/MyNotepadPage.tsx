@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Notice, SkeletonNotepadPage } from '../../../ui/components.js';
+import { Card, Notice, SkeletonNotepadPage, WorkspacePageContainer } from '../../../ui/components.js';
 import {
   clearNote,
   getCurrentNote,
@@ -151,11 +151,11 @@ export function MyNotepadPage(): React.JSX.Element {
     content.trim().length === 0 ? 0 : content.trim().split(/\s+/).length;
   const lineCount = content.length === 0 ? 0 : content.split('\n').length;
 
-  if (loadingNote && !generalError) return <div className="p-4 sm:p-6 md:p-8"><SkeletonNotepadPage /></div>;
+  if (loadingNote && !generalError) return <WorkspacePageContainer><SkeletonNotepadPage /></WorkspacePageContainer>;
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
-      <div className="mx-auto max-w-5xl space-y-4">
+    <WorkspacePageContainer>
+      <div className="space-y-4">
         {/* Error notification banner if any */}
         {generalError && (
           <Notice error>
@@ -230,6 +230,6 @@ export function MyNotepadPage(): React.JSX.Element {
           onClose={() => setIsClearConfirmOpen(false)}
         />
       </div>
-    </div>
+    </WorkspacePageContainer>
   );
 }

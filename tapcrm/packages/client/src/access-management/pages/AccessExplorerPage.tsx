@@ -245,11 +245,11 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
       title="Access Explorer"
       description="See what each person can do and why, who has a particular power, and the powers given to people directly."
     >
-      <div className="mt-6 flex gap-2 border-b border-app-border">
+      <div className="mt-6 flex flex-wrap gap-1.5 rounded-2xl border border-app-border bg-app-surface p-1.5">
         {canViewAccess ? (
           <button
             type="button"
-            className={`border-b-2 px-4 py-3 text-sm font-bold ${tab === 'person' ? 'border-app-accent text-app-accent' : 'border-transparent text-app-muted'}`}
+            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${tab === 'person' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
             onClick={() => setTab('person')}
           >
             By person
@@ -257,7 +257,7 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
         ) : null}
         <button
           type="button"
-          className={`border-b-2 px-4 py-3 text-sm font-bold ${tab === 'role-changes' ? 'border-app-accent text-app-accent' : 'border-transparent text-app-muted'}`}
+          className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${tab === 'role-changes' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
           onClick={() => setTab('role-changes')}
         >
           Role changes
@@ -265,7 +265,7 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
         {canViewAccess ? (
           <button
             type="button"
-            className={`border-b-2 px-4 py-3 text-sm font-bold ${tab === 'capability' ? 'border-app-accent text-app-accent' : 'border-transparent text-app-muted'}`}
+            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${tab === 'capability' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
             onClick={() => setTab('capability')}
           >
             By power
@@ -274,7 +274,7 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
         {canViewAccess ? (
           <button
             type="button"
-            className={`border-b-2 px-4 py-3 text-sm font-bold ${tab === 'overrides' ? 'border-app-accent text-app-accent' : 'border-transparent text-app-muted'}`}
+            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${tab === 'overrides' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
             onClick={() => setTab('overrides')}
           >
             Given directly

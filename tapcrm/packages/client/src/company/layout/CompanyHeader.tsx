@@ -8,15 +8,30 @@ export function CompanyHeader({
   onMenu,
   onNavigate,
   pathname,
+  sidebarCollapsed,
+  onToggleSidebar,
 }: {
   title: string;
   onMenu: () => void;
   onNavigate: (path: string) => void;
   pathname: string;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }): React.JSX.Element {
   return (
-    <header className="company-header ui-card mx-3 mt-3 flex shrink-0 items-center justify-between gap-2 px-3 py-2.5 sm:mx-4 sm:mt-4 sm:gap-3 sm:px-4 sm:py-3 md:mx-8 md:mt-5 md:px-5">
+    <header className="company-header relative z-20 flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-3 sm:gap-3 sm:px-4 sm:py-3.5 md:gap-3 md:px-5 md:py-4">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        {sidebarCollapsed && onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="hidden rounded-xl border border-app-border p-2 text-app-muted hover:bg-app-surface-raised hover:text-app-accent md:inline-flex"
+            aria-label="Show sidebar"
+            title="Show sidebar"
+          >
+            <Icon name="chevron-right" className="size-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={onMenu}

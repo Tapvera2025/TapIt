@@ -5,7 +5,7 @@ import {
   rejectCorrection,
   type CorrectionListItem,
 } from './attendanceApi.js';
-import { Button, Notice, SkeletonTable } from '../../ui/components.js';
+import { Button, Notice, SkeletonTable, WorkspacePageContainer } from '../../ui/components.js';
 
 type Filter = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -75,7 +75,7 @@ export function CorrectionsPage(): React.JSX.Element {
   }
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <WorkspacePageContainer className="space-y-4">
       <div className="flex flex-wrap gap-2">
         {(['pending', 'approved', 'rejected', 'all'] as const).map((key) => (
           <button
@@ -139,6 +139,6 @@ export function CorrectionsPage(): React.JSX.Element {
           ))}
         </div>
       )}
-    </div>
+    </WorkspacePageContainer>
   );
 }

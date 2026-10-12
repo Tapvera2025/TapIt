@@ -71,7 +71,7 @@ export function ResumeInboxPage({
   });
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Resume Inbox"
       description="Candidate resume collection, automated parsing intelligence, review queue, and pipeline conversion."

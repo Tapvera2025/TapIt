@@ -265,26 +265,27 @@ export function ConversationWorkspace({
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       {/* Conversation list */}
       {!hideList && (
-        <div className={`flex w-full min-h-0 flex-1 flex-col border-b border-app-border md:h-full md:w-80 md:flex-none md:border-b-0 md:border-r ${chat.activeId ? 'hidden md:flex' : ''}`}>
-          <div className="flex items-center justify-between gap-2 border-b border-app-border px-5 py-4">
+        <div className={`flex w-full min-h-0 flex-1 flex-col border-0 bg-transparent outline-none md:h-full md:w-80 md:flex-none ${chat.activeId ? 'hidden md:flex' : ''}`}>
+          <div className="flex items-center justify-between gap-2 px-5 py-4">
             <p className="text-sm font-semibold">{title}</p>
             {onNewClick && <Button onClick={onNewClick} className="!px-3 !py-1.5 !text-xs">{newLabel}</Button>}
           </div>
+          <div className="mx-4 h-px shrink-0 bg-app-border/70" />
           <div className="min-h-0 flex-1 overflow-y-auto">
             {chat.conversations.length === 0 && (
               <div className="px-4">
                 <Empty>{emptyHint}</Empty>
               </div>
             )}
-            <ul>
+            <ul className="px-3">
               {chat.conversations.map((conversation) => {
                 const active = conversation.id === chat.activeId;
                 return (
-                  <li key={conversation.id}>
+                  <li key={conversation.id} className="border-b border-app-border/70 last:border-b-0">
                     <button
                       type="button"
                       onClick={() => void chat.openConversation(conversation.id)}
-                      className={`flex w-full items-start gap-3 border-b border-app-border px-4 py-3 text-left hover:bg-app-surface-raised ${active ? 'bg-app-surface-raised' : ''}`}
+                      className={`my-1 flex w-full items-start gap-3 rounded-lg px-2 py-3 text-left hover:bg-app-surface-raised ${active ? 'bg-app-accent/10 text-app-accent' : ''}`}
                     >
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
@@ -311,12 +312,12 @@ export function ConversationWorkspace({
       )}
 
       {/* Thread */}
-      <div className={`min-h-0 flex-1 flex-col ${!hideList && !chat.activeId ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`relative min-h-0 flex-1 flex-col ${!hideList ? 'md:before:absolute md:before:inset-y-5 md:before:left-0 md:before:w-px md:before:bg-app-border' : ''} ${!hideList && !chat.activeId ? 'hidden md:flex' : 'flex'}`}>
         {!chat.activeId ? (
           <div className="grid flex-1 place-items-center text-sm text-app-muted">Select a conversation, or start a new one.</div>
         ) : (
           <>
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-app-border p-4">
+            <div className="relative flex shrink-0 items-center justify-between gap-2 p-4 after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:bg-app-border">
               <div className="flex min-w-0 items-center gap-2">
                 {!hideList && (
                   <button

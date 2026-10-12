@@ -82,6 +82,7 @@ export function RecruitmentWorkspace({
       </div>
 
       {/* Active Tab Screen */}
+      <div key={activeTab} className="recruitment-route-transition">
       {activeTab === 'requisitions' ? (
         <RequisitionsPage
           onAddCandidateForRequisition={(req) => {
@@ -121,6 +122,7 @@ export function RecruitmentWorkspace({
           }}
         />
       )}
+      </div>
 
       {/* Global Quick Action Modals */}
       {globalCreateReqOpen && (

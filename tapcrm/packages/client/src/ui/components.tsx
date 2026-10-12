@@ -1,40 +1,60 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Icon } from './Icon.js';
+
+/** Shared outer boundary for authenticated Company Workspace pages. */
+export function WorkspacePageContainer({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <div className="w-full p-5 md:p-8">
+      <div className={`mx-auto w-full max-w-7xl ${className}`}>{children}</div>
+    </div>
+  );
+}
 
 export function Page({
   eyebrow,
   title,
   description,
   action,
+  variant = 'default',
   children,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
+  variant?: 'default' | 'recruitment';
   children: ReactNode;
 }): React.JSX.Element {
+  const recruitmentHeader = variant === 'recruitment';
   return (
-    <div className="p-5 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="page-heading flex flex-wrap items-center justify-between gap-4">
-          <div>
+    <WorkspacePageContainer>
+        <header className={recruitmentHeader ? 'recruitment-page-header' : 'page-toolbar'}>
+          <div className={recruitmentHeader ? 'flex min-w-0 items-start gap-3' : 'min-w-0'}>
+            {recruitmentHeader && <span className="recruitment-page-header-icon"><Icon name="briefcase" className="size-5" /></span>}
+            <div className="min-w-0">
             {eyebrow && (
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">
                 {eyebrow}
               </p>
             )}
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-[-0.05em]">
+            <h1 className="mt-1 font-display text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
               {title}
             </h1>
             {description && (
-              <p className="mt-2 max-w-3xl text-sm text-app-muted">{description}</p>
+              <p className="mt-1.5 max-w-3xl text-sm leading-6 text-app-muted">{description}</p>
             )}
+            </div>
           </div>
-          {action}
-        </div>
-        <div className="mt-8">{children}</div>
-      </div>
-    </div>
+          {action && <div className={recruitmentHeader ? 'recruitment-page-header-actions' : 'page-toolbar-action'}>{action}</div>}
+        </header>
+        <div className="mt-6">{children}</div>
+    </WorkspacePageContainer>
   );
 }
 

@@ -11,7 +11,7 @@ import {
   type CorrectionRequest,
 } from './attendanceApi.js';
 import { calendarMonth } from '../../ui/calendar-model.js';
-import { Skeleton, SkeletonMetric } from '../../ui/components.js';
+import { Skeleton, SkeletonMetric, WorkspacePageContainer } from '../../ui/components.js';
 
 function todayDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -155,7 +155,7 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
   const effectiveEvents = detail?.events.effective ?? [];
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <WorkspacePageContainer className="space-y-4">
       <PeopleCalendar
         month={month}
         selectedDate={selectedDate}
@@ -168,7 +168,7 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
       />
 
       <div className="rounded-2xl border border-app-border bg-app-surface p-4 sm:p-5">
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">
             {selectedDate}
           </p>
@@ -176,7 +176,7 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
             <button
               type="button"
               onClick={() => { setShowCorrectionForm(true); setCorrectionNotice(null); if (!detail) setCorrectionKind('add-event'); }}
-              className="rounded-lg border border-app-border px-3 py-1.5 text-xs text-app-muted hover:border-app-accent hover:text-app-foreground"
+              className="w-full rounded-lg border border-app-border px-3 py-2 text-xs text-app-muted hover:border-app-accent hover:text-app-foreground sm:w-auto sm:py-1.5"
             >
               Request correction
             </button>
@@ -200,14 +200,14 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
 
         {detail?.record && (
           <div className="space-y-3">
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
               {[
                 { label: 'Worked', value: fmt(detail.record.minutes.worked) },
                 { label: 'Break', value: fmt(detail.record.minutes.break) },
                 { label: 'Arrival', value: fmtTime(detail.record.arrivalAt) },
                 { label: 'Departure', value: fmtTime(detail.record.departureAt) },
               ].map(({ label, value }) => (
-                <div key={label} className="rounded-xl bg-app-surface-raised px-3 py-2.5">
+                <div key={label} className="min-w-0 rounded-xl bg-app-surface-raised px-3 py-2.5">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-app-muted">{label}</p>
                   <p className="mt-0.5 text-base font-bold tabular-nums">{value}</p>
                 </div>
@@ -219,10 +219,10 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-app-muted">Events</p>
                 <div className="space-y-1">
                   {effectiveEvents.map((ev) => (
-                    <div key={ev.id} className="flex items-center gap-3 rounded-lg bg-app-surface-raised px-3 py-2 text-xs">
+                    <div key={ev.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-app-surface-raised px-3 py-2 text-xs">
                       <span className="font-semibold uppercase">{ev.kind.replace(/-/g, ' ')}</span>
                       <span className="tabular-nums text-app-muted">{fmtTime(ev.at ?? ev.occurredAt ?? null)}</span>
-                      <span className="text-app-muted">{ev.source}</span>
+                      <span className="truncate text-app-muted">{ev.source}</span>
                     </div>
                   ))}
                 </div>
@@ -235,13 +235,13 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
           <div className="mt-4 space-y-3 rounded-xl border border-app-border p-4">
             <p className="text-sm font-semibold">Request correction</p>
 
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               {(['add-event', 'void-event'] as const).map((k) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => setCorrectionKind(k)}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${correctionKind === k ? 'border-app-accent bg-app-accent/10 text-app-accent' : 'border-app-border text-app-muted hover:border-app-accent'}`}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium sm:py-1.5 ${correctionKind === k ? 'border-app-accent bg-app-accent/10 text-app-accent' : 'border-app-border text-app-muted hover:border-app-accent'}`}
                 >
                   {k === 'add-event' ? 'Add event' : 'Void event'}
                 </button>
@@ -306,19 +306,19 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
 
             {correctionError && <p className="text-xs text-app-danger">{correctionError}</p>}
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={() => void submitCorrection()}
                 disabled={submitting}
-                className="rounded-lg bg-app-accent px-4 py-2 text-sm font-semibold text-app-on-accent disabled:opacity-50"
+                className="w-full rounded-lg bg-app-accent px-4 py-2 text-sm font-semibold text-app-on-accent disabled:opacity-50 sm:w-auto"
               >
                 {submitting ? 'Submitting…' : 'Submit'}
               </button>
               <button
                 type="button"
                 onClick={() => { setShowCorrectionForm(false); setCorrectionError(null); }}
-                className="rounded-lg border border-app-border px-4 py-2 text-sm text-app-muted hover:border-app-accent"
+                className="w-full rounded-lg border border-app-border px-4 py-2 text-sm text-app-muted hover:border-app-accent sm:w-auto"
               >
                 Cancel
               </button>
@@ -347,6 +347,6 @@ export function AttendancePage({ userId }: { userId: string }): React.JSX.Elemen
           </div>
         </div>
       )}
-    </div>
+    </WorkspacePageContainer>
   );
 }

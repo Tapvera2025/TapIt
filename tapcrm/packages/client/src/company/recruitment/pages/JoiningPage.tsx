@@ -41,7 +41,7 @@ export function JoiningPage({
   }, [statusFilter]);
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Candidate Joining &amp; Onboarding"
       description="Pre-boarding tracking, joining confirmation, and handoff to the organization Employee module."

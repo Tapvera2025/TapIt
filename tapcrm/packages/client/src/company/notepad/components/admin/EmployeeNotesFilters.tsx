@@ -20,7 +20,7 @@ export function EmployeeNotesFilters({
   const hasActiveFilters = Boolean(selectedDepartment || search.trim());
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-app-border bg-app-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
         {/* Department Filter */}
         <div className="w-full sm:w-64">

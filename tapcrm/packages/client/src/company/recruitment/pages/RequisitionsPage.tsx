@@ -71,7 +71,7 @@ export function RequisitionsPage({
   });
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Job Requisitions"
       description="Headcount approval, job specifications, openings tracking, and hiring targets."

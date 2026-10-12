@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { loadTodayStatus, punch, type PunchKind, type LiveRow } from '../live/liveApi.js';
 import { getBreakPrompts, submitBreachExplanation, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
-import { SkeletonTodayPage } from '../../ui/components.js';
+import { SkeletonTodayPage, WorkspacePageContainer } from '../../ui/components.js';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
 
@@ -670,12 +670,12 @@ export function TodayPage({
 
   if (error) {
     return (
-      <div className="p-6 text-sm text-app-danger">{error}</div>
+      <WorkspacePageContainer className="text-sm text-app-danger">{error}</WorkspacePageContainer>
     );
   }
 
   if (!status) {
-    return <div className="p-4 sm:p-6 lg:p-4"><SkeletonTodayPage /></div>;
+    return <WorkspacePageContainer><SkeletonTodayPage /></WorkspacePageContainer>;
   }
 
   const { row, allowedMoves } = status;
@@ -683,7 +683,7 @@ export function TodayPage({
 
   return (
     <>
-      <div className="min-w-0 space-y-4 p-4 sm:p-6 lg:p-4">
+      <WorkspacePageContainer className="min-w-0 space-y-4">
         <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-[calc(100dvh-9rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-stretch">
           <div className="flex min-h-0 min-w-0 flex-col gap-4 lg:h-full">
             <div className="min-h-0 lg:flex-1">
@@ -706,7 +706,7 @@ export function TodayPage({
 
         {/* Break prompts (if any) */}
         {prompts.length > 0 && <BreakPromptsPanel prompts={prompts} />}
-      </div>
+      </WorkspacePageContainer>
     </>
   );
 }

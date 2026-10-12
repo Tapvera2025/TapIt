@@ -125,15 +125,15 @@ export function EmployeesPage({
       <div className="mx-auto max-w-7xl">
 
         {/* ── Page header ─────────────────────────────────────────────────── */}
-        <div className="page-heading flex flex-wrap items-center justify-between gap-4">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-app-border bg-app-surface px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">
               People
             </p>
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-[-0.05em]">
+            <h1 className="mt-1 font-display text-xl font-bold tracking-[-0.035em]">
               Employees
             </h1>
-            <p className="mt-2 text-sm text-app-muted">
+            <p className="mt-1 text-sm text-app-muted">
               {loading
                 ? 'Loading…'
                 : `${employees.length} member${employees.length !== 1 ? 's' : ''} in your organization`}
@@ -199,7 +199,7 @@ export function EmployeesPage({
         )}
 
         {/* ── Employee list ────────────────────────────────────────────────── */}
-        <div className="mt-6">
+        <div>
           {loading ? (
             <SkeletonTableRows count={5} />
           ) : employees.length === 0 ? (
@@ -227,9 +227,9 @@ export function EmployeesPage({
               )}
             </div>
           ) : (
-            <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
+            <section className="overflow-hidden rounded-2xl bg-app-surface">
               {/* Search */}
-              <div className="flex items-center gap-3 border-b border-app-border px-4 py-3">
+              <div className="flex items-center gap-3 border-b border-app-border/70 px-4 py-3">
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true" className="shrink-0 text-app-muted">
                   <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5" />
                   <path d="M10 10l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -261,7 +261,7 @@ export function EmployeesPage({
               </div>
 
               {/* Column header row */}
-              <div className="grid grid-cols-[1fr_auto] border-b border-app-border bg-app-surface-raised px-5 py-2">
+              <div className="grid grid-cols-[1fr_auto] border-b border-app-border/70 bg-app-surface-raised px-5 py-2">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-app-muted">Employee</span>
                 <span className="text-[11px] font-bold uppercase tracking-widest text-app-muted">Actions</span>
               </div>
@@ -272,7 +272,7 @@ export function EmployeesPage({
                   No employees match &ldquo;{search}&rdquo;
                 </p>
               ) : (
-                <div className="divide-y divide-app-border">
+                <div className="divide-y divide-app-border/70">
                   {visible.map((employee, idx) => {
                     const av = getAvatarStyle(employee.fullName);
                     const metaParts = [

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Card, Notice, SkeletonCard } from '../../../ui/components.js';
+import { Notice, SkeletonCard, WorkspacePageContainer } from '../../../ui/components.js';
+import { Icon } from '../../../ui/Icon.js';
 import {
   completeTodo,
   createTodo,
@@ -13,7 +14,6 @@ import { AddTodoModal } from '../components/AddTodoModal.js';
 import { DeleteTodoModal } from '../components/DeleteTodoModal.js';
 import { TodoCard } from '../components/TodoCard.js';
 import { TodoFilters } from '../components/TodoFilters.js';
-import { TodoHeader } from '../components/TodoHeader.js';
 import { TodoSection } from '../components/TodoSection.js';
 import { TodoStats } from '../components/TodoStats.js';
 import { TodoProgress } from '../components/TodoProgress.js';
@@ -161,9 +161,7 @@ export function MyTodoPage(): React.JSX.Element {
 
       if (editingTodo) {
         const updated = await updateTodo(editingTodo.id, payload);
-        setTodos((prev) =>
-          prev.map((item) => (item.id === updated.id ? updated : item)),
-        );
+        setTodos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         toast.success('Todo updated successfully');
       } else {
         const created = await createTodo(payload as CreateTodoPayload);
@@ -188,9 +186,7 @@ export function MyTodoPage(): React.JSX.Element {
       setMutatingId(id);
       setError(null);
       const updated = await completeTodo(id);
-      setTodos((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
-      );
+      setTodos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to complete todo.');
     } finally {
@@ -203,9 +199,7 @@ export function MyTodoPage(): React.JSX.Element {
       setMutatingId(id);
       setError(null);
       const updated = await reopenTodo(id);
-      setTodos((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
-      );
+      setTodos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reopen todo.');
     } finally {
@@ -229,7 +223,8 @@ export function MyTodoPage(): React.JSX.Element {
       setDeletingTodo(null);
       toast.success('Todo deleted successfully');
     } catch (err) {
-      const msg = err instanceof Error && err.message ? err.message : 'Failed to delete todo.';
+      const msg =
+        err instanceof Error && err.message ? err.message : 'Failed to delete todo.';
       setError(msg);
       toast.error(msg);
     } finally {
@@ -239,8 +234,8 @@ export function MyTodoPage(): React.JSX.Element {
   }
 
   return (
-    <div className="p-3 sm:p-5 md:p-6 lg:p-8 w-full min-w-0">
-      <div className="mx-auto max-w-5xl space-y-3.5 sm:space-y-4 w-full min-w-0">
+    <WorkspacePageContainer className="min-w-0">
+      <div className="space-y-3.5 sm:space-y-4 w-full min-w-0">
         {/* Error notification banner */}
         {error && (
           <Notice error>
@@ -257,9 +252,6 @@ export function MyTodoPage(): React.JSX.Element {
           </Notice>
         )}
 
-        {/* Page Header */}
-        <TodoHeader onAddTodo={handleOpenAdd} />
-
         {/* Compact statistics row: Total | Completed | Today | Upcoming | Progress */}
         <TodoStats
           totalCount={stats.total}
@@ -270,35 +262,63 @@ export function MyTodoPage(): React.JSX.Element {
           <TodoProgress
             totalCount={stats.total}
             completedCount={stats.completed}
+            onAddTodo={handleOpenAdd}
           />
         </TodoStats>
 
-        {/* Search & Filters */}
-        <Card className="!p-2 sm:!p-2.5">
-          <TodoFilters
-            search={search}
-            onSearchChange={setSearch}
-            priority={priority}
-            onPriorityChange={setPriority}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            tabCounts={{
-              all: todos.length,
-              today: stats.today,
-              upcoming: stats.upcoming,
-              completed: stats.completed,
-            }}
-            disabled={loading}
-          />
-        </Card>
+        {/* Unified planner toolbar */}
+        <TodoFilters
+          search={search}
+          onSearchChange={setSearch}
+          priority={priority}
+          onPriorityChange={setPriority}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          tabCounts={{
+            all: todos.length,
+            today: stats.today,
+            upcoming: stats.upcoming,
+            completed: stats.completed,
+          }}
+          disabled={loading}
+        />
 
         {/* Content / Loading / Sections */}
         {loading ? (
-          <div className="space-y-3" role="status" aria-label="Loading todos">{Array.from({ length: 4 }, (_, index) => <SkeletonCard key={index} className="h-20" />)}</div>
+          <div className="space-y-3" role="status" aria-label="Loading todos">
+            {Array.from({ length: 4 }, (_, index) => (
+              <SkeletonCard key={index} className="h-20" />
+            ))}
+          </div>
         ) : (
-          <div className="space-y-4 sm:space-y-5 w-full min-w-0">
+          <div className="w-full min-w-0 space-y-4 sm:space-y-5">
+            {activeTab === 'all' &&
+              todaySection.length === 0 &&
+              upcomingSection.length === 0 &&
+              completedSection.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-app-border bg-app-surface/50 px-6 py-12 text-center">
+                  <span className="mx-auto grid size-10 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
+                    <Icon name="todo" className="size-5" />
+                  </span>
+                  <h2 className="mt-3 text-sm font-semibold text-app-foreground">
+                    Your plan is clear
+                  </h2>
+                  <p className="mx-auto mt-1 max-w-sm text-xs text-app-muted">
+                    Add a todo to start organizing today’s work and upcoming priorities.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenAdd}
+                    className="mt-4 inline-flex h-9 items-center rounded-xl bg-app-accent px-3.5 text-xs font-semibold text-white transition hover:bg-app-accent/90 focus:outline-none focus:ring-2 focus:ring-app-accent/40"
+                  >
+                    Add Todo
+                  </button>
+                </div>
+              )}
+
             {/* Today Section */}
-            {(activeTab === 'all' || activeTab === 'today') && (
+            {(activeTab === 'today' ||
+              (activeTab === 'all' && todaySection.length > 0)) && (
               <TodoSection
                 title="Today"
                 count={todaySection.length}
@@ -319,7 +339,8 @@ export function MyTodoPage(): React.JSX.Element {
             )}
 
             {/* Upcoming Section */}
-            {(activeTab === 'all' || activeTab === 'upcoming') && (
+            {(activeTab === 'upcoming' ||
+              (activeTab === 'all' && upcomingSection.length > 0)) && (
               <TodoSection
                 title="Upcoming"
                 count={upcomingSection.length}
@@ -340,7 +361,8 @@ export function MyTodoPage(): React.JSX.Element {
             )}
 
             {/* Completed Section */}
-            {(activeTab === 'all' || activeTab === 'completed') && (
+            {(activeTab === 'completed' ||
+              (activeTab === 'all' && completedSection.length > 0)) && (
               <TodoSection
                 title="Completed"
                 count={completedSection.length}
@@ -387,6 +409,6 @@ export function MyTodoPage(): React.JSX.Element {
           isDeleting={isDeleting}
         />
       </div>
-    </div>
+    </WorkspacePageContainer>
   );
 }

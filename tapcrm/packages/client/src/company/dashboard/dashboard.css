@@ -8,6 +8,37 @@
   min-width: 0;
 }
 
+.dashboard-command-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.dashboard-command-bar h1 {
+  margin: 0;
+  color: var(--app-foreground);
+  font-family: var(--font-display, inherit);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.dashboard-command-bar p:last-child {
+  margin: 0.2rem 0 0;
+  color: var(--app-muted);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .dashboard-command-bar {
+    align-items: flex-start;
+  }
+}
+
 .dashboard-grid .react-grid-item {
   background: var(--app-surface);
   border: 1px solid var(--app-border);

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { WorkspacePageContainer } from '../../ui/components.js';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,
@@ -7,7 +8,6 @@ import {
   SkeletonDetail,
   Modal,
   Notice,
-  Page,
   Select,
 } from '../components/OrganizationUi.js';
 import {
@@ -327,11 +327,7 @@ export function OrgChartPage(): React.JSX.Element {
   }
 
   return (
-    <Page
-      eyebrow="Organization"
-      title="Organization chart"
-      description="Leadership, departments, and reporting relationships."
-    >
+    <WorkspacePageContainer>
       {loading ? (
         <SkeletonDetail sections={2} />
       ) : error ? (
@@ -347,7 +343,7 @@ export function OrgChartPage(): React.JSX.Element {
           available.
         </Empty>
       ) : (
-        <section className="org-chart mt-6" aria-label="Organization hierarchy">
+        <section className="org-chart" aria-label="Organization hierarchy">
           {message && (
             <div className="org-chart-message">
               <Notice>{message}</Notice>
@@ -778,7 +774,7 @@ export function OrgChartPage(): React.JSX.Element {
           </div>
         </Modal>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }
 
