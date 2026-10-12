@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import Lenis from 'lenis';
-import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
@@ -104,6 +103,8 @@ export function CompanySidebar({
   onClose,
   collapsed = false,
   onToggleCollapsed,
+  width = 256,
+  onResize,
 }: {
   pathname: string;
   identity: {
@@ -145,6 +146,8 @@ export function CompanySidebar({
   onClose: () => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  width?: number;
+  onResize?: (width: number) => void;
 }): React.JSX.Element {
   const [organizationOpen, setOrganizationOpen] = useState(
     pathname.startsWith('/company/organization'),
@@ -157,6 +160,8 @@ export function CompanySidebar({
   const prevOpenRef = useRef(open);
   const navigationRef = useRef<HTMLElement>(null);
   const jellyTimerRef = useRef<number | null>(null);
+  const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(
     () => () => {
@@ -205,16 +210,35 @@ export function CompanySidebar({
   const { activePet } = useAiPet();
   const { accent } = useTheme();
 
-  function toggleSidebar(): void {
-    if (!onToggleCollapsed) return;
-    setSidebarJelly(true);
-    onToggleCollapsed();
-    if (jellyTimerRef.current !== null) window.clearTimeout(jellyTimerRef.current);
-    jellyTimerRef.current = window.setTimeout(() => {
-      setSidebarJelly(false);
-      jellyTimerRef.current = null;
-    }, 680);
-  }
+  const clampWidth = (nextWidth: number) => Math.min(420, Math.max(220, nextWidth));
+
+  const startResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (collapsed || !onResize) return;
+    event.preventDefault();
+    resizeStartRef.current = { x: event.clientX, width };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizing(true);
+  };
+
+  const resizeSidebar = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!resizeStartRef.current || !onResize) return;
+    onResize(clampWidth(resizeStartRef.current.width + event.clientX - resizeStartRef.current.x));
+  };
+
+  const stopResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    resizeStartRef.current = null;
+    setIsResizing(false);
+  };
+
+  const resizeWithKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (!onResize) return;
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    onResize(clampWidth(width + (event.key === 'ArrowRight' ? 16 : -16)));
+  };
 
   const navigation: CompanyNavGroup[] = [
     {
@@ -495,39 +519,49 @@ export function CompanySidebar({
 
   return (
     <aside
-      className={`workspace-sidebar fixed inset-y-0 left-0 z-40 flex h-dvh min-h-0 w-64 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform md:static md:my-5 md:ml-6 md:h-auto md:translate-x-0 md:rounded-2xl md:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:my-0 md:ml-0 md:w-0 md:border-r-0 md:px-0 md:opacity-0 md:pointer-events-none' : 'md:w-64'}`}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-200 ease-out will-change-transform lg:static lg:my-5 lg:ml-5 lg:h-auto lg:max-h-[calc(100dvh-6.5rem)] lg:self-start lg:translate-x-0 lg:rounded-2xl lg:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'lg:w-[76px] lg:px-2' : 'lg:w-64'}`}
+      style={collapsed ? undefined : ({ '--company-sidebar-width': `${width}px` } as React.CSSProperties)}
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
       data-sidebar-open={open ? 'true' : 'false'}
       data-sidebar-animating={sidebarJelly ? 'true' : 'false'}
     >
-      <div className="flex shrink-0 items-center justify-between px-3">
-        <div>
-          <BrandLogo className="w-[176px]" />
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted">
-            Company Workspace
-          </p>
-        </div>
+      {!collapsed && (
+        <button
+          type="button"
+          className={`sidebar-resize-handle hidden lg:flex ${isResizing ? 'is-resizing' : ''}`}
+          onPointerDown={startResize}
+          onPointerMove={resizeSidebar}
+          onPointerUp={stopResize}
+          onPointerCancel={stopResize}
+          onKeyDown={resizeWithKeyboard}
+          aria-label="Resize company sidebar"
+          aria-orientation="vertical"
+          aria-valuemin={220}
+          aria-valuemax={420}
+          aria-valuenow={width}
+          role="separator"
+          title="Drag to resize sidebar"
+        >
+          <span aria-hidden="true" />
+        </button>
+      )}
+      <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'lg:justify-center' : 'justify-between'}`}>
+        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'lg:hidden' : ''}`}>
+          Company Workspace
+        </p>
+        <span className={`hidden size-2 rounded-full bg-app-accent lg:block ${collapsed ? '' : 'lg:hidden'}`} aria-hidden="true" />
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-2 text-sidebar-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground md:hidden"
+          className="rounded-lg p-2 text-sidebar-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground lg:hidden"
           aria-label="Close navigation"
         >
           ×
         </button>
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          className="hidden rounded-lg p-2 text-sidebar-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground md:inline-flex"
-          aria-label="Collapse sidebar"
-          title="Collapse sidebar"
-        >
-          <Icon name="chevron-left" className="size-4" />
-        </button>
       </div>
       <nav
         ref={navigationRef}
-        className="mt-8 min-h-0 flex-1 space-y-7 overflow-y-auto"
+        className={`min-h-0 flex-1 space-y-7 overflow-y-auto ${collapsed ? 'mt-6 lg:space-y-4' : 'mt-7'}`}
         aria-label="Company navigation"
       >
         {navigation.map((group) => {
@@ -538,22 +572,22 @@ export function CompanySidebar({
           return (
             <div
               key={group.label}
-              className={
-                group.label === 'Preferences' ? 'sidebar-preferences-group' : undefined
-              }
+              className={`${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed ? 'lg:border-t lg:border-sidebar-border/70 lg:pt-4 first:lg:border-t-0 first:lg:pt-0' : ''}`}
             >
               {isOrganization ? (
                 <button
                   type="button"
                   onClick={() => setOrganizationOpen((openState) => !openState)}
                   aria-expanded={organizationOpen}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] ${collapsed ? 'lg:justify-center lg:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                  title={collapsed ? 'Organization' : undefined}
                 >
-                  <span>Organization</span>
-                  <span aria-hidden="true">{organizationOpen ? '−' : '+'}</span>
+                  <Icon name="building" className={`hidden size-4 lg:block ${collapsed ? '' : 'lg:hidden'}`} />
+                  <span className={collapsed ? 'lg:hidden' : ''}>Organization</span>
+                  <span aria-hidden="true" className={collapsed ? 'lg:hidden' : ''}>{organizationOpen ? '−' : '+'}</span>
                 </button>
               ) : (
-                <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted">
+                <p className={`px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted ${collapsed ? 'lg:hidden' : ''}`}>
                   {group.label}
                 </p>
               )}
@@ -588,22 +622,23 @@ export function CompanySidebar({
                               onClose();
                             }
                           }}
-                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${collapsed ? 'lg:justify-center lg:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                          title={collapsed ? item.label : undefined}
                         >
                           <span className="flex items-center gap-3">
                             <Icon name={item.icon} />
-                            <span>{item.label}</span>
+                            <span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span>
                           </span>
                           {item.children && (
                             <span
                               aria-hidden="true"
-                              className="text-xs text-sidebar-muted"
+                              className={`text-xs text-sidebar-muted ${collapsed ? 'lg:hidden' : ''}`}
                             >
                               {showChildren ? '▾' : '▸'}
                             </span>
                           )}
                         </button>
-                        {showChildren && (
+                        {showChildren && !collapsed && (
                           <div className="ml-7 mt-1 space-y-1 border-l border-sidebar-border pl-2">
                             {item.children!.map((sub) => {
                               const active =
@@ -636,7 +671,7 @@ export function CompanySidebar({
             </div>
           );
         })}
-        <div className="sidebar-decoration">
+        <div className={`sidebar-decoration ${collapsed ? 'lg:hidden' : ''}`}>
           <div className="relative z-10 max-w-[76%]">
             <p className="text-sm font-medium leading-5">
               Work smarter.
@@ -650,46 +685,15 @@ export function CompanySidebar({
       </nav>
       {activePet && <SidebarPet pet={activePet} />}
       <div className="shrink-0 border-t border-t-[color:var(--sidebar-border)] pt-4">
-        <div className="sidebar-profile-card">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="sidebar-profile-avatar flex size-10 items-center justify-center rounded-full text-xs font-bold shrink-0">
-              {identity.fullName
-                ? identity.fullName
-                    .trim()
-                    .split(/\s+/)
-                    .map((p) => p[0])
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .join('')
-                    .toUpperCase()
-                : 'U'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-sidebar-foreground">
-                {identity.fullName}
-              </p>
-              <p className="truncate text-[11px] leading-4 text-sidebar-muted">
-                {identity.email}
-              </p>
-              <span
-                className="mt-1 inline-flex rounded-md bg-amber-400/12 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-600 dark:text-amber-300"
-                title={organizationName ?? undefined}
-              >
-                {organizationName ? organizationName.slice(0, 3).toUpperCase() : 'ABP'}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 border-t border-sidebar-border/70 pt-3">
-          <button
-            type="button"
-            onClick={onLogout}
-            className="sidebar-logout flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition-colors cursor-pointer dark:text-rose-300"
-          >
-            <Icon name="logout" className="size-3.5" />
-            <span>Log out</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          className={`sidebar-logout flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition-colors cursor-pointer dark:text-rose-300 ${collapsed ? 'lg:justify-center lg:px-2' : ''}`}
+          title={collapsed ? 'Log out' : undefined}
+        >
+          <Icon name="logout" className="size-3.5" />
+          <span className={collapsed ? 'lg:hidden' : ''}>Log out</span>
+        </button>
       </div>
     </aside>
   );

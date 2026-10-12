@@ -144,61 +144,7 @@ export function CompanyWorkspace({
     pathname === '/company/recruitment' || pathname.startsWith('/company/recruitment/')
   );
 
-  const pageTitles: Record<string, string> = {
-    '/company/todo': 'My Todo',
-    '/company/my-todo': 'My Todo',
-    '/company/messages': 'Messages',
-    '/company/clients': 'Clients',
-    '/company/projects': 'Projects',
-    '/company/my-notepad': 'My Notepad',
-    '/company/notepad': 'My Notepad',
-    '/company/employee-notes': 'Employee Notes',
-    '/company/sales/territories': 'Territories',
-    '/company/sales/leads': 'Leads',
-    '/company/sales/leads/stalled': 'Stalled Leads',
-    '/company/sales/leads/re-engagement': 'Re-engagement',
-    '/company/sales/callbacks': 'Callbacks',
-    '/company/sales/callbacks/calendar': 'Callbacks',
-    '/company/sales/callbacks/board': 'Callbacks',
-    '/company/sales/callbacks/schedule': 'Callbacks',
-    '/company/sales/handovers': 'Handovers',
-    '/company/sales/handovers/incoming': 'Handovers',
-    '/company/sales/handovers/mine': 'Handovers',
-    '/company/employees': 'Employees',
-    '/company/sessions': 'Sessions & Devices',
-    '/company/access': 'Access Explorer',
-    '/company/access/role-changes': 'Access Explorer',
-    '/company/role-change-request': 'Request Role Change',
-    '/company/audit': 'Audit Log',
-    '/company/breaks/queue': 'Break Breach Queue',
-    '/company/breaks/policies': 'Break Policies',
-    '/company/payroll/cycle': 'Payroll Cycle',
-    '/company/payroll/my-payslips': 'My Payslips',
-    '/company/payroll/runs': 'Payroll Runs',
-    '/company/payroll/salaries': 'Salary Structures',
-    '/company/payroll/inputs': 'Bonuses & Deductions',
-    '/company/payroll/settings': 'Payroll Settings',
-    '/company/settings': 'Settings',
-    '/company/geofencing': 'Geofencing',
-    '/company/attendance/today': 'Today',
-    '/company/attendance/my': 'My Attendance',
-    '/company/attendance/live': 'Workforce Board',
-    '/company/attendance/corrections': 'Corrections',
-    '/company/shifts': 'Shifts',
-    '/company/holidays': 'Holidays',
-    '/company/leave/my': 'My Leave',
-    '/company/leave/queue': 'Leave Queue',
-    '/company/leave/types': 'Leave Types',
-    '/company/leave/balances': 'Leave Balances',
-    '/company/biometric': 'Biometric',
-    '/company/tasks': 'Tasks',
-  };
   const isEmployees = pathname === '/company/employees';
-  const title = isOrganization
-    ? 'Organization'
-    : isRecruitment
-      ? 'Recruitment'
-      : pageTitles[pathname] ?? (pathname.startsWith('/company/projects/') ? 'Project' : pathname.startsWith('/company/sales/territories/') ? 'Territories' : pathname.startsWith('/company/sales/callbacks/') ? 'Callbacks' : pathname.startsWith('/company/sales/leads/') ? 'Leads' : 'Dashboard');
 
   function renderContent(): React.JSX.Element {
     if (pathname === '/company/todo' || pathname === '/company/my-todo') return <MyTodoPage />;
@@ -333,7 +279,6 @@ export function CompanyWorkspace({
       canManageBiometric={can('biometric:manage')}
       isHr={Boolean(isHr)}
       hasRecruitment={hasRecruitment}
-      title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}
     >
