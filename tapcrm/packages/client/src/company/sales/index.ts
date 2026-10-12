@@ -19,3 +19,4 @@ export * from './proposals/ProposalEditorPage.js';
 export * from './approvals/ApprovalsQueuePage.js';
 export * from './wins/WinsToRecordPage.js';
 export * from './delivery/DeliveryBriefPage.js';
+export * from './reporting/ReportsPage.js';

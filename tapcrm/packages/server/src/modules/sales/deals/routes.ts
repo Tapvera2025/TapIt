@@ -19,6 +19,24 @@ import {
   updateDealStageSchema,
 } from './validators.js';
 import { listReadyToClose, readinessForClose, recordWin } from './won.js';
+import { buildForecast } from './forecast.js';
+
+const periodSchema = z.object({
+  period: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'period must be YYYY-MM')
+    .optional(),
+});
+
+function periodRange(period: string | undefined): { periodStart: Date; periodEnd: Date } {
+  const now = new Date();
+  const [yStr, mStr] = (period ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`).split('-');
+  const year = Number(yStr);
+  const monthIdx = Number(mStr) - 1;
+  const periodStart = new Date(Date.UTC(year, monthIdx, 1));
+  const periodEnd = new Date(Date.UTC(year, monthIdx + 1, 1));
+  return { periodStart, periodEnd };
+}
 
 const id = (value: string) => z.string().uuid().parse(value);
 
@@ -39,6 +57,17 @@ export function registerDealRoutes(): void {
     action: 'deals:record-win',
     module: 'deals',
     handler: async ({ ctx }) => listReadyToClose(ctx),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/deals/forecast',
+    action: 'deals:forecast',
+    module: 'deals',
+    handler: async ({ ctx, query }) => {
+      const { period } = periodSchema.parse(query);
+      return buildForecast(ctx, periodRange(period));
+    },
   });
 
   route({
