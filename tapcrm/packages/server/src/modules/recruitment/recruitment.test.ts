@@ -182,25 +182,26 @@ describe('Recruitment Resume Parser', () => {
       6 years of experience in full-stack architecture and microservices deployment.
     `;
 
-    const parsed = parseResume(Buffer.from(resumeText), 'resume.txt', 'text/plain');
+    const parsed = await parseResume(Buffer.from(resumeText), 'resume.txt', 'text/plain');
 
     expect(parsed.name).toBe('Johnathan Doe');
     expect(parsed.email).toBe('johnathan.doe@example.com');
     expect(parsed.phone).toContain('555');
+    // Listed skills keep the candidate's own wording.
     expect(parsed.skills).toEqual(
-      expect.arrayContaining(['typescript', 'react', 'node.js', 'postgresql', 'docker', 'aws', 'python', 'redis']),
+      expect.arrayContaining(['TypeScript', 'React', 'Node.js', 'PostgreSQL', 'Docker', 'AWS', 'Python', 'Redis']),
     );
-    expect(parsed.education).toBeDefined();
-    expect(parsed.education?.length).toBeGreaterThan(0);
-    expect(parsed.experience).toBeDefined();
-    expect(parsed.experience?.length).toBeGreaterThan(0);
-    expect(parsed.experience?.[0]?.title?.toLowerCase()).toContain('software engineer');
+    expect(parsed.education).toEqual([
+      expect.objectContaining({ degree: 'B.Sc', field: 'Computer Science', institution: 'State University', year: '2018' }),
+      expect.objectContaining({ degree: 'M.Tech', field: 'Software Systems', institution: 'Tech Institute', year: '2020' }),
+    ]);
+    expect(parsed.experience?.[0]).toMatchObject({ title: 'Software Engineer', startDate: '2018', endDate: '2024' });
     expect(parsed.rawTextPreview).toContain('Johnathan Doe');
   });
 
   it('handles corrupted or empty buffer safely without throwing', async () => {
     const corruptBuffer = Buffer.from([0x00, 0x1f, 0x8b, 0xff, 0xee]);
-    const parsed = parseResume(corruptBuffer, 'corrupted.pdf', 'application/pdf');
+    const parsed = await parseResume(corruptBuffer, 'corrupted.pdf', 'application/pdf');
 
     expect(parsed).toBeDefined();
     expect(parsed.name).toBeNull();
@@ -455,10 +456,9 @@ Software Engineer (2021 - Present)
     expect(parseResult.parsed.lastName).toBe('Sharma');
     expect(parseResult.parsed.email).toBe('rahul.sharma@example.com');
     expect(parseResult.parsed.phone).toContain('98765');
-    expect(parseResult.parsed.skills).toContain('react');
-    expect(parseResult.parsed.skills).toContain('node.js');
-    expect(parseResult.parsed.skills).toContain('typescript');
-    expect(parseResult.parsed.skills).toContain('postgresql');
+    expect(parseResult.parsed.phone).toBe('+91 98765 43210');
+    expect(parseResult.parsed.confidence).toMatchObject({ name: 'high', email: 'high', phone: 'high' });
+    expect(parseResult.parsed.skills).toEqual(['React', 'Node.js', 'TypeScript', 'PostgreSQL']);
   });
 
   it('gracefully handles resume with missing contact info without hallucinating data', async () => {
@@ -1472,6 +1472,11 @@ describe('Joining ↔ Offer ↔ Candidate Relational Integrity', () => {
     status: 'pending',
     employeeId: null,
     notes: null,
+    joiningEmailSentAt: null,
+    joiningEmailTemplateId: null,
+    acknowledgeToken: null,
+    acknowledgedAt: null,
+    acknowledgeIp: null,
     createdBy: 'user-hr-1',
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -2203,6 +2208,11 @@ describe('Recruitment Workflow — Decision & State Machine', () => {
     actualJoiningDate: null,
     notes: null,
     employeeId: null,
+    joiningEmailSentAt: null,
+    joiningEmailTemplateId: null,
+    acknowledgeToken: null,
+    acknowledgedAt: null,
+    acknowledgeIp: null,
     createdBy: 'user-hr-1',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

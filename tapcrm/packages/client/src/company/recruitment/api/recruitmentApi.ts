@@ -1,39 +1,60 @@
-import { identityRequest, IdentityApiError } from '../../../identity/api/authApi.js';
 import type {
+  AtsCriteria,
+  AtsCriteriaSettings,
+  AtsScanReport,
+  AtsSubmissionScanState,
+} from '@tapcrm/contracts';
+import { identityDownload, identityRequest, IdentityApiError } from '../../../identity/api/authApi.js';
+import type {
+  AssignRoundInterviewerInput,
   Candidate,
+  CandidateEvent,
   CandidateFilter,
   CandidateJoining,
   CandidateResumeSubmission,
+  CandidateRound,
   ConvertSubmissionInput,
   CreateApplicationLinkInput,
   CreateCandidateInput,
+  CreateEmailTemplateInput,
   CreateOfferInput,
+  CreatePipelineRoundInput,
   CreateRequisitionInput,
   HireCandidateInput,
   HrManualSubmissionInput,
   Interview,
   InterviewDecisionInput,
+  InterviewerFeedbackInput,
   InterviewFeedback,
   InterviewFilter,
   InterviewStatus,
   JoiningFilter,
   JobOffer,
   JobRequisition,
+  MyInterviews,
   OfferFilter,
   OfferStatus,
+  PipelineRound,
   PublicApplyInput,
   PublicJobRequisitionDetails,
   RecruitmentApplicationLink,
+  RecruitmentEmailTemplate,
   RecruitmentMetrics,
+  ReorderPipelineRoundsInput,
   RequisitionFilter,
   RequisitionStatus,
   RescheduleInterviewInput,
   ResumeSubmissionFilter,
+  RoundDecisionInput,
   ScheduleInterviewInput,
+  SendJoiningEmailInput,
   SubmitFeedbackInput,
+  SubmitRoundFeedbackInput,
   UpdateApplicationLinkStatusInput,
   UpdateCandidateStatusInput,
+  UpdateEmailTemplateInput,
   UpdateJoiningStatusInput,
+  UpdatePipelineRoundInput,
   UploadCandidateResumeResult,
   ParsedCandidateData,
 } from '../types/index.js';
@@ -501,6 +522,12 @@ export async function updateCandidateScreening(id: string, screeningNotes: strin
   }
 }
 
+export async function softDeleteCandidate(id: string): Promise<void> {
+  await identityRequest<{ message: string }>(`/api/recruitment/candidates/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 /**
  * 3. Interviews
  */
@@ -610,7 +637,7 @@ export async function submitInterviewFeedback(interviewId: string, input: Submit
       const newFeedback: InterviewFeedback = {
         id: `fb-${Date.now()}`,
         interviewId,
-        interviewerId: input.interviewerId,
+        interviewerId: input.interviewerId ?? '',
         interviewerName: 'Evaluator',
         recommendation: input.recommendation,
         rating: input.rating ?? null,
@@ -1001,8 +1028,8 @@ export async function getResumeDownloadUrl(
 export async function rescheduleInterview(
   interviewId: string,
   input: RescheduleInterviewInput,
-): Promise<{ message: string; interview: Interview }> {
-  return await identityRequest<{ message: string; interview: Interview }>(
+): Promise<Interview> {
+  return await identityRequest<Interview>(
     `/api/recruitment/interviews/${encodeURIComponent(interviewId)}/reschedule`,
     {
       method: 'POST',
@@ -1031,12 +1058,235 @@ export async function recordInterviewDecision(
 export async function hireCandidate(
   candidateId: string,
   input: HireCandidateInput,
-): Promise<{ message: string; employeeId: string; joiningId: string }> {
-  return await identityRequest<{ message: string; employeeId: string; joiningId: string }>(
+): Promise<{ employee: { id: string }; joining: { id: string }; credentials: { email: string; password: string } }> {
+  return await identityRequest<{ employee: { id: string }; joining: { id: string }; credentials: { email: string; password: string } }>(
     `/api/recruitment/candidates/${encodeURIComponent(candidateId)}/hire`,
     {
       method: 'POST',
       body: JSON.stringify(input),
     },
+  );
+}
+
+// ---------------------------------------------------------------------
+// 12. Pipeline Rounds
+// ---------------------------------------------------------------------
+
+export async function listPipelineRounds(requisitionId: string): Promise<PipelineRound[]> {
+  return await identityRequest<PipelineRound[]>(
+    `/api/recruitment/pipeline-rounds?requisitionId=${encodeURIComponent(requisitionId)}`,
+  );
+}
+
+export async function createPipelineRound(
+  _requisitionId: string,
+  input: CreatePipelineRoundInput,
+): Promise<PipelineRound> {
+  return await identityRequest<PipelineRound>(
+    '/api/recruitment/pipeline-rounds',
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+export async function updatePipelineRound(
+  _requisitionId: string,
+  roundId: string,
+  input: UpdatePipelineRoundInput,
+): Promise<PipelineRound> {
+  return await identityRequest<PipelineRound>(
+    `/api/recruitment/pipeline-rounds/${encodeURIComponent(roundId)}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+}
+
+export async function deletePipelineRound(_requisitionId: string, roundId: string): Promise<void> {
+  await identityRequest<void>(
+    `/api/recruitment/pipeline-rounds/${encodeURIComponent(roundId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function reorderPipelineRounds(
+  _requisitionId: string,
+  input: ReorderPipelineRoundsInput,
+): Promise<PipelineRound[]> {
+  return await identityRequest<PipelineRound[]>(
+    '/api/recruitment/pipeline-rounds/reorder',
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+// ---------------------------------------------------------------------
+// 13. Candidate Rounds
+// ---------------------------------------------------------------------
+
+export async function listCandidateRounds(candidateId: string): Promise<CandidateRound[]> {
+  return await identityRequest<CandidateRound[]>(
+    `/api/recruitment/candidate-rounds?candidateId=${encodeURIComponent(candidateId)}`,
+  );
+}
+
+export async function createCandidateRound(
+  candidateId: string,
+  input: { pipelineRoundId: string },
+): Promise<CandidateRound> {
+  return await identityRequest<CandidateRound>(
+    '/api/recruitment/candidate-rounds',
+    { method: 'POST', body: JSON.stringify({ candidateId, ...input }) },
+  );
+}
+
+export async function assignRoundInterviewer(
+  _candidateId: string,
+  roundId: string,
+  input: AssignRoundInterviewerInput,
+): Promise<CandidateRound> {
+  return await identityRequest<CandidateRound>(
+    `/api/recruitment/candidate-rounds/${encodeURIComponent(roundId)}/assign`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+}
+
+export async function submitRoundFeedback(
+  _candidateId: string,
+  roundId: string,
+  input: SubmitRoundFeedbackInput,
+): Promise<CandidateRound> {
+  return await identityRequest<CandidateRound>(
+    `/api/recruitment/candidate-rounds/${encodeURIComponent(roundId)}/feedback`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+}
+
+export async function recordRoundDecision(
+  _candidateId: string,
+  roundId: string,
+  input: RoundDecisionInput,
+): Promise<CandidateRound> {
+  return await identityRequest<CandidateRound>(
+    `/api/recruitment/candidate-rounds/${encodeURIComponent(roundId)}/decision`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+}
+
+/** Rounds HR assigned to the signed-in user, with the candidate and job. */
+export async function listMyInterviews(): Promise<MyInterviews> {
+  return await identityRequest<MyInterviews>('/api/recruitment/my-interviews');
+}
+
+/**
+ * The resume of the candidate an interview of the signed-in user's is for:
+ * a pipeline round assigned to them, or a scheduled interview they are on.
+ */
+export async function getInterviewResume(kind: 'round' | 'interview', id: string): Promise<Blob> {
+  const collection = kind === 'round' ? 'rounds' : 'interviews';
+  return await identityDownload(`/api/recruitment/my-interviews/${collection}/${encodeURIComponent(id)}/resume`);
+}
+
+/** Saves the signed-in user's own feedback on an interview they are on the panel of. */
+export async function saveMyInterviewFeedback(
+  interviewId: string,
+  input: InterviewerFeedbackInput,
+): Promise<InterviewFeedback> {
+  return await identityRequest<InterviewFeedback>(
+    `/api/recruitment/my-interviews/interviews/${encodeURIComponent(interviewId)}/feedback`,
+    { method: 'PUT', body: JSON.stringify(input) },
+  );
+}
+
+// ---------------------------------------------------------------------
+// 14. Candidate Events
+// ---------------------------------------------------------------------
+
+export async function listCandidateEvents(candidateId: string): Promise<CandidateEvent[]> {
+  return await identityRequest<CandidateEvent[]>(
+    `/api/recruitment/candidate-events?candidateId=${encodeURIComponent(candidateId)}`,
+  );
+}
+
+// ---------------------------------------------------------------------
+// 15. Email Templates
+// ---------------------------------------------------------------------
+
+export async function listEmailTemplates(): Promise<RecruitmentEmailTemplate[]> {
+  return await identityRequest<RecruitmentEmailTemplate[]>('/api/recruitment/email-templates');
+}
+
+export async function getEmailTemplate(templateId: string): Promise<RecruitmentEmailTemplate> {
+  return await identityRequest<RecruitmentEmailTemplate>(
+    `/api/recruitment/email-templates/${encodeURIComponent(templateId)}`,
+  );
+}
+
+export async function createEmailTemplate(
+  input: CreateEmailTemplateInput,
+): Promise<RecruitmentEmailTemplate> {
+  return await identityRequest<RecruitmentEmailTemplate>('/api/recruitment/email-templates', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateEmailTemplate(
+  templateId: string,
+  input: UpdateEmailTemplateInput,
+): Promise<RecruitmentEmailTemplate> {
+  return await identityRequest<RecruitmentEmailTemplate>(
+    `/api/recruitment/email-templates/${encodeURIComponent(templateId)}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+}
+
+export async function deleteEmailTemplate(templateId: string): Promise<void> {
+  await identityRequest<void>(
+    `/api/recruitment/email-templates/${encodeURIComponent(templateId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+// ---------------------------------------------------------------------
+// 16. Joining Email
+// ---------------------------------------------------------------------
+
+export async function sendJoiningEmail(
+  joiningId: string,
+  input: SendJoiningEmailInput,
+): Promise<{ sent: boolean; acknowledgeToken: string }> {
+  return await identityRequest<{ sent: boolean; acknowledgeToken: string }>(
+    `/api/recruitment/joinings/${encodeURIComponent(joiningId)}/send-email`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+// ---------------------------------------------------------------------
+// 14. ATS screening (decision support — HR still accepts or rejects)
+// ---------------------------------------------------------------------
+
+export async function getAtsCriteria(requisitionId: string): Promise<AtsCriteriaSettings> {
+  return identityRequest<AtsCriteriaSettings>(
+    `/api/recruitment/requisitions/${encodeURIComponent(requisitionId)}/ats-criteria`,
+  );
+}
+
+export async function saveAtsCriteria(
+  requisitionId: string,
+  criteria: AtsCriteria,
+): Promise<AtsCriteriaSettings> {
+  return identityRequest<AtsCriteriaSettings>(
+    `/api/recruitment/requisitions/${encodeURIComponent(requisitionId)}/ats-criteria`,
+    { method: 'PUT', body: JSON.stringify({ criteria }) },
+  );
+}
+
+export async function getSubmissionAts(submissionId: string): Promise<AtsSubmissionScanState> {
+  return identityRequest<AtsSubmissionScanState>(
+    `/api/recruitment/resume-submissions/${encodeURIComponent(submissionId)}/ats`,
+  );
+}
+
+export async function runAtsScan(submissionId: string): Promise<AtsScanReport> {
+  return identityRequest<AtsScanReport>(
+    `/api/recruitment/resume-submissions/${encodeURIComponent(submissionId)}/ats-scans`,
+    { method: 'POST', body: JSON.stringify({}) },
   );
 }

@@ -392,6 +392,12 @@ export function PublicApplicationPage({
               )}
             </div>
 
+            <p className="rounded-lg border border-app-border bg-app-surface-raised px-3 py-2.5 text-xs leading-relaxed text-app-muted">
+              Your resume may be screened by an automated tool that compares it with the requirements of this job
+              (skills, experience and qualifications). It does not consider personal characteristics, and our hiring
+              team reviews every application and makes all decisions.
+            </p>
+
             <div className="pt-2">
               <Button
                 kind="primary"

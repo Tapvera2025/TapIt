@@ -45,7 +45,7 @@ export function InterviewRescheduleModal({
         notes: notes.trim() || undefined,
       });
 
-      onRescheduled(res.interview);
+      onRescheduled(res);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Failed to reschedule interview');
     } finally {

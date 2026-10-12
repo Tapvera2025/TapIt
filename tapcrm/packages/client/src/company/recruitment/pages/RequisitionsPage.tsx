@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Loading, Modal, Notice, Page } from '../../../ui/components.js';
 import { Icon } from '../../../ui/Icon.js';
 import { listRequisitions, updateRequisitionStatus } from '../api/recruitmentApi.js';
 import { RequisitionFormModal } from '../components/RequisitionFormModal.js';
 import { ApplicationLinkModal } from '../components/ApplicationLinkModal.js';
+import { PipelineRoundBuilder } from '../components/PipelineRoundBuilder.js';
 import { RequisitionStatusBadge } from '../components/StatusBadge.js';
 import type { EmploymentType, JobRequisition, RequisitionStatus } from '../types/index.js';
 
@@ -24,6 +25,7 @@ export function RequisitionsPage({
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [appLinkRequisition, setAppLinkRequisition] = useState<JobRequisition | null>(null);
+  const [pipelineRequisition, setPipelineRequisition] = useState<JobRequisition | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
   async function load() {
@@ -182,6 +184,49 @@ export function RequisitionsPage({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pt-2 md:justify-end md:pt-0">
+                  {/* Platform Redirect Buttons */}
+                  {[
+                    {
+                      name: 'LinkedIn',
+                      href: `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(req.title)}`,
+                    },
+                    {
+                      name: 'Naukri',
+                      href: `https://www.naukri.com/${encodeURIComponent(req.title.toLowerCase().replace(/\s+/g, '-'))}-jobs`,
+                    },
+                    {
+                      name: 'Indeed',
+                      href: `https://in.indeed.com/jobs?q=${encodeURIComponent(req.title)}`,
+                    },
+                    {
+                      name: 'Internshala',
+                      href: `https://internshala.com/jobs/${encodeURIComponent(req.title.toLowerCase().replace(/\s+/g, '-'))}`,
+                    },
+                  ].map((platform) => (
+                    <a
+                      key={platform.name}
+                      href={platform.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-app-border bg-app-background px-2 py-1 text-xs text-app-muted hover:border-app-accent hover:text-app-accent transition-colors"
+                      title={`Search on ${platform.name}`}
+                    >
+                      <Icon name="external-link" className="size-3" />
+                      {platform.name}
+                    </a>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setPipelineRequisition(req)}
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border bg-app-surface px-2.5 py-1.5 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent transition-colors"
+                    title="Interview Pipeline Rounds"
+                    aria-label="Interview Pipeline"
+                  >
+                    <Icon name="hierarchy" className="size-3.5" />
+                    <span>Pipeline</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setAppLinkRequisition(req)}
@@ -256,6 +301,22 @@ export function RequisitionsPage({
           requisition={appLinkRequisition}
           onClose={() => setAppLinkRequisition(null)}
         />
+      )}
+
+      {pipelineRequisition && (
+        <Modal
+          title={`Interview Pipeline — ${pipelineRequisition.title}`}
+          onClose={() => setPipelineRequisition(null)}
+          dirty={false}
+        >
+          <div className="space-y-3">
+            <p className="text-xs text-app-muted">
+              Define the interview rounds for this requisition. Drag to reorder. Each round can be
+              assigned to an interviewer when processing candidates.
+            </p>
+            <PipelineRoundBuilder requisitionId={pipelineRequisition.id} />
+          </div>
+        </Modal>
       )}
     </Page>
   );

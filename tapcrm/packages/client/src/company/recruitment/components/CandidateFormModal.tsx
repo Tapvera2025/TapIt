@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import type { ParsedCandidateData } from '@tapcrm/contracts';
 import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
 import { Icon } from '../../../ui/Icon.js';
 import {
@@ -6,11 +7,30 @@ import {
   parseCandidateResume,
   uploadCandidateResume,
 } from '../api/recruitmentApi.js';
+import {
+  acceptSuggestion,
+  applyParsedResume,
+  clearAutofill,
+  editField,
+  EMPTY_AUTOFILL,
+  resumeMimeType as mimeTypeOf,
+  resumeNotes,
+  type AutofillField,
+  type AutofillState,
+} from '../resumeAutofill.js';
 import type {
   Candidate,
   CandidateSource,
   JobRequisition,
 } from '../types/index.js';
+import { autofillHint, ResumeAutofillNotice, type ResumeReadStatus } from './ResumeAutofillNotice.js';
+
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+];
 
 export function CandidateFormModal({
   requisitions,
@@ -26,17 +46,13 @@ export function CandidateFormModal({
   const [requisitionId, setRequisitionId] = useState(
     defaultRequisitionId || (requisitions.length > 0 && requisitions[0] ? requisitions[0].id : ''),
   );
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [form, setForm] = useState<AutofillState>(EMPTY_AUTOFILL);
   const [resumeUrl, setResumeUrl] = useState('');
   const [source, setSource] = useState<CandidateSource>('linkedin');
   const [screeningNotes, setScreeningNotes] = useState('');
 
-  // Resume Upload & Parse state
+  // Resume upload & reading state
   const [file, setFile] = useState<File | null>(null);
-  const [fileBase64, setFileBase64] = useState<string>('');
   const [resumeObjectKey, setResumeObjectKey] = useState<string | null>(null);
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [resumeMimeType, setResumeMimeType] = useState<string | null>(null);
@@ -44,27 +60,53 @@ export function CandidateFormModal({
   const [resumeUploadedAt, setResumeUploadedAt] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [parsing, setParsing] = useState(false);
-  const [parseSuccess, setParseSuccess] = useState(false);
-  const [parseNotice, setParseNotice] = useState<{
-    type: 'success' | 'warning' | 'error';
-    message: string;
-  } | null>(null);
+  const [readStatus, setReadStatus] = useState<ResumeReadStatus>('idle');
+  const [parsed, setParsed] = useState<ParsedCandidateData | null>(null);
+  // Only the latest resume may fill the form, and notes written from a
+  // resume are replaced, not stacked, when the resume changes.
+  const latestRead = useRef(0);
+  const notesFromResume = useRef('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const allowedMimeTypes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain',
-  ];
+  const { firstName, lastName, email, phone } = form.values;
+  const setField = (field: AutofillField) => (value: string) => setForm((current) => editField(current, field, value));
+  const applySuggestion = (field: AutofillField) => setForm((current) => acceptSuggestion(current, field));
 
-  async function handleFileSelected(selectedFile: File) {
+  function withdrawResumeNotes() {
+    const previous = notesFromResume.current;
+    notesFromResume.current = '';
+    if (!previous) return;
+    setScreeningNotes((current) => {
+      if (current.trim() === previous) return '';
+      return current.replace(`\n\n${previous}`, '');
+    });
+  }
+
+  function addResumeNotes(result: ParsedCandidateData) {
+    const notes = resumeNotes(result);
+    notesFromResume.current = notes;
+    if (!notes) return;
+    setScreeningNotes((current) => (current.trim() ? `${current.trim()}\n\n${notes}` : notes));
+  }
+
+  async function readResume(objectKey: string, filename: string, mimeType: string, read: number) {
+    setReadStatus('reading');
+    try {
+      const { parsed: result } = await parseCandidateResume({ resumeObjectKey: objectKey, filename, mimeType });
+      if (latestRead.current !== read) return;
+      setParsed(result);
+      setForm((current) => applyParsedResume(current, result));
+      addResumeNotes(result);
+      setReadStatus('done');
+    } catch {
+      if (latestRead.current === read) setReadStatus('failed');
+    }
+  }
+
+  function handleFileSelected(selectedFile: File) {
     setError(null);
-    setParseNotice(null);
-    setParseSuccess(false);
 
     if (selectedFile.size > 10 * 1024 * 1024) {
       setError('Resume file size cannot exceed 10MB.');
@@ -73,27 +115,33 @@ export function CandidateFormModal({
 
     const lowerExt = selectedFile.name.toLowerCase().split('.').pop() ?? '';
     const isAllowedExt = ['pdf', 'doc', 'docx', 'txt'].includes(lowerExt);
-    if (!allowedMimeTypes.includes(selectedFile.type) && !isAllowedExt) {
+    if (!ALLOWED_MIME_TYPES.includes(selectedFile.type) && !isAllowedExt) {
       setError('Unsupported file type. Please upload a PDF, DOC, DOCX, or TXT file.');
       return;
     }
 
+    const read = latestRead.current + 1;
+    latestRead.current = read;
     setFile(selectedFile);
     setUploading(true);
+    setParsed(null);
+    setReadStatus('idle');
 
     const reader = new FileReader();
     reader.onload = async () => {
+      if (latestRead.current !== read) return;
       const result = reader.result as string;
       const base64 = result.includes(',') ? (result.split(',')[1] ?? '') : result;
-      setFileBase64(base64);
+      const mimeType = mimeTypeOf(selectedFile);
 
       try {
         const uploadResult = await uploadCandidateResume({
           filename: selectedFile.name,
-          mimeType: selectedFile.type || 'application/pdf',
+          mimeType,
           fileBase64: base64,
           requisitionId: requisitionId || undefined,
         });
+        if (latestRead.current !== read) return;
 
         setResumeObjectKey(uploadResult.resumeObjectKey);
         setResumeFileName(uploadResult.resumeFileName);
@@ -103,18 +151,22 @@ export function CandidateFormModal({
         if (uploadResult.previewUrl) {
           setResumeUrl(uploadResult.previewUrl);
         }
+        setUploading(false);
+        // Reading starts on its own: the details fill in while HR reviews the file.
+        void readResume(uploadResult.resumeObjectKey, uploadResult.resumeFileName, uploadResult.resumeMimeType || mimeType, read);
       } catch (uploadCause) {
+        if (latestRead.current !== read) return;
+        setUploading(false);
         setError(
           uploadCause instanceof Error
             ? uploadCause.message
             : 'Unable to upload resume. Please try again.',
         );
-      } finally {
-        setUploading(false);
       }
     };
 
     reader.onerror = () => {
+      if (latestRead.current !== read) return;
       setUploading(false);
       setError('Failed to read the selected resume file.');
     };
@@ -122,113 +174,29 @@ export function CandidateFormModal({
     reader.readAsDataURL(selectedFile);
   }
 
-  async function handleParseResume() {
-    if (!file && !resumeObjectKey) {
-      return;
-    }
-
-    setParsing(true);
-    setParseNotice(null);
-
-    try {
-      const res = await parseCandidateResume({
-        resumeObjectKey: resumeObjectKey || undefined,
-        fileBase64: !resumeObjectKey ? fileBase64 : undefined,
-        filename: resumeFileName || file?.name || 'resume.pdf',
-        mimeType: resumeMimeType || file?.type || 'application/pdf',
-      });
-
-      const parsed = res.parsed;
-      let fieldsFound = 0;
-
-      if (parsed.firstName) {
-        setFirstName(parsed.firstName);
-        fieldsFound++;
-      }
-      if (parsed.lastName) {
-        setLastName(parsed.lastName);
-        fieldsFound++;
-      }
-      if (parsed.email) {
-        setEmail(parsed.email);
-        fieldsFound++;
-      }
-      if (parsed.phone) {
-        setPhone(parsed.phone);
-        fieldsFound++;
-      }
-
-      // Format extracted skills, experience, and education into screening notes
-      const notesParts: string[] = [];
-      if (parsed.skills && parsed.skills.length > 0) {
-        fieldsFound++;
-        notesParts.push(`Skills: ${parsed.skills.join(', ')}`);
-      }
-      if (parsed.experience && parsed.experience.length > 0) {
-        fieldsFound++;
-        const expSummary = parsed.experience
-          .map((e) => `${e.title}${e.duration ? ` (${e.duration})` : ''}`)
-          .join('; ');
-        notesParts.push(`Experience: ${expSummary}`);
-      }
-      if (parsed.education && parsed.education.length > 0) {
-        fieldsFound++;
-        const eduSummary = parsed.education
-          .map((e) => `${e.degree}${e.year ? ` (${e.year})` : ''}`)
-          .join('; ');
-        notesParts.push(`Education: ${eduSummary}`);
-      }
-
-      if (notesParts.length > 0) {
-        const extraNotes = notesParts.join('\n\n');
-        setScreeningNotes((prev) =>
-          prev.trim() ? prev.trim() + '\n\n---\nResume Extracted Notes:\n' + extraNotes : extraNotes,
-        );
-      }
-
-      setParseSuccess(true);
-      if (fieldsFound > 0) {
-        setParseNotice({
-          type: 'success',
-          message:
-            'Resume parsed successfully. Candidate information has been pre-filled. Please review before creating the candidate.',
-        });
-      } else {
-        setParseNotice({
-          type: 'warning',
-          message:
-            "We couldn't extract contact information from this resume. You can enter the candidate details manually.",
-        });
-      }
-    } catch {
-      setParseNotice({
-        type: 'warning',
-        message:
-          "We couldn't extract information from this resume. You can enter the candidate details manually.",
-      });
-    } finally {
-      setParsing(false);
-    }
-  }
-
   function handleReplaceResume() {
+    latestRead.current += 1;
     setFile(null);
-    setFileBase64('');
     setResumeObjectKey(null);
     setResumeFileName(null);
     setResumeMimeType(null);
     setResumeSize(null);
     setResumeUploadedAt(null);
     setResumeUrl('');
-    setParseSuccess(false);
-    setParseNotice(null);
+    setParsed(null);
+    setReadStatus('idle');
+    setUploading(false);
     setError(null);
+    // Details and notes that came from this resume go with it; HR's own typing stays.
+    setForm((current) => clearAutofill(current));
+    withdrawResumeNotes();
   }
 
   function handleViewResume() {
     if (file) {
       const blobUrl = URL.createObjectURL(file);
       window.open(blobUrl, '_blank');
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     } else if (resumeUrl) {
       window.open(resumeUrl, '_blank');
     }
@@ -277,6 +245,9 @@ export function CandidateFormModal({
     }
   }
 
+  const reading = readStatus === 'reading';
+  const nameSuggestion = [form.suggestions.firstName ?? firstName, form.suggestions.lastName ?? lastName].join(' ').trim();
+
   return (
     <Modal title="Add Candidate" onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
@@ -295,7 +266,7 @@ export function CandidateFormModal({
           required
         />
 
-        {/* Resume Upload & Parse Section */}
+        {/* Resume upload: reading it fills in the candidate's details */}
         <div className="space-y-3 rounded-xl border border-app-border bg-app-surface/50 p-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-app-muted">
@@ -321,7 +292,7 @@ export function CandidateFormModal({
                   <Button
                     type="button"
                     kind="secondary"
-                    disabled={uploading || parsing || submitting}
+                    disabled={uploading || submitting}
                     onClick={handleViewResume}
                     className="!py-1 !px-2.5 !text-xs"
                   >
@@ -330,7 +301,7 @@ export function CandidateFormModal({
                   <Button
                     type="button"
                     kind="secondary"
-                    disabled={uploading || parsing || submitting}
+                    disabled={uploading || submitting}
                     onClick={handleReplaceResume}
                     className="!py-1 !px-2.5 !text-xs"
                   >
@@ -346,35 +317,18 @@ export function CandidateFormModal({
                 </div>
               )}
 
-              {!uploading && !parseSuccess && (
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs text-emerald-400 flex items-center gap-1.5">
-                    <Icon name="check" className="size-3.5 text-emerald-500" />
-                    <span>Resume uploaded successfully</span>
-                  </span>
-                  <Button
-                    type="button"
-                    kind="secondary"
-                    disabled={parsing || submitting}
-                    onClick={() => void handleParseResume()}
-                    className="!py-1.5 !px-3 !text-xs font-semibold"
-                  >
-                    {parsing ? 'Analyzing resume...' : 'Parse Resume'}
-                  </Button>
-                </div>
-              )}
+              <ResumeAutofillNotice status={readStatus} parsed={parsed} state={form} />
 
-              {parsing && (
-                <div className="flex items-center gap-2 rounded-lg border border-app-accent/30 bg-app-accent/10 p-2.5 text-xs text-app-accent">
-                  <span className="size-3.5 animate-spin rounded-full border-2 border-app-accent border-t-transparent" />
-                  <span>Analyzing resume... Extracting candidate information...</span>
-                </div>
-              )}
-
-              {parseNotice && (
-                <Notice error={parseNotice.type === 'error'}>
-                  {parseNotice.message}
-                </Notice>
+              {readStatus === 'failed' && resumeObjectKey && (
+                <Button
+                  type="button"
+                  kind="secondary"
+                  disabled={submitting}
+                  onClick={() => void readResume(resumeObjectKey, resumeFileName ?? file.name, resumeMimeType ?? mimeTypeOf(file), latestRead.current)}
+                  className="!py-1.5 !px-3 !text-xs font-semibold"
+                >
+                  Try reading again
+                </Button>
               )}
             </div>
           ) : (
@@ -388,7 +342,7 @@ export function CandidateFormModal({
                 e.preventDefault();
                 setIsDragging(false);
                 const droppedFile = e.dataTransfer.files?.[0];
-                if (droppedFile) void handleFileSelected(droppedFile);
+                if (droppedFile) handleFileSelected(droppedFile);
               }}
               className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition ${
                 isDragging
@@ -404,7 +358,7 @@ export function CandidateFormModal({
                 Drag &amp; drop or Browse
               </p>
               <p className="text-[11px] text-app-muted mt-0.5">
-                PDF / DOC / DOCX / TXT up to 10MB
+                The candidate&apos;s details are filled in from it
               </p>
               <input
                 type="file"
@@ -413,7 +367,8 @@ export function CandidateFormModal({
                 disabled={submitting || uploading}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) void handleFileSelected(f);
+                  if (f) handleFileSelected(f);
+                  e.target.value = '';
                 }}
               />
             </label>
@@ -430,18 +385,20 @@ export function CandidateFormModal({
             <Field
               label="First Name"
               value={firstName}
-              onChange={setFirstName}
+              onChange={setField('firstName')}
               placeholder="e.g. John"
               required
               disabled={submitting}
+              hint={autofillHint(form, 'firstName', applySuggestion, nameSuggestion)}
             />
             <Field
               label="Last Name"
               value={lastName}
-              onChange={setLastName}
+              onChange={setField('lastName')}
               placeholder="e.g. Doe"
               required
               disabled={submitting}
+              hint={form.suggestions.firstName === undefined ? autofillHint(form, 'lastName', applySuggestion, nameSuggestion) : null}
             />
           </div>
         </div>
@@ -451,18 +408,20 @@ export function CandidateFormModal({
             label="Email Address"
             type="email"
             value={email}
-            onChange={setEmail}
+            onChange={setField('email')}
             placeholder="john.doe@example.com"
             required
             disabled={submitting}
+            hint={autofillHint(form, 'email', applySuggestion)}
           />
           <Field
             label="Phone Number"
             type="tel"
             value={phone}
-            onChange={setPhone}
+            onChange={setField('phone')}
             placeholder="+91 98765 43210"
             disabled={submitting}
+            hint={autofillHint(form, 'phone', applySuggestion)}
           />
         </div>
 
@@ -510,8 +469,8 @@ export function CandidateFormModal({
           <Button type="button" kind="secondary" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button type="submit" kind="primary" disabled={submitting || uploading || parsing}>
-            {submitting ? 'Adding Candidate...' : 'Create Candidate'}
+          <Button type="submit" kind="primary" disabled={submitting || uploading}>
+            {submitting ? 'Adding Candidate...' : reading ? 'Create Candidate (reading resume…)' : 'Create Candidate'}
           </Button>
         </div>
       </form>

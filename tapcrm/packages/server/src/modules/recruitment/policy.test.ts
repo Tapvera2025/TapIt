@@ -190,6 +190,7 @@ beforeEach(() => {
               'recruitment:manage-links': { action: 'recruitment:manage-links', allowed: true, scope: 'department', source: 'position' },
               'recruitment:manage-submissions': { action: 'recruitment:manage-submissions', allowed: true, scope: 'department', source: 'position' },
               'recruitment:view-metrics': { action: 'recruitment:view-metrics', allowed: true, scope: 'own', source: 'position' },
+              'recruitment:submit-round-feedback': { action: 'recruitment:submit-round-feedback', allowed: true, scope: 'department', source: 'position' },
             },
             cacheDeadline: deadline,
             resolvedAt: now,
@@ -201,6 +202,10 @@ beforeEach(() => {
             policies: {
               'recruitment:view-interviews': { action: 'recruitment:view-interviews', allowed: true, scope: 'participant', source: 'position' },
               'recruitment:manage-interviews': { action: 'recruitment:manage-interviews', allowed: true, scope: 'participant', source: 'position' },
+              // Ordinary employees hold every recruitment action at participant (starter matrix).
+              'recruitment:submit-round-feedback': { action: 'recruitment:submit-round-feedback', allowed: true, scope: 'participant', source: 'position' },
+              'recruitment:manage-candidates': { action: 'recruitment:manage-candidates', allowed: true, scope: 'participant', source: 'position' },
+              'recruitment:manage-candidate-rounds': { action: 'recruitment:manage-candidate-rounds', allowed: true, scope: 'participant', source: 'position' },
             },
             cacheDeadline: deadline,
             resolvedAt: now,
@@ -355,6 +360,15 @@ describe('interviewPolicy — participant scope', () => {
     ).rejects.toThrow(AuthorizationError);
   });
 
+  it('lets a panel member see the interview but not run it: status, rescheduling and the decision stay with HR', async () => {
+    const onPanel = interviewResource({ interviewerIds: ['user-interviewer-1'], createdBy: 'user-hr-1' });
+    await expect(authorize(interviewerCtx(), 'recruitment:view-interviews', onPanel)).resolves.not.toThrow();
+    // Held at participant, as ordinary employees hold it from the starter matrix.
+    await expect(authorize(interviewerCtx(), 'recruitment:manage-interviews', onPanel)).rejects.toThrow(AuthorizationError);
+    // HR still runs interviews for their department's jobs.
+    await expect(authorize(hrCtx(), 'recruitment:manage-interviews', interviewResource())).resolves.not.toThrow();
+  });
+
   it('denies all-people scope (PD-1)', async () => {
     const result = await interviewPolicy.filter(
       hrCtx(),
@@ -474,6 +488,56 @@ describe('candidateResumeSubmissionPolicy', () => {
       'all-people',
     );
     expect(result).toBe(MATCH_NOTHING);
+  });
+});
+
+// ============================================================
+// candidatePolicy — the interviewer of a round
+// ============================================================
+describe('candidatePolicy — the interviewer of a round', () => {
+  function interviewerCtx(): PolicyEvaluationContext {
+    return { ...nonHrCtx(), principal: { ...nonHrCtx().principal, id: 'user-interviewer-1' } };
+  }
+  // A round is authorized as its candidate, with the round's interviewer named.
+  const round = (interviewer: string | null, overrides: Record<string, unknown> = {}) =>
+    candidateResource({ requisitionDepartmentId: 'dept-eng', interviewerIds: interviewer ? [interviewer] : [], ...overrides });
+
+  it('lets the assigned interviewer submit feedback at participant scope', async () => {
+    await expect(authorize(interviewerCtx(), 'recruitment:submit-round-feedback', round('user-interviewer-1'))).resolves.not.toThrow();
+  });
+
+  it('refuses another participant, and a round with no interviewer', async () => {
+    await expect(authorize(interviewerCtx(), 'recruitment:submit-round-feedback', round('user-someone-else')))
+      .rejects.toThrow(AuthorizationError);
+    await expect(authorize(interviewerCtx(), 'recruitment:submit-round-feedback', round(null)))
+      .rejects.toThrow(AuthorizationError);
+  });
+
+  it('never extends to editing the candidate or deciding the round', async () => {
+    await expect(authorize(interviewerCtx(), 'recruitment:manage-candidates', round('user-interviewer-1')))
+      .rejects.toThrow(AuthorizationError);
+    await expect(authorize(interviewerCtx(), 'recruitment:manage-candidate-rounds', round('user-interviewer-1')))
+      .rejects.toThrow(AuthorizationError);
+  });
+
+  it('lets HR interview for a job outside their department when assigned, and only then', async () => {
+    await expect(authorize(hrCtx(), 'recruitment:submit-round-feedback', round('user-hr-1'))).resolves.not.toThrow();
+    await expect(authorize(hrCtx(), 'recruitment:submit-round-feedback', round('user-interviewer-1')))
+      .rejects.toThrow(AuthorizationError);
+  });
+
+  it('names the interviewer field for feedback only', () => {
+    expect(candidatePolicy.participantFields('recruitment:submit-round-feedback')).toEqual(['interviewerIds']);
+    expect(candidatePolicy.participantFields('recruitment:manage-candidates')).toEqual([]);
+  });
+
+  // A scheduled interview is authorized the same way, naming its whole panel.
+  it('lets any member of an interview panel give feedback, and no one else', async () => {
+    const panel = candidateResource({ requisitionDepartmentId: 'dept-eng', interviewerIds: ['user-hr-1', 'user-interviewer-1'] });
+    await expect(authorize(interviewerCtx(), 'recruitment:submit-round-feedback', panel)).resolves.not.toThrow();
+    await expect(authorize(hrCtx(), 'recruitment:submit-round-feedback', panel)).resolves.not.toThrow();
+    const notOnIt = candidateResource({ requisitionDepartmentId: 'dept-eng', interviewerIds: ['user-hr-1', 'user-someone-else'] });
+    await expect(authorize(interviewerCtx(), 'recruitment:submit-round-feedback', notOnIt)).rejects.toThrow(AuthorizationError);
   });
 });
 
