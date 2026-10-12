@@ -10,7 +10,7 @@ import { db } from '../../../platform/dal/db.js';
 import { PlatformForbiddenError } from '../../../platform/errors.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { findCommercials } from '../proposals/repository.js';
-import { advanceBpsOf, discountBpsOf, evaluateDimensionsForRow } from './dimensions.js';
+import { advanceBpsOf, discountBpsOf, evaluateDimensionsForRow, grossSubtotalMinor } from './dimensions.js';
 import {
   findPendingForDeal,
   findRequest,
@@ -107,7 +107,10 @@ export async function requestApproval(ctx: RequestContext, commercialsId: string
 
   const authoritySnapshot: AuthoritySnapshot = {
     totalMinor: commercials.totalMinor,
-    discountBps: discountBpsOf(commercials),
+    discountBps: discountBpsOf({
+      ...commercials,
+      grossSubtotalMinor: grossSubtotalMinor(commercials.items),
+    }),
     advanceBps: advanceBpsOf(commercials),
     requiresCustomTerms: snapshot.exceeded.includes('custom_terms'),
   };

@@ -16,7 +16,9 @@
  * data model exist (R3+).
  */
 
-import type { Commercials } from '../proposals/types.js';
+import { divRoundHalfEven } from '../commercials/math.js';
+import { QUANTITY_SCALE } from '../commercials/types.js';
+import type { Commercials, CommercialsItemRow } from '../proposals/types.js';
 import type {
   ActorAuthority,
   ApprovalDimension,
@@ -29,16 +31,64 @@ export interface CommercialsForEvaluation {
   readonly totalMinor: bigint;
   readonly advanceMinor: bigint;
   readonly terms: string | null;
+  /**
+   * Sum of per-line gross (quantity × unitPrice) BEFORE any item or
+   * document discount. When present, approval dimensions use this as the
+   * denominator so item-level discounts can't bypass the policy. When
+   * absent, we fall back to subtotal (legacy callers).
+   */
+  readonly grossSubtotalMinor?: bigint;
 }
 
-/** Compute discount bps against subtotal; subtotal 0 → 0. */
-export function discountBpsOf(c: Pick<CommercialsForEvaluation, 'subtotalMinor' | 'discountMinor'>): number {
-  if (c.subtotalMinor <= 0n) return 0;
-  // bps = round(discount * 10000 / subtotal) using integer math.
-  const scaled = c.discountMinor * 10_000n;
-  const bps = scaled / c.subtotalMinor;
-  const rem = scaled - bps * c.subtotalMinor;
-  const rounded = rem * 2n >= c.subtotalMinor ? bps + 1n : bps;
+/**
+ * Parse the schema-validated quantity decimal into ×10⁴ bigint micros,
+ * mirroring commercials/service.ts `quantityToMicros` without the import
+ * cycle risk.
+ */
+function quantityToMicros(decimal: string): bigint {
+  const [integerPart, fractionalPart = ''] = decimal.split('.');
+  const padded = (fractionalPart + '0000').slice(0, 4);
+  return BigInt((integerPart ?? '0') + padded);
+}
+
+/** Per-item gross (pre-item-discount, pre-tax) in minor units. */
+function grossItemMinor(item: Pick<CommercialsItemRow, 'quantity' | 'unitPriceMinor'>): bigint {
+  const micros = quantityToMicros(item.quantity);
+  return divRoundHalfEven(micros * item.unitPriceMinor, QUANTITY_SCALE);
+}
+
+/** Sum of per-item gross. Zero when items list is empty. */
+export function grossSubtotalMinor(items: readonly Pick<CommercialsItemRow, 'quantity' | 'unitPriceMinor'>[]): bigint {
+  let total = 0n;
+  for (const item of items) total += grossItemMinor(item);
+  return total;
+}
+
+/**
+ * Compute total applied discount in minor units:
+ *   gross − subtotal   = sum of applied item discounts (clamped at line)
+ *   + discountMinor    = document-level discount already in the row
+ */
+export function totalDiscountMinor(c: Pick<CommercialsForEvaluation, 'subtotalMinor' | 'discountMinor' | 'grossSubtotalMinor'>): bigint {
+  const gross = c.grossSubtotalMinor ?? c.subtotalMinor;
+  const itemsApplied = gross > c.subtotalMinor ? gross - c.subtotalMinor : 0n;
+  return itemsApplied + c.discountMinor;
+}
+
+/**
+ * Discount bps against the gross subtotal — the pre-discount basis the
+ * policy intends to compare against. If `grossSubtotalMinor` is omitted
+ * the function falls back to the legacy subtotal basis and uses only the
+ * document discount, which was the pre-fix behaviour.
+ */
+export function discountBpsOf(c: Pick<CommercialsForEvaluation, 'subtotalMinor' | 'discountMinor' | 'grossSubtotalMinor'>): number {
+  const gross = c.grossSubtotalMinor ?? c.subtotalMinor;
+  if (gross <= 0n) return 0;
+  const discount = totalDiscountMinor(c);
+  const scaled = discount * 10_000n;
+  const bps = scaled / gross;
+  const rem = scaled - bps * gross;
+  const rounded = rem * 2n >= gross ? bps + 1n : bps;
   return Number(rounded);
 }
 
@@ -122,9 +172,9 @@ export function evaluateDimensions(
   };
 }
 
-/** Convenience: evaluate against the loaded commercials row. */
+/** Convenience: evaluate against the loaded commercials row + its items. */
 export function evaluateDimensionsForRow(
-  row: Pick<Commercials, 'subtotalMinor' | 'discountMinor' | 'totalMinor' | 'advanceMinor' | 'terms'>,
+  row: Pick<Commercials, 'subtotalMinor' | 'discountMinor' | 'totalMinor' | 'advanceMinor' | 'terms' | 'items'>,
   actor: ActorAuthority,
 ): ApprovalDimensionsSnapshot {
   return evaluateDimensions(
@@ -134,6 +184,7 @@ export function evaluateDimensionsForRow(
       totalMinor: row.totalMinor,
       advanceMinor: row.advanceMinor,
       terms: row.terms,
+      grossSubtotalMinor: grossSubtotalMinor(row.items),
     },
     actor,
   );

@@ -17,7 +17,7 @@ export interface Lead {
   currentHolderId: string | null; currentHolderName: string | null; territoryId: string | null; territoryName: string | null;
   salesTeamId: string | null; salesTeamName: string | null; salesPoolId: string | null; salesPoolName: string | null;
   sourceId: string; sourceName: string; sourceDirection: LeadDirection; campaignId: string | null; campaignName: string | null;
-  status: LeadStatus; routingStatus: 'assigned' | 'unrouted'; contactName: string; companyName: string | null;
+  status: LeadStatus; routingStatus: 'assigned' | 'unrouted'; contactId: string | null; contactName: string; companyId: string | null; companyName: string | null;
   phone: string | null; email: string | null; lossReason: LeadLossReason | null; lostAt: Date | null; previousLeadId: string | null; stalledAt: Date | null; stalledReason: string | null; createdBy: string; createdAt: Date; updatedAt: Date; activities: LeadActivity[];
 }
 export type LeadResource = Resource & Pick<Lead, 'organizationId' | 'ownerId' | 'currentHolderId' | 'salesTeamId' | 'salesPoolId'> & { departmentId: string | null };

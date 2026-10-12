@@ -16,6 +16,7 @@ import {
 import { IDENTITY_EXPIRED_EVENT } from './identity/api/authApi.js';
 import { CompanyWorkspace } from './company/CompanyWorkspace.js';
 import { PublicApplicationPage } from './company/recruitment/pages/PublicApplicationPage.js';
+import { PublicProposalPage } from './company/sales/proposals/PublicProposalPage.js';
 import type { DevPasswordReset, IdentityLoginResult } from './identity/api/authApi.js';
 
 export function App(): React.JSX.Element {
@@ -93,6 +94,10 @@ export function App(): React.JSX.Element {
   if (pathname.startsWith('/apply/')) {
     const token = pathname.replace(/^\/apply\/?/, '');
     return <PublicApplicationPage token={token} />;
+  }
+  if (pathname.startsWith('/public/proposals/')) {
+    const token = pathname.replace(/^\/public\/proposals\/?/, '');
+    return <PublicProposalPage token={token} />;
   }
   if (pathname === '/accept-invitation') return <AcceptInvitation />;
   if (pathname.startsWith('/platform'))

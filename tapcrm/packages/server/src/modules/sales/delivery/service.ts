@@ -19,6 +19,7 @@
 
 import type { Resource } from '@tapcrm/authz';
 import { effectivePolicy } from '@tapcrm/authz';
+import { globalAccess } from '@tapcrm/contracts';
 import { ApplicationError } from '../../../errors.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
@@ -109,28 +110,37 @@ export class DeliveryBriefAlreadyExistsError extends ApplicationError {
 }
 
 export async function loadDealForBrief(ctx: RequestContext, briefId: string): Promise<Resource | null> {
+  // The brief routes declare `delivery:view` / `delivery:approve` which
+  // the registry types as `resource: 'delivery'`. We return a resource
+  // of that type so the delivery-brief policy evaluates — not the deal
+  // policy (which would hand pool scope the wrong semantics for a
+  // Delivery reviewer who isn't the Sales closer).
   const row = await db.maybeOne<{
     id: string;
     organizationId: string;
     responsibleCloserId: string;
     originatingAgentId: string;
-    lifecycleStatus: string;
   }>(
     ctx,
-    sql`SELECT d.id,
-               d.organization_id       AS "organizationId",
+    sql`SELECT b.id,
+               b.organization_id       AS "organizationId",
                d.responsible_closer_id AS "responsibleCloserId",
-               d.originating_agent_id  AS "originatingAgentId",
-               d.lifecycle_status      AS "lifecycleStatus"
+               d.originating_agent_id  AS "originatingAgentId"
           FROM delivery_brief b
           JOIN deal d ON d.organization_id = b.organization_id AND d.id = b.deal_id
          WHERE b.organization_id = ${ctx.organizationId} AND b.id = ${briefId}`,
   );
   if (!row) return null;
-  const resource: DealResource = {
-    type: 'deal',
-    ...row,
-    lifecycleStatus: row.lifecycleStatus as DealResource['lifecycleStatus'],
+  const resource: Resource & {
+    type: 'delivery';
+    responsibleCloserId: string;
+    originatingAgentId: string;
+  } = {
+    type: 'delivery',
+    id: row.id,
+    organizationId: row.organizationId,
+    responsibleCloserId: row.responsibleCloserId,
+    originatingAgentId: row.originatingAgentId,
   };
   return resource;
 }
@@ -171,7 +181,7 @@ export async function startBrief(
       );
     }
 
-    const content: DeliveryBriefContent = (input.content ?? {}) as DeliveryBriefContent;
+    const content: DeliveryBriefContent = input.content ?? {};
     const id = await insertBrief(tx, ctx.organizationId, {
       dealId,
       commercialsId: input.commercialsId,
@@ -308,10 +318,10 @@ export async function reviewDecision(
       throw new DeliveryBriefWrongStateError(locked.state, ['draft', 'submitted', 'changes_requested']);
     }
     const deal = await loadDealContext(tx, ctx.organizationId, locked.dealId);
-    if (deal && deal.lifecycleStatus === 'won') {
+    if (deal && deal.lifecycleStatus === 'won' && !globalAccess(ctx.principal)) {
       // R-DEL-02 — cancelling after Win requires the deal:approve action.
       const policy = await effectivePolicy(ctx, 'deals:approve');
-      if (!policy.allowed) {
+      if (!policy?.allowed) {
         throw new PlatformForbiddenError('Cancelling a delivery brief after Win requires deals:approve');
       }
     }

@@ -54,6 +54,7 @@ import { registerApprovalPolicies } from './sales/approvals/policy.js';
 import { registerApprovalRoutes } from './sales/approvals/routes.js';
 import { registerContractRoutes } from './sales/contracts/routes.js';
 import { registerDeliveryBriefRoutes } from './sales/delivery/routes.js';
+import { registerDeliveryPolicies } from './sales/delivery/policy.js';
 import { registerHandoverPolicies } from './sales/handover/policy.js';
 import { registerHandoverRoutes } from './sales/handover/routes.js';
 import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
@@ -103,6 +104,7 @@ export function registerAllPolicies(): void {
   registerLeadPolicies();
   registerDealPolicies();
   registerApprovalPolicies();
+  registerDeliveryPolicies();
   registerHandoverPolicies();
   registerCallbackPolicies();
   registerRecruitmentPolicies();

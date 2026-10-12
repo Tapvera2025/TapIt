@@ -3640,6 +3640,18 @@
     },
     {
       "method": "GET",
+      "path": "/api/leads/duplicate-check",
+      "action": "leads:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/leads/triage",
+      "action": "leads:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/leads/stalled",
       "action": "leads:view",
       "resourceParam": null
@@ -3729,8 +3741,38 @@
       "resourceParam": "id"
     },
     {
+      "method": "POST",
+      "path": "/api/leads/:id/triage/rescue",
+      "action": "leads:rescue-from-triage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads/:id/triage/return",
+      "action": "leads:rescue-from-triage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads/:id/triage/close",
+      "action": "leads:rescue-from-triage",
+      "resourceParam": "id"
+    },
+    {
       "method": "GET",
       "path": "/api/bid-pool",
+      "action": "leads:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales/dashboard/claims-distribution",
+      "action": "leads:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales/dashboard/pool-health",
       "action": "leads:view",
       "resourceParam": null
     },
@@ -3880,9 +3922,15 @@
     },
     {
       "method": "GET",
-      "path": "/api/deals/:id/commercials",
+      "path": "/api/deals/:dealId/commercials",
       "action": "deals:view-commercials",
-      "resourceParam": "id"
+      "resourceParam": "dealId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:dealId/commercials",
+      "action": "deals:edit",
+      "resourceParam": "dealId"
     },
     {
       "method": "POST",
@@ -3900,6 +3948,36 @@
       "method": "PATCH",
       "path": "/api/deals/:id/commercials",
       "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/stage",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/probability",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/lost",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:id/cancel-after-win",
+      "action": "deals:approve",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/deals/:id/win-readiness",
+      "action": "deals:view",
       "resourceParam": "id"
     },
     {
@@ -3943,6 +4021,126 @@
       "path": "/api/deals/forecast",
       "action": "deals:forecast",
       "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/commercials/:id",
+      "action": "deals:view-commercials",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/commercials/:id",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/commercials/:id/publish",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/commercials/:id/supersede",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/commercials/:id/share-link",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/commercials/:id/share-link/:tokenId",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/commercials/:id/request-approval",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/deals/:dealId/contracts",
+      "action": "deals:view",
+      "resourceParam": "dealId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:dealId/contracts",
+      "action": "deals:edit",
+      "resourceParam": "dealId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/contracts/:id",
+      "action": "deals:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contracts/:id/send",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contracts/:id/signature",
+      "action": "deals:approve-contract",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contracts/:id/void",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contracts/:id/amend",
+      "action": "deals:approve-contract",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/deals/:dealId/delivery-brief",
+      "action": "delivery:view",
+      "resourceParam": "dealId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/deals/:dealId/delivery-brief",
+      "action": "deals:edit",
+      "resourceParam": "dealId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/delivery-briefs/:id",
+      "action": "delivery:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/delivery-briefs/:id",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/delivery-briefs/:id/submit",
+      "action": "deals:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/delivery-briefs/:id/review",
+      "action": "delivery:approve",
+      "resourceParam": "id"
     },
     {
       "method": "GET",

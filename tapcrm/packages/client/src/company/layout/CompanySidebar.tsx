@@ -23,7 +23,6 @@ export function CompanySidebar({
   canViewDeals = false,
   canRecordWin = false,
   canDecideApprovals = false,
-  canForecast = false,
   canViewChat = false,
   canViewClients = false,
   canViewProjects = false,
@@ -67,7 +66,6 @@ export function CompanySidebar({
   canViewDeals?: boolean;
   canRecordWin?: boolean;
   canDecideApprovals?: boolean;
-  canForecast?: boolean;
   canViewChat?: boolean;
   canViewClients?: boolean;
   canViewProjects?: boolean;
@@ -151,7 +149,7 @@ export function CompanySidebar({
         ...(canViewProjects ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }] : []),
       ],
     }] : []),
-    ...((canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers || canViewDeals || canDecideApprovals || canRecordWin || canForecast) ? [{
+    ...((canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers || canViewDeals || canDecideApprovals || canRecordWin) ? [{
       label: 'Sales',
       items: [
         ...(canViewTerritories ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }] : []),
@@ -161,7 +159,6 @@ export function CompanySidebar({
         ...(canRecordWin ? [{ label: 'Wins to record', path: '/company/sales/wins', icon: 'check' }] : []),
         ...(canViewCallbacks ? [{ label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar' }] : []),
         ...(canViewHandovers ? [{ label: 'Handovers', path: '/company/sales/handovers', icon: 'share' }] : []),
-        ...(canForecast ? [{ label: 'Reports', path: '/company/sales/reports', icon: 'chart' }] : []),
       ],
     }] : []),
     {

@@ -4,7 +4,11 @@ import { DEAL_LOSS_REASONS, DEAL_STAGES } from './types.js';
 export const createDealSchema = z.object({
   originatingLeadId: z.string().uuid().optional(),
   directEntryReason: z.string().trim().min(5).max(500).optional(),
-  contactId: z.string().uuid(),
+  /**
+   * Optional when `originatingLeadId` is set — the service pulls the
+   * contact from the lead's lineage. Direct-entry deals must supply it.
+   */
+  contactId: z.string().uuid().optional(),
   companyId: z.string().uuid().optional(),
   serviceRequested: z.string().trim().max(200).optional(),
   title: z.string().trim().min(1).max(200),
@@ -15,6 +19,9 @@ export const createDealSchema = z.object({
 }).refine(
   (value) => Boolean(value.originatingLeadId) || Boolean(value.directEntryReason),
   { message: 'Either originatingLeadId or directEntryReason is required', path: ['originatingLeadId'] },
+).refine(
+  (value) => Boolean(value.originatingLeadId) || Boolean(value.contactId),
+  { message: 'contactId is required unless originatingLeadId is set', path: ['contactId'] },
 );
 export type CreateDealInput = z.infer<typeof createDealSchema>;
 

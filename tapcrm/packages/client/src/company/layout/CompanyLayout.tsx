@@ -20,7 +20,6 @@ export function CompanyLayout({
   canViewDeals,
   canRecordWin,
   canDecideApprovals,
-  canForecast,
   canViewChat,
   canViewClients,
   canViewProjects,
@@ -64,7 +63,6 @@ export function CompanyLayout({
   canViewDeals: boolean;
   canRecordWin: boolean;
   canDecideApprovals: boolean;
-  canForecast: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
   canViewProjects: boolean;
@@ -112,7 +110,6 @@ export function CompanyLayout({
         canViewDeals={canViewDeals}
         canRecordWin={canRecordWin}
         canDecideApprovals={canDecideApprovals}
-        canForecast={canForecast}
         canViewChat={canViewChat}
         canViewClients={canViewClients}
         canViewProjects={canViewProjects}

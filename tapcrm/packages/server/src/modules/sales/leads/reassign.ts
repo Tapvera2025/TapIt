@@ -70,6 +70,20 @@ export async function reassign(
     }
   }
 
+  // Scope guard: an agent with `leads:reassign` at `own` scope can push
+  // their own lead to another user through the API. Only self-return (new
+  // owner == caller) is allowed at that scope; cross-user reassignment
+  // demands pool/team/department reach.
+  if (!globalAccess(ctx.principal) && input.newOwnerId !== ctx.principal.id) {
+    const policy = await effectivePolicy(ctx, 'leads:reassign');
+    const scope = policy?.allowed ? policy.scope : null;
+    if (scope === 'own' || scope === 'participant' || scope === null) {
+      throw new PlatformForbiddenError(
+        'Reassigning a lead to another user requires leads:reassign at pool scope or wider',
+      );
+    }
+  }
+
   // Availability: reject any ineligibility that is not purely a capacity cap;
   // the fail-soft rule lets an HOD rebalance a team past its soft limit.
   const [availability] = await evaluateAvailability(ctx, [input.newOwnerId], { pool: 'direct' });

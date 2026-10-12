@@ -24,12 +24,36 @@ describe('discountBpsOf', () => {
   it('returns 0 when subtotal is zero', () => {
     expect(discountBpsOf({ subtotalMinor: 0n, discountMinor: 100n })).toBe(0);
   });
-  it('computes 10% correctly', () => {
+  it('computes 10% correctly (document-level only, no gross passed)', () => {
     expect(discountBpsOf({ subtotalMinor: 100_000n, discountMinor: 10_000n })).toBe(1000);
   });
   it('rounds half-up', () => {
-    // 125 → 12.5 bps → ties round up to 13
     expect(discountBpsOf({ subtotalMinor: 10_000n, discountMinor: 125n })).toBe(125);
+  });
+
+  // Fix for the item-discount bypass: gross must drive the ratio.
+  it('counts item-level discounts when grossSubtotal is supplied', () => {
+    // One line, gross ₹1000, item discount ₹900 → subtotal ₹100.
+    // Applied discount = 1000 − 100 + 0 = 900 against gross 1000 → 9000 bps.
+    expect(
+      discountBpsOf({
+        grossSubtotalMinor: 100_000n,
+        subtotalMinor: 10_000n,
+        discountMinor: 0n,
+      }),
+    ).toBe(9000);
+  });
+
+  it('combines item-level and document discounts', () => {
+    // Gross ₹1000. Item discount ₹400 → subtotal ₹600. Doc discount ₹60.
+    // Applied discount = 400 + 60 = 460 against gross 1000 → 4600 bps.
+    expect(
+      discountBpsOf({
+        grossSubtotalMinor: 100_000n,
+        subtotalMinor: 60_000n,
+        discountMinor: 6_000n,
+      }),
+    ).toBe(4600);
   });
 });
 

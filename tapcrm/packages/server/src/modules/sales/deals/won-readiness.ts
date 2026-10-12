@@ -23,6 +23,7 @@ import { sql } from '../../../platform/dal/sql.js';
 import { paymentReadinessPort } from './payments-port.js';
 
 export const CLOSE_READINESS_CONDITIONS = [
+  'commercials',
   'approval',
   'contract',
   'payment',
@@ -151,6 +152,35 @@ export async function evaluateReadiness(
         resolver: 'Reopen the deal through the authorized reversal path, or create a new deal.',
       }],
     };
+  }
+
+  // 1a. Commercials readiness — a deal is not closeable without a frozen,
+  // published commercials version. `commercials_id` points to the active
+  // version; it must exist AND be in a state the recipient could accept.
+  if (!deal.commercialsId) {
+    unmet.push({
+      condition: 'commercials',
+      description: 'No published commercials version exists yet.',
+      resolver: 'Publish a commercials version from the proposals studio.',
+    });
+  } else {
+    const commercials = await tx.maybeOne<{ state: string }>(sql`
+      SELECT state FROM commercials
+       WHERE organization_id = ${ctx.organizationId} AND id = ${deal.commercialsId}
+    `);
+    if (!commercials) {
+      unmet.push({
+        condition: 'commercials',
+        description: 'The deal references a commercials row that no longer exists.',
+        resolver: 'Create and publish a new commercials version.',
+      });
+    } else if (commercials.state !== 'published' && commercials.state !== 'accepted') {
+      unmet.push({
+        condition: 'commercials',
+        description: `Active commercials version is ${commercials.state}; publish or accept it before close.`,
+        resolver: 'Publish the current draft, or create a new version if this one is superseded.',
+      });
+    }
   }
 
   // 1. Approval readiness.

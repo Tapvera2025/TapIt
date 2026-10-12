@@ -99,19 +99,26 @@ export async function createDeal(ctx: RequestContext, input: CreateDealInput): P
   let originatingAgentId: string;
   let responsibleCloserId: string;
   let companyId: string | null = input.companyId ?? null;
-  let contactId: string = input.contactId;
+  let contactId: string | undefined = input.contactId;
 
   if (input.originatingLeadId) {
     const lineage = await pullLeadLineage(ctx, input.originatingLeadId);
     originatingAgentId = lineage.originatingAgentId;
     responsibleCloserId = input.responsibleCloserId ?? lineage.responsibleCloserId;
     if (!input.companyId && lineage.companyId) companyId = lineage.companyId;
-    if (!input.contactId && lineage.contactId) contactId = lineage.contactId;
+    if (!contactId && lineage.contactId) contactId = lineage.contactId;
   } else {
     // Direct entry — the caller must be the originating agent, and
     // becomes the responsible closer by default.
     originatingAgentId = ctx.principal.id;
     responsibleCloserId = input.responsibleCloserId ?? ctx.principal.id;
+  }
+  if (!contactId) {
+    throw new ApplicationError(
+      'Contact could not be resolved — supply contactId or pick an originating lead that has one.',
+      422,
+      'DEAL_CONTACT_UNRESOLVED',
+    );
   }
 
   const dealId = await db.transaction(ctx, async (tx) => {

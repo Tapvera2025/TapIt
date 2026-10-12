@@ -31,6 +31,16 @@ export function registerDealRoutes(): void {
     handler: async ({ ctx, query }) => listDeals(ctx, dealListQuerySchema.parse(query)),
   });
 
+  // Static sibling paths MUST register before `/api/deals/:id`; Express
+  // matches in registration order and `:id` is greedy.
+  route({
+    method: 'GET',
+    path: '/api/deals/wins-to-record',
+    action: 'deals:record-win',
+    module: 'deals',
+    handler: async ({ ctx }) => listReadyToClose(ctx),
+  });
+
   route({
     method: 'GET',
     path: '/api/deals/:id',
@@ -111,13 +121,5 @@ export function registerDealRoutes(): void {
     resourceParam: 'id',
     loadResource: loadDeal,
     handler: async ({ ctx, params }) => recordWin(ctx, id(params['id']!)),
-  });
-
-  route({
-    method: 'GET',
-    path: '/api/deals/wins-to-record',
-    action: 'deals:record-win',
-    module: 'deals',
-    handler: async ({ ctx }) => listReadyToClose(ctx),
   });
 }

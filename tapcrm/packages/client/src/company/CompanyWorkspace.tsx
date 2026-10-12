@@ -50,7 +50,6 @@ import {
   ApprovalsQueuePage,
   WinsToRecordPage,
   DeliveryBriefPage,
-  ReportsPage,
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { MyInterviewsPage } from './recruitment/pages/MyInterviewsPage.js';
@@ -145,7 +144,6 @@ export function CompanyWorkspace({
   const canRecordWin = isSuperAdmin || can('deals:record-win');
   const canDecideApprovals = isSuperAdmin || can('approvals:decide');
   const canReviewDelivery = isSuperAdmin || can('delivery:approve');
-  const canForecast = isSuperAdmin || can('deals:forecast');
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
   const canViewProjects = isSuperAdmin || can('projects:view');
@@ -199,7 +197,6 @@ export function CompanyWorkspace({
     '/company/sales/approvals': 'Approvals',
     '/company/sales/wins': 'Wins to record',
     '/company/sales/deals/delivery': 'Delivery brief',
-    '/company/sales/reports': 'Reports',
     '/company/employees': 'Employees',
     '/company/sessions': 'Sessions & Devices',
     '/company/access': 'Access Explorer',
@@ -344,7 +341,7 @@ export function CompanyWorkspace({
     if (pathname === '/company/sales/triage' && canReassignLeadsFromUi) return <TriagePage onNavigate={onNavigate} />;
     if (pathname === '/company/sales/supervisor' && canReassignLeadsFromUi) return <SupervisorDashboardPage />;
     const leadDetail = pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
-    if (leadDetail && canViewLeads) return <LeadDetailsPage id={leadDetail[1]!} currentUserId={userId} organizationTimezone={organizationTimeZone} canReassign={canReassignLeadsFromUi} canTransferSourcingCredit={isSuperAdmin} onBack={() => onNavigate('/company/sales/leads')} />;
+    if (leadDetail && canViewLeads) return <LeadDetailsPage id={leadDetail[1]!} currentUserId={userId} organizationTimezone={organizationTimeZone} canReassign={canReassignLeadsFromUi} canTransferSourcingCredit={isSuperAdmin} canCreateDeal={isSuperAdmin || can('deals:create')} onBack={() => onNavigate('/company/sales/leads')} onNavigate={onNavigate} />;
     if (pathname === '/company/sales/deals' && canViewDeals) {
       return <DealsPage isSalesHod={canReassignLeadsFromUi} onNavigate={onNavigate} />;
     }
@@ -365,9 +362,6 @@ export function CompanyWorkspace({
     }
     if (pathname === '/company/sales/wins' && canRecordWin) {
       return <WinsToRecordPage onNavigate={onNavigate} />;
-    }
-    if (pathname === '/company/sales/reports' && canForecast) {
-      return <ReportsPage />;
     }
     return <DashboardPage identity={identity!} onNavigate={onNavigate} />;
   }
@@ -391,7 +385,6 @@ export function CompanyWorkspace({
       canViewDeals={canViewDeals}
       canRecordWin={canRecordWin}
       canDecideApprovals={canDecideApprovals}
-      canForecast={canForecast}
       canViewChat={canViewChat}
       canViewClients={canViewClients}
       canViewProjects={canViewProjects}

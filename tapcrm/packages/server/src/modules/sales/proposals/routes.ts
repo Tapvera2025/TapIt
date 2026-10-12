@@ -3,7 +3,7 @@
  *
  * Visibility and edit authority come from the parent deal. Both route
  * families (`/api/deals/:dealId/commercials` and `/api/commercials/:id`)
- * load the owning deal as the authz resource via `deals:view` /
+ * load the owning deal as the authz resource via `deals:view-commercials` /
  * `deals:edit`. No new action class is introduced in step 2.9.
  */
 
@@ -29,7 +29,7 @@ export function registerProposalRoutes(): void {
   route({
     method: 'GET',
     path: '/api/deals/:dealId/commercials',
-    action: 'deals:view',
+    action: 'deals:view-commercials',
     module: 'deals',
     resourceParam: 'dealId',
     loadResource: loadDeal,
@@ -51,7 +51,7 @@ export function registerProposalRoutes(): void {
   route({
     method: 'GET',
     path: '/api/commercials/:id',
-    action: 'deals:view',
+    action: 'deals:view-commercials',
     module: 'deals',
     resourceParam: 'id',
     loadResource: loadDealForCommercials,

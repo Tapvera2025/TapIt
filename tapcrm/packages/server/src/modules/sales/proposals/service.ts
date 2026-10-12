@@ -14,6 +14,8 @@ import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { recompute } from '../commercials/service.js';
 import type { DealResource } from '../deals/types.js';
+import { evaluateDimensionsForRow } from '../approvals/dimensions.js';
+import { loadUserAuthority, toActorAuthority } from '../approvals/repository.js';
 import { commercialsChecksum, commercialsRowToChecksumInput } from './checksum.js';
 import { issueToken, revokeToken, type IssuedToken } from './portal/token.js';
 import {
@@ -75,10 +77,11 @@ export class CommercialsOptimisticLockError extends ApplicationError {
 }
 
 export class CommercialsPublishBlockedError extends ApplicationError {
-  constructor(reason: 'approval_pending' | 'approval_rejected' | 'deal_closed' | 'empty_items') {
+  constructor(reason: 'approval_pending' | 'approval_rejected' | 'approval_required' | 'deal_closed' | 'empty_items') {
     const messages: Record<typeof reason, string> = {
       approval_pending: 'Approval is pending; publish is blocked until the request is decided.',
       approval_rejected: 'Approval was rejected; create a new version addressing the feedback.',
+      approval_required: 'Commercials dimensions exceed authority; request approval before publishing.',
       deal_closed: 'Deal lifecycle is already terminal; publish is not permitted.',
       empty_items: 'Commercials cannot be published without at least one line item.',
     };
@@ -324,6 +327,20 @@ export async function publishVersion(ctx: RequestContext, commercialsId: string)
       throw new CommercialsPublishBlockedError('empty_items');
     }
 
+    // R-APP-01 / R-PROP-02 — if the current totals exceed the publisher's
+    // authority, approval must have been granted. `not_required` is only
+    // legitimate when dimensions are within bounds; if they aren't, the
+    // salesperson has to request approval first.
+    if (deal.approvalStatus === 'not_required') {
+      const authorityRow = await loadUserAuthority(ctx, ctx.principal.id);
+      if (authorityRow) {
+        const snap = evaluateDimensionsForRow(current, toActorAuthority(authorityRow));
+        if (snap.requiresApproval) {
+          throw new CommercialsPublishBlockedError('approval_required');
+        }
+      }
+    }
+
     const checksum = commercialsChecksum(commercialsRowToChecksumInput(current));
     await markPublished(tx, ctx.organizationId, commercialsId, checksum, ctx.principal.id, now);
     await markSupersededOtherVersions(tx, ctx.organizationId, locked.dealId, commercialsId, now);
@@ -353,7 +370,14 @@ export async function createShareLink(ctx: RequestContext, commercialsId: string
   rawToken: string;
   tokenId: string;
   expiresAt: Date;
+  /**
+   * Path relative to the SPA origin, suitable for a customer-facing URL.
+   * The SPA must mount a public page at this path that reads the token
+   * and calls `/api/public/proposals/:token`. `portalApiPath` is the raw
+   * data endpoint for callers that want JSON directly.
+   */
   portalPath: string;
+  portalApiPath: string;
 }> {
   const commercials = await findCommercials(ctx, commercialsId);
   if (!commercials) throw new CommercialsNotFoundError();
@@ -372,6 +396,7 @@ export async function createShareLink(ctx: RequestContext, commercialsId: string
     tokenId: issued.tokenId,
     expiresAt: issued.expiresAt,
     portalPath: `/public/proposals/${issued.rawToken}`,
+    portalApiPath: `/api/public/proposals/${issued.rawToken}`,
   };
 }
 
