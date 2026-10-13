@@ -144,6 +144,12 @@ export const submitFeedbackSchema = z.object({
   areasForImprovement: z.string().trim().max(5000).optional().nullable(),
 });
 
+/**
+ * A panel member's own feedback from My Interviews. It is always theirs: the
+ * interviewer is the caller, so an `interviewerId` in the body is dropped.
+ */
+export const interviewerFeedbackSchema = submitFeedbackSchema.omit({ interviewerId: true });
+
 export const updateFeedbackSchema = z.object({
   interviewerId: z.string().uuid('Invalid interviewer ID').optional(),
   recommendation: interviewRecommendationSchema.optional(),
@@ -322,6 +328,7 @@ export type UpdateCandidateScreeningInput = z.infer<typeof updateCandidateScreen
 export type ScheduleInterviewInput = z.infer<typeof scheduleInterviewSchema>;
 export type UpdateInterviewStatusInput = z.infer<typeof updateInterviewStatusSchema>;
 export type SubmitFeedbackInput = z.infer<typeof submitFeedbackSchema>;
+export type InterviewerFeedbackInput = z.infer<typeof interviewerFeedbackSchema>;
 export type UpdateFeedbackInput = z.infer<typeof updateFeedbackSchema>;
 export type CreateOfferInput = z.infer<typeof createOfferSchema>;
 export type UpdateOfferStatusInput = z.infer<typeof updateOfferStatusSchema>;
@@ -340,3 +347,116 @@ export type InterviewDecisionInput = z.infer<typeof interviewDecisionSchema>;
 export type HireCandidateInput = z.infer<typeof hireCandidateSchema>;
 export type UploadCandidateResumeInput = z.infer<typeof uploadCandidateResumeSchema>;
 export type ParseCandidateResumeInput = z.infer<typeof parseCandidateResumeSchema>;
+
+// ---------------------------------------------------------------------
+// 9. Pipeline Rounds (new — revamp)
+// ---------------------------------------------------------------------
+
+export const pipelineRoundModeSchema = z.enum(['online', 'offline', 'phone']);
+
+export const createPipelineRoundSchema = z.object({
+  requisitionId: z.string().uuid('Invalid requisition ID'),
+  name: z.string().trim().min(1, 'Round name is required').max(100),
+  mode: pipelineRoundModeSchema.default('online'),
+  orderIndex: z.coerce.number().int().min(0).default(0),
+  interviewerNote: z.string().trim().max(5000).optional().nullable(),
+});
+
+export const updatePipelineRoundSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  mode: pipelineRoundModeSchema.optional(),
+  orderIndex: z.coerce.number().int().min(0).optional(),
+  interviewerNote: z.string().trim().max(5000).optional().nullable(),
+});
+
+export const reorderPipelineRoundsSchema = z.object({
+  rounds: z.array(
+    z.object({
+      id: z.string().uuid(),
+      orderIndex: z.coerce.number().int().min(0),
+    })
+  ).min(1),
+});
+
+// ---------------------------------------------------------------------
+// 10. Candidate Rounds (new — revamp)
+// ---------------------------------------------------------------------
+
+export const candidateRoundStatusSchema = z.enum([
+  'pending',
+  'scheduled',
+  'completed',
+  'passed',
+  'failed',
+  'skipped',
+]);
+
+export const roundRecommendationSchema = z.enum(['pass', 'fail', 'hold']);
+
+export const createCandidateRoundSchema = z.object({
+  candidateId: z.string().uuid('Invalid candidate ID'),
+  pipelineRoundId: z.string().uuid('Invalid pipeline round ID'),
+  assignedTo: z.string().uuid('Invalid user ID').optional().nullable(),
+  scheduledAt: z.string().trim().optional().nullable(),
+  mode: pipelineRoundModeSchema.optional().nullable(),
+  meetingLink: z.string().trim().max(2048).optional().nullable(),
+  location: z.string().trim().max(500).optional().nullable(),
+});
+
+export const submitRoundFeedbackSchema = z.object({
+  interviewerNotes: z.string().trim().max(10000).optional().nullable(),
+  rating: z.coerce.number().int().min(1).max(5).optional().nullable(),
+  recommendation: roundRecommendationSchema,
+});
+
+export const roundDecisionSchema = z.object({
+  decision: z.enum(['pass', 'fail', 'skip']),
+  notes: z.string().trim().max(5000).optional().nullable(),
+});
+
+export const assignRoundInterviewerSchema = z.object({
+  assignedTo: z.string().uuid('Invalid user ID'),
+  scheduledAt: z.string().trim().optional().nullable(),
+  mode: pipelineRoundModeSchema.optional().nullable(),
+  meetingLink: z.string().trim().max(2048).optional().nullable(),
+  location: z.string().trim().max(500).optional().nullable(),
+});
+
+// ---------------------------------------------------------------------
+// 11. Email Templates (new — revamp)
+// ---------------------------------------------------------------------
+
+export const createEmailTemplateSchema = z.object({
+  name: z.string().trim().min(1, 'Template name is required').max(100),
+  subject: z.string().trim().min(1, 'Subject is required').max(255),
+  body: z.string().trim().min(1, 'Body is required'),
+  isDefault: z.boolean().optional().default(false),
+});
+
+export const updateEmailTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  subject: z.string().trim().min(1).max(255).optional(),
+  body: z.string().trim().min(1).optional(),
+  isDefault: z.boolean().optional(),
+});
+
+// ---------------------------------------------------------------------
+// 12. Joining Email (new — revamp)
+// ---------------------------------------------------------------------
+
+export const sendJoiningEmailSchema = z.object({
+  templateId: z.string().uuid('Invalid template ID').optional().nullable(),
+  subject: z.string().trim().min(1, 'Subject is required').max(255),
+  body: z.string().trim().min(1, 'Body is required'),
+});
+
+export type CreatePipelineRoundInput = z.infer<typeof createPipelineRoundSchema>;
+export type UpdatePipelineRoundInput = z.infer<typeof updatePipelineRoundSchema>;
+export type ReorderPipelineRoundsInput = z.infer<typeof reorderPipelineRoundsSchema>;
+export type CreateCandidateRoundInput = z.infer<typeof createCandidateRoundSchema>;
+export type SubmitRoundFeedbackInput = z.infer<typeof submitRoundFeedbackSchema>;
+export type RoundDecisionInput = z.infer<typeof roundDecisionSchema>;
+export type AssignRoundInterviewerInput = z.infer<typeof assignRoundInterviewerSchema>;
+export type CreateEmailTemplateInput = z.infer<typeof createEmailTemplateSchema>;
+export type UpdateEmailTemplateInput = z.infer<typeof updateEmailTemplateSchema>;
+export type SendJoiningEmailInput = z.infer<typeof sendJoiningEmailSchema>;

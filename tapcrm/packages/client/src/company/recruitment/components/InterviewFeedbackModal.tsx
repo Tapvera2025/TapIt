@@ -9,7 +9,7 @@ import type {
 
 export function InterviewFeedbackModal({
   interview,
-  currentUserId,
+  currentUserId: _currentUserId,
   onClose,
   onSubmitted,
 }: {
@@ -39,7 +39,6 @@ export function InterviewFeedbackModal({
 
     try {
       const fb = await submitInterviewFeedback(interview.id, {
-        interviewerId: currentUserId ?? 'evaluator-1',
         recommendation,
         rating: rating ? parseInt(rating, 10) : undefined,
         feedback: feedback.trim(),

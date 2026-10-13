@@ -374,6 +374,7 @@ export function Field({
   placeholder,
   disabled = false,
   error,
+  hint,
 }: {
   label: string;
   value: string;
@@ -383,25 +384,40 @@ export function Field({
   placeholder?: string;
   disabled?: boolean;
   error?: string | undefined;
+  /** A line under the input, e.g. where an automatically filled value came from. */
+  hint?: ReactNode;
 }): React.JSX.Element {
+  const input = (
+    <input
+      required={required}
+      disabled={disabled}
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+      className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
+    />
+  );
+  const message = error && <span className="mt-1 block font-normal text-app-danger" role="alert">{error}</span>;
+  if (!hint) {
+    return (
+      <label className="text-xs font-semibold text-app-muted">
+        <span className="mb-2 block">{label}</span>
+        {input}
+        {message}
+      </label>
+    );
+  }
+  // The hint sits outside the label so a button in it does not focus the input.
   return (
-    <label className="text-xs font-semibold text-app-muted">
-      <span className="mb-2 block">{label}</span>
-      <input
-        required={required}
-        disabled={disabled}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
-      />
-      {error && (
-        <span className="mt-1 block font-normal text-app-danger" role="alert">
-          {error}
-        </span>
-      )}
-    </label>
+    <div className="text-xs font-semibold text-app-muted">
+      <label className="block">
+        <span className="mb-2 block">{label}</span>
+        {input}
+      </label>
+      {message}
+      <div className="mt-1 font-normal">{hint}</div>
+    </div>
   );
 }
 export function Select({

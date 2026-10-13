@@ -55,6 +55,8 @@ export {
   SUBORDINATES_CTE,
   TEAM_DESCENDANTS_CTE,
   POOL_MEMBERS,
+  TEAM_MEMBERS,
+  DEPARTMENT_MEMBERS,
   MEMO_KEYS,
 } from './scope-resolver.js';
 

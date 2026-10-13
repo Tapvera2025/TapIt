@@ -21,7 +21,12 @@ export interface GeolocationInput {
 }
 
 export class IdentityApiError extends Error {
-  constructor(message: string, public readonly code: string, public readonly status: number, public readonly details?: unknown) {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly status: number,
+    public readonly details?: unknown,
+  ) {
     super(message);
     this.name = 'IdentityApiError';
   }
@@ -204,7 +209,7 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
   let body: { success?: boolean; data?: T; message?: string; code?: string; details?: unknown } | null = null;
   if (contentType.includes('application/json')) {
     try {
-    body = (await response.json()) as { success?: boolean; data?: T; message?: string; code?: string; details?: unknown };
+      body = (await response.json()) as { success?: boolean; data?: T; message?: string; code?: string; details?: unknown };
     } catch {
       body = null;
     }
@@ -222,7 +227,12 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
     redirectToIdentityLogin();
   }
   if (!response.ok || !body.success || body.data === undefined) {
-    throw new IdentityApiError(body.message ?? 'Identity request failed', body.code ?? 'IDENTITY_REQUEST_FAILED', response.status, body.details);
+    throw new IdentityApiError(
+      body.message ?? 'Identity request failed',
+      body.code ?? 'IDENTITY_REQUEST_FAILED',
+      response.status,
+      body.details,
+    );
   }
   return body.data;
 }
@@ -320,6 +330,45 @@ export async function requestPasswordReset(email: string): Promise<void> {
     body: JSON.stringify({ email }),
   });
   if (!response.ok) throw new Error('Unable to submit password reset request');
+}
+
+export interface DevPasswordReset {
+  readonly email: string;
+  readonly password: string;
+}
+
+/**
+ * DEVELOPMENT ONLY. With DEV_INSTANT_PASSWORD_RESET=true in the API's .env, a
+ * company admin who clicks "Forgot password?" gets a new password on screen,
+ * because a laptop has no mailbox for the emailed link. Resolves null when it
+ * is not offered (production build, flag off, not this machine, API down), so
+ * the caller uses the emailed link instead. An employee's address rejects with
+ * IDENTITY_DEV_RESET_ADMIN_ONLY and an unknown one with IDENTITY_DEV_RESET_NOT_FOUND.
+ */
+const DEV_RESET_REFUSALS = new Set(['IDENTITY_DEV_RESET_ADMIN_ONLY', 'IDENTITY_DEV_RESET_NOT_FOUND']);
+
+export async function devInstantPasswordReset(email: string): Promise<DevPasswordReset | null> {
+  if (!import.meta.env.DEV) return null;
+  let response: Response;
+  try {
+    response = await fetch(identityApiPath('/api/identity/password/reset/dev-instant'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email }),
+      cache: 'no-store',
+    });
+  } catch {
+    return null;
+  }
+  if (!(response.headers.get('content-type') ?? '').includes('application/json')) return null;
+  const body = (await response.json().catch(() => ({}))) as { success?: boolean; data?: DevPasswordReset; message?: string; code?: string };
+  if (response.ok && body.success && body.data) return body.data;
+  if (body.code && DEV_RESET_REFUSALS.has(body.code)) {
+    throw new IdentityApiError(body.message ?? 'Could not make a new password', body.code, response.status);
+  }
+  // With the flag off the route does not exist and the API answers as for any
+  // unknown path (sign in required), so anything else means "not offered".
+  return null;
 }
 
 export async function resetPassword(token: string, organizationCode: string, password: string): Promise<void> {

@@ -27,6 +27,7 @@ import { findBoundaryViolations } from './boundary.js';
 import { findDateShortcuts, findTimeLibraryImports } from './time-rules.js';
 import { findForeignTableUse } from './tables.js';
 import { findPresenceViolations } from './presence-rules.js';
+import { inspectTenantRls } from './rls.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -219,8 +220,8 @@ const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
     const lines = read(file).split('\n');
     lines.forEach((line, i) => {
         if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
-        // Counts, percentages, time durations and attendance units are legitimately numbers; money is not.
-        if (/count|percent|index|length|version|attempts|limit|port|seconds|minutes|units|ms\b|pages|keywords|blogs/i.test(line)) return;
+        // Counts, percentages, time durations, basis points and attendance units are legitimately numbers; money is not.
+        if (/count|percent|index|length|version|attempts|limit|port|seconds|minutes|units|ms\b|bps\b|Bps\b|pages|keywords|blogs/i.test(line)) return;
         if (
           /\btotal\s*[?]?:\s*number\b/.test(line) &&
           PAGINATION_NEARBY.test(lines.slice(Math.max(0, i - 3), i + 4).join('\n'))
@@ -415,17 +416,7 @@ const RLS_EXCEPTIONS: Readonly<Record<string, string>> = {
   const migrations = walk(resolve(ROOT, 'migrations'), ['.sql']);
   const all = migrations.map(read).join('\n');
 
-  const created = [...all.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?(\w+)\s*\(([\s\S]*?)\n\)/g)];
-  const tenantTables = created
-    .filter(([, , body]) => /organization_id\s+uuid\s+NOT NULL/.test(body ?? ''))
-    .map(([, name]) => name!)
-    .filter((n) => n !== 'organization');
-
-  const unprotected = tenantTables.filter(
-    (t) =>
-      !new RegExp(`apply_tenant_rls\\('${t}'\\)`).test(all) &&
-      !new RegExp(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`).test(all),
-  );
+  const { tenantTables, unprotected } = inspectTenantRls(all);
   const missing = unprotected.filter((t) => !(t in RLS_EXCEPTIONS));
   const excepted = unprotected.filter((t) => t in RLS_EXCEPTIONS);
 

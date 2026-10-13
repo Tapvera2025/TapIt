@@ -7,6 +7,8 @@ import { CandidatesPage } from './CandidatesPage.js';
 import { InterviewsPage } from './InterviewsPage.js';
 import { OffersPage } from './OffersPage.js';
 import { JoiningPage } from './JoiningPage.js';
+import { MyInterviewsPage } from './MyInterviewsPage.js';
+import { EmailTemplatesPage } from './EmailTemplatesPage.js';
 import { RequisitionFormModal } from '../components/RequisitionFormModal.js';
 import { CandidateFormModal } from '../components/CandidateFormModal.js';
 import { InterviewScheduleModal } from '../components/InterviewScheduleModal.js';
@@ -42,7 +44,11 @@ export function RecruitmentWorkspace({
             ? 'offers'
             : pathname.startsWith('/company/recruitment/joining')
               ? 'joining'
-              : 'overview';
+              : pathname.startsWith('/company/recruitment/my-interviews')
+                ? 'my-interviews'
+                : pathname.startsWith('/company/recruitment/email-templates')
+                  ? 'email-templates'
+                  : 'overview';
 
   async function loadRequisitions() {
     try {
@@ -112,6 +118,10 @@ export function RecruitmentWorkspace({
         <JoiningPage
           onNavigateToEmployees={() => handleNavigate('/company/employees')}
         />
+      ) : activeTab === 'my-interviews' ? (
+        <MyInterviewsPage />
+      ) : activeTab === 'email-templates' ? (
+        <EmailTemplatesPage />
       ) : (
         <RecruitmentOverviewPage
           onNavigate={handleNavigate}

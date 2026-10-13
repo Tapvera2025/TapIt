@@ -59,6 +59,8 @@ function createPolicyContext(
       poolIds: async () => new Set([teamId]),
       subordinateIds: async () => new Set<string>(),
       poolMemberIds: async () => new Set<string>(),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
     },
   };
 }

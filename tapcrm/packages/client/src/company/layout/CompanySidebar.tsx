@@ -84,6 +84,10 @@ export function CompanySidebar({
   canViewLeads = false,
   canViewCallbacks = false,
   canViewHandovers = false,
+  canViewDeals = false,
+  canRecordWin = false,
+  canDecideApprovals = false,
+  canForecast = false,
   canViewChat = false,
   canViewClients = false,
   canViewProjects = false,
@@ -106,6 +110,7 @@ export function CompanySidebar({
   canApproveExpenses = false,
   isHr = false,
   hasRecruitment = false,
+  hasInterviews = false,
   onNavigate,
   onLogout,
   open,
@@ -136,6 +141,10 @@ export function CompanySidebar({
   canViewLeads?: boolean;
   canViewCallbacks?: boolean;
   canViewHandovers?: boolean;
+  canViewDeals?: boolean;
+  canRecordWin?: boolean;
+  canDecideApprovals?: boolean;
+  canForecast?: boolean;
   canViewChat?: boolean;
   canViewClients?: boolean;
   canViewProjects?: boolean;
@@ -158,6 +167,8 @@ export function CompanySidebar({
   canApproveExpenses?: boolean;
   isHr?: boolean;
   hasRecruitment?: boolean;
+  /** Shown only while this user has interviews (assigned rounds or panels). */
+  hasInterviews?: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   open: boolean;
@@ -247,6 +258,7 @@ export function CompanySidebar({
       items: [
         { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
         { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+        ...(hasInterviews ? [{ label: 'My Interviews', path: '/company/my-interviews', icon: 'calendar' }] : []),
         ...(canViewChat
           ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }]
           : []),
@@ -345,40 +357,34 @@ export function CompanySidebar({
           },
         ]
       : []),
-    ...(canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers
+    ...(canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers || canViewDeals || canDecideApprovals || canRecordWin || canForecast
       ? [
           {
             label: 'Sales',
             items: [
               ...(canViewTerritories
-                ? [
-                    {
-                      label: 'Territories',
-                      path: '/company/sales/territories',
-                      icon: 'map',
-                    },
-                  ]
+                ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }]
                 : []),
               ...(canViewLeads
                 ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }]
                 : []),
+              ...(canViewDeals
+                ? [{ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase' }]
+                : []),
+              ...(canDecideApprovals
+                ? [{ label: 'Approvals', path: '/company/sales/approvals', icon: 'check' }]
+                : []),
+              ...(canRecordWin
+                ? [{ label: 'Wins to record', path: '/company/sales/wins', icon: 'check' }]
+                : []),
               ...(canViewCallbacks
-                ? [
-                    {
-                      label: 'Callbacks',
-                      path: '/company/sales/callbacks',
-                      icon: 'calendar',
-                    },
-                  ]
+                ? [{ label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar' }]
                 : []),
               ...(canViewHandovers
-                ? [
-                    {
-                      label: 'Handovers',
-                      path: '/company/sales/handovers',
-                      icon: 'share',
-                    },
-                  ]
+                ? [{ label: 'Handovers', path: '/company/sales/handovers', icon: 'share' }]
+                : []),
+              ...(canForecast
+                ? [{ label: 'Reports', path: '/company/sales/reports', icon: 'chart' }]
                 : []),
             ],
           },

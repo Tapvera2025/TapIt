@@ -16,6 +16,8 @@ const TABS: TabItem[] = [
   { id: 'interviews', label: 'Interviews', path: '/company/recruitment/interviews', iconName: 'history' },
   { id: 'offers', label: 'Offers', path: '/company/recruitment/offers', iconName: 'check' },
   { id: 'joining', label: 'Joining', path: '/company/recruitment/joining', iconName: 'building' },
+  { id: 'my-interviews', label: 'My Interviews', path: '/company/recruitment/my-interviews', iconName: 'calendar' },
+  { id: 'email-templates', label: 'Email Templates', path: '/company/recruitment/email-templates', iconName: 'message' },
 ];
 
 export function RecruitmentTabs({

@@ -106,23 +106,28 @@ export async function listRecords(
   }
   const visibility = await visibilityFilter(ctx, 'attendance:view', 'attendanceRecord');
   const rows = await db.transaction(ctx, async (tx) => {
+    const visibleRows = await api.listRecordsInRange(
+      tx, visibility, query.from, query.to, query.userId ?? null,
+    );
     // The scheduled auto-close job remains the normal path. This narrow
     // read repair prevents a delayed worker from leaving an employee's
     // already-overdue day displayed as "in progress" until the next tick.
-    if (query.userId !== undefined) {
-      const overdue = await repo.closeDueRecords(
-        tx,
-        new Date(),
-        null,
-        MAX_READ_DAYS,
-        query.userId,
-        query.from,
-        query.to,
-      );
-      for (const record of overdue) {
-        await applyCloseDecision(tx, record.userId, record.workDate);
-        await recalculateRecord(tx, record.id);
-      }
+    // The same visibility filter must also gate the repair, and closure
+    // must hold the person's lock before changing the ledger.
+    if (query.userId === undefined || visibleRows.length === 0) return visibleRows;
+    await repo.lockPerson(tx, query.userId);
+    const overdue = await repo.closeDueRecords(
+      tx,
+      new Date(),
+      null,
+      MAX_READ_DAYS,
+      query.userId,
+      query.from,
+      query.to,
+    );
+    for (const record of overdue) {
+      await applyCloseDecision(tx, record.userId, record.workDate);
+      await recalculateRecord(tx, record.id);
     }
     return api.listRecordsInRange(tx, visibility, query.from, query.to, query.userId ?? null);
   });

@@ -28,6 +28,7 @@ import { registerAllJobs } from './modules/index.js';
 import { startAuditDrainer, stopAuditDrainer } from './modules/audit/drainer.js';
 import { startNotificationDispatcher, stopNotificationDispatcher } from './modules/notifications/dispatcher.js';
 import { startJobs, stopJobs } from './platform/jobs/runner.js';
+import { stopResumeOcr } from './modules/recruitment/resume-ocr/index.js';
 import { startOutboxDrainer, stopOutboxDrainer } from './platform/outbox/drainer.js';
 import { startRealtime, stopRealtime } from './platform/realtime/server.js';
 
@@ -94,6 +95,7 @@ function shutdown(code: number): void {
         stopAuditDrainer(),
         stopOutboxDrainer(),
         stopNotificationDispatcher(),
+        stopResumeOcr(),
       ])
         .then(() => stopJobs())
         .then(closePools)

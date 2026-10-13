@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 184   Bindings: 495
+ * Actions: 194   Bindings: 567
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -107,9 +107,13 @@ export type Action =
   | 'invoicing:manage-series'
   | 'invoicing:send'
   | 'invoicing:view'
+  | 'leads:claim'
   | 'leads:create'
   | 'leads:edit'
+  | 'leads:pass'
   | 'leads:reassign'
+  | 'leads:reassign-with-credit'
+  | 'leads:rescue-from-triage'
   | 'leads:view'
   | 'leave:acknowledge'
   | 'leave:decide'
@@ -156,13 +160,19 @@ export type Action =
   | 'receivables:dun'
   | 'receivables:view'
   | 'receivables:write-off'
+  | 'recruitment:manage-candidate-rounds'
   | 'recruitment:manage-candidates'
+  | 'recruitment:manage-email-templates'
   | 'recruitment:manage-interviews'
   | 'recruitment:manage-joining'
   | 'recruitment:manage-links'
   | 'recruitment:manage-offers'
+  | 'recruitment:manage-pipeline'
   | 'recruitment:manage-requisitions'
   | 'recruitment:manage-submissions'
+  | 'recruitment:send-joining-email'
+  | 'recruitment:submit-round-feedback'
+  | 'recruitment:view-candidate-events'
   | 'recruitment:view-candidates'
   | 'recruitment:view-interviews'
   | 'recruitment:view-joining'
@@ -293,9 +303,13 @@ export const ACTIONS: readonly Action[] = [
   'invoicing:manage-series',
   'invoicing:send',
   'invoicing:view',
+  'leads:claim',
   'leads:create',
   'leads:edit',
+  'leads:pass',
   'leads:reassign',
+  'leads:reassign-with-credit',
+  'leads:rescue-from-triage',
   'leads:view',
   'leave:acknowledge',
   'leave:decide',
@@ -342,13 +356,19 @@ export const ACTIONS: readonly Action[] = [
   'receivables:dun',
   'receivables:view',
   'receivables:write-off',
+  'recruitment:manage-candidate-rounds',
   'recruitment:manage-candidates',
+  'recruitment:manage-email-templates',
   'recruitment:manage-interviews',
   'recruitment:manage-joining',
   'recruitment:manage-links',
   'recruitment:manage-offers',
+  'recruitment:manage-pipeline',
   'recruitment:manage-requisitions',
   'recruitment:manage-submissions',
+  'recruitment:send-joining-email',
+  'recruitment:submit-round-feedback',
+  'recruitment:view-candidate-events',
   'recruitment:view-candidates',
   'recruitment:view-interviews',
   'recruitment:view-joining',
@@ -1698,6 +1718,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'leads:claim': {
+    action: 'leads:claim',
+    module: 'leads',
+    resource: 'lead',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'leads:create': {
     action: 'leads:create',
     module: 'leads',
@@ -1728,8 +1763,53 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'leads:pass': {
+    action: 'leads:pass',
+    module: 'leads',
+    resource: 'lead',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'leads:reassign': {
     action: 'leads:reassign',
+    module: 'leads',
+    resource: 'lead',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'leads:reassign-with-credit': {
+    action: 'leads:reassign-with-credit',
+    module: 'leads',
+    resource: 'lead',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: true,
+    },
+    description: "",
+  },
+  'leads:rescue-from-triage': {
+    action: 'leads:rescue-from-triage',
     module: 'leads',
     resource: 'lead',
     domain: 'business',
@@ -2433,10 +2513,40 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'recruitment:manage-candidate-rounds': {
+    action: 'recruitment:manage-candidate-rounds',
+    module: 'recruitment',
+    resource: 'candidate',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'recruitment:manage-candidates': {
     action: 'recruitment:manage-candidates',
     module: 'recruitment',
     resource: 'candidate',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'recruitment:manage-email-templates': {
+    action: 'recruitment:manage-email-templates',
+    module: 'recruitment',
+    resource: null,
     domain: 'business',
     sensitive: false,
     approvalBearing: false,
@@ -2508,6 +2618,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'recruitment:manage-pipeline': {
+    action: 'recruitment:manage-pipeline',
+    module: 'recruitment',
+    resource: 'jobRequisition',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'recruitment:manage-requisitions': {
     action: 'recruitment:manage-requisitions',
     module: 'recruitment',
@@ -2527,6 +2652,51 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     action: 'recruitment:manage-submissions',
     module: 'recruitment',
     resource: 'candidateResumeSubmission',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'recruitment:send-joining-email': {
+    action: 'recruitment:send-joining-email',
+    module: 'recruitment',
+    resource: 'candidateJoining',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'recruitment:submit-round-feedback': {
+    action: 'recruitment:submit-round-feedback',
+    module: 'recruitment',
+    resource: 'candidate',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'recruitment:view-candidate-events': {
+    action: 'recruitment:view-candidate-events',
+    module: 'recruitment',
+    resource: 'candidate',
     domain: 'business',
     sensitive: false,
     approvalBearing: false,
@@ -3364,6 +3534,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PUT', path: '/api/territories/:id/status', action: 'territories:manage', resourceParam: 'id' },
   { method: 'PUT', path: '/api/territories/routing', action: 'territories:manage', resourceParam: null },
   { method: 'GET', path: '/api/leads', action: 'leads:view', resourceParam: null },
+  { method: 'GET', path: '/api/leads/duplicate-check', action: 'leads:view', resourceParam: null },
+  { method: 'GET', path: '/api/leads/triage', action: 'leads:view', resourceParam: null },
   { method: 'GET', path: '/api/leads/stalled', action: 'leads:view', resourceParam: null },
   { method: 'GET', path: '/api/leads/re-engagement/segments', action: 'leads:view', resourceParam: null },
   { method: 'GET', path: '/api/leads/:id', action: 'leads:view', resourceParam: 'id' },
@@ -3377,6 +3549,23 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/leads/:id', action: 'leads:edit', resourceParam: 'id' },
   { method: 'POST', path: '/api/leads/:id/reassign', action: 'leads:reassign', resourceParam: 'id' },
   { method: 'POST', path: '/api/leads/bulk-reassign', action: 'leads:reassign', resourceParam: null },
+  { method: 'POST', path: '/api/leads/:id/reassign-with-credit', action: 'leads:reassign-with-credit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/leads/:id/rescue', action: 'leads:rescue-from-triage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/leads/:id/triage/rescue', action: 'leads:rescue-from-triage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/leads/:id/triage/return', action: 'leads:rescue-from-triage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/leads/:id/triage/close', action: 'leads:rescue-from-triage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/bid-pool', action: 'leads:view', resourceParam: null },
+  { method: 'GET', path: '/api/sales/dashboard/claims-distribution', action: 'leads:view', resourceParam: null },
+  { method: 'GET', path: '/api/sales/dashboard/pool-health', action: 'leads:view', resourceParam: null },
+  { method: 'GET', path: '/api/bid-pool/:leadId/card', action: 'leads:view', resourceParam: 'leadId' },
+  { method: 'POST', path: '/api/bid-pool/:leadId/claim', action: 'leads:claim', resourceParam: 'leadId' },
+  { method: 'POST', path: '/api/bid-pool/:leadId/pass', action: 'leads:pass', resourceParam: 'leadId' },
+  { method: 'GET', path: '/api/sales/connectors', action: 'system:manage-integrations', resourceParam: null },
+  { method: 'POST', path: '/api/sales/connectors', action: 'system:manage-integrations', resourceParam: null },
+  { method: 'PATCH', path: '/api/sales/connectors/:id', action: 'system:manage-integrations', resourceParam: 'id' },
+  { method: 'POST', path: '/api/sales/connectors/:id/pause', action: 'system:manage-integrations', resourceParam: 'id' },
+  { method: 'POST', path: '/api/sales/connectors/:id/resume', action: 'system:manage-integrations', resourceParam: 'id' },
+  { method: 'POST', path: '/api/sales/connectors/:id/retry', action: 'system:manage-integrations', resourceParam: 'id' },
   { method: 'GET', path: '/api/callbacks', action: 'callbacks:view', resourceParam: null },
   { method: 'GET', path: '/api/callbacks/:id', action: 'callbacks:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/callbacks', action: 'callbacks:create', resourceParam: null },
@@ -3392,10 +3581,16 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/handovers/:id/annotations', action: 'handovers:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/deals', action: 'deals:view', resourceParam: null },
   { method: 'GET', path: '/api/deals/:id', action: 'deals:view', resourceParam: 'id' },
-  { method: 'GET', path: '/api/deals/:id/commercials', action: 'deals:view-commercials', resourceParam: 'id' },
+  { method: 'GET', path: '/api/deals/:dealId/commercials', action: 'deals:view-commercials', resourceParam: 'dealId' },
+  { method: 'POST', path: '/api/deals/:dealId/commercials', action: 'deals:edit', resourceParam: 'dealId' },
   { method: 'POST', path: '/api/deals', action: 'deals:create', resourceParam: null },
   { method: 'PATCH', path: '/api/deals/:id', action: 'deals:edit', resourceParam: 'id' },
   { method: 'PATCH', path: '/api/deals/:id/commercials', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/deals/:id/stage', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/deals/:id/probability', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/deals/:id/lost', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/deals/:id/cancel-after-win', action: 'deals:approve', resourceParam: 'id' },
+  { method: 'GET', path: '/api/deals/:id/win-readiness', action: 'deals:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/deals/:id/approve', action: 'deals:approve', resourceParam: 'id' },
   { method: 'POST', path: '/api/deals/:id/custom-terms', action: 'deals:allow-custom-terms', resourceParam: 'id' },
   { method: 'POST', path: '/api/deals/:id/contract/approve', action: 'deals:approve-contract', resourceParam: 'id' },
@@ -3403,6 +3598,26 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/deals/:id/record-win', action: 'deals:record-win', resourceParam: 'id' },
   { method: 'GET', path: '/api/deals/wins-to-record', action: 'deals:record-win', resourceParam: null },
   { method: 'GET', path: '/api/deals/forecast', action: 'deals:forecast', resourceParam: null },
+  { method: 'GET', path: '/api/commercials/:id', action: 'deals:view-commercials', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/commercials/:id', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/commercials/:id/publish', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/commercials/:id/supersede', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/commercials/:id/share-link', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/commercials/:id/share-link/:tokenId', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/commercials/:id/request-approval', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'GET', path: '/api/deals/:dealId/contracts', action: 'deals:view', resourceParam: 'dealId' },
+  { method: 'POST', path: '/api/deals/:dealId/contracts', action: 'deals:edit', resourceParam: 'dealId' },
+  { method: 'GET', path: '/api/contracts/:id', action: 'deals:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/contracts/:id/send', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/contracts/:id/signature', action: 'deals:approve-contract', resourceParam: 'id' },
+  { method: 'POST', path: '/api/contracts/:id/void', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/contracts/:id/amend', action: 'deals:approve-contract', resourceParam: 'id' },
+  { method: 'GET', path: '/api/deals/:dealId/delivery-brief', action: 'delivery:view', resourceParam: 'dealId' },
+  { method: 'POST', path: '/api/deals/:dealId/delivery-brief', action: 'deals:edit', resourceParam: 'dealId' },
+  { method: 'GET', path: '/api/delivery-briefs/:id', action: 'delivery:view', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/delivery-briefs/:id', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/delivery-briefs/:id/submit', action: 'deals:edit', resourceParam: 'id' },
+  { method: 'POST', path: '/api/delivery-briefs/:id/review', action: 'delivery:approve', resourceParam: 'id' },
   { method: 'GET', path: '/api/approvals/queue', action: 'approvals:decide', resourceParam: null },
   { method: 'POST', path: '/api/approvals/:id/decide', action: 'approvals:decide', resourceParam: 'id' },
   { method: 'GET', path: '/api/approvals/delegations', action: 'approvals:delegate', resourceParam: null },
@@ -3616,6 +3831,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/recruitment/candidates/:id/status', action: 'recruitment:manage-candidates', resourceParam: 'id' },
   { method: 'PATCH', path: '/api/recruitment/candidates/:id/screening', action: 'recruitment:manage-candidates', resourceParam: 'id' },
   { method: 'POST', path: '/api/recruitment/candidates/:id/hire', action: 'recruitment:manage-candidates', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/recruitment/candidates/:id', action: 'recruitment:manage-candidates', resourceParam: 'id' },
   { method: 'GET', path: '/api/recruitment/interviews', action: 'recruitment:view-interviews', resourceParam: null },
   { method: 'POST', path: '/api/recruitment/interviews', action: 'recruitment:manage-interviews', resourceParam: null },
   { method: 'GET', path: '/api/recruitment/interviews/:id', action: 'recruitment:view-interviews', resourceParam: 'id' },
@@ -3651,6 +3867,32 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/recruitment/resume-submissions/:id/resume-url', action: 'recruitment:manage-submissions', resourceParam: 'id' },
   { method: 'PATCH', path: '/api/recruitment/resume-submissions/:id/status', action: 'recruitment:manage-submissions', resourceParam: 'id' },
   { method: 'POST', path: '/api/recruitment/resume-submissions/:id/convert', action: 'recruitment:manage-submissions', resourceParam: 'id' },
+  { method: 'GET', path: '/api/recruitment/pipeline-rounds', action: 'recruitment:view-requisitions', resourceParam: null },
+  { method: 'POST', path: '/api/recruitment/pipeline-rounds', action: 'recruitment:manage-pipeline', resourceParam: null },
+  { method: 'POST', path: '/api/recruitment/pipeline-rounds/reorder', action: 'recruitment:manage-pipeline', resourceParam: null },
+  { method: 'PATCH', path: '/api/recruitment/pipeline-rounds/:id', action: 'recruitment:manage-pipeline', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/recruitment/pipeline-rounds/:id', action: 'recruitment:manage-pipeline', resourceParam: 'id' },
+  { method: 'GET', path: '/api/recruitment/candidate-rounds', action: 'recruitment:manage-candidate-rounds', resourceParam: null },
+  { method: 'POST', path: '/api/recruitment/candidate-rounds', action: 'recruitment:manage-candidate-rounds', resourceParam: null },
+  { method: 'PATCH', path: '/api/recruitment/candidate-rounds/:id/assign', action: 'recruitment:manage-candidate-rounds', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/recruitment/candidate-rounds/:id/feedback', action: 'recruitment:submit-round-feedback', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/recruitment/candidate-rounds/:id/decision', action: 'recruitment:manage-candidate-rounds', resourceParam: 'id' },
+  { method: 'GET', path: '/api/recruitment/my-interviews', action: 'recruitment:submit-round-feedback', resourceParam: null },
+  { method: 'GET', path: '/api/recruitment/my-interviews/rounds/:id/resume', action: 'recruitment:submit-round-feedback', resourceParam: 'id' },
+  { method: 'GET', path: '/api/recruitment/my-interviews/interviews/:id/resume', action: 'recruitment:submit-round-feedback', resourceParam: 'id' },
+  { method: 'PUT', path: '/api/recruitment/my-interviews/interviews/:id/feedback', action: 'recruitment:submit-round-feedback', resourceParam: 'id' },
+  { method: 'GET', path: '/api/recruitment/candidate-events', action: 'recruitment:view-candidate-events', resourceParam: null },
+  { method: 'GET', path: '/api/recruitment/email-templates', action: 'recruitment:manage-email-templates', resourceParam: null },
+  { method: 'POST', path: '/api/recruitment/email-templates', action: 'recruitment:manage-email-templates', resourceParam: null },
+  { method: 'GET', path: '/api/recruitment/email-templates/:id', action: 'recruitment:manage-email-templates', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/recruitment/email-templates/:id', action: 'recruitment:manage-email-templates', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/recruitment/email-templates/:id', action: 'recruitment:manage-email-templates', resourceParam: 'id' },
+  { method: 'POST', path: '/api/recruitment/joining/:id/send-email', action: 'recruitment:send-joining-email', resourceParam: 'id' },
+  { method: 'POST', path: '/api/recruitment/joinings/:id/send-email', action: 'recruitment:send-joining-email', resourceParam: 'id' },
+  { method: 'GET', path: '/api/recruitment/requisitions/:id/ats-criteria', action: 'recruitment:view-requisitions', resourceParam: 'id' },
+  { method: 'PUT', path: '/api/recruitment/requisitions/:id/ats-criteria', action: 'recruitment:manage-requisitions', resourceParam: 'id' },
+  { method: 'GET', path: '/api/recruitment/resume-submissions/:id/ats', action: 'recruitment:manage-submissions', resourceParam: 'id' },
+  { method: 'POST', path: '/api/recruitment/resume-submissions/:id/ats-scans', action: 'recruitment:manage-submissions', resourceParam: 'id' },
 ];
 
 const ACTION_SET: ReadonlySet<string> = new Set(ACTIONS);

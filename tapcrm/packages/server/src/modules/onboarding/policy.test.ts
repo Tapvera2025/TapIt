@@ -24,6 +24,8 @@ function context(principalOverrides: Partial<PolicyEvaluationContext['principal'
       poolIds: async () => new Set(['team-1']),
       subordinateIds: async () => new Set<string>(),
       poolMemberIds: async () => new Set<string>(),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
     },
   };
 }

@@ -17,6 +17,7 @@ import {
 import { InterviewRescheduleModal } from './InterviewRescheduleModal.js';
 import { InterviewDecisionModal } from './InterviewDecisionModal.js';
 import { HiringDialog } from './HiringDialog.js';
+import { CandidateRoundPanel } from './CandidateRoundPanel.js';
 import type {
   Candidate,
   CandidateJoining,
@@ -39,7 +40,7 @@ export function CandidateDetailModal({
   readonly onCreateOffer?: ((candidate: Candidate) => void) | undefined;
 }): React.JSX.Element {
   const [candidate, setCandidate] = useState<Candidate>(initialCandidate);
-  const [activeSection, setActiveSection] = useState<'profile' | 'screening' | 'interviews' | 'offer'>(
+  const [activeSection, setActiveSection] = useState<'profile' | 'screening' | 'pipeline' | 'interviews' | 'offer'>(
     candidate.status === 'screening' ? 'screening' : 'profile',
   );
 
@@ -321,13 +322,13 @@ export function CandidateDetailModal({
         )}
 
         {/* Section Navigation */}
-        <div className="flex border-b border-app-border">
-          {(['profile', 'screening', 'interviews', 'offer'] as const).map((sec) => (
+        <div className="flex overflow-x-auto border-b border-app-border">
+          {(['profile', 'screening', 'pipeline', 'interviews', 'offer'] as const).map((sec) => (
             <button
               key={sec}
               type="button"
               onClick={() => setActiveSection(sec)}
-              className={`border-b-2 px-4 py-2 text-sm font-semibold capitalize transition ${
+              className={`shrink-0 border-b-2 px-4 py-2 text-sm font-semibold capitalize transition ${
                 activeSection === sec
                   ? 'border-app-accent text-app-accent'
                   : 'border-transparent text-app-muted hover:text-app-foreground'
@@ -337,9 +338,11 @@ export function CandidateDetailModal({
                 ? 'Profile Info'
                 : sec === 'screening'
                   ? 'Screening'
-                  : sec === 'interviews'
-                    ? `Interviews (${interviews.length})`
-                    : `Offer & Joining (${offers.length})`}
+                  : sec === 'pipeline'
+                    ? 'Pipeline'
+                    : sec === 'interviews'
+                      ? `Interviews (${interviews.length})`
+                      : `Offer & Joining (${offers.length})`}
             </button>
           ))}
         </div>
@@ -396,7 +399,15 @@ export function CandidateDetailModal({
           </div>
         )}
 
-        {/* Section 3: Interviews */}
+        {/* Section 3: Pipeline Rounds */}
+        {activeSection === 'pipeline' && (
+          <CandidateRoundPanel
+            candidateId={candidate.id}
+            requisitionId={candidate.requisitionId ?? undefined}
+          />
+        )}
+
+        {/* Section 4: Interviews */}
         {activeSection === 'interviews' && (
           <div className="space-y-4">
             {loadingExtras ? (
@@ -486,7 +497,7 @@ export function CandidateDetailModal({
           </div>
         )}
 
-        {/* Section 4: Offer & Joining */}
+        {/* Section 5: Offer & Joining */}
         {activeSection === 'offer' && (
           <div className="space-y-4">
             {offers.length === 0 ? (

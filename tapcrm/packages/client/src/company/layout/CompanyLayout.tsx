@@ -17,6 +17,10 @@ export function CompanyLayout({
   canViewLeads,
   canViewCallbacks,
   canViewHandovers,
+  canViewDeals,
+  canRecordWin,
+  canDecideApprovals,
+  canForecast,
   canViewChat,
   canViewClients,
   canViewProjects,
@@ -39,6 +43,8 @@ export function CompanyLayout({
   canApproveExpenses,
   isHr,
   hasRecruitment,
+  hasInterviews,
+  title: _title,
   onNavigate,
   onLogout,
   children,
@@ -64,6 +70,10 @@ export function CompanyLayout({
   canViewLeads: boolean;
   canViewCallbacks: boolean;
   canViewHandovers: boolean;
+  canViewDeals: boolean;
+  canRecordWin: boolean;
+  canDecideApprovals: boolean;
+  canForecast: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
   canViewProjects: boolean;
@@ -86,6 +96,9 @@ export function CompanyLayout({
   canApproveExpenses: boolean;
   isHr: boolean;
   hasRecruitment: boolean;
+  /** This user has interviews (rounds or panels): show "My Interviews". */
+  hasInterviews: boolean;
+  title: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   children: React.ReactNode;
@@ -166,6 +179,10 @@ export function CompanyLayout({
           canViewLeads={canViewLeads}
           canViewCallbacks={canViewCallbacks}
           canViewHandovers={canViewHandovers}
+          canViewDeals={canViewDeals}
+          canRecordWin={canRecordWin}
+          canDecideApprovals={canDecideApprovals}
+          canForecast={canForecast}
           canViewChat={canViewChat}
           canViewClients={canViewClients}
           canViewProjects={canViewProjects}
@@ -188,6 +205,7 @@ export function CompanyLayout({
           canApproveExpenses={canApproveExpenses}
           isHr={isHr}
           hasRecruitment={hasRecruitment}
+          hasInterviews={hasInterviews}
           onNavigate={onNavigate}
           onLogout={onLogout}
           open={sidebarOpen}

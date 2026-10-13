@@ -135,6 +135,8 @@ export async function getRoutingConfiguration(ctx: RequestContext): Promise<Rout
   return (await findRoutingConfiguration(ctx)) ?? {
     enabled: true,
     assignmentStrategy: 'fewest_open_leads',
+    activeLeadMax: null,
+    dailyClaimMax: null,
     updatedBy: ctx.principal.id,
     updatedAt: new Date(),
   };
@@ -143,8 +145,20 @@ export async function getRoutingConfiguration(ctx: RequestContext): Promise<Rout
 export async function updateRoutingConfiguration(ctx: RequestContext, input: RoutingConfigurationInput): Promise<RoutingConfiguration> {
   const before = await getRoutingConfiguration(ctx);
   const updated = await db.transaction(ctx, async (tx) => {
-    await upsertRoutingConfiguration(tx, ctx.organizationId, ctx.principal.id, input);
-    const result = { enabled: input.enabled, assignmentStrategy: input.assignmentStrategy, updatedBy: ctx.principal.id, updatedAt: new Date() } satisfies RoutingConfiguration;
+    await upsertRoutingConfiguration(tx, ctx.organizationId, ctx.principal.id, {
+      enabled: input.enabled,
+      assignmentStrategy: input.assignmentStrategy,
+      activeLeadMax: input.activeLeadMax,
+      dailyClaimMax: input.dailyClaimMax,
+    });
+    const result = {
+      enabled: input.enabled,
+      assignmentStrategy: input.assignmentStrategy,
+      activeLeadMax: input.activeLeadMax,
+      dailyClaimMax: input.dailyClaimMax,
+      updatedBy: ctx.principal.id,
+      updatedAt: new Date(),
+    } satisfies RoutingConfiguration;
     await enqueueOrganizationAudit(tx, { organizationId: ctx.organizationId, actorId: ctx.principal.id, actorType: ctx.principal.accountType, requestId: ctx.requestId, sourceIp: ctx.sourceIp, action: 'territory.routing_configuration.updated', resourceType: 'territoryRoutingConfiguration', resourceId: null, before, after: result });
     return result;
   });

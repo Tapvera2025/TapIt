@@ -80,12 +80,57 @@ WHERE organization_id = $1
   AND status = 'active'
 `;
 
+/**
+ * VIS-1 — team scope members: everyone in any team of the principal's team
+ * subtree. Combines TEAM_DESCENDANTS_CTE with app_user membership. For a
+ * manager over several pools, this is the right denominator — pool scope
+ * narrows to one pool, team scope widens to the subtree.
+ *
+ * $1 = organization_id, $2 = root team id
+ */
+export const TEAM_MEMBERS = `
+WITH RECURSIVE team_tree AS (
+  SELECT id
+  FROM team
+  WHERE organization_id = $1
+    AND id = $2
+
+  UNION ALL
+
+  SELECT t.id
+  FROM team t
+  JOIN team_tree tt ON t.parent_team_id = tt.id
+  WHERE t.organization_id = $1
+)
+SELECT u.id
+FROM app_user u
+WHERE u.organization_id = $1
+  AND u.status = 'active'
+  AND u.team_id IN (SELECT id FROM team_tree)
+`;
+
+/**
+ * Department scope members — every active user in the principal's department.
+ * Used when a dept-wide manager must see across every pool in their dept.
+ *
+ * $1 = organization_id, $2 = department id
+ */
+export const DEPARTMENT_MEMBERS = `
+SELECT id
+FROM app_user
+WHERE organization_id = $1
+  AND department_id = $2
+  AND status = 'active'
+`;
+
 /** Memo keys, so one request resolves each of these at most once (NF-5). */
 export const MEMO_KEYS = {
   subordinates: 'scope:subordinates',
   teams: 'scope:teams',
   pools: 'scope:pools',
   poolMembers: 'scope:pool-members',
+  teamMembers: 'scope:team-members',
+  departmentMembers: 'scope:department-members',
   department: 'scope:department',
   permissionSet: 'authz:permission-set',
 } as const;

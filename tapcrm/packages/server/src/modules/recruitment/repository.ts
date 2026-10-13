@@ -3,6 +3,7 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { bootstrapDb, db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type {
+  AssignedPanelInterview,
   Candidate,
   CandidateJoining,
   CandidateResumeSubmission,
@@ -22,6 +23,7 @@ import type {
   CreateOfferInput,
   CreateRequisitionInput,
   InterviewDecisionInput,
+  InterviewerFeedbackInput,
   RescheduleInterviewInput,
   ScheduleInterviewInput,
   SubmitFeedbackInput,
@@ -219,6 +221,7 @@ export async function listCandidates(
 ): Promise<Candidate[]> {
   const whereClauses: SqlFragment[] = [
     sql`c.organization_id = ${ctx.organizationId}`,
+    sql`c.deleted_at IS NULL`,
   ];
 
   if (filter?.status && filter.status !== 'all') {
@@ -307,7 +310,7 @@ export async function findCandidateById(
       c.updated_at
     FROM candidate c
     JOIN job_requisition r ON r.organization_id = c.organization_id AND r.id = c.requisition_id
-    WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${id}
+    WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${id} AND c.deleted_at IS NULL
   `;
   return tx ? tx.maybeOne<Candidate>(query) : db.maybeOne<Candidate>(ctx, query);
 }
@@ -417,6 +420,20 @@ export async function updateCandidateScreening(
     `,
   );
   return findCandidateById(ctx, id);
+}
+
+export async function softDeleteCandidate(
+  ctx: RequestContext,
+  id: string,
+): Promise<void> {
+  await db.query(
+    ctx,
+    sql`
+      UPDATE candidate
+      SET deleted_at = now()
+      WHERE organization_id = ${ctx.organizationId} AND id = ${id} AND deleted_at IS NULL
+    `,
+  );
 }
 
 // ---------------------------------------------------------------------
@@ -869,6 +886,175 @@ export async function updateInterviewFeedback(
   return findInterviewFeedbackById(ctx, id);
 }
 
+interface PanelInterviewRow extends Omit<AssignedPanelInterview, 'myFeedback'> {
+  readonly organizationId: string;
+  readonly feedbackId: string | null;
+  readonly feedbackRecommendation: InterviewFeedback['recommendation'] | null;
+  readonly feedbackRating: number | null;
+  readonly feedbackText: string | null;
+  readonly feedbackStrengths: string | null;
+  readonly feedbackAreasForImprovement: string | null;
+  readonly feedbackSubmittedAt: Date | string | null;
+  readonly feedbackCreatedAt: Date | string | null;
+  readonly feedbackUpdatedAt: Date | string | null;
+}
+
+/**
+ * Scheduled interviews that name the caller on the panel, for My Interviews:
+ * the candidate and job each is for, the whole panel, and the caller's own
+ * feedback. Interviews called off (cancelled, or replaced by a reschedule) and
+ * removed candidates are left out.
+ */
+export async function listMyPanelInterviews(ctx: RequestContext): Promise<AssignedPanelInterview[]> {
+  const rows = await db.query<PanelInterviewRow>(
+    ctx,
+    sql`
+      SELECT
+        i.id,
+        i.organization_id,
+        i.candidate_id,
+        concat_ws(' ', c.first_name, c.last_name) AS candidate_name,
+        i.requisition_id,
+        r.title AS requisition_title,
+        r.requisition_number,
+        i.stage,
+        i.round,
+        i.interview_type,
+        i.scheduled_at,
+        i.duration_minutes,
+        i.location_or_link,
+        i.status,
+        i.notes,
+        (c.resume_object_key IS NOT NULL) AS has_resume,
+        ARRAY(
+          SELECT u.full_name
+          FROM interview_interviewer p
+          JOIN app_user u ON u.organization_id = p.organization_id AND u.id = p.user_id
+          WHERE p.organization_id = i.organization_id AND p.interview_id = i.id
+          ORDER BY u.full_name
+        ) AS panel,
+        f.id AS feedback_id,
+        f.recommendation AS feedback_recommendation,
+        f.rating AS feedback_rating,
+        f.feedback AS feedback_text,
+        f.strengths AS feedback_strengths,
+        f.areas_for_improvement AS feedback_areas_for_improvement,
+        f.submitted_at AS feedback_submitted_at,
+        f.created_at AS feedback_created_at,
+        f.updated_at AS feedback_updated_at
+      FROM interview_interviewer me
+      JOIN interview i
+        ON i.organization_id = me.organization_id AND i.id = me.interview_id
+      JOIN candidate c
+        ON c.organization_id = i.organization_id AND c.id = i.candidate_id AND c.deleted_at IS NULL
+      JOIN job_requisition r
+        ON r.organization_id = i.organization_id AND r.id = i.requisition_id
+      LEFT JOIN interview_feedback f
+        ON f.organization_id = i.organization_id AND f.interview_id = i.id AND f.interviewer_id = me.user_id
+      WHERE me.organization_id = ${ctx.organizationId}
+        AND me.user_id = ${ctx.principal.id}
+        AND i.status NOT IN ('cancelled', 'rescheduled')
+      ORDER BY i.scheduled_at ASC
+    `,
+  );
+
+  return rows.map((row) => {
+    const {
+      organizationId,
+      feedbackId,
+      feedbackRecommendation,
+      feedbackRating,
+      feedbackText,
+      feedbackStrengths,
+      feedbackAreasForImprovement,
+      feedbackSubmittedAt,
+      feedbackCreatedAt,
+      feedbackUpdatedAt,
+      ...interview
+    } = row;
+    const myFeedback: InterviewFeedback | null = feedbackId && feedbackRecommendation
+      ? {
+          id: feedbackId,
+          organizationId,
+          interviewId: row.id,
+          interviewerId: ctx.principal.id,
+          recommendation: feedbackRecommendation,
+          rating: feedbackRating,
+          feedback: feedbackText ?? '',
+          strengths: feedbackStrengths,
+          areasForImprovement: feedbackAreasForImprovement,
+          submittedAt: feedbackSubmittedAt ?? '',
+          createdAt: feedbackCreatedAt ?? '',
+          updatedAt: feedbackUpdatedAt ?? '',
+        }
+      : null;
+    return { ...interview, myFeedback };
+  });
+}
+
+/**
+ * One panel member's feedback on an interview. The first save creates it and,
+ * as HR's feedback does, marks a scheduled interview completed; later saves
+ * replace it (one feedback per interviewer per interview).
+ */
+export async function saveInterviewerFeedback(
+  ctx: RequestContext,
+  interviewId: string,
+  interviewerId: string,
+  input: InterviewerFeedbackInput,
+): Promise<InterviewFeedback> {
+  return db.transaction(ctx, async (tx) => {
+    const saved = await tx.one<InterviewFeedback>(sql`
+      INSERT INTO interview_feedback (
+        organization_id,
+        interview_id,
+        interviewer_id,
+        recommendation,
+        rating,
+        feedback,
+        strengths,
+        areas_for_improvement
+      )
+      VALUES (
+        ${ctx.organizationId},
+        ${interviewId},
+        ${interviewerId},
+        ${input.recommendation},
+        ${input.rating ?? null},
+        ${input.feedback},
+        ${input.strengths ?? null},
+        ${input.areasForImprovement ?? null}
+      )
+      ON CONFLICT (organization_id, interview_id, interviewer_id) DO UPDATE SET
+        recommendation = EXCLUDED.recommendation,
+        rating = EXCLUDED.rating,
+        feedback = EXCLUDED.feedback,
+        strengths = EXCLUDED.strengths,
+        areas_for_improvement = EXCLUDED.areas_for_improvement,
+        updated_at = now()
+      RETURNING
+        id,
+        organization_id,
+        interview_id,
+        interviewer_id,
+        recommendation,
+        rating,
+        feedback,
+        strengths,
+        areas_for_improvement,
+        submitted_at,
+        created_at,
+        updated_at
+    `);
+    await tx.query(sql`
+      UPDATE interview
+      SET status = 'completed'
+      WHERE organization_id = ${ctx.organizationId} AND id = ${interviewId} AND status = 'scheduled'
+    `);
+    return saved;
+  });
+}
+
 // ---------------------------------------------------------------------
 // 4. Offers
 // ---------------------------------------------------------------------
@@ -1149,6 +1335,11 @@ export async function listJoinings(
         j.status,
         j.employee_id,
         j.notes,
+        j.joining_email_sent_at,
+        j.joining_email_template_id,
+        j.acknowledge_token,
+        j.acknowledged_at,
+        j.acknowledge_ip,
         j.created_by,
         j.created_at,
         j.updated_at
@@ -1179,6 +1370,11 @@ export async function findJoiningById(
         j.status,
         j.employee_id,
         j.notes,
+        j.joining_email_sent_at,
+        j.joining_email_template_id,
+        j.acknowledge_token,
+        j.acknowledged_at,
+        j.acknowledge_ip,
         j.created_by,
         j.created_at,
         j.updated_at
@@ -2185,4 +2381,17 @@ export async function finalizeCandidateJoining(
   const updated = await findJoiningById(ctx, joiningId);
   if (!updated) throw new Error('Failed to retrieve finalized joining record');
   return updated;
+}
+
+// ---------------------------------------------------------------------
+// Public lookup — no tenant context (acknowledge endpoint)
+// ---------------------------------------------------------------------
+
+export async function findJoiningByAcknowledgeToken(
+  token: string,
+): Promise<CandidateJoining | null> {
+  const rows = await bootstrapDb.readIdentityDirectory<CandidateJoining>(
+    sql`SELECT * FROM resolve_joining_acknowledge_token(${token})`,
+  );
+  return rows[0] ?? null;
 }

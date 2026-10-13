@@ -36,6 +36,10 @@ import { TasksPage } from './tasks/index.js';
 import {
   TerritoriesPage,
   TerritoryDetailsPage,
+  BidPoolPage,
+  MyWorkPage,
+  TriagePage,
+  SupervisorDashboardPage,
   LeadsPage,
   LeadDetailsPage,
   StalledLeadsPage,
@@ -43,8 +47,17 @@ import {
   CallbacksPage,
   CallbackDetailPage,
   HandoverPage,
+  DealsPage,
+  DealDetailPage,
+  ProposalEditorPage,
+  ApprovalsQueuePage,
+  WinsToRecordPage,
+  DeliveryBriefPage,
+  ReportsPage,
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
+import { MyInterviewsPage } from './recruitment/pages/MyInterviewsPage.js';
+import { useHasAssignedInterviews } from './recruitment/useAssignedInterviews.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 import { MessagesPage } from '../chat/index.js';
 import { ClientsPage } from '../clients/index.js';
@@ -70,6 +83,9 @@ export function CompanyWorkspace({
   const pathname = (rawPathname.split('?')[0] ?? rawPathname).replace(/\/+$/, '') || '/';
   const [identity, setIdentity] = useState<CompanyIdentity | null>(null);
   const [error, setError] = useState('');
+  // "My Interviews" is in the sidebar only for people with interviews: a round
+  // HR assigned to them, or a scheduled interview naming them on the panel.
+  const hasInterviews = useHasAssignedInterviews(Boolean(identity?.enabledModules.includes('recruitment')), pathname);
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +151,13 @@ export function CompanyWorkspace({
   const canViewLeads = isSuperAdmin || can('leads:view');
   const canViewCallbacks = isSuperAdmin || can('callbacks:view');
   const canViewHandovers = isSuperAdmin || can('handovers:view');
+  const canViewDeals = isSuperAdmin || can('deals:view');
+  const canApproveDeals = isSuperAdmin || can('deals:approve');
+  const canRecordWin = isSuperAdmin || can('deals:record-win');
+  const canConfirmPayment = isSuperAdmin || can('deals:confirm-payment');
+  const canDecideApprovals = isSuperAdmin || can('approvals:decide');
+  const canReviewDelivery = isSuperAdmin || can('delivery:approve');
+  const canForecast = isSuperAdmin || can('deals:forecast');
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
   const canViewProjects = isSuperAdmin || can('projects:view');
@@ -148,6 +171,13 @@ export function CompanyWorkspace({
   const userId = identity.user.id;
   const fullName = identity.user.fullName;
   const organizationTimeZone = identity.organization?.timezone ?? 'UTC';
+  const canReassignLeadsFromUi = isSuperAdmin || (
+    identity.user.accountType === 'employee'
+    && (identity.user.departmentCode?.toLowerCase().includes('sales') ?? false)
+    && ['hod', 'head', 'manager', 'director'].some((hint) =>
+      (identity.user.positionCode ?? '').toLowerCase().includes(hint),
+    )
+  );
   const hasRecruitment = identity.enabledModules.includes('recruitment');
   const isOrganization =
     isSuperAdmin &&
@@ -158,7 +188,68 @@ export function CompanyWorkspace({
     isHr &&
     (pathname === '/company/recruitment' || pathname.startsWith('/company/recruitment/'));
 
+  const pageTitles: Record<string, string> = {
+    '/company/todo': 'My Todo',
+    '/company/my-todo': 'My Todo',
+    '/company/messages': 'Messages',
+    '/company/clients': 'Clients',
+    '/company/projects': 'Projects',
+    '/company/my-notepad': 'My Notepad',
+    '/company/notepad': 'My Notepad',
+    '/company/employee-notes': 'Employee Notes',
+    '/company/sales/territories': 'Territories',
+    '/company/sales/leads': 'Leads',
+    '/company/sales/leads/stalled': 'Stalled Leads',
+    '/company/sales/leads/re-engagement': 'Re-engagement',
+    '/company/sales/callbacks': 'Callbacks',
+    '/company/sales/callbacks/calendar': 'Callbacks',
+    '/company/sales/callbacks/board': 'Callbacks',
+    '/company/sales/callbacks/schedule': 'Callbacks',
+    '/company/sales/handovers': 'Handovers',
+    '/company/sales/handovers/incoming': 'Handovers',
+    '/company/sales/handovers/mine': 'Handovers',
+    '/company/sales/deals': 'Deals',
+    '/company/sales/deals/proposals': 'Proposal',
+    '/company/sales/approvals': 'Approvals',
+    '/company/sales/wins': 'Wins to record',
+    '/company/sales/deals/delivery': 'Delivery brief',
+    '/company/sales/reports': 'Reports',
+    '/company/employees': 'Employees',
+    '/company/sessions': 'Sessions & Devices',
+    '/company/access': 'Access Explorer',
+    '/company/access/role-changes': 'Access Explorer',
+    '/company/role-change-request': 'Request Role Change',
+    '/company/audit': 'Audit Log',
+    '/company/breaks/queue': 'Break Breach Queue',
+    '/company/breaks/policies': 'Break Policies',
+    '/company/payroll/cycle': 'Payroll Cycle',
+    '/company/payroll/my-payslips': 'My Payslips',
+    '/company/payroll/runs': 'Payroll Runs',
+    '/company/payroll/salaries': 'Salary Structures',
+    '/company/payroll/inputs': 'Bonuses & Deductions',
+    '/company/payroll/settings': 'Payroll Settings',
+    '/company/geofencing': 'Geofencing',
+    '/company/attendance/today': 'Today',
+    '/company/attendance/my': 'My Attendance',
+    '/company/attendance/live': 'Workforce Board',
+    '/company/attendance/corrections': 'Corrections',
+    '/company/shifts': 'Shifts',
+    '/company/holidays': 'Holidays',
+    '/company/leave/my': 'My Leave',
+    '/company/leave/queue': 'Leave Queue',
+    '/company/leave/types': 'Leave Types',
+    '/company/leave/balances': 'Leave Balances',
+    '/company/biometric': 'Biometric',
+    '/company/tasks': 'Tasks',
+    '/company/my-interviews': 'My Interviews',
+    '/company/recruitment/my-interviews': 'My Interviews',
+  };
   const isEmployees = pathname === '/company/employees';
+  const title = isOrganization
+    ? 'Organization'
+    : isRecruitment
+      ? 'Recruitment'
+      : pageTitles[pathname] ?? (pathname.startsWith('/company/projects/') ? 'Project' : pathname.startsWith('/company/sales/territories/') ? 'Territories' : pathname.startsWith('/company/sales/callbacks/') ? 'Callbacks' : pathname.startsWith('/company/sales/leads/') ? 'Leads' : pathname.startsWith('/company/sales/deals/') ? 'Deals' : 'Dashboard');
 
   function renderContent(): React.JSX.Element {
     if (
@@ -184,8 +275,12 @@ export function CompanyWorkspace({
         </p>
       );
     if (isOrganization) return <OrganizationWorkspace pathname={pathname} />;
+    // Anyone HR assigns an interview round to, whatever their department.
+    if (hasRecruitment && pathname === '/company/my-interviews') return <MyInterviewsPage />;
     if (isRecruitment)
       return <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />;
+    // Links in older "interview assigned" notifications, for people outside HR.
+    if (hasRecruitment && pathname === '/company/recruitment/my-interviews') return <MyInterviewsPage />;
     if (pathname === '/company/access' && isSuperAdmin)
       return <AccessExplorerPage key="person" />;
     if (pathname === '/company/access/role-changes' && isSuperAdmin) {
@@ -419,38 +514,40 @@ export function CompanyWorkspace({
         );
     }
     const callbackDetail = pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
-    if (callbackDetail && canViewCallbacks)
-      return (
-        <CallbackDetailPage
-          id={callbackDetail[1]!}
-          currentUserId={userId}
-          onBack={() => onNavigate('/company/sales/callbacks')}
-          onNavigate={onNavigate}
-        />
-      );
-    if (pathname === '/company/sales/leads/stalled' && canViewLeads)
-      return (
-        <StalledLeadsPage
-          onBack={() => onNavigate('/company/sales/leads')}
-          onNavigate={onNavigate}
-        />
-      );
-    if (pathname === '/company/sales/leads/re-engagement' && canViewLeads)
-      return (
-        <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />
-      );
-    if (pathname === '/company/sales/leads' && canViewLeads)
-      return <LeadsPage onNavigate={onNavigate} />;
+    if (callbackDetail && canViewCallbacks) return <CallbackDetailPage id={callbackDetail[1]!} currentUserId={userId} onBack={() => onNavigate('/company/sales/callbacks')} onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/leads/stalled' && canViewLeads) return <StalledLeadsPage onBack={() => onNavigate('/company/sales/leads')} onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/leads/re-engagement' && canViewLeads) return <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />;
+    if (pathname === '/company/sales/leads' && canViewLeads) return <LeadsPage onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/bid-pool' && canViewLeads) return <BidPoolPage onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/my-work' && canViewLeads) return <MyWorkPage userId={userId} onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/triage' && canReassignLeadsFromUi) return <TriagePage onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/supervisor' && canReassignLeadsFromUi) return <SupervisorDashboardPage />;
     const leadDetail = pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
-    if (leadDetail && canViewLeads)
-      return (
-        <LeadDetailsPage
-          id={leadDetail[1]!}
-          currentUserId={userId}
-          organizationTimezone={organizationTimeZone}
-          onBack={() => onNavigate('/company/sales/leads')}
-        />
-      );
+    if (leadDetail && canViewLeads) return <LeadDetailsPage id={leadDetail[1]!} currentUserId={userId} organizationTimezone={organizationTimeZone} canReassign={canReassignLeadsFromUi} canTransferSourcingCredit={isSuperAdmin} canCreateDeal={isSuperAdmin || can('deals:create')} onBack={() => onNavigate('/company/sales/leads')} onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/deals' && canViewDeals) {
+      return <DealsPage isSalesHod={canReassignLeadsFromUi} onNavigate={onNavigate} />;
+    }
+    const proposalEditor = pathname.match(/^\/company\/sales\/deals\/([^/]+)\/proposals$/);
+    if (proposalEditor && canViewDeals) {
+      return <ProposalEditorPage dealId={proposalEditor[1]!} onBack={() => onNavigate(`/company/sales/deals/${proposalEditor[1]}`)} />;
+    }
+    const deliveryBrief = pathname.match(/^\/company\/sales\/deals\/([^/]+)\/delivery$/);
+    if (deliveryBrief && canViewDeals) {
+      return <DeliveryBriefPage dealId={deliveryBrief[1]!} canReviewDelivery={canReviewDelivery} canApproveDeals={canApproveDeals} onBack={() => onNavigate(`/company/sales/deals/${deliveryBrief[1]}`)} onNavigate={onNavigate} />;
+    }
+    const dealDetail = pathname.match(/^\/company\/sales\/deals\/([^/]+)$/);
+    if (dealDetail && canViewDeals) {
+      return <DealDetailPage id={dealDetail[1]!} currentUserId={userId} canApprove={canApproveDeals} canDecideApprovals={canDecideApprovals} canRecordWin={canRecordWin} canConfirmPayment={canConfirmPayment} onBack={() => onNavigate('/company/sales/deals')} onNavigate={onNavigate} />;
+    }
+    if (pathname === '/company/sales/approvals' && canDecideApprovals) {
+      return <ApprovalsQueuePage onNavigate={onNavigate} />;
+    }
+    if (pathname === '/company/sales/wins' && canRecordWin) {
+      return <WinsToRecordPage onNavigate={onNavigate} />;
+    }
+    if (pathname === '/company/sales/reports' && canForecast) {
+      return <ReportsPage />;
+    }
     return <DashboardPage identity={identity!} onNavigate={onNavigate} />;
   }
 
@@ -470,6 +567,10 @@ export function CompanyWorkspace({
       canViewLeads={canViewLeads}
       canViewCallbacks={canViewCallbacks}
       canViewHandovers={canViewHandovers}
+      canViewDeals={canViewDeals}
+      canRecordWin={canRecordWin}
+      canDecideApprovals={canDecideApprovals}
+      canForecast={canForecast}
       canViewChat={canViewChat}
       canViewClients={canViewClients}
       canViewProjects={canViewProjects}
@@ -496,6 +597,8 @@ export function CompanyWorkspace({
       canApproveExpenses={isSuperAdmin || isHr || canBeyondOwn('payables:approve-claim')}
       isHr={Boolean(isHr)}
       hasRecruitment={hasRecruitment}
+      hasInterviews={hasRecruitment && hasInterviews}
+      title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}
     >
