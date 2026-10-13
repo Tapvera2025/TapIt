@@ -7,6 +7,9 @@ import { daysBetween } from '../../platform/time.js';
 import * as api from './api-repository.js';
 import { loadDayDetail, type AttendanceDayDetail } from './detail.js';
 import { ATTENDANCE_ERROR_CODES, AttendanceNotFoundError } from './errors.js';
+import { applyCloseDecision } from './ledger.js';
+import { recalculateRecord } from './recalculate.js';
+import * as repo from './repository.js';
 import type { ListQuery } from './validators.js';
 
 /** AT-13: the read API serves at most a quarter; anything longer is an export. */
@@ -102,9 +105,27 @@ export async function listRecords(
     );
   }
   const visibility = await visibilityFilter(ctx, 'attendance:view', 'attendanceRecord');
-  const rows = await db.transaction(ctx, (tx) =>
-    api.listRecordsInRange(tx, visibility, query.from, query.to, query.userId ?? null),
-  );
+  const rows = await db.transaction(ctx, async (tx) => {
+    // The scheduled auto-close job remains the normal path. This narrow
+    // read repair prevents a delayed worker from leaving an employee's
+    // already-overdue day displayed as "in progress" until the next tick.
+    if (query.userId !== undefined) {
+      const overdue = await repo.closeDueRecords(
+        tx,
+        new Date(),
+        null,
+        MAX_READ_DAYS,
+        query.userId,
+        query.from,
+        query.to,
+      );
+      for (const record of overdue) {
+        await applyCloseDecision(tx, record.userId, record.workDate);
+        await recalculateRecord(tx, record.id);
+      }
+    }
+    return api.listRecordsInRange(tx, visibility, query.from, query.to, query.userId ?? null);
+  });
   return { records: rows.map(toView) };
 }
 

@@ -18,6 +18,8 @@ import { PenaltyCancelModal } from './components/PenaltyCancelModal.js';
 import { PenaltyTable } from './components/PenaltyTable.js';
 import { PENALTY_LABELS, PENALTY_TYPES, type Penalty } from './types/index.js';
 
+const PENALTY_PAGE_SIZE = 25;
+
 export function PenaltiesPage(): React.JSX.Element {
   const [rows, setRows] = useState<Penalty[]>([]);
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
@@ -29,6 +31,7 @@ export function PenaltiesPage(): React.JSX.Element {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -53,10 +56,11 @@ export function PenaltiesPage(): React.JSX.Element {
         dateFrom,
         dateTo,
         page,
-        pageSize: 25,
+        pageSize: PENALTY_PAGE_SIZE,
       });
       setRows(result.rows);
       setTotal(result.total);
+      setTotalPages(result.totalPages);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load penalties.');
     } finally {
@@ -206,20 +210,22 @@ export function PenaltiesPage(): React.JSX.Element {
             onCancel={(row) => void cancel(row)}
           />
         )}
-        {!loading && total > 25 && (
+        {!loading && total > 0 && (
           <div className="flex items-center justify-between border-t border-app-border px-4 py-3 text-sm text-app-muted">
-            <span>{total} penalties</span>
+            <span>
+              {total} penalties · Page {page} of {totalPages}
+            </span>
             <div className="flex gap-2">
               <Button
                 kind="secondary"
-                disabled={page === 1}
+                disabled={page <= 1}
                 onClick={() => setPage((value) => value - 1)}
               >
                 Previous
               </Button>
               <Button
                 kind="secondary"
-                disabled={page * 25 >= total}
+                disabled={page >= totalPages}
                 onClick={() => setPage((value) => value + 1)}
               >
                 Next
