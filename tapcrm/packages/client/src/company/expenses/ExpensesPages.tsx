@@ -13,7 +13,120 @@ const readFile = (file: File): Promise<{ originalFilename: string; mimeType: str
 function amount(value: string): number { if (!/^\d+(\.\d{1,2})?$/.test(value)) throw new Error('Enter a valid expense amount with at most 2 decimal places.'); const [whole, fraction = ''] = value.split('.'); return Number(BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))); }
 function dateLabel(value: string): string { return new Date(`${value.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
 function ReceiptLink({ claimId, attachmentId, filename }: { claimId: string; attachmentId: string; filename: string }): React.JSX.Element { const [loading, setLoading] = useState(false); const [error, setError] = useState(''); async function openReceipt(): Promise<void> { setLoading(true); setError(''); try { const blob = await peopleDownload(attachmentUrl(claimId, attachmentId)); const objectUrl = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = objectUrl; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click(); window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to open receipt.'); } finally { setLoading(false); } } return <span className="inline-flex max-w-full flex-col"><button type="button" className="max-w-full truncate rounded-lg border border-app-border px-3 py-2 text-left text-sm text-app-accent hover:bg-app-background disabled:opacity-60" onClick={() => void openReceipt()} disabled={loading} title={filename}>{loading ? 'Opening…' : filename}</button>{error && <span className="mt-1 text-xs text-app-danger">{error}</span>}</span>; }
-function ExpenseForm({ onDone }: { onDone: () => void }): React.JSX.Element { const [date, setDate] = useState(new Date().toISOString().slice(0, 10)); const [value, setValue] = useState(''); const [category, setCategory] = useState<ExpenseCategory>('travel'); const [remarks, setRemarks] = useState(''); const [files, setFiles] = useState<File[]>([]); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); async function submit() { setError(''); try { if (!date) throw new Error('Expense date is required.'); if (date > new Date().toISOString().slice(0, 10)) throw new Error('Expense date cannot be in the future.'); const note = remarks.trim(); if (note.length < 3) throw new Error('Remarks must be at least 3 characters.'); if (note.length > 500) throw new Error('Remarks cannot exceed 500 characters.'); const attachments = await Promise.all(files.map(readFile)); setSaving(true); await createClaim({ expenseDate: date, amountPaise: amount(value), category, remarks: note, attachments }); toast.success('Expense submitted successfully.'); onDone(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to submit expense.'); } finally { setSaving(false); } } return <Card><h2 className="text-lg font-bold">Add Expense</h2>{error && <Notice error>{error}</Notice>}<div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold">Expense Date<input className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5" type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={saving} /></label><label className="text-sm font-semibold">Amount (₹)<input className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" disabled={saving} /></label><Select label="Category" value={category} onChange={(v) => setCategory(v as ExpenseCategory)} options={EXPENSE_CATEGORIES.map((v) => ({ value: v, label: CATEGORY_LABELS[v] }))} disabled={saving} /><label className="text-sm font-semibold sm:col-span-2">Remarks<textarea className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5" rows={3} maxLength={500} value={remarks} onChange={(e) => setRemarks(e.target.value)} disabled={saving} /></label><ReceiptPicker files={files} onChange={setFiles} onError={setError} disabled={saving} /></div><div className="mt-5"><Button onClick={() => void submit()} disabled={saving}>{saving ? 'Submitting…' : 'Submit Expense'}</Button></div></Card>; }
+function ExpenseForm({ onDone }: { onDone: () => void }): React.JSX.Element {
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [value, setValue] = useState('');
+  const [category, setCategory] = useState<ExpenseCategory>('travel');
+  const [remarks, setRemarks] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{
+    date?: string | undefined;
+    amount?: string | undefined;
+    remarks?: string | undefined;
+  }>({});
+  const [saving, setSaving] = useState(false);
+
+  async function submit(): Promise<void> {
+    setError('');
+    const nextErrors: typeof fieldErrors = {};
+    const today = new Date().toISOString().slice(0, 10);
+    if (!date) nextErrors.date = 'Expense date is required.';
+    else if (date > today) nextErrors.date = 'Expense date cannot be in the future.';
+    if (!value.trim()) nextErrors.amount = 'Expense amount is required.';
+    else {
+      try {
+        amount(value);
+      } catch (cause) {
+        nextErrors.amount = cause instanceof Error ? cause.message : 'Enter a valid amount.';
+      }
+    }
+    const note = remarks.trim();
+    if (!note) nextErrors.remarks = 'Remarks are required.';
+    else if (note.length < 3) nextErrors.remarks = 'Remarks must be at least 3 characters.';
+    else if (note.length > 500) nextErrors.remarks = 'Remarks cannot exceed 500 characters.';
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    try {
+      const attachments = await Promise.all(files.map(readFile));
+      setSaving(true);
+      await createClaim({
+        expenseDate: date,
+        amountPaise: amount(value),
+        category,
+        remarks: note,
+        attachments,
+      });
+      toast.success('Expense submitted successfully.');
+      onDone();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to submit expense.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-lg font-bold">Add Expense</h2>
+      {error && <Notice error>{error}</Notice>}
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-semibold">
+          Expense Date
+          <input
+            className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
+            type="date"
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              setFieldErrors((current) => ({ ...current, date: undefined }));
+            }}
+            disabled={saving}
+          />
+          {fieldErrors.date && <span className="mt-1 block text-xs text-app-danger">{fieldErrors.date}</span>}
+        </label>
+        <label className="text-sm font-semibold">
+          Amount (₹)
+          <input
+            className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
+            inputMode="decimal"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setFieldErrors((current) => ({ ...current, amount: undefined }));
+            }}
+            placeholder="0.00"
+            disabled={saving}
+          />
+          {fieldErrors.amount && <span className="mt-1 block text-xs text-app-danger">{fieldErrors.amount}</span>}
+        </label>
+        <Select label="Category" value={category} onChange={(v) => setCategory(v as ExpenseCategory)} options={EXPENSE_CATEGORIES.map((v) => ({ value: v, label: CATEGORY_LABELS[v] }))} disabled={saving} />
+        <label className="text-sm font-semibold sm:col-span-2">
+          Remarks
+          <textarea
+            className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
+            rows={3}
+            maxLength={500}
+            value={remarks}
+            onChange={(e) => {
+              setRemarks(e.target.value);
+              setFieldErrors((current) => ({ ...current, remarks: undefined }));
+            }}
+            disabled={saving}
+          />
+          {fieldErrors.remarks && <span className="mt-1 block text-xs text-app-danger">{fieldErrors.remarks}</span>}
+        </label>
+        <ReceiptPicker files={files} onChange={setFiles} onError={setError} disabled={saving} />
+      </div>
+      <div className="mt-5">
+        <Button onClick={() => void submit()} disabled={saving}>
+          {saving ? 'Submitting…' : 'Submit Expense'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
 function ClaimDetails({ claim, onClose, onReview, onApprove, onReject }: { claim: ExpenseClaim; onClose: () => void; onReview?: (claim: ExpenseClaim) => void; onApprove?: () => void; onReject?: () => void }): React.JSX.Element { return <Modal title="Expense Details" onClose={onClose}><div className="grid gap-4 sm:grid-cols-2"><div><p className="text-xs text-app-muted">Employee</p><p className="font-semibold">{claim.employeeName}</p></div><div><p className="text-xs text-app-muted">Amount</p><p className="font-semibold">{money(claim.amountPaise)}</p></div><div><p className="text-xs text-app-muted">Date</p><p className="font-semibold">{dateLabel(claim.expenseDate)}</p></div><div><p className="text-xs text-app-muted">Category</p><p className="font-semibold">{CATEGORY_LABELS[claim.category]}</p></div><div className="sm:col-span-2"><p className="text-xs text-app-muted">Status</p><div className="mt-1">{status(claim.status)}</div></div><div className="sm:col-span-2"><p className="text-xs text-app-muted">Remarks</p><p className="whitespace-pre-wrap text-sm">{claim.remarks}</p></div>{claim.rejectionReason && <div className="sm:col-span-2"><p className="text-xs text-app-muted">Rejection reason</p><p>{claim.rejectionReason}</p></div>}<div className="sm:col-span-2"><p className="text-xs text-app-muted">Receipts</p><div className="mt-2 flex flex-wrap gap-2">{claim.attachments.length ? claim.attachments.map((file) => <ReceiptLink claimId={claim.id} attachmentId={file.id} filename={file.originalFilename} key={file.id} />) : <span className="text-sm text-app-muted">No receipts</span>}</div></div></div>{onReview && claim.status === 'pending' && <div className="mt-5"><Button onClick={() => onReview(claim)}>Review claim</Button></div>}{onApprove && onReject && claim.status === 'pending' && <div className="mt-5 flex flex-wrap justify-end gap-2"><Button kind="secondary" onClick={onReject}>Reject</Button><Button onClick={onApprove}>Approve</Button></div>}</Modal>; }
 function RejectExpenseModal({ claim, onClose, onConfirm }: { claim: ExpenseClaim; onClose: () => void; onConfirm: (reason: string) => Promise<void> }): React.JSX.Element { const [reason, setReason] = useState(''); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); async function confirm() { if (reason.trim().length < 3) { setError('Rejection reason must be at least 3 characters.'); return; } setSaving(true); setError(''); try { await onConfirm(reason.trim()); onClose(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to reject expense.'); } finally { setSaving(false); } } return <Modal title="Reject Expense Claim" onClose={saving ? () => undefined : onClose}><p className="text-sm text-app-muted">{claim.employeeName} · {money(claim.amountPaise)}</p>{error && <Notice error>{error}</Notice>}<label className="mt-4 block text-sm font-semibold">Rejection reason<textarea className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5" rows={4} value={reason} onChange={(e) => setReason(e.target.value)} disabled={saving} /></label><div className="mt-5 flex justify-end gap-2"><Button kind="secondary" onClick={onClose} disabled={saving}>Cancel</Button><Button kind="danger" onClick={() => void confirm()} disabled={saving}>{saving ? 'Rejecting…' : 'Confirm Rejection'}</Button></div></Modal>; }
 function Pagination({ page, totalPages, total, onPage }: { page: number; totalPages: number; total: number; onPage: (page: number) => void }) { return <div className="flex flex-wrap items-center justify-between gap-3 border-t border-app-border px-4 py-3 text-sm text-app-muted"><span>{total} claims · Page {page} of {totalPages}</span><div className="flex gap-2"><Button kind="secondary" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</Button><Button kind="secondary" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>Next</Button></div></div>; }

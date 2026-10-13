@@ -17,7 +17,6 @@ import {
 import type { CreateDraftInput } from '../validators.js';
 import {
   acceptProposal,
-  PortalGoneError,
   PortalNotFoundError,
   PortalRateLimitedError,
   viewProposal,

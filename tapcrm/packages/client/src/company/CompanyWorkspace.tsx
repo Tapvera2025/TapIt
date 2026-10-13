@@ -354,6 +354,7 @@ export function CompanyWorkspace({
     if (pathname === '/company/projects' && canViewProjects)
       return (
         <ProjectsPage
+          canManageProjects={isSuperAdmin || can('projects:manage')}
           onOpenProject={(projectId) => onNavigate(`/company/projects/${projectId}`)}
         />
       );

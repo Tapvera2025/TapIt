@@ -8,7 +8,6 @@ import { closePools } from '../../../platform/dal/pool.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { createDeal } from '../deals/service.js';
 import {
-  CommercialsOptimisticLockError,
   CommercialsPublishBlockedError,
   CommercialsVersionLockedError,
   createDraft,

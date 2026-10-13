@@ -25,7 +25,6 @@ import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { PlatformForbiddenError } from '../../../platform/errors.js';
 import { sql } from '../../../platform/dal/sql.js';
-import type { DealResource } from '../deals/types.js';
 import {
   checkProjectExists,
   findBrief,

@@ -107,7 +107,7 @@ function normalizeEmail(raw: unknown): string | null {
  *   - 'ambiguous' when digits exist but no country context is available
  *   - 'invalid' when the format is clearly not a phone number
  */
-function toE164(raw: string, defaultCountryCode: string | null): string | 'ambiguous' | 'invalid' {
+function toE164(raw: string, defaultCountryCode: string | null): string {
   const compact = raw.replace(/[\s\-()]/g, '');
   if (E164.test(compact)) return compact;
   const digits = compact.replace(/\D/g, '');

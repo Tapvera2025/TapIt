@@ -23,7 +23,6 @@ import type { DealResource } from '../deals/types.js';
 import {
   findActiveContractForDealTx,
   findContract,
-  findContractTx,
   insertContract,
   insertContractAudit,
   listContractsForDeal,

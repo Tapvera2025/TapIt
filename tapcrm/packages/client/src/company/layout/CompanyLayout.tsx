@@ -44,7 +44,7 @@ export function CompanyLayout({
   isHr,
   hasRecruitment,
   hasInterviews,
-  title,
+  title: _title,
   onNavigate,
   onLogout,
   children,

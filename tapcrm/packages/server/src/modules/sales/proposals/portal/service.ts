@@ -20,7 +20,7 @@ import { sql } from '../../../../platform/dal/sql.js';
 import { consumeRateLimit } from '../../../../platform/security/rate-limit.js';
 import { findCommercials } from '../repository.js';
 import type { Commercials } from '../types.js';
-import { hashToken, resolveToken, type ResolvedToken } from './token.js';
+import { resolveToken, type ResolvedToken } from './token.js';
 
 const RATE_LIMIT_PER_TOKEN = 30;
 const RATE_LIMIT_PER_TOKEN_WINDOW_S = 60;
