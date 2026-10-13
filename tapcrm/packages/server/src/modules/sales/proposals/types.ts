@@ -1,7 +1,7 @@
 /**
  * Sales v1.1 R2 — Proposal (Commercials) row types (R2 plan step 2.9).
  *
- * The row materialised from migrations/0080_sales_commercials.sql. All
+ * The row materialised from migrations/0083_sales_commercials.sql. All
  * money is bigint minor units (paise); the DB stores `bigint` so the
  * values survive JSON transport as strings (never number).
  */

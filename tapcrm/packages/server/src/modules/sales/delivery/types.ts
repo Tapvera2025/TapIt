@@ -1,7 +1,7 @@
 /**
  * Sales v1.1 R2 — Delivery brief row types (R2 plan step 2.15).
  *
- * Materialised from migrations/0084_sales_delivery.sql. One brief per
+ * Materialised from migrations/0087_sales_delivery.sql. One brief per
  * deal (UNIQUE org/deal_id). The brief is the handoff artefact Sales
  * passes to Delivery; accepting the brief links it to a project via an
  * idempotent `project_id` write (R-DEL-04).

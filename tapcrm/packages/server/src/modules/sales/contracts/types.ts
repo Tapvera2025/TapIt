@@ -1,7 +1,7 @@
 /**
  * Sales v1.1 R2 — Contract row types (R2 plan step 2.12).
  *
- * Materialised from migrations/0082_sales_contracts.sql. A contract pins
+ * Materialised from migrations/0085_sales_contracts.sql. A contract pins
  * the exact commercials version it approves (R-CON-02). Signed rows are
  * read-only — material revisions after signing require an amendment that
  * supersedes the original via `supersedes_id`.
