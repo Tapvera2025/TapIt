@@ -830,6 +830,67 @@
     border-color: var(--sidebar-border) !important;
     color: var(--sidebar-foreground) !important;
   }
+
+  /* ── Resizable sidebar (desktop only) ──────────────────────────────── */
+  @media (min-width: 1024px) {
+    .sidebar-resizable {
+      width: var(--company-sidebar-width, 256px) !important;
+      min-width: 220px;
+      max-width: 420px;
+    }
+
+    /* Suppress width transition while actively dragging for instant feedback */
+    .sidebar-resizable:has(~ *) {
+      /* handled by is-resizing class below */
+    }
+
+    /* The resize handle — an invisible-ish strip on the right edge */
+    .sidebar-resize-handle {
+      position: absolute;
+      top: 0;
+      right: -5px;
+      bottom: 0;
+      z-index: 10;
+      width: 10px;
+      align-items: center;
+      justify-content: center;
+      cursor: col-resize;
+      border: none;
+      background: transparent;
+      padding: 0;
+      outline: none;
+      border-radius: 0;
+      flex-shrink: 0;
+      transition: opacity 160ms ease;
+    }
+
+    /* The visible grip line inside the handle */
+    .sidebar-resize-handle > span {
+      display: block;
+      width: 3px;
+      height: 40px;
+      border-radius: 99px;
+      background: transparent;
+      transition: background 160ms ease, transform 160ms ease;
+    }
+
+    .sidebar-resize-handle:hover > span,
+    .sidebar-resize-handle:focus-visible > span {
+      background: color-mix(in srgb, var(--sidebar-active-fg) 55%, transparent);
+      transform: scaleY(1.15);
+    }
+
+    .sidebar-resize-handle.is-resizing > span {
+      background: var(--sidebar-active-fg);
+      transform: scaleY(1.3);
+    }
+
+    /* Disable the CSS transition on width while dragging so it follows cursor instantly */
+    .workspace-sidebar.select-none {
+      transition-property: transform, margin, padding !important;
+    }
+  }
+
   .global-navbar {
     box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--theme-primary) 12%, transparent);
   }
@@ -890,16 +951,19 @@
     min-width: 2rem;
     padding: 0;
     justify-content: center;
+    overflow: hidden;
   }
   .navbar-account-pet > button > div {
-    width: 1.25rem;
+    width: 1.5rem;
     height: 1.25rem;
-    overflow: hidden;
-    border-radius: 0.45rem;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .navbar-account-pet > button > div > * {
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
   }
   @media (min-width: 1024px) {
     .workspace-sidebar[data-sidebar-animating='true'] {
@@ -1372,6 +1436,7 @@ nav button[aria-current='page']::before {
 .chart-glass-ring {
   padding: 0.5rem;
   border-radius: 9999px;
+  container-type: inline-size;
 }
 .dark .chart-glass {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
@@ -1392,6 +1457,12 @@ nav button[aria-current='page']::before {
 .chart-ring {
   animation: ring-enter 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
+
+/* Fluid label: ~22px at smallest card → 36px at full 176px ring */
+.chart-ring-label {
+  font-size: clamp(1.375rem, 20cqi, 2.25rem);
+}
+
 .chart-progress {
   background-image: linear-gradient(
     90deg,

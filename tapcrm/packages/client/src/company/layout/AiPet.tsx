@@ -837,30 +837,76 @@ export function SidebarPet({ pet }: { pet: PetOption }): React.JSX.Element {
 // ── Header Button + Picker Dropdown ──────────────────────────────────────────
 
 function PetPicker({
+  anchorRef,
   activePetId,
   onSelect,
   onDisable,
   onClose,
 }: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
   activePetId: string | null;
   onSelect: (petId: string) => void;
   onDisable: () => void;
   onClose: () => void;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const ref = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+
+  useEffect(() => {
+    function updatePosition(): void {
+      if (anchorRef.current) {
+        const rect = anchorRef.current.getBoundingClientRect();
+        setCoords({
+          top: rect.bottom + 8,
+          right: Math.max(12, window.innerWidth - rect.right),
+        });
+      }
+    }
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [anchorRef]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent): void {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (
+        ref.current &&
+        !ref.current.contains(target) &&
+        anchorRef.current &&
+        !anchorRef.current.contains(target)
+      ) {
+        onClose();
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose, anchorRef]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       ref={ref}
-      className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-app-border bg-app-surface p-3 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+      style={{
+        position: 'fixed',
+        top: `${coords.top}px`,
+        right: `${coords.right}px`,
+        zIndex: 9999,
+      }}
+      className="w-64 rounded-2xl border border-app-border bg-app-surface p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
     >
       <div className="mb-2 flex items-center justify-between px-1">
         <p className="text-[10px] font-bold uppercase tracking-wider text-app-muted">
@@ -912,17 +958,26 @@ function PetPicker({
           </button>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-export function AiPetButton({ className = '' }: { className?: string }): React.JSX.Element {
+export function AiPetButton({
+  className = '',
+  wrapperClassName = '',
+}: {
+  className?: string;
+  wrapperClassName?: string;
+}): React.JSX.Element {
   const { activePet, activePetId, setActivePetId } = useAiPet();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="relative">
+    <div className={`relative ${wrapperClassName}`}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setPickerOpen((prev) => !prev)}
         className={`navbar-action-button flex items-center gap-1.5 rounded-lg border p-2 text-sm transition-all ${className} ${
@@ -944,6 +999,7 @@ export function AiPetButton({ className = '' }: { className?: string }): React.J
 
       {pickerOpen && (
         <PetPicker
+          anchorRef={buttonRef}
           activePetId={activePetId}
           onSelect={(id) => setActivePetId(id)}
           onDisable={() => setActivePetId(null)}

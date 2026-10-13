@@ -71,8 +71,8 @@ function ThemePromoIllustration({ accent }: { accent: AccentColor }): React.JSX.
 
 export function CompanySidebar({
   pathname,
-  identity,
-  organizationName,
+  identity: _identity,
+  organizationName: _organizationName,
   accountType,
   canRequestRoleChange = false,
   canViewAudit = false,
@@ -102,7 +102,7 @@ export function CompanySidebar({
   open,
   onClose,
   collapsed = false,
-  onToggleCollapsed,
+  onToggleCollapsed: _onToggleCollapsed,
   width = 256,
   onResize,
 }: {
@@ -217,6 +217,8 @@ export function CompanySidebar({
     event.preventDefault();
     resizeStartRef.current = { x: event.clientX, width };
     event.currentTarget.setPointerCapture(event.pointerId);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
     setIsResizing(true);
   };
 
@@ -230,6 +232,8 @@ export function CompanySidebar({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     resizeStartRef.current = null;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
     setIsResizing(false);
   };
 
@@ -519,7 +523,7 @@ export function CompanySidebar({
 
   return (
     <aside
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-200 ease-out will-change-transform lg:static lg:my-5 lg:ml-5 lg:h-auto lg:max-h-[calc(100dvh-6.5rem)] lg:self-start lg:translate-x-0 lg:rounded-2xl lg:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'lg:w-[76px] lg:px-2' : 'lg:w-64'}`}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-200 ease-out will-change-transform lg:static lg:my-5 lg:ml-5 lg:h-[calc(100dvh-6.5rem)] lg:self-start lg:translate-x-0 lg:rounded-2xl lg:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'lg:w-[76px] lg:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
       style={collapsed ? undefined : ({ '--company-sidebar-width': `${width}px` } as React.CSSProperties)}
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
       data-sidebar-open={open ? 'true' : 'false'}
@@ -683,7 +687,11 @@ export function CompanySidebar({
           <ThemePromoIllustration accent={accent} />
         </div>
       </nav>
-      {activePet && <SidebarPet pet={activePet} />}
+      {activePet && (
+        <div className={`sidebar-pet-runway shrink-0 border-t border-sidebar-border/70 px-1 pt-1 ${collapsed ? 'lg:hidden' : ''}`}>
+          <SidebarPet pet={activePet} />
+        </div>
+      )}
       <div className="shrink-0 border-t border-t-[color:var(--sidebar-border)] pt-4">
         <button
           type="button"

@@ -15,7 +15,7 @@ export function RingChart({
     max > 0 ? Math.round(Math.max(0, Math.min(value / max, 1)) * 100) : 0;
   return (
     <div
-      className="chart-glass chart-glass-ring relative mx-auto size-44"
+      className="chart-glass chart-glass-ring relative mx-auto aspect-square w-full max-w-44"
       role="img"
       aria-label={`${label}: ${value} of ${max}${max ? `, ${percent}%` : ''}`}
     >
@@ -49,7 +49,7 @@ export function RingChart({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-semibold tracking-tight tabular-nums">
+        <span className="chart-ring-label font-semibold tracking-tight tabular-nums">
           {max ? `${percent}%` : '—'}
         </span>
         <span className="mt-1 text-xs text-app-muted">
@@ -59,6 +59,7 @@ export function RingChart({
     </div>
   );
 }
+
 
 export function BarChart({
   data,

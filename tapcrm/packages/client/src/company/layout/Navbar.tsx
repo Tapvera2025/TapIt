@@ -118,7 +118,7 @@ export function Navbar({
                 </div>
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5">
                   <span className="text-xs font-semibold text-app-muted">AI companion</span>
-                  <AiPetButton className="navbar-account-pet size-8 !p-0" />
+                  <AiPetButton wrapperClassName="navbar-account-pet" className="size-8 !p-0" />
                 </div>
                 <button type="button" role="menuitem" onClick={() => navigateFromMenu('/company/settings')} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground">
                   <Icon name="settings" className="size-4" /> Settings
