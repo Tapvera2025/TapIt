@@ -18,19 +18,19 @@ import { db } from '../dal/db.js';
 import { sql } from '../dal/sql.js';
 import { OPERATIONAL_TZ } from '../time.js';
 import {
+  readPresenceToday,
+  type PresenceSnapshot,
+} from '../../modules/live-status/facade.js';
+import {
   DEFAULT_ACTIVE_LEAD_MAX,
   type AvailabilityOptions,
   type AvailabilityResult,
   type EligibilityReason,
 } from './types.js';
 
-interface Row {
+interface CountsRow {
   userId: string;
   isActive: boolean;
-  presenceState: 'NOT_IN' | 'WORKING' | 'ON_BREAK' | 'FINISHED' | null;
-  dayGroup: 'leave' | 'holiday' | null;
-  shiftStartAt: Date | null;
-  shiftEndAt: Date | null;
   activeLeadCount: string;
   claimsToday: string;
 }
@@ -47,49 +47,46 @@ export async function evaluateAvailability(
   const dailyClaimMax = caps.dailyClaimMax ?? null;
   const requireInsideShift = caps.requireInsideShift ?? false;
 
-  let rows: Row[];
+  let counts: CountsRow[];
+  let presence: Map<string, PresenceSnapshot>;
   try {
-    rows = await db.query<Row>(
-      ctx,
-      sql`
-        SELECT
-          u.id                                                 AS "userId",
-          u.status = 'active'                                  AS "isActive",
-          us.state                                             AS "presenceState",
-          us.day_group                                         AS "dayGroup",
-          us.shift_start_at                                    AS "shiftStartAt",
-          us.shift_end_at                                      AS "shiftEndAt",
-          COALESCE(l.active_count, 0)::text                    AS "activeLeadCount",
-          COALESCE(c.claims_today, 0)::text                    AS "claimsToday"
-        FROM app_user u
-        LEFT JOIN user_status us
-          ON us.organization_id = u.organization_id
-         AND us.user_id         = u.id
-         AND us.work_date       = (now() AT TIME ZONE ${OPERATIONAL_TZ})::date
-        LEFT JOIN LATERAL (
-          SELECT count(*) AS active_count
-            FROM lead
-           WHERE lead.organization_id = u.organization_id
-             AND lead.owner_id        = u.id
-             AND lead.lead_outcome    = 'active'
-        ) l ON true
-        LEFT JOIN LATERAL (
-          SELECT count(*) AS claims_today
-            FROM bid_pool_view bpv
-           WHERE bpv.organization_id = u.organization_id
-             AND bpv.agent_id        = u.id
-             AND bpv.action          = 'claimed'
-             AND bpv.last_seen_at    >= date_trunc('day', now() AT TIME ZONE ${OPERATIONAL_TZ})
-        ) c ON true
-        WHERE u.organization_id = ${ctx.organizationId}
-          AND u.id = ANY(${userIds as unknown as string[]}::uuid[])
-      `,
-    );
+    [counts, presence] = await Promise.all([
+      db.query<CountsRow>(
+        ctx,
+        sql`
+          SELECT
+            u.id                                                 AS "userId",
+            u.status = 'active'                                  AS "isActive",
+            COALESCE(l.active_count, 0)::text                    AS "activeLeadCount",
+            COALESCE(c.claims_today, 0)::text                    AS "claimsToday"
+          FROM app_user u
+          LEFT JOIN LATERAL (
+            SELECT count(*) AS active_count
+              FROM lead
+             WHERE lead.organization_id = u.organization_id
+               AND lead.owner_id        = u.id
+               AND lead.lead_outcome    = 'active'
+          ) l ON true
+          LEFT JOIN LATERAL (
+            SELECT count(*) AS claims_today
+              FROM bid_pool_view bpv
+             WHERE bpv.organization_id = u.organization_id
+               AND bpv.agent_id        = u.id
+               AND bpv.action          = 'claimed'
+               AND bpv.last_seen_at    >= date_trunc('day', now() AT TIME ZONE ${OPERATIONAL_TZ})
+          ) c ON true
+          WHERE u.organization_id = ${ctx.organizationId}
+            AND u.id = ANY(${userIds as unknown as string[]}::uuid[])
+        `,
+      ),
+      // SH-1: user_status belongs to live-status; read through its facade.
+      readPresenceToday(ctx, userIds),
+    ]);
   } catch (err) {
     return userIds.map((userId) => failClosed(userId, err));
   }
 
-  const byUserId = new Map(rows.map((r) => [r.userId, r]));
+  const byUserId = new Map(counts.map((r) => [r.userId, r]));
   const now = Date.now();
 
   return userIds.map<AvailabilityResult>((userId) => {
@@ -106,23 +103,24 @@ export async function evaluateAvailability(
       };
     }
 
+    const snapshot = presence.get(userId) ?? null;
     const reasons: EligibilityReason[] = [];
 
     if (!row.isActive) reasons.push('not_active');
-    if (row.dayGroup === 'leave') reasons.push('on_leave');
-    if (row.dayGroup === 'holiday') reasons.push('on_holiday');
-    if (row.presenceState === 'ON_BREAK') reasons.push('on_break');
+    if (snapshot?.dayGroup === 'leave') reasons.push('on_leave');
+    if (snapshot?.dayGroup === 'holiday') reasons.push('on_holiday');
+    if (snapshot?.state === 'ON_BREAK') reasons.push('on_break');
     if (
-      row.presenceState !== 'WORKING' &&
-      row.presenceState !== 'ON_BREAK' &&
+      snapshot?.state !== 'WORKING' &&
+      snapshot?.state !== 'ON_BREAK' &&
       !reasons.includes('on_leave') &&
       !reasons.includes('on_holiday')
     ) {
       reasons.push('not_punched_in');
     }
 
-    if (requireInsideShift && row.shiftStartAt && row.shiftEndAt) {
-      if (now < row.shiftStartAt.getTime() || now > row.shiftEndAt.getTime()) {
+    if (requireInsideShift && snapshot?.shiftStartAt && snapshot.shiftEndAt) {
+      if (now < snapshot.shiftStartAt.getTime() || now > snapshot.shiftEndAt.getTime()) {
         reasons.push('outside_shift');
       }
     }
@@ -142,9 +140,8 @@ export async function evaluateAvailability(
   });
 }
 
-function failClosed(userId: string, err: unknown): AvailabilityResult {
+function failClosed(userId: string, _err: unknown): AvailabilityResult {
   // Logged by the caller (service.ts emits a warn log; we return the shape).
-  const _err = err;
   return {
     userId,
     eligible: false,

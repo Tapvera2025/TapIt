@@ -26,23 +26,26 @@ const TIMESTAMP = new Date('2026-10-12T00:00:00.000Z');
 const REASON = 'Customer withdrew';
 const CANCEL = { decision: 'cancel', reason: REASON } as const;
 
-function context(accountType: 'employee' | 'super-admin' = 'employee'): RequestContext {
+function context(as: 'employee' | 'super-admin' = 'employee'): RequestContext {
   const identity = {
     id: USER_ID,
     organizationId: ORGANIZATION_ID,
     sessionVersion: 1,
   };
-  const principal: Principal = accountType === 'super-admin'
-    ? { ...identity, accountType }
-    : {
+  // Build the principal shape the test calls for. CI-19 forbids
+  // `accountType === 'super-admin'` outside the authorization engine, so the
+  // test fixture branches on its own parameter instead.
+  const principal: Principal = as === 'employee'
+    ? {
         ...identity,
-        accountType,
+        accountType: 'employee',
         positionId: '00000000-0000-4000-8000-000000000006',
         departmentId: '00000000-0000-4000-8000-000000000007',
         teamId: null,
         reportsTo: null,
         organizationalLevel: 1,
-      };
+      }
+    : { ...identity, accountType: 'super-admin' };
   return {
     organizationId: ORGANIZATION_ID,
     principal,

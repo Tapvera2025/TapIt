@@ -1,40 +1,47 @@
-import { DateTime } from 'luxon';
 import { describe, expect, it } from 'vitest';
+import {
+  deviceClockAt,
+  instantAt,
+  toDateOnly,
+  toLocalTime,
+} from '../../../platform/time.js';
 import { BUSINESS_HOURS, computeSlaDueAt, isBreached, minutesPastSla } from './sla.js';
 
+const IST = 'Asia/Kolkata';
+
+function at(date: string, time: string): Date {
+  return instantAt(toDateOnly(date), toLocalTime(time), IST);
+}
+
+function formatIst(instant: Date): string {
+  // 'YYYY-MM-DD HH:mm:ss' — trim seconds for the SLA assertions.
+  return deviceClockAt(instant, IST).slice(0, 'YYYY-MM-DD HH:mm'.length);
+}
+
 /** Convenience: a Monday 10:00 IST reference anchor. */
-const MON_10_IST = DateTime.fromISO('2026-10-12T10:00:00', { zone: 'Asia/Kolkata' }).toJSDate();
+const MON_10_IST = at('2026-10-12', '10:00');
 
 describe('computeSlaDueAt — within business day', () => {
   it('Monday 10:00 IST + 4h = Monday 14:00 IST', () => {
-    const due = DateTime.fromJSDate(computeSlaDueAt(MON_10_IST)).setZone('Asia/Kolkata');
-    expect(due.toFormat('yyyy-LL-dd HH:mm')).toBe('2026-10-12 14:00');
+    expect(formatIst(computeSlaDueAt(MON_10_IST))).toBe('2026-10-12 14:00');
   });
 
   it('Monday 17:00 IST + 4h rolls into Tuesday 12:00 IST', () => {
-    const mon17 = DateTime.fromISO('2026-10-12T17:00:00', { zone: 'Asia/Kolkata' }).toJSDate();
-    const due = DateTime.fromJSDate(computeSlaDueAt(mon17)).setZone('Asia/Kolkata');
-    expect(due.toFormat('yyyy-LL-dd HH:mm')).toBe('2026-10-13 12:00');
+    expect(formatIst(computeSlaDueAt(at('2026-10-12', '17:00')))).toBe('2026-10-13 12:00');
   });
 });
 
 describe('computeSlaDueAt — outside the business window', () => {
   it('Monday 06:00 IST clamps to Monday 10:00 start, +4h = 14:00', () => {
-    const mon06 = DateTime.fromISO('2026-10-12T06:00:00', { zone: 'Asia/Kolkata' }).toJSDate();
-    const due = DateTime.fromJSDate(computeSlaDueAt(mon06)).setZone('Asia/Kolkata');
-    expect(due.toFormat('yyyy-LL-dd HH:mm')).toBe('2026-10-12 14:00');
+    expect(formatIst(computeSlaDueAt(at('2026-10-12', '06:00')))).toBe('2026-10-12 14:00');
   });
 
   it('Saturday 11:00 IST clamps to Monday 10:00 + 4h = 14:00', () => {
-    const sat = DateTime.fromISO('2026-10-10T11:00:00', { zone: 'Asia/Kolkata' }).toJSDate();
-    const due = DateTime.fromJSDate(computeSlaDueAt(sat)).setZone('Asia/Kolkata');
-    expect(due.toFormat('yyyy-LL-dd HH:mm')).toBe('2026-10-12 14:00');
+    expect(formatIst(computeSlaDueAt(at('2026-10-10', '11:00')))).toBe('2026-10-12 14:00');
   });
 
   it('Friday 20:00 IST (post-close) clamps to Monday 10:00 + 4h = 14:00', () => {
-    const fri = DateTime.fromISO('2026-10-09T20:00:00', { zone: 'Asia/Kolkata' }).toJSDate();
-    const due = DateTime.fromJSDate(computeSlaDueAt(fri)).setZone('Asia/Kolkata');
-    expect(due.toFormat('yyyy-LL-dd HH:mm')).toBe('2026-10-12 14:00');
+    expect(formatIst(computeSlaDueAt(at('2026-10-09', '20:00')))).toBe('2026-10-12 14:00');
   });
 });
 

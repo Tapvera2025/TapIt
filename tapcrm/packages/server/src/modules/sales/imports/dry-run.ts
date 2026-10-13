@@ -39,6 +39,7 @@ export interface ImportRowResult {
 }
 
 export interface ImportSummary {
+  /** Count of rows in the parsed batch, not a monetary total. */
   readonly total: number;
   readonly valid: number;
   readonly invalid: number;

@@ -5,9 +5,12 @@
  * "business hours" as a weekday 10:00–19:00 window in the organization's
  * operational timezone (TECH L7). A richer implementation can plug into
  * the shifts/holidays modules later; the shape stays the same.
+ *
+ * T-4: all time arithmetic goes through platform/time.ts (the only
+ * module that imports luxon).
  */
 
-import { DateTime, type DateTimeMaybeValid } from 'luxon';
+import { addBusinessMinutesSimple, toLocalTime } from '../../../platform/time.js';
 
 const BUSINESS_HOURS_WINDOW_START = 10;         // 10:00
 const BUSINESS_HOURS_WINDOW_END = 19;           // 19:00
@@ -16,23 +19,12 @@ const SLA_HOURS = 4;
 
 export const APPROVAL_SLA_HOURS = SLA_HOURS;
 
-function clampToBusinessStart(dt: DateTimeMaybeValid): DateTimeMaybeValid {
-  if (dt.weekday === 6) {
-    // Saturday — jump to Monday 10:00
-    return dt.plus({ days: 2 }).set({ hour: BUSINESS_HOURS_WINDOW_START, minute: 0, second: 0, millisecond: 0 });
-  }
-  if (dt.weekday === 7) {
-    return dt.plus({ days: 1 }).set({ hour: BUSINESS_HOURS_WINDOW_START, minute: 0, second: 0, millisecond: 0 });
-  }
-  if (dt.hour < BUSINESS_HOURS_WINDOW_START) {
-    return dt.set({ hour: BUSINESS_HOURS_WINDOW_START, minute: 0, second: 0, millisecond: 0 });
-  }
-  if (dt.hour >= BUSINESS_HOURS_WINDOW_END) {
-    const next = dt.plus({ days: 1 }).set({ hour: BUSINESS_HOURS_WINDOW_START, minute: 0, second: 0, millisecond: 0 });
-    return clampToBusinessStart(next);
-  }
-  return dt;
-}
+const BUSINESS_WINDOW = {
+  dayStart: toLocalTime('10:00'),
+  dayEnd: toLocalTime('19:00'),
+  // Mon(1)..Fri(5) in Sun(0)..Sat(6) convention expected by platform/time.
+  workingDays: [1, 2, 3, 4, 5],
+};
 
 export interface SlaOptions {
   readonly timezone?: string;              // defaults to Asia/Kolkata (TECH L7)
@@ -48,25 +40,7 @@ export function computeSlaDueAt(from: Date, opts: SlaOptions = {}): Date {
   const tz = opts.timezone ?? 'Asia/Kolkata';
   const hours = opts.hours ?? SLA_HOURS;
   if (hours <= 0) return from;
-
-  let dt: DateTimeMaybeValid = DateTime.fromJSDate(from).setZone(tz);
-  dt = clampToBusinessStart(dt);
-
-  let remaining = hours;
-  while (remaining > 0) {
-    const hoursLeftToday = BUSINESS_HOURS_WINDOW_END - (dt.hour + dt.minute / 60);
-    if (hoursLeftToday >= remaining) {
-      dt = dt.plus({ hours: remaining });
-      remaining = 0;
-    } else {
-      remaining -= hoursLeftToday;
-      dt = clampToBusinessStart(
-        dt.plus({ hours: hoursLeftToday + 0.001 }),       // nudge past 19:00 so the clamp jumps to the next day
-      );
-    }
-  }
-
-  return dt.toUTC().toJSDate();
+  return addBusinessMinutesSimple(from, hours * 60, tz, BUSINESS_WINDOW);
 }
 
 /** Days-of-business from `requestedAt` to `now`, snapped to minutes. */
