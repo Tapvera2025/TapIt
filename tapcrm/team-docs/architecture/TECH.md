@@ -1237,6 +1237,8 @@ WebSocket with a Redis adapter so events emitted on one instance reach all.
 | Callback reminders       | Every minute               | T−60, T−15, T; per-channel delivery records                                           |
 | Callback miss detection  | Every 5 minutes            | 30-minute grace, then `Missed`                                                        |
 | Lead stall detection     | Daily                      | Auto-flags to Supervisor (LD-7)                                                       |
+| SEO rank sweep           | Daily                      | Offers one fetch per project with keywords due (`projects.seo-rank-sweep`)             |
+| SEO rank fetch           | On demand                  | One project's Search Console fetch, keyed by project + observation window              |
 | Handover expiry          | Every 10 seconds           | Short window; must be prompt                                                          |
 | Approval escalation      | Hourly                     | Unanswered past window → next level                                                   |
 | Brief SLA escalation     | Hourly                     | Both gates: awaiting confirm, awaiting feasibility                                    |

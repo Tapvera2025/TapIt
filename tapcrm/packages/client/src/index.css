@@ -158,6 +158,8 @@
   .ui-dialog {
     position: fixed;
     margin: auto;
+    display: flex;
+    flex-direction: column;
     max-height: 90dvh;
     width: min(42rem, calc(100% - 2rem));
     overflow: hidden;
@@ -169,9 +171,32 @@
     box-shadow: 0 24px 80px #0004;
   }
   .ui-dialog-lg {
-    width: min(64rem, calc(100% - 2rem));
-    /* A fixed height, so opening and closing sections doesn't resize the window. */
-    height: min(56rem, 90dvh);
+    width: min(46rem, calc(100% - 2rem));
+    /* Let short forms stay compact while the existing max-height keeps long
+       forms inside the viewport. The body remains the scrolling region. */
+    height: fit-content;
+    min-height: 0;
+    max-height: 90dvh;
+  }
+  /* Report entry dialogs use dense two-column forms. Keep their controls
+     close together without changing the spacing of the page cards. */
+  .ui-dialog-lg .ui-dialog-body > form.grid {
+    gap: 0.75rem;
+  }
+  .ui-dialog-lg .ui-dialog-body {
+    flex: 0 1 auto;
+    min-height: 0;
+    padding: 16px 20px 20px;
+  }
+  .ui-dialog-lg .ui-dialog-body > form {
+    width: 100%;
+  }
+  .ui-dialog-lg .ui-dialog-body > .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem;
+  }
+  .ui-dialog-lg .ui-dialog-body > .space-y-4 > textarea {
+    height: 7rem;
+    min-height: 7rem;
   }
   .ui-dialog-header {
     display: flex;

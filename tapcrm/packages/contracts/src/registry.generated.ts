@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 184   Bindings: 458
+ * Actions: 184   Bindings: 495
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3429,6 +3429,30 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'DELETE', path: '/api/projects/:id/discussion-group/members/:userId', action: 'projects:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/discussion-group/archive', action: 'projects:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/projects/:id/profitability', action: 'projects:view-financials', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/on-page-seo', action: 'projects:view', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/download', action: 'projects:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/keywords', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/projects/:id/reports/on-page-seo/keywords/:keywordId', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/keywords/:keywordId/rank', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/on-page-seo/keywords/:keywordId/history', action: 'projects:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/keywords/:keywordId/archive', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/blog-posts', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/projects/:id/reports/on-page-seo/blog-posts/:blogId', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/blog-posts/:blogId/archive', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/on-page-seo/search-console', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'PUT', path: '/api/projects/:id/reports/on-page-seo/search-console', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/projects/:id/reports/on-page-seo/search-console', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/search-console/sync', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/off-page-seo/backlinks', action: 'projects:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/off-page-seo/backlinks', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/projects/:id/reports/off-page-seo/backlinks/:backlinkId', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/off-page-seo/backlinks/bulk', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/projects/:id/reports/off-page-seo/backlinks/:backlinkId', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/screenshots', action: 'projects:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/screenshots', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/screenshots/:screenshotId/content', action: 'projects:view', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/projects/:id/reports/screenshots/:screenshotId', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/projects/:id/reports/screenshots/:screenshotId', action: 'projects:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/tasks', action: 'tasks:view', resourceParam: null },
   { method: 'GET', path: '/api/tasks/:id', action: 'tasks:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/tasks/assignees', action: 'tasks:assign', resourceParam: null },

@@ -23,6 +23,7 @@ import {
   updateDiscussionGroupSchema,
   updateProjectSchema,
 } from './validators.js';
+import { registerProjectReportRoutes } from './reports/routes.js';
 
 const idParam = z.object({ id: z.string().uuid() });
 
@@ -34,6 +35,7 @@ const idParam = z.object({ id: z.string().uuid() });
  * interpreted against the `project` table.
  */
 export function registerProjectRoutes(): void {
+  registerProjectReportRoutes();
   route({
     method: 'GET',
     path: '/api/projects',
