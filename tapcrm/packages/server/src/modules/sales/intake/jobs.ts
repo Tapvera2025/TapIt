@@ -42,8 +42,15 @@ export interface MetaFetchLeadPayload {
 }
 
 export interface PayloadCleanupPayload {
-  readonly olderThanDays: number;
+  readonly olderThanDays?: number;
 }
+
+/**
+ * Default retention for raw intake payloads when the scheduled sweep fires
+ * without an explicit override. The BullMQ scheduler enqueues `{ tick: true }`
+ * (no payload), so the handler must have a fallback.
+ */
+const DEFAULT_PAYLOAD_RETENTION_DAYS = 90;
 
 /**
  * One-off intake job: processes a `lead_submission` row that was
@@ -189,11 +196,12 @@ export function registerSalesIntakeJobs(): void {
     schedule: { every: 24 * 60 * 60 * 1000 },
     attempts: 3,
     handler: async ({ payload, attempt }) => {
+      const olderThanDays = payload?.olderThanDays ?? DEFAULT_PAYLOAD_RETENTION_DAYS;
       console.info(
         JSON.stringify({
           level: 'info',
           msg: 'sales.intake.cleanup-raw-payloads noop (R0 scaffolding)',
-          olderThanDays: payload.olderThanDays,
+          olderThanDays,
           attempt,
         }),
       );

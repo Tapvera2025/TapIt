@@ -179,6 +179,10 @@ export function CompanyLayout({
           canViewLeads={canViewLeads}
           canViewCallbacks={canViewCallbacks}
           canViewHandovers={canViewHandovers}
+          canViewDeals={canViewDeals}
+          canRecordWin={canRecordWin}
+          canDecideApprovals={canDecideApprovals}
+          canForecast={canForecast}
           canViewChat={canViewChat}
           canViewClients={canViewClients}
           canViewProjects={canViewProjects}
@@ -201,6 +205,7 @@ export function CompanyLayout({
           canApproveExpenses={canApproveExpenses}
           isHr={isHr}
           hasRecruitment={hasRecruitment}
+          hasInterviews={hasInterviews}
           onNavigate={onNavigate}
           onLogout={onLogout}
           open={sidebarOpen}
