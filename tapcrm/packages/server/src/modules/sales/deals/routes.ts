@@ -3,6 +3,7 @@ import { route } from '../../../platform/http/route.js';
 import { loadDeal } from './service.js';
 import {
   cancelAfterWin,
+  confirmPayment,
   createDeal,
   getDeal,
   listDeals,
@@ -12,6 +13,7 @@ import {
 } from './service.js';
 import {
   cancelAfterWinSchema,
+  confirmPaymentSchema,
   createDealSchema,
   dealListQuerySchema,
   markLostSchema,
@@ -127,6 +129,16 @@ export function registerDealRoutes(): void {
     resourceParam: 'id',
     loadResource: loadDeal,
     handler: async ({ ctx, params, body }) => cancelAfterWin(ctx, id(params['id']!), cancelAfterWinSchema.parse(body)),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/deals/:id/confirm-payment',
+    action: 'deals:confirm-payment',
+    module: 'deals',
+    resourceParam: 'id',
+    loadResource: loadDeal,
+    handler: async ({ ctx, params, body }) => confirmPayment(ctx, id(params['id']!), confirmPaymentSchema.parse(body)),
   });
 
   // Won recorder (R2 step 2.14). `readiness` is a cheap read so UIs

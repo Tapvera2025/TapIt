@@ -143,6 +143,7 @@ export function CompanyWorkspace({
   const canViewDeals = isSuperAdmin || can('deals:view');
   const canApproveDeals = isSuperAdmin || can('deals:approve');
   const canRecordWin = isSuperAdmin || can('deals:record-win');
+  const canConfirmPayment = isSuperAdmin || can('deals:confirm-payment');
   const canDecideApprovals = isSuperAdmin || can('approvals:decide');
   const canReviewDelivery = isSuperAdmin || can('delivery:approve');
   const canForecast = isSuperAdmin || can('deals:forecast');
@@ -358,7 +359,7 @@ export function CompanyWorkspace({
     }
     const dealDetail = pathname.match(/^\/company\/sales\/deals\/([^/]+)$/);
     if (dealDetail && canViewDeals) {
-      return <DealDetailPage id={dealDetail[1]!} currentUserId={userId} canApprove={canApproveDeals} canDecideApprovals={canDecideApprovals} canRecordWin={canRecordWin} onBack={() => onNavigate('/company/sales/deals')} onNavigate={onNavigate} />;
+      return <DealDetailPage id={dealDetail[1]!} currentUserId={userId} canApprove={canApproveDeals} canDecideApprovals={canDecideApprovals} canRecordWin={canRecordWin} canConfirmPayment={canConfirmPayment} onBack={() => onNavigate('/company/sales/deals')} onNavigate={onNavigate} />;
     }
     if (pathname === '/company/sales/approvals' && canDecideApprovals) {
       return <ApprovalsQueuePage onNavigate={onNavigate} />;

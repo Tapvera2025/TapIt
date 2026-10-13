@@ -176,6 +176,19 @@ export function cancelDealAfterWin(id: string, reason: string): Promise<Deal> {
   });
 }
 
+export interface ConfirmPaymentInput {
+  readonly amountMinor: string;
+  readonly reference: string;
+  readonly note?: string;
+}
+
+export function confirmPayment(id: string, input: ConfirmPaymentInput): Promise<Deal> {
+  return identityRequest(`/api/deals/${encodeURIComponent(id)}/confirm-payment`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export function getWinReadiness(id: string): Promise<ReadinessReport> {
   return identityRequest(`/api/deals/${encodeURIComponent(id)}/win-readiness`);
 }

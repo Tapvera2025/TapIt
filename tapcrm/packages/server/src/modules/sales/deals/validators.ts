@@ -47,6 +47,23 @@ export const cancelAfterWinSchema = z.object({
 });
 export type CancelAfterWinInput = z.infer<typeof cancelAfterWinSchema>;
 
+/**
+ * Manual advance-confirmation input. Finance (or Sales HOD acting as
+ * Finance for pilot tenants) types in the amount they received, where it
+ * came from, and an optional note. Money arrives as a digit-string so
+ * the body round-trips through JSON without number precision loss.
+ */
+export const confirmPaymentSchema = z.object({
+  amountMinor: z
+    .string()
+    .trim()
+    .regex(/^\d+$/, 'amountMinor must be a non-negative integer in minor units')
+    .refine((value) => BigInt(value) > 0n, { message: 'amountMinor must be positive' }),
+  reference: z.string().trim().min(1).max(200),
+  note: z.string().trim().max(500).optional(),
+});
+export type ConfirmPaymentInput = z.infer<typeof confirmPaymentSchema>;
+
 export const dealListQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(25),

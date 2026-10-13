@@ -274,6 +274,22 @@ export async function markLostRow(tx: Tx, organizationId: string, id: string, re
   `);
 }
 
+export async function updatePaymentStatusRow(
+  tx: Tx,
+  organizationId: string,
+  id: string,
+  nextStatus: DealPaymentStatus,
+  now: Date,
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE deal
+       SET payment_status = ${nextStatus},
+           updated_at     = ${now}
+     WHERE organization_id = ${organizationId}
+       AND id              = ${id}
+  `);
+}
+
 export async function markCancelledRow(tx: Tx, organizationId: string, id: string, now: Date): Promise<void> {
   await tx.query(sql`
     UPDATE deal

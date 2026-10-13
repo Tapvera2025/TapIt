@@ -31,11 +31,13 @@ import {
   markCancelledRow,
   markLostRow,
   updateDealStage as updateDealStageRow,
+  updatePaymentStatusRow,
   updateProbabilityOverride,
   type DealPage,
 } from './repository.js';
 import type {
   CancelAfterWinInput,
+  ConfirmPaymentInput,
   CreateDealInput,
   DealListQuery,
   MarkLostInput,
@@ -270,6 +272,79 @@ export async function cancelAfterWin(ctx: RequestContext, id: string, input: Can
       { lifecycleStatus: 'cancelled', reason: input.reason, at: now.toISOString() },
     );
   });
+  const updated = await findDeal(ctx, id);
+  if (!updated) throw new DealNotFoundError();
+  return updated;
+}
+
+/**
+ * Record a manual advance confirmation. The route is gated by
+ * `deals:confirm-payment` (Finance / Sales HOD) at the framework level,
+ * so this body only enforces state semantics and the audit write.
+ *
+ * State transitions permitted here:
+ *   unpaid | partial -> advance_confirmed
+ *   advance_confirmed -> advance_confirmed  (no-op, idempotent)
+ *
+ * The write never upgrades past `advance_confirmed` or touches refund
+ * states; those remain the gateway integration's job.
+ */
+export async function confirmPayment(
+  ctx: RequestContext,
+  id: string,
+  input: ConfirmPaymentInput,
+): Promise<Deal> {
+  const now = new Date();
+  const amountMinor = BigInt(input.amountMinor);
+
+  await db.transaction(ctx, async (tx) => {
+    const locked = await lockDeal(tx, ctx.organizationId, id);
+    if (!locked) throw new DealNotFoundError();
+
+    const before = await findDealTx(tx, ctx.organizationId, id);
+    if (!before) throw new DealNotFoundError();
+
+    if (before.lifecycleStatus !== 'open' && before.lifecycleStatus !== 'won') {
+      throw new ApplicationError(
+        `Deal lifecycle is ${before.lifecycleStatus}; advance can only be confirmed on open or won deals.`,
+        409,
+        'DEAL_PAYMENT_WRONG_LIFECYCLE',
+      );
+    }
+
+    if (before.paymentStatus === 'advance_confirmed') {
+      // Idempotent — a second confirmation on an already-confirmed deal
+      // audits the attempt but doesn't change state.
+      await insertDealAudit(tx, ctx, 'deal.payment_confirmation_repeated', id,
+        { paymentStatus: before.paymentStatus },
+        { amountMinor: amountMinor.toString(), reference: input.reference, note: input.note ?? null },
+      );
+      return;
+    }
+
+    if (before.paymentStatus === 'paid'
+      || before.paymentStatus === 'partially_refunded'
+      || before.paymentStatus === 'refunded') {
+      throw new ApplicationError(
+        `Deal payment status is ${before.paymentStatus}; cannot downgrade to advance_confirmed.`,
+        409,
+        'DEAL_PAYMENT_DOWNGRADE_BLOCKED',
+      );
+    }
+
+    await updatePaymentStatusRow(tx, ctx.organizationId, id, 'advance_confirmed', now);
+    await insertDealAudit(tx, ctx, 'deal.payment_confirmed', id,
+      { paymentStatus: before.paymentStatus },
+      {
+        paymentStatus: 'advance_confirmed',
+        amountMinor: amountMinor.toString(),
+        reference: input.reference,
+        note: input.note ?? null,
+        at: now.toISOString(),
+      },
+    );
+  });
+
   const updated = await findDeal(ctx, id);
   if (!updated) throw new DealNotFoundError();
   return updated;

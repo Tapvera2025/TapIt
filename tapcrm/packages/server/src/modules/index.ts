@@ -1,4 +1,6 @@
 import { registerBreakPolicyResolver } from './attendance/facade.js';
+import { registerPaymentReadinessPort } from './sales/deals/payments-port.js';
+import { manualPaymentReadinessPort } from './sales/deals/manual-payment-port.js';
 import { breakPolicyResolverImpl } from './break-management/resolver-service.js';
 import { registerPayrollJobs, registerPayrollPorts } from './payroll/facade.js';
 import { registerBreakPolicies } from './break-management/policy.js';
@@ -81,6 +83,11 @@ import { registerMyTodoRoutes } from './myTodo/routes.js';
  */
 export function initializePorts(): void {
   registerBreakPolicyResolver(breakPolicyResolverImpl);
+  // Pilot-grade manual payment-confirmation port. Replace when a real
+  // gateway (Stripe/Razorpay) ships — the registration throws on second
+  // call so a gateway port must be wired at the same boot step, not in
+  // addition.
+  registerPaymentReadinessPort(manualPaymentReadinessPort);
   registerPayrollPorts();
 }
 

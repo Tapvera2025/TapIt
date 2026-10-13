@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Card, Field, Page, Select } from '../../../ui/components.js';
 import {
   cancelDealAfterWin,
+  confirmPayment,
   getDeal,
   getWinReadiness,
   listDeals,
@@ -9,6 +10,7 @@ import {
   overrideProbability,
   recordDealWin,
   updateDealStage,
+  type ConfirmPaymentInput,
   type Deal,
   type DealLossReason,
   type DealStage,
@@ -53,6 +55,7 @@ interface DealDetailPageProps {
   readonly canApprove: boolean;
   readonly canDecideApprovals: boolean;
   readonly canRecordWin: boolean;
+  readonly canConfirmPayment: boolean;
   readonly onBack: () => void;
   readonly onNavigate: (path: string) => void;
 }
@@ -63,6 +66,7 @@ export function DealDetailPage({
   canApprove,
   canDecideApprovals,
   canRecordWin,
+  canConfirmPayment,
   onBack,
   onNavigate,
 }: DealDetailPageProps): React.JSX.Element {
@@ -77,6 +81,7 @@ export function DealDetailPage({
   const [confirmLost, setConfirmLost] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [probabilityOpen, setProbabilityOpen] = useState(false);
+  const [confirmPaymentOpen, setConfirmPaymentOpen] = useState(false);
 
   async function reload(): Promise<void> {
     try {
@@ -296,11 +301,13 @@ export function DealDetailPage({
             busy={busy}
             canApprove={canApprove}
             canRecordWin={canRecordWin}
+            canConfirmPayment={canConfirmPayment}
             stageOptions={stageOptions}
             onChangeStage={(stage) => void runAction(() => updateDealStage(deal.id, stage))}
             onMarkLost={() => setConfirmLost(true)}
             onRecordWin={() => void runAction(() => recordDealWin(deal.id))}
             onCancelAfterWin={() => setConfirmCancel(true)}
+            onConfirmPayment={() => setConfirmPaymentOpen(true)}
             canClose={canClose}
           />
         </div>
@@ -339,6 +346,18 @@ export function DealDetailPage({
           }}
         />
       )}
+
+      {confirmPaymentOpen && (
+        <ConfirmPaymentDialog
+          currency={deal.currency}
+          busy={busy}
+          onClose={() => setConfirmPaymentOpen(false)}
+          onConfirm={async (input) => {
+            const result = await runAction(() => confirmPayment(deal.id, input));
+            if (result) setConfirmPaymentOpen(false);
+          }}
+        />
+      )}
     </Page>
   );
 }
@@ -349,28 +368,36 @@ function ActionRail({
   busy,
   canApprove,
   canRecordWin,
+  canConfirmPayment,
   stageOptions,
   canClose,
   onChangeStage,
   onMarkLost,
   onRecordWin,
   onCancelAfterWin,
+  onConfirmPayment,
 }: {
   deal: Deal;
   readiness: ReadinessReport | null;
   busy: boolean;
   canApprove: boolean;
   canRecordWin: boolean;
+  canConfirmPayment: boolean;
   stageOptions: readonly DealStage[];
   canClose: boolean;
   onChangeStage: (stage: DealStage) => void;
   onMarkLost: () => void;
   onRecordWin: () => void;
   onCancelAfterWin: () => void;
+  onConfirmPayment: () => void;
 }): React.JSX.Element {
   const isOpen = deal.lifecycleStatus === 'open';
   const isWon = deal.lifecycleStatus === 'won';
   const [nextStage, setNextStage] = useState<DealStage | ''>('');
+  const paymentNeedsAction =
+    deal.paymentStatus === 'unpaid' || deal.paymentStatus === 'partial';
+  const showPaymentPanel =
+    canConfirmPayment && (isOpen || isWon) && paymentNeedsAction;
 
   return (
     <Card>
@@ -404,6 +431,20 @@ function ActionRail({
               </Button>
             </div>
           </div>
+
+          {showPaymentPanel && (
+            <div className="border-t border-app-border pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">
+                Advance payment
+              </p>
+              <p className="mt-2 text-xs text-app-muted">
+                Record the advance Finance has received so the deal becomes close-ready.
+              </p>
+              <Button className="mt-3 w-full" kind="secondary" disabled={busy} onClick={onConfirmPayment}>
+                Confirm advance received
+              </Button>
+            </div>
+          )}
 
           <div className="border-t border-app-border pt-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">
@@ -590,6 +631,89 @@ function ProbabilityDialog({
       </div>
     </Modal>
   );
+}
+
+function ConfirmPaymentDialog({
+  currency,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  currency: string;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (input: ConfirmPaymentInput) => Promise<void>;
+}): React.JSX.Element {
+  const [amountRupees, setAmountRupees] = useState('');
+  const [reference, setReference] = useState('');
+  const [note, setNote] = useState('');
+  const parsedPaise = parseRupeesToPaise(amountRupees);
+  const amountValid = parsedPaise !== null && parsedPaise > 0n;
+  const canSubmit = amountValid && reference.trim().length > 0 && !busy;
+  return (
+    <Modal title="Confirm advance received" onClose={onClose}>
+      <p className="text-xs text-app-muted">
+        Record the advance Finance has already received. This flips the deal's payment status to
+        "advance confirmed" and unblocks the Won readiness check. All amounts are in {currency}.
+      </p>
+      <div className="mt-4 grid gap-4">
+        <Field
+          label={`Amount received (${currency})`}
+          value={amountRupees}
+          onChange={setAmountRupees}
+          placeholder="e.g. 50000.00"
+        />
+        <Field
+          label="Reference (UTR, cheque no, invoice id)"
+          value={reference}
+          onChange={setReference}
+        />
+        <label className="text-xs font-semibold text-app-muted">
+          <span className="mb-2 block">Note (optional)</span>
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            className="min-h-[80px] w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
+          />
+        </label>
+      </div>
+      <div className="mt-5 flex justify-end gap-3">
+        <Button kind="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          disabled={!canSubmit}
+          onClick={() =>
+            void onConfirm({
+              amountMinor: parsedPaise!.toString(),
+              reference: reference.trim(),
+              ...(note.trim() ? { note: note.trim() } : {}),
+            })
+          }
+        >
+          Confirm
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Local rupee → paise parser. We don't import the proposals helper to
+ * avoid a circular dependency on that module from the deals surface.
+ * Accepts non-negative decimals with up to 2 fractional digits.
+ */
+function parseRupeesToPaise(input: string): bigint | null {
+  const trimmed = input.trim();
+  if (trimmed === '') return null;
+  if (!/^\d+(?:\.\d{1,2})?$/.test(trimmed)) return null;
+  const [whole, fraction = ''] = trimmed.split('.');
+  const paddedFraction = (fraction + '00').slice(0, 2);
+  try {
+    return BigInt((whole ?? '0') + paddedFraction);
+  } catch {
+    return null;
+  }
 }
 
 function Modal({
