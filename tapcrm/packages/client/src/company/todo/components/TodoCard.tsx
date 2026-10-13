@@ -40,13 +40,13 @@ export function TodoCard({
 
   return (
     <Card
-      className={`p-2.5 sm:p-3 transition-colors min-w-0 max-w-full ${
+      className={`p-3 transition-colors min-w-0 max-w-full sm:p-3.5 ${
         isCompleted
-          ? 'opacity-70 bg-app-surface/50 border-app-border/70 hover:opacity-100'
+          ? 'bg-app-surface/60 border-app-border/80 hover:border-emerald-500/40'
           : 'hover:border-app-accent/40 hover:bg-app-surface-raised'
       }`}
     >
-      <div className="flex items-center justify-between gap-2.5 sm:gap-3 min-w-0 max-w-full">
+      <div className="flex min-w-0 max-w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         {/* Left: Checkbox + Info */}
         <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:items-center">
           {/* Checkbox */}
@@ -76,9 +76,7 @@ export function TodoCard({
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0 max-w-full">
               <h3
                 className={`text-xs sm:text-sm font-semibold min-w-0 max-w-full break-words [overflow-wrap:anywhere] sm:truncate ${
-                  isCompleted
-                    ? 'text-app-muted line-through'
-                    : 'text-app-foreground'
+                  isCompleted ? 'text-app-muted line-through' : 'text-app-foreground'
                 }`}
               >
                 {todo.title}
@@ -117,12 +115,12 @@ export function TodoCard({
         </div>
 
         {/* Right: Actions */}
-        <div className="flex shrink-0 items-center gap-1.5 self-center">
+        <div className="flex shrink-0 items-center gap-1.5 self-end sm:self-center">
           <button
             type="button"
             disabled={isMutating}
             onClick={() => onEdit(todo)}
-            className="shrink-0 rounded-md border border-app-border px-2 py-1 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent disabled:opacity-50 transition"
+            className="shrink-0 rounded-lg border border-app-border px-2.5 py-1.5 text-xs font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:opacity-50"
             aria-label={'Edit todo: ' + todo.title}
           >
             Edit
@@ -132,7 +130,7 @@ export function TodoCard({
             type="button"
             disabled={isMutating}
             onClick={() => onDelete(todo.id)}
-            className="shrink-0 rounded-md border border-[#d86b6b]/40 px-2 py-1 text-xs font-semibold text-app-danger hover:bg-[#d86b6b]/10 disabled:opacity-50 transition"
+            className="shrink-0 rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-xs font-semibold text-app-danger transition hover:bg-rose-500/10 disabled:opacity-50"
             aria-label={'Delete todo: ' + todo.title}
           >
             Delete

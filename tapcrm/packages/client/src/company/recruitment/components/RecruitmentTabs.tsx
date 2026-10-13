@@ -30,9 +30,9 @@ export function RecruitmentTabs({
   readonly counts?: Partial<Record<RecruitmentTab, number>> | undefined;
 }): React.JSX.Element {
   return (
-    <div className="mb-6 w-full border-b border-app-border">
+    <div className="mb-4 w-full">
       <nav
-        className="-mb-px flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-px pt-1 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="-mb-px flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl bg-app-surface/60 p-1.5 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         aria-label="Recruitment sections"
       >
         {TABS.map((tab) => {
@@ -46,10 +46,10 @@ export function RecruitmentTabs({
               role="tab"
               aria-selected={isActive}
               onClick={() => onNavigate(tab.path)}
-              className={`flex shrink-0 items-center gap-2 rounded-t-xl border-b-2 px-3.5 py-2.5 text-sm font-semibold transition whitespace-nowrap md:px-4 md:py-3 ${
+              className={`flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3.5 py-2 text-sm font-semibold transition whitespace-nowrap md:px-4 md:py-2.5 ${
                 isActive
-                  ? 'border-app-accent bg-app-accent/10 text-app-accent'
-                  : 'border-transparent text-app-muted hover:border-app-border hover:bg-app-surface hover:text-app-foreground'
+                  ? 'border-app-accent/20 bg-app-accent/10 text-app-accent'
+                  : 'text-app-muted hover:border-app-border hover:bg-app-surface hover:text-app-foreground'
               }`}
             >
               <Icon name={tab.iconName} className="size-4 shrink-0" />

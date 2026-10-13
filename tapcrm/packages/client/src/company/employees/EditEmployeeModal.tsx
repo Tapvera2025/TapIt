@@ -22,7 +22,7 @@ import {
   assignShiftToEmployee,
   type ShiftTemplate,
 } from '../api/shiftsApi.js';
-import { Button, Modal, Notice } from '../../ui/components.js';
+import { Button, Modal, Notice, SkeletonProfile } from '../../ui/components.js';
 
 type Tab = 'profile' | 'placement' | 'shift' | 'account';
 
@@ -317,7 +317,7 @@ export function EditEmployeeModal({
 
   return (
     <Modal title={profile ? `Edit ${profile.fullName}` : 'Edit employee'} onClose={onClose}>
-      {!profile && !error && <p className="text-sm text-app-muted">Loading…</p>}
+      {!profile && !error && <SkeletonProfile />}
       {profile && (
         <div className="space-y-4">
           <div className="flex gap-1 rounded-lg border border-app-border p-1" role="tablist">

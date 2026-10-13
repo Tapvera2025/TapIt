@@ -92,6 +92,32 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
   }, []);
 
+  useEffect(() => {
+    const handleButtonClick = (event: MouseEvent) => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const control = target.closest<HTMLElement>(
+        "button:not(:disabled), [role='button']:not([aria-disabled='true'])",
+      );
+      if (!control) return;
+      control.classList.remove('jelly-click');
+      void control.offsetWidth;
+      control.classList.add('jelly-click');
+    };
+    const clearAnimation = (event: AnimationEvent) => {
+      if (event.animationName === 'jelly-press') {
+        (event.currentTarget as HTMLElement).classList.remove('jelly-click');
+      }
+    };
+    document.addEventListener('click', handleButtonClick);
+    document.addEventListener('animationend', clearAnimation);
+    return () => {
+      document.removeEventListener('click', handleButtonClick);
+      document.removeEventListener('animationend', clearAnimation);
+    };
+  }, []);
+
   if (pathname.startsWith('/apply/')) {
     const token = pathname.replace(/^\/apply\/?/, '');
     return <PublicApplicationPage token={token} />;

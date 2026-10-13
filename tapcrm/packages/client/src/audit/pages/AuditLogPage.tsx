@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ACTIONS, actionTitle } from '@tapcrm/contracts';
-import { Button, Card, Empty, Field, Loading, Modal, Notice, Page, SearchableSelect, Select } from '../../ui/components.js';
+import { Button, Card, Empty, Field, Modal, Notice, Page, SearchableSelect, Select, SkeletonTable } from '../../ui/components.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../../company/api/companyApi.js';
 import { createLegalHold, downloadAuditExport, getAuditEntries, getAuditEntry, getAuditIntegrity, getLegalHoldTargets, getLegalHolds, releaseLegalHold, type AuditEntry, type AuditIntegrityReport, type LegalHold, type LegalHoldTarget } from '../api/auditApi.js';
 
@@ -171,7 +171,7 @@ export function AuditLogPage({ canManageHolds = false, canExport = false }: { ca
         </div>
       </Card>}
       {error && <div className="mt-6"><Notice error>{error}</Notice></div>}
-      {loading ? <Loading /> : entries.length === 0 ? <div className="mt-6"><Empty>No audit entries match these filters.</Empty></div> : (
+      {loading ? <div className="mt-6"><SkeletonTable columns={5} /></div> : entries.length === 0 ? <div className="mt-6"><Empty>No audit entries match these filters.</Empty></div> : (
         <Card className="mt-6 overflow-x-auto p-0">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-app-border text-xs uppercase tracking-wide text-app-muted">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { atsScanSummary, type AtsCriteriaSettings, type AtsScanSummary } from '@tapcrm/contracts';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
 import {
   getAtsCriteria,
   listRequisitions,
@@ -158,7 +158,7 @@ export function ResumeInboxPage({
   }
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Resume Inbox"
       description="Collect resumes, screen them against each job's ATS criteria, then accept or reject with the evidence in front of you."
@@ -275,7 +275,7 @@ export function ResumeInboxPage({
       {/* Submissions Table / List */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : visible.length === 0 ? (
         <Empty>

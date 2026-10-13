@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
 import { listCandidates, listOffers, listRequisitions, updateOfferStatus } from '../api/recruitmentApi.js';
 import { OfferFormModal } from '../components/OfferFormModal.js';
 import { OfferStatusBadge } from '../components/StatusBadge.js';
@@ -70,7 +70,7 @@ export function OffersPage({
   }
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Job Offers"
       description="Compensation structuring, formal letter issuance, candidate acceptance, and terms tracking."
@@ -113,7 +113,7 @@ export function OffersPage({
       {/* Offers Table */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : offers.length === 0 ? (
         <Empty>

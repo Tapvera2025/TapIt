@@ -1,4 +1,5 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
+import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
 import {
   devInstantPasswordReset,
@@ -114,8 +115,9 @@ export function LoginForm({ onSuccess, onForgotPassword, devReset: givenDevReset
   }
 
   return (
-    <form onSubmit={(event) => { void submit(event); }} className="rounded-[22px] border border-app-border bg-app-surface/95 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.2)] backdrop-blur-md max-[560px]:p-6">
-      <div className="mb-9 flex items-center gap-2.5 font-display text-[17px] font-bold tracking-[-0.03em]">
+    <form onSubmit={(event) => { void submit(event); }} className="relative rounded-[22px] border border-app-border bg-app-surface p-8 shadow-[0_24px_80px_rgba(0,0,0,0.14)] max-[560px]:p-6">
+      <ThemeToggle compact className="absolute right-5 top-5 max-[560px]:right-4 max-[560px]:top-4" />
+      <div className="mb-9 flex items-center gap-2.5 pr-12 font-display text-[17px] font-bold tracking-[-0.03em]">
         <BrandLogo className="w-[200px]" />
       </div>
       <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-app-accent">Company workspace</p>

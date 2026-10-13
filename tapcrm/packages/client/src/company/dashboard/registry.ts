@@ -33,7 +33,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Today',
     description: 'Your punch state and hours worked today.',
     available: () => true,
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
     component: PunchStateWidget,
   },
   {
@@ -57,7 +57,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'My leave',
     description: 'Available balance and pending requests.',
     available: () => true,
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
     component: MyLeaveWidget,
   },
   {

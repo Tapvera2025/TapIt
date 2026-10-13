@@ -5,7 +5,7 @@ import type { PolicyEvaluationContext } from '@tapcrm/authz';
 import { userPolicy } from './policy.js';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
-import { LIVE_STATUS_EVENTS } from '../live-status/events.js';
+import { LIVE_STATUS_EVENTS } from '../live-status/facade.js';
 import * as AttendanceFacade from '../attendance/facade.js';
 import * as LiveStatusFacade from '../live-status/facade.js';
 import * as repo from './repository.js';

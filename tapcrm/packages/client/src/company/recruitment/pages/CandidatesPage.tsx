@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
 import { listCandidates, listRequisitions, softDeleteCandidate } from '../api/recruitmentApi.js';
 import { CandidateDetailModal } from '../components/CandidateDetailModal.js';
 import { CandidateFormModal } from '../components/CandidateFormModal.js';
@@ -90,7 +90,7 @@ export function CandidatesPage({
   });
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Candidate Pipeline"
       description="Talent pool management, applicant tracking, screening, evaluation stages, and selection records."
@@ -172,7 +172,7 @@ export function CandidatesPage({
       {/* Candidates List Table */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : visible.length === 0 ? (
         <Empty>

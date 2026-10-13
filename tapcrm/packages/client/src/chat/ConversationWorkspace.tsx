@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Empty, Loading } from '../ui/components.js';
+import { Button, Empty, SkeletonMessageThread } from '../ui/components.js';
 import { Icon } from '../ui/Icon.js';
 import {
   REACTION_EMOJI,
@@ -265,22 +265,27 @@ export function ConversationWorkspace({
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       {/* Conversation list */}
       {!hideList && (
-        <div className="flex w-full shrink-0 flex-col border-b border-app-border md:h-full md:w-80 md:border-b-0 md:border-r">
-          <div className="flex items-center justify-between gap-2 border-b border-app-border p-4">
+        <div className={`flex w-full min-h-0 flex-1 flex-col border-0 bg-transparent outline-none md:h-full md:w-80 md:flex-none ${chat.activeId ? 'hidden md:flex' : ''}`}>
+          <div className="flex items-center justify-between gap-2 px-5 py-4">
             <p className="text-sm font-semibold">{title}</p>
             {onNewClick && <Button onClick={onNewClick} className="!px-3 !py-1.5 !text-xs">{newLabel}</Button>}
           </div>
+          <div className="mx-4 h-px shrink-0 bg-app-border/70" />
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {chat.conversations.length === 0 && <Empty>{emptyHint}</Empty>}
-            <ul>
+            {chat.conversations.length === 0 && (
+              <div className="px-4">
+                <Empty>{emptyHint}</Empty>
+              </div>
+            )}
+            <ul className="px-3">
               {chat.conversations.map((conversation) => {
                 const active = conversation.id === chat.activeId;
                 return (
-                  <li key={conversation.id}>
+                  <li key={conversation.id} className="border-b border-app-border/70 last:border-b-0">
                     <button
                       type="button"
                       onClick={() => void chat.openConversation(conversation.id)}
-                      className={`flex w-full items-start gap-3 border-b border-app-border px-4 py-3 text-left hover:bg-app-surface-raised ${active ? 'bg-app-surface-raised' : ''}`}
+                      className={`my-1 flex w-full items-start gap-3 rounded-lg px-2 py-3 text-left hover:bg-app-surface-raised ${active ? 'bg-app-accent/10 text-app-accent' : ''}`}
                     >
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
@@ -307,25 +312,37 @@ export function ConversationWorkspace({
       )}
 
       {/* Thread */}
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className={`relative min-h-0 flex-1 flex-col ${!hideList ? 'md:before:absolute md:before:inset-y-5 md:before:left-0 md:before:w-px md:before:bg-app-border' : ''} ${!hideList && !chat.activeId ? 'hidden md:flex' : 'flex'}`}>
         {!chat.activeId ? (
           <div className="grid flex-1 place-items-center text-sm text-app-muted">Select a conversation, or start a new one.</div>
         ) : (
           <>
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-app-border p-4">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{activeConversation ? conversationLabel(activeConversation) : ''}</p>
-                {activeConversation?.description && kind !== 'direct' && (
-                  <p className="text-xs text-app-muted">{activeConversation.description}</p>
+            <div className="relative flex shrink-0 items-center justify-between gap-2 p-4 after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:bg-app-border">
+              <div className="flex min-w-0 items-center gap-2">
+                {!hideList && (
+                  <button
+                    type="button"
+                    onClick={() => chat.setActiveId(null)}
+                    className="grid size-8 shrink-0 place-items-center rounded-lg border border-app-border text-app-muted hover:border-app-accent hover:text-app-accent md:hidden"
+                    aria-label="Back to conversations"
+                  >
+                    <Icon name="chevron-left" className="size-4" />
+                  </button>
                 )}
-                {chat.typingUsers.length > 0 && <p className="text-xs text-app-accent">typing…</p>}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{activeConversation ? conversationLabel(activeConversation) : ''}</p>
+                  {activeConversation?.description && kind !== 'direct' && (
+                    <p className="truncate text-xs text-app-muted">{activeConversation.description}</p>
+                  )}
+                  {chat.typingUsers.length > 0 && <p className="text-xs text-app-accent">typing…</p>}
+                </div>
               </div>
               {activeConversation && headerExtra?.(activeConversation)}
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {chat.loadingMessages && chat.messages.length === 0 ? (
-                <Loading />
+                <SkeletonMessageThread />
               ) : (
                 <>
                   {chat.hasMore && (
@@ -497,7 +514,7 @@ export function ConversationWorkspace({
               </div>
             )}
 
-            <div className="flex shrink-0 items-end gap-2 border-t border-app-border bg-app-surface p-3">
+            <div className="flex shrink-0 items-stretch gap-2 border-t border-app-border bg-app-surface p-3">
               <div className="relative min-w-0 flex-1">
                 {mentionQuery !== null && (
                   <div data-chat-popover className="absolute bottom-full left-0 z-20 mb-1 w-56 rounded-lg border border-app-border bg-app-surface py-1 text-sm shadow-lg">
@@ -528,13 +545,13 @@ export function ConversationWorkspace({
                     }
                     if (event.key === 'Escape' && mentionQuery !== null) setMentionQuery(null);
                   }}
-                  placeholder={kind === 'direct' ? 'Type a message…' : 'Type a message… (@ to mention someone)'}
+                  placeholder="Type a message..."
                   rows={1}
                   style={{ maxHeight: MAX_COMPOSER_HEIGHT }}
-                  className="min-h-10 w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
+                  className="block min-h-10 w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm leading-5 outline-none focus:border-app-accent"
                 />
               </div>
-              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0}>Send</Button>
+              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0} className="min-w-[4.25rem] shrink-0 self-stretch !py-0">Send</Button>
             </div>
           </>
         )}

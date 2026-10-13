@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Notice, Page } from '../../../ui/components.js';
+import { Button, Notice, WorkspacePageContainer } from '../../../ui/components.js';
 import { getCompanyIdentity } from '../../api/companyApi.js';
 import {
   assignTask,
@@ -45,8 +45,7 @@ export function TasksPage({
     sortBy: 'createdAt',
     sortOrder: 'desc',
     projectId: initialProjectId,
-    participantId:
-      propIsSuperAdmin && propCurrentUserId ? propCurrentUserId : undefined,
+    participantId: propIsSuperAdmin && propCurrentUserId ? propCurrentUserId : undefined,
   }));
   const [data, setData] = useState<PaginatedTasks | null>(null);
   const [loading, setLoading] = useState(true);
@@ -158,8 +157,7 @@ export function TasksPage({
     } catch (err) {
       setNotification({
         error: true,
-        message:
-          err instanceof Error ? err.message : 'Failed to create task',
+        message: err instanceof Error ? err.message : 'Failed to create task',
       });
       throw err;
     }
@@ -183,8 +181,7 @@ export function TasksPage({
     } catch (err) {
       setNotification({
         error: true,
-        message:
-          err instanceof Error ? err.message : 'Failed to update task',
+        message: err instanceof Error ? err.message : 'Failed to update task',
       });
       throw err;
     }
@@ -208,8 +205,7 @@ export function TasksPage({
     } catch (err) {
       setNotification({
         error: true,
-        message:
-          err instanceof Error ? err.message : 'Failed to assign task',
+        message: err instanceof Error ? err.message : 'Failed to assign task',
       });
       throw err;
     }
@@ -229,9 +225,7 @@ export function TasksPage({
         if (!prev) return prev;
         return {
           ...prev,
-          items: prev.items.map((item) =>
-            item.id === taskId ? updated : item,
-          ),
+          items: prev.items.map((item) => (item.id === taskId ? updated : item)),
         };
       });
 
@@ -240,9 +234,7 @@ export function TasksPage({
       setNotification({
         error: true,
         message:
-          err instanceof Error
-            ? err.message
-            : 'Status transition was rejected by server',
+          err instanceof Error ? err.message : 'Status transition was rejected by server',
       });
       throw err;
     }
@@ -255,33 +247,33 @@ export function TasksPage({
   const totalPages = data?.totalPages ?? 1;
   const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = Math.min(page * pageSize, total);
+  const visibleTasks = data?.items ?? [];
+  const summary = [
+    { label: 'All tasks', value: total, tone: 'text-app-foreground' },
+    {
+      label: 'Pending',
+      value: visibleTasks.filter((task) => task.status === 'pending').length,
+      tone: 'text-amber-600 dark:text-amber-300',
+    },
+    {
+      label: 'In progress',
+      value: visibleTasks.filter((task) => task.status === 'in_progress').length,
+      tone: 'text-sky-600 dark:text-sky-300',
+    },
+    {
+      label: 'Completed',
+      value: visibleTasks.filter((task) => task.status === 'completed').length,
+      tone: 'text-emerald-600 dark:text-emerald-300',
+    },
+  ];
 
   return (
-    <Page
-      eyebrow="Overview"
-      title="Tasks"
-      description={
-        isSuperAdmin && viewScope === 'all_employee_tasks'
-          ? 'Collaborate, organize, and monitor tasks across all company departments and teams (Viewing All Employee Tasks).'
-          : 'Collaborate, organize, and monitor tasks across all company departments and teams.'
-      }
-      action={
-        <Button
-          type="button"
-          kind="primary"
-          onClick={() => setIsCreateOpen(true)}
-        >
-          Create Task
-        </Button>
-      }
-    >
-      <div className="mt-6 space-y-5">
+    <WorkspacePageContainer>
+      <div className="space-y-5">
         {/* Banner notification */}
         {notification && (
           <div className="relative">
-            <Notice error={notification.error ?? false}>
-              {notification.message}
-            </Notice>
+            <Notice error={notification.error ?? false}>{notification.message}</Notice>
             <button
               type="button"
               onClick={() => setNotification(null)}
@@ -293,10 +285,31 @@ export function TasksPage({
           </div>
         )}
 
+        {/* Compact task summary */}
+        <section
+          aria-label="Task summary"
+          className="grid grid-cols-2 overflow-hidden rounded-2xl border border-app-border/80 bg-app-surface/70 sm:grid-cols-4"
+        >
+          {summary.map((item, index) => (
+            <div
+              key={item.label}
+              className={`px-4 py-3 sm:px-5 ${index > 0 ? 'border-l border-app-border/70' : ''} ${index === 2 ? 'max-sm:border-l-0 max-sm:border-t' : ''} ${index === 3 ? 'max-sm:border-t' : ''}`}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-muted">
+                {item.label}
+              </p>
+              <p className={`mt-1 text-xl font-semibold tracking-tight ${item.tone}`}>
+                {loading && !data ? '—' : item.value}
+              </p>
+            </div>
+          ))}
+        </section>
+
         {/* Filters & Search */}
         <TaskFilters
           query={query}
           onQueryChange={(nextQuery) => setQuery(nextQuery)}
+          onCreateTask={() => setIsCreateOpen(true)}
           disabled={loading}
           isSuperAdmin={isSuperAdmin}
           viewScope={viewScope}
@@ -307,11 +320,7 @@ export function TasksPage({
         {fetchError && (
           <div className="flex flex-col items-start gap-2">
             <Notice error>{fetchError}</Notice>
-            <Button
-              type="button"
-              kind="secondary"
-              onClick={() => void fetchTasks()}
-            >
+            <Button type="button" kind="secondary" onClick={() => void fetchTasks()}>
               Retry
             </Button>
           </div>
@@ -332,18 +341,9 @@ export function TasksPage({
           <div className="flex flex-col items-center justify-between gap-3 border-t border-app-border pt-4 sm:flex-row">
             <p className="text-xs text-app-muted">
               Showing{' '}
-              <span className="font-semibold text-app-foreground">
-                {startItem}
-              </span>{' '}
-              to{' '}
-              <span className="font-semibold text-app-foreground">
-                {endItem}
-              </span>{' '}
-              of{' '}
-              <span className="font-semibold text-app-foreground">
-                {total}
-              </span>{' '}
-              tasks
+              <span className="font-semibold text-app-foreground">{startItem}</span> to{' '}
+              <span className="font-semibold text-app-foreground">{endItem}</span> of{' '}
+              <span className="font-semibold text-app-foreground">{total}</span> tasks
             </p>
 
             <div className="flex items-center gap-2">
@@ -401,6 +401,6 @@ export function TasksPage({
           onClose={() => setAssigningTask(null)}
         />
       </div>
-    </Page>
+    </WorkspacePageContainer>
   );
 }

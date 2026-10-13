@@ -72,9 +72,9 @@ describe('MinioStorageProvider putObject', () => {
     let capturedBody: unknown;
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      capturedUrl = input.toString();
+      capturedUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       capturedMethod = init?.method;
-      capturedHeaders = new Headers(init?.headers as any);
+      capturedHeaders = new Headers(init?.headers);
       capturedBody = init?.body;
       return new Response('', { status: 200 });
     });

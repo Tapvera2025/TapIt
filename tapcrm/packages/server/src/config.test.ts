@@ -104,3 +104,47 @@ describe('instant password reset switch', () => {
     expect(devInstantPasswordResetEnabled({ ...load({ DEV_INSTANT_PASSWORD_RESET: 'true' }), NODE_ENV: 'production' })).toBe(false);
   });
 });
+
+describe('Google Search Console credentials', () => {
+  it('is off by default, so a laptop without credentials boots', () => {
+    expect(load().GOOGLE_SEARCH_CONSOLE_AUTH).toBe('off');
+  });
+
+  it('refuses a service-account mode missing either field', () => {
+    expect(() => load({ GOOGLE_SEARCH_CONSOLE_AUTH: 'service-account' })).toThrow(
+      /requires GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY/,
+    );
+    expect(() =>
+      load({ GOOGLE_SEARCH_CONSOLE_AUTH: 'service-account', GOOGLE_SERVICE_ACCOUNT_EMAIL: 'seo@x.iam.gserviceaccount.com' }),
+    ).toThrow(/GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY/);
+  });
+
+  it('refuses an oauth mode missing the refresh token', () => {
+    expect(() =>
+      load({
+        GOOGLE_SEARCH_CONSOLE_AUTH: 'oauth',
+        GOOGLE_OAUTH_CLIENT_ID: 'id',
+        GOOGLE_OAUTH_CLIENT_SECRET: 'secret',
+      }),
+    ).toThrow(/GOOGLE_OAUTH_REFRESH_TOKEN/);
+  });
+
+  it('accepts a complete service-account configuration', () => {
+    const config = load({
+      GOOGLE_SEARCH_CONSOLE_AUTH: 'service-account',
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: 'seo@x.iam.gserviceaccount.com',
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----\\n',
+    });
+    expect(config.GOOGLE_SEARCH_CONSOLE_AUTH).toBe('service-account');
+    // Defaults that keep the observation window inside Search Console's
+    // settled data.
+    expect(config.GOOGLE_SEARCH_CONSOLE_LAG_DAYS).toBe(3);
+    expect(config.GOOGLE_SEARCH_CONSOLE_WINDOW_DAYS).toBe(7);
+  });
+
+  it('treats a blank credential as absent rather than as a value', () => {
+    expect(() =>
+      load({ GOOGLE_SEARCH_CONSOLE_AUTH: 'oauth', GOOGLE_OAUTH_CLIENT_ID: '  ', GOOGLE_OAUTH_CLIENT_SECRET: 's', GOOGLE_OAUTH_REFRESH_TOKEN: 'r' }),
+    ).toThrow(/GOOGLE_OAUTH_CLIENT_ID/);
+  });
+});

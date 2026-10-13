@@ -92,9 +92,25 @@
 | `leave:manage-types` | leave | leaveType | people | no | no | — | yes | yes | no |
 | `holidays:view` | holidays | holiday | people | no | no | — | yes | yes | no |
 | `holidays:manage` | holidays | holiday | people | no | no | — | yes | yes | no |
+| `ta:view` | ta | — | people | no | no | — | yes | yes | no |
+| `ta:view-own` | ta | — | people | no | no | — | yes | yes | no |
+| `ta:manage` | ta | — | people | yes | no | — | yes | no | no |
+| `ta:recalculate` | ta | — | people | yes | no | — | yes | no | no |
+| `ta:send` | ta | — | people | yes | no | — | yes | no | no |
+| `ta:export` | ta | — | people | yes | no | — | yes | no | no |
 | `payroll:view` | payroll | payslip | people | yes | no | — | yes | no | no |
 | `payroll:manage` | payroll | payrollRun | people | yes | no | — | yes | no | yes |
 | `payroll:manage-config` | payroll | payrollConfig | people | yes | no | — | yes | no | yes |
+| `advance:view-own` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
+| `advance:request` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
+| `advance:view` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
+| `advance:approve` | advance | employeeAdvance | people | yes | yes | requestedBy | yes | no | no |
+| `advance:manage` | advance | employeeAdvance | people | yes | no | — | yes | no | no |
+| `advance:export` | advance | employeeAdvance | people | yes | no | — | yes | no | no |
+| `penalty:view-own` | penalties | employeePenalty | people | no | no | — | yes | yes | no |
+| `penalty:view` | penalties | employeePenalty | people | no | no | — | yes | yes | no |
+| `penalty:manage` | penalties | employeePenalty | people | yes | no | — | yes | no | no |
+| `penalty:export` | penalties | employeePenalty | people | yes | no | — | yes | no | no |
 | `performance:view` | performance | performanceRecord | people | no | no | — | yes | yes | no |
 | `performance:view-aggregates` | performance | performanceRecord | people | no | no | — | yes | yes | no |
 | `performance:manage` | performance | performanceRecord | people | yes | yes | subjectId | yes | no | no |
@@ -170,7 +186,7 @@
 | `payables:create-bill` | payables | vendorBill | business | no | no | — | yes | yes | no |
 | `payables:approve-bill` | payables | vendorBill | business | yes | yes | createdBy | yes | no | no |
 | `payables:claim` | payables | expenseClaim | people | no | no | — | yes | yes | no |
-| `payables:approve-claim` | payables | expenseClaim | people | no | yes | claimedBy | yes | yes | no |
+| `payables:approve-claim` | payables | expenseClaim | people | no | yes | claimedBy | yes | no | no |
 | `payables:execute-run` | payables | paymentRun | business | yes | yes | approvedBy | yes | no | no |
 | `accounting:view-ledger` | accounting | journalEntry | business | yes | no | — | yes | no | no |
 | `accounting:post-journal` | accounting | journalEntry | business | yes | no | — | yes | no | no |
@@ -324,6 +340,16 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/attendance/live | `attendance:view-live` | — |
 | POST | /api/status/punch | `status:punch` | — |
 | GET | /api/attendance | `attendance:view` | — |
+| GET | /api/attendance/reports/employees | `attendance:view` | — |
+| GET | /api/attendance/reports/monthly | `attendance:view` | — |
+| GET | /api/attendance/reports/daily | `attendance:view` | — |
+| POST | /api/attendance/reports/daily/export | `attendance:export` | — |
+| GET | /api/attendance/reports/late/daily | `attendance:view` | — |
+| GET | /api/attendance/reports/late/monthly | `attendance:view` | — |
+| POST | /api/attendance/reports/late/daily/export | `attendance:export` | — |
+| POST | /api/attendance/reports/late/monthly/export | `attendance:export` | — |
+| POST | /api/attendance/reports/monthly/export | `attendance:export` | — |
+| GET | /api/attendance/reports/employee/:userId | `attendance:view` | — |
 | GET | /api/attendance/:userId/:date | `attendance:view` | userId |
 | POST | /api/attendance/export | `attendance:export` | — |
 | GET | /api/attendance/exports/:jobId | `attendance:export` | — |
@@ -399,6 +425,33 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PATCH | /api/payroll/inputs/:id/revoke | `payroll:manage` | — |
 | GET | /api/payroll/inputs | `payroll:manage` | — |
 | GET | /api/payroll/payslips/:id/document | `payroll:view` | id |
+| GET | /api/ta/assignments | `ta:manage` | — |
+| POST | /api/ta/assignments | `ta:manage` | — |
+| POST | /api/ta/assignments/:id/deactivate | `ta:manage` | — |
+| POST | /api/ta/assignments/:id/reactivate | `ta:manage` | — |
+| GET | /api/ta/report | `ta:view` | — |
+| POST | /api/ta/statements/recalculate | `ta:recalculate` | — |
+| POST | /api/ta/statements/send | `ta:send` | — |
+| GET | /api/ta/export | `ta:export` | — |
+| GET | /api/ta/my | `ta:view-own` | — |
+| GET | /api/advances/mine | `advance:view-own` | — |
+| POST | /api/advances | `advance:request` | — |
+| GET | /api/advances | `advance:view` | — |
+| GET | /api/advances/:id | `advance:view` | id |
+| POST | /api/advances/:id/approve | `advance:approve` | id |
+| POST | /api/advances/:id/reject | `advance:approve` | id |
+| POST | /api/advances/manual | `advance:manage` | — |
+| GET | /api/advances/deductions | `advance:view` | — |
+| POST | /api/advances/:id/deductions | `advance:manage` | id |
+| PATCH | /api/advances/deductions/:id | `advance:manage` | id |
+| GET | /api/advances/deductions/export | `advance:export` | — |
+| GET | /api/penalties/mine | `penalty:view-own` | — |
+| GET | /api/penalties/mine/:id | `penalty:view-own` | id |
+| GET | /api/penalties | `penalty:view` | — |
+| POST | /api/penalties | `penalty:manage` | — |
+| GET | /api/penalties/:id | `penalty:view` | id |
+| POST | /api/penalties/:id/cancel | `penalty:manage` | id |
+| GET | /api/penalties/export | `penalty:export` | — |
 | GET | /api/performance/:userId | `performance:view` | userId |
 | GET | /api/performance/:userId/kpis | `performance:view-aggregates` | userId |
 | POST | /api/performance/:userId/reviews | `performance:manage` | userId |
@@ -520,7 +573,34 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/projects/:id/archive | `projects:manage` | id |
 | POST | /api/projects/:id/discussion-group | `projects:manage` | id |
 | PATCH | /api/projects/:id/discussion-group | `projects:manage` | id |
+| POST | /api/projects/:id/discussion-group/members | `projects:manage` | id |
+| DELETE | /api/projects/:id/discussion-group/members/:userId | `projects:manage` | id |
+| POST | /api/projects/:id/discussion-group/archive | `projects:manage` | id |
 | GET | /api/projects/:id/profitability | `projects:view-financials` | id |
+| GET | /api/projects/:id/reports/on-page-seo | `projects:view` | id |
+| GET | /api/projects/:id/reports/download | `projects:view` | id |
+| POST | /api/projects/:id/reports/on-page-seo/keywords | `projects:manage` | id |
+| PATCH | /api/projects/:id/reports/on-page-seo/keywords/:keywordId | `projects:manage` | id |
+| POST | /api/projects/:id/reports/on-page-seo/keywords/:keywordId/rank | `projects:manage` | id |
+| GET | /api/projects/:id/reports/on-page-seo/keywords/:keywordId/history | `projects:view` | id |
+| POST | /api/projects/:id/reports/on-page-seo/keywords/:keywordId/archive | `projects:manage` | id |
+| POST | /api/projects/:id/reports/on-page-seo/blog-posts | `projects:manage` | id |
+| PATCH | /api/projects/:id/reports/on-page-seo/blog-posts/:blogId | `projects:manage` | id |
+| POST | /api/projects/:id/reports/on-page-seo/blog-posts/:blogId/archive | `projects:manage` | id |
+| GET | /api/projects/:id/reports/on-page-seo/search-console | `projects:manage` | id |
+| PUT | /api/projects/:id/reports/on-page-seo/search-console | `projects:manage` | id |
+| DELETE | /api/projects/:id/reports/on-page-seo/search-console | `projects:manage` | id |
+| POST | /api/projects/:id/reports/on-page-seo/search-console/sync | `projects:manage` | id |
+| GET | /api/projects/:id/reports/off-page-seo/backlinks | `projects:view` | id |
+| POST | /api/projects/:id/reports/off-page-seo/backlinks | `projects:manage` | id |
+| PATCH | /api/projects/:id/reports/off-page-seo/backlinks/:backlinkId | `projects:manage` | id |
+| POST | /api/projects/:id/reports/off-page-seo/backlinks/bulk | `projects:manage` | id |
+| DELETE | /api/projects/:id/reports/off-page-seo/backlinks/:backlinkId | `projects:manage` | id |
+| GET | /api/projects/:id/reports/screenshots | `projects:view` | id |
+| POST | /api/projects/:id/reports/screenshots | `projects:manage` | id |
+| GET | /api/projects/:id/reports/screenshots/:screenshotId/content | `projects:view` | id |
+| PATCH | /api/projects/:id/reports/screenshots/:screenshotId | `projects:manage` | id |
+| DELETE | /api/projects/:id/reports/screenshots/:screenshotId | `projects:manage` | id |
 | GET | /api/tasks | `tasks:view` | — |
 | GET | /api/tasks/:id | `tasks:view` | id |
 | GET | /api/tasks/assignees | `tasks:assign` | — |
@@ -588,6 +668,12 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/payables/claims/mine | `payables:claim` | — |
 | POST | /api/payables/claims | `payables:claim` | — |
 | POST | /api/payables/claims/:id/approve | `payables:approve-claim` | id |
+| GET | /api/payables/claims/approvals | `payables:claim` | — |
+| PATCH | /api/payables/claims/:id | `payables:claim` | id |
+| DELETE | /api/payables/claims/:id | `payables:claim` | id |
+| POST | /api/payables/claims/:id/reject | `payables:approve-claim` | id |
+| GET | /api/payables/claims/:id | `payables:claim` | id |
+| GET | /api/payables/claims/:claimId/attachments/:attachmentId | `payables:claim` | claimId |
 | GET | /api/payables/runs | `payables:execute-run` | — |
 | POST | /api/payables/runs | `payables:execute-run` | — |
 | POST | /api/payables/runs/:id/execute | `payables:execute-run` | id |
