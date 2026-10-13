@@ -106,8 +106,14 @@ export function App(): React.JSX.Element {
       control.classList.add('jelly-click');
     };
     const clearAnimation = (event: AnimationEvent) => {
-      if (event.animationName === 'jelly-press') {
-        (event.currentTarget as HTMLElement).classList.remove('jelly-click');
+      // The listener is bound to document, so event.currentTarget is the
+      // document itself and has no classList. The animation actually fired on
+      // event.target. Guard the element check since bubbled events from text
+      // nodes or non-Element targets would otherwise crash the handler.
+      if (event.animationName !== 'jelly-press') return;
+      const element = event.target;
+      if (element instanceof HTMLElement) {
+        element.classList.remove('jelly-click');
       }
     };
     document.addEventListener('click', handleButtonClick);

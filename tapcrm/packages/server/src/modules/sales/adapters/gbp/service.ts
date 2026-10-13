@@ -225,7 +225,7 @@ function buildIntakePayload(
     connectorId,
     externalLeadId: body.CallSid,
     rawPayload: rawBody,
-    mappedFields: mappedFields as IntakePayload['mappedFields'],
+    mappedFields: mappedFields,
     ...(body.StartTime ? { providerSubmittedAt: new Date(body.StartTime) } : {}),
   };
 }

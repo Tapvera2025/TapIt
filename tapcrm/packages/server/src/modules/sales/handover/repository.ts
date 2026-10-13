@@ -56,7 +56,14 @@ const handoverTargetSelect = (organizationId: string) => sql`
 `;
 
 export async function listHandoverTargets(ctx: RequestContext): Promise<HandoverTarget[]> {
-  const rows = await db.query<HandoverTarget>(ctx, sql`${handoverTargetSelect(ctx.organizationId)} ORDER BY selectable DESC, CASE availability WHEN 'working' THEN 0 WHEN 'on_break' THEN 1 ELSE 2 END, "acceptedLastHour" DESC, CASE WHEN "positionCode" = 'sales-supervisor' THEN 0 ELSE 1 END, "fullName"`);
+  // The CASE expressions below reference the "availability" and "positionCode"
+  // output aliases. PostgreSQL does not resolve column aliases inside CASE in
+  // an ORDER BY clause, so wrap the base select in a subquery and sort the
+  // outer one. SELECT * from the subquery preserves camelCase output names.
+  const rows = await db.query<HandoverTarget>(
+    ctx,
+    sql`SELECT * FROM (${handoverTargetSelect(ctx.organizationId)}) targets ORDER BY targets.selectable DESC, CASE targets.availability WHEN 'working' THEN 0 WHEN 'on_break' THEN 1 ELSE 2 END, targets."acceptedLastHour" DESC, CASE WHEN targets."positionCode" = 'sales-supervisor' THEN 0 ELSE 1 END, targets."fullName"`,
+  );
   return rows;
 }
 

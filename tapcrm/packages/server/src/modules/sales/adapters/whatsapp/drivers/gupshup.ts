@@ -46,7 +46,7 @@ export const gupshupDriver: WhatsAppDriver = {
           providerAccountId,
           fromPhone: toE164(payload.sender?.phone ?? payload.source),
           toPhone: toE164(payload.destination),
-          kind: (payload.type ?? 'text') as 'text' | 'image' | 'document' | 'audio' | 'video' | 'location',
+          kind: (payload.type ?? 'text'),
           text: payload.payload?.text ?? payload.payload?.caption ?? null,
           sentAt: payload.timestamp ? new Date(Number(payload.timestamp) * 1000) : null,
           raw: payload,

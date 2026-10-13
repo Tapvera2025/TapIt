@@ -147,7 +147,7 @@ export async function findMetaConnectorsByPage(pageIds: readonly string[]): Prom
              external_account_id AS "externalAccountId"
         FROM sales_connector
        WHERE kind                 = 'meta'
-         AND external_account_id  = ANY(${pageIds as unknown as string[]}::text[])
+         AND external_account_id  = ANY(${pageIds}::text[])
     `,
   );
   const map = new Map<string, MetaConnectorMatch>();

@@ -37,7 +37,7 @@ export async function findExistingSubmissionKeys(
       FROM lead_submission
      WHERE organization_id = ${organizationId}
        AND connector_id    = ${connectorId}
-       AND external_lead_id = ANY(${leadgenIds as unknown as string[]}::text[])
+       AND external_lead_id = ANY(${leadgenIds}::text[])
   `);
   return new Set(rows.map((r) => r.externalLeadId));
 }

@@ -33,7 +33,7 @@ export async function fetchWorkload(
     SELECT u.id                                 AS "userId",
            COALESCE(l.active_count, 0)::text    AS "activeLeadCount",
            COALESCE(c.overdue_count, 0)::text   AS "overdueCallbackCount"
-      FROM unnest(${userIds as unknown as string[]}::uuid[]) AS u(id)
+      FROM unnest(${userIds}::uuid[]) AS u(id)
       LEFT JOIN LATERAL (
         SELECT count(*) AS active_count
           FROM lead

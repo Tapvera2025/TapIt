@@ -114,7 +114,7 @@ async function findConnectorsByAccountIds(providerAccountIds: readonly string[])
              config
         FROM sales_connector
        WHERE kind = 'whatsapp'
-         AND external_account_id = ANY(${providerAccountIds as unknown as string[]}::text[])
+         AND external_account_id = ANY(${providerAccountIds}::text[])
     `,
   );
   const byAccountId = new Map<string, WhatsAppConnectorRow>();
@@ -153,7 +153,7 @@ function mappedFieldsFromEvent(event: Extract<InboundEvent, { type: 'message' }>
     message: event.text ?? null,
   };
   if (event.kind !== 'text') fields['whatsappMessageKind'] = event.kind;
-  return fields as IntakeMappedFields;
+  return fields;
 }
 
 export interface IngestWhatsAppResult {
@@ -191,7 +191,7 @@ export async function ingestWhatsAppWebhook(
   const firstMatch = providerAccountIds.map((id) => connectors.get(id)).find((c) => c !== undefined);
   const secret =
     firstMatch !== undefined && typeof firstMatch.config['webhookSecret'] === 'string'
-      ? (firstMatch.config['webhookSecret'] as string)
+      ? (firstMatch.config['webhookSecret'])
       : null;
   if (secret === null) throw new WhatsAppSecretMissingError();
   if (!driver.verifyWebhook(req, secret)) throw new WhatsAppSignatureInvalidError();

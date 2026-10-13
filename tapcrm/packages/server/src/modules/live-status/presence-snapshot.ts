@@ -44,7 +44,7 @@ export async function readPresenceToday(
              shift_start_at  AS "shiftStartAt",
              shift_end_at    AS "shiftEndAt"
         FROM user_status
-       WHERE user_id = ANY(${userIds as unknown as string[]}::uuid[])
+       WHERE user_id = ANY(${userIds}::uuid[])
          AND work_date = (now() AT TIME ZONE ${OPERATIONAL_TZ})::date
     `,
   );

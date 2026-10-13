@@ -118,7 +118,7 @@ export function normalizeFieldData(
     const target = overrides[entry.name] ?? DEFAULT_FIELD_MAP[entry.name] ?? entry.name;
     mapped[target] = value;
   }
-  return mapped as IntakeMappedFields;
+  return mapped;
 }
 
 const DEFAULT_FIELD_MAP: Readonly<Record<string, keyof IntakeMappedFields>> = {

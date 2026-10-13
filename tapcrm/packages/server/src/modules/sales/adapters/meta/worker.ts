@@ -87,7 +87,7 @@ export async function runMetaFetchLeadJob(
   if (!connector) return 'connector_missing';
   if (connector.status !== 'active') return 'connector_missing';
   const token = typeof connector.config['pageAccessToken'] === 'string'
-    ? (connector.config['pageAccessToken'] as string)
+    ? (connector.config['pageAccessToken'])
     : null;
   if (!token) {
     await markConnectorReconnectRequired(ctx, connector.id, 401);

@@ -64,7 +64,7 @@ export const interaktDriver: WhatsAppDriver = {
           type: 'status',
           messageId: data.message?.id ?? 'unknown',
           providerAccountId,
-          status: normalized as 'sent' | 'delivered' | 'read' | 'failed',
+          status: normalized,
           recipientPhone: fromPhone,
         },
       ];

@@ -216,7 +216,7 @@ export async function ingestWebsiteSubmission(
     connectorId: connector.id,
     externalLeadId: body.submissionUUID,
     rawPayload: rawBody,
-    mappedFields: mappedFields as IntakePayload['mappedFields'],
+    mappedFields: mappedFields,
     ...(body.mappingVersion !== undefined ? { mappingVersion: body.mappingVersion } : {}),
   };
 

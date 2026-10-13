@@ -246,7 +246,7 @@ export async function ingest(ctx: RequestContext, payload: IntakePayload): Promi
             if (card) announceBidPoolAdded(ctx.organizationId, eligibleAgentsSnapshot, card);
           })
           .catch((err) => {
-            // eslint-disable-next-line no-console
+             
             console.error(JSON.stringify({ level: 'error', msg: 'bid-pool.added announce failed', leadId, err: String(err) }));
           });
       });

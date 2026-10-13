@@ -129,7 +129,7 @@ function buildIntakePayload(
   return {
     connectorId,
     externalLeadId: row.rowKey,
-    mappedFields: mapped as IntakePayload['mappedFields'],
+    mappedFields: mapped,
   };
 }
 
