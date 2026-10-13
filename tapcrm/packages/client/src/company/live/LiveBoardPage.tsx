@@ -26,28 +26,6 @@ export type DisplayStatus =
   | 'On Leave'
   | 'Finished';
 
-const GROUP_LABELS: Record<LiveGroup, string> = {
-  working: 'Working',
-  possiblyFinished: 'Possibly finished',
-  onBreak: 'On break',
-  finished: 'Finished',
-  notInDue: 'Overdue',
-  notInNotYetDue: 'Not yet due',
-  onLeave: 'On leave',
-  onHoliday: 'Holiday',
-};
-
-const GROUP_BAR_COLORS: Record<LiveGroup, string> = {
-  working: 'bg-emerald-500',
-  possiblyFinished: 'bg-sky-400',
-  onBreak: 'bg-amber-400',
-  finished: 'bg-neutral-300 dark:bg-neutral-600',
-  notInDue: 'bg-rose-500',
-  notInNotYetDue: 'bg-neutral-200 dark:bg-neutral-700',
-  onLeave: 'bg-sky-300',
-  onHoliday: 'bg-neutral-200 dark:bg-neutral-700',
-};
-
 export function deriveDisplayStatus(row: LiveRow): DisplayStatus {
   if (row.dayGroup === 'leave' || row.displayGroup === 'onLeave') {
     return 'On Leave';
