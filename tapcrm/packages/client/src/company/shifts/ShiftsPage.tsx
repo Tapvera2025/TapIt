@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listShifts, createShift, type ShiftTemplate } from '../api/shiftsApi.js';
 import { suggestNextCode } from '../../ui/code-suggest.js';
+import { SkeletonTable } from '../../ui/components.js';
 
 function fmtTime(value: string | null): string {
   if (!value) return '—';
@@ -208,7 +209,7 @@ export function ShiftsPage(): React.JSX.Element {
       )}
 
       {error && <p className="text-sm text-app-danger">{error}</p>}
-      {loading && <p className="text-sm text-app-muted">Loading shifts…</p>}
+      {loading && <SkeletonTable columns={4} rows={5} />}
 
       {!loading && shifts.length === 0 && (
         <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">

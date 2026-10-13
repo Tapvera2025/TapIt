@@ -3,7 +3,8 @@ import type { Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { BreakDeductionInput } from '../break-management/facade.js';
 
-export type ManualInputKind = 'adjustment' | 'advance-recovery' | 'arrear' | 'bonus' | 'tds';
+export type ManualInputKind =
+  'adjustment' | 'advance-recovery' | 'arrear' | 'bonus' | 'tds';
 
 export interface ManualInputInsert {
   readonly userId: string;

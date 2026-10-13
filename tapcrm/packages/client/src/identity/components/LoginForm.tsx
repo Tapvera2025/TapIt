@@ -1,4 +1,5 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
+import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
 import { identityLogin, IdentityApiError, type IdentityLoginResult, type GeolocationInput } from '../api/authApi.js';
 
@@ -62,8 +63,9 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
   }
 
   return (
-    <form onSubmit={(event) => { void submit(event); }} className="rounded-[22px] border border-app-border bg-app-surface/95 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.2)] backdrop-blur-md max-[560px]:p-6">
-      <div className="mb-9 flex items-center gap-2.5 font-display text-[17px] font-bold tracking-[-0.03em]">
+    <form onSubmit={(event) => { void submit(event); }} className="relative rounded-[22px] border border-app-border bg-app-surface p-8 shadow-[0_24px_80px_rgba(0,0,0,0.14)] max-[560px]:p-6">
+      <ThemeToggle compact className="absolute right-5 top-5 max-[560px]:right-4 max-[560px]:top-4" />
+      <div className="mb-9 flex items-center gap-2.5 pr-12 font-display text-[17px] font-bold tracking-[-0.03em]">
         <BrandLogo className="w-[200px]" />
       </div>
       <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-app-accent">Company workspace</p>
@@ -104,12 +106,11 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
         </span>
         {fieldErrors.password && <span className="mt-1 block text-xs text-app-danger" role="alert">{fieldErrors.password}</span>}
       </label>
+      <button type="button" className="mx-auto mt-4 block border-0 bg-transparent p-0 text-xs font-semibold text-app-accent hover:underline" onClick={onForgotPassword}>Forgot password?</button>
+      {error && <p className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-app-danger" role="alert">{error}</p>}
       <button className="mt-6 block w-full rounded-[10px] bg-app-accent px-4 py-3 font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={busy}>
         {busy ? 'Signing in...' : 'Sign in to company workspace'}
       </button>
-      <button type="button" className="mx-auto mt-4 block border-0 bg-transparent p-0 text-xs font-semibold text-app-accent hover:underline" onClick={onForgotPassword}>Forgot password?</button>
-      {error && <p className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-app-danger" role="alert">{error}</p>}
-      <p className="mt-6 text-center text-xs text-app-muted">Platform administrators sign in through the separate Master Admin portal.</p>
     </form>
   );
 }

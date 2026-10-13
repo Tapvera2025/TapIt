@@ -2,7 +2,13 @@ import type { DateOnly } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { addDays } from '../../platform/time.js';
 import { sql } from '../../platform/dal/sql.js';
-import { computePayslip, type ComputePayslipInput, type FrozenDay, type FrozenStructureSegment, type FrozenInput } from './calculate.js';
+import {
+  computePayslip,
+  type ComputePayslipInput,
+  type FrozenDay,
+  type FrozenStructureSegment,
+  type FrozenInput,
+} from './calculate.js';
 import { type PayrollInputRow } from './input.js';
 
 export interface FrozenEmployeeInputs {
@@ -11,14 +17,27 @@ export interface FrozenEmployeeInputs {
   readonly days: FrozenDay[];
   readonly structureSegments: FrozenStructureSegment[];
   readonly payrollInputs: PayrollInputRow[];
-  readonly configSnapshot: { id: string; effectiveFrom: string; settings: Record<string, unknown> };
+  readonly configSnapshot: {
+    id: string;
+    effectiveFrom: string;
+    settings: Record<string, unknown>;
+  };
 }
 
 function toFrozenInput(row: PayrollInputRow): FrozenInput {
   const kind = row.kind;
   const direction: 'earning' | 'deduction' =
-    kind === 'adjustment' || kind === 'arrear' || kind === 'bonus' ? 'earning' : 'deduction';
-  return { id: row.id, kind, amountStr: row.amount, label: row.label, direction, sourceId: row.breakBreachId };
+    kind === 'adjustment' || kind === 'arrear' || kind === 'bonus'
+      ? 'earning'
+      : 'deduction';
+  return {
+    id: row.id,
+    kind,
+    amountStr: row.amount,
+    label: row.label,
+    direction,
+    sourceId: row.breakBreachId,
+  };
 }
 
 /**
@@ -60,8 +79,12 @@ export async function computeAndWriteDraftSlip(
   let slipId: string;
   if (existingSlip) {
     slipId = existingSlip.id;
-    await tx.query(sql`DELETE FROM payslip_line WHERE organization_id = ${organizationId} AND payslip_id = ${slipId}::uuid`);
-    await tx.query(sql`DELETE FROM payslip_salary_use WHERE organization_id = ${organizationId} AND payslip_id = ${slipId}::uuid`);
+    await tx.query(
+      sql`DELETE FROM payslip_line WHERE organization_id = ${organizationId} AND payslip_id = ${slipId}::uuid`,
+    );
+    await tx.query(
+      sql`DELETE FROM payslip_salary_use WHERE organization_id = ${organizationId} AND payslip_id = ${slipId}::uuid`,
+    );
     await tx.query(sql`
       UPDATE payslip SET
         gross_paise = ${result.grossPaise.toString()},
@@ -102,7 +125,8 @@ export async function computeAndWriteDraftSlip(
   // Write salary use rows. A structure's effective_to is exclusive.
   for (const seg of frozenInputs.structureSegments) {
     const usedFrom = periodStart > seg.effectiveFrom ? periodStart : seg.effectiveFrom;
-    const lastDay = seg.effectiveTo === null ? null : addDays(seg.effectiveTo as DateOnly, -1);
+    const lastDay =
+      seg.effectiveTo === null ? null : addDays(seg.effectiveTo as DateOnly, -1);
     const usedTo = lastDay !== null && lastDay < periodEnd ? lastDay : periodEnd;
     if (usedTo < usedFrom) continue;
     await tx.query(sql`

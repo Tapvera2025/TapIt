@@ -26,7 +26,7 @@ type Layout = RGLLayoutItem;
 
 const GridLayout = GridLayoutDefault;
 const rglModule = GridLayoutDefault as unknown as RGLModule;
-import { Page } from '../../ui/components.js';
+import { SkeletonCard, WorkspacePageContainer } from '../../ui/components.js';
 import { Icon } from '../../ui/Icon.js';
 import type { CompanyIdentity } from '../api/companyApi.js';
 import { getDashboardPreferences, saveDashboardPreferences } from './dashboardApi.js';
@@ -107,6 +107,10 @@ export function DashboardPage({
   const [prefs, setPrefs] = useState<DashboardPreferences | null>(null);
   const [editing, setEditing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [mobileDragId, setMobileDragId] = useState<DashboardWidgetId | null>(null);
+  const [mobileDropId, setMobileDropId] = useState<DashboardWidgetId | null>(null);
+  const mobileDragRef = useRef<{ id: DashboardWidgetId; pointerId: number } | null>(null);
+  const mobileDropRef = useRef<DashboardWidgetId | null>(null);
 
   const available = useMemo(() => availableWidgets(identity), [identity]);
   const availableIds = useMemo(() => available.map((widget) => widget.id), [available]);
@@ -155,6 +159,10 @@ export function DashboardPage({
   const layout = useMemo(
     () => buildLayout(visibleIds, prefs?.layout ?? []),
     [visibleIds, prefs?.layout],
+  );
+  const mobileOrderedIds = useMemo(
+    () => [...layout].sort((a, b) => a.y - b.y || a.x - b.x).map((item) => item.i as DashboardWidgetId),
+    [layout],
   );
 
   const persistTimer = useRef<number | null>(null);
@@ -205,6 +213,112 @@ export function DashboardPage({
     [hidden, prefs?.layout, commitPrefs],
   );
 
+  const reorderMobile = useCallback(
+    (fromId: DashboardWidgetId, toId: DashboardWidgetId) => {
+      if (fromId === toId) return;
+      const nextOrder = [...mobileOrderedIds];
+      const fromIndex = nextOrder.indexOf(fromId);
+      const toIndex = nextOrder.indexOf(toId);
+      if (fromIndex < 0 || toIndex < 0) return;
+      nextOrder.splice(fromIndex, 1);
+      nextOrder.splice(toIndex, 0, fromId);
+      const slots = new Map(
+        mobileOrderedIds.map((id) => {
+          const item = layout.find((entry) => entry.i === id);
+          return [id, item ? { x: item.x, y: item.y } : { x: 0, y: 0 }];
+        }),
+      );
+      const nextLayout = layout.map((item) => {
+        const targetId = nextOrder[mobileOrderedIds.indexOf(item.i as DashboardWidgetId)];
+        const slot = targetId ? slots.get(targetId) : undefined;
+        return slot ? { ...item, x: slot.x, y: slot.y } : item;
+      });
+      commitPrefs(
+        nextLayout.map(({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h })),
+        hidden,
+      );
+    },
+    [mobileOrderedIds, layout, commitPrefs, hidden],
+  );
+
+  const resizeMobileWidget = useCallback(
+    (id: DashboardWidgetId, delta: number) => {
+      const nextLayout = layout.map((item) =>
+        item.i === id
+          ? { ...item, h: Math.min(10, Math.max(2, item.h + delta)) }
+          : item,
+      );
+      commitPrefs(
+        nextLayout.map(({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h })),
+        hidden,
+      );
+    },
+    [layout, commitPrefs, hidden],
+  );
+
+  const setMobileWidgetHeight = useCallback(
+    (id: DashboardWidgetId, height: number) => {
+      const nextLayout = layout.map((item) =>
+        item.i === id ? { ...item, h: Math.min(10, Math.max(2, height)) } : item,
+      );
+      commitPrefs(
+        nextLayout.map(({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h })),
+        hidden,
+      );
+    },
+    [layout, commitPrefs, hidden],
+  );
+
+  const handleMobileDragStart = (id: DashboardWidgetId, event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    mobileDragRef.current = { id, pointerId: event.pointerId };
+    mobileDropRef.current = id;
+    setMobileDragId(id);
+  };
+
+  useEffect(() => {
+    if (!mobileDragId) return;
+    const resolveTarget = (x: number, y: number): DashboardWidgetId | null => {
+      const value = document
+        .elementFromPoint(x, y)
+        ?.closest<HTMLElement>('[data-mobile-widget-id]')
+        ?.dataset['mobileWidgetId'];
+      return value && availableIds.includes(value as DashboardWidgetId)
+        ? (value as DashboardWidgetId)
+        : null;
+    };
+    const onMove = (event: PointerEvent) => {
+      if (mobileDragRef.current?.pointerId !== event.pointerId) return;
+      const target = resolveTarget(event.clientX, event.clientY);
+      mobileDropRef.current = target;
+      setMobileDropId(target);
+    };
+    const onEnd = (event: PointerEvent) => {
+      const drag = mobileDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const target = resolveTarget(event.clientX, event.clientY) ?? mobileDropRef.current;
+      if (target) reorderMobile(drag.id, target);
+      mobileDragRef.current = null;
+      mobileDropRef.current = null;
+      setMobileDragId(null);
+      setMobileDropId(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+    };
+  }, [mobileDragId, availableIds, reorderMobile]);
+
+  const moveMobileBy = (id: DashboardWidgetId, delta: number) => {
+    const index = mobileOrderedIds.indexOf(id);
+    const target = mobileOrderedIds[index + delta];
+    if (target) reorderMobile(id, target);
+  };
+
   const add = useCallback(
     (id: DashboardWidgetId) => {
       const nextHidden = hidden.filter((item) => item !== id);
@@ -231,24 +345,28 @@ export function DashboardPage({
 
   if (!prefs) {
     return (
-      <Page eyebrow="Workspace" title="Dashboard" description="Loading your dashboard…">
+      <WorkspacePageContainer className="dashboard-workspace">
+        <section className="dashboard-command-bar">
+          <div className="min-w-0">
+            <h1>Today at a glance</h1>
+            <p>Preparing your workboard…</p>
+          </div>
+        </section>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="h-36 animate-pulse rounded-2xl bg-app-surface" />
-          ))}
+          {[1, 2, 3].map((item) => <SkeletonCard key={item} className="h-36" />)}
         </div>
-      </Page>
+      </WorkspacePageContainer>
     );
   }
 
   return (
-    <Page
-      eyebrow="Your workspace"
-      title="Dashboard"
-      description={`Good to see you, ${identity.user.fullName}.`}
-      action={
-        !isMobile ? (
-          <div className="flex flex-wrap items-center gap-2">
+    <WorkspacePageContainer className="dashboard-workspace">
+      <section className="dashboard-command-bar">
+        <div className="min-w-0">
+          <h1>Today at a glance</h1>
+          <p>{identity.user.fullName}&rsquo;s operational workboard</p>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {editing && (
               <>
                 <button
@@ -277,10 +395,8 @@ export function DashboardPage({
             >
               {editing ? 'Done' : 'Customize'}
             </button>
-          </div>
-        ) : undefined
-      }
-    >
+        </div>
+      </section>
       {editing && pickerOpen && (
         <div className="mt-5 rounded-2xl border border-app-border bg-app-surface p-4">
           <p className="text-sm font-semibold">Add a widget</p>
@@ -320,13 +436,60 @@ export function DashboardPage({
         </div>
       ) : isMobile ? (
         <div className="mt-5 space-y-4">
-          {visibleIds.map((id) => {
+          {mobileOrderedIds.map((id) => {
             const def = getWidget(id);
             if (!def) return null;
             const Component = def.component;
+            const layoutItem = layout.find((item) => item.i === id);
+            const widgetHeight = Math.max(160, (layoutItem?.h ?? 3) * (ROW_HEIGHT + 16) - 16);
             return (
-              <div key={id} className="min-h-32 rounded-2xl border border-app-border bg-app-surface p-4 shadow-sm">
-                <Component ctx={ctx} />
+              <div
+                key={id}
+                data-mobile-widget-id={id}
+                className={`mobile-dashboard-widget ${editing ? 'mobile-dashboard-widget-editing' : ''} ${mobileDragId === id ? 'mobile-dashboard-widget-dragging' : ''} ${mobileDropId === id && mobileDragId !== id ? 'mobile-dashboard-widget-drop-target' : ''}`}
+                style={{ height: editing ? `${widgetHeight}px` : undefined }}
+              >
+                {editing && (
+                  <div className="mobile-dashboard-widget-controls mb-3 flex items-center justify-between gap-2 border-b border-app-border pb-2">
+                    <button
+                      type="button"
+                      className="mobile-dashboard-drag-handle inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-xs font-semibold text-app-muted"
+                      aria-label={`Drag to reorder ${def.title}`}
+                      title="Hold and drag to reorder"
+                      onPointerDown={(event) => handleMobileDragStart(id, event)}
+                    >
+                      <Icon name="menu" className="size-4" />
+                      <span>Move</span>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => moveMobileBy(id, -1)} disabled={mobileOrderedIds[0] === id} className="mobile-dashboard-control-button" aria-label={`Move ${def.title} up`} title="Move up">↑</button>
+                      <button type="button" onClick={() => moveMobileBy(id, 1)} disabled={mobileOrderedIds[mobileOrderedIds.length - 1] === id} className="mobile-dashboard-control-button" aria-label={`Move ${def.title} down`} title="Move down">↓</button>
+                      <span className="mx-1 h-5 w-px bg-app-border" />
+                      <button type="button" onClick={() => resizeMobileWidget(id, -1)} disabled={(layoutItem?.h ?? 3) <= 2} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} shorter`} title="Shorter">−</button>
+                      <button type="button" onClick={() => resizeMobileWidget(id, 1)} disabled={(layoutItem?.h ?? 3) >= 10} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} taller`} title="Taller">+</button>
+                      <button type="button" onClick={() => hide(id)} className="mobile-dashboard-control-button mobile-dashboard-remove" aria-label={`Remove ${def.title}`} title="Remove widget">
+                        <Icon name="close" className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {editing && (
+                  <label className="mobile-dashboard-size-control mb-3 flex items-center gap-3 text-xs font-semibold text-app-muted">
+                    <span>Card height</span>
+                    <input
+                      type="range"
+                      min={2}
+                      max={10}
+                      step={1}
+                      value={layoutItem?.h ?? 3}
+                      onChange={(event) => setMobileWidgetHeight(id, Number(event.currentTarget.value))}
+                      aria-label={`Card height for ${def.title}`}
+                    />
+                  </label>
+                )}
+                <div className={editing ? 'mobile-dashboard-widget-content' : ''}>
+                  <Component ctx={ctx} />
+                </div>
               </div>
             );
           })}
@@ -339,6 +502,7 @@ export function DashboardPage({
             cols={COLS}
             rowHeight={ROW_HEIGHT}
             margin={[16, 16]}
+            containerPadding={[0, 0]}
             isDraggable={editing}
             isResizable={editing}
             onLayoutChange={handleLayoutChange}
@@ -367,6 +531,6 @@ export function DashboardPage({
           </ResponsiveGrid>
         </div>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }

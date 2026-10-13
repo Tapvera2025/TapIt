@@ -21,7 +21,7 @@ export interface GeolocationInput {
 }
 
 export class IdentityApiError extends Error {
-  constructor(message: string, public readonly code: string, public readonly status: number) {
+  constructor(message: string, public readonly code: string, public readonly status: number, public readonly details?: unknown) {
     super(message);
     this.name = 'IdentityApiError';
   }
@@ -201,10 +201,10 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
   }
 
   const contentType = response.headers.get('content-type') ?? '';
-  let body: { success?: boolean; data?: T; message?: string; code?: string } | null = null;
+  let body: { success?: boolean; data?: T; message?: string; code?: string; details?: unknown } | null = null;
   if (contentType.includes('application/json')) {
     try {
-      body = (await response.json()) as { success?: boolean; data?: T; message?: string; code?: string };
+    body = (await response.json()) as { success?: boolean; data?: T; message?: string; code?: string; details?: unknown };
     } catch {
       body = null;
     }
@@ -222,7 +222,7 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
     redirectToIdentityLogin();
   }
   if (!response.ok || !body.success || body.data === undefined) {
-    throw new IdentityApiError(body.message ?? 'Identity request failed', body.code ?? 'IDENTITY_REQUEST_FAILED', response.status);
+    throw new IdentityApiError(body.message ?? 'Identity request failed', body.code ?? 'IDENTITY_REQUEST_FAILED', response.status, body.details);
   }
   return body.data;
 }

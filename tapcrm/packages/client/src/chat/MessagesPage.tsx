@@ -14,7 +14,7 @@ const TAB_FOR_KIND: Record<string, Tab> = { direct: 'direct', group: 'group', pr
  * and Project Groups (Phase 4) — one conversation per project, created by
  * the project wizard's second step.
  */
-export function MessagesPage({ currentUserId, isSuperAdmin }: { currentUserId: string; isSuperAdmin: boolean }): React.JSX.Element {
+export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }: { currentUserId: string; isSuperAdmin: boolean; canManageProjects: boolean }): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('direct');
   const [deepLink, setDeepLink] = useState<{ conversationId: string; messageId?: string | undefined } | undefined>(undefined);
 
@@ -53,8 +53,8 @@ export function MessagesPage({ currentUserId, isSuperAdmin }: { currentUserId: s
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex gap-1 border-b border-app-border px-4 pt-3">
+    <div className="flex h-full min-h-0 flex-col px-3 pb-3 sm:px-4 sm:pb-4 md:px-8 md:pb-8">
+      <div className="flex shrink-0 gap-1 overflow-x-auto px-1 pt-3 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {([['direct', 'Direct Messages'], ['group', 'Internal Groups'], ['project', 'Project Groups']] as const).map(([value, tabLabel]) => (
           <button
             key={value}
@@ -66,19 +66,20 @@ export function MessagesPage({ currentUserId, isSuperAdmin }: { currentUserId: s
               setDeepLink(undefined);
               setTab(value);
             }}
-            className={`rounded-t-lg px-3 py-2 text-sm font-semibold ${tab === value ? 'border-b-2 border-app-accent text-app-accent' : 'text-app-muted hover:text-app-foreground'}`}
+            className={`whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors sm:px-3 sm:text-sm ${tab === value ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
           >
-            {tabLabel}
+            <span className="sm:hidden">{value === 'direct' ? 'Direct' : value === 'group' ? 'Internal' : 'Project'}</span>
+            <span className="hidden sm:inline">{tabLabel}</span>
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="mt-3 min-h-0 flex-1 overflow-hidden rounded-2xl bg-app-surface">
         {tab === 'direct' ? (
           <DirectMessagesPage currentUserId={currentUserId} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
         ) : tab === 'group' ? (
           <InternalGroupsPage currentUserId={currentUserId} isSuperAdmin={isSuperAdmin} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
         ) : (
-          <ProjectGroupsPage currentUserId={currentUserId} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
+          <ProjectGroupsPage currentUserId={currentUserId} canManageProjects={canManageProjects} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
         )}
       </div>
     </div>

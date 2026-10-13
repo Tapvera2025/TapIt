@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { suggestNextCode } from '../../ui/code-suggest.js';
+import { WorkspacePageContainer } from '../../ui/components.js';
 import {
   ACTIONS,
   REGISTRY,
@@ -27,10 +28,9 @@ import {
   Empty,
   ErrorMessage,
   Field,
-  Loading,
+  SkeletonTable,
   Modal,
   Notice,
-  Page,
   Select,
 } from '../components/OrganizationUi.js';
 import type {
@@ -466,19 +466,7 @@ export function PositionsPage(): React.JSX.Element {
   const departmentName =
     departments.find((item) => item.id === departmentId)?.name ?? 'Department';
   return (
-    <Page
-      eyebrow="Organization"
-      title="Positions"
-      description="Explore each department’s hierarchy, understand every role, and manage its policies."
-      action={
-        <Button
-          onClick={() => startCreate()}
-          disabled={!departmentId || loading || !ladder}
-        >
-          Add position
-        </Button>
-      }
-    >
+    <WorkspacePageContainer>
       {message && (
         <div className="mt-5">
           <Notice>{message}</Notice>
@@ -491,7 +479,7 @@ export function PositionsPage(): React.JSX.Element {
       )}
       {loading || !ladder ? (
         <>
-          <div className="mt-6 max-w-sm">
+          <div className="max-w-sm">
             <Select
               label="Department"
               value={departmentId}
@@ -500,7 +488,7 @@ export function PositionsPage(): React.JSX.Element {
             />
           </div>
           {loading ? (
-            <Loading />
+            <SkeletonTable columns={4} rows={6} />
           ) : departments.length === 0 ? (
             <Empty>No departments are available yet.</Empty>
           ) : error ? (
@@ -786,7 +774,7 @@ export function PositionsPage(): React.JSX.Element {
           )}
         </Modal>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }
 function nameOfParent(

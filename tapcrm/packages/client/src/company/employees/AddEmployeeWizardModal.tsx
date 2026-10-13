@@ -553,7 +553,7 @@ export function AddEmployeeWizardModal({
         className="ui-dialog z-50 my-auto flex max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3.5rem)] w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-2xl flex-col rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6 shadow-2xl text-app-foreground overflow-hidden"
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-app-border pb-4">
+        <div className="flex shrink-0 items-center justify-between border-0 pb-4">
           <div>
             <h2 className="font-display text-xl font-bold">New Employee Onboarding</h2>
             <p className="text-xs text-app-muted mt-0.5">Multi-stage employee creation & onboarding setup</p>
@@ -1330,7 +1330,7 @@ export function AddEmployeeWizardModal({
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="shrink-0 mt-4 flex items-center justify-between border-t border-app-border pt-4">
+        <div className="shrink-0 mt-4 flex items-center justify-between pt-4">
           <button
             type="button"
             onClick={step === 1 ? onClose : handleBack}

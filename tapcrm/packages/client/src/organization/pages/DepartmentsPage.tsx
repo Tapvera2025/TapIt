@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../../ui/Icon.js';
+import { WorkspacePageContainer } from '../../ui/components.js';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,
   Card,
-  Empty,
   ErrorMessage,
   Field,
-  Loading,
+  SkeletonTable,
   Modal,
   Notice,
-  Page,
   Select,
 } from '../components/OrganizationUi.js';
 import { suggestNextCode } from '../../ui/code-suggest.js';
@@ -109,28 +109,48 @@ export function DepartmentsPage(): React.JSX.Element {
     }
   }
   return (
-    <Page
-      eyebrow="Organization"
-      title="Departments"
-      description="Manage the department structure used by teams, positions, and visibility."
-      action={<Button onClick={startCreate}>Add department</Button>}
-    >
+    <WorkspacePageContainer>
       {message && (
-        <div className="mt-5">
+        <div className="mb-5">
           <Notice>{message}</Notice>
         </div>
       )}
       {Boolean(error) && (
-        <div className="mt-5">
+        <div className="mb-5">
           <ErrorMessage cause={error} />
         </div>
       )}
-      {loading ? (
-        <Loading />
-      ) : items.length === 0 ? (
-        <Empty>No departments are visible to this account.</Empty>
-      ) : (
-        <Card className="mt-6 overflow-hidden p-0">
+      <Card className="overflow-hidden p-0">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-b-[color:var(--app-border)] px-5 py-5 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
+              <Icon name="building" className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-muted">
+                Organization
+              </p>
+              <p className="mt-0.5 text-base font-bold text-app-foreground">Department directory</p>
+              <p className="mt-0.5 text-xs text-app-muted">
+                {loading
+                  ? 'Loading departments…'
+                  : `${items.length} department${items.length === 1 ? '' : 's'} in your organization`}
+              </p>
+            </div>
+          </div>
+          <Button onClick={startCreate}>
+            <span aria-hidden="true">+</span> Add department
+          </Button>
+        </div>
+        {loading ? (
+          <div className="p-5">
+            <SkeletonTable columns={4} rows={5} />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-sm text-app-muted">No departments are visible to this account.</p>
+          </div>
+        ) : (
           <div className="divide-y divide-app-border">
             {items.map((item) => (
               <div
@@ -154,8 +174,8 @@ export function DepartmentsPage(): React.JSX.Element {
               </div>
             ))}
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
       {open && (
         <Modal
           title={editing ? 'Edit department' : 'Create department'}
@@ -209,6 +229,6 @@ export function DepartmentsPage(): React.JSX.Element {
           </form>
         </Modal>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }

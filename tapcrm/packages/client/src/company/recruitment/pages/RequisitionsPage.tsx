@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
 import { Icon } from '../../../ui/Icon.js';
 import { listRequisitions, updateRequisitionStatus } from '../api/recruitmentApi.js';
 import { RequisitionFormModal } from '../components/RequisitionFormModal.js';
@@ -71,7 +71,7 @@ export function RequisitionsPage({
   });
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Job Requisitions"
       description="Headcount approval, job specifications, openings tracking, and hiring targets."
@@ -135,7 +135,7 @@ export function RequisitionsPage({
       {/* Requisitions List Table */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : visible.length === 0 ? (
         <Empty>
