@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getChatColleagues } from '../chat/index.js';
 import { TasksPage } from '../company/tasks/index.js';
-import { Button, Card, Loading, Notice } from '../ui/components.js';
+import { Button, Card, Notice, SkeletonDetail, SkeletonMessageThread } from '../ui/components.js';
 import { getProject, setProjectTeam, type Project } from './api/projectsApi.js';
 import { EditProjectModal } from './EditProjectModal.js';
 import { formatProjectDate } from './formatDate.js';
@@ -46,7 +46,7 @@ export function ProjectDetailPage({
   }, [projectId]);
 
   if (error) return <div className="p-6"><Notice error>{error}</Notice></div>;
-  if (!project) return <Loading />;
+  if (!project) return <SkeletonDetail sections={3} />;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -127,7 +127,7 @@ export function ProjectDetailPage({
               ) : (
                 <>
                   {colleagues.length === 0 ? (
-                    <Loading />
+                    <SkeletonMessageThread />
                   ) : (
                     <div className="max-h-48 overflow-y-auto rounded-lg border border-app-border">
                       {colleagues.map((person) => (

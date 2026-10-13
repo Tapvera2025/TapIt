@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../../ui/Icon.js';
+import { WorkspacePageContainer } from '../../ui/components.js';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,
   Card,
   Empty,
   ErrorMessage,
-  Loading,
+  SkeletonTable,
   Modal,
   Notice,
   Select,
-  Page,
 } from '../components/OrganizationUi.js';
 import type {
   OrganizationChart,
@@ -89,11 +90,7 @@ export function ReportingPage(): React.JSX.Element {
     }
   }
   return (
-    <Page
-      eyebrow="Organization"
-      title="Reporting"
-      description="Review reporting relationships and use the backend-validated individual or subtree reassignment flow."
-    >
+    <WorkspacePageContainer>
       {message && (
         <div className="mt-5">
           <Notice>{message}</Notice>
@@ -105,17 +102,21 @@ export function ReportingPage(): React.JSX.Element {
         </div>
       )}
       {loading ? (
-        <Loading />
+        <SkeletonTable columns={4} rows={5} />
       ) : employees.length === 0 ? (
         <Empty>No employee reporting data is visible.</Empty>
       ) : (
-        <>
-          <Card className="mt-6">
+        <div className="mt-5 space-y-5">
+          <Card className="overflow-hidden p-0">
+            <div className="flex items-center gap-3 border-b border-b-[color:var(--app-border)] px-5 py-4 sm:px-6">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-app-accent/10 text-app-accent"><Icon name="users" className="size-4" /></span>
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-muted">Organization</p><h1 className="mt-0.5 text-base font-bold">Reporting relationships</h1><p className="mt-0.5 text-xs text-app-muted">Preview a backend-validated individual or subtree reassignment before applying it.</p></div>
+            </div>
             <form
               onSubmit={(event) => {
                 void previewChange(event);
               }}
-              className="grid gap-4 md:grid-cols-3"
+              className="grid gap-4 p-5 sm:p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
             >
               <Select
                 label="Employee"
@@ -156,9 +157,9 @@ export function ReportingPage(): React.JSX.Element {
               </Button>
             </form>
           </Card>
-          <Card className="mt-6">
-            <h2 className="font-display text-xl font-bold">Visible reporting lines</h2>
-            <div className="mt-4 divide-y divide-app-border">
+          <Card className="overflow-hidden p-0">
+            <div className="border-b border-b-[color:var(--app-border)] px-5 py-4 sm:px-6"><h2 className="text-base font-bold">Visible reporting lines</h2><p className="mt-0.5 text-xs text-app-muted">Current explicit and effective reporting relationships.</p></div>
+            <div className="divide-y divide-app-border px-5 sm:px-6">
               {employees.map((employee) => (
                 <div
                   key={employee.id}
@@ -176,7 +177,7 @@ export function ReportingPage(): React.JSX.Element {
               ))}
             </div>
           </Card>
-        </>
+        </div>
       )}
       {preview && (
         <Modal
@@ -242,6 +243,6 @@ export function ReportingPage(): React.JSX.Element {
           </div>
         </Modal>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }

@@ -41,6 +41,13 @@ const TONE_CLASSES: Record<CalendarTone, string> = {
   neutral: 'bg-sky-500/12 text-sky-900 dark:text-sky-200',
   muted: 'bg-app-surface-raised text-app-muted',
 };
+const TONE_DOT_CLASSES: Record<CalendarTone, string> = {
+  positive: 'bg-emerald-500',
+  negative: 'bg-rose-500',
+  warning: 'bg-amber-500',
+  neutral: 'bg-sky-500',
+  muted: 'bg-app-muted/45',
+};
 
 /**
  * One responsive month calendar. The desktop grid contains 28–42 DateOnly
@@ -66,9 +73,6 @@ export function PeopleCalendar({
   const monthDays = useMemo(() => calendarMonth(month), [month]);
   const weekDays = useMemo(() => calendarWeek(selectedDate), [selectedDate]);
   const desktopDays = view === 'week' ? weekDays : monthDays;
-  const mobileDays = view === 'week'
-    ? weekDays
-    : monthDays.filter((date) => date.startsWith(month));
 
   useEffect(() => {
     const targetDate = keyboardFocusDate.current;
@@ -108,7 +112,7 @@ export function PeopleCalendar({
     selectDate(nextDate, true);
   }
 
-  function dayButton(date: string, surface: 'grid' | 'strip' | 'list'): React.JSX.Element {
+  function dayButton(date: string, surface: 'grid' | 'strip' | 'list' | 'compact'): React.JSX.Element {
     const day = byDate.get(date);
     const isSelected = selectedDate === date;
     const isCurrentMonth = date.startsWith(month);
@@ -120,6 +124,8 @@ export function PeopleCalendar({
       ? 'min-h-25 p-2.5 lg:min-h-29'
       : surface === 'strip'
         ? 'min-h-16 p-1.5 text-center'
+        : surface === 'compact'
+          ? 'aspect-square min-h-10 p-1 text-center'
         : 'flex w-full items-center gap-3 p-3';
     return (
       <button
@@ -136,8 +142,9 @@ export function PeopleCalendar({
         <span className={`${surface === 'list' ? 'w-12 shrink-0' : 'block'} text-sm font-bold tabular-nums`}>
           {surface === 'list' ? calendarDateLabel(date).split(',')[0] : Number(date.slice(-2))}
         </span>
+        {surface === 'compact' && <span aria-hidden="true" className={`mx-auto mt-1 block size-1.5 rounded-full ${TONE_DOT_CLASSES[day?.tone ?? 'muted']}`} />}
         {surface === 'list' && <span className="sr-only">{calendarDateLabel(date)}</span>}
-        <span className={surface === 'list' ? 'min-w-0 flex-1' : 'mt-2 block'}>
+        {surface !== 'compact' && <span className={surface === 'list' ? 'min-w-0 flex-1' : 'mt-2 block'}>
           <span className={`inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-4 ${statusClass}`}>
             {day?.halfDay && <span aria-hidden="true" className="inline-block size-2 rounded-full bg-current opacity-70 [clip-path:inset(0_50%_0_0)]" />}
             <span className="truncate">{label}</span>
@@ -154,24 +161,24 @@ export function PeopleCalendar({
               ))}
             </span>
           )}
-        </span>
+        </span>}
       </button>
     );
   }
 
   return (
     <div ref={rootRef} className="rounded-2xl border border-app-border bg-app-surface p-3 sm:p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-app-muted">Work calendar</p>
           <h2 className="mt-0.5 text-xl font-bold tracking-tight">{calendarMonthLabel(month)}</h2>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-app-border p-0.5" aria-label="Calendar view">
+          <div className="flex min-w-0 flex-1 rounded-lg border border-app-border p-0.5 sm:flex-none" aria-label="Calendar view">
             {(['month', 'week'] as const).map((option) => (
               <button key={option} type="button" aria-pressed={view === option}
                 onClick={() => onViewChange(option)}
-                className={`rounded-md px-2.5 py-1.5 text-xs font-semibold capitalize ${view === option ? 'bg-app-foreground text-app-surface' : 'text-app-muted hover:text-app-foreground'}`}>
+                className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-semibold capitalize sm:flex-none ${view === option ? 'bg-app-foreground text-app-surface' : 'text-app-muted hover:text-app-foreground'}`}>
                 {option}
               </button>
             ))}
@@ -188,17 +195,18 @@ export function PeopleCalendar({
         {desktopDays.map((date) => dayButton(date, 'grid'))}
       </div>
       <div className="md:hidden">
-        <div className="mb-3 grid grid-cols-7 gap-1" aria-label="Selected week">
+        {view === 'week' ? <div className="grid grid-cols-7 gap-1" aria-label="Selected week">
           {weekDays.map((date) => (
             <div key={date} className="min-w-0">
               <div className="mb-1 text-center text-[10px] font-semibold text-app-muted">{WEEKDAYS[weekdayIndex(date)]}</div>
-              {dayButton(date, 'strip')}
+              {dayButton(date, 'compact')}
             </div>
           ))}
-        </div>
-        <div className="space-y-1" aria-label={view === 'month' ? 'Dates this month' : 'Dates this week'}>
-          {mobileDays.map((date) => dayButton(date, 'list'))}
-        </div>
+        </div> : <div role="grid" aria-label={`${calendarMonthLabel(month)} attendance`}>
+          <div className="mb-1 grid grid-cols-7 gap-1">{WEEKDAYS.map((weekday) => <div key={weekday} className="text-center text-[10px] font-semibold text-app-muted">{weekday.slice(0, 1)}</div>)}</div>
+          <div className="grid grid-cols-7 gap-1">{monthDays.map((date) => dayButton(date, 'compact'))}</div>
+          <p className="mt-3 text-xs text-app-muted">Tap a date to view its attendance details.</p>
+        </div>}
       </div>
       <p className="sr-only" role="status" aria-live="polite">Selected {calendarDateLabel(selectedDate)}</p>
     </div>

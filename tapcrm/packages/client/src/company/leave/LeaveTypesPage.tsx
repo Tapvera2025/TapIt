@@ -6,6 +6,7 @@ import {
   type LeaveTypeDto,
 } from '../api/leaveApi.js';
 import { suggestNextCode } from '../../ui/code-suggest.js';
+import { SkeletonTable } from '../../ui/components.js';
 
 type FormMode = null | 'create' | LeaveTypeDto;
 
@@ -297,7 +298,7 @@ export function LeaveTypesPage(): React.JSX.Element {
           </button>
         </div>
       )}
-      {loading && <p role="status" className="text-sm text-app-muted">Loading leave types…</p>}
+      {loading && <SkeletonTable columns={4} rows={5} />}
 
       {!loading && !error && types.length === 0 && (
         <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">

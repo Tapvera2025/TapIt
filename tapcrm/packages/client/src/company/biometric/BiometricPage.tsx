@@ -9,7 +9,7 @@ import {
   replayBiometricPunches,
 } from '../api/biometricApi.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../api/companyApi.js';
-import { Button, Card, Field, Notice, SearchableSelect, Select } from '../../ui/components.js';
+import { Button, Card, Field, Notice, SearchableSelect, Select, SkeletonTable } from '../../ui/components.js';
 
 type Tab = 'devices' | 'mapping' | 'punches';
 
@@ -162,7 +162,7 @@ function DevicesTab({
       </Card>
 
       {loading ? (
-        <p className="text-sm text-app-muted">Loading devices…</p>
+        <SkeletonTable columns={4} rows={4} />
       ) : devices.length === 0 ? (
         <p className="text-sm text-app-muted">No devices registered yet.</p>
       ) : (
@@ -365,7 +365,7 @@ function PunchesTab({
         <Button kind="secondary" onClick={() => void replayUnmapped()}>Replay last 30 days</Button>
       </div>
       {loading ? (
-        <p className="text-sm text-app-muted">Loading punches…</p>
+        <SkeletonTable columns={5} rows={5} />
       ) : rows.length === 0 ? (
         <p className="text-sm text-app-muted">No punches yet.</p>
       ) : (

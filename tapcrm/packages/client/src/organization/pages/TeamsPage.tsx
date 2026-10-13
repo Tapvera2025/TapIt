@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../../ui/Icon.js';
+import { WorkspacePageContainer } from '../../ui/components.js';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,
   Card,
-  Empty,
   ErrorMessage,
   Field,
-  Loading,
+  SkeletonTable,
   Modal,
   Notice,
-  Page,
   Select,
 } from '../components/OrganizationUi.js';
 import type {
@@ -185,36 +185,86 @@ export function TeamsPage(): React.JSX.Element {
       selectedEmployee.teamId)
     : null;
   return (
-    <Page
-      eyebrow="Organization"
-      title="Teams"
-      description="Manage teams and move active employees only within their department."
-      action={<Button onClick={startCreate}>Add team</Button>}
-    >
+    <WorkspacePageContainer>
       {message && (
-        <div className="mt-5">
+        <div className="mb-5">
           <Notice>{message}</Notice>
         </div>
       )}
       {Boolean(error) && (
-        <div className="mt-5">
+        <div className="mb-5">
           <ErrorMessage cause={error} />
         </div>
       )}
-      {loading ? (
-        <Loading />
-      ) : (
-        <>
-          <Card className="mt-6">
-            <h2 className="font-display text-xl font-bold">Move an employee</h2>
-            <p className="mt-1 text-sm text-app-muted">
-              The backend verifies department consistency and records the movement.
-            </p>
+      <div className="space-y-5">
+        <Card className="overflow-hidden p-0">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-b-[color:var(--app-border)] px-5 py-5 sm:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
+                <Icon name="users" className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-muted">
+                  Organization
+                </p>
+                <p className="mt-0.5 text-base font-bold text-app-foreground">Team directory</p>
+                <p className="mt-0.5 text-xs text-app-muted">
+                  {loading ? 'Loading teams…' : `${teams.length} team${teams.length === 1 ? '' : 's'} in your organization`}
+                </p>
+              </div>
+            </div>
+            <Button onClick={startCreate}>
+              <span aria-hidden="true">+</span> Add team
+            </Button>
+          </div>
+          {loading ? (
+            <div className="p-5">
+              <SkeletonTable columns={4} rows={5} />
+            </div>
+          ) : teams.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-sm text-app-muted">No teams are visible to this account.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-app-border">
+              {teams.map((team) => (
+                <div
+                  key={team.id}
+                  className="flex flex-wrap items-center justify-between gap-4 p-5"
+                >
+                  <div>
+                    <p className="font-semibold">{team.name}</p>
+                    <p className="mt-1 text-xs text-app-muted">
+                      {team.kind} · {departmentName(team.departmentId)}
+                    </p>
+                  </div>
+                  <Button kind="secondary" onClick={() => startEdit(team)}>
+                    Edit
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {!loading && (
+          <Card className="overflow-hidden p-0">
+            <div className="flex flex-wrap items-center gap-3 border-b border-b-[color:var(--app-border)] px-5 py-4 sm:px-6">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-app-accent/10 text-app-accent">
+                <Icon name="users" className="size-4" />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-app-foreground">Move an employee</h2>
+                <p className="mt-0.5 text-xs text-app-muted">
+                  Move active employees only within their department.
+                </p>
+              </div>
+            </div>
             <form
               onSubmit={(event) => {
                 void moveMember(event);
               }}
-              className="mt-4 grid gap-4 md:grid-cols-3"
+              className="grid gap-3 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end sm:p-6"
             >
               <Select
                 label="Employee"
@@ -263,37 +313,13 @@ export function TeamsPage(): React.JSX.Element {
                   No teams are available in this employee&apos;s department.
                 </p>
               )}
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" disabled={busy} className="w-full md:w-auto">
                 {selectedEmployee?.teamId ? 'Move employee' : 'Assign employee'}
               </Button>
             </form>
           </Card>
-          {teams.length === 0 ? (
-            <Empty>No teams are visible to this account.</Empty>
-          ) : (
-            <Card className="mt-6 overflow-hidden p-0">
-              <div className="divide-y divide-app-border">
-                {teams.map((team) => (
-                  <div
-                    key={team.id}
-                    className="flex flex-wrap items-center justify-between gap-4 p-5"
-                  >
-                    <div>
-                      <p className="font-semibold">{team.name}</p>
-                      <p className="mt-1 text-xs text-app-muted">
-                        {team.kind} · {departmentName(team.departmentId)}
-                      </p>
-                    </div>
-                    <Button kind="secondary" onClick={() => startEdit(team)}>
-                      Edit
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-        </>
-      )}
+        )}
+      </div>
       {open && (
         <Modal
           title={editing ? 'Edit team' : 'Create team'}
@@ -371,6 +397,6 @@ export function TeamsPage(): React.JSX.Element {
           </form>
         </Modal>
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }

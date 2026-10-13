@@ -6,6 +6,7 @@ import {
   submitBreachExplanation,
   type BreachListItem,
 } from '../api/breaksApi.js';
+import { SkeletonTable } from '../../ui/components.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -198,7 +199,7 @@ export function BreachQueuePage(): React.JSX.Element {
       </div>
 
       {error && <p className="text-sm text-app-danger">{error}</p>}
-      {loading && <p className="text-sm text-app-muted">Loading breaches…</p>}
+      {loading && <SkeletonTable columns={5} rows={5} />}
 
       {!loading && breaches.length === 0 && (
         <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">

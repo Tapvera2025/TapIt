@@ -5,7 +5,7 @@ import {
   type LeaveBalanceDto,
   type LeaveBalanceOverviewRow,
 } from '../api/leaveApi.js';
-import { Button, Modal, Notice, Page } from '../../ui/components.js';
+import { Button, Modal, Notice, Page, SkeletonTable } from '../../ui/components.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -158,7 +158,7 @@ export function LeaveBalancesPage({ canAdjust }: { canAdjust: boolean }): React.
       {notice && <div className="mt-4"><Notice>{notice}</Notice></div>}
       {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
       {loading ? (
-        <p className="mt-6 text-sm text-app-muted">Loading balances…</p>
+        <div className="mt-6"><SkeletonTable columns={5} rows={5} /></div>
       ) : types.length === 0 ? (
         <p className="mt-6 text-sm text-app-muted">No active leave types with balances. Create one under Leave Types.</p>
       ) : (
