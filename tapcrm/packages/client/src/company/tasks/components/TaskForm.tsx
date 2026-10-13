@@ -247,7 +247,7 @@ export function TaskForm({
         )}
 
         {/* Action Buttons */}
-        <div className="mt-6 flex justify-end gap-3 border-t border-app-border pt-4">
+        <div className="mt-6 flex justify-end gap-3 pt-4">
           <Button
             type="button"
             kind="secondary"
@@ -332,7 +332,7 @@ export function TaskAssignModal({
           projectId={task.projectId || undefined}
         />
 
-        <div className="mt-6 flex justify-end gap-3 border-t border-app-border pt-4">
+        <div className="mt-6 flex justify-end gap-3 pt-4">
           <Button
             type="button"
             kind="secondary"

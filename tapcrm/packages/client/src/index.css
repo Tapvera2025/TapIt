@@ -822,8 +822,9 @@
     background: var(--app-surface);
   }
   .ui-dialog::backdrop {
-    background: #080e17a6;
-    backdrop-filter: blur(4px);
+    background: rgb(8 14 23 / 62%);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
   .workspace-sidebar {
     background: var(--sidebar-background) !important;
@@ -1523,6 +1524,10 @@ a {
     color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms ease;
+}
+.task-assignee-toggle:active {
+  animation: none !important;
+  transform: none !important;
 }
 button:active:not(:disabled),
 a:active,

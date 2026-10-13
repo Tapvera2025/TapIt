@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { OnboardingStepDto, OnboardingWorkflowDto } from '@tapcrm/contracts';
 import { completeOnboardingStep, listOnboardingWorkflows } from '../api/onboardingApi.js';
 import { SkeletonListItem } from '../../ui/components.js';
@@ -55,13 +56,14 @@ export function OnboardingChecklistDrawer({
     }
   }
 
-  return (
+  return createPortal(
+    (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
     >
-      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-xs transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={onClose} />
 
       <dialog
         open
@@ -242,5 +244,7 @@ export function OnboardingChecklistDrawer({
         </div>
       </dialog>
     </div>
+    ),
+    document.body,
   );
 }
