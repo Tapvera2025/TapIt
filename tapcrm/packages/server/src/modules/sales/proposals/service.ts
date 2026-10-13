@@ -294,9 +294,6 @@ export async function updateDraft(
 export async function publishVersion(ctx: RequestContext, commercialsId: string): Promise<Commercials> {
   const now = new Date();
 
-  let publishedId: string;
-  let dealId: string;
-
   const outcome = await db.transaction(ctx, async (tx) => {
     const locked = await lockCommercials(tx, ctx.organizationId, commercialsId);
     if (!locked) throw new CommercialsNotFoundError();
@@ -352,11 +349,9 @@ export async function publishVersion(ctx: RequestContext, commercialsId: string)
     return { alreadyPublished: false, dealId: locked.dealId };
   });
 
-  publishedId = commercialsId;
-  dealId = outcome.dealId;
-  void dealId;
+  void outcome.dealId;
 
-  const published = await findCommercials(ctx, publishedId);
+  const published = await findCommercials(ctx, commercialsId);
   if (!published) throw new CommercialsNotFoundError();
   return published;
 }

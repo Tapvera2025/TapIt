@@ -139,10 +139,15 @@ function SectionEditor({
 function getStringValue(raw: unknown): string {
   if (typeof raw === 'string') return raw;
   if (raw === null || raw === undefined) return '';
+  if (typeof raw === 'number' || typeof raw === 'boolean' || typeof raw === 'bigint') {
+    return String(raw);
+  }
   // Preserve non-string values round-tripping by rendering them as JSON.
+  // JSON.stringify throws only on circular refs; show a tag the UI can detect
+  // rather than falling back to String(obj), which prints '[object Object]'.
   try {
     return JSON.stringify(raw, null, 2);
   } catch {
-    return String(raw);
+    return '[unserializable value]';
   }
 }

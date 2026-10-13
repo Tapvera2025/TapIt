@@ -45,7 +45,9 @@ export const manualPaymentReadinessPort: PaymentReadinessPort = {
     if (SATISFIED_STATUSES.has(status)) {
       return result(true, 'Advance confirmed by Finance.');
     }
-    switch (status) {
+    // After the SATISFIED_STATUSES guard, only the unsatisfied statuses remain.
+    const remaining = status as Exclude<DealPaymentStatus, 'advance_confirmed' | 'paid'>;
+    switch (remaining) {
       case 'unpaid':
         return result(false, 'Advance not yet confirmed by Finance.');
       case 'partial':
@@ -54,9 +56,12 @@ export const manualPaymentReadinessPort: PaymentReadinessPort = {
         return result(false, 'A refund is outstanding on this deal.');
       case 'refunded':
         return result(false, 'This deal has been fully refunded.');
+      default: {
+        // Exhaustiveness guard — a new state in the enum needs explicit handling.
+        const unhandled: never = remaining;
+        return result(false, `Unhandled payment status: ${String(unhandled)}`);
+      }
     }
-    // Exhaustiveness guard — a new state in the enum needs explicit handling.
-    return result(false, `Unhandled payment status: ${status as string}`);
   },
 };
 
