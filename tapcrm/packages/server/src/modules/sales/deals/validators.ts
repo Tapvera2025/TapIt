@@ -52,16 +52,43 @@ export type CancelAfterWinInput = z.infer<typeof cancelAfterWinSchema>;
  * Finance for pilot tenants) types in the amount they received, where it
  * came from, and an optional note. Money arrives as a digit-string so
  * the body round-trips through JSON without number precision loss.
+ *
+ * When `revert` is true the request reverses an earlier confirmation —
+ * it requires a reason and ignores amount/reference. The server rejects
+ * revert on a won/lost/cancelled deal — once the deal is closed the
+ * confirmation is load-bearing for readiness audit, so operations needs
+ * to go through a cancellation path instead.
  */
-export const confirmPaymentSchema = z.object({
-  amountMinor: z
-    .string()
-    .trim()
-    .regex(/^\d+$/, 'amountMinor must be a non-negative integer in minor units')
-    .refine((value) => BigInt(value) > 0n, { message: 'amountMinor must be positive' }),
-  reference: z.string().trim().min(1).max(200),
-  note: z.string().trim().max(500).optional(),
-});
+export const confirmPaymentSchema = z
+  .object({
+    revert: z.boolean().optional(),
+    amountMinor: z
+      .string()
+      .trim()
+      .regex(/^\d+$/, 'amountMinor must be a non-negative integer in minor units')
+      .optional(),
+    reference: z.string().trim().min(1).max(200).optional(),
+    note: z.string().trim().max(500).optional(),
+    reason: z.string().trim().min(5).max(500).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.revert === true) {
+      if (!value.reason) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'reason is required when revert is true' });
+      }
+      return;
+    }
+    if (!value.amountMinor) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amountMinor'], message: 'amountMinor is required' });
+      return;
+    }
+    if (BigInt(value.amountMinor) <= 0n) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amountMinor'], message: 'amountMinor must be positive' });
+    }
+    if (!value.reference) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['reference'], message: 'reference is required' });
+    }
+  });
 export type ConfirmPaymentInput = z.infer<typeof confirmPaymentSchema>;
 
 export const dealListQuerySchema = z.object({

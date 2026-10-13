@@ -278,13 +278,14 @@ export async function cancelAfterWin(ctx: RequestContext, id: string, input: Can
 }
 
 /**
- * Record a manual advance confirmation. The route is gated by
- * `deals:confirm-payment` (Finance / Sales HOD) at the framework level,
- * so this body only enforces state semantics and the audit write.
+ * Record a manual advance confirmation (or revert one). The route is
+ * gated by `deals:confirm-payment` at the framework level, so this body
+ * only enforces state semantics and the audit write.
  *
- * State transitions permitted here:
- *   unpaid | partial -> advance_confirmed
- *   advance_confirmed -> advance_confirmed  (no-op, idempotent)
+ * State transitions permitted:
+ *   confirm: unpaid | partial -> advance_confirmed
+ *   confirm: advance_confirmed -> advance_confirmed  (no-op, idempotent)
+ *   revert:  advance_confirmed -> unpaid              (open deals only)
  *
  * The write never upgrades past `advance_confirmed` or touches refund
  * states; those remain the gateway integration's job.
@@ -294,8 +295,23 @@ export async function confirmPayment(
   id: string,
   input: ConfirmPaymentInput,
 ): Promise<Deal> {
+  if (input.revert === true) {
+    return revertPaymentConfirmation(ctx, id, input.reason!);
+  }
+  return doConfirmPayment(ctx, id, {
+    amountMinor: BigInt(input.amountMinor!),
+    reference: input.reference!,
+    note: input.note ?? null,
+  });
+}
+
+async function doConfirmPayment(
+  ctx: RequestContext,
+  id: string,
+  input: { amountMinor: bigint; reference: string; note: string | null },
+): Promise<Deal> {
   const now = new Date();
-  const amountMinor = BigInt(input.amountMinor);
+  const { amountMinor } = input;
 
   await db.transaction(ctx, async (tx) => {
     const locked = await lockDeal(tx, ctx.organizationId, id);
@@ -317,7 +333,7 @@ export async function confirmPayment(
       // audits the attempt but doesn't change state.
       await insertDealAudit(tx, ctx, 'deal.payment_confirmation_repeated', id,
         { paymentStatus: before.paymentStatus },
-        { amountMinor: amountMinor.toString(), reference: input.reference, note: input.note ?? null },
+        { amountMinor: amountMinor.toString(), reference: input.reference, note: input.note },
       );
       return;
     }
@@ -332,6 +348,28 @@ export async function confirmPayment(
       );
     }
 
+    // Verify the amount is at least the expected advance on the active
+    // commercials version. Direct-entry deals without commercials, or
+    // commercials that set no advance, skip the check.
+    if (before.commercialsId) {
+      const commercials = await tx.maybeOne<{ advanceMinor: string }>(sql`
+        SELECT advance_minor::text AS "advanceMinor"
+          FROM commercials
+         WHERE organization_id = ${ctx.organizationId} AND id = ${before.commercialsId}
+      `);
+      if (commercials) {
+        const expected = BigInt(commercials.advanceMinor);
+        if (expected > 0n && amountMinor < expected) {
+          throw new ApplicationError(
+            `Confirmed amount (${amountMinor.toString()}) is below the expected advance (${expected.toString()}).`,
+            422,
+            'DEAL_PAYMENT_AMOUNT_INSUFFICIENT',
+            { expectedAdvanceMinor: expected.toString(), suppliedAmountMinor: amountMinor.toString() },
+          );
+        }
+      }
+    }
+
     await updatePaymentStatusRow(tx, ctx.organizationId, id, 'advance_confirmed', now);
     await insertDealAudit(tx, ctx, 'deal.payment_confirmed', id,
       { paymentStatus: before.paymentStatus },
@@ -339,9 +377,56 @@ export async function confirmPayment(
         paymentStatus: 'advance_confirmed',
         amountMinor: amountMinor.toString(),
         reference: input.reference,
-        note: input.note ?? null,
+        note: input.note,
         at: now.toISOString(),
       },
+    );
+  });
+
+  const updated = await findDeal(ctx, id);
+  if (!updated) throw new DealNotFoundError();
+  return updated;
+}
+
+/**
+ * Revert an earlier advance confirmation. Open deals only — a confirmed
+ * payment on a won deal is load-bearing for the readiness audit trail,
+ * and ops must cancel-after-win to unwind that.
+ */
+async function revertPaymentConfirmation(
+  ctx: RequestContext,
+  id: string,
+  reason: string,
+): Promise<Deal> {
+  const now = new Date();
+
+  await db.transaction(ctx, async (tx) => {
+    const locked = await lockDeal(tx, ctx.organizationId, id);
+    if (!locked) throw new DealNotFoundError();
+
+    const before = await findDealTx(tx, ctx.organizationId, id);
+    if (!before) throw new DealNotFoundError();
+
+    if (before.lifecycleStatus !== 'open') {
+      throw new ApplicationError(
+        `Deal lifecycle is ${before.lifecycleStatus}; payment confirmation can only be reverted on an open deal.`,
+        409,
+        'DEAL_PAYMENT_REVERT_WRONG_LIFECYCLE',
+      );
+    }
+
+    if (before.paymentStatus !== 'advance_confirmed') {
+      throw new ApplicationError(
+        `Deal payment status is ${before.paymentStatus}; only advance_confirmed may be reverted.`,
+        409,
+        'DEAL_PAYMENT_REVERT_WRONG_STATUS',
+      );
+    }
+
+    await updatePaymentStatusRow(tx, ctx.organizationId, id, 'unpaid', now);
+    await insertDealAudit(tx, ctx, 'deal.payment_reverted', id,
+      { paymentStatus: 'advance_confirmed' },
+      { paymentStatus: 'unpaid', reason, at: now.toISOString() },
     );
   });
 

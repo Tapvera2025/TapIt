@@ -189,6 +189,13 @@ export function confirmPayment(id: string, input: ConfirmPaymentInput): Promise<
   });
 }
 
+export function revertPaymentConfirmation(id: string, reason: string): Promise<Deal> {
+  return identityRequest(`/api/deals/${encodeURIComponent(id)}/confirm-payment`, {
+    method: 'POST',
+    body: JSON.stringify({ revert: true, reason }),
+  });
+}
+
 export function getWinReadiness(id: string): Promise<ReadinessReport> {
   return identityRequest(`/api/deals/${encodeURIComponent(id)}/win-readiness`);
 }

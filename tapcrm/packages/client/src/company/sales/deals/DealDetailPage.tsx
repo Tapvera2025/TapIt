@@ -9,6 +9,7 @@ import {
   markDealLost,
   overrideProbability,
   recordDealWin,
+  revertPaymentConfirmation,
   updateDealStage,
   type ConfirmPaymentInput,
   type Deal,
@@ -82,6 +83,7 @@ export function DealDetailPage({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [probabilityOpen, setProbabilityOpen] = useState(false);
   const [confirmPaymentOpen, setConfirmPaymentOpen] = useState(false);
+  const [revertPaymentOpen, setRevertPaymentOpen] = useState(false);
 
   async function reload(): Promise<void> {
     try {
@@ -308,6 +310,7 @@ export function DealDetailPage({
             onRecordWin={() => void runAction(() => recordDealWin(deal.id))}
             onCancelAfterWin={() => setConfirmCancel(true)}
             onConfirmPayment={() => setConfirmPaymentOpen(true)}
+            onRevertPayment={() => setRevertPaymentOpen(true)}
             canClose={canClose}
           />
         </div>
@@ -358,6 +361,17 @@ export function DealDetailPage({
           }}
         />
       )}
+
+      {revertPaymentOpen && (
+        <RevertPaymentDialog
+          busy={busy}
+          onClose={() => setRevertPaymentOpen(false)}
+          onConfirm={async (reason) => {
+            const result = await runAction(() => revertPaymentConfirmation(deal.id, reason));
+            if (result) setRevertPaymentOpen(false);
+          }}
+        />
+      )}
     </Page>
   );
 }
@@ -376,6 +390,7 @@ function ActionRail({
   onRecordWin,
   onCancelAfterWin,
   onConfirmPayment,
+  onRevertPayment,
 }: {
   deal: Deal;
   readiness: ReadinessReport | null;
@@ -390,6 +405,7 @@ function ActionRail({
   onRecordWin: () => void;
   onCancelAfterWin: () => void;
   onConfirmPayment: () => void;
+  onRevertPayment: () => void;
 }): React.JSX.Element {
   const isOpen = deal.lifecycleStatus === 'open';
   const isWon = deal.lifecycleStatus === 'won';
@@ -398,6 +414,8 @@ function ActionRail({
     deal.paymentStatus === 'unpaid' || deal.paymentStatus === 'partial';
   const showPaymentPanel =
     canConfirmPayment && (isOpen || isWon) && paymentNeedsAction;
+  const showRevertPanel =
+    canConfirmPayment && isOpen && deal.paymentStatus === 'advance_confirmed';
 
   return (
     <Card>
@@ -442,6 +460,21 @@ function ActionRail({
               </p>
               <Button className="mt-3 w-full" kind="secondary" disabled={busy} onClick={onConfirmPayment}>
                 Confirm advance received
+              </Button>
+            </div>
+          )}
+
+          {showRevertPanel && (
+            <div className="border-t border-app-border pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">
+                Advance payment
+              </p>
+              <p className="mt-2 text-xs text-app-muted">
+                Advance is confirmed. Revert if the entry was made in error — the deal returns to
+                unpaid and must be re-confirmed before close.
+              </p>
+              <Button className="mt-3 w-full" kind="danger" disabled={busy} onClick={onRevertPayment}>
+                Revert advance confirmation
               </Button>
             </div>
           )}
@@ -692,6 +725,38 @@ function ConfirmPaymentDialog({
           }
         >
           Confirm
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function RevertPaymentDialog({
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (reason: string) => Promise<void>;
+}): React.JSX.Element {
+  const [reason, setReason] = useState('');
+  return (
+    <Modal title="Revert advance confirmation" onClose={onClose}>
+      <p className="text-xs text-app-muted">
+        The deal returns to <strong>unpaid</strong>. Readiness for Won will drop until the advance
+        is confirmed again. Only open deals can be reverted — a confirmed advance on a Won deal
+        requires cancel-after-win instead.
+      </p>
+      <div className="mt-4">
+        <Field label="Reason (required)" value={reason} onChange={setReason} placeholder="Why?" />
+      </div>
+      <div className="mt-5 flex justify-end gap-3">
+        <Button kind="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button kind="danger" disabled={busy || reason.trim().length < 5} onClick={() => void onConfirm(reason.trim())}>
+          Revert
         </Button>
       </div>
     </Modal>
