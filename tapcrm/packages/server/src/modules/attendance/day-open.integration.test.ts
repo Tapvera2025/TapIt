@@ -129,6 +129,7 @@ describe.skipIf(!enabled)('attendance day-open (PostgreSQL)', () => {
   afterAll(async () => {
     for (const table of [
       'domain_outbox',
+      'attendance_review_item', // references attendance_event (corrections)
       'attendance_event_assignment',
       'attendance_record',
       'attendance_day_open_state',

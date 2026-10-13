@@ -179,7 +179,7 @@ describe('segregation of duties — A1, step 2, before the bypass', () => {
       (d) => d.approvalBearing && d.initiatorField === null,
     );
     expect(bad).toEqual([]);
-    expect(Object.values(REGISTRY).filter((d) => d.approvalBearing).length).toBe(25);
+    expect(Object.values(REGISTRY).filter((d) => d.approvalBearing).length).toBe(26);
   });
 });
 

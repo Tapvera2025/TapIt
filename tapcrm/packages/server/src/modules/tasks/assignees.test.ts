@@ -144,7 +144,8 @@ describe('Task Assignee Lookup Security & Scoping', () => {
       expect(filtersSource).toContain('My Tasks');
 
       // Must be gated behind isSuperAdmin check
-      expect(filtersSource).toContain('{isSuperAdmin &&');
+      // (a `&&` guard or a `? :` branch — both render nothing for other users)
+      expect(filtersSource).toMatch(/\{isSuperAdmin\s*(&&|\?)/);
 
       // Must NOT fetch /api/users or bypass backend
       expect(filtersSource).not.toContain('/api/users');

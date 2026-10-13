@@ -260,7 +260,8 @@ describe('My Todo - Frontend Suite', () => {
       expect(html).toContain('width:42%');
       // Compact card styling matching other cards
       expect(html).toContain('p-2.5 sm:p-3');
-      expect(html).toContain('col-span-2 lg:col-span-1');
+      // Fills its cell in the stats grid, with a stable minimum height
+      expect(html).toContain('h-full min-h-[9.5rem] w-full');
     });
 
     it('TodoProgress renders zero state safely with 0% and 0 of 0 tasks completed', () => {
@@ -762,7 +763,7 @@ describe('My Todo - Frontend Suite', () => {
           todayCount: 2,
         }),
       );
-      expect(statsHtml).toContain('grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5');
+      expect(statsHtml).toContain('grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4');
 
       const filtersHtml = renderToStaticMarkup(
         React.createElement(TodoFilters, {
