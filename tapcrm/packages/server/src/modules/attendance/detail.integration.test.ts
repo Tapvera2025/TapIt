@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createJobContext, systemPrincipal } from '../../platform/dal/context.js';
 import { db, platformDb } from '../../platform/dal/db.js';
 import { closePools } from '../../platform/dal/pool.js';
@@ -47,6 +47,11 @@ async function settle(): Promise<void> {
 
 describe.skipIf(!enabled)('attendance day detail (PostgreSQL)', () => {
   beforeAll(async () => {
+    // The day under test is fixed (2026-10-05). Pin "now" to just after its last
+    // punch (18:03 IST), so the auto-close sweep does not close the day with a
+    // system auto-out just because the real date has moved on.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-05T12:33:00Z'));
     await asOwner(
       'organization',
       sql`INSERT INTO organization (id, code, name, timezone) VALUES (${ORG}, ${`DD${ORG.slice(0, 6)}`}, 'Detail Test', 'Asia/Kolkata')`,
@@ -91,6 +96,7 @@ describe.skipIf(!enabled)('attendance day detail (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    vi.useRealTimers();
     await closePools();
   });
 
