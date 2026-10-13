@@ -1200,6 +1200,9 @@ export async function closeDueRecords(
   now: Date,
   after: { closeDueAt: Date; id: string } | null,
   limit: number,
+  userId: string | null = null,
+  from: DateOnly | null = null,
+  to: DateOnly | null = null,
 ): Promise<{ id: string; userId: string; workDate: DateOnly; closeDueAt: Date; inputVersion: number }[]> {
   return tx.query<{ id: string; userId: string; workDate: DateOnly; closeDueAt: Date; inputVersion: number }>(sql`
     SELECT id, user_id AS "userId", work_date::text AS "workDate",
@@ -1207,9 +1210,12 @@ export async function closeDueRecords(
     FROM attendance_record
     WHERE state = 'open'
       AND close_due_at <= ${now}
+      AND (${userId}::uuid IS NULL OR user_id = ${userId}::uuid)
+      AND (${from}::date IS NULL OR work_date >= ${from}::date)
+      AND (${to}::date IS NULL OR work_date <= ${to}::date)
       AND (
         ${after === null}::boolean
-        OR (close_due_at, id) > (${after?.closeDueAt ?? now}::timestamptz, ${after?.id ?? ''}::uuid)
+        OR (close_due_at, id) > (${after?.closeDueAt ?? now}::timestamptz, ${after?.id ?? null}::uuid)
       )
     ORDER BY close_due_at, id
     LIMIT ${limit}

@@ -23,7 +23,7 @@ function currentMonth(): string {
 }
 
 function dayTone(day: AttendanceDayView): PeopleCalendarDay['tone'] {
-  if (day.state === 'open' && !day.status) return 'warning';
+  if (day.state === 'open' && !day.status && day.arrivalAt !== null) return 'warning';
   if (day.minutes.late > 0) return 'warning';
   if (day.dayType === 'holiday' || day.dayType === 'leave') return 'neutral';
   const status = day.status?.toLowerCase() ?? '';
@@ -37,7 +37,7 @@ function dayTone(day: AttendanceDayView): PeopleCalendarDay['tone'] {
 function dayLabel(day: AttendanceDayView): string {
   if (day.dayType === 'holiday') return 'Holiday';
   if (day.dayType === 'leave') return 'On leave';
-  if (day.state === 'open' && !day.status) return 'In progress — punch out pending';
+  if (day.state === 'open' && !day.status && day.arrivalAt !== null) return 'In progress — punch out pending';
   if (day.status) return day.status;
   if (day.minutes.worked > 0) return `${Math.floor(day.minutes.worked / 60)}h ${day.minutes.worked % 60}m`;
   return 'No record';

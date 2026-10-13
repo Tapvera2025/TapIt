@@ -193,6 +193,8 @@ export function TaManagementPage(): React.JSX.Element {
   const [departmentId, setDepartmentId] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | 'draft' | 'sent'>('all');
+  const [page, setPage] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
   const [rows, setRows] = useState<TaReportRow[]>([]);
   const [departments, setDepartments] = useState<CompanyDepartment[]>([]);
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
@@ -209,8 +211,8 @@ export function TaManagementPage(): React.JSX.Element {
         departmentId,
         search,
         status,
-        page: 1,
-        pageSize: 100,
+        page,
+        pageSize: 25,
       }),
       getCompanyDepartments(),
       getCompanyEmployees(),
@@ -218,14 +220,16 @@ export function TaManagementPage(): React.JSX.Element {
     ])
       .then(([report, deps, people, assignments]) => {
         setRows(report.rows);
+        setTotalRows(report.total);
         setDepartments(deps);
         setEmployees(people);
         setAssignmentRows(assignments.assignments);
         setSelected([]);
       })
       .catch((cause) => setError(errorMessage(cause)));
-  }, [month, departmentId, search, status]);
+  }, [month, departmentId, search, status, page]);
   useEffect(load, [load]);
+  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
   const selectedStatementIds = rows
     .filter((row) => selected.includes(row.assignmentId) && row.statementId)
     .map((row) => row.statementId!);
@@ -289,7 +293,10 @@ export function TaManagementPage(): React.JSX.Element {
             <select
               className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
               value={departmentId}
-              onChange={(event) => setDepartmentId(event.target.value)}
+              onChange={(event) => {
+                setDepartmentId(event.target.value);
+                setPage(1);
+              }}
             >
               <option value="">All departments</option>
               {departments
@@ -307,7 +314,10 @@ export function TaManagementPage(): React.JSX.Element {
               className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
               type="month"
               value={month.slice(0, 7)}
-              onChange={(event) => setMonth(`${event.target.value}-01`)}
+              onChange={(event) => {
+                setMonth(`${event.target.value}-01`);
+                setPage(1);
+              }}
             />
           </label>
           <label className="text-xs font-semibold text-app-muted">
@@ -315,7 +325,10 @@ export function TaManagementPage(): React.JSX.Element {
             <input
               className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
               placeholder="Name or employee ID"
             />
           </label>
@@ -324,7 +337,10 @@ export function TaManagementPage(): React.JSX.Element {
             <select
               className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
               value={status}
-              onChange={(event) => setStatus(event.target.value as typeof status)}
+              onChange={(event) => {
+                setStatus(event.target.value as typeof status);
+                setPage(1);
+              }}
             >
               <option value="all">All</option>
               <option value="draft">Draft / Calculated</option>
@@ -335,7 +351,7 @@ export function TaManagementPage(): React.JSX.Element {
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => void recalculate()}>Recalculate</Button>
           <Button onClick={() => void send()} disabled={!selectedStatementIds.length}>
-            Send Selected to Employee Dashboard
+            Send to Employee
           </Button>
           <Button kind="secondary" onClick={() => void download('csv')}>
             Export CSV
@@ -438,6 +454,35 @@ export function TaManagementPage(): React.JSX.Element {
               <p className="p-8 text-center text-sm text-app-muted">
                 No TA assignments for this month.
               </p>
+            )}
+            {totalRows > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-app-border px-4 py-3 text-sm text-app-muted">
+                <span>
+                  Showing {(page - 1) * 25 + 1}–{Math.min(page * 25, totalRows)} of{' '}
+                  {totalRows} TA entries
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    kind="secondary"
+                    disabled={page === 1}
+                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="min-w-24 text-center text-xs font-semibold text-app-muted">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    kind="secondary"
+                    disabled={page >= totalPages}
+                    onClick={() =>
+                      setPage((current) => Math.min(totalPages, current + 1))
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </Card>

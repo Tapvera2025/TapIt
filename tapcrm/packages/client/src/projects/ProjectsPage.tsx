@@ -14,7 +14,7 @@ const STATUS_LABEL: Record<Project['workStatus'], string> = { new: 'New', ongoin
  * (CreateDiscussionGroupModal) opens automatically but can be skipped —
  * the Discussions tab on the project's own page offers it again later.
  */
-export function ProjectsPage({ onOpenProject }: { onOpenProject: (projectId: string) => void }): React.JSX.Element {
+export function ProjectsPage({ onOpenProject, canManageProjects }: { onOpenProject: (projectId: string) => void; canManageProjects: boolean }): React.JSX.Element {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,7 +37,12 @@ export function ProjectsPage({ onOpenProject }: { onOpenProject: (projectId: str
   useEffect(() => { void load(); }, []);
 
   return (
-    <Page eyebrow="Projects" title="Projects" description="Every active client engagement." action={<Button onClick={() => setShowCreate(true)}>New project</Button>}>
+    <Page
+      eyebrow="Projects"
+      title="Projects"
+      description="Every active client engagement."
+      action={canManageProjects ? <Button onClick={() => setShowCreate(true)}>New project</Button> : undefined}
+    >
       {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
       {loading ? (
         <SkeletonTable columns={4} rows={5} />

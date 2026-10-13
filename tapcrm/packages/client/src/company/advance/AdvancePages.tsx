@@ -4,6 +4,7 @@ import {
   Card,
   Empty,
   Loading,
+  Modal,
   Notice,
   Page,
   Select,
@@ -66,6 +67,43 @@ function StatusBadge({ status }: { status: string }): React.JSX.Element {
     </span>
   );
 }
+
+const ADVANCE_PAGE_SIZE = 20;
+
+function AdvanceTablePagination({
+  page,
+  total,
+  onPage,
+}: {
+  page: number;
+  total: number;
+  onPage: (page: number) => void;
+}): React.JSX.Element {
+  const totalPages = Math.max(1, Math.ceil(total / ADVANCE_PAGE_SIZE));
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-app-border px-4 py-3 text-sm text-app-muted">
+      <span>
+        {total} {total === 1 ? 'advance' : 'advances'} · Page {page} of {totalPages}
+      </span>
+      <div className="flex gap-2">
+        <Button
+          kind="secondary"
+          disabled={page <= 1}
+          onClick={() => onPage(page - 1)}
+        >
+          Previous
+        </Button>
+        <Button
+          kind="secondary"
+          disabled={page >= totalPages}
+          onClick={() => onPage(page + 1)}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
 function Form({
   title,
   onSubmit,
@@ -90,6 +128,8 @@ function Form({
 
 export function MyAdvancesPage(): React.JSX.Element {
   const [rows, setRows] = useState<Advance[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [amount, setAmount] = useState('');
@@ -97,12 +137,15 @@ export function MyAdvancesPage(): React.JSX.Element {
   const [reason, setReason] = useState('');
   const load = () => {
     setLoading(true);
-    void listMyAdvances()
-      .then((r) => setRows(r.rows))
+    void listMyAdvances({ page, pageSize: ADVANCE_PAGE_SIZE })
+      .then((r) => {
+        setRows(r.rows);
+        setTotal(r.total);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Unable to load advances.'))
       .finally(() => setLoading(false));
   };
-  useEffect(load, []);
+  useEffect(load, [page]);
   async function submit(): Promise<void> {
     setError('');
     try {
@@ -235,6 +278,9 @@ export function MyAdvancesPage(): React.JSX.Element {
             )}
           </tbody>
         </table>
+        {!loading && (
+          <AdvanceTablePagination page={page} total={total} onPage={setPage} />
+        )}
         {!loading && rows.length === 0 && <Empty>No advance requests yet.</Empty>}
       </Card>
     </Page>
@@ -248,10 +294,15 @@ function AdminAdvances(): React.JSX.Element {
   const [rows, setRows] = useState<Advance[]>([]);
   const [approvedRows, setApprovedRows] = useState<Advance[]>([]);
   const [status, setStatus] = useState('pending');
+  const [requestPage, setRequestPage] = useState(1);
+  const [approvedPage, setApprovedPage] = useState(1);
+  const [requestTotal, setRequestTotal] = useState(0);
+  const [approvedTotal, setApprovedTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [approvedLoading, setApprovedLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<Advance | null>(null);
+  const [reviewError, setReviewError] = useState('');
   const [value, setValue] = useState('');
   const [note, setNote] = useState('');
   const [rejectReason, setRejectReason] = useState('');
@@ -264,8 +315,15 @@ function AdminAdvances(): React.JSX.Element {
   const [manualReason, setManualReason] = useState('');
   const loadApproved = () => {
     setApprovedLoading(true);
-    void listAdvances({ status: 'approved', pageSize: 100 })
-      .then((r) => setApprovedRows(r.rows))
+    void listAdvances({
+      status: 'approved',
+      page: approvedPage,
+      pageSize: ADVANCE_PAGE_SIZE,
+    })
+      .then((r) => {
+        setApprovedRows(r.rows);
+        setApprovedTotal(r.total);
+      })
       .catch((e) =>
         setError(e instanceof Error ? e.message : 'Unable to load approved advances.'),
       )
@@ -273,13 +331,16 @@ function AdminAdvances(): React.JSX.Element {
   };
   const load = () => {
     setLoading(true);
-    void listAdvances({ status })
-      .then((r) => setRows(r.rows))
+    void listAdvances({ status, page: requestPage, pageSize: ADVANCE_PAGE_SIZE })
+      .then((r) => {
+        setRows(r.rows);
+        setRequestTotal(r.total);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Unable to load requests.'))
       .finally(() => setLoading(false));
   };
-  useEffect(load, [status]);
-  useEffect(loadApproved, []);
+  useEffect(load, [status, requestPage]);
+  useEffect(loadApproved, [approvedPage]);
   useEffect(() => {
     void getCompanyEmployees()
       .then(setEmployees)
@@ -288,6 +349,7 @@ function AdminAdvances(): React.JSX.Element {
   async function approve(): Promise<void> {
     if (!selected) return;
     setError('');
+    setReviewError('');
     try {
       const approvedAmountPaise = amountInPaise(value, 'Approved amount');
       if (approvedAmountPaise > Number(selected.requestedAmountPaise)) {
@@ -303,18 +365,21 @@ function AdminAdvances(): React.JSX.Element {
       load();
       loadApproved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to approve.');
+      const message = e instanceof Error ? e.message : 'Unable to approve.';
+      setReviewError(message);
     }
   }
   async function reject(): Promise<void> {
     if (!selected) return;
     setError('');
+    setReviewError('');
     try {
       await rejectAdvance(selected.id, requireText(rejectReason, 'Rejection reason'));
       setSelected(null);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to reject.');
+      const message = e instanceof Error ? e.message : 'Unable to reject.';
+      setReviewError(message);
     }
   }
   async function manual(): Promise<void> {
@@ -409,7 +474,10 @@ function AdminAdvances(): React.JSX.Element {
           <Select
             label="Status"
             value={status}
-            onChange={setStatus}
+            onChange={(value) => {
+              setStatus(value);
+              setRequestPage(1);
+            }}
             options={['pending', 'approved', 'rejected', 'all'].map((x) => ({
               value: x,
               label: x[0]!.toUpperCase() + x.slice(1),
@@ -466,6 +534,7 @@ function AdminAdvances(): React.JSX.Element {
                       <Button
                         onClick={() => {
                           setSelected(r);
+                          setReviewError('');
                           setValue(String(Number(r.requestedAmountPaise) / 100));
                           setNote('');
                           setRejectReason('');
@@ -480,22 +549,37 @@ function AdminAdvances(): React.JSX.Element {
             )}
           </tbody>
         </table>
+        {!loading && (
+          <AdvanceTablePagination
+            page={requestPage}
+            total={requestTotal}
+            onPage={setRequestPage}
+          />
+        )}
         {!loading && rows.length === 0 && <Empty>No requests match this status.</Empty>}
       </Card>
       {selected && (
-        <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold">Review {selected.employeeName}</h2>
-              <p className="text-sm text-app-muted">
-                Requested {money(selected.requestedAmountPaise)} ·{' '}
-                {periodLabel(selected.requestedForPeriod)}
-              </p>
+        <Modal
+          title={`Review ${selected.employeeName}`}
+          onClose={() => setSelected(null)}
+          size="lg"
+          footer={
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button kind="secondary" onClick={() => setSelected(null)}>
+                Cancel
+              </Button>
+              <Button kind="danger" onClick={() => void reject()}>
+                Reject request
+              </Button>
+              <Button onClick={() => void approve()}>Approve ₹{value || '0'}</Button>
             </div>
-            <Button kind="secondary" onClick={() => setSelected(null)}>
-              Close
-            </Button>
-          </div>
+          }
+        >
+          <p className="text-sm text-app-muted">
+            Requested {money(selected.requestedAmountPaise)} ·{' '}
+            {periodLabel(selected.requestedForPeriod)}
+          </p>
+          {reviewError && <Notice error>{reviewError}</Notice>}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-semibold">
               Approved amount (₹)
@@ -518,19 +602,16 @@ function AdminAdvances(): React.JSX.Element {
               />
             </label>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Button onClick={() => void approve()}>Approve ₹{value || '0'}</Button>
+          <label className="mt-4 block text-sm font-semibold">
+            Rejection reason
             <input
-              className="min-w-56 flex-1 rounded-lg border border-app-border bg-app-background px-3 py-2.5"
-              placeholder="Required rejection reason"
+              className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
+              placeholder="Required when rejecting"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
             />
-            <Button kind="secondary" onClick={() => void reject()}>
-              Reject
-            </Button>
-          </div>
-        </Card>
+          </label>
+        </Modal>
       )}
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -597,6 +678,13 @@ function AdminAdvances(): React.JSX.Element {
             )}
           </tbody>
         </table>
+        {!approvedLoading && (
+          <AdvanceTablePagination
+            page={approvedPage}
+            total={approvedTotal}
+            onPage={setApprovedPage}
+          />
+        )}
         {!approvedLoading && approvedRows.length === 0 && (
           <Empty>No approved advances are ready for payroll.</Empty>
         )}
