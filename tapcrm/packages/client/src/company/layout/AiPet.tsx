@@ -590,7 +590,7 @@ export function PetComingSoonModal({ pet, onClose }: ComingSoonModalProps): Reac
                 </span>
               </div>
               <h3 id="pet-modal-title" className="mt-1 text-base sm:text-lg font-bold text-app-foreground">
-                I am your <span className="text-app-accent">Tap AI Agent</span>
+                <span className="text-app-accent">AI Pet feature</span>
               </h3>
               <p className="text-xs text-app-muted">{pet.label} · {pet.personality}</p>
             </div>
@@ -662,6 +662,8 @@ export function PetComingSoonModal({ pet, onClose }: ComingSoonModalProps): Reac
           <button
             type="button"
             onClick={handleNotifyToggle}
+            role="switch"
+            aria-checked={notified}
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
               notified
                 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
@@ -669,7 +671,7 @@ export function PetComingSoonModal({ pet, onClose }: ComingSoonModalProps): Reac
             }`}
           >
             <span>{notified ? '✓' : '🔔'}</span>
-            <span>{notified ? 'Early Access Reserved!' : 'Notify me on launch'}</span>
+            <span>{notified ? 'Early Access Reserved!' : 'Notify me when available'}</span>
           </button>
 
           <button
@@ -696,7 +698,7 @@ export function SidebarPet({ pet }: { pet: PetOption }): React.JSX.Element {
 
   return (
     <>
-      <div className="relative shrink-0 w-full h-12 overflow-hidden my-1">
+      <div className="sidebar-pet-track relative my-1 h-14 w-full shrink-0 overflow-hidden">
         {/* Hover Hint Bubble */}
         {hovered && (
           <div
@@ -900,13 +902,15 @@ function PetPicker({
   return createPortal(
     <div
       ref={ref}
+      data-ai-pet-picker="true"
+      onMouseDown={(event) => event.stopPropagation()}
       style={{
         position: 'fixed',
         top: `${coords.top}px`,
         right: `${coords.right}px`,
         zIndex: 9999,
       }}
-      className="w-64 rounded-2xl border border-app-border bg-app-surface p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+      className="pet-picker-panel w-64 rounded-2xl border border-app-border bg-app-surface p-3 shadow-lg"
     >
       <div className="mb-2 flex items-center justify-between px-1">
         <p className="text-[10px] font-bold uppercase tracking-wider text-app-muted">

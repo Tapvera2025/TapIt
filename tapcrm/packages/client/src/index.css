@@ -832,7 +832,7 @@
   }
 
   /* ── Resizable sidebar (desktop only) ──────────────────────────────── */
-  @media (min-width: 1024px) {
+  @media (min-width: 1280px) {
     .sidebar-resizable {
       width: var(--company-sidebar-width, 256px) !important;
       min-width: 220px;
@@ -896,10 +896,13 @@
   }
   .global-navbar .crm-brand {
     display: block;
-    width: 9.5rem;
+    width: 8.5rem;
     height: 2.25rem;
     overflow: visible;
-    transform: translateX(-1.75rem);
+    transform: none !important;
+    transition: none !important;
+    pointer-events: none;
+    user-select: none;
   }
   .global-navbar .crm-brand img {
     width: 100% !important;
@@ -964,44 +967,43 @@
   .navbar-account-pet > button > div > * {
     width: 100%;
     height: 100%;
+    display: block;
   }
-  @media (min-width: 1024px) {
-    .workspace-sidebar[data-sidebar-animating='true'] {
-      animation: workspace-sidebar-jelly 680ms cubic-bezier(.22, .72, .25, 1) both;
-      transform-origin: right center;
-    }
+  .pet-picker-panel {
+    transform-origin: top right;
+    animation: pet-picker-enter 140ms ease-out both;
   }
-  @keyframes workspace-sidebar-jelly {
-    0% { transform: translateY(0) scaleX(1); }
-    18% { transform: translateY(-2px) scaleX(1.035); }
-    42% { transform: translateY(1px) scaleX(0.975); }
-    68% { transform: translateY(-0.5px) scaleX(1.012); }
-    100% { transform: translateY(0) scaleX(1); }
+  @keyframes pet-picker-enter {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-
-  @media (max-width: 1023px) {
-    .workspace-sidebar[data-sidebar-animating='true'][data-sidebar-open='true'] {
-      animation: workspace-sidebar-slide-in 620ms cubic-bezier(.16, 1, .3, 1) both;
-      transition: none !important;
+  .sidebar-pet-runway {
+    min-height: 3.75rem;
+  }
+  .sidebar-pet-track button {
+    will-change: left, transform;
+  }
+  @media (max-width: 1279px) {
+    .global-navbar .crm-brand {
+      width: 6.75rem;
+      height: 1.85rem;
     }
 
-    .workspace-sidebar[data-sidebar-animating='true'][data-sidebar-open='false'] {
-      animation: workspace-sidebar-slide-out 620ms cubic-bezier(.16, 1, .3, 1) both;
-      transition: none !important;
-    }
-
-    @keyframes workspace-sidebar-slide-in {
-      from { transform: translateX(-100%); }
-      to { transform: translateX(0); }
-    }
-
-    @keyframes workspace-sidebar-slide-out {
-      from { transform: translateX(0); }
-      to { transform: translateX(-100%); }
+    .navbar-brand-mark {
+      pointer-events: none;
     }
 
     .workspace-sidebar {
-      transition: none !important;
+      position: fixed !important;
+      inset: 4rem auto 0 0 !important;
+      width: min(18rem, calc(100vw - 3rem)) !important;
+      min-width: 0 !important;
+      max-width: calc(100vw - 3rem) !important;
+      height: auto !important;
+      margin: 0 !important;
+      flex: none !important;
+      border-radius: 0 1rem 1rem 0;
+      transition: transform 220ms cubic-bezier(.2, .8, .2, 1) !important;
       will-change: transform;
       isolation: isolate;
       background: color-mix(in srgb, var(--sidebar-background) 76%, transparent) !important;
@@ -1011,6 +1013,16 @@
       box-shadow:
         inset -1px 0 0 rgba(255, 255, 255, 0.16),
         inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
+    .workspace-sidebar[data-sidebar-open='false'] {
+      transform: translateX(-102%) !important;
+      pointer-events: none;
+    }
+
+    .workspace-sidebar[data-sidebar-open='true'] {
+      transform: translateX(0) !important;
+      pointer-events: auto;
     }
 
     .dark .workspace-sidebar {
@@ -1026,9 +1038,6 @@
     .workspace-sidebar,
     .mobile-sidebar-backdrop {
       transition-duration: 0.01ms !important;
-    }
-    .workspace-sidebar[data-sidebar-animating='true'] {
-      animation: none !important;
     }
   }
 
@@ -1101,13 +1110,24 @@
     height: 0;
   }
 
-  @media (min-width: 1024px) {
+  @media (min-width: 1280px) {
+    .workspace-sidebar {
+      position: static !important;
+      inset: auto !important;
+      width: auto;
+      max-width: none;
+      height: calc(100dvh - 6.5rem) !important;
+      margin: 1.25rem 0 1.25rem 1.25rem !important;
+      border-radius: 1rem;
+      transform: none !important;
+    }
+
     .workspace-sidebar .sidebar-preferences-group {
       display: none;
     }
   }
 
-  @media (max-width: 1023px) {
+  @media (max-width: 1279px) {
     .workspace-sidebar .sidebar-preferences-group {
       display: block !important;
     }
@@ -1605,8 +1625,8 @@ summary:active {
   inset: 0;
   opacity: 0;
   pointer-events: none;
-  /* Source image is 1981 × 793; overlay the complete CRM wordmark in dark mode. */
-  clip-path: inset(48.5% 4.25% 27% 58%);
+  /* Keep the white dark-mode overlay on CRM only; account for image letterboxing. */
+  clip-path: inset(48.5% 4.25% 27% 61.5%);
   filter: brightness(0) invert(1);
 }
 .dark .crm-brand .crm-brand-wordmark {

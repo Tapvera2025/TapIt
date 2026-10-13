@@ -86,3 +86,82 @@
 .dashboard-grid.editing .dashboard-widget-remove {
   display: inline-flex;
 }
+
+.mobile-dashboard-widget {
+  position: relative;
+  box-sizing: border-box;
+  padding: 1rem;
+  overflow: hidden;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  box-shadow: var(--app-shadow);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.mobile-dashboard-widget-editing {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.mobile-dashboard-widget-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.mobile-dashboard-widget-dragging {
+  z-index: 1;
+  opacity: 0.72;
+  transform: scale(0.99);
+}
+
+.mobile-dashboard-widget-drop-target {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 50%, transparent);
+  outline-offset: 2px;
+}
+
+.mobile-dashboard-widget-controls {
+  touch-action: none;
+}
+
+.mobile-dashboard-size-control input {
+  flex: 1;
+  min-width: 5rem;
+  accent-color: var(--app-accent);
+}
+
+.mobile-dashboard-drag-handle {
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.mobile-dashboard-drag-handle:active {
+  cursor: grabbing;
+}
+
+.mobile-dashboard-control-button {
+  display: inline-grid;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 0.65rem;
+  background: var(--app-surface-raised);
+  color: var(--app-foreground);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mobile-dashboard-control-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.mobile-dashboard-control-button.mobile-dashboard-remove {
+  color: var(--app-danger);
+}

@@ -155,31 +155,10 @@ export function CompanySidebar({
   const [recruitmentOpen, setRecruitmentOpen] = useState(
     pathname.startsWith('/company/recruitment'),
   );
-  const [sidebarJelly, setSidebarJelly] = useState(false);
   const prevPathnameRef = useRef(pathname);
-  const prevOpenRef = useRef(open);
   const navigationRef = useRef<HTMLElement>(null);
-  const jellyTimerRef = useRef<number | null>(null);
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
-
-  useEffect(
-    () => () => {
-      if (jellyTimerRef.current !== null) window.clearTimeout(jellyTimerRef.current);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (prevOpenRef.current === open) return;
-    prevOpenRef.current = open;
-    setSidebarJelly(true);
-    if (jellyTimerRef.current !== null) window.clearTimeout(jellyTimerRef.current);
-    jellyTimerRef.current = window.setTimeout(() => {
-      setSidebarJelly(false);
-      jellyTimerRef.current = null;
-    }, 680);
-  }, [open]);
 
   useEffect(() => {
     const navigation = navigationRef.current;
@@ -523,16 +502,15 @@ export function CompanySidebar({
 
   return (
     <aside
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-200 ease-out will-change-transform lg:static lg:my-5 lg:ml-5 lg:h-[calc(100dvh-6.5rem)] lg:self-start lg:translate-x-0 lg:rounded-2xl lg:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'lg:w-[76px] lg:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-200 ease-out will-change-transform xl:static xl:my-5 xl:ml-5 xl:h-[calc(100dvh-6.5rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
       style={collapsed ? undefined : ({ '--company-sidebar-width': `${width}px` } as React.CSSProperties)}
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
       data-sidebar-open={open ? 'true' : 'false'}
-      data-sidebar-animating={sidebarJelly ? 'true' : 'false'}
     >
       {!collapsed && (
         <button
           type="button"
-          className={`sidebar-resize-handle hidden lg:flex ${isResizing ? 'is-resizing' : ''}`}
+          className={`sidebar-resize-handle hidden xl:flex ${isResizing ? 'is-resizing' : ''}`}
           onPointerDown={startResize}
           onPointerMove={resizeSidebar}
           onPointerUp={stopResize}
@@ -549,15 +527,15 @@ export function CompanySidebar({
           <span aria-hidden="true" />
         </button>
       )}
-      <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'lg:justify-center' : 'justify-between'}`}>
-        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'lg:hidden' : ''}`}>
+      <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
+        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
           Company Workspace
         </p>
-        <span className={`hidden size-2 rounded-full bg-app-accent lg:block ${collapsed ? '' : 'lg:hidden'}`} aria-hidden="true" />
+        <span className={`hidden size-2 rounded-full bg-app-accent xl:block ${collapsed ? '' : 'xl:hidden'}`} aria-hidden="true" />
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-2 text-sidebar-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground lg:hidden"
+          className="rounded-lg p-2 text-sidebar-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground xl:hidden"
           aria-label="Close navigation"
         >
           ×
@@ -565,7 +543,7 @@ export function CompanySidebar({
       </div>
       <nav
         ref={navigationRef}
-        className={`min-h-0 flex-1 space-y-7 overflow-y-auto ${collapsed ? 'mt-6 lg:space-y-4' : 'mt-7'}`}
+        className={`min-h-0 flex-1 space-y-7 overflow-y-auto ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
         aria-label="Company navigation"
       >
         {navigation.map((group) => {
@@ -576,22 +554,22 @@ export function CompanySidebar({
           return (
             <div
               key={group.label}
-              className={`${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed ? 'lg:border-t lg:border-sidebar-border/70 lg:pt-4 first:lg:border-t-0 first:lg:pt-0' : ''}`}
+              className={`${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed ? 'xl:border-t xl:border-sidebar-border/70 xl:pt-4 first:xl:border-t-0 first:xl:pt-0' : ''}`}
             >
               {isOrganization ? (
                 <button
                   type="button"
                   onClick={() => setOrganizationOpen((openState) => !openState)}
                   aria-expanded={organizationOpen}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] ${collapsed ? 'lg:justify-center lg:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
                   title={collapsed ? 'Organization' : undefined}
                 >
-                  <Icon name="building" className={`hidden size-4 lg:block ${collapsed ? '' : 'lg:hidden'}`} />
-                  <span className={collapsed ? 'lg:hidden' : ''}>Organization</span>
-                  <span aria-hidden="true" className={collapsed ? 'lg:hidden' : ''}>{organizationOpen ? '−' : '+'}</span>
+                  <Icon name="building" className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`} />
+                  <span className={collapsed ? 'xl:hidden' : ''}>Organization</span>
+                  <span aria-hidden="true" className={collapsed ? 'xl:hidden' : ''}>{organizationOpen ? '−' : '+'}</span>
                 </button>
               ) : (
-                <p className={`px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted ${collapsed ? 'lg:hidden' : ''}`}>
+                <p className={`px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted ${collapsed ? 'xl:hidden' : ''}`}>
                   {group.label}
                 </p>
               )}
@@ -626,24 +604,24 @@ export function CompanySidebar({
                               onClose();
                             }
                           }}
-                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${collapsed ? 'lg:justify-center lg:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
                           title={collapsed ? item.label : undefined}
                         >
                           <span className="flex items-center gap-3">
                             <Icon name={item.icon} />
-                            <span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span>
+                            <span className={collapsed ? 'xl:hidden' : ''}>{item.label}</span>
                           </span>
                           {item.children && (
                             <span
                               aria-hidden="true"
-                              className={`text-xs text-sidebar-muted ${collapsed ? 'lg:hidden' : ''}`}
+                              className={`text-xs text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}
                             >
                               {showChildren ? '▾' : '▸'}
                             </span>
                           )}
                         </button>
                         {showChildren && !collapsed && (
-                          <div className="ml-7 mt-1 space-y-1 border-l border-sidebar-border pl-2">
+                          <div className="ml-7 mt-1 divide-y divide-sidebar-border/70 pl-2">
                             {item.children!.map((sub) => {
                               const active =
                                 sub.path === '/company/recruitment'
@@ -659,7 +637,7 @@ export function CompanySidebar({
                                     onNavigate(sub.path);
                                     onClose();
                                   }}
-                                  className={`w-full rounded-lg px-3 py-2 text-left text-xs font-medium ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                                  className={`w-full rounded-none px-3 py-2.5 text-left text-xs font-medium ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
                                 >
                                   {sub.label}
                                 </button>
@@ -675,7 +653,7 @@ export function CompanySidebar({
             </div>
           );
         })}
-        <div className={`sidebar-decoration ${collapsed ? 'lg:hidden' : ''}`}>
+        <div className={`sidebar-decoration ${collapsed ? 'xl:hidden' : ''}`}>
           <div className="relative z-10 max-w-[76%]">
             <p className="text-sm font-medium leading-5">
               Work smarter.
@@ -688,7 +666,7 @@ export function CompanySidebar({
         </div>
       </nav>
       {activePet && (
-        <div className={`sidebar-pet-runway shrink-0 border-t border-sidebar-border/70 px-1 pt-1 ${collapsed ? 'lg:hidden' : ''}`}>
+        <div className={`sidebar-pet-runway shrink-0 border-t border-sidebar-border/70 px-1 pt-1 ${collapsed ? 'xl:hidden' : ''}`}>
           <SidebarPet pet={activePet} />
         </div>
       )}
@@ -696,11 +674,11 @@ export function CompanySidebar({
         <button
           type="button"
           onClick={onLogout}
-          className={`sidebar-logout flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition-colors cursor-pointer dark:text-rose-300 ${collapsed ? 'lg:justify-center lg:px-2' : ''}`}
+          className={`sidebar-logout flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-semibold text-rose-600 transition-colors cursor-pointer dark:text-rose-300 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
           title={collapsed ? 'Log out' : undefined}
         >
           <Icon name="logout" className="size-3.5" />
-          <span className={collapsed ? 'lg:hidden' : ''}>Log out</span>
+          <span className={collapsed ? 'xl:hidden' : ''}>Log out</span>
         </button>
       </div>
     </aside>

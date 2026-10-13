@@ -37,10 +37,12 @@ export function Navbar({
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
   const role = organizationName ? organizationName.slice(0, 3).toUpperCase() : 'ABP';
+  const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
 
   useEffect(() => {
     if (!accountOpen) return;
     const onPointerDown = (event: MouseEvent) => {
+      if ((event.target as Element | null)?.closest('[data-ai-pet-picker]')) return;
       if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
         setAccountOpen(false);
       }
@@ -72,21 +74,15 @@ export function Navbar({
               onToggleSidebar();
             }}
             className="navbar-action-button inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
-            aria-label={sidebarOpen || !sidebarCollapsed ? 'Collapse sidebar' : 'Expand sidebar'}
-            aria-expanded={sidebarOpen || !sidebarCollapsed}
-            title={sidebarOpen || !sidebarCollapsed ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-label={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-expanded={sidebarExpanded}
+            title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             <Icon name="menu" className="size-4" />
           </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('/company/dashboard')}
-            className="-ml-1 inline-flex h-9 shrink-0 items-center rounded-lg px-0 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 sm:ml-0 sm:px-1"
-            aria-label="Go to dashboard"
-            title="Dashboard"
-          >
+          <span className="navbar-brand-mark -ml-1 inline-flex h-9 shrink-0 items-center px-0 sm:ml-0 sm:px-1" aria-label="Tapvera CRM">
             <BrandLogo className="navbar-brand" />
-          </button>
+          </span>
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">

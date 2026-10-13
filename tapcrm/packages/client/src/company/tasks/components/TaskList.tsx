@@ -82,7 +82,7 @@ export function TaskList({
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3 lg:space-y-3">
       {tasks.map((task) => {
         const isBusy = transitioningTaskId === task.id;
         const myAssignment = currentUserId
@@ -95,9 +95,9 @@ export function TaskList({
         return (
           <article
             key={task.id}
-            className="rounded-2xl border border-app-border/80 bg-app-surface/75 p-4 transition-colors hover:border-app-accent/40 sm:p-5"
+            className="rounded-2xl border border-app-border/80 bg-app-surface/75 p-4 transition-colors hover:border-app-accent/40 sm:p-5 lg:p-5"
           >
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.7fr)_auto] lg:items-start lg:gap-6">
+            <div className="grid gap-4 lg:grid-cols-[minmax(16rem,1.2fr)_minmax(15rem,0.9fr)_auto] lg:items-center lg:gap-6">
               <div className="min-w-0">
                 <h3 className="break-words text-sm font-semibold leading-snug text-app-foreground sm:text-base">
                   {task.title}
@@ -110,41 +110,36 @@ export function TaskList({
                 )}
               </div>
 
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-app-muted">
-                <TaskPriorityBadge priority={task.priority} />
-                {task.projectId && (
-                  <>
-                    <span className="text-app-muted/40" aria-hidden="true">
-                      ·
-                    </span>
-                    <span className="truncate">
+              <div className="flex min-w-0 flex-col items-start gap-2 text-xs text-app-muted">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <TaskPriorityBadge priority={task.priority} />
+                  {task.projectId && (
+                    <span className="max-w-full truncate rounded-md border border-app-border/70 bg-app-background/50 px-2 py-1">
                       {task.projectName ?? 'Unknown project'}
                     </span>
-                  </>
-                )}
-                {task.dueDate && (
-                  <>
-                    <span className="text-app-muted/40" aria-hidden="true">
-                      ·
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {task.dueDate && (
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-app-border/70 bg-app-background/50 px-2 py-1">
+                      <span className="text-app-muted">Due</span>
+                      <time className="font-medium text-app-foreground" dateTime={task.dueDate}>
+                        {formatDate(task.dueDate)}
+                      </time>
                     </span>
-                    <span className="whitespace-nowrap">
-                      Due {formatDate(task.dueDate)}
+                  )}
+                  {task.createdAt && (
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-app-border/70 bg-app-background/50 px-2 py-1">
+                      <span className="text-app-muted">Created</span>
+                      <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
+                        {formatDate(task.createdAt)}
+                      </time>
                     </span>
-                  </>
-                )}
-                {task.createdAt && (
-                  <>
-                    <span className="text-app-muted/40" aria-hidden="true">
-                      ·
-                    </span>
-                    <span className="whitespace-nowrap">
-                      Created {formatDate(task.createdAt)}
-                    </span>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+              <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap lg:justify-end">
                 {availableTransitions.length === 0 ? (
                   <TaskStatusBadge status={task.status} />
                 ) : (

@@ -100,7 +100,7 @@ export function CompanyLayout({
   }, []);
 
   const toggleSidebar = () => {
-    if (window.innerWidth >= 1024) {
+    if (window.innerWidth >= 1280) {
       setSidebarCollapsed((collapsed) => !collapsed);
     } else {
       setSidebarOpen((open) => !open);
@@ -118,7 +118,7 @@ export function CompanyLayout({
       <button
         type="button"
         onClick={() => setSidebarOpen(false)}
-        className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out lg:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
         aria-label="Close navigation overlay"
         aria-hidden={!sidebarOpen}
         tabIndex={sidebarOpen ? 0 : -1}
@@ -171,7 +171,7 @@ export function CompanyLayout({
           onResize={setSidebarWidth}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
             {children}
           </main>
         </div>
