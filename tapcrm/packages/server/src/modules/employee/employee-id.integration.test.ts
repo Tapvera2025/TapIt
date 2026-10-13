@@ -5,7 +5,11 @@ import { closePools } from '../../platform/dal/pool.js';
 import { createRequestContext, type RequestContext } from '../../platform/dal/context.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { Principal } from '@tapcrm/contracts';
-import { allocateEmployeeId, employeeIdExists } from './repository.js';
+import {
+  allocateEmployeeId,
+  employeeIdExists,
+  peekNextEmployeeId,
+} from './repository.js';
 
 /**
  * ED-3 — Employee ID allocation and uniqueness.
@@ -83,6 +87,32 @@ describe.skipIf(!enabled)('employee ID allocation (PostgreSQL)', () => {
     expect(first).toBe('EMP-00001');
     expect(second).toBe('EMP-00002');
     expect(third).toBe('EMP-00003');
+  });
+
+  it('skips existing employee IDs in db and advances sequentially', async () => {
+    // Seed an employee with EMP-00007 directly in app_user
+    const user7 = randomUUID();
+    await asOwner(
+      'seed employee with EMP-00007',
+      sql`INSERT INTO app_user (id, organization_id, account_type, employee_id, email, full_name, position_id, department_id)
+          VALUES (${user7}, ${ORG}, 'employee', 'EMP-00007', ${`emp7-${user7}@t.io`}, 'Emp Seven', ${POS}, ${DEPT})`,
+    );
+
+    // Peeking next employee ID should detect EMP-00007 and return EMP-00008
+    const peeked = await db.transaction(ctx(), (tx) => peekNextEmployeeId(tx, ORG));
+    expect(peeked).toBe('EMP-00008');
+
+    // Peeking with hint of EMP-00007 should advance to EMP-00008
+    const peekedWithHint = await db.transaction(ctx(), (tx) => peekNextEmployeeId(tx, ORG, 'EMP-00007'));
+    expect(peekedWithHint).toBe('EMP-00008');
+
+    // Allocating should give EMP-00008 and advance counter
+    const allocated = await db.transaction(ctx(), (tx) => allocateEmployeeId(tx, ORG));
+    expect(allocated).toBe('EMP-00008');
+
+    // Next peek should now be EMP-00009
+    const nextPeek = await db.transaction(ctx(), (tx) => peekNextEmployeeId(tx, ORG));
+    expect(nextPeek).toBe('EMP-00009');
   });
 
   it('reports whether an employee ID is in use for the organization', async () => {

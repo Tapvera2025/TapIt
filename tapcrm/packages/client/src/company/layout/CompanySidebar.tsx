@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
@@ -90,6 +90,17 @@ export function CompanySidebar({
 }): React.JSX.Element {
   const [organizationOpen, setOrganizationOpen] = useState(pathname.startsWith('/company/organization'));
   const [recruitmentOpen, setRecruitmentOpen] = useState(pathname.startsWith('/company/recruitment'));
+  const prevPathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
+    const isRecruitment = pathname.startsWith('/company/recruitment');
+    if (!wasRecruitment && isRecruitment) {
+      setRecruitmentOpen(true);
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname]);
+
   const isSuperAdmin = accountType === 'super-admin';
   const { activePet } = useAiPet();
 
@@ -262,34 +273,34 @@ export function CompanySidebar({
               {(!isOrganization || organizationOpen) && (
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
+                    const isRecruitmentItem = item.label === 'Recruitment';
                     const isActive = pathname === item.path || (item.path !== '/company/organization' && pathname.startsWith(`${item.path}/`));
-                    const showChildren = Boolean(item.children && recruitmentOpen);
+                    const showChildren = Boolean(item.children && (isRecruitmentItem ? recruitmentOpen : true));
                     return (
                       <div key={item.path}>
-                        <div className={`flex w-full items-center justify-between rounded-xl text-sm font-semibold transition ${isActive ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}>
-                          <button
-                            aria-current={isActive ? 'page' : undefined}
-                            type="button"
-                            onClick={() => {
+                        <button
+                          aria-current={isActive ? 'page' : undefined}
+                          type="button"
+                          aria-expanded={item.children ? showChildren : undefined}
+                          onClick={() => {
+                            if (isRecruitmentItem) {
+                              if (!pathname.startsWith(item.path)) {
+                                setRecruitmentOpen(true);
+                                onNavigate(item.path);
+                                onClose();
+                              } else {
+                                setRecruitmentOpen((prev) => !prev);
+                              }
+                            } else {
                               onNavigate(item.path);
                               onClose();
-                            }}
-                            className="flex flex-1 items-center gap-3 px-3 py-2.5 text-left"
-                          >
-                            <Icon name={item.icon} /><span>{item.label}</span>
-                          </button>
-                          {item.children && (
-                            <button
-                              type="button"
-                              aria-expanded={showChildren}
-                              aria-label={showChildren ? 'Collapse Recruitment' : 'Expand Recruitment'}
-                              onClick={() => setRecruitmentOpen((prev) => !prev)}
-                              className="px-3 py-2.5 text-xs"
-                            >
-                              {showChildren ? '▾' : '▸'}
-                            </button>
-                          )}
-                        </div>
+                            }
+                          }}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${isActive ? 'bg-app-accent/15 text-app-accent' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
+                        >
+                          <span className="flex items-center gap-3"><Icon name={item.icon} /><span>{item.label}</span></span>
+                          {item.children && <span aria-hidden="true" className="text-xs text-app-muted">{showChildren ? '▾' : '▸'}</span>}
+                        </button>
                         {showChildren && (
                           <div className="ml-7 mt-1 space-y-1 border-l border-app-border pl-2">
                             {item.children!.map((sub) => {

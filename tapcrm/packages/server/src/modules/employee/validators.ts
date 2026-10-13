@@ -27,8 +27,8 @@ export const createEmployeeSchema = z.object({
     .optional(),
   email: z.string().trim().email().max(320),
   fullName: z.string().trim().min(2).max(160),
-  password: z.string().min(12).max(200),
-  confirmPassword: z.string().min(12).max(200),
+  password: z.string().min(12).max(200).optional(),
+  confirmPassword: z.string().min(12).max(200).optional(),
   departmentId: z.string().uuid(),
   positionId: z.string().uuid(),
   teamId: z.string().uuid().optional(),
@@ -37,7 +37,48 @@ export const createEmployeeSchema = z.object({
   reportsTo: z.string().uuid().nullable().optional(),
   /** The first day they work here (§8.6). */
   joiningDate: date.optional(),
-}).refine((value) => value.password === value.confirmPassword, {
+  phone: z.string().trim().max(30).optional(),
+  personalInfo: z
+    .object({
+      phone: z.string().trim().max(30).optional(),
+      dateOfBirth: date.optional(),
+      gender: z.string().trim().max(30).optional(),
+      addressLine1: z.string().trim().max(255).optional(),
+      addressLine2: z.string().trim().max(255).optional(),
+      city: z.string().trim().max(100).optional(),
+      state: z.string().trim().max(100).optional(),
+      postalCode: z.string().trim().max(20).optional(),
+      emergencyContactName: z.string().trim().max(160).optional(),
+      emergencyContactPhone: z.string().trim().max(30).optional(),
+      emergencyContactRelation: z.string().trim().max(60).optional(),
+    })
+    .optional(),
+  shiftId: z.string().uuid().optional(),
+  qualifications: z
+    .array(
+      z.object({
+        institution: z.string().trim().min(1).max(255),
+        degree: z.string().trim().min(1).max(160),
+        fieldOfStudy: z.string().trim().max(160).optional(),
+        passingYear: z.number().int().min(1950).max(2100).optional(),
+        grade: z.string().trim().max(50).optional(),
+      }),
+    )
+    .optional(),
+  skills: z
+    .array(
+      z.object({
+        skillName: z.string().trim().min(1).max(100),
+        proficiency: z.enum(['beginner', 'intermediate', 'advanced', 'expert']).optional(),
+      }),
+    )
+    .optional(),
+}).refine((value) => {
+  if (value.password !== undefined || value.confirmPassword !== undefined) {
+    return value.password === value.confirmPassword;
+  }
+  return true;
+}, {
   message: 'Password and confirmation must match',
   path: ['confirmPassword'],
 });

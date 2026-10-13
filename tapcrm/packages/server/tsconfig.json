@@ -3,7 +3,7 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
-    "types": ["node"]
+    "types": ["node", "luxon"]
   },
   "include": ["src/**/*.ts"],
   "references": [{ "path": "../contracts" }, { "path": "../authz" }]

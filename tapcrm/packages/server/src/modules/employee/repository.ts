@@ -93,6 +93,30 @@ export async function employeeIdExists(
  * The format widens naturally when the counter passes 99999 — lpad only pads,
  * so `EMP-100000` is emitted as-is.
  */
+export async function syncOrganizationEmployeeIdCounter(
+  tx: Tx,
+  organizationId: string,
+  employeeId: string,
+): Promise<void> {
+  const row = await tx.maybeOne<{ prefix: string }>(sql`
+    SELECT employee_id_prefix AS prefix
+    FROM organization
+    WHERE id = ${organizationId}
+    FOR UPDATE
+  `);
+  if (!row) return;
+
+  const match = employeeId.match(new RegExp(`^${row.prefix}-0*(\\d+)$`, 'i'));
+  if (match && match[1]) {
+    const num = BigInt(match[1]);
+    await tx.query(sql`
+      UPDATE organization
+      SET employee_id_next_number = GREATEST(employee_id_next_number, ${(num + 1n).toString()}::bigint)
+      WHERE id = ${organizationId}
+    `);
+  }
+}
+
 export async function allocateEmployeeId(
   tx: Tx,
   organizationId: string,
@@ -104,14 +128,94 @@ export async function allocateEmployeeId(
     WHERE id = ${organizationId}
     FOR UPDATE
   `);
-  const nextNumber = BigInt(row.nextNumber);
-  const formatted = `${row.prefix}-${nextNumber.toString().padStart(5, '0')}`;
-  await tx.query(sql`
-    UPDATE organization
-    SET employee_id_next_number = ${(nextNumber + 1n).toString()}::bigint
+
+  const maxRow = await tx.one<{ maxNum: string }>(sql`
+    SELECT COALESCE(MAX(substring(employee_id from ('^' || ${row.prefix} || '-0*([0-9]+)$'))::bigint), 0)::text AS max_num
+    FROM app_user
+    WHERE organization_id = ${organizationId}
+      AND account_type = 'employee'
+      AND employee_id ~ ('^' || ${row.prefix} || '-0*[0-9]+$')
+  `);
+
+  const orgNext = BigInt(row.nextNumber);
+  const dbMax = BigInt(maxRow.maxNum);
+  let candidate = orgNext > dbMax ? orgNext : (dbMax + 1n);
+
+  while (true) {
+    const formatted = `${row.prefix}-${candidate.toString().padStart(5, '0')}`;
+    const exists = await tx.maybeOne<{ id: string }>(sql`
+      SELECT id FROM app_user
+      WHERE organization_id = ${organizationId}
+        AND account_type = 'employee'
+        AND (
+          employee_id = ${formatted}
+          OR employee_id ~ ('^' || ${row.prefix} || '-0*' || ${candidate.toString()} || '$')
+        )
+      LIMIT 1
+    `);
+    if (!exists) {
+      await tx.query(sql`
+        UPDATE organization
+        SET employee_id_next_number = ${(candidate + 1n).toString()}::bigint
+        WHERE id = ${organizationId}
+      `);
+      return formatted;
+    }
+    candidate += 1n;
+  }
+}
+
+export async function peekNextEmployeeId(
+  tx: Tx,
+  organizationId: string,
+  hintCandidate?: string,
+): Promise<string> {
+  const row = await tx.one<{ prefix: string; nextNumber: string }>(sql`
+    SELECT employee_id_prefix AS prefix,
+           employee_id_next_number::text AS next_number
+    FROM organization
     WHERE id = ${organizationId}
   `);
-  return formatted;
+
+  const maxRow = await tx.one<{ maxNum: string }>(sql`
+    SELECT COALESCE(MAX(substring(employee_id from ('^' || ${row.prefix} || '-0*([0-9]+)$'))::bigint), 0)::text AS max_num
+    FROM app_user
+    WHERE organization_id = ${organizationId}
+      AND account_type = 'employee'
+      AND employee_id ~ ('^' || ${row.prefix} || '-0*[0-9]+$')
+  `);
+
+  const orgNext = BigInt(row.nextNumber);
+  const dbMax = BigInt(maxRow.maxNum);
+  let candidate = orgNext > dbMax ? orgNext : (dbMax + 1n);
+
+  if (hintCandidate) {
+    const match = hintCandidate.match(new RegExp(`^${row.prefix}-0*(\\d+)$`, 'i'));
+    if (match && match[1]) {
+      const hintNum = BigInt(match[1]);
+      if (hintNum >= candidate) {
+        candidate = hintNum + 1n;
+      }
+    }
+  }
+
+  while (true) {
+    const formatted = `${row.prefix}-${candidate.toString().padStart(5, '0')}`;
+    const exists = await tx.maybeOne<{ id: string }>(sql`
+      SELECT id FROM app_user
+      WHERE organization_id = ${organizationId}
+        AND account_type = 'employee'
+        AND (
+          employee_id = ${formatted}
+          OR employee_id ~ ('^' || ${row.prefix} || '-0*' || ${candidate.toString()} || '$')
+        )
+      LIMIT 1
+    `);
+    if (!exists) {
+      return formatted;
+    }
+    candidate += 1n;
+  }
 }
 
 export async function createEmployee(
@@ -151,6 +255,95 @@ export async function createEmployee(
     )
     RETURNING id, employee_id, email, full_name, account_type, status
   `);
+}
+
+export async function saveEmployeeProfile(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    userId: string;
+    phone?: string | undefined;
+    dateOfBirth?: DateOnly | undefined;
+    gender?: string | undefined;
+    addressLine1?: string | undefined;
+    addressLine2?: string | undefined;
+    city?: string | undefined;
+    state?: string | undefined;
+    postalCode?: string | undefined;
+    emergencyContactName?: string | undefined;
+    emergencyContactPhone?: string | undefined;
+    emergencyContactRelation?: string | undefined;
+  },
+) {
+  await tx.query(sql`
+    INSERT INTO employee_profile (
+      organization_id, user_id, phone, date_of_birth, gender,
+      address_line1, address_line2, city, state, postal_code,
+      emergency_contact_name, emergency_contact_phone, emergency_contact_relation
+    )
+    VALUES (
+      ${input.organizationId}, ${input.userId}, ${input.phone ?? null}, ${input.dateOfBirth ?? null}, ${input.gender ?? null},
+      ${input.addressLine1 ?? null}, ${input.addressLine2 ?? null}, ${input.city ?? null}, ${input.state ?? null}, ${input.postalCode ?? null},
+      ${input.emergencyContactName ?? null}, ${input.emergencyContactPhone ?? null}, ${input.emergencyContactRelation ?? null}
+    )
+    ON CONFLICT (organization_id, user_id) DO UPDATE SET
+      phone = EXCLUDED.phone,
+      date_of_birth = EXCLUDED.date_of_birth,
+      gender = EXCLUDED.gender,
+      address_line1 = EXCLUDED.address_line1,
+      address_line2 = EXCLUDED.address_line2,
+      city = EXCLUDED.city,
+      state = EXCLUDED.state,
+      postal_code = EXCLUDED.postal_code,
+      emergency_contact_name = EXCLUDED.emergency_contact_name,
+      emergency_contact_phone = EXCLUDED.emergency_contact_phone,
+      emergency_contact_relation = EXCLUDED.emergency_contact_relation,
+      updated_at = now()
+  `);
+}
+
+export async function saveEmployeeQualifications(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  qualifications: Array<{
+    institution: string;
+    degree: string;
+    fieldOfStudy?: string | undefined;
+    passingYear?: number | undefined;
+    grade?: string | undefined;
+  }>,
+) {
+  for (const q of qualifications) {
+    await tx.query(sql`
+      INSERT INTO employee_qualification (
+        organization_id, user_id, institution, degree, field_of_study, passing_year, grade
+      )
+      VALUES (
+        ${organizationId}, ${userId}, ${q.institution}, ${q.degree}, ${q.fieldOfStudy ?? null}, ${q.passingYear ?? null}, ${q.grade ?? null}
+      )
+    `);
+  }
+}
+
+export async function saveEmployeeSkills(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  skills: Array<{ skillName: string; proficiency?: string | undefined }>,
+) {
+  for (const s of skills) {
+    await tx.query(sql`
+      INSERT INTO employee_skill (
+        organization_id, user_id, skill_name, proficiency
+      )
+      VALUES (
+        ${organizationId}, ${userId}, ${s.skillName}, ${s.proficiency ?? null}
+      )
+      ON CONFLICT (organization_id, user_id, skill_name) DO UPDATE SET
+        proficiency = EXCLUDED.proficiency
+    `);
+  }
 }
 
 export async function enqueueEmployeeAudit(
@@ -210,6 +403,7 @@ export interface EmployeeProfile {
   leftOn: DateOnly | null;
   mustChangePassword: boolean;
   createdAt: string;
+  onboardingWorkflowId?: string | null;
 }
 
 /** One person's editable profile, with the names the edit screen shows. */
@@ -227,13 +421,15 @@ export async function findEmployeeProfile(
            u.designation_id, des.name AS designation_name,
            u.specialization, u.reports_to, m.full_name AS reports_to_name,
            u.joined_on::text AS joined_on, u.left_on::text AS left_on,
-           u.must_change_password, u.created_at::text AS created_at
+           u.must_change_password, u.created_at::text AS created_at,
+           ow.id AS onboarding_workflow_id
     FROM app_user u
     LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
     LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
     LEFT JOIN team t ON t.organization_id = u.organization_id AND t.id = u.team_id
     LEFT JOIN designation des ON des.organization_id = u.organization_id AND des.id = u.designation_id
     LEFT JOIN app_user m ON m.organization_id = u.organization_id AND m.id = u.reports_to
+    LEFT JOIN onboarding_workflow ow ON ow.organization_id = u.organization_id AND ow.employee_id = u.id
     WHERE u.organization_id = ${organizationId} AND u.id = ${userId}::uuid
     ${options.forUpdate ? sql`FOR UPDATE OF u` : sql``}
   `);
@@ -394,5 +590,48 @@ export async function listInactiveEmployees(
       AND u.status IN ('inactive', 'offboarded')
       AND ${visibility}
     ORDER BY u.full_name, u.id
+  `);
+}
+
+export interface EmployeeSetupTokenRow {
+  id: string;
+  organizationId: string;
+  userId: string;
+  purpose: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export async function createEmployeeSetupToken(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    userId: string;
+    tokenHash: Buffer;
+    purpose?: string;
+    expiresAt: Date;
+    createdBy: string;
+  },
+): Promise<EmployeeSetupTokenRow> {
+  const purpose = input.purpose ?? 'employee_password_setup';
+  // Invalidate any prior pending tokens for this user and purpose
+  await tx.query(sql`
+    UPDATE employee_setup_token
+    SET revoked_at = now()
+    WHERE organization_id = ${input.organizationId}
+      AND user_id = ${input.userId}
+      AND purpose = ${purpose}
+      AND used_at IS NULL
+      AND revoked_at IS NULL
+  `);
+
+  return tx.one<EmployeeSetupTokenRow>(sql`
+    INSERT INTO employee_setup_token (
+      organization_id, user_id, token_hash, purpose, expires_at, created_by
+    )
+    VALUES (
+      ${input.organizationId}, ${input.userId}, ${input.tokenHash}, ${purpose}, ${input.expiresAt}, ${input.createdBy}
+    )
+    RETURNING id, organization_id, user_id, purpose, expires_at, created_at
   `);
 }

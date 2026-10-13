@@ -137,3 +137,46 @@ export interface PlacementOnDate {
 }
 
 export type PlacementsByDate = ReadonlyMap<DateOnly, PlacementOnDate>;
+
+/**
+ * Onboarding & Employee Lifecycle Types (PRD §9.2 ON-1, ON-3, ON-5)
+ */
+export type OnboardingWorkflowStatus = 'in_progress' | 'completed' | 'cancelled';
+export type OnboardingStepStatus = 'pending' | 'completed' | 'skipped';
+export type OnboardingOwnerRole = 'hr' | 'it' | 'manager' | 'facilities' | 'finance';
+
+export interface OnboardingStepDto {
+  id: string;
+  workflowId: string;
+  code: string;
+  title: string;
+  description: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
+  ownerRole: string;
+  status: OnboardingStepStatus;
+  dueDate: string;
+  completedAt: string | null;
+  completedBy: string | null;
+  completedByName: string | null;
+  notes: string | null;
+  stepOrder: number;
+}
+
+export interface OnboardingWorkflowDto {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeEmail: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  status: OnboardingWorkflowStatus;
+  startedAt: string;
+  completedAt: string | null;
+  steps: OnboardingStepDto[];
+  progress: {
+    total: number; // step count
+    completed: number; // step count
+    percent: number;
+  };
+}

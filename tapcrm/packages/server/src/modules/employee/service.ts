@@ -2,12 +2,13 @@ import { visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
+import { createOpaqueToken, hashToken } from '../../platform/auth/crypto.js';
 import {
   IdentityConflictError,
   IdentityNotFoundError,
   IdentityValidationError,
   hashIdentityPassword,
-  sendEmployeeCredentials,
+  sendEmployeeInvitation,
 } from '../identity/facade.js';
 import { clearOverridesForPositionChange } from '../access-management/facade.js';
 import { repairReportingLinesAfterMove, validateManagerAssignment } from '../organization/facade.js';
@@ -15,6 +16,8 @@ import { changedDays } from './employment.js';
 import { recordEmploymentChanged } from './events.js';
 import {
   allocateEmployeeId,
+  peekNextEmployeeId,
+  syncOrganizationEmployeeIdCounter,
   createEmployee,
   emailExists,
   emailTakenByAnother,
@@ -31,6 +34,10 @@ import {
   setEmployment,
   updatePlacement,
   updateProfile,
+  saveEmployeeProfile,
+  saveEmployeeQualifications,
+  saveEmployeeSkills,
+  createEmployeeSetupToken,
   type EmployeeProfile,
 } from './repository.js';
 import type {
@@ -40,10 +47,14 @@ import type {
   UpdateEmployeeInput,
 } from './validators.js';
 import { notifyPlacementChanged } from './notifications.js';
+import { assignTemplateShift } from '../shifts/facade.js';
+import { createOnboardingWorkflow } from '../onboarding/facade.js';
+import { localDateOf } from '../../platform/time.js';
 
 export async function provisionEmployee(ctx: RequestContext, input: CreateEmployeeInput) {
   const email = input.email.trim().toLowerCase();
-  const passwordHash = await hashIdentityPassword(input.password);
+  const initialPassword = input.password || ('TempPass_' + createOpaqueToken(16));
+  const passwordHash = await hashIdentityPassword(initialPassword);
 
   const result = await db.transaction(ctx, async (tx) => {
     if (await emailExists(tx, email)) {
@@ -132,6 +143,7 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
         );
       }
       employeeId = input.employeeId;
+      await syncOrganizationEmployeeIdCounter(tx, ctx.organizationId, employeeId);
     } else {
       employeeId = await allocateEmployeeId(tx, ctx.organizationId);
     }
@@ -150,6 +162,67 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
       reportsTo: input.reportsTo ?? null,
       joinedOn: input.joiningDate ?? null,
     });
+    // Persist extended personal profile if provided
+    if (input.personalInfo || input.phone) {
+      await saveEmployeeProfile(tx, {
+        organizationId: ctx.organizationId,
+        userId: employee.id,
+        phone: input.personalInfo?.phone ?? input.phone,
+        dateOfBirth: input.personalInfo?.dateOfBirth,
+        gender: input.personalInfo?.gender,
+        addressLine1: input.personalInfo?.addressLine1,
+        addressLine2: input.personalInfo?.addressLine2,
+        city: input.personalInfo?.city,
+        state: input.personalInfo?.state,
+        postalCode: input.personalInfo?.postalCode,
+        emergencyContactName: input.personalInfo?.emergencyContactName,
+        emergencyContactPhone: input.personalInfo?.emergencyContactPhone,
+        emergencyContactRelation: input.personalInfo?.emergencyContactRelation,
+      });
+    }
+
+    // Persist qualifications if provided
+    if (input.qualifications && input.qualifications.length > 0) {
+      await saveEmployeeQualifications(
+        tx,
+        ctx.organizationId,
+        employee.id,
+        input.qualifications,
+      );
+    }
+
+    // Persist skills if provided
+    if (input.skills && input.skills.length > 0) {
+      await saveEmployeeSkills(
+        tx,
+        ctx.organizationId,
+        employee.id,
+        input.skills,
+      );
+    }
+
+    // Initial shift assignment if provided
+    if (input.shiftId) {
+      const effectiveDate = input.joiningDate ?? localDateOf(new Date(), 'UTC');
+      await assignTemplateShift(tx, {
+        organizationId: ctx.organizationId,
+        userId: employee.id,
+        shiftId: input.shiftId,
+        effectiveFrom: effectiveDate,
+        createdBy: ctx.principal.id,
+      });
+    }
+
+    // Create Onboarding Workflow & seed PRD ON-1 checklist steps
+    const onboardingStartDate = input.joiningDate ?? localDateOf(new Date(), 'UTC');
+    const onboardingWf = await createOnboardingWorkflow(tx, {
+      organizationId: ctx.organizationId,
+      employeeId: employee.id,
+      createdBy: ctx.principal.id,
+      startDate: onboardingStartDate,
+      managerId: input.reportsTo,
+    });
+
     await enqueueEmployeeAudit(tx, {
       organizationId: ctx.organizationId,
       actorId: ctx.principal.id,
@@ -162,23 +235,80 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
         email: employee.email,
         fullName: employee.fullName,
         status: employee.status,
+        onboardingWorkflowId: onboardingWf.id,
       },
     });
-    return employee;
+    // Generate Employee Account Setup Invitation Token
+    const setupToken = createOpaqueToken(32);
+    const setupTokenHash = hashToken(setupToken);
+    const expiresAt = new Date(Date.now() + 72 * 3600 * 1000); // 72 hours
+
+    await createEmployeeSetupToken(tx, {
+      organizationId: ctx.organizationId,
+      userId: employee.id,
+      tokenHash: setupTokenHash,
+      purpose: 'employee_password_setup',
+      expiresAt,
+      createdBy: ctx.principal.id,
+    });
+
+    const org = await tx.maybeOne<{ code: string }>(sql`
+      SELECT code FROM organization WHERE id = ${ctx.organizationId}
+    `);
+    const organizationCode = org?.code ?? '';
+
+    await enqueueEmployeeAudit(tx, {
+      organizationId: ctx.organizationId,
+      actorId: ctx.principal.id,
+      actorType: ctx.principal.accountType,
+      targetId: employee.id,
+      requestId: ctx.requestId,
+      sourceIp: ctx.sourceIp,
+      action: 'employee.setup_link_created',
+      after: {
+        employeeId: employee.employeeId,
+        email: employee.email,
+        purpose: 'employee_password_setup',
+        expiresAt: expiresAt.toISOString(),
+      },
+    });
+
+    return {
+      employee,
+      onboardingWorkflowId: onboardingWf.id,
+      setupToken,
+      organizationCode,
+      expiresAt,
+    };
   });
 
-  // The current mailer is synchronous, so delivery happens after commit. The
-  // password remains in memory only for this notification call and is never
-  // included in the API response or audit payload.
-  await sendEmployeeCredentials({
-    to: result.email,
-    fullName: result.fullName,
-    initialPassword: input.password,
-  });
+  // Post-commit: deliver account setup link to employee email.
+  // The employee chooses their permanent password via this link.
+  let setupUrl: string | undefined;
+  try {
+    setupUrl = await sendEmployeeInvitation({
+      email: result.employee.email,
+      invitationToken: result.setupToken,
+      organizationCode: result.organizationCode,
+      expiresHours: 72,
+      fullName: result.employee.fullName,
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        msg: 'employee invitation email delivery failed',
+        employeeId: result.employee.id,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
 
   return {
-    employee: result,
+    employee: result.employee,
+    onboardingWorkflowId: result.onboardingWorkflowId,
     credentials: { delivery: 'email', status: 'sent' as const },
+    ...(setupUrl ? { setupUrl } : {}),
   };
 }
 
@@ -507,4 +637,8 @@ export async function adminResetPassword(
     });
     return { ok: true as const };
   });
+}
+
+export async function getNextEmployeeId(ctx: RequestContext, currentCandidate?: string): Promise<string> {
+  return db.transaction(ctx, (tx) => peekNextEmployeeId(tx, ctx.organizationId, currentCandidate));
 }

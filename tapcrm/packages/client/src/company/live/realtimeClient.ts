@@ -35,6 +35,29 @@ export function getConnectionFailed(): boolean {
   return connectionFailed;
 }
 
+export type RealtimeConnectionState = 'connected' | 'reconnecting' | 'disconnected';
+type ConnectionStateListener = (state: RealtimeConnectionState) => void;
+const connectionListeners = new Set<ConnectionStateListener>();
+
+export function getRealtimeState(): RealtimeConnectionState {
+  if (socket === null) return 'disconnected';
+  if (socket.connected) return 'connected';
+  return 'reconnecting';
+}
+
+function notifyConnectionState(): void {
+  const state = getRealtimeState();
+  for (const listener of connectionListeners) {
+    listener(state);
+  }
+}
+
+export function subscribeConnectionState(listener: ConnectionStateListener): () => void {
+  connectionListeners.add(listener);
+  listener(getRealtimeState());
+  return () => connectionListeners.delete(listener);
+}
+
 export function subscribeStatusChanged(listener: StatusChangedListener): () => void {
   statusListeners.add(listener);
   return () => statusListeners.delete(listener);
@@ -87,6 +110,7 @@ export function connectRealtime(): void {
 
   socket.on('connect', () => {
     connectionFailed = false;
+    notifyConnectionState();
     stopPoll();
     if (failedRefetchTimer !== null) { clearTimeout(failedRefetchTimer); failedRefetchTimer = null; }
     onBoardRefetch?.();
@@ -107,11 +131,13 @@ export function connectRealtime(): void {
       return;
     }
     connectionFailed = true;
+    notifyConnectionState();
     startPoll();
   });
 
   socket.on('disconnect', () => {
     connectionFailed = true;
+    notifyConnectionState();
     startPoll();
   });
 
@@ -142,6 +168,7 @@ export function disconnectRealtime(): void {
   socket?.disconnect();
   socket = null;
   connectionFailed = false;
+  notifyConnectionState();
   if (coalesceTimer !== null) { clearTimeout(coalesceTimer); coalesceTimer = null; }
   coalesced.clear();
 }

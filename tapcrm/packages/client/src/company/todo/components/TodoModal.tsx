@@ -44,7 +44,7 @@ export function TodoModal({
       <dialog
         open
         aria-labelledby={titleId}
-        className="ui-dialog z-50 my-auto w-full max-w-xl"
+        className="ui-dialog z-50 my-auto w-[calc(100%-2rem)] sm:w-full max-w-xl p-5 sm:p-6"
       >
         <div className="flex items-center justify-between gap-4">
           <h2 id={titleId} className="font-display text-xl font-bold">
