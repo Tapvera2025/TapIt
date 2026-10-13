@@ -21,13 +21,22 @@ export function CompanyLayout({
   canViewClients,
   canViewProjects,
   canViewLiveBoard,
+  canViewAttendanceReports,
   canReviewCorrections,
   canReviewBreaches,
   canManageBreakPolicies,
   canManageShifts,
   canManagePayroll,
   canManagePayrollConfig,
+  canViewTa,
+  canManageTa,
   canManageBiometric,
+  canViewAdvances,
+  canManageAdvances,
+  canViewPenalties,
+  canManagePenalties,
+  canViewExpenses,
+  canApproveExpenses,
   isHr,
   hasRecruitment,
   onNavigate,
@@ -59,13 +68,22 @@ export function CompanyLayout({
   canViewClients: boolean;
   canViewProjects: boolean;
   canViewLiveBoard: boolean;
+  canViewAttendanceReports: boolean;
   canReviewCorrections: boolean;
   canReviewBreaches: boolean;
   canManageBreakPolicies: boolean;
   canManageShifts: boolean;
   canManagePayroll: boolean;
   canManagePayrollConfig: boolean;
+  canViewTa: boolean;
+  canManageTa: boolean;
   canManageBiometric: boolean;
+  canViewAdvances: boolean;
+  canManageAdvances: boolean;
+  canViewPenalties: boolean;
+  canManagePenalties: boolean;
+  canViewExpenses: boolean;
+  canApproveExpenses: boolean;
   isHr: boolean;
   hasRecruitment: boolean;
   onNavigate: (path: string) => void;
@@ -152,13 +170,22 @@ export function CompanyLayout({
           canViewClients={canViewClients}
           canViewProjects={canViewProjects}
           canViewLiveBoard={canViewLiveBoard}
+          canViewAttendanceReports={canViewAttendanceReports}
           canReviewCorrections={canReviewCorrections}
           canReviewBreaches={canReviewBreaches}
           canManageBreakPolicies={canManageBreakPolicies}
           canManageShifts={canManageShifts}
           canManagePayroll={canManagePayroll}
           canManagePayrollConfig={canManagePayrollConfig}
+          canViewTa={canViewTa}
+          canManageTa={canManageTa}
           canManageBiometric={canManageBiometric}
+          canViewAdvances={canViewAdvances}
+          canManageAdvances={canManageAdvances}
+          canViewPenalties={canViewPenalties}
+          canManagePenalties={canManagePenalties}
+          canViewExpenses={canViewExpenses}
+          canApproveExpenses={canApproveExpenses}
           isHr={isHr}
           hasRecruitment={hasRecruitment}
           onNavigate={onNavigate}

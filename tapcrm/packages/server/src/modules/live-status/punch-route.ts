@@ -61,6 +61,16 @@ export async function punch(
     const { allowedMoves } = await loadToday(tx, ctx.principal.id, at);
     // A retry of a punch already recorded is answered by appendEvent, not refused.
     const retry = await AttendanceFacade.findClientEvent(tx, ctx.principal.id, input.clientEventId);
+    if (retry === null && input.kind === 'in') {
+      const workDate = await AttendanceFacade.currentDayFor(tx, ctx.principal.id, at);
+      const overlays = workDate === null ? [] : await AttendanceFacade.overlaysForDay(tx, ctx.principal.id, workDate);
+      if (overlays.some((overlay) => overlay.sourceKind === 'leave')) {
+        throw new PunchNotAllowedError(
+          'You cannot punch in because approved leave exists for today.',
+          { kind: input.kind, allowedMoves: allowedMoves.filter((move) => move !== 'in') },
+        );
+      }
+    }
     if (retry === null && !allowedMoves.includes(input.kind)) {
       throw new PunchNotAllowedError(
         `You can't ${LABEL[input.kind] ?? input.kind} right now.`,

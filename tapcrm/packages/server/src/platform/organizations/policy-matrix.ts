@@ -67,7 +67,13 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   biometric: [G, all, _, _, _, _, _, _, _, _, _],
   leave: [G, all, all, own, own, own, own, own, own, own, _],
   holidays: [G, all, allV, allV, allV, allV, allV, allV, allV, allV, _],
+  ta: [G, all, all, _, _, _, _, _, _, own, _],
   payroll: [G, all, _, own, own, own, own, own, own, own, _],
+  advance: [G, all, all, own, own, own, own, own, own, own, _],
+  // Every employee position can see penalties recorded against itself. HR and
+  // HR Executive retain the all-people management view through the HR-only
+  // action carve-out below.
+  penalties: [G, all, all, own, own, own, own, own, own, own, _],
   performance: [G, all, all, team, own, team, team, team, pool, own, _],
   recruitment: [G, dept, dept, _, _, _, _, _, _, par, _],
   territories: [G, _, _, dept, _, _, team, _, _, _, _],
@@ -88,7 +94,7 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   invoicing: [G, _, _, _, ownV, _, _, _, _, _, A],
   payments: [G, _, _, _, ownV, _, _, _, _, _, A],
   receivables: [G, _, _, _, ownV, _, _, _, _, _, A],
-  payables: [G, _, _, _, _, _, _, _, _, own, _],
+  payables: [G, all, all, _, _, _, _, _, _, own, _],
   accounting: [G, _, _, _, _, _, _, _, _, _, _],
   chat: [G, dept, dept, dept, dept, dept, dept, dept, dept, dept, _],
   'project-communication': [G, _, _, _, own, dept, _, team, _, _, A],
@@ -150,6 +156,18 @@ export const HR_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   'biometric:manage',
   'payroll:manage',
   'payroll:manage-config',
+  'payables:approve-claim',
+  'advance:approve',
+  'advance:manage',
+  'advance:export',
+  'penalty:view',
+  'penalty:manage',
+  'penalty:export',
+  'ta:view',
+  'ta:manage',
+  'ta:recalculate',
+  'ta:send',
+  'ta:export',
 ]);
 
 /**
@@ -182,7 +200,9 @@ export function expandPermissionCell(
       return [];
     if (scope !== 'all-people' && HR_ONLY_ACTIONS.has(definition.action)) return [];
     const emittedScope =
-      scope !== 'all-people' && SELF_SERVICE_ACTIONS.has(definition.action) ? 'own' : scope;
+      scope !== 'all-people' && SELF_SERVICE_ACTIONS.has(definition.action)
+        ? 'own'
+        : scope;
     return [{ action: definition.action, scope: emittedScope }];
   });
 }

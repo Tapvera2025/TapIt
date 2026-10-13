@@ -95,6 +95,7 @@ const schema = z.object({
 
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_BASE_PATH: z.string().default('/api'),
+  TAPCRM_UPLOAD_DIR: z.string().trim().min(1).default('storage'),
   // Not enforced today: there is no CORS middleware, and the web app reaches the
   // API same-origin through its dev proxy. Emailed links use CLIENT_ORIGIN.
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
@@ -107,6 +108,31 @@ const schema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM: z.union([z.string().email(), z.literal('')]).optional(),
+
+  // Google Search Console — the rank provider behind the on-page SEO module's
+  // automatic keyword fetching. `off` leaves the jobs registered but inert, so
+  // a laptop without credentials boots clean.
+  //   service-account  a signed JWT assertion; no token expiry to manage, but
+  //                    the service account must be added as a user (Restricted
+  //                    is enough) on every property it reads
+  //   oauth            a refresh token for the account that already owns the
+  //                    properties; no per-property setup, but the consent
+  //                    screen must be published to Production or Google
+  //                    expires the refresh token every 7 days
+  GOOGLE_SEARCH_CONSOLE_AUTH: z.enum(['off', 'service-account', 'oauth']).default('off'),
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: optionalEnvString(z.string().trim().email().optional()),
+  // The PEM from the service-account key file. Newlines may be written as \n.
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: optionalEnvString(z.string().trim().min(1).optional()),
+  GOOGLE_OAUTH_CLIENT_ID: optionalEnvString(z.string().trim().min(1).optional()),
+  GOOGLE_OAUTH_CLIENT_SECRET: optionalEnvString(z.string().trim().min(1).optional()),
+  GOOGLE_OAUTH_REFRESH_TOKEN: optionalEnvString(z.string().trim().min(1).optional()),
+  // Search Console data is incomplete for the last few days. Observations are
+  // taken from a window ending this many days back.
+  GOOGLE_SEARCH_CONSOLE_LAG_DAYS: z.coerce.number().int().min(1).max(30).default(3),
+  // The window's length. A single day is sparse — a keyword with few
+  // impressions goes missing — so the default averages a week, which is how
+  // the Search Console UI is normally read.
+  GOOGLE_SEARCH_CONSOLE_WINDOW_DAYS: z.coerce.number().int().min(1).max(90).default(7),
 });
 
 export type Config = z.infer<typeof schema>;
@@ -115,6 +141,31 @@ let cached: Config | null = null;
 
 /** Values that ship in the repository, so anyone can know them. */
 const PLACEHOLDER_SECRET = /^(replace-me|changeme|change-me|tapcrm_local)/i;
+
+/**
+ * Settings that are wrong in every environment. A half-configured integration
+ * is the worst of both worlds: the server boots, and the failure surfaces at
+ * 4am inside a scheduled job instead of at deployment.
+ */
+function configurationProblems(config: Config): string[] {
+  const problems: string[] = [];
+  const missing = (keys: readonly (keyof Config)[]): string[] =>
+    keys.filter((key) => config[key] === undefined).map(String);
+
+  if (config.GOOGLE_SEARCH_CONSOLE_AUTH === 'service-account') {
+    const absent = missing(['GOOGLE_SERVICE_ACCOUNT_EMAIL', 'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY']);
+    if (absent.length > 0) {
+      problems.push(`GOOGLE_SEARCH_CONSOLE_AUTH=service-account requires ${absent.join(' and ')}`);
+    }
+  }
+  if (config.GOOGLE_SEARCH_CONSOLE_AUTH === 'oauth') {
+    const absent = missing(['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_OAUTH_REFRESH_TOKEN']);
+    if (absent.length > 0) {
+      problems.push(`GOOGLE_SEARCH_CONSOLE_AUTH=oauth requires ${absent.join(', ')}`);
+    }
+  }
+  return problems;
+}
 
 /**
  * Settings that are tolerable on a laptop and dangerous in production. Checked
@@ -152,6 +203,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       .map((i) => `  ${i.path.join('.')}: ${i.message}`)
       .join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}\n\nSee .env.example.`);
+  }
+
+  const incomplete = configurationProblems(parsed.data);
+  if (incomplete.length > 0) {
+    throw new Error(
+      `Incomplete environment configuration:\n${incomplete.map((p) => `  ${p}`).join('\n')}\n\nSee .env.example.`,
+    );
   }
 
   const problems = productionProblems(parsed.data, env);

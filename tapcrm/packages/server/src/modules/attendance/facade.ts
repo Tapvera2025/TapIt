@@ -41,6 +41,7 @@ export {
 export { lockPerson } from './repository.js';
 /** A punch's client event id already recorded: a retry, to be answered, not refused. */
 export { findClientEvent } from './repository.js';
+export { overlaysForDay, type OverlayForDayRow } from './repository.js';
 export { employedOn } from './employment.js';
 export { requestRecalculation } from './recalculate.js';
 export { ATTENDANCE_EVENTS, type RecalcRequested, type DayChanged, type PayrollBlockerChanged } from './events.js';

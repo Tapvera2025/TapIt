@@ -6,6 +6,7 @@ import { getProject, setProjectTeam, type Project } from './api/projectsApi.js';
 import { EditProjectModal } from './EditProjectModal.js';
 import { formatProjectDate } from './formatDate.js';
 import { ProjectDiscussionTab } from './ProjectDiscussionTab.js';
+import { ProjectReportsPage } from './reports/ProjectReportsPage.js';
 
 type Tab = 'details' | 'discussions' | 'tasks' | 'reports';
 const TABS: Array<[Tab, string]> = [
@@ -176,7 +177,7 @@ export function ProjectDetailPage({
         )}
 
         {tab === 'reports' && (
-          <div className="grid h-64 place-items-center text-sm text-app-muted">Reports are coming soon.</div>
+          <ProjectReportsPage project={project} />
         )}
       </div>
       )}
