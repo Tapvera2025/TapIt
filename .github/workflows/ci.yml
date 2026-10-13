@@ -7,8 +7,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, prod]
   pull_request:
+    branches: [main, prod]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,6 +18,12 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+
+    # The repo root is TapIt/ and the app lives in tapcrm/, so every `run:`
+    # step executes from there.
+    defaults:
+      run:
+        working-directory: tapcrm
 
     services:
       postgres:
@@ -51,8 +58,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: tapcrm/.nvmrc
           cache: npm
+          cache-dependency-path: tapcrm/package-lock.json
 
       - run: npm ci
 
