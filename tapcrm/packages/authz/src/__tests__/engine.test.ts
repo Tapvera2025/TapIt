@@ -68,6 +68,8 @@ beforeEach(() => {
       teamIds: async () => new Set(['team-1']),
       poolIds: async () => new Set(['team-1']),
       poolMemberIds: async () => new Set(['user-1']),
+      teamMemberIds: async () => new Set(['user-1']),
+      departmentMemberIds: async () => new Set(['user-1']),
       departmentId: async () => 'dept-1',
     },
     policies: {

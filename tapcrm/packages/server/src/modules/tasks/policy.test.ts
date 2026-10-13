@@ -32,6 +32,8 @@ function mockContext(): PolicyEvaluationContext {
       poolIds: async () => new Set(['team-1']),
       subordinateIds: async () => new Set(['user-emp-2']),
       poolMemberIds: async () => new Set(['user-emp-1', 'user-emp-2']),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
     },
   };
 }
@@ -62,6 +64,8 @@ function makeTeamContext(options: {
       poolIds: async () => new Set(),
       subordinateIds: async () => new Set(),
       poolMemberIds: async () => new Set(),
+teamMemberIds: async () => new Set<string>(),
+departmentMemberIds: async () => new Set<string>(),
     },
   };
 }
@@ -96,6 +100,8 @@ function makeDepartmentContext(options: {
       poolIds: async () => new Set(),
       subordinateIds: async () => new Set(),
       poolMemberIds: async () => new Set(),
+teamMemberIds: async () => new Set<string>(),
+departmentMemberIds: async () => new Set<string>(),
     },
   };
 }
@@ -135,6 +141,8 @@ function makePoolContext(options: {
       poolIds: async () => new Set(resolvedPoolIds),
       subordinateIds: async () => new Set(),
       poolMemberIds: async () => new Set(resolvedPoolMemberIds),
+teamMemberIds: async () => new Set<string>(),
+departmentMemberIds: async () => new Set<string>(),
     },
   };
 }
@@ -788,6 +796,8 @@ describe('Task policy authorization', () => {
           teamIds: async () => new Set(['team-A', 'team-B', 'team-C']),
           poolIds: async () => new Set(),
           poolMemberIds: async () => new Set(),
+teamMemberIds: async () => new Set<string>(),
+departmentMemberIds: async () => new Set<string>(),
           departmentId: async () => 'dept-1',
         },
         policies: {
@@ -889,6 +899,8 @@ describe('Task policy authorization', () => {
           teamIds: async () => new Set(),
           poolIds: async () => new Set(),
           poolMemberIds: async () => new Set(),
+teamMemberIds: async () => new Set<string>(),
+departmentMemberIds: async () => new Set<string>(),
           departmentId: async () => 'dept-A',
         },
         policies: {
@@ -1009,6 +1021,8 @@ describe('Task policy authorization', () => {
           teamIds: async () => new Set(['pool-1']),
           poolIds: async () => new Set(['pool-1']),
           poolMemberIds: async () => new Set(['user-pool-1', 'user-pool-2']),
+          teamMemberIds: async () => new Set<string>(),
+          departmentMemberIds: async () => new Set<string>(),
           departmentId: async () => 'dept-sales',
         },
         policies: {

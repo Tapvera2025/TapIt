@@ -6,7 +6,7 @@ const org = '00000000-0000-0000-0000-000000000001';
 const context = (departmentId: string | null = 'dept-sales', teamIds = ['team-a']): PolicyEvaluationContext => ({
   organizationId: org, requestId: 'req', memo: new Map(),
   principal: { id: 'user', organizationId: org, accountType: 'employee', departmentId, teamId: teamIds[0] ?? null } as PolicyEvaluationContext['principal'],
-  scope: { departmentId: async () => departmentId, teamIds: async () => new Set(teamIds), poolIds: async () => new Set(), poolMemberIds: async () => new Set(), subordinateIds: async () => new Set() },
+  scope: { departmentId: async () => departmentId, teamIds: async () => new Set(teamIds), poolIds: async () => new Set(), poolMemberIds: async () => new Set(), teamMemberIds: async () => new Set(), departmentMemberIds: async () => new Set(), subordinateIds: async () => new Set() },
 });
 
 describe('territory policy', () => {

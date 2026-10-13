@@ -14,12 +14,19 @@ import type { DealResource } from './types.js';
  * Visibility ladder (narrowest → widest):
  *   own          — caller is the responsible closer or originating agent
  *   participant  — same as own; deals have no third-party participants
- *   pool         — pool-level scope rolls up to the sales pool resolver
- *   team         — same as pool for R2 (sales teams and sales pools coincide
- *                  at the deal level — deal has no team column, so team scope
- *                  checks membership of the pool team)
- *   department   — sales department
+ *   pool         — members of the caller's own sales pool (VIS-4)
+ *   team         — members of every team in the caller's team subtree (VIS-1)
+ *   department   — every active user in the caller's department
  */
+async function membersForScope(
+  ctx: PolicyEvaluationContext,
+  scope: 'pool' | 'team' | 'department',
+): Promise<ReadonlySet<string>> {
+  if (scope === 'pool') return ctx.scope.poolMemberIds(ctx);
+  if (scope === 'team') return ctx.scope.teamMemberIds(ctx);
+  return ctx.scope.departmentMemberIds(ctx);
+}
+
 export const dealPolicy: ResourcePolicy<DealResource> = {
   resourceType: 'deal',
   domain: 'business',
@@ -30,16 +37,8 @@ export const dealPolicy: ResourcePolicy<DealResource> = {
       return resource.responsibleCloserId === ctx.principal.id
         || resource.originatingAgentId === ctx.principal.id;
     }
-    if (scope === 'pool' || scope === 'team') {
-      const members = await ctx.scope.poolMemberIds(ctx);
-      return members.has(resource.responsibleCloserId) || members.has(resource.originatingAgentId);
-    }
-    if (scope === 'department') {
-      // Department membership is derived from the current actor's own department;
-      // a deal is in-scope when the closer or originator shares the department.
-      // This is a best-effort reduction without a dedicated query: pool membership
-      // in the caller's team already covers the realistic cases.
-      const members = await ctx.scope.poolMemberIds(ctx);
+    if (scope === 'pool' || scope === 'team' || scope === 'department') {
+      const members = await membersForScope(ctx, scope);
       return members.has(resource.responsibleCloserId) || members.has(resource.originatingAgentId);
     }
     return false;
@@ -53,7 +52,7 @@ export const dealPolicy: ResourcePolicy<DealResource> = {
       };
     }
     if (scope === 'pool' || scope === 'team' || scope === 'department') {
-      const members = [...(await ctx.scope.poolMemberIds(ctx))];
+      const members = [...(await membersForScope(ctx, scope))];
       if (members.length === 0) return MATCH_NOTHING;
       return {
         sql: '(d.responsible_closer_id = ANY($1::uuid[]) OR d.originating_agent_id = ANY($1::uuid[]))',

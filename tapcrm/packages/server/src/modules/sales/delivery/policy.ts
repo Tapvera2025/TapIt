@@ -27,6 +27,15 @@ export type DeliveryBriefResource = Resource & {
   readonly originatingAgentId: string;
 };
 
+async function membersForScope(
+  ctx: PolicyEvaluationContext,
+  scope: 'pool' | 'team' | 'department',
+): Promise<ReadonlySet<string>> {
+  if (scope === 'pool') return ctx.scope.poolMemberIds(ctx);
+  if (scope === 'team') return ctx.scope.teamMemberIds(ctx);
+  return ctx.scope.departmentMemberIds(ctx);
+}
+
 export const deliveryBriefPolicy: ResourcePolicy<DeliveryBriefResource> = {
   resourceType: 'delivery',
   domain: 'business',
@@ -38,7 +47,7 @@ export const deliveryBriefPolicy: ResourcePolicy<DeliveryBriefResource> = {
         || resource.originatingAgentId === ctx.principal.id;
     }
     if (scope === 'pool' || scope === 'team' || scope === 'department') {
-      const members = await ctx.scope.poolMemberIds(ctx);
+      const members = await membersForScope(ctx, scope);
       return members.has(resource.responsibleCloserId)
         || members.has(resource.originatingAgentId);
     }
@@ -53,7 +62,7 @@ export const deliveryBriefPolicy: ResourcePolicy<DeliveryBriefResource> = {
       };
     }
     if (scope === 'pool' || scope === 'team' || scope === 'department') {
-      const members = [...(await ctx.scope.poolMemberIds(ctx))];
+      const members = [...(await membersForScope(ctx, scope))];
       if (members.length === 0) return MATCH_NOTHING;
       return {
         sql: '(delivery_brief.deal_id IN (SELECT id FROM deal WHERE deal.organization_id = delivery_brief.organization_id AND (deal.responsible_closer_id = ANY($1::uuid[]) OR deal.originating_agent_id = ANY($1::uuid[]))))',

@@ -44,6 +44,8 @@ function hrCtx(overrides: Partial<PolicyEvaluationContext> = {}): PolicyEvaluati
       poolIds: async () => new Set(),
       subordinateIds: async () => new Set(),
       poolMemberIds: async () => new Set(),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
     },
     ...overrides,
   };
@@ -70,6 +72,8 @@ function nonHrCtx(): PolicyEvaluationContext {
       poolIds: async () => new Set(),
       subordinateIds: async () => new Set(),
       poolMemberIds: async () => new Set(),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
     },
   };
 }
@@ -168,6 +172,8 @@ beforeEach(() => {
       poolIds: async () => new Set(),
       subordinateIds: async () => new Set(),
       poolMemberIds: async () => new Set(),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
     },
     policies: {
       resolveSet: async (ctx) => {
@@ -339,6 +345,8 @@ describe('interviewPolicy — participant scope', () => {
         poolIds: async () => new Set(),
         subordinateIds: async () => new Set(),
         poolMemberIds: async () => new Set(),
+        teamMemberIds: async () => new Set<string>(),
+        departmentMemberIds: async () => new Set<string>(),
       },
     };
   }

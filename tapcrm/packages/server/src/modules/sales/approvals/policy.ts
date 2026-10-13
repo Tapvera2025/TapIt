@@ -14,9 +14,18 @@ import type { ApprovalResource } from './types.js';
  * Visibility ladder:
  *   own          — caller is the current approver or the requester
  *   participant  — same as own; approval requests have no third-party actors
- *   pool / team  — pool-level visibility rolls up to the requester's pool
- *   department   — department-level widens to the whole sales department
+ *   pool         — members of the caller's own sales pool
+ *   team         — members of every team in the caller's team subtree
+ *   department   — every active user in the caller's department
  */
+async function membersForScope(
+  ctx: PolicyEvaluationContext,
+  scope: 'pool' | 'team' | 'department',
+): Promise<ReadonlySet<string>> {
+  if (scope === 'pool') return ctx.scope.poolMemberIds(ctx);
+  if (scope === 'team') return ctx.scope.teamMemberIds(ctx);
+  return ctx.scope.departmentMemberIds(ctx);
+}
 export const approvalPolicy: ResourcePolicy<ApprovalResource> = {
   resourceType: 'approvalRequest',
   domain: 'business',
@@ -28,7 +37,7 @@ export const approvalPolicy: ResourcePolicy<ApprovalResource> = {
         || resource.requestedBy === ctx.principal.id;
     }
     if (scope === 'pool' || scope === 'team' || scope === 'department') {
-      const members = await ctx.scope.poolMemberIds(ctx);
+      const members = await membersForScope(ctx, scope);
       return (resource.currentApproverId !== null && members.has(resource.currentApproverId))
         || members.has(resource.requestedBy);
     }
@@ -43,7 +52,7 @@ export const approvalPolicy: ResourcePolicy<ApprovalResource> = {
       };
     }
     if (scope === 'pool' || scope === 'team' || scope === 'department') {
-      const members = [...(await ctx.scope.poolMemberIds(ctx))];
+      const members = [...(await membersForScope(ctx, scope))];
       if (members.length === 0) return MATCH_NOTHING;
       return {
         sql: '(approval_request.current_approver_id = ANY($1::uuid[]) OR approval_request.requested_by = ANY($1::uuid[]))',
