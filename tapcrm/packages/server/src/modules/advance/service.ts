@@ -2,7 +2,7 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { notify } from '../notifications/facade.js';
-import { xlsxBuffer } from '../attendance/export.js';
+import { xlsxBuffer } from '../attendance/facade.js';
 import { writeAdvanceAudit } from './audit.js';
 import { AdvanceError } from './errors.js';
 import type { AdvanceRow, DeductionRow } from './types.js';

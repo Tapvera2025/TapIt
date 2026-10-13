@@ -3,6 +3,7 @@ import {
   registerResourcePolicy,
   type ResourcePolicy,
 } from '@tapcrm/authz';
+import { globalAccess } from '@tapcrm/contracts';
 
 export const makeAdvanceResource = (
   id: string,
@@ -32,7 +33,7 @@ const policy: ResourcePolicy = {
     return (
       resource['subjectId'] === ctx.principal.id ||
       resource['requestedBy'] === ctx.principal.id ||
-      ctx.principal.accountType === 'super-admin'
+      globalAccess(ctx.principal)
     );
   },
   async filter(ctx, _action, scope) {

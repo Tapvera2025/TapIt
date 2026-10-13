@@ -66,7 +66,7 @@ function walk(dir: string, extensions: string[], skip: string[] = []): string[] 
       out.push(...walk(full, extensions, skip));
     } else if (extensions.some((e) => entry.endsWith(e))) {
       const rel = relative(ROOT, full);
-      if (!skip.some((s) => rel.includes(s))) out.push(full);
+      if (!skip.some((s) => rel.includes(s))) out.push(full.split('\\').join('/'));
     }
   }
   return out;
@@ -204,7 +204,10 @@ const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
 {
   // A bare `value` is a generic name (a stat card's counter, a helper's
   // parameter), so it no longer counts as money.
-  const MONEY = /\b(amount|total|balance|price|salary|discount|net|gross|tax|paid|due)\w*\s*[?]?:\s*number\b/i;
+  // `number\b(?!\()` is a TYPE annotation; `: Number(x)` is a conversion call.
+  const MONEY = /\b(amount|total|balance|price|salary|discount|net|gross|tax|paid|due)\w*\s*[?]?:\s*number\b(?!\()/i;
+  // A bare `total: number` beside rows/page/count is a row count, not money.
+  const PAGINATION_NEARBY = /\b(rows|items|page|pageSize|totalPages)\b|count\s*\(/i;
   // Compound names such as `maxDealValue` ARE money, but the original pattern
   // could not see them (`\b` never matches inside a camelCase word). They are
   // reported as phased debt, and become blocking under `--strict`, instead of
@@ -213,12 +216,17 @@ const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
   const compound: string[] = [];
   let violations = 0;
   for (const file of sourceFiles) {
-    read(file)
-      .split('\n')
-      .forEach((line, i) => {
+    const lines = read(file).split('\n');
+    lines.forEach((line, i) => {
         if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
         // Counts, percentages, time durations and attendance units are legitimately numbers; money is not.
-        if (/count|percent|index|length|version|attempts|limit|port|seconds|minutes|units|ms\b/i.test(line)) return;
+        if (/count|percent|index|length|version|attempts|limit|port|seconds|minutes|units|ms\b|pages|keywords|blogs/i.test(line)) return;
+        if (
+          /\btotal\s*[?]?:\s*number\b/.test(line) &&
+          PAGINATION_NEARBY.test(lines.slice(Math.max(0, i - 3), i + 4).join('\n'))
+        ) {
+          return;
+        }
         if (MONEY.test(line)) {
           blocking(
             'CI-21',
@@ -360,12 +368,16 @@ const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
       .split('\n')
       .forEach((line, i) => {
         if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
-        // A template literal containing SQL keywords AND an interpolation, that
-        // is not tagged with the `sql` tag.
-        if (
-          /(?<!sql)`[^`]*\b(SELECT|INSERT|UPDATE|DELETE|WHERE|FROM)\b[^`]*\$\{/i.test(line) &&
-          !/sql`/.test(line)
-        ) {
+        // A template literal that reads as a SQL STATEMENT AND interpolates a
+        // value, not tagged with `sql`. Interpolations are blanked first so a
+        // property such as `${body.from}`, or prose such as "Delete ${label}",
+        // is not mistaken for SQL.
+        const SQL_SHAPE =
+          /\bSELECT\b[\s\S]*?\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\s+[\w."]+\s+SET\b|\bDELETE\s+FROM\b|\bWHERE\s+[\w."()]+\s*(=|<|>|!=|\bIN\b|\bLIKE\b|\bIS\b)/i;
+        const untaggedSql = [...line.matchAll(/(?<!sql)`[^`]*`/g)].some(
+          (m) => /\$\{/.test(m[0]) && SQL_SHAPE.test(m[0].replace(/\$\{[^}]*\}/g, '?')),
+        );
+        if (untaggedSql && !/sql`/.test(line)) {
           blocking(
             'CI-20',
             'T-7',

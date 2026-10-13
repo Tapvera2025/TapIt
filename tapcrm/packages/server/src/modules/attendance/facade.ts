@@ -76,3 +76,7 @@ export {
   type OpenItem,
   type OpenItemsOptions,
 } from './payroll-snapshot.js';
+
+// TA reads attendance only through these (SH-1).
+export { taAttendanceTotals, taAttendanceDays, type TaAttendanceTotals, type TaAttendanceDay } from './ta-source.js';
+export { xlsxBuffer } from './export.js';

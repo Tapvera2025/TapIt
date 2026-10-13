@@ -2,7 +2,7 @@ import { visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
-import { xlsxBuffer } from '../attendance/export.js';
+import { xlsxBuffer } from '../attendance/facade.js';
 import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
 import { writePenaltyAudit } from './audit.js';
 import { PenaltyError } from './errors.js';

@@ -61,9 +61,7 @@ export type MonthlyAttendanceQuery = z.infer<typeof monthlyAttendanceQuerySchema
 export function monthBounds(query: EmployeeReportQuery): { month: string; from: DateOnly; to: DateOnly } {
   const month = `${query.year}-${query.month}`;
   const from = toDateOnly(`${month}-01`);
-  const nextYear = query.month === '12' ? query.year + 1 : query.year;
-  const nextMonth = query.month === '12' ? '01' : String(Number(query.month) + 1).padStart(2, '0');
-  const next = new Date(Date.UTC(nextYear, Number(nextMonth) - 1, 1, 12));
-  next.setUTCDate(next.getUTCDate() - 1);
-  return { month, from, to: toDateOnly(next.toISOString().slice(0, 10)) };
+  // Day 0 of the following month is this month's last day (calendar arithmetic, no UTC string).
+  const lastDay = new Date(Date.UTC(query.year, Number(query.month), 0)).getUTCDate();
+  return { month, from, to: toDateOnly(`${month}-${String(lastDay).padStart(2, '0')}`) };
 }

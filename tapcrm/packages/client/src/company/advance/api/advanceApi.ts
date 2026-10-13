@@ -62,7 +62,7 @@ export const listDeductions = (
   params: Record<string, string | number | undefined> = {},
 ) => peopleRead<Page<Deduction>>(`/api/advances/deductions?${query(params)}`);
 export const requestAdvance = (body: {
-  amountPaise: number;
+  amountPaise: string;
   requestedForPeriod: string;
   reason: string;
 }) =>
@@ -97,7 +97,7 @@ export const rejectAdvance = (id: string, rejectionReason: string) =>
   );
 export const createManualAdvance = (body: {
   employeeId: string;
-  amountPaise: number;
+  amountPaise: string;
   requestedForPeriod: string;
   reason: string;
 }) =>

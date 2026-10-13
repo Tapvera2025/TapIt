@@ -3,7 +3,7 @@ import { db, type Tx } from '../../platform/dal/db.js';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { sql } from '../../platform/dal/sql.js';
 import { organizationToday } from '../../platform/organization-time.js';
-import { xlsxBuffer } from '../attendance/export.js';
+import { taAttendanceDays, taAttendanceTotals, xlsxBuffer } from '../attendance/facade.js';
 import { writeTaAudit } from './audit.js';
 import { TaConflictError, TaError } from './errors.js';
 import type { AssignmentBody, ListQuery } from './validators.js';
@@ -91,29 +91,14 @@ async function calculateStatement(
         'Inactive TA assignments cannot be calculated for a future month.',
       );
   }
-  const attendance = await tx.one<{
-    presentDays: string;
-    halfDays: string;
-    absentDays: string;
-    leaveDays: string;
-    holidayDays: string;
-    eligibleDays: string;
-  }>(sql`
-    SELECT
-      COALESCE(count(*) FILTER (WHERE r.status='present'), 0)::text AS "presentDays",
-      COALESCE(sum(CASE WHEN r.present_units=1 THEN 1 ELSE 0 END), 0)::text AS "halfDays",
-      COALESCE(sum(r.absent_units), 0)::numeric / 2::numeric AS "absentDays",
-      COALESCE(sum(r.paid_leave_units + r.unpaid_leave_units), 0)::numeric / 2::numeric AS "leaveDays",
-      COALESCE(sum(r.holiday_units), 0)::numeric / 2::numeric AS "holidayDays",
-      COALESCE(sum(r.present_units), 0)::numeric / 2::numeric AS "eligibleDays"
-    FROM attendance_record r
-    WHERE r.organization_id=${ctx.organizationId}
-      AND r.user_id=${row.employeeId}::uuid
-      AND r.work_date BETWEEN ${row.effectiveFrom}::date AND COALESCE(${row.effectiveTo ?? null}::date, ${dayBefore(taMonth)}::date)
-      AND r.work_date >= ${taMonth}::date
-      AND r.work_date <= ${dayBefore(taMonth)}::date
-      AND r.status IS NOT NULL
-  `);
+  const attendance = await taAttendanceTotals(tx, {
+    organizationId: ctx.organizationId,
+    userId: row.employeeId,
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo ?? null,
+    monthStart: taMonth,
+    monthEnd: dayBefore(taMonth),
+  });
   const statement = await tx.one<{ id: string }>(sql`
     INSERT INTO ta_statement
       (organization_id, employee_id, assignment_id, ta_month, daily_amount_paise,
@@ -356,22 +341,22 @@ export async function myStatements(ctx: RequestContext, taMonth: string) {
       WHERE s.organization_id=${ctx.organizationId} AND s.employee_id=${ctx.principal.id}::uuid AND s.ta_month=${taMonth}::date AND s.status='sent'
       ORDER BY s.effective_from
     `);
-    const days = await tx.query<any>(sql`
-      SELECT r.work_date::text AS "workDate", r.status, r.present_units AS "presentUnits",
-        CASE WHEN r.present_units > 0 THEN r.present_units::numeric / 2 ELSE 0 END AS "eligibleUnits",
-        s.daily_amount_paise::text AS "dailyAmountPaise"
-      FROM attendance_record r
-      LEFT JOIN ta_statement s
-        ON s.organization_id=r.organization_id
-        AND s.employee_id=r.user_id
-        AND s.ta_month=${taMonth}::date
-        AND s.status='sent'
-        AND r.work_date >= s.effective_from
-        AND r.work_date <= COALESCE(s.effective_to, (${taMonth}::date + interval '1 month - 1 day')::date)
-      WHERE r.organization_id=${ctx.organizationId} AND r.user_id=${ctx.principal.id}::uuid
-        AND r.work_date >= ${taMonth}::date AND r.work_date < (${taMonth}::date + interval '1 month')
-      ORDER BY r.work_date
-    `);
+    const attendanceDays = await taAttendanceDays(tx, {
+      organizationId: ctx.organizationId,
+      userId: ctx.principal.id,
+      monthStart: taMonth,
+    });
+    // A day belongs to every sent statement whose window covers it; a day no
+    // statement covers is still listed, with no daily amount.
+    const monthEnd = dayBefore(taMonth);
+    const days = attendanceDays.flatMap((day) => {
+      const covering = statements.filter(
+        (s) => day.workDate >= s.effectiveFrom && day.workDate <= (s.effectiveTo ?? monthEnd),
+      );
+      return covering.length === 0
+        ? [{ ...day, dailyAmountPaise: null }]
+        : covering.map((s) => ({ ...day, dailyAmountPaise: s.dailyAmountPaise }));
+    });
     return { statements, days };
   });
 }

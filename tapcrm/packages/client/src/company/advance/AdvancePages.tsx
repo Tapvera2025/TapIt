@@ -107,7 +107,7 @@ export function MyAdvancesPage(): React.JSX.Element {
     setError('');
     try {
       await requestAdvance({
-        amountPaise: amountInPaise(amount),
+        amountPaise: String(amountInPaise(amount)),
         requestedForPeriod: requirePeriod(period, 'Advance month'),
         reason: requireText(reason, 'Reason'),
       });
@@ -322,7 +322,7 @@ function AdminAdvances(): React.JSX.Element {
     try {
       await createManualAdvance({
         employeeId: requireText(manualEmployee, 'Employee'),
-        amountPaise: amountInPaise(manualAmount),
+        amountPaise: String(amountInPaise(manualAmount)),
         requestedForPeriod: requirePeriod(manualPeriod, 'Advance month'),
         reason: requireText(manualReason, 'Reason'),
       });
