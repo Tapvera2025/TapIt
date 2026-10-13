@@ -69,10 +69,10 @@ export function OnboardingChecklistDrawer({
         open
         className="ui-dialog z-50 my-auto flex max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3.5rem)] w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-xl flex-col rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6 shadow-2xl text-app-foreground overflow-hidden"
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-app-border pb-4">
+        <div className="flex shrink-0 items-center justify-between pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="font-display text-lg font-bold">Onboarding Checklist</h2>
+              <h2 className="font-display text-lg font-bold"> Onboarding Checklist </h2>
               {workflow && (
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
@@ -233,7 +233,7 @@ export function OnboardingChecklistDrawer({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-app-border pt-3 text-right">
+        <div className="shrink-0 pt-3 text-right">
           <button
             type="button"
             onClick={onClose}

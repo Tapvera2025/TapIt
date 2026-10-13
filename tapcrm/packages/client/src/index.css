@@ -1043,11 +1043,20 @@
   }
 
   .dark .workspace-sidebar {
-    background: rgba(27, 30, 36, 0.82) !important;
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.09)),
+      color-mix(in srgb, var(--sidebar-background) 94%, transparent) !important;
     border-color: rgba(214, 220, 231, 0.14) !important;
-    backdrop-filter: blur(22px) saturate(115%);
-    -webkit-backdrop-filter: blur(22px) saturate(115%);
+    backdrop-filter: blur(24px) saturate(125%);
+    -webkit-backdrop-filter: blur(24px) saturate(125%);
     box-shadow: 8px 0 24px -24px rgba(0, 0, 0, 0.72);
+  }
+
+  .dark .global-navbar {
+    background-color: color-mix(in srgb, var(--app-surface) 98%, transparent);
+    background-image: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08));
+    backdrop-filter: blur(24px) saturate(125%);
+    -webkit-backdrop-filter: blur(24px) saturate(125%);
   }
 
   .dark .workspace-sidebar .sidebar-decoration {
@@ -1117,8 +1126,8 @@
       inset: auto !important;
       width: auto;
       max-width: none;
-      height: calc(100dvh - 6.5rem) !important;
-      margin: 1.25rem 0 1.25rem 1.25rem !important;
+      height: calc(100dvh - 8rem) !important;
+      margin: 2.75rem 0 1.25rem 1.25rem !important;
       border-radius: 1rem;
       transform: none !important;
     }
