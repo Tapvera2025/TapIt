@@ -1821,13 +1821,13 @@ summary:active {
   }
 }
 
-/* Give shared outlined controls a clearer edge without changing their palette. */
+/* Keep shared outlined controls crisp without turning one-sided dividers into boxes. */
 @layer utilities {
-  .border-app-border {
+  .border-app-border:not(.border-t):not(.border-b):not(.border-l):not(.border-r):not(.border-x):not(.border-y):not(.border-s):not(.border-e) {
     border-width: 1.5px;
   }
 
-  .border-sidebar-border {
+  .border-sidebar-border:not(.border-t):not(.border-b):not(.border-l):not(.border-r):not(.border-x):not(.border-y):not(.border-s):not(.border-e) {
     border-width: 1.5px;
   }
 }
