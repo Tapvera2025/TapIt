@@ -218,6 +218,36 @@ export async function reconcileInternPositions(
   );
 }
 
+/**
+ * Reapply the policy matrix for every seeded position in `organizationId`.
+ *
+ * Used by migration 0088 to backfill tenants whose bootstrap ran before the
+ * sales (and other) registry_action rows existed. The underlying insert is
+ * ON CONFLICT (organization_id, position_id, action) DO NOTHING, so any
+ * tenant-authored overrides survive untouched; this only fills gaps.
+ */
+export async function reconcileAllPositionPolicies(
+  tx: Tx,
+  organizationId: string,
+  moduleKeys: readonly string[],
+): Promise<number> {
+  const template = templateForModules(moduleKeys);
+  const positionRows = await tx.query<{ id: string; code: string }>(sql`
+    SELECT id, code FROM position
+    WHERE organization_id = ${organizationId}
+      AND is_seeded = true
+      AND status = 'active'
+  `);
+  const positionIds = new Map(positionRows.map((p) => [p.code, p.id]));
+  return provisionDefaultPositionPolicies(
+    tx,
+    organizationId,
+    moduleKeys,
+    template.positions,
+    positionIds,
+  );
+}
+
 export function starterTemplateForModules(
   moduleKeys: readonly string[],
 ): OrganizationTemplate {

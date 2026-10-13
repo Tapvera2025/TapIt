@@ -8,6 +8,7 @@ import { sql } from '../../../platform/dal/sql.js';
 import { listTerritoriesForRouting } from '../territories/repository.js';
 import { getRoutingConfiguration } from '../territories/service.js';
 import { routeLead } from '../territories/router.js';
+import { readPresenceToday } from '../../live-status/facade.js';
 import { normalizeLeadEmail, normalizeLeadPhone } from './normalization.js';
 import { leadPolicy } from './policy.js';
 import { LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from './errors.js';
@@ -57,10 +58,38 @@ async function validatePreviousLead(ctx: RequestContext, previousLeadId: string 
 }
 
 async function routingCandidates(ctx: RequestContext) {
-  // Attendance/punch infrastructure is not implemented yet. Candidates are
-  // deliberately marked unavailable rather than treating activity as punch-in.
-  const rows = await db.query<{ id: string; teamId: string }>(ctx, sql`SELECT u.id, u.team_id AS "teamId" FROM app_user u JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id WHERE u.organization_id = ${ctx.organizationId} AND u.account_type = 'employee' AND u.status = 'active' AND p.code = 'sales-agent' AND u.team_id IS NOT NULL`);
-  return rows.map((row) => ({ agentId: row.id, salesTeamId: row.teamId, openLeadCount: 0, active: true, punchedIn: false }));
+  // Each candidate carries their current open-lead count (from `lead`) and
+  // their presence state (via the live-status facade — SH-1: `user_status`
+  // belongs to live-status). An agent counts as punched in when state is
+  // 'WORKING'; 'ON_BREAK' and 'FINISHED' are treated as not routable to
+  // avoid stacking leads on someone who stepped away.
+  const rows = await db.query<{ id: string; teamId: string; openLeadCount: string }>(ctx, sql`
+    SELECT u.id,
+           u.team_id AS "teamId",
+           COALESCE((
+             SELECT count(*)::text
+               FROM lead
+              WHERE lead.organization_id = u.organization_id
+                AND lead.owner_id        = u.id
+                AND lead.lead_outcome    = 'active'
+           ), '0') AS "openLeadCount"
+      FROM app_user u
+      JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
+     WHERE u.organization_id = ${ctx.organizationId}
+       AND u.account_type    = 'employee'
+       AND u.status          = 'active'
+       AND p.code            = 'sales-agent'
+       AND u.team_id IS NOT NULL
+  `);
+  if (rows.length === 0) return [];
+  const presence = await readPresenceToday(ctx, rows.map((r) => r.id));
+  return rows.map((row) => ({
+    agentId: row.id,
+    salesTeamId: row.teamId,
+    openLeadCount: Number(row.openLeadCount),
+    active: true,
+    punchedIn: presence.get(row.id)?.state === 'WORKING',
+  }));
 }
 
 export async function createLead(ctx: RequestContext, input: CreateLeadInput): Promise<LeadCreateResult> {

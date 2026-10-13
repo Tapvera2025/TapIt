@@ -25,9 +25,23 @@ function tx(rows: Row[]): Tx {
 }
 
 describe('loadFairnessConfig', () => {
-  it('returns module defaults in R1', async () => {
-    const config = await loadFairnessConfig({} as Tx, 'org-1');
+  function configTx(row: { activeLeadMax: number | null; dailyClaimMax: number | null } | null): Tx {
+    return { query: async () => [], one: async () => { throw new Error('unused'); }, maybeOne: async () => row } as unknown as Tx;
+  }
+
+  it('returns module defaults when the tenant has no override row', async () => {
+    const config = await loadFairnessConfig(configTx(null), 'org-1');
     expect(config).toEqual(DEFAULT_FAIRNESS_CONFIG);
+  });
+
+  it('returns module defaults when columns are NULL', async () => {
+    const config = await loadFairnessConfig(configTx({ activeLeadMax: null, dailyClaimMax: null }), 'org-1');
+    expect(config).toEqual(DEFAULT_FAIRNESS_CONFIG);
+  });
+
+  it('uses tenant overrides when present', async () => {
+    const config = await loadFairnessConfig(configTx({ activeLeadMax: 50, dailyClaimMax: 10 }), 'org-1');
+    expect(config).toEqual({ activeLeadMax: 50, dailyClaimMax: 10 });
   });
 });
 

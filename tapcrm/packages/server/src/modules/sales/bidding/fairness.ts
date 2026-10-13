@@ -53,14 +53,22 @@ export const DEFAULT_FAIRNESS_CONFIG: FairnessConfig = {
 };
 
 /**
- * Returns the fairness config for the given tenant. R1 keeps this as
- * module defaults; a follow-up migration adds `organization.config` so
- * tenants can tune caps without a deploy. The signature already accepts
- * a Tx + orgId so wiring in the per-tenant query later is a one-file
- * change behind every call site.
+ * Returns the fairness config for the given tenant. Each cap column is
+ * nullable in `sales_routing_configuration`; a NULL falls back to the
+ * module default so a tenant can tune one axis without being forced to
+ * set the other.
  */
-export async function loadFairnessConfig(_tx: Tx, _organizationId: string): Promise<FairnessConfig> {
-  return DEFAULT_FAIRNESS_CONFIG;
+export async function loadFairnessConfig(tx: Tx, organizationId: string): Promise<FairnessConfig> {
+  const row = await tx.maybeOne<{ activeLeadMax: number | null; dailyClaimMax: number | null }>(sql`
+    SELECT active_lead_max AS "activeLeadMax",
+           daily_claim_max AS "dailyClaimMax"
+      FROM sales_routing_configuration
+     WHERE organization_id = ${organizationId}
+  `);
+  return {
+    activeLeadMax: row?.activeLeadMax ?? DEFAULT_FAIRNESS_CONFIG.activeLeadMax,
+    dailyClaimMax: row?.dailyClaimMax ?? DEFAULT_FAIRNESS_CONFIG.dailyClaimMax,
+  };
 }
 
 /**

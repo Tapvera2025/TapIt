@@ -32,6 +32,8 @@ export const territoryStatusSchema = z.object({ status: z.enum(['active', 'inact
 export const routingConfigurationSchema = z.object({
   enabled: z.boolean().default(true),
   assignmentStrategy: z.literal('fewest_open_leads').default('fewest_open_leads'),
+  activeLeadMax: z.number().int().min(1).max(1000).nullable().optional().default(null),
+  dailyClaimMax: z.number().int().min(1).max(1000).nullable().optional().default(null),
 });
 export const territoryReassignmentSchema = z.object({ salesTeamId: z.string().uuid(), confirm: z.literal(true) });
 export const territoryReportingQuerySchema = z.object({
