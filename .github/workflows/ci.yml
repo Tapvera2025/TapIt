@@ -90,8 +90,10 @@ jobs:
       # migration text, so a policy dropped later is still caught.
       - name: RLS enforced on every tenant table (CI-33)
         run: |
-          UNPROTECTED=$(psql "$MIGRATION_DATABASE_URL" -t -A -c "
-            SELECT count(*) FROM pg_class c
+          UNPROTECTED=$(psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -t -A -c "
+            SELECT format('%I.%I: enabled=%s, forced=%s',
+                          n.nspname, c.relname, c.relrowsecurity, c.relforcerowsecurity)
+            FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = 'public' AND c.relkind IN ('r','p')
               AND c.relname <> 'organization'
@@ -101,9 +103,11 @@ jobs:
               AND EXISTS (SELECT 1 FROM pg_attribute a
                           WHERE a.attrelid = c.oid AND a.attname = 'organization_id'
                             AND NOT a.attisdropped)
-              AND NOT (c.relrowsecurity AND c.relforcerowsecurity);")
-          echo "tenant tables without RLS+FORCE: $UNPROTECTED"
-          test "$UNPROTECTED" = "0"
+              AND NOT (c.relrowsecurity AND c.relforcerowsecurity)
+            ORDER BY n.nspname, c.relname;")
+          echo "tenant tables without RLS+FORCE:"
+          printf '%s\n' "${UNPROTECTED:-none}"
+          test -z "$UNPROTECTED"
 
           BYPASS=$(psql "$MIGRATION_DATABASE_URL" -t -A -c \
             "SELECT rolbypassrls FROM pg_roles WHERE rolname='tapcrm_app';")
