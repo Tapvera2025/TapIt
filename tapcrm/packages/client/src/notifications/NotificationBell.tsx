@@ -27,9 +27,11 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
   const [drawerMode, setDrawerMode] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const [panelMounted, setPanelMounted] = useState(false);
   const [panelVisible, setPanelVisible] = useState(false);
+  const [activatingNotificationId, setActivatingNotificationId] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openFrame = useRef<number | null>(null);
   const openRef = useRef(open);
   openRef.current = open;
@@ -52,6 +54,9 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
   };
 
   const closePanel = useCallback(() => {
+    if (activationTimer.current) clearTimeout(activationTimer.current);
+    activationTimer.current = null;
+    setActivatingNotificationId(null);
     setOpen(false);
     clearPanelTimers();
     if (window.matchMedia('(min-width: 768px)').matches) {
@@ -86,7 +91,10 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
     return () => tabletAndUp.removeEventListener('change', onBreakpointChange);
   }, [clearPanelTimers]);
 
-  useEffect(() => () => clearPanelTimers(), [clearPanelTimers]);
+  useEffect(() => () => {
+    clearPanelTimers();
+    if (activationTimer.current) clearTimeout(activationTimer.current);
+  }, [clearPanelTimers]);
 
   useEffect(() => {
     if (!open) return;
@@ -116,6 +124,24 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
     dismissIncoming();
     closePanel();
     if (notification.link) onNavigate(notification.link);
+  };
+
+  const activateNotification = (notification: AppNotification) => {
+    if (!drawerMode) {
+      openNotification(notification);
+      return;
+    }
+
+    if (activationTimer.current) clearTimeout(activationTimer.current);
+    setActivatingNotificationId(notification.id);
+    void markRead(notification.id);
+    dismissIncoming();
+    activationTimer.current = setTimeout(() => {
+      closePanel();
+      if (notification.link) onNavigate(notification.link);
+      setActivatingNotificationId(null);
+      activationTimer.current = null;
+    }, 220);
   };
 
   const badge = unreadCount > 99 ? '99+' : String(unreadCount);
@@ -150,8 +176,9 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
             <li key={notification.id} className="border-b border-app-border last:border-b-0">
               <button
                 type="button"
-                onClick={() => openNotification(notification)}
-                className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-app-surface-raised ${notification.read ? 'opacity-70' : ''}`}
+                onClick={() => activateNotification(notification)}
+                data-read={notification.read}
+                className={`notification-item-button flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-app-surface-raised ${notification.read ? 'opacity-70' : ''} ${activatingNotificationId === notification.id ? 'is-activating' : ''}`}
               >
                 <span
                   className={`mt-1.5 size-2 shrink-0 rounded-full ${notification.read ? 'bg-transparent' : 'bg-app-accent'}`}
@@ -159,17 +186,17 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
                 />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
-                    <span className="truncate text-sm font-semibold">{notification.title}</span>
+                    <span className="notification-item-title truncate text-sm font-semibold">{notification.title}</span>
                     {notification.priority === 'operational' && (
-                      <span className="shrink-0 rounded bg-app-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-app-accent">
+                      <span className="notification-action-tag shrink-0 rounded bg-app-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-app-accent">
                         Action
                       </span>
                     )}
                   </span>
                   {notification.body && (
-                    <span className="mt-0.5 line-clamp-2 block text-xs text-app-muted">{notification.body}</span>
+                    <span className="notification-item-body mt-0.5 line-clamp-2 block text-xs text-app-muted">{notification.body}</span>
                   )}
-                  <span className="mt-1 block text-[11px] text-app-muted">{timeAgo(notification.createdAt)}</span>
+                  <span className="notification-item-time mt-1 block text-[11px] text-app-muted">{timeAgo(notification.createdAt)}</span>
                 </span>
               </button>
             </li>

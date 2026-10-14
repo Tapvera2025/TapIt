@@ -849,7 +849,14 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior-y: contain;
     padding: 20px 24px 24px;
+  }
+  .task-assignee-options {
+    max-height: min(13rem, 35dvh);
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   .ui-dialog-footer {
     flex: none;
@@ -1555,15 +1562,89 @@ nav button[aria-current='page']::before {
     max-width: 100vw;
     max-height: none;
     border-radius: 0;
-    background: color-mix(in srgb, var(--app-surface) 82%, transparent);
-    -webkit-backdrop-filter: blur(28px) saturate(145%);
-    backdrop-filter: blur(28px) saturate(145%);
-    box-shadow: -14px 0 44px rgb(0 0 0 / 20%);
+    background: color-mix(in srgb, var(--app-surface) 96%, var(--theme-primary) 4%);
+    border-color: var(--app-border);
+    box-shadow: -12px 0 32px rgb(15 23 42 / 12%);
     overscroll-behavior: contain;
     transform: translateX(100%);
     visibility: hidden;
     pointer-events: none;
     transition: transform 290ms cubic-bezier(0.2, 0.75, 0.25, 1), visibility 0s linear 290ms;
+  }
+
+  .notification-panel-drawer > div:first-child {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    min-height: 3.5rem;
+    border-color: color-mix(in srgb, var(--app-border) 58%, transparent);
+    background: var(--app-surface);
+  }
+
+  .notification-panel-drawer > div:nth-child(2) {
+    padding: 0.5rem 0 0.75rem;
+    background: transparent;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--app-muted) 42%, transparent) transparent;
+  }
+
+  .notification-panel-drawer ul > li {
+    margin: 0 0.75rem 0.5rem;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0.875rem;
+  }
+
+  .notification-panel-drawer .notification-item-button {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--app-border) 78%, transparent);
+    border-radius: inherit;
+    padding: 0.7rem 0.8rem;
+    background: var(--app-surface);
+    box-shadow: none;
+    transition: background-color 140ms ease, border-color 140ms ease;
+  }
+
+  .notification-panel-drawer .notification-item-button[data-read='false'] {
+    border-color: color-mix(in srgb, var(--theme-primary) 26%, var(--app-border));
+    background: color-mix(in srgb, var(--theme-primary) 7%, var(--app-surface));
+    color: var(--app-foreground);
+  }
+
+  .notification-panel-drawer .notification-item-button[data-read='true'] {
+    border-color: color-mix(in srgb, var(--app-border) 82%, transparent);
+    background: color-mix(in srgb, var(--app-surface-raised) 38%, var(--app-surface));
+    color: var(--app-muted);
+    opacity: 1;
+  }
+
+  .notification-panel-drawer .notification-item-button.is-activating {
+    border-color: color-mix(in srgb, var(--theme-primary) 42%, var(--app-border));
+    background: color-mix(in srgb, var(--theme-primary) 11%, var(--app-surface));
+  }
+
+  .notification-panel-drawer .notification-item-title {
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .notification-panel-drawer .notification-item-body,
+  .notification-panel-drawer .notification-item-time {
+    color: var(--app-muted);
+  }
+
+  .notification-panel-drawer .notification-item-button[data-read='false'] .notification-item-title {
+    color: var(--app-foreground);
+  }
+
+  .notification-panel-drawer .notification-item-button[data-read='true'] .notification-item-title {
+    color: var(--app-muted);
+  }
+
+  .notification-panel-drawer .notification-action-tag {
+    display: none;
   }
 
   .notification-panel.notification-panel-drawer[data-open='true'] {
@@ -1576,7 +1657,8 @@ nav button[aria-current='page']::before {
 
 @media (min-width: 768px) and (prefers-reduced-motion: reduce) {
   .notification-panel.notification-panel-drawer,
-  .notification-overlay-backdrop {
+  .notification-overlay-backdrop,
+  .notification-panel-drawer .notification-item-button {
     transition: none;
   }
 }

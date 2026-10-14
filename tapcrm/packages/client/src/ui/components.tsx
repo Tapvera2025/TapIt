@@ -1,6 +1,121 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon.js';
 
+let activeModalCount = 0;
+let restorePageScroll: (() => void) | null = null;
+const lockedScrollContainers = new Map<HTMLElement, {
+  count: number;
+  overflowY: string;
+  paddingRight: string;
+  scrollTop: number;
+  scrollLeft: number;
+}>();
+
+function lockPageScroll(modal: HTMLDialogElement | null): () => void {
+  if (activeModalCount === 0) {
+    const body = document.body;
+    const root = document.documentElement;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const scrollbarWidth = Math.max(0, window.innerWidth - root.clientWidth);
+    const previous = {
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyPaddingRight: body.style.paddingRight,
+      bodyOverflow: body.style.overflow,
+      rootOverflow: root.style.overflow,
+    };
+
+    body.style.position = 'fixed';
+    body.style.top = `${-scrollY}px`;
+    body.style.left = `${-scrollX}px`;
+    body.style.right = '0';
+    body.style.width = '100%';
+    if (scrollbarWidth > 0) {
+      const paddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+      body.style.paddingRight = `${paddingRight + scrollbarWidth}px`;
+    }
+    body.style.overflow = 'hidden';
+    root.style.overflow = 'hidden';
+
+    restorePageScroll = () => {
+      body.style.position = previous.bodyPosition;
+      body.style.top = previous.bodyTop;
+      body.style.left = previous.bodyLeft;
+      body.style.right = previous.bodyRight;
+      body.style.width = previous.bodyWidth;
+      body.style.paddingRight = previous.bodyPaddingRight;
+      body.style.overflow = previous.bodyOverflow;
+      root.style.overflow = previous.rootOverflow;
+      window.scrollTo(scrollX, scrollY);
+      restorePageScroll = null;
+    };
+  }
+
+  const scrollAncestors: HTMLElement[] = [];
+  // The company workspace scrolls its <main>, while the document body itself
+  // often has no scroll range. Lock that app scroll root even if layout
+  // measurements momentarily report no overflow during the opening frame.
+  const appScrollRoot = modal?.closest<HTMLElement>('.company-layout-shell')
+    ?.querySelector<HTMLElement>('[data-app-scroll-container]') ?? null;
+  let ancestor = modal?.parentElement ?? null;
+  while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
+    const previousLock = lockedScrollContainers.get(ancestor);
+    const computed = window.getComputedStyle(ancestor);
+    const canScrollY = /(auto|scroll|overlay)/.test(computed.overflowY) && ancestor.scrollHeight > ancestor.clientHeight;
+
+    if (previousLock || canScrollY || ancestor === appScrollRoot) {
+      if (previousLock) {
+        previousLock.count += 1;
+      } else {
+        lockedScrollContainers.set(ancestor, {
+          count: 1,
+          overflowY: ancestor.style.overflowY,
+          paddingRight: ancestor.style.paddingRight,
+          scrollTop: ancestor.scrollTop,
+          scrollLeft: ancestor.scrollLeft,
+        });
+        const scrollbarWidth = Math.max(0, ancestor.offsetWidth - ancestor.clientWidth);
+        if (scrollbarWidth > 0) {
+          const paddingRight = Number.parseFloat(computed.paddingRight) || 0;
+          ancestor.style.paddingRight = `${paddingRight + scrollbarWidth}px`;
+        }
+        ancestor.style.overflowY = 'hidden';
+      }
+      scrollAncestors.push(ancestor);
+    }
+    ancestor = ancestor.parentElement;
+  }
+
+  activeModalCount += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+
+    for (const scrollContainer of scrollAncestors) {
+      const lock = lockedScrollContainers.get(scrollContainer);
+      if (!lock) continue;
+      lock.count -= 1;
+      if (lock.count === 0) {
+        scrollContainer.style.overflowY = lock.overflowY;
+        scrollContainer.style.paddingRight = lock.paddingRight;
+        scrollContainer.scrollTop = lock.scrollTop;
+        scrollContainer.scrollLeft = lock.scrollLeft;
+        lockedScrollContainers.delete(scrollContainer);
+      }
+    }
+
+    activeModalCount = Math.max(0, activeModalCount - 1);
+    if (activeModalCount === 0) {
+      restorePageScroll?.();
+    }
+  };
+}
+
 /** Shared outer boundary for authenticated Company Workspace pages. */
 export function WorkspacePageContainer({
   children,
@@ -618,10 +733,32 @@ export function Modal({
   useEffect(() => {
     const element = dialog.current;
     const previous = document.activeElement as HTMLElement | null;
+    const unlockPageScroll = lockPageScroll(element);
+    // Native dialog backdrops do not prevent wheel/touch scrolling of nested
+    // app scrollers in every browser. Suppress gestures outside the dialog's
+    // actual scrollable body, while leaving form fields and dropdown lists
+    // inside the modal fully scrollable.
+    const preventBackgroundScroll = (event: WheelEvent | TouchEvent) => {
+      const target = event.target;
+      const isInsideDialogBody = target instanceof Node
+        && Array.from(document.querySelectorAll<HTMLDialogElement>('dialog[open]'))
+          .some((openDialog) => openDialog.querySelector('.ui-dialog-body')?.contains(target));
+      if (!isInsideDialogBody) {
+        event.preventDefault();
+        // Keep the desktop Lenis wheel listener from processing a gesture
+        // that started on the backdrop or the page behind the dialog.
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener('wheel', preventBackgroundScroll, { capture: true, passive: false });
+    document.addEventListener('touchmove', preventBackgroundScroll, { capture: true, passive: false });
     element?.showModal();
     return () => {
+      document.removeEventListener('wheel', preventBackgroundScroll, true);
+      document.removeEventListener('touchmove', preventBackgroundScroll, true);
       element?.close();
       previous?.focus();
+      unlockPageScroll();
     };
   }, []);
   function requestClose() {

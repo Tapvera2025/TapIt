@@ -133,6 +133,10 @@ export function CompanyLayout({
             syncTouch: false,
             wheelMultiplier: 0.9,
             autoRaf: true,
+            // A native dialog is rendered in the top layer but remains in
+            // this main element's event path. Let its own scroll body handle
+            // wheel gestures natively instead of routing them through Lenis.
+            prevent: (node) => node.closest('dialog[open]') !== null,
           })
         : null;
     };
@@ -250,6 +254,7 @@ export function CompanyLayout({
           <main
             ref={mainScrollRef}
             id="main-content"
+            data-app-scroll-container
             className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
             onScroll={(event) => {
               const element = event.currentTarget;
