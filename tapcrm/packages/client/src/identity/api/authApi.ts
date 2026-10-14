@@ -110,6 +110,22 @@ export function getIdentityAccessToken(): string | null {
   return sessionStorage.getItem(ACCESS_KEY);
 }
 
+/**
+ * Account type from the access token's claims, for ROUTING ONLY (choosing the
+ * client portal vs. the company workspace). Never a security decision: the
+ * server re-verifies the token and the account type on every request.
+ */
+export function getIdentityAccountType(): string | null {
+  const payload = getIdentityAccessToken()?.split('.')[1];
+  if (!payload) return null;
+  try {
+    const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { accountType?: unknown };
+    return typeof claims.accountType === 'string' ? claims.accountType : null;
+  } catch {
+    return null;
+  }
+}
+
 export function saveIdentityTokens(accessToken: string, refreshToken: string, reason: 'login' | 'refresh' = 'login'): void {
   sessionStorage.setItem(ACCESS_KEY, accessToken);
   sessionStorage.setItem(REFRESH_KEY, refreshToken);

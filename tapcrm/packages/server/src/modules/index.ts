@@ -64,6 +64,7 @@ import {
 import { registerChatPolicies, registerChatRealtime, registerChatRoutes } from './chat/index.js';
 import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
 import { registerProjectPolicies, registerProjectRoutes } from './projects/index.js';
+import { registerClientPortalRoutes } from './client-portal/index.js';
 import { registerMyTodoRoutes } from './myTodo/routes.js';
 
 /**
@@ -135,6 +136,7 @@ export function registerAllRoutes(): void {
   registerChatRoutes();
   registerClientRoutes();
   registerProjectRoutes();
+  registerClientPortalRoutes();
   registerMyTodoRoutes();
   registerOnboardingRoutes();
   registerVerificationRoutes();
