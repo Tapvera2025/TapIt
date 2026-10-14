@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
 
@@ -113,6 +114,36 @@ export function CompanyLayout({
       ? savedWidth
       : 256;
   });
+  const mainScrollRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const main = mainScrollRef.current;
+    if (!main) return;
+
+    const desktopMotion = window.matchMedia('(min-width: 1280px) and (prefers-reduced-motion: no-preference)');
+    let lenis: Lenis | null = null;
+    const syncScrollMode = () => {
+      lenis?.destroy();
+      lenis = desktopMotion.matches
+        ? new Lenis({
+            wrapper: main,
+            content: main,
+            duration: 1.15,
+            smoothWheel: true,
+            syncTouch: false,
+            wheelMultiplier: 0.9,
+            autoRaf: true,
+          })
+        : null;
+    };
+
+    syncScrollMode();
+    desktopMotion.addEventListener('change', syncScrollMode);
+    return () => {
+      desktopMotion.removeEventListener('change', syncScrollMode);
+      lenis?.destroy();
+    };
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem('tapcrm:sidebar-collapsed', String(sidebarCollapsed));
@@ -217,6 +248,7 @@ export function CompanyLayout({
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <main
+            ref={mainScrollRef}
             id="main-content"
             className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
             onScroll={(event) => {

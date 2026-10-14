@@ -53,12 +53,13 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3 sm:px-4 sm:pb-4 md:px-8 md:pb-8">
-      <div className="flex shrink-0 gap-1 overflow-x-auto px-1 pt-3 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="messages-page flex h-full min-h-0 flex-col px-3 pb-3 sm:px-4 sm:pb-4 md:px-8 md:pb-8">
+      <div className="messages-tab-list flex shrink-0 gap-1 overflow-x-auto px-1 pt-3 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {([['direct', 'Direct Messages'], ['group', 'Internal Groups'], ['project', 'Project Groups']] as const).map(([value, tabLabel]) => (
           <button
             key={value}
             type="button"
+            aria-pressed={tab === value}
             onClick={() => {
               // A manual tab switch overrides whatever a notification deep
               // link opened — otherwise the old conversation keeps forcing
@@ -66,7 +67,7 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
               setDeepLink(undefined);
               setTab(value);
             }}
-            className={`whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors sm:px-3 sm:text-sm ${tab === value ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
+            className={`messages-tab-button whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors sm:px-3 sm:text-sm ${tab === value ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
           >
             <span className="sm:hidden">{value === 'direct' ? 'Direct' : value === 'group' ? 'Internal' : 'Project'}</span>
             <span className="hidden sm:inline">{tabLabel}</span>
