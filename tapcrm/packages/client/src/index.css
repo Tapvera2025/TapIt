@@ -1831,6 +1831,15 @@ summary:active {
   animation: click-jelly 360ms cubic-bezier(.22, .72, .25, 1);
   transform-origin: center;
 }
+.notification-panel .notification-item-button,
+.notification-panel .notification-item-button:active {
+  animation: none;
+  transform: none;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.notification-panel .notification-item-button:active {
+  background-color: color-mix(in srgb, var(--theme-primary) 8%, var(--app-surface));
+}
 @keyframes click-jelly {
   0% { transform: translateY(0) scale(1); }
   24% { transform: translateY(1px) scale(0.965, 0.94); }
