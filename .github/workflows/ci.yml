@@ -64,6 +64,14 @@ jobs:
 
       - run: npm ci
 
+      # npm can omit platform-specific optional packages when the lockfile was
+      # generated on another OS. The hosted runner is Linux x64, so install
+      # the native packages required by the server CI imports explicitly.
+      - name: Install Linux native optional packages
+        run: >-
+          npm install --no-save --package-lock=false --include=optional
+          --os=linux --cpu=x64 --libc=glibc sharp @tailwindcss/oxide
+
       # RG-I1 / CI-9 — regenerate the registry and diff it. Drift between
       # AUTHORIZATION.md and the committed code fails the build.
       - name: Registry drift (CI-9)
