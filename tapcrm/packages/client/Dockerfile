@@ -7,7 +7,7 @@ COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/authz/package.json packages/authz/package.json
 COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
-RUN npm ci \
+RUN npm ci --include=optional \
   && npm cache clean --force \
   && rm -rf /root/.cache/node-gyp
 

@@ -139,7 +139,7 @@ export function CompanyLayout({
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
+    <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
@@ -216,7 +216,18 @@ export function CompanyLayout({
           onResize={setSidebarWidth}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <main
+            id="main-content"
+            className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              const maxScroll = element.scrollHeight - element.clientHeight;
+              const progress = maxScroll > 0 ? element.scrollTop / maxScroll : 0.45;
+              element
+                .closest<HTMLElement>('.company-layout-shell')
+                ?.style.setProperty('--shell-reflection-position', `${Math.round(progress * 100)}%`);
+            }}
+          >
             {children}
           </main>
         </div>

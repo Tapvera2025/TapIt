@@ -1877,3 +1877,59 @@ summary:active {
     border-width: 1.5px;
   }
 }
+
+/* Subtle daylight glass edge for the company shell and its bordered cards.
+   The highlight tracks the main content's scroll position; layout and surfaces stay intact. */
+@media (min-width: 1280px) {
+  :root:not(.dark) .company-layout-shell {
+    --shell-reflection-position: 45%;
+  }
+
+  :root:not(.dark) .company-layout-shell .global-navbar,
+  :root:not(.dark) .company-layout-shell .workspace-sidebar {
+    border-color: color-mix(in srgb, var(--app-border) 76%, var(--app-muted) 24%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+  }
+
+  :root:not(.dark) .company-layout-shell .global-navbar,
+  :root:not(.dark) .company-layout-shell .workspace-sidebar,
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]),
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]) {
+    isolation: isolate;
+  }
+
+  :root:not(.dark) .company-layout-shell .workspace-sidebar {
+    position: relative !important;
+  }
+
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]),
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]) {
+    position: relative;
+  }
+
+  :root:not(.dark) .company-layout-shell .global-navbar::after,
+  :root:not(.dark) .company-layout-shell .workspace-sidebar::after,
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"])::after,
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"])::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      115deg,
+      transparent 8%,
+      rgba(255, 255, 255, 0.12) calc(var(--shell-reflection-position) - 18%),
+      rgba(255, 255, 255, 0.9) var(--shell-reflection-position),
+      rgba(255, 255, 255, 0.2) calc(var(--shell-reflection-position) + 18%),
+      transparent 88%
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: 0.82;
+  }
+}
