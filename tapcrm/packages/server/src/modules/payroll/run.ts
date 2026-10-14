@@ -184,6 +184,17 @@ export async function createRun(
         sourceId: o.sourceId,
       }));
 
+      const pendingAttendanceRefresh = blockers.filter(
+        (blocker) => blocker.kind === 'attendance-refresh-pending',
+      );
+      if (pendingAttendanceRefresh.length > 0) {
+        throw new PayrollValidationError(
+          PAYROLL_ERROR_CODES.ATTENDANCE_REFRESH_PENDING,
+          'Attendance changes are still being applied. Wait for attendance refresh to finish, then create payroll again.',
+          { blockers: pendingAttendanceRefresh },
+        );
+      }
+
       const frozen = await freezeEmployees(
         tx,
         ctx.organizationId,

@@ -3597,8 +3597,38 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/shifts/weekday-schedules",
+      "action": "shifts:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/shifts/weekday-schedules/assignments",
+      "action": "shifts:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/shifts/weekday-schedules/exceptions",
+      "action": "shifts:view",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/shifts",
+      "action": "shifts:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shifts/weekday-schedules",
+      "action": "shifts:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/shifts/weekday-schedules/exceptions",
       "action": "shifts:manage",
       "resourceParam": null
     },
@@ -3607,6 +3637,18 @@
       "path": "/api/shifts/:id",
       "action": "shifts:manage",
       "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/shifts/weekday-schedules/:id",
+      "action": "shifts:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/shifts/weekday-schedules/exceptions/:id",
+      "action": "shifts:manage",
+      "resourceParam": null
     },
     {
       "method": "POST",
@@ -5609,6 +5651,12 @@
     {
       "method": "GET",
       "path": "/api/chat/conversations",
+      "action": "chat:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/unread-summary",
       "action": "chat:view",
       "resourceParam": null
     },

@@ -9,8 +9,8 @@ type Mode = 'daily' | 'monthly';
 const today = (): string => new Date().toISOString().slice(0, 10);
 const time = (value: string | null): string => value ? new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
 const duration = (value: number): string => `${Math.floor(value / 60)}h ${value % 60}m`;
-const dailyStatus = (row: DailyAttendanceRow): string => row.status ?? (row.arrivalAt ? 'In progress' : 'No punch');
-const code = (record: { status: string | null; dayType?: string | null; isWfh: boolean } | undefined): string => !record ? '—' : record.isWfh && record.status === 'present' ? 'P·WFH' : record.status === 'present' ? 'P' : record.status === 'half-day' ? 'HD' : record.status === 'absent' ? 'Ab' : record.status === 'leave' || record.status === 'half-day-leave' ? 'L' : record.status === 'holiday' || record.dayType === 'holiday' ? 'H' : record.status ?? '—';
+const dailyStatus = (row: DailyAttendanceRow): string => row.dayType === 'week-off' ? 'No attendance record' : row.status ?? (row.arrivalAt ? 'In progress' : 'No punch');
+const code = (record: { status: string | null; dayType?: string | null; isWfh: boolean } | undefined): string => !record || record.dayType === 'week-off' ? '—' : record.isWfh && record.status === 'present' ? 'P·WFH' : record.status === 'present' ? 'P' : record.status === 'half-day' ? 'HD' : record.status === 'absent' ? 'Ab' : record.status === 'leave' || record.status === 'half-day-leave' ? 'L' : record.status === 'holiday' || record.dayType === 'holiday' ? 'H' : record.status ?? '—';
 
 export function AttendanceReportPage({ canExport = false }: { canExport?: boolean }): React.JSX.Element {
   const now = today(); const [mode, setMode] = useState<Mode>('daily'); const [date, setDate] = useState(now); const [month, setMonth] = useState(now.slice(5, 7)); const [year, setYear] = useState(now.slice(0, 4)); const [shiftId, setShiftId] = useState(''); const [format, setFormat] = useState<'csv' | 'xlsx'>('csv'); const [shifts, setShifts] = useState<ShiftTemplate[]>([]);

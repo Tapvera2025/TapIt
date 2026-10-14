@@ -4,6 +4,7 @@ import { Icon } from '../../ui/Icon.js';
 import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
+import { useChatUnread } from '../../chat/ChatUnreadContext.js';
 
 function ThemePromoIllustration({ accent }: { accent: AccentColor }): React.JSX.Element {
   const common = {
@@ -217,6 +218,7 @@ export function CompanySidebar({
   const isSuperAdmin = accountType === 'super-admin';
   const { activePet } = useAiPet();
   const { accent } = useTheme();
+  const { total: unreadMessages } = useChatUnread();
 
   const clampWidth = (nextWidth: number) => Math.min(420, Math.max(220, nextWidth));
 
@@ -478,7 +480,10 @@ export function CompanySidebar({
           : []),
         { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
         ...(canManageShifts
-          ? [{ label: 'Shifts', path: '/company/shifts', icon: 'layers' }]
+          ? [
+              { label: 'Shifts', path: '/company/shifts', icon: 'layers' },
+              { label: 'Weekday Schedules', path: '/company/weekday-schedules', icon: 'calendar' },
+            ]
           : []),
       ],
     },
@@ -735,6 +740,14 @@ export function CompanySidebar({
                             <Icon name={item.icon} />
                             <span className={collapsed ? 'xl:hidden' : ''}>{item.label}</span>
                           </span>
+                          {item.label === 'Messages' && unreadMessages > 0 && (
+                            <span
+                              className={`rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
+                              aria-label={`${unreadMessages} unread messages`}
+                            >
+                              {unreadMessages > 99 ? '99+' : unreadMessages}
+                            </span>
+                          )}
                           {item.children && (
                             <span
                               aria-hidden="true"

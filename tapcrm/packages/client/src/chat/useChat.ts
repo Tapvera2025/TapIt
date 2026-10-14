@@ -10,6 +10,7 @@ import {
   type Conversation,
   type ConversationKind,
 } from './api/chatApi.js';
+import { CHAT_UNREAD_CHANGED_EVENT } from './ChatUnreadContext.js';
 
 /** RT-6 fallback: only matters while the socket is down. */
 const POLL_FALLBACK_MS = 60_000;
@@ -68,7 +69,9 @@ export function useChat(kind: ConversationKind): {
       // API returns newest-first; the thread renders oldest-first.
       setMessages([...page.messages].reverse());
       setNextCursor(page.nextCursor);
-      void markConversationRead(conversationId).catch(() => undefined);
+      void markConversationRead(conversationId)
+        .then(() => window.dispatchEvent(new Event(CHAT_UNREAD_CHANGED_EVENT)))
+        .catch(() => undefined);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load messages.');
     } finally {

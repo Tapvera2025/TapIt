@@ -85,6 +85,12 @@ export const recalculateSchema = z.object({
 export const sendSchema = z.object({
   statementIds: z.array(z.string().uuid()).min(1, 'Select at least one TA statement.'),
 });
-export const mySchema = z.object({ taMonth: month });
+export const mySchema = z.object({
+  taMonth: month,
+  statementPage: z.coerce.number().int().min(1).default(1),
+  dayPage: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+});
 export type AssignmentBody = z.infer<typeof assignmentSchema>;
 export type ListQuery = z.infer<typeof listSchema>;
+export type MyQuery = z.infer<typeof mySchema>;

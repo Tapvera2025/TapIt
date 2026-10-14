@@ -23,6 +23,7 @@ function currentMonth(): string {
 }
 
 function dayTone(day: AttendanceDayView): PeopleCalendarDay['tone'] {
+  if (day.dayType === 'week-off') return 'muted';
   if (day.state === 'open' && !day.status && day.arrivalAt !== null) return 'warning';
   if (day.minutes.late > 0) return 'warning';
   if (day.dayType === 'holiday' || day.dayType === 'leave') return 'neutral';
@@ -35,6 +36,7 @@ function dayTone(day: AttendanceDayView): PeopleCalendarDay['tone'] {
 }
 
 function dayLabel(day: AttendanceDayView): string {
+  if (day.dayType === 'week-off') return 'No attendance record';
   if (day.dayType === 'holiday') return 'Holiday';
   if (day.dayType === 'leave') return 'On leave';
   if (day.state === 'open' && !day.status && day.arrivalAt !== null) return 'In progress — punch out pending';
@@ -51,7 +53,10 @@ function fmt(minutes: number): string {
 
 function fmtTime(value: string | null): string {
   if (!value) return '—';
-  return new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  // Shift start/end values are local time-only strings (HH:mm or HH:mm:ss),
+  // not timestamps. Parsing them with Date produces "Invalid Date" in browsers.
+  const match = /^(\d{2}):(\d{2})/.exec(value);
+  return match ? `${match[1]}:${match[2]}` : value;
 }
 
 export function AttendancePage({ userId }: { userId: string }): React.JSX.Element {

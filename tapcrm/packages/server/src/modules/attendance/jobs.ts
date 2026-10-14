@@ -137,10 +137,13 @@ export function registerAttendanceJobs(): AttendanceJobs {
       const change = event.payload as ShiftsFacade.DaysChanged;
       const scope: AffectedScope = {
         ...(change.userIds === undefined ? {} : { userIds: change.userIds }),
-        ...(change.departmentId === undefined
-          ? {}
-          : { departmentIds: [change.departmentId] }),
+        ...(change.departmentIds !== undefined
+          ? { departmentIds: change.departmentIds }
+          : change.departmentId === undefined
+            ? {}
+            : { departmentIds: [change.departmentId] }),
         ...(change.shiftId === undefined ? {} : { shiftIds: [change.shiftId] }),
+        ...(change.weekdayScheduleIds === undefined ? {} : { weekdayScheduleIds: change.weekdayScheduleIds }),
       };
       await queueRefresh(event, scope, change.from, change.to);
     },

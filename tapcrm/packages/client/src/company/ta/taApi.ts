@@ -92,7 +92,7 @@ export function sendTaStatements(statementIds: string[]): Promise<{ sent: number
     ['/api/ta'],
   );
 }
-export function listMyTa(taMonth: string): Promise<{
+export function listMyTa(taMonth: string, pagination: { statementPage: number; dayPage: number; pageSize?: number }): Promise<{
   statements: Array<Record<string, string | null>>;
   days: Array<{
     workDate: string;
@@ -101,8 +101,20 @@ export function listMyTa(taMonth: string): Promise<{
     eligibleUnits: string;
     dailyAmountPaise: string | null;
   }>;
+  statementPage: number;
+  dayPage: number;
+  pageSize: number;
+  statementTotal: number;
+  statementTotalPages: number;
+  daysTotal: number;
+  dayTotalPages: number;
+  summary: {
+    dailyRates: string[];
+    eligibleDays: number;
+    calculatedAmountPaise: number;
+  };
 }> {
-  return peopleRead(`/api/ta/my?${query({ taMonth })}`);
+  return peopleRead(`/api/ta/my?${query({ taMonth, ...pagination })}`);
 }
 export function downloadTaReport(
   params: Record<string, string | number | undefined>,

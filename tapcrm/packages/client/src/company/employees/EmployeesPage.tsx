@@ -18,7 +18,7 @@ import {
   type CompanyEmployee,
   type CompanyTeam,
 } from '../api/companyApi.js';
-import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
+import { listShifts, listWeekdaySchedules, type ShiftTemplate, type WeekdaySchedule } from '../api/shiftsApi.js';
 import { SkeletonTableRows } from '../../ui/components.js';
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────
@@ -65,6 +65,7 @@ export function EmployeesPage({
   const [teams, setTeams] = useState<CompanyTeam[]>([]);
   const [designations, setDesignations] = useState<CompanyDesignation[]>([]);
   const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
+  const [weekdaySchedules, setWeekdaySchedules] = useState<WeekdaySchedule[]>([]);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [onboardingEmployee, setOnboardingEmployee] = useState<{ id: string; name: string; setupUrl?: string | null | undefined } | null>(null);
@@ -82,19 +83,21 @@ export function EmployeesPage({
   async function load(): Promise<void> {
     setLoading(true);
     try {
-      const [nextEmployees, nextDepartments, nextTeams, nextDesignations, nextShifts] =
+      const [nextEmployees, nextDepartments, nextTeams, nextDesignations, nextShifts, nextWeekdaySchedules] =
         await Promise.all([
           getCompanyEmployees(),
           getCompanyDepartments(),
           getCompanyTeams(),
           getCompanyDesignations(),
           listShifts(),
+          listWeekdaySchedules(),
         ]);
       setEmployees(nextEmployees);
       setDepartments(nextDepartments.filter((item) => item.status === 'active'));
       setTeams(nextTeams);
       setDesignations(nextDesignations.filter((item) => item.status === 'active'));
       setShifts(nextShifts.filter((s) => s.status === 'active'));
+      setWeekdaySchedules(nextWeekdaySchedules.filter((schedule) => schedule.status === 'active'));
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load employees.');
@@ -195,6 +198,7 @@ export function EmployeesPage({
             teams={teams}
             designations={designations}
             shifts={shifts}
+            weekdaySchedules={weekdaySchedules}
           />
         )}
 
@@ -439,6 +443,7 @@ export function EmployeesPage({
           departments={departments}
           teams={teams}
           designations={designations}
+          weekdaySchedules={weekdaySchedules}
           isSuperAdmin={isSuperAdmin}
           canRequestRoleChange={canRequestRoleChange}
           onClose={() => setEditingId(null)}

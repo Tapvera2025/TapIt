@@ -75,6 +75,17 @@ export interface DepartmentDefaultInput extends Dated {
   readonly shiftId: string;
 }
 
+export interface WeekdayScheduleInput extends Dated {
+  readonly workingWeekdays: readonly number[];
+  readonly status?: 'active' | 'inactive';
+}
+
+export interface WorkingDayExceptionInput {
+  readonly date: DateOnly;
+  /** Empty means the exception applies to the whole organization. */
+  readonly departmentIds: readonly string[];
+}
+
 /** A department default as the repository reads it, for more than one department. */
 export interface DepartmentDefaultRow extends DepartmentDefaultInput {
   readonly departmentId: string;
@@ -94,6 +105,11 @@ export interface ShiftInputs {
   readonly rotations: ReadonlyMap<string, ReadonlyMap<number, string | null>>;
   readonly overrides: readonly OverrideInput[];
   readonly assignments: readonly AssignmentInput[];
+  /** The employee's weekday schedule assignment in force for a date. */
+  readonly weekdaySchedules?: readonly WeekdayScheduleInput[];
+  readonly workingDayExceptions?: readonly WorkingDayExceptionInput[];
+  /** Recorded department placement per date; absent dates use the current department. */
+  readonly departmentIdsByDate?: ReadonlyMap<DateOnly, string | null>;
   readonly flexibleRequests: readonly FlexibleRequestInput[];
   readonly departmentDefaults: readonly DepartmentDefaultInput[];
   readonly settings: readonly ShiftSettingInput[];
@@ -266,6 +282,23 @@ export function resolveShift(inputs: ShiftInputs, date: DateOnly): ResolvedShift
     if (override.kind === 'no-shift' || override.shiftId === null)
       return none(inputs, date, 'date-override');
     return templateOn(inputs, override.shiftId, date, 'date-override');
+  }
+
+  const hasWorkingDayException = inputs.workingDayExceptions?.some(
+    (row) =>
+      row.date === date &&
+      (row.departmentIds.length === 0 ||
+        row.departmentIds.includes(inputs.departmentIdsByDate?.get(date) ?? '')),
+  ) ?? false;
+  const weekdaySchedule = inputs.weekdaySchedules?.find((row) => covers(row, date));
+  if (weekdaySchedule?.status === 'inactive')
+    return none(inputs, date, 'weekday-schedule');
+  if (
+    weekdaySchedule !== undefined &&
+    !weekdaySchedule.workingWeekdays.includes(weekdayOf(date)) &&
+    !hasWorkingDayException
+  ) {
+    return none(inputs, date, 'weekday-schedule');
   }
 
   const active = inputs.assignments.filter((row) => covers(row, date));

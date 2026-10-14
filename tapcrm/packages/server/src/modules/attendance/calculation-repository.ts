@@ -249,19 +249,30 @@ export async function peopleWithDays(
   filter: {
     readonly departmentIds?: readonly string[];
     readonly shiftIds?: readonly string[];
+    readonly weekdayScheduleIds?: readonly string[];
   },
   from: DateOnly,
   to: DateOnly | null,
 ): Promise<string[]> {
   const departments = [...(filter.departmentIds ?? [])];
   const shifts = [...(filter.shiftIds ?? [])];
-  const everyone = departments.length === 0 && shifts.length === 0;
+  const weekdaySchedules = [...(filter.weekdayScheduleIds ?? [])];
+  const everyone = departments.length === 0 && shifts.length === 0 && weekdaySchedules.length === 0;
   const rows = await tx.query<{ userId: string }>(sql`
     SELECT DISTINCT r.user_id FROM attendance_record r
     WHERE r.work_date >= ${from} AND (${to}::date IS NULL OR r.work_date <= ${to}::date)
       AND (${everyone}
            OR r.placement_snapshot->>'departmentId' = ANY(${departments}::text[])
-           OR r.shift_snapshot->>'shiftId' = ANY(${shifts}::text[]))
+           OR r.shift_snapshot->>'shiftId' = ANY(${shifts}::text[])
+           OR EXISTS (
+             SELECT 1
+             FROM weekday_schedule_assignment wsa
+             WHERE wsa.organization_id = r.organization_id
+               AND wsa.user_id = r.user_id
+               AND wsa.schedule_id = ANY(${weekdaySchedules}::uuid[])
+               AND wsa.effective_from <= r.work_date
+               AND (wsa.effective_to IS NULL OR wsa.effective_to > r.work_date)
+           ))
     ORDER BY r.user_id
   `);
   return rows.map((row) => row.userId);

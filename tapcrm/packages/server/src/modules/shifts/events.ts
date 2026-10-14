@@ -20,7 +20,9 @@ export const SHIFT_EVENTS = {
 export interface DaysChanged {
   readonly userIds?: readonly string[];
   readonly departmentId?: string;
+  readonly departmentIds?: readonly string[];
   readonly shiftId?: string;
+  readonly weekdayScheduleIds?: readonly string[];
   /** First changed date. Its neighbour before it changes too (§6.3). */
   readonly from: DateOnly;
   /** Last changed date, inclusive; null for open-ended. */
