@@ -534,8 +534,8 @@
     box-shadow: none !important;
   }
   .platform-theme-toggle {
-    width: 4.5rem !important;
-    min-width: 4.5rem;
+    width: 2.25rem !important;
+    min-width: 2.25rem;
     border-radius: 0.75rem !important;
     background: color-mix(in srgb, var(--app-surface) 86%, var(--theme-primary) 14%) !important;
     color: var(--app-foreground);
