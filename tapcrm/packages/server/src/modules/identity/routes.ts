@@ -13,7 +13,12 @@ import {
   revokeAllSessionsController,
   changeTemporaryPasswordController,
 } from './controller.js';
-import { requestPasswordResetController, resetPasswordController } from './security/controller.js';
+import {
+  devInstantPasswordResetController,
+  requestPasswordResetController,
+  resetPasswordController,
+} from './security/controller.js';
+import { devInstantPasswordResetEnabled } from '../../config.js';
 import { geofenceNotice, submitGeofenceAppeal } from './geofence/service.js';
 import { z } from 'zod';
 import { findUserById } from './repository.js';
@@ -74,6 +79,14 @@ export function registerIdentityPublicRoutes(router: Router): void {
   router.post('/identity/sessions/revoke-all', revokeAllSessionsController);
   router.post('/identity/password/reset/request', requestPasswordResetController);
   router.post('/identity/password/reset', resetPasswordController);
+  if (devInstantPasswordResetEnabled()) {
+    // Development only; the route does not exist unless the flag is set.
+    console.warn(JSON.stringify({
+      level: 'warn',
+      msg: 'DEV_INSTANT_PASSWORD_RESET is on: "Forgot password?" shows a new password for company admins. Never use on a shared server.',
+    }));
+    router.post('/identity/password/reset/dev-instant', devInstantPasswordResetController);
+  }
   router.post('/identity/password/change', changeTemporaryPasswordController);
   router.post('/identity/invitations/accept', acceptAdminInvitation);
   router.post('/identity/employee/setup', setupEmployeePassword);

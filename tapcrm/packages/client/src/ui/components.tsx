@@ -53,7 +53,7 @@ export function Page({
           </div>
           {action && <div className={recruitmentHeader ? 'recruitment-page-header-actions' : 'page-toolbar-action'}>{action}</div>}
         </header>
-        <div className="mt-6">{children}</div>
+        <div className="mt-6 space-y-5">{children}</div>
     </WorkspacePageContainer>
   );
 }
@@ -374,6 +374,7 @@ export function Field({
   placeholder,
   disabled = false,
   error,
+  hint,
 }: {
   label: string;
   value: string;
@@ -383,21 +384,40 @@ export function Field({
   placeholder?: string;
   disabled?: boolean;
   error?: string | undefined;
+  /** A line under the input, e.g. where an automatically filled value came from. */
+  hint?: ReactNode;
 }): React.JSX.Element {
+  const input = (
+    <input
+      required={required}
+      disabled={disabled}
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+      className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
+    />
+  );
+  const message = error && <span className="mt-1 block font-normal text-app-danger" role="alert">{error}</span>;
+  if (!hint) {
+    return (
+      <label className="text-xs font-semibold text-app-muted">
+        <span className="mb-2 block">{label}</span>
+        {input}
+        {message}
+      </label>
+    );
+  }
+  // The hint sits outside the label so a button in it does not focus the input.
   return (
-    <label className="text-xs font-semibold text-app-muted">
-      <span className="mb-2 block">{label}</span>
-      <input
-        required={required}
-        disabled={disabled}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
-      />
-      {error && <span className="mt-1 block font-normal text-app-danger" role="alert">{error}</span>}
-    </label>
+    <div className="text-xs font-semibold text-app-muted">
+      <label className="block">
+        <span className="mb-2 block">{label}</span>
+        {input}
+      </label>
+      {message}
+      <div className="mt-1 font-normal">{hint}</div>
+    </div>
   );
 }
 export function Select({
@@ -434,7 +454,11 @@ export function Select({
           </option>
         ))}
       </select>
-      {error && <span className="mt-1 block font-normal text-app-danger" role="alert">{error}</span>}
+      {error && (
+        <span className="mt-1 block font-normal text-app-danger" role="alert">
+          {error}
+        </span>
+      )}
     </label>
   );
 }
@@ -457,24 +481,63 @@ export function SearchableSelect({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const selected = options.find((option) => option.value === value);
-  const filtered = options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()));
+  const filtered = options.filter((option) =>
+    option.label.toLowerCase().includes(query.trim().toLowerCase()),
+  );
   return (
     <label className="relative text-xs font-semibold text-app-muted">
       <span className="mb-2 block">{label}</span>
       <input
         disabled={disabled}
-        value={open ? query : selected?.label ?? ''}
+        value={open ? query : (selected?.label ?? '')}
         placeholder={placeholder}
-        onFocus={() => { setQuery(''); setOpen(true); }}
-        onBlur={() => { window.setTimeout(() => setOpen(false), 0); }}
-        onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
+        onFocus={() => {
+          setQuery('');
+          setOpen(true);
+        }}
+        onBlur={() => {
+          window.setTimeout(() => setOpen(false), 0);
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setOpen(true);
+        }}
         className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
       />
-      {open && !disabled && <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-app-border bg-app-surface shadow-xl">
-        <button type="button" className="w-full px-3 py-2 text-left text-xs text-app-muted hover:bg-app-background" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(''); setQuery(''); setOpen(false); }}>Clear selection</button>
-        {filtered.map((option) => <button key={option.value} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-app-background" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(option.value); setQuery(''); setOpen(false); }}>{option.label}</button>)}
-        {filtered.length === 0 && <p className="px-3 py-2 text-xs text-app-muted">No matches.</p>}
-      </div>}
+      {open && !disabled && (
+        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-app-border bg-app-surface shadow-xl">
+          <button
+            type="button"
+            className="w-full px-3 py-2 text-left text-xs text-app-muted hover:bg-app-background"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              onChange('');
+              setQuery('');
+              setOpen(false);
+            }}
+          >
+            Clear selection
+          </button>
+          {filtered.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-app-background"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value);
+                setQuery('');
+                setOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="px-3 py-2 text-xs text-app-muted">No matches.</p>
+          )}
+        </div>
+      )}
     </label>
   );
 }
@@ -617,8 +680,13 @@ export function Modal({
       </div>
       <div className="ui-dialog-body">{children}</div>
       {confirming ? (
-        <div role="alert" className="ui-dialog-footer flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-semibold">You have unsaved changes. Close without saving them?</p>
+        <div
+          role="alert"
+          className="ui-dialog-footer flex flex-wrap items-center justify-between gap-3"
+        >
+          <p className="text-sm font-semibold">
+            You have unsaved changes. Close without saving them?
+          </p>
           <div className="flex gap-2">
             <Button kind="secondary" onClick={() => setConfirming(false)} autoFocus>
               Keep editing

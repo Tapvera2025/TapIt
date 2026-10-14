@@ -13,6 +13,8 @@ import {
   SUBORDINATES_CTE,
   TEAM_DESCENDANTS_CTE,
   POOL_MEMBERS,
+  TEAM_MEMBERS,
+  DEPARTMENT_MEMBERS,
   type AuthzAuditPort,
   type AuthzContext,
   type PolicyStorePort,
@@ -98,6 +100,32 @@ export const scopeResolver: ScopeResolverPort = {
       const rows = await db.query<{ id: string }>(asRequestContext(ctx), {
         sql: POOL_MEMBERS,
         parameters: [ctx.organizationId, pools],
+      });
+      return new Set(rows.map((r) => r.id));
+    });
+  },
+
+  async teamMemberIds(ctx: AuthzContext): Promise<ReadonlySet<UserId>> {
+    return memoised(ctx, MEMO_KEYS.teamMembers, async () => {
+      const teamId =
+        ctx.principal.accountType === 'employee' ? ctx.principal.teamId : null;
+      if (teamId === null) return new Set<UserId>();
+      const rows = await db.query<{ id: string }>(asRequestContext(ctx), {
+        sql: TEAM_MEMBERS,
+        parameters: [ctx.organizationId, teamId],
+      });
+      return new Set(rows.map((r) => r.id));
+    });
+  },
+
+  async departmentMemberIds(ctx: AuthzContext): Promise<ReadonlySet<UserId>> {
+    return memoised(ctx, MEMO_KEYS.departmentMembers, async () => {
+      const departmentId =
+        ctx.principal.accountType === 'employee' ? ctx.principal.departmentId : null;
+      if (departmentId === null) return new Set<UserId>();
+      const rows = await db.query<{ id: string }>(asRequestContext(ctx), {
+        sql: DEPARTMENT_MEMBERS,
+        parameters: [ctx.organizationId, departmentId],
       });
       return new Set(rows.map((r) => r.id));
     });

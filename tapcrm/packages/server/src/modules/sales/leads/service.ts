@@ -8,6 +8,7 @@ import { sql } from '../../../platform/dal/sql.js';
 import { listTerritoriesForRouting } from '../territories/repository.js';
 import { getRoutingConfiguration } from '../territories/service.js';
 import { routeLead } from '../territories/router.js';
+import { readPresenceToday } from '../../live-status/facade.js';
 import { normalizeLeadEmail, normalizeLeadPhone } from './normalization.js';
 import { leadPolicy } from './policy.js';
 import { LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from './errors.js';
@@ -57,10 +58,38 @@ async function validatePreviousLead(ctx: RequestContext, previousLeadId: string 
 }
 
 async function routingCandidates(ctx: RequestContext) {
-  // Attendance/punch infrastructure is not implemented yet. Candidates are
-  // deliberately marked unavailable rather than treating activity as punch-in.
-  const rows = await db.query<{ id: string; teamId: string }>(ctx, sql`SELECT u.id, u.team_id AS "teamId" FROM app_user u JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id WHERE u.organization_id = ${ctx.organizationId} AND u.account_type = 'employee' AND u.status = 'active' AND p.code = 'sales-agent' AND u.team_id IS NOT NULL`);
-  return rows.map((row) => ({ agentId: row.id, salesTeamId: row.teamId, openLeadCount: 0, active: true, punchedIn: false }));
+  // Each candidate carries their current open-lead count (from `lead`) and
+  // their presence state (via the live-status facade — SH-1: `user_status`
+  // belongs to live-status). An agent counts as punched in when state is
+  // 'WORKING'; 'ON_BREAK' and 'FINISHED' are treated as not routable to
+  // avoid stacking leads on someone who stepped away.
+  const rows = await db.query<{ id: string; teamId: string; openLeadCount: string }>(ctx, sql`
+    SELECT u.id,
+           u.team_id AS "teamId",
+           COALESCE((
+             SELECT count(*)::text
+               FROM lead
+              WHERE lead.organization_id = u.organization_id
+                AND lead.owner_id        = u.id
+                AND lead.lead_outcome    = 'active'
+           ), '0') AS "openLeadCount"
+      FROM app_user u
+      JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
+     WHERE u.organization_id = ${ctx.organizationId}
+       AND u.account_type    = 'employee'
+       AND u.status          = 'active'
+       AND p.code            = 'sales-agent'
+       AND u.team_id IS NOT NULL
+  `);
+  if (rows.length === 0) return [];
+  const presence = await readPresenceToday(ctx, rows.map((r) => r.id));
+  return rows.map((row) => ({
+    agentId: row.id,
+    salesTeamId: row.teamId,
+    openLeadCount: Number(row.openLeadCount),
+    active: true,
+    punchedIn: presence.get(row.id)?.state === 'WORKING',
+  }));
 }
 
 export async function createLead(ctx: RequestContext, input: CreateLeadInput): Promise<LeadCreateResult> {
@@ -116,3 +145,21 @@ export async function getLead(ctx: RequestContext, id: string): Promise<Lead> {
 }
 export async function updateLead(ctx: RequestContext, id: string, input: UpdateLeadInput): Promise<Lead> { const before = await getLead(ctx, id); const resource = await loadResource(ctx, id) as LeadResource | null; if (!resource) throw new LeadNotFoundError(); await assertManageScope(ctx, resource); if (input.status) { assertLifecycleTransition(before.status, input.status); if (input.status === 'assigned' && !resource.ownerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot be marked assigned'); } return db.transaction(ctx, async (tx) => { await updateLeadRow(tx, ctx.organizationId, id, input, before, { phone: normalizeLeadPhone(input.phone === undefined ? before.phone : input.phone), email: normalizeLeadEmail(input.email === undefined ? before.email : input.email) }); const updated = await findLeadTx(tx, ctx.organizationId, id); if (!updated) throw new LeadNotFoundError(); if (input.status && input.status !== before.status) await insertActivity(tx, ctx.organizationId, id, input.status === 'nurture' ? 'lead.nurtured' : 'lead.status_changed', ctx.principal.id, { from: before.status, to: input.status }); await insertAudit(tx, ctx, 'lead.updated', id, { status: before.status }, { status: updated.status }); return updated; }); }
 export const loadLeadResource = loadResource;
+
+/**
+ * Live duplicate check for the Add-Lead drawer (R1 plan step 1.12).
+ * Returns the same warnings the create flow surfaces so the caller can
+ * decide between "Open existing" / "Add enquiry" / "Create separate".
+ */
+export async function checkDuplicateLeads(
+  ctx: RequestContext,
+  input: { phone?: string | null | undefined; email?: string | null | undefined },
+): Promise<{ duplicates: Array<{ leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null }> }> {
+  const phone = normalizeLeadPhone(input.phone ?? null);
+  const email = normalizeLeadEmail(input.email ?? null);
+  if (!phone && !email) return { duplicates: [] };
+  const scope = await visibilityFilter(ctx, 'leads:view', 'lead');
+  const { findDuplicates } = await import('./repository.js');
+  const duplicates = await findDuplicates(ctx, scope, phone, email);
+  return { duplicates };
+}

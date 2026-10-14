@@ -17,19 +17,34 @@ export function CompanyLayout({
   canViewLeads,
   canViewCallbacks,
   canViewHandovers,
+  canViewDeals,
+  canRecordWin,
+  canDecideApprovals,
+  canForecast,
   canViewChat,
   canViewClients,
   canViewProjects,
   canViewLiveBoard,
+  canViewAttendanceReports,
   canReviewCorrections,
   canReviewBreaches,
   canManageBreakPolicies,
   canManageShifts,
   canManagePayroll,
   canManagePayrollConfig,
+  canViewTa,
+  canManageTa,
   canManageBiometric,
+  canViewAdvances,
+  canManageAdvances,
+  canViewPenalties,
+  canManagePenalties,
+  canViewExpenses,
+  canApproveExpenses,
   isHr,
   hasRecruitment,
+  hasInterviews,
+  title: _title,
   onNavigate,
   onLogout,
   children,
@@ -55,19 +70,35 @@ export function CompanyLayout({
   canViewLeads: boolean;
   canViewCallbacks: boolean;
   canViewHandovers: boolean;
+  canViewDeals: boolean;
+  canRecordWin: boolean;
+  canDecideApprovals: boolean;
+  canForecast: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
   canViewProjects: boolean;
   canViewLiveBoard: boolean;
+  canViewAttendanceReports: boolean;
   canReviewCorrections: boolean;
   canReviewBreaches: boolean;
   canManageBreakPolicies: boolean;
   canManageShifts: boolean;
   canManagePayroll: boolean;
   canManagePayrollConfig: boolean;
+  canViewTa: boolean;
+  canManageTa: boolean;
   canManageBiometric: boolean;
+  canViewAdvances: boolean;
+  canManageAdvances: boolean;
+  canViewPenalties: boolean;
+  canManagePenalties: boolean;
+  canViewExpenses: boolean;
+  canApproveExpenses: boolean;
   isHr: boolean;
   hasRecruitment: boolean;
+  /** This user has interviews (rounds or panels): show "My Interviews". */
+  hasInterviews: boolean;
+  title: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   children: React.ReactNode;
@@ -148,19 +179,33 @@ export function CompanyLayout({
           canViewLeads={canViewLeads}
           canViewCallbacks={canViewCallbacks}
           canViewHandovers={canViewHandovers}
+          canViewDeals={canViewDeals}
+          canRecordWin={canRecordWin}
+          canDecideApprovals={canDecideApprovals}
+          canForecast={canForecast}
           canViewChat={canViewChat}
           canViewClients={canViewClients}
           canViewProjects={canViewProjects}
           canViewLiveBoard={canViewLiveBoard}
+          canViewAttendanceReports={canViewAttendanceReports}
           canReviewCorrections={canReviewCorrections}
           canReviewBreaches={canReviewBreaches}
           canManageBreakPolicies={canManageBreakPolicies}
           canManageShifts={canManageShifts}
           canManagePayroll={canManagePayroll}
           canManagePayrollConfig={canManagePayrollConfig}
+          canViewTa={canViewTa}
+          canManageTa={canManageTa}
           canManageBiometric={canManageBiometric}
+          canViewAdvances={canViewAdvances}
+          canManageAdvances={canManageAdvances}
+          canViewPenalties={canViewPenalties}
+          canManagePenalties={canManagePenalties}
+          canViewExpenses={canViewExpenses}
+          canApproveExpenses={canApproveExpenses}
           isHr={isHr}
           hasRecruitment={hasRecruitment}
+          hasInterviews={hasInterviews}
           onNavigate={onNavigate}
           onLogout={onLogout}
           open={sidebarOpen}

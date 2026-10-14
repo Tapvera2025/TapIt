@@ -84,19 +84,33 @@ export function CompanySidebar({
   canViewLeads = false,
   canViewCallbacks = false,
   canViewHandovers = false,
+  canViewDeals = false,
+  canRecordWin = false,
+  canDecideApprovals = false,
+  canForecast = false,
   canViewChat = false,
   canViewClients = false,
   canViewProjects = false,
   canViewLiveBoard = false,
+  canViewAttendanceReports = false,
   canReviewCorrections = false,
   canReviewBreaches = false,
   canManageBreakPolicies = false,
   canManageShifts = false,
   canManagePayroll = false,
   canManagePayrollConfig = false,
+  canViewTa = false,
+  canManageTa = false,
   canManageBiometric = false,
+  canViewAdvances = false,
+  canManageAdvances = false,
+  canViewPenalties = false,
+  canManagePenalties = false,
+  canViewExpenses = false,
+  canApproveExpenses = false,
   isHr = false,
   hasRecruitment = false,
+  hasInterviews = false,
   onNavigate,
   onLogout,
   open,
@@ -127,19 +141,34 @@ export function CompanySidebar({
   canViewLeads?: boolean;
   canViewCallbacks?: boolean;
   canViewHandovers?: boolean;
+  canViewDeals?: boolean;
+  canRecordWin?: boolean;
+  canDecideApprovals?: boolean;
+  canForecast?: boolean;
   canViewChat?: boolean;
   canViewClients?: boolean;
   canViewProjects?: boolean;
   canViewLiveBoard?: boolean;
+  canViewAttendanceReports?: boolean;
   canReviewCorrections?: boolean;
   canReviewBreaches?: boolean;
   canManageBreakPolicies?: boolean;
   canManageShifts?: boolean;
   canManagePayroll?: boolean;
   canManagePayrollConfig?: boolean;
+  canViewTa?: boolean;
+  canManageTa?: boolean;
   canManageBiometric?: boolean;
+  canViewAdvances?: boolean;
+  canManageAdvances?: boolean;
+  canViewPenalties?: boolean;
+  canManagePenalties?: boolean;
+  canViewExpenses?: boolean;
+  canApproveExpenses?: boolean;
   isHr?: boolean;
   hasRecruitment?: boolean;
+  /** Shown only while this user has interviews (assigned rounds or panels). */
+  hasInterviews?: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   open: boolean;
@@ -229,6 +258,7 @@ export function CompanySidebar({
       items: [
         { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
         { label: 'Tasks', path: '/company/tasks', icon: 'check' },
+        ...(hasInterviews ? [{ label: 'My Interviews', path: '/company/my-interviews', icon: 'calendar' }] : []),
         ...(canViewChat
           ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }]
           : []),
@@ -327,40 +357,34 @@ export function CompanySidebar({
           },
         ]
       : []),
-    ...(canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers
+    ...(canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers || canViewDeals || canDecideApprovals || canRecordWin || canForecast
       ? [
           {
             label: 'Sales',
             items: [
               ...(canViewTerritories
-                ? [
-                    {
-                      label: 'Territories',
-                      path: '/company/sales/territories',
-                      icon: 'map',
-                    },
-                  ]
+                ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }]
                 : []),
               ...(canViewLeads
                 ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }]
                 : []),
+              ...(canViewDeals
+                ? [{ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase' }]
+                : []),
+              ...(canDecideApprovals
+                ? [{ label: 'Approvals', path: '/company/sales/approvals', icon: 'check' }]
+                : []),
+              ...(canRecordWin
+                ? [{ label: 'Wins to record', path: '/company/sales/wins', icon: 'check' }]
+                : []),
               ...(canViewCallbacks
-                ? [
-                    {
-                      label: 'Callbacks',
-                      path: '/company/sales/callbacks',
-                      icon: 'calendar',
-                    },
-                  ]
+                ? [{ label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar' }]
                 : []),
               ...(canViewHandovers
-                ? [
-                    {
-                      label: 'Handovers',
-                      path: '/company/sales/handovers',
-                      icon: 'share',
-                    },
-                  ]
+                ? [{ label: 'Handovers', path: '/company/sales/handovers', icon: 'share' }]
+                : []),
+              ...(canForecast
+                ? [{ label: 'Reports', path: '/company/sales/reports', icon: 'chart' }]
                 : []),
             ],
           },
@@ -371,6 +395,33 @@ export function CompanySidebar({
       items: [
         { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
         { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+        ...(canViewAttendanceReports
+          ? [
+              {
+                label: 'Employee Wise',
+                path: '/company/attendance/employee-wise',
+                icon: 'users',
+              },
+            ]
+          : []),
+        ...(canViewAttendanceReports
+          ? [
+              {
+                label: 'Attendance Report',
+                path: '/company/attendance/report',
+                icon: 'grid',
+              },
+            ]
+          : []),
+        ...(canViewAttendanceReports
+          ? [
+              {
+                label: 'Daily Late Report',
+                path: '/company/attendance/late',
+                icon: 'clock',
+              },
+            ]
+          : []),
         ...(canViewLiveBoard
           ? [
               {
@@ -431,6 +482,79 @@ export function CompanySidebar({
           : []),
       ],
     },
+    ...(canViewAdvances ||
+    canManageAdvances ||
+    canViewPenalties ||
+    canManagePenalties ||
+    canViewExpenses ||
+    canApproveExpenses ||
+    canViewTa
+      ? [
+          {
+            label: 'Advances & Penalties',
+            items: [
+              ...(canViewAdvances
+                ? [
+                    {
+                      label: 'My Advances',
+                      path: '/company/advance/mine',
+                      icon: 'dollar-sign',
+                    },
+                  ]
+                : []),
+              ...(canManageAdvances
+                ? [
+                    {
+                      label: 'Advance Requests',
+                      path: '/company/advance/requests',
+                      icon: 'inbox',
+                    },
+                  ]
+                : []),
+              ...(canManagePenalties
+                ? [
+                    {
+                      label: 'Penalties',
+                      path: '/company/penalties',
+                      icon: 'alert-circle',
+                    },
+                  ]
+                : !canManageAdvances && canViewPenalties
+                  ? [
+                      {
+                        label: 'Penalties',
+                        path: '/company/my-penalties',
+                        icon: 'alert-circle',
+                      },
+                    ]
+                  : []),
+              ...(canViewExpenses
+                ? [
+                    {
+                      label: 'My Expenses',
+                      path: '/company/expenses/mine',
+                      icon: 'file-text',
+                    },
+                  ]
+                : []),
+              ...(canApproveExpenses
+                ? [
+                    {
+                      label: 'Expense Approvals',
+                      path: '/company/expenses/approvals',
+                      icon: 'inbox',
+                    },
+                  ]
+                : []),
+              ...(canManageTa
+                ? [{ label: 'TA Management', path: '/company/ta', icon: 'map' }]
+                : canViewTa
+                  ? [{ label: 'My TA', path: '/company/my-ta', icon: 'map' }]
+                  : []),
+            ],
+          },
+        ]
+      : []),
     {
       label: 'Payroll',
       items: [

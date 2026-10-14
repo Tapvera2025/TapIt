@@ -2,7 +2,7 @@ import { visibilityFilter, type Resource } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { getClientSummary } from '../clients/facade.js';
-import { addProjectConversationMembers, createProjectConversation, renameProjectConversation } from '../chat/facade.js';
+import { addProjectConversationMembers, archiveProjectConversation, createProjectConversation, removeProjectConversationMember, renameProjectConversation } from '../chat/facade.js';
 import { ProjectClientNotFoundError, ProjectDiscussionGroupExistsError, ProjectNotFoundError, ProjectValidationError } from './errors.js';
 import { notifyProjectAssigned } from './notifications.js';
 import {
@@ -173,4 +173,29 @@ export async function updateDiscussionGroup(
   const conversationId = existing.discussionConversationId;
   await db.transaction(ctx, (tx) => renameProjectConversation(tx, ctx.organizationId, conversationId, input.name, input.description));
   return { conversationId };
+}
+
+async function discussionGroupForProject(ctx: RequestContext, projectId: string): Promise<{ id: string; name: string }> {
+  const project = await findProjectById(ctx, projectId);
+  if (!project) throw new ProjectNotFoundError();
+  if (!project.discussionConversationId) throw new ProjectValidationError('This project has no discussion group yet');
+  return { id: project.discussionConversationId, name: project.name };
+}
+
+export async function addDiscussionGroupMembers(ctx: RequestContext, projectId: string, memberIds: string[]): Promise<{ conversationId: string }> {
+  const group = await discussionGroupForProject(ctx, projectId);
+  await db.transaction(ctx, (tx) => addProjectConversationMembers(tx, ctx, group.id, memberIds, group.name));
+  return { conversationId: group.id };
+}
+
+export async function removeDiscussionGroupMember(ctx: RequestContext, projectId: string, userId: string): Promise<{ conversationId: string }> {
+  const group = await discussionGroupForProject(ctx, projectId);
+  await db.transaction(ctx, (tx) => removeProjectConversationMember(tx, ctx, group.id, userId, group.name));
+  return { conversationId: group.id };
+}
+
+export async function archiveDiscussionGroup(ctx: RequestContext, projectId: string): Promise<{ archived: true }> {
+  const group = await discussionGroupForProject(ctx, projectId);
+  await db.transaction(ctx, (tx) => archiveProjectConversation(tx, ctx.organizationId, group.id));
+  return { archived: true };
 }

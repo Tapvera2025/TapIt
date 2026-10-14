@@ -77,9 +77,14 @@ export const updateDiscussionGroupSchema = z.object({
   description: z.string().trim().max(2000).optional().nullable(),
 });
 
+export const discussionGroupMembersSchema = z.object({
+  memberIds: z.array(z.string().uuid()).min(1, 'Select at least one member').max(500),
+});
+
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
 export type ProjectTeamInput = z.infer<typeof projectTeamSchema>;
 export type ProjectListQueryInput = z.infer<typeof projectListQuerySchema>;
 export type CreateDiscussionGroupInput = z.infer<typeof createDiscussionGroupSchema>;
 export type UpdateDiscussionGroupInput = z.infer<typeof updateDiscussionGroupSchema>;
+export type DiscussionGroupMembersInput = z.infer<typeof discussionGroupMembersSchema>;

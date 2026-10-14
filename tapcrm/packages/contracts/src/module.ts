@@ -28,7 +28,10 @@ export const PEOPLE_MODULES = [
   'biometric',
   'leave',
   'holidays',
+  'ta',
   'payroll',
+  'advance',
+  'penalties',
   'performance',
   'recruitment',
 ] as const;
@@ -119,10 +122,13 @@ export const MODULE_PHASE: Readonly<Record<ModuleName, number>> = {
   shifts: 1,
   biometric: 1,
   holidays: 1,
+  ta: 2,
   leave: 1,
   recruitment: 1,
   // P2 — Payroll and Governance
   payroll: 2,
+  advance: 2,
+  penalties: 2,
   'break-management': 2,
   performance: 2,
   // P3 — Sales

@@ -12,8 +12,9 @@ import {
   rejectCorrection,
   requestCorrection,
 } from './correction.js';
-import { getExportStatus, requestExport } from './export.js';
+import { directRangeExport, getExportStatus } from './export.js';
 import { dayDetail, listRecords } from './service.js';
+import { registerAttendanceReportingRoutes } from './reporting/routes.js';
 import {
   approveSchema,
   bulkCorrectionSchema,
@@ -66,6 +67,7 @@ async function loadCorrectionResource(ctx: RequestContext, id: string): Promise<
 }
 
 export function registerAttendanceRoutes(): void {
+  registerAttendanceReportingRoutes();
   // /corrections/request and /corrections/bulk must be registered before /corrections/:id
   // to avoid the literal path segments matching `:id`.
   route({
@@ -122,8 +124,13 @@ export function registerAttendanceRoutes(): void {
     action: 'attendance:export',
     module: 'attendance',
     // Accepted: the file does not exist yet. The body says where to ask for it.
-    status: 202,
-    handler: async ({ ctx, body }) => requestExport(ctx, exportSchema.parse(body)),
+    handler: async ({ ctx, body, res }) => {
+      const file = await directRangeExport(ctx, exportSchema.parse(body));
+      res.setHeader('Content-Type', file.contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+      res.send(file.body);
+      return null;
+    },
   });
 
   route({

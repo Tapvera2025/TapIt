@@ -100,6 +100,7 @@ export interface ExportRequestRow {
   fromDate: DateOnly;
   toDate: DateOnly;
   userIds: string[];
+  format: 'csv' | 'xlsx';
   status: ExportState;
   objectKey: string | null;
   rowCount: number | null;
@@ -114,12 +115,13 @@ export async function insertExportRequest(
     from: DateOnly;
     to: DateOnly;
     userIds: readonly string[];
+    format?: 'csv' | 'xlsx';
   },
 ): Promise<string> {
   const row = await tx.one<{ id: string }>(sql`
-    INSERT INTO attendance_export_request (organization_id, requested_by, from_date, to_date, user_ids)
+    INSERT INTO attendance_export_request (organization_id, requested_by, from_date, to_date, user_ids, format)
     VALUES (${input.organizationId}, ${input.requestedBy}, ${input.from}, ${input.to},
-            ${[...input.userIds]}::uuid[])
+            ${[...input.userIds]}::uuid[], ${input.format ?? 'csv'})
     RETURNING id
   `);
   return row.id;
@@ -131,7 +133,7 @@ export async function findExportRequest(
 ): Promise<ExportRequestRow | null> {
   return tx.maybeOne<ExportRequestRow>(sql`
     SELECT id, requested_by, from_date::text AS from_date, to_date::text AS to_date,
-           user_ids::text[] AS user_ids, status, object_key, row_count, error_message
+           user_ids::text[] AS user_ids, format, status, object_key, row_count, error_message
     FROM attendance_export_request WHERE id = ${id}
   `);
 }

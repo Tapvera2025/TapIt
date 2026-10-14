@@ -25,6 +25,8 @@ function context(): PolicyEvaluationContext {
       poolIds: async () => new Set(['team-3']),
       subordinateIds: async () => new Set<string>(),
       poolMemberIds: async () => new Set<string>(),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
     },
   };
 }

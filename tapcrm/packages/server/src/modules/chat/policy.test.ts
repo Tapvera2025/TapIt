@@ -47,6 +47,8 @@ describe('chat resource policy', () => {
         teamIds: async () => new Set(['team-1']),
         poolIds: async () => new Set(),
         poolMemberIds: async () => new Set(),
+        teamMemberIds: async () => new Set<string>(),
+        departmentMemberIds: async () => new Set<string>(),
         departmentId: async () => 'dept-1',
       },
       policies: {

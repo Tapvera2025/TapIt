@@ -1,4 +1,4 @@
-import { useTheme, ACCENT_COLORS, type AccentColor } from './ThemeContext.js';
+import { useTheme, ACCENT_COLORS } from './ThemeContext.js';
 
 interface ColorAppearanceTabProps {
   showModeToggle?: boolean;

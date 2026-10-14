@@ -59,6 +59,8 @@ describe('Task Bug Fixes Regression Suite — Bug #1 and Bug #2', () => {
         poolIds: async () => new Set<string>(),
         subordinateIds: async () => new Set<string>(),
         poolMemberIds: async () => new Set<string>(),
+        teamMemberIds: async () => new Set<string>(),
+        departmentMemberIds: async () => new Set<string>(),
       },
     };
   }
@@ -353,16 +355,27 @@ describe.skipIf(!dbIntegrationEnabled)('Task Bug Fixes Integration Tests (Postgr
       `,
     );
 
+    // Employees hold tasks:assign at "own" scope: they may assign themselves and
+    // their reports (resolveAssignableScope), but only if the position grants it.
+    await asOwner(
+      'grant tasks:assign to the test position',
+      sql`
+        INSERT INTO position_policy (organization_id, position_id, action, allowed, scope)
+        VALUES (${orgId}, ${posId}, 'tasks:assign', true, 'own')
+        ON CONFLICT DO NOTHING;
+      `,
+    );
+
     // 4. Setup users
     await asOwner(
       'setup users',
       sql`
-        INSERT INTO app_user (id, organization_id, email, full_name, account_type, department_id, position_id, employee_id)
+        INSERT INTO app_user (id, organization_id, email, full_name, account_type, department_id, position_id, employee_id, reports_to)
         VALUES
-          (${superAdminId}, ${orgId}, ${`admin-${orgId.slice(0, 4)}@bugtest.local`}, 'Super Admin', 'super-admin', NULL, NULL, 'TASK-SA01'),
-          (${empAId}, ${orgId}, ${`empA-${orgId.slice(0, 4)}@bugtest.local`}, 'Employee A', 'employee', ${deptId}, ${posId}, 'TASK-EA01'),
-          (${empBId}, ${orgId}, ${`empB-${orgId.slice(0, 4)}@bugtest.local`}, 'Employee B', 'employee', ${deptId}, ${posId}, 'TASK-EB01'),
-          (${empCId}, ${orgId}, ${`empC-${orgId.slice(0, 4)}@bugtest.local`}, 'Employee C', 'employee', ${deptId}, ${posId}, 'TASK-EC01')
+          (${superAdminId}, ${orgId}, ${`admin-${orgId.slice(0, 4)}@bugtest.local`}, 'Super Admin', 'super-admin', NULL, NULL, 'TASK-SA01', NULL),
+          (${empAId}, ${orgId}, ${`empA-${orgId.slice(0, 4)}@bugtest.local`}, 'Employee A', 'employee', ${deptId}, ${posId}, 'TASK-EA01', NULL),
+          (${empBId}, ${orgId}, ${`empB-${orgId.slice(0, 4)}@bugtest.local`}, 'Employee B', 'employee', ${deptId}, ${posId}, 'TASK-EB01', ${empAId}),
+          (${empCId}, ${orgId}, ${`empC-${orgId.slice(0, 4)}@bugtest.local`}, 'Employee C', 'employee', ${deptId}, ${posId}, 'TASK-EC01', NULL)
         ON CONFLICT DO NOTHING;
       `,
     );

@@ -60,8 +60,8 @@ export function HiringDialog({
         reportsTo: managerId.trim() || undefined,
       });
 
-      setHiredResult({ employeeId: res.employeeId });
-      onHired(res.employeeId);
+      setHiredResult({ employeeId: res.employee.id });
+      onHired(res.employee.id);
     } catch (cause) {
       setError(
         cause instanceof Error

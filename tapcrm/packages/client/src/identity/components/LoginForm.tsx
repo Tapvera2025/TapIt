@@ -1,14 +1,32 @@
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
-import { identityLogin, IdentityApiError, type IdentityLoginResult, type GeolocationInput } from '../api/authApi.js';
+import {
+  devInstantPasswordReset,
+  identityLogin,
+  IdentityApiError,
+  type DevPasswordReset,
+  type IdentityLoginResult,
+  type GeolocationInput,
+} from '../api/authApi.js';
+import { DevPasswordNotice } from './DevPasswordNotice.js';
 
-export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result: IdentityLoginResult) => void; onForgotPassword: () => void }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function LoginForm({ onSuccess, onForgotPassword, devReset: givenDevReset = null }: {
+  onSuccess: (result: IdentityLoginResult) => void;
+  /** Opens the emailed-link page, carrying over the address typed here. */
+  onForgotPassword: (email: string) => void;
+  /** Development only: a new admin password made on the "Forgot password" page. */
+  devReset?: DevPasswordReset | null;
+}) {
+  const [email, setEmail] = useState(givenDevReset?.email ?? '');
+  const [password, setPassword] = useState(givenDevReset?.password ?? '');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [devReset, setDevReset] = useState<DevPasswordReset | null>(givenDevReset);
+  const [resetting, setResetting] = useState(false);
   const [location, setLocation] = useState<GeolocationInput | undefined>();
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
@@ -38,7 +56,7 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
     event.preventDefault();
     const nextErrors: { email?: string; password?: string } = {};
     if (!email.trim()) nextErrors.email = 'Email is required.';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = 'Enter a valid email address.';
+    else if (!EMAIL_PATTERN.test(email.trim())) nextErrors.email = 'Enter a valid email address.';
     if (!password) nextErrors.password = 'Password is required.';
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
@@ -62,6 +80,40 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
     }
   }
 
+  /**
+   * In development, with DEV_INSTANT_PASSWORD_RESET on in the API, a company
+   * admin who typed their email gets a new password right here. Everyone else
+   * (and every production build) goes to the emailed-link page.
+   */
+  async function forgotPassword() {
+    const typed = email.trim();
+    if (!import.meta.env.DEV || !EMAIL_PATTERN.test(typed)) {
+      onForgotPassword(typed);
+      return;
+    }
+    setResetting(true);
+    setError('');
+    try {
+      const reset = await devInstantPasswordReset(typed);
+      if (!reset) {
+        onForgotPassword(typed);
+        return;
+      }
+      setDevReset(reset);
+      setEmail(reset.email);
+      setPassword(reset.password);
+      setFieldErrors({});
+    } catch (cause) {
+      if (cause instanceof IdentityApiError && cause.code === 'IDENTITY_DEV_RESET_ADMIN_ONLY') {
+        onForgotPassword(typed);
+        return;
+      }
+      setError(cause instanceof Error ? cause.message : 'Could not make a new password.');
+    } finally {
+      setResetting(false);
+    }
+  }
+
   return (
     <form onSubmit={(event) => { void submit(event); }} className="relative rounded-[22px] border border-app-border bg-app-surface p-8 shadow-[0_24px_80px_rgba(0,0,0,0.14)] max-[560px]:p-6">
       <ThemeToggle compact className="absolute right-5 top-5 max-[560px]:right-4 max-[560px]:top-4" />
@@ -71,6 +123,7 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
       <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-app-accent">Company workspace</p>
       <h1 className="font-display text-[clamp(30px,7vw,42px)] font-bold leading-none tracking-[-0.05em]">Welcome back.</h1>
       <p className="mt-3 text-sm leading-6 text-app-muted">Sign in with your company account to continue to your workspace.</p>
+      {devReset && <DevPasswordNotice reset={devReset} />}
       <label className="mt-7 block">
         <span className="mb-2 block text-xs font-semibold text-app-muted">Email address</span>
         <input className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20" type="email" autoComplete="username" value={email} onChange={(event) => { setEmail(event.target.value); setFieldErrors((current) => { const next = { ...current }; delete next.email; return next; }); }} placeholder="admin@company.com" aria-invalid={Boolean(fieldErrors.email)} />
@@ -106,11 +159,14 @@ export function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: (result:
         </span>
         {fieldErrors.password && <span className="mt-1 block text-xs text-app-danger" role="alert">{fieldErrors.password}</span>}
       </label>
-      <button type="button" className="mx-auto mt-4 block border-0 bg-transparent p-0 text-xs font-semibold text-app-accent hover:underline" onClick={onForgotPassword}>Forgot password?</button>
-      {error && <p className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-app-danger" role="alert">{error}</p>}
       <button className="mt-6 block w-full rounded-[10px] bg-app-accent px-4 py-3 font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={busy}>
         {busy ? 'Signing in...' : 'Sign in to company workspace'}
       </button>
+      <button type="button" className="mx-auto mt-4 block border-0 bg-transparent p-0 text-xs font-semibold text-app-accent hover:underline disabled:cursor-wait disabled:opacity-60 disabled:no-underline" onClick={() => { void forgotPassword(); }} disabled={resetting}>
+        {resetting ? 'Making a new password...' : 'Forgot password?'}
+      </button>
+      {error && <p className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-app-danger" role="alert">{error}</p>}
+      <p className="mt-6 text-center text-xs text-app-muted">Platform administrators sign in through the separate Master Admin portal.</p>
     </form>
   );
 }

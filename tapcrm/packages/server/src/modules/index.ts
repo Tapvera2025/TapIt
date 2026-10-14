@@ -1,4 +1,6 @@
 import { registerBreakPolicyResolver } from './attendance/facade.js';
+import { registerPaymentReadinessPort } from './sales/deals/payments-port.js';
+import { manualPaymentReadinessPort } from './sales/deals/manual-payment-port.js';
 import { breakPolicyResolverImpl } from './break-management/resolver-service.js';
 import { registerPayrollJobs, registerPayrollPorts } from './payroll/facade.js';
 import { registerBreakPolicies } from './break-management/policy.js';
@@ -38,7 +40,11 @@ import {
   registerLiveStatusRoutes,
   registerStatusChannel,
 } from './live-status/index.js';
-import { registerLeavePolicies, registerLeaveRoutes, registerLeaveJobs } from './leave/index.js';
+import {
+  registerLeavePolicies,
+  registerLeaveRoutes,
+  registerLeaveJobs,
+} from './leave/index.js';
 import { registerBreakJobs } from './break-management/jobs.js';
 import { registerPayrollPolicies } from './payroll/policy.js';
 import { registerPayrollRoutes } from './payroll/routes.js';
@@ -48,11 +54,22 @@ import { registerTerritoryPolicies } from './sales/territories/policy.js';
 import { registerTerritoryRoutes } from './sales/territories/routes.js';
 import { registerLeadPolicies } from './sales/leads/policy.js';
 import { registerLeadRoutes } from './sales/leads/routes.js';
+import { registerBidPoolRoutes } from './sales/bidding/routes.js';
+import { registerLeadImportRoutes } from './sales/imports/routes.js';
+import { registerDealPolicies } from './sales/deals/policy.js';
+import { registerDealRoutes } from './sales/deals/routes.js';
+import { registerProposalRoutes } from './sales/proposals/routes.js';
+import { registerApprovalPolicies } from './sales/approvals/policy.js';
+import { registerApprovalRoutes } from './sales/approvals/routes.js';
+import { registerContractRoutes } from './sales/contracts/routes.js';
+import { registerDeliveryBriefRoutes } from './sales/delivery/routes.js';
+import { registerDeliveryPolicies } from './sales/delivery/policy.js';
 import { registerHandoverPolicies } from './sales/handover/policy.js';
 import { registerHandoverRoutes } from './sales/handover/routes.js';
 import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
 import { registerCallbackRoutes } from './sales/leads/callback-routes.js';
 import { registerSalesJobs } from './sales/leads/jobs.js';
+import { registerSalesIntakeJobs } from './sales/intake/jobs.js';
 import { registerRecruitmentPolicies } from './recruitment/policy.js';
 import { registerRecruitmentRoutes } from './recruitment/routes.js';
 import { registerNotificationJobs } from './notifications/jobs.js';
@@ -61,10 +78,18 @@ import {
   registerMyNotepadRoutes,
   registerNotepadPolicies,
 } from './myNotepad/index.js';
-import { registerChatPolicies, registerChatRealtime, registerChatRoutes } from './chat/index.js';
+import {
+  registerChatPolicies,
+  registerChatRealtime,
+  registerChatRoutes,
+} from './chat/index.js';
 import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
-import { registerProjectPolicies, registerProjectRoutes } from './projects/index.js';
+import { registerProjectPolicies, registerProjectReportJobs, registerProjectRoutes } from './projects/index.js';
 import { registerMyTodoRoutes } from './myTodo/routes.js';
+import { registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
+import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
+import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
+import { registerTaRoutes } from './ta/routes.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -73,6 +98,11 @@ import { registerMyTodoRoutes } from './myTodo/routes.js';
  */
 export function initializePorts(): void {
   registerBreakPolicyResolver(breakPolicyResolverImpl);
+  // Pilot-grade manual payment-confirmation port. Replace when a real
+  // gateway (Stripe/Razorpay) ships — the registration throws on second
+  // call so a gateway port must be wired at the same boot step, not in
+  // addition.
+  registerPaymentReadinessPort(manualPaymentReadinessPort);
   registerPayrollPorts();
 }
 
@@ -92,9 +122,15 @@ export function registerAllPolicies(): void {
   registerLeavePolicies();
   registerBreakPolicies();
   registerPayrollPolicies();
+  registerAdvancePolicies();
+  registerPenaltyPolicies();
+  registerExpensePolicies();
   registerTasksPolicies();
   registerTerritoryPolicies();
   registerLeadPolicies();
+  registerDealPolicies();
+  registerApprovalPolicies();
+  registerDeliveryPolicies();
   registerHandoverPolicies();
   registerCallbackPolicies();
   registerRecruitmentPolicies();
@@ -124,9 +160,20 @@ export function registerAllRoutes(): void {
   registerLeaveRoutes();
   registerBreakManagementRoutes();
   registerPayrollRoutes();
+  registerTaRoutes();
+  registerAdvanceRoutes();
+  registerPenaltyRoutes();
+  registerExpenseRoutes();
   registerTasksRoutes();
   registerTerritoryRoutes();
   registerLeadRoutes();
+  registerBidPoolRoutes();
+  registerLeadImportRoutes();
+  registerDealRoutes();
+  registerProposalRoutes();
+  registerApprovalRoutes();
+  registerContractRoutes();
+  registerDeliveryBriefRoutes();
   registerHandoverRoutes();
   registerCallbackRoutes();
   registerRecruitmentRoutes();
@@ -157,4 +204,6 @@ export function registerAllJobs(): void {
   registerPayrollJobs();
   registerNotificationJobs();
   registerSalesJobs();
+  registerSalesIntakeJobs();
+  registerProjectReportJobs();
 }

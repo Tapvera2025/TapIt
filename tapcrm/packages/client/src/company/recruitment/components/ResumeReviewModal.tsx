@@ -1,15 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
 import { Icon } from '../../../ui/Icon.js';
+import { getIdentityAccessToken } from '../../../identity/api/authApi.js';
 import {
   convertResumeSubmission,
   getResumeDownloadUrl,
   updateResumeSubmissionStatus,
 } from '../api/recruitmentApi.js';
 import { ResumeSubmissionStatusBadge } from './StatusBadge.js';
-import type {
-  CandidateResumeSubmission,
-  CandidateSource,
+import { AtsScanPanel } from './AtsScanPanel.js';
+import { ResumeParsedDetails } from './ResumeParsedDetails.js';
+import { resumeNotes } from '../resumeAutofill.js';
+import { atsScanSummary, type AtsScanSummary } from '@tapcrm/contracts';
+import {
+  submissionSource,
+  type CandidateResumeSubmission,
+  type CandidateSource,
 } from '../types/index.js';
 
 export function ResumeReviewModal({
@@ -17,11 +23,14 @@ export function ResumeReviewModal({
   onClose,
   onUpdated,
   onCandidateCreated,
+  onAtsUpdated,
 }: {
   readonly submission: CandidateResumeSubmission;
   readonly onClose: () => void;
   readonly onUpdated: (submission: CandidateResumeSubmission) => void;
   readonly onCandidateCreated?: ((candidateId: string) => void) | undefined;
+  /** A new ATS report exists for this application; the inbox row can show it. */
+  readonly onAtsUpdated?: ((submissionId: string, summary: AtsScanSummary) => void) | undefined;
 }): React.JSX.Element {
   const [submission, setSubmission] = useState<CandidateResumeSubmission>(initialSubmission);
   const [converting, setConverting] = useState(false);
@@ -34,10 +43,11 @@ export function ResumeReviewModal({
   const [email, setEmail] = useState(submission.email);
   const [phone, setPhone] = useState(submission.phone ?? '');
   const [source, setSource] = useState<CandidateSource>(
-    submission.source === 'application_link' ? 'career_site' : 'direct',
+    submissionSource(submission) === 'application_link' ? 'career_site' : 'direct',
   );
+  // Notes start from what the parser read; records from the first parser version had no reliable summary.
   const [screeningNotes, setScreeningNotes] = useState(
-    submission.parsedData?.summary ? `Extracted Summary: ${submission.parsedData.summary}` : '',
+    submission.parsedData?.parserVersion ? resumeNotes(submission.parsedData) : '',
   );
 
   const [downloading, setDownloading] = useState(false);
@@ -47,14 +57,30 @@ export function ResumeReviewModal({
 
   const parsed = submission.parsedData;
 
+  // A decision started from the ATS panel opens its form higher up the window.
+  const decisionForm = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (rejecting || converting) decisionForm.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [rejecting, converting]);
+
   async function handleDownloadResume() {
     setDownloading(true);
     setError(null);
     try {
       const res = await getResumeDownloadUrl(submission.id);
-      const url = res.downloadUrl || res.url;
-      if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer');
+      const rawUrl = res.downloadUrl || res.url;
+      if (!rawUrl) return;
+      // Proxy URLs are relative paths — fetch through the API with auth then open as blob
+      if (rawUrl.startsWith('/')) {
+        const token = getIdentityAccessToken();
+        const fetchRes = await fetch(rawUrl, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!fetchRes.ok) throw new Error('Failed to download resume');
+        const blob = await fetchRes.blob();
+        window.open(URL.createObjectURL(blob), '_blank', 'noopener,noreferrer');
+      } else {
+        window.open(rawUrl, '_blank', 'noopener,noreferrer');
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to retrieve resume download link');
@@ -72,8 +98,10 @@ export function ResumeReviewModal({
         'rejected',
         rejectionReason.trim() || undefined,
       );
-      setSubmission(updated);
-      onUpdated(updated);
+      // The list row keeps its ATS summary; the status endpoint does not return it.
+      const merged = { ...updated, ats: submission.ats };
+      setSubmission(merged);
+      onUpdated(merged);
       setRejecting(false);
       setSuccessMsg('Submission marked as rejected.');
     } catch (cause) {
@@ -96,8 +124,9 @@ export function ResumeReviewModal({
         screeningNotes: screeningNotes.trim() || undefined,
       });
 
-      setSubmission(res.submission);
-      onUpdated(res.submission);
+      const merged = { ...res.submission, ats: submission.ats };
+      setSubmission(merged);
+      onUpdated(merged);
       setConverting(false);
       setSuccessMsg('Candidate created successfully from resume submission!');
 
@@ -119,6 +148,7 @@ export function ResumeReviewModal({
     <Modal
       title={`${submission.firstName} ${submission.lastName} — ${submission.requisitionNumber ?? 'Requisition'}`}
       onClose={onClose}
+      size="lg"
       // The window stays open after a rejection or conversion, so only a half-done one counts as unsaved.
       dirty={rejecting || converting}
     >
@@ -171,12 +201,12 @@ export function ResumeReviewModal({
             <div>
               <span className="text-app-muted">Source: </span>
               <span className="capitalize font-medium text-app-foreground">
-                {submission.source === 'application_link' ? 'Campus Application Link' : 'HR Manual Upload'}
+                {submissionSource(submission) === 'application_link' ? 'Campus Application Link' : 'HR Manual Upload'}
               </span>
             </div>
             <div>
               <span className="text-app-muted">File: </span>
-              <span className="font-mono text-app-foreground">{submission.resumeFileName}</span>
+              <span className="font-mono text-app-foreground">{submission.resumeFilename}</span>
             </div>
             <div>
               <span className="text-app-muted">File Size: </span>
@@ -190,6 +220,7 @@ export function ResumeReviewModal({
         </div>
 
         {/* Rejection Form Mode */}
+        <div ref={decisionForm} />
         {rejecting && (
           <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 space-y-3">
             <h4 className="font-semibold text-rose-800 dark:text-rose-200">
@@ -315,94 +346,27 @@ export function ResumeReviewModal({
         ) : (
           /* Parsed Data Showcase */
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h4 className="font-semibold text-app-foreground">
-                  Extracted Resume Intelligence
-                </h4>
-                <span className="rounded-full bg-app-accent/10 px-2 py-0.5 text-[10px] font-bold text-app-accent">
-                  Heuristic Parser
-                </span>
-              </div>
-              <p className="text-[11px] text-app-muted">
-                Extracted automatically · Non-guaranteed
-              </p>
-            </div>
-
-            {/* Skills */}
-            <div className="rounded-xl border border-app-border bg-app-surface p-4">
-              <h5 className="text-xs font-bold uppercase tracking-wider text-app-muted">
-                Identified Technical Skills
-              </h5>
-              {parsed?.skills && parsed.skills.length > 0 ? (
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {parsed.skills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="rounded-md border border-app-border bg-app-surface-raised px-2.5 py-1 text-xs font-medium capitalize text-app-foreground"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-2 text-xs text-app-muted">
-                  No standard tech keywords detected in resume text.
-                </p>
-              )}
-            </div>
-
-            {/* Education & Experience */}
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-xl border border-app-border bg-app-surface p-4">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-app-muted">
-                  Education Details
-                </h5>
-                {parsed?.education && parsed.education.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {parsed.education.map((edu, idx) => (
-                      <div key={idx} className="rounded-lg bg-app-background p-2 text-xs">
-                        <p className="font-semibold text-app-foreground">{edu.degree ?? 'Degree'}</p>
-                        <p className="text-app-muted">{edu.institution ?? 'Institution'}</p>
-                        {edu.year && <p className="text-[11px] text-app-accent">{edu.year}</p>}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-app-muted">No explicit degree patterns identified.</p>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-app-border bg-app-surface p-4">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-app-muted">
-                  Experience Mentions
-                </h5>
-                {parsed?.experience && parsed.experience.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {parsed.experience.map((exp, idx) => (
-                      <div key={idx} className="rounded-lg bg-app-background p-2 text-xs">
-                        <p className="font-semibold text-app-foreground">{exp.title ?? 'Position'}</p>
-                        {exp.duration && <p className="text-[11px] text-app-accent">{exp.duration}</p>}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-app-muted">No standard job titles detected.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Raw Text Preview */}
-            {parsed?.rawTextPreview && (
-              <div className="rounded-xl border border-app-border bg-app-surface p-4">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-app-muted">
-                  Resume Text Excerpt
-                </h5>
-                <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap rounded-lg bg-app-background p-2.5 font-mono text-[11px] text-app-muted">
-                  {parsed.rawTextPreview}
-                </pre>
-              </div>
+            {!rejecting && (
+              <AtsScanPanel
+                submission={submission}
+                onScanned={(report) => {
+                  const summary = atsScanSummary(report);
+                  setSubmission((previous) => ({ ...previous, ats: summary }));
+                  onAtsUpdated?.(submission.id, summary);
+                }}
+                onReject={(note) => {
+                  if (note && !rejectionReason.trim()) setRejectionReason(note);
+                  setRejecting(true);
+                }}
+                onAccept={(note) => {
+                  // The ATS line leads the notes so it is the first thing read on the candidate profile.
+                  if (note) setScreeningNotes((previous) => (previous.trim() ? `${note}\n\n${previous.trim()}` : note));
+                  setConverting(true);
+                }}
+              />
             )}
+
+            <ResumeParsedDetails parsed={parsed} />
           </div>
         )}
 
