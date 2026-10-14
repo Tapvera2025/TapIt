@@ -277,6 +277,7 @@ export async function findWeekdaySchedule(
 export async function findCurrentWeekdayScheduleAssignment(
   tx: Tx,
   userId: string,
+  asOfDate: DateOnly,
 ): Promise<WeekdayScheduleAssignmentRow | null> {
   return tx.maybeOne<WeekdayScheduleAssignmentRow>(sql`
     SELECT a.schedule_id AS "scheduleId", s.name AS "scheduleName",
@@ -286,8 +287,8 @@ export async function findCurrentWeekdayScheduleAssignment(
     JOIN weekday_schedule s
       ON s.organization_id = a.organization_id AND s.id = a.schedule_id
     WHERE a.user_id = ${userId}
-      AND a.effective_from <= CURRENT_DATE
-      AND (a.effective_to IS NULL OR a.effective_to > CURRENT_DATE)
+      AND a.effective_from <= ${asOfDate}
+      AND (a.effective_to IS NULL OR a.effective_to > ${asOfDate})
     ORDER BY a.effective_from DESC
     LIMIT 1
   `);

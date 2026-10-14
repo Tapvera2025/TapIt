@@ -152,10 +152,14 @@ export async function listWeekdaySchedules(ctx: RequestContext) {
   return db.transaction(ctx, (tx) => repo.listWeekdaySchedules(tx));
 }
 
-export async function getEmployeeWeekdaySchedule(ctx: RequestContext, userId: string) {
+export async function getEmployeeWeekdaySchedule(
+  ctx: RequestContext,
+  userId: string,
+  clock: Clock = systemClock,
+) {
   return db.transaction(ctx, async (tx) => {
     await loadSubject(ctx, tx, userId, 'shifts:view');
-    return repo.findCurrentWeekdayScheduleAssignment(tx, userId);
+    return repo.findCurrentWeekdayScheduleAssignment(tx, userId, await organizationToday(tx, clock));
   });
 }
 
