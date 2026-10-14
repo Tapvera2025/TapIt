@@ -732,7 +732,9 @@ export function CompanySidebar({
                           title={collapsed ? item.label : undefined}
                         >
                           <span className="flex items-center gap-3">
-                            <Icon name={item.icon} />
+                            <span data-sidebar-icon={item.icon} className="inline-flex shrink-0 items-center justify-center">
+                              <Icon name={item.icon} />
+                            </span>
                             <span className={collapsed ? 'xl:hidden' : ''}>{item.label}</span>
                           </span>
                           {item.children && (
