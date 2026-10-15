@@ -918,7 +918,6 @@
       transition: background 160ms ease, transform 160ms ease;
     }
 
-    .sidebar-resize-handle:hover > span,
     .sidebar-resize-handle:focus-visible > span {
       background: color-mix(in srgb, var(--sidebar-active-fg) 55%, transparent);
       transform: scaleY(1.15);
@@ -1134,21 +1133,11 @@
     border: 1px solid transparent;
   }
 
-  .sidebar-logout:hover {
-    border-color: rgba(244, 63, 94, 0.18);
-    background: rgba(244, 63, 94, 0.08);
-  }
-
   .workspace-sidebar nav button {
     transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   }
 
-  .workspace-sidebar nav button:not([aria-current='page']):hover {
-    transform: none;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sidebar-foreground) 8%, transparent);
-  }
-
-  .workspace-sidebar nav button[aria-current='page'] {
+  .workspace-sidebar nav button[data-company-nav-item][aria-current='page'] {
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sidebar-active-fg) 16%, transparent), 0 4px 12px -10px color-mix(in srgb, var(--theme-primary) 70%, transparent);
   }
 
@@ -1429,6 +1418,65 @@ nav button[aria-current='page']::before {
 }
 .workspace-sidebar nav button[aria-current='page']::before {
   display: none;
+}
+
+/* One shared selection surface travels between primary sidebar items. It uses
+   the existing active color; only its position and elastic settling change. */
+@media (min-width: 1280px) {
+  :root:not(.dark) .workspace-sidebar {
+    background: color-mix(in srgb, var(--sidebar-background) 92%, var(--theme-primary) 8%) !important;
+  }
+
+  .workspace-sidebar .company-sidebar-active-indicator {
+    position: absolute;
+    z-index: 0;
+    top: var(--sidebar-pill-top, 0px);
+    left: var(--sidebar-pill-left, 0px);
+    width: var(--sidebar-pill-width, 0px);
+    height: var(--sidebar-pill-height, 0px);
+    border-radius: 0.75rem;
+    background: var(--sidebar-active-bg);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sidebar-active-fg) 16%, transparent), 0 4px 12px -10px color-mix(in srgb, var(--theme-primary) 70%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transform-origin: var(--sidebar-pill-origin, center);
+    transform: scaleX(1) scaleY(1);
+    transition: top 420ms cubic-bezier(0.2, 0.8, 0.25, 1), left 420ms cubic-bezier(0.2, 0.8, 0.25, 1), width 240ms ease, height 240ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.25, 1);
+    will-change: top, left, transform;
+  }
+
+  .workspace-sidebar .company-sidebar-active-indicator[data-moving='true'] {
+    animation: sidebar-active-pill-elastic 480ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  .workspace-sidebar nav button[data-company-nav-item][aria-current='page'] {
+    position: relative;
+    background: transparent !important;
+    box-shadow: none !important;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .workspace-sidebar nav button[data-company-nav-item][aria-current='page']:active {
+    cursor: grabbing;
+  }
+
+  .workspace-sidebar .company-sidebar-active-indicator[data-dragging='true'] {
+    transition: none;
+    transform: scaleX(var(--sidebar-pill-squash, 1)) scaleY(var(--sidebar-pill-stretch, 1));
+  }
+
+  .dark .workspace-sidebar .company-sidebar-active-indicator {
+    box-shadow: 0 2px 10px -1px rgba(0, 0, 0, 0.25);
+  }
+
+  @keyframes sidebar-active-pill-elastic {
+    0% { transform: scaleX(0.96) scaleY(0.9); }
+    38% { transform: scaleX(1.025) scaleY(1.12); }
+    70% { transform: scaleX(0.99) scaleY(0.97); }
+    100% { transform: scale(1); }
+  }
 }
 
 /* Give the selected company-nav icon a brief, meaning-specific motion cue on desktop. */
@@ -2128,6 +2176,10 @@ summary:active {
 }
 
 /* Desktop Messages tabs: a compact, aligned segmented control above the workspace. */
+.messages-tab-glass-indicator {
+  display: none;
+}
+
 @media (min-width: 1280px) {
   .company-layout-shell {
     --company-sidebar-top-gap: 2.75rem;
@@ -2138,6 +2190,7 @@ summary:active {
   }
 
   .messages-tab-list {
+    position: relative;
     width: fit-content;
     max-width: 100%;
     align-items: center;
@@ -2149,30 +2202,178 @@ summary:active {
     box-shadow: inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
   }
 
+  .messages-tab-glass-indicator {
+    display: block;
+    position: absolute;
+    left: var(--pill-left, 0px);
+    top: 0.3rem;
+    width: var(--pill-width, 0px);
+    z-index: 11;
+    height: calc(100% - 0.6rem);
+    border: 1px solid color-mix(in srgb, var(--app-accent) 24%, var(--app-border));
+    border-radius: 0.65rem;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.28), color-mix(in srgb, var(--app-surface) 82%, transparent));
+    -webkit-backdrop-filter: blur(12px) saturate(1.25);
+    backdrop-filter: blur(12px) saturate(1.25);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--app-foreground) 6%, transparent), inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+    pointer-events: none !important;
+    overflow: hidden;
+    transition: left 420ms cubic-bezier(0.16, 1, 0.3, 1), width 420ms cubic-bezier(0.16, 1, 0.3, 1), transform 240ms cubic-bezier(0.2, 0.8, 0.25, 1);
+  }
+
+  /* Soft lower rim highlight, like light catching the underside of glass. */
+  .messages-tab-glass-indicator::before {
+    position: absolute;
+    z-index: 12;
+    right: 2px;
+    bottom: 1px;
+    left: 2px;
+    height: 58%;
+    border-radius: 0 0 0.58rem 0.58rem;
+    background:
+      radial-gradient(ellipse at 50% 120%, rgba(255, 255, 255, 0.5), transparent 68%),
+      linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0.42) 100%);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.72), 0 1px 3px rgba(255, 255, 255, 0.2);
+    content: '';
+    pointer-events: none;
+  }
+
+  .messages-tab-list[data-edge-hit='left'],
+  .messages-tab-list[data-edge-hit='right'] {
+    animation: messages-track-edge-stroke 420ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  @keyframes messages-track-edge-stroke {
+    0% { outline: 0 solid color-mix(in srgb, var(--app-accent) 0%, transparent); outline-offset: 0; }
+    28% { outline: 3px solid color-mix(in srgb, var(--app-accent) 38%, transparent); outline-offset: 1px; }
+    58% { outline: 1px solid color-mix(in srgb, var(--app-accent) 24%, transparent); outline-offset: 0; }
+    100% { outline: 0 solid color-mix(in srgb, var(--app-accent) 0%, transparent); outline-offset: 0; }
+  }
+
+  .messages-tab-list[data-edge-hit='left'] .messages-tab-glass-indicator {
+    transform-origin: left center;
+    animation: messages-pill-stretch-left 420ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  .messages-tab-list[data-edge-hit='right'] .messages-tab-glass-indicator {
+    transform-origin: right center;
+    animation: messages-pill-stretch-right 420ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  @keyframes messages-pill-stretch-left {
+    0%, 100% { transform: scaleX(1); }
+    32% { transform: scaleX(1.1); }
+    62% { transform: scaleX(0.985); }
+  }
+
+  @keyframes messages-pill-stretch-right {
+    0%, 100% { transform: scaleX(1); }
+    32% { transform: scaleX(1.1); }
+    62% { transform: scaleX(0.985); }
+  }
+
+  .messages-tab-list[data-dragging='true'] .messages-tab-glass-indicator {
+    transition: none;
+    transform: scaleX(var(--pill-stretch, 1)) scaleY(var(--pill-squash, 1));
+    will-change: left, width, transform;
+  }
+
   .messages-tab-button {
+    position: relative;
+    z-index: 20;
+    isolation: isolate;
     min-height: 2.5rem;
     padding-inline: 1rem;
     border: 1px solid transparent;
     border-radius: 0.65rem;
     line-height: 1.2;
-    transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    transition: none;
+  }
+
+  .messages-tab-button:active,
+  .messages-tab-button:active > span {
+    transform: none !important;
+  }
+
+  .messages-tab-button > span {
+    position: relative;
+    z-index: 1;
+    filter: none !important;
+    opacity: 1;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  /* A faint, inverted label reflection sits below the crisp live text. */
+  .messages-tab-button[aria-pressed='true']::after {
+    position: absolute;
+    z-index: 0;
+    top: 57%;
+    right: 0.35rem;
+    left: 0.35rem;
+    overflow: hidden;
+    color: currentColor;
+    content: attr(data-label);
+    text-align: center;
+    white-space: nowrap;
+    opacity: 0.24;
+    filter: blur(1.1px);
+    transform: scaleY(-1);
+    transform-origin: center;
+    line-height: inherit;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 82%);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 82%);
+    pointer-events: none;
   }
 
   .messages-tab-button[aria-pressed='true'] {
-    border-color: color-mix(in srgb, var(--app-accent) 18%, var(--app-border));
-    background: var(--app-surface);
+    border-color: transparent;
+    background: transparent;
     color: var(--app-accent);
-    box-shadow: 0 1px 3px color-mix(in srgb, var(--app-foreground) 9%, transparent), inset 0 1px 0 color-mix(in srgb, white 44%, transparent);
+    box-shadow: none;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
   }
 
-  .messages-tab-button[aria-pressed='false']:hover {
-    background: color-mix(in srgb, var(--app-surface) 66%, transparent);
-    color: var(--app-foreground);
+  .messages-tab-button[aria-pressed='false'] { cursor: pointer; }
+
+  .messages-tab-list[data-dragging='true'] .messages-tab-button[aria-pressed='true'] {
+    cursor: grabbing;
   }
 
   .messages-tab-button:focus-visible {
     outline: 2px solid var(--app-accent);
     outline-offset: 2px;
+  }
+
+  .dark .messages-tab-list {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, var(--app-background) 88%, var(--app-surface) 12%);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+
+  .dark .messages-tab-glass-indicator {
+    border-color: rgba(255, 255, 255, 0.24);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 2px 8px rgba(0, 0, 0, 0.16);
+  }
+
+  .dark .messages-tab-button[aria-pressed='true']::after {
+    opacity: 0.28;
+    filter: blur(1.2px);
+    text-shadow: 0 0 0.45rem color-mix(in srgb, currentColor 30%, transparent);
+  }
+
+  .dark .messages-tab-glass-indicator::before {
+    display: none;
   }
 }
 
