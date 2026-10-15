@@ -26,6 +26,8 @@ beforeEach(() => {
       teamIds: async () => new Set(['team-1']),
       poolIds: async () => new Set(['team-1']),
       poolMemberIds: async () => new Set([TARGET]),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
       departmentId: async () => 'dept-1',
     },
     policies: {
@@ -76,6 +78,8 @@ function context(principal: Principal = actor()): PolicyEvaluationContext {
       teamIds: async () => new Set(['team-1']),
       poolIds: async () => new Set(['team-1']),
       poolMemberIds: async () => new Set([TARGET]),
+      teamMemberIds: async () => new Set<string>(),
+      departmentMemberIds: async () => new Set<string>(),
       departmentId: async () => 'dept-1',
     },
   };

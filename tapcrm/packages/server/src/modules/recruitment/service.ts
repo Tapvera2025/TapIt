@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
 import type { Resource } from '@tapcrm/authz';
+import { splitPersonName, type AtsScanSummary } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
+import { db } from '../../platform/dal/db.js';
+import { sql } from '../../platform/dal/sql.js';
 import {
   ConflictError,
   NotEligibleError,
@@ -8,6 +11,7 @@ import {
 } from '../../platform/http/error-handler.js';
 import { PlatformValidationError } from '../../platform/errors.js';
 import { provisionEmployee } from '../employee/facade.js';
+import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
 import {
   notifyCandidateRejection,
   notifyInterviewRescheduled,
@@ -15,26 +19,37 @@ import {
   notifyOnboardingWelcome,
 } from './notifications.js';
 import { parseResume } from './parser.js';
+import * as atsService from './ats/service.js';
 import * as repo from './repository.js';
+import * as pipelineRoundsRepo from './pipeline-rounds/repository.js';
+import * as candidateRoundsRepo from './candidate-rounds/repository.js';
+import * as emailTemplatesRepo from './email-templates/repository.js';
+import * as candidateEventsRepo from './candidate-events/repository.js';
 import {
   generateResumeObjectKey,
   getStorageService,
   validateResumeUpload,
 } from './storage.js';
+import { sendEmail } from '../identity/facade.js';
 import type {
   Candidate,
+  CandidateEvent,
   CandidateJoining,
   CandidateResumeSubmission,
+  CandidateRound,
   CandidateStatus,
   Interview,
   InterviewFeedback,
   InterviewStatus,
   JobOffer,
   JobRequisition,
+  MyInterviews,
   OfferStatus,
   ParsedCandidateData,
+  PipelineRound,
   PublicJobRequisitionDetails,
   RecruitmentApplicationLink,
+  RecruitmentEmailTemplate,
   RecruitmentMetrics,
   RequisitionStatus,
   UploadCandidateResumeResult,
@@ -48,25 +63,36 @@ import {
   assertInterviewDecisionEligible,
 } from './state-machine.js';
 import type {
+  AssignRoundInterviewerInput,
   ConvertSubmissionInput,
   CreateApplicationLinkInput,
   CreateCandidateInput,
+  CreateCandidateRoundInput,
+  CreateEmailTemplateInput,
   CreateJoiningInput,
   CreateOfferInput,
+  CreatePipelineRoundInput,
   CreateRequisitionInput,
   HireCandidateInput,
   HrManualSubmissionInput,
   InterviewDecisionInput,
+  InterviewerFeedbackInput,
   PublicApplyInput,
+  ReorderPipelineRoundsInput,
   RescheduleInterviewInput,
+  RoundDecisionInput,
   ScheduleInterviewInput,
+  SendJoiningEmailInput,
   SubmitFeedbackInput,
+  SubmitRoundFeedbackInput,
+  UpdateEmailTemplateInput,
   UpdateFeedbackInput,
   UpdateApplicationLinkStatusInput,
   UpdateCandidateStatusInput,
   UpdateJoiningInput,
   UpdateJoiningStatusInput,
   UpdateOfferInput,
+  UpdatePipelineRoundInput,
   UpdateSubmissionStatusInput,
   UploadCandidateResumeInput,
   ParseCandidateResumeInput,
@@ -173,6 +199,15 @@ export async function updateCandidateScreening(
   return updated;
 }
 
+export async function softDeleteCandidate(
+  ctx: RequestContext,
+  id: string,
+): Promise<void> {
+  const candidate = await repo.findCandidateById(ctx, id);
+  if (!candidate) throw new NotFoundError('Candidate');
+  await repo.softDeleteCandidate(ctx, id);
+}
+
 export async function uploadCandidateResume(
   ctx: RequestContext,
   input: UploadCandidateResumeInput,
@@ -203,6 +238,11 @@ export async function uploadCandidateResume(
   };
 }
 
+/**
+ * Reads a resume to pre-fill the candidate form. Parsing is local and
+ * rule-based (no external service sees the file); each contact field carries a
+ * confidence so the form can fill what is certain and only suggest the rest.
+ */
 export async function parseCandidateResume(
   ctx: RequestContext,
   input: ParseCandidateResumeInput,
@@ -216,44 +256,34 @@ export async function parseCandidateResume(
     if (!input.resumeObjectKey.startsWith(expectedPrefix)) {
       throw new NotFoundError('Resume');
     }
-    const storage = getStorageService();
-    const obj = await storage.getObject(input.resumeObjectKey);
-    buffer = obj.buffer;
-    if (obj.mimeType) mimeType = obj.mimeType;
+    try {
+      const obj = await getStorageService().getObject(input.resumeObjectKey);
+      buffer = obj.buffer;
+      if (obj.mimeType) mimeType = obj.mimeType;
+    } catch {
+      throw new NotFoundError('Resume');
+    }
   } else if (input.fileBase64) {
     const cleanBase64 = input.fileBase64.replace(/^data:[^;]+;base64,/, '');
     buffer = Buffer.from(cleanBase64, 'base64');
+    const validation = validateResumeUpload(buffer, filename, mimeType);
+    if (!validation.valid) throw new PlatformValidationError(validation.error ?? 'Invalid resume file');
   } else {
-    throw new Error('Either resumeObjectKey or fileBase64 must be provided');
+    throw new PlatformValidationError('Attach a resume file to read.');
   }
 
-  const parsed = parseResume(buffer, filename, mimeType);
-
-  let firstName: string | null = null;
-  let lastName: string | null = null;
-  if (parsed.name && parsed.name.trim()) {
-    const parts = parsed.name.trim().split(/\s+/);
-    if (parts.length === 1) {
-      firstName = parts[0]!;
-      lastName = '';
-    } else if (parts.length > 1) {
-      firstName = parts[0]!;
-      lastName = parts.slice(1).join(' ');
-    }
-  }
+  const parsed = await parseResume(buffer, filename, mimeType);
+  const split = parsed.name ? splitPersonName(parsed.name) : null;
 
   return {
     parsed: {
+      ...parsed,
       name: parsed.name ?? null,
-      firstName,
-      lastName,
+      firstName: split?.firstName || null,
+      lastName: split ? split.lastName : null,
       email: parsed.email ?? null,
       phone: parsed.phone ?? null,
       skills: parsed.skills ?? [],
-      education: parsed.education,
-      experience: parsed.experience,
-      summary: parsed.summary,
-      rawTextPreview: parsed.rawTextPreview,
     },
   };
 }
@@ -333,6 +363,7 @@ export async function scheduleInterview(
   }
 
   const interview = await repo.createInterview(ctx, input);
+  await notifyInterviewPanel(ctx, interview, 'You are on an interview panel');
 
   // Send candidate interview invitation email (non-blocking)
   notifyInterviewScheduled({
@@ -371,6 +402,7 @@ export async function rescheduleInterview(
   input: RescheduleInterviewInput,
 ): Promise<Interview> {
   const result = await repo.rescheduleInterview(ctx, id, input);
+  await notifyInterviewPanel(ctx, result.newInterview, 'An interview you are on was rescheduled');
 
   const candidate = await repo.findCandidateById(ctx, result.newInterview.candidateId);
   const requisition = await repo.findRequisitionById(ctx, result.newInterview.requisitionId);
@@ -760,6 +792,7 @@ export async function resolvePublicApplicationLink(token: string): Promise<{
     requisition: {
       title: requisition.title,
       requisitionNumber: requisition.requisitionNumber,
+      openingsCount: requisition.openingsCount,
       employmentType: requisition.employmentType,
       departmentName: requisition.departmentName ?? null,
       location: requisition.location,
@@ -807,8 +840,7 @@ export async function submitPublicApplication(
   const storage = getStorageService();
   await storage.putObject(objectKey, buffer, input.resumeMimeType);
 
-  // Parse structured data from resume
-  const parsedData = parseResume(buffer, input.resumeFilename, input.resumeMimeType);
+  const parsedData = await parseResume(buffer, input.resumeFilename, input.resumeMimeType);
 
   const submission = await repo.createResumeSubmissionPreAuth({
     organizationId: link.organizationId,
@@ -855,7 +887,7 @@ export async function createManualSubmission(
   const storage = getStorageService();
   await storage.putObject(objectKey, buffer, input.resumeMimeType);
 
-  const parsedData = input.parsedData ?? parseResume(buffer, input.resumeFilename, input.resumeMimeType);
+  const parsedData = input.parsedData ?? await parseResume(buffer, input.resumeFilename, input.resumeMimeType);
 
   return repo.createResumeSubmission(ctx, {
     organizationId: ctx.organizationId,
@@ -876,8 +908,10 @@ export async function createManualSubmission(
 export async function listResumeSubmissions(
   ctx: RequestContext,
   filter?: repo.SubmissionFilter,
-): Promise<CandidateResumeSubmission[]> {
-  return repo.listResumeSubmissions(ctx, filter);
+): Promise<(CandidateResumeSubmission & { ats: AtsScanSummary | null })[]> {
+  const submissions = await repo.listResumeSubmissions(ctx, filter);
+  // Each row carries its latest ATS result so HR can sort and triage the inbox.
+  return atsService.attachScanSummaries(ctx, submissions);
 }
 
 export async function getResumeSubmission(
@@ -911,10 +945,12 @@ export async function getResumeSignedUrl(
 ): Promise<{ url: string; filename: string }> {
   const sub = await repo.findResumeSubmissionById(ctx, id);
   if (!sub) throw new NotFoundError('Resume submission');
-
-  const storage = getStorageService();
-  const url = await storage.getSignedUrl(sub.resumeObjectKey, 900);
-  return { url, filename: sub.resumeFilename };
+  // Return a server-proxied URL instead of a direct MinIO URL so the browser
+  // never needs to reach the internal storage hostname.
+  return {
+    url: `/api/recruitment/resume-submissions/${encodeURIComponent(id)}/resume`,
+    filename: sub.resumeFilename,
+  };
 }
 
 export async function updateResumeSubmissionStatus(
@@ -1137,4 +1173,542 @@ export async function loadInterviewFeedbackAsInterviewResource(
   const interview = await repo.findInterviewById(ctx, feedback.interviewId);
   if (!interview) return null;
   return { type: 'interview', ...interview };
+}
+
+// ---------------------------------------------------------------------
+// 10. Pipeline Rounds (new — revamp)
+// ---------------------------------------------------------------------
+
+export async function listPipelineRounds(
+  ctx: RequestContext,
+  requisitionId: string,
+): Promise<PipelineRound[]> {
+  return pipelineRoundsRepo.listPipelineRounds(ctx, requisitionId);
+}
+
+export async function createPipelineRound(
+  ctx: RequestContext,
+  input: CreatePipelineRoundInput,
+): Promise<PipelineRound> {
+  const requisition = await repo.findRequisitionById(ctx, input.requisitionId);
+  if (!requisition) throw new NotFoundError('Requisition not found');
+  return pipelineRoundsRepo.createPipelineRound(ctx, input);
+}
+
+export async function updatePipelineRound(
+  ctx: RequestContext,
+  id: string,
+  input: UpdatePipelineRoundInput,
+): Promise<PipelineRound> {
+  const round = await pipelineRoundsRepo.findPipelineRoundById(ctx, id);
+  if (!round) throw new NotFoundError('Pipeline round not found');
+  const updated = await pipelineRoundsRepo.updatePipelineRound(ctx, id, input);
+  if (!updated) throw new NotFoundError('Pipeline round not found');
+  return updated;
+}
+
+export async function deletePipelineRound(
+  ctx: RequestContext,
+  id: string,
+): Promise<{ message: string }> {
+  const round = await pipelineRoundsRepo.findPipelineRoundById(ctx, id);
+  if (!round) throw new NotFoundError('Pipeline round not found');
+  await pipelineRoundsRepo.deletePipelineRound(ctx, id);
+  return { message: 'Pipeline round deleted' };
+}
+
+export async function reorderPipelineRounds(
+  ctx: RequestContext,
+  input: ReorderPipelineRoundsInput,
+): Promise<{ message: string }> {
+  await pipelineRoundsRepo.reorderPipelineRounds(ctx, input);
+  return { message: 'Pipeline rounds reordered' };
+}
+
+export async function loadPipelineRoundResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await pipelineRoundsRepo.findPipelineRoundById(ctx, id);
+  if (!record) return null;
+  return { type: 'jobRequisition', organizationId: record.organizationId, id: record.requisitionId };
+}
+
+// ---------------------------------------------------------------------
+// 11. Candidate Rounds (new — revamp)
+// ---------------------------------------------------------------------
+
+export async function listCandidateRounds(
+  ctx: RequestContext,
+  candidateId: string,
+): Promise<CandidateRound[]> {
+  return candidateRoundsRepo.listCandidateRounds(ctx, candidateId);
+}
+
+export async function createCandidateRound(
+  ctx: RequestContext,
+  input: CreateCandidateRoundInput,
+): Promise<CandidateRound> {
+  return candidateRoundsRepo.createCandidateRound(ctx, input);
+}
+
+export async function assignRoundInterviewer(
+  ctx: RequestContext,
+  candidateRoundId: string,
+  input: AssignRoundInterviewerInput,
+): Promise<CandidateRound> {
+  const round = await candidateRoundsRepo.findCandidateRoundById(ctx, candidateRoundId);
+  if (!round) throw new NotFoundError('Candidate round not found');
+
+  const updated = await db.transaction(ctx, async (tx) => {
+    const result = await candidateRoundsRepo.updateCandidateRound(ctx, candidateRoundId, {
+      assignedTo: input.assignedTo,
+      scheduledAt: input.scheduledAt ?? null,
+      mode: input.mode ?? null,
+      meetingLink: input.meetingLink ?? null,
+      location: input.location ?? null,
+      status: 'scheduled',
+    });
+
+    if (input.assignedTo && input.assignedTo !== ctx.principal.id) {
+      try {
+        await notify(tx, ctx, {
+          type: NOTIFICATION_TYPES.RECRUITMENT_INTERVIEW_ASSIGNED,
+          priority: 'operational',
+          audience: { users: [input.assignedTo] },
+          title: 'Interview round assigned to you',
+          body: round.pipelineRoundName
+            ? `You have been assigned to conduct ${round.pipelineRoundName}`
+            : 'You have been assigned to conduct an interview',
+          link: '/company/my-interviews',
+          metadata: { candidateRoundId, pipelineRoundId: round.pipelineRoundId },
+        });
+      } catch {
+        // notification failure must not abort the assignment
+      }
+    }
+
+    return result;
+  });
+
+  if (!updated) throw new NotFoundError('Candidate round not found after update');
+  return updated;
+}
+
+export async function submitRoundFeedback(
+  ctx: RequestContext,
+  candidateRoundId: string,
+  input: SubmitRoundFeedbackInput,
+): Promise<CandidateRound> {
+  const round = await candidateRoundsRepo.findCandidateRoundById(ctx, candidateRoundId);
+  if (!round) throw new NotFoundError('Candidate round not found');
+
+  const updated = await candidateRoundsRepo.updateCandidateRound(ctx, candidateRoundId, {
+    interviewerNotes: input.interviewerNotes ?? null,
+    rating: input.rating ?? null,
+    recommendation: input.recommendation,
+    status: 'completed',
+  });
+
+  if (round.candidateId) {
+    await candidateEventsRepo.createCandidateEvent(
+      ctx,
+      round.candidateId,
+      'feedback_submitted',
+      ctx.principal.id,
+      {
+        roundName: round.pipelineRoundName ?? null,
+        recommendation: input.recommendation,
+      },
+    );
+  }
+
+  if (!updated) throw new NotFoundError('Candidate round not found after update');
+  return updated;
+}
+
+export async function recordRoundDecision(
+  ctx: RequestContext,
+  candidateRoundId: string,
+  input: RoundDecisionInput,
+): Promise<CandidateRound> {
+  const round = await candidateRoundsRepo.findCandidateRoundById(ctx, candidateRoundId);
+  if (!round) throw new NotFoundError('Candidate round not found');
+
+  const now = new Date().toISOString();
+  const isPassing = input.decision === 'pass';
+  const isFailing = input.decision === 'fail';
+  const isSkipping = input.decision === 'skip';
+
+  const updated = await candidateRoundsRepo.updateCandidateRound(ctx, candidateRoundId, {
+    status: isPassing ? 'passed' : isFailing ? 'failed' : 'skipped',
+    passedAt: isPassing ? now : null,
+    failedAt: isFailing ? now : null,
+  });
+
+  if (round.candidateId) {
+    await candidateEventsRepo.createCandidateEvent(
+      ctx,
+      round.candidateId,
+      isPassing ? 'round_passed' : isSkipping ? 'round_passed' : 'round_failed',
+      ctx.principal.id,
+      {
+        roundName: round.pipelineRoundName ?? null,
+        notes: input.notes ?? null,
+      },
+    );
+  }
+
+  if (!updated) throw new NotFoundError('Candidate round not found after update');
+  return updated;
+}
+
+/**
+ * What the caller interviews for, with who and what each interview is for:
+ * pipeline rounds HR assigned to them, and scheduled interviews that name them
+ * on the panel.
+ */
+export async function listMyInterviews(ctx: RequestContext): Promise<MyInterviews> {
+  const [rounds, interviews] = await Promise.all([
+    candidateRoundsRepo.listMyInterviews(ctx),
+    repo.listMyPanelInterviews(ctx),
+  ]);
+  return { rounds, interviews };
+}
+
+/**
+ * A scheduled interview, authorized as its candidate with the panel named as
+ * its interviewers — the same rule as a round (INTERVIEWER_ACTIONS in
+ * policy.ts), so whoever HR puts on the panel can read the resume and give
+ * feedback whatever their position, and nothing more.
+ */
+export async function loadPanelInterviewResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const interview = await repo.findInterviewById(ctx, id);
+  if (!interview) return null;
+  const candidate = await repo.findCandidateById(ctx, interview.candidateId);
+  if (!candidate) return null;
+  return {
+    type: 'candidate',
+    ...candidate,
+    organizationId: interview.organizationId,
+    id: interview.candidateId,
+    interviewerIds: interview.interviewerIds ?? [],
+  };
+}
+
+/** The interview, if the caller is on its panel; My Interviews serves nothing else. */
+async function findMyPanelInterview(ctx: RequestContext, interviewId: string): Promise<Interview> {
+  const interview = await repo.findInterviewById(ctx, interviewId);
+  if (!interview || !(interview.interviewerIds ?? []).includes(ctx.principal.id)) {
+    throw new NotFoundError('Interview');
+  }
+  return interview;
+}
+
+/** The candidate's resume, for a member of the interview's panel. */
+export async function getPanelInterviewResumeFile(
+  ctx: RequestContext,
+  interviewId: string,
+): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
+  const interview = await findMyPanelInterview(ctx, interviewId);
+  return readResumeForInterviewer(ctx, interview.candidateId);
+}
+
+/** Interviews still open for feedback: not called off and not a no-show. */
+const FEEDBACK_OPEN: ReadonlySet<InterviewStatus> = new Set<InterviewStatus>(['scheduled', 'completed']);
+
+/** A panel member saves their own feedback (first save or a later change). */
+export async function saveMyInterviewFeedback(
+  ctx: RequestContext,
+  interviewId: string,
+  input: InterviewerFeedbackInput,
+): Promise<InterviewFeedback> {
+  const interview = await findMyPanelInterview(ctx, interviewId);
+  if (!FEEDBACK_OPEN.has(interview.status)) {
+    throw new PlatformValidationError(
+      interview.status === 'no_show'
+        ? 'The candidate did not attend this interview, so it takes no feedback.'
+        : 'This interview was called off, so it takes no feedback.',
+    );
+  }
+  return repo.saveInterviewerFeedback(ctx, interviewId, ctx.principal.id, input);
+}
+
+const STAGE_LABEL: Readonly<Record<string, string>> = {
+  screening: 'Screening',
+  technical: 'Technical',
+  managerial: 'Managerial',
+  hr: 'HR',
+  final: 'Final',
+};
+
+/**
+ * Tells the panel (not whoever scheduled it) about an interview they are on,
+ * linking to My Interviews. A failed notification never undoes the scheduling.
+ */
+async function notifyInterviewPanel(ctx: RequestContext, interview: Interview, title: string): Promise<void> {
+  const users = (interview.interviewerIds ?? []).filter((id) => id !== ctx.principal.id);
+  if (users.length === 0) return;
+  const stage = STAGE_LABEL[interview.stage] ?? interview.stage;
+  try {
+    await db.transaction(ctx, (tx) => notify(tx, ctx, {
+      type: NOTIFICATION_TYPES.RECRUITMENT_INTERVIEW_ASSIGNED,
+      priority: 'operational',
+      audience: { users },
+      title,
+      body: `${interview.candidateName?.trim() || 'A candidate'} · ${interview.requisitionTitle ?? 'Open position'} — ${stage} round ${interview.round}`,
+      link: '/company/my-interviews',
+      metadata: { interviewId: interview.id },
+    }));
+  } catch {
+    // The interview stands; the panel still sees it in My Interviews.
+  }
+}
+
+/**
+ * A round, authorized as its candidate: the candidate's own fields decide
+ * `own` scope, and the round's interviewer is named as a party to it, so the
+ * person HR assigned can submit feedback and read the resume whatever their
+ * position (see INTERVIEWER_ACTIONS in policy.ts).
+ */
+export async function loadCandidateRoundResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const round = await candidateRoundsRepo.findCandidateRoundById(ctx, id);
+  if (!round) return null;
+  const candidate = await repo.findCandidateById(ctx, round.candidateId);
+  if (!candidate) return null;
+  return {
+    type: 'candidate',
+    ...candidate,
+    organizationId: round.organizationId,
+    id: round.candidateId,
+    interviewerIds: round.assignedTo ? [round.assignedTo] : [],
+  };
+}
+
+/** The resume of the candidate a round is for — for its interviewer, through the round. */
+export async function getInterviewResumeFile(
+  ctx: RequestContext,
+  candidateRoundId: string,
+): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
+  const round = await candidateRoundsRepo.findCandidateRoundById(ctx, candidateRoundId);
+  // My Interviews serves the caller's own rounds only.
+  if (!round || round.assignedTo !== ctx.principal.id) throw new NotFoundError('Candidate round');
+  return readResumeForInterviewer(ctx, round.candidateId);
+}
+
+async function readResumeForInterviewer(
+  ctx: RequestContext,
+  candidateId: string,
+): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
+  try {
+    return await getCandidateResumeFile(ctx, candidateId);
+  } catch (error) {
+    if (error instanceof NotFoundError) throw error;
+    // A file missing from storage is "no resume", not a server fault.
+    throw new NotFoundError('Candidate resume');
+  }
+}
+
+// ---------------------------------------------------------------------
+// 12. Candidate Events (new — revamp)
+// ---------------------------------------------------------------------
+
+export async function listCandidateEvents(
+  ctx: RequestContext,
+  candidateId: string,
+): Promise<CandidateEvent[]> {
+  return candidateEventsRepo.listCandidateEvents(ctx, candidateId);
+}
+
+// ---------------------------------------------------------------------
+// 13. Email Templates (new — revamp)
+// ---------------------------------------------------------------------
+
+export async function listEmailTemplates(
+  ctx: RequestContext,
+): Promise<RecruitmentEmailTemplate[]> {
+  return emailTemplatesRepo.listEmailTemplates(ctx);
+}
+
+export async function getEmailTemplate(
+  ctx: RequestContext,
+  id: string,
+): Promise<RecruitmentEmailTemplate> {
+  const template = await emailTemplatesRepo.findEmailTemplateById(ctx, id);
+  if (!template) throw new NotFoundError('Email template not found');
+  return template;
+}
+
+export async function createEmailTemplate(
+  ctx: RequestContext,
+  input: CreateEmailTemplateInput,
+): Promise<RecruitmentEmailTemplate> {
+  return emailTemplatesRepo.createEmailTemplate(ctx, input);
+}
+
+export async function updateEmailTemplate(
+  ctx: RequestContext,
+  id: string,
+  input: UpdateEmailTemplateInput,
+): Promise<RecruitmentEmailTemplate> {
+  const template = await emailTemplatesRepo.findEmailTemplateById(ctx, id);
+  if (!template) throw new NotFoundError('Email template not found');
+  const updated = await emailTemplatesRepo.updateEmailTemplate(ctx, id, input);
+  if (!updated) throw new NotFoundError('Email template not found after update');
+  return updated;
+}
+
+export async function deleteEmailTemplate(
+  ctx: RequestContext,
+  id: string,
+): Promise<{ message: string }> {
+  const template = await emailTemplatesRepo.findEmailTemplateById(ctx, id);
+  if (!template) throw new NotFoundError('Email template not found');
+  await emailTemplatesRepo.deleteEmailTemplate(ctx, id);
+  return { message: 'Email template deleted' };
+}
+
+export async function loadEmailTemplateResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const record = await emailTemplatesRepo.findEmailTemplateById(ctx, id);
+  if (!record) return null;
+  return { type: 'recruitmentEmailTemplate', ...record };
+}
+
+// ---------------------------------------------------------------------
+// 14. Joining Email (new — revamp)
+// ---------------------------------------------------------------------
+
+function renderEmailTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+}
+
+export async function sendJoiningEmail(
+  ctx: RequestContext,
+  joiningId: string,
+  input: SendJoiningEmailInput,
+): Promise<{ message: string }> {
+  const joining = await repo.findJoiningById(ctx, joiningId);
+  if (!joining) throw new NotFoundError('Joining record not found');
+
+  const candidate = await repo.findCandidateById(ctx, joining.candidateId);
+  if (!candidate) throw new NotFoundError('Candidate not found');
+
+  const offer = await repo.findOfferById(ctx, joining.offerId);
+  const requisition = offer ? await repo.findRequisitionById(ctx, offer.requisitionId) : null;
+
+  const vars: Record<string, string> = {
+    candidate_name: `${candidate.firstName} ${candidate.lastName}`.trim(),
+    role: offer?.positionName ?? requisition?.title ?? '',
+    department: requisition?.departmentName ?? '',
+    joining_date: joining.expectedJoiningDate
+      ? new Date(joining.expectedJoiningDate).toLocaleDateString('en-IN', { dateStyle: 'long' })
+      : '',
+    reporting_manager: '',
+    company_name: ctx.organizationId,
+  };
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const acknowledgeUrl = `${process.env['PUBLIC_BASE_URL'] ?? ''}/api/public/recruitment/acknowledge/${token}`;
+
+  const acknowledgeButton = `\n\n---\nTo confirm your joining, please click: ${acknowledgeUrl}`;
+
+  const subject = renderEmailTemplate(input.subject, vars);
+  const bodyText = renderEmailTemplate(input.body, vars) + acknowledgeButton;
+
+  await sendEmail({
+    to: candidate.email,
+    subject,
+    text: bodyText,
+  });
+
+  await db.transaction(ctx, async (tx) => {
+    await tx.query(sql`
+      UPDATE candidate_joining
+      SET joining_email_sent_at = now(),
+          joining_email_template_id = ${input.templateId ?? null},
+          acknowledge_token = ${token}
+      WHERE organization_id = ${ctx.organizationId} AND id = ${joiningId}
+    `);
+    await tx.query(sql`
+      INSERT INTO recruitment_candidate_event
+        (organization_id, candidate_id, event_type, actor_id, metadata)
+      VALUES (
+        ${ctx.organizationId},
+        ${candidate.id},
+        'joining_email_sent',
+        ${ctx.principal.id},
+        ${JSON.stringify({ templateId: input.templateId ?? null })}::jsonb
+      )
+    `);
+  });
+
+  return { message: 'Joining email sent' };
+}
+
+// ---------------------------------------------------------------------
+// Public: Acknowledge joining (called from public-routes.ts — no user ctx)
+// ---------------------------------------------------------------------
+
+export async function acknowledgeJoining(
+  token: string,
+  ip: string,
+): Promise<{ acknowledged: boolean }> {
+  const joining = await repo.findJoiningByAcknowledgeToken(token);
+  if (!joining) throw new NotFoundError('Invalid or expired token');
+
+  if (joining.acknowledgedAt) {
+    return { acknowledged: true };
+  }
+
+  // Build minimal context from the joining record so db.transaction can set tenant context
+  const systemCtx = {
+    organizationId: joining.organizationId,
+    principal: { id: 'system', email: '' },
+  } as unknown as RequestContext;
+
+  await db.transaction(systemCtx, async (tx) => {
+    await tx.query(sql`
+      UPDATE candidate_joining
+      SET acknowledged_at = now(),
+          acknowledge_ip = ${ip}
+      WHERE id = ${joining.id}
+    `);
+    await tx.query(sql`
+      INSERT INTO recruitment_candidate_event
+        (organization_id, candidate_id, event_type, actor_id, metadata)
+      VALUES (
+        ${joining.organizationId},
+        ${joining.candidateId},
+        'acknowledged',
+        NULL,
+        NULL
+      )
+    `);
+    if (joining.createdBy) {
+      try {
+        await notify(tx, systemCtx, {
+          type: NOTIFICATION_TYPES.RECRUITMENT_CANDIDATE_ACKNOWLEDGED,
+          priority: 'operational',
+          audience: { users: [joining.createdBy] },
+          title: 'Candidate acknowledged joining',
+          body: 'A candidate has acknowledged their joining offer',
+          link: '/company/recruitment?tab=joining',
+          metadata: { joiningId: joining.id, candidateId: joining.candidateId },
+        });
+      } catch {
+        // notification failure must not abort the acknowledgement
+      }
+    }
+  });
+
+  return { acknowledged: true };
 }

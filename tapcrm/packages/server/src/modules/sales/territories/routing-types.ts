@@ -48,6 +48,10 @@ export type RoutingDecision = RoutingDecisionAssigned | RoutingDecisionUnrouted 
 export interface RoutingConfiguration {
   enabled: boolean;
   assignmentStrategy: AssignmentStrategy;
+  /** NULL falls back to module default (20); otherwise 1..1000. */
+  activeLeadMax: number | null;
+  /** NULL means no daily cap; otherwise 1..1000 claims per operational day. */
+  dailyClaimMax: number | null;
   updatedBy: string;
   updatedAt: Date;
 }

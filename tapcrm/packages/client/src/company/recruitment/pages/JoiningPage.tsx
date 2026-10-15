@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
 import { listJoinings } from '../api/recruitmentApi.js';
 import { JoiningStatusModal } from '../components/JoiningStatusModal.js';
+import { SendJoiningEmailModal } from '../components/SendJoiningEmailModal.js';
 import { JoiningStatusBadge } from '../components/StatusBadge.js';
 import type { CandidateJoining, JoiningFilter, JoiningStatus } from '../types/index.js';
 
@@ -17,8 +18,9 @@ export function JoiningPage({
   // Filters
   const [statusFilter, setStatusFilter] = useState<JoiningStatus | 'all'>('all');
 
-  // Modal
+  // Modals
   const [selectedJoining, setSelectedJoining] = useState<CandidateJoining | null>(null);
+  const [emailJoining, setEmailJoining] = useState<CandidateJoining | null>(null);
 
   async function load() {
     setLoading(true);
@@ -41,7 +43,7 @@ export function JoiningPage({
   }, [statusFilter]);
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Candidate Joining &amp; Onboarding"
       description="Pre-boarding tracking, joining confirmation, and handoff to the organization Employee module."
@@ -94,7 +96,7 @@ export function JoiningPage({
       {/* Joining Table */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : joinings.length === 0 ? (
         <Empty>
@@ -103,40 +105,71 @@ export function JoiningPage({
         </Empty>
       ) : (
         <section className="mt-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface">
-          <div className="hidden border-b border-app-border bg-app-surface-raised px-5 py-3 text-xs font-bold uppercase tracking-wider text-app-muted md:grid md:grid-cols-[1.5fr_1.2fr_1.2fr_1fr_1.5fr] md:items-center">
-            <span>Candidate Name</span>
-            <span>Expected Joining</span>
-            <span>Actual Joined Date</span>
+          <div className="hidden border-b border-app-border bg-app-surface-raised px-5 py-3 text-xs font-bold uppercase tracking-wider text-app-muted md:grid md:grid-cols-[1.5fr_1fr_1fr_1.2fr_auto] md:items-center">
+            <span>Candidate</span>
+            <span>Expected Date</span>
             <span>Status</span>
-            <span className="text-right">Handoff / Actions</span>
+            <span>Acknowledgement</span>
+            <span className="text-right">Actions</span>
           </div>
 
           <div className="divide-y divide-app-border">
             {joinings.map((join) => (
               <div
                 key={join.id}
-                className="grid gap-2 px-5 py-4 text-sm md:grid-cols-[1.5fr_1.2fr_1.2fr_1fr_1.5fr] md:items-center"
+                className="grid gap-2 px-5 py-4 text-sm md:grid-cols-[1.5fr_1fr_1fr_1.2fr_auto] md:items-center"
               >
                 <div>
                   <p className="font-semibold">{join.candidateName ?? 'Candidate'}</p>
                   <p className="text-xs text-app-muted">{join.candidateEmail ?? 'Applicant'}</p>
+                  {join.actualJoiningDate && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                      Joined: {join.actualJoiningDate}
+                    </p>
+                  )}
                 </div>
 
                 <div className="text-xs font-medium text-app-foreground">
-                  {join.expectedJoiningDate}
-                </div>
-
-                <div className="text-xs text-app-muted">
-                  {join.actualJoiningDate ?? (
-                    <span className="italic text-app-muted">Awaiting confirmation</span>
-                  )}
+                  {join.expectedJoiningDate ?? <span className="text-app-muted italic">—</span>}
                 </div>
 
                 <div>
                   <JoiningStatusBadge status={join.status} />
                 </div>
 
+                <div className="text-xs">
+                  {join.acknowledgedAt ? (
+                    <div>
+                      <span className="inline-flex items-center rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                        ● Acknowledged
+                      </span>
+                      <p className="mt-0.5 text-app-muted">
+                        {new Date(join.acknowledgedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ) : join.joiningEmailSentAt ? (
+                    <div>
+                      <span className="inline-flex items-center rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        ○ Awaiting
+                      </span>
+                      <p className="mt-0.5 text-app-muted">
+                        Sent {new Date(join.joiningEmailSentAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-app-muted italic">Email not sent</span>
+                  )}
+                </div>
+
                 <div className="flex flex-wrap items-center justify-end gap-2 pt-2 md:pt-0">
+                  <button
+                    type="button"
+                    onClick={() => setEmailJoining(join)}
+                    className="rounded border border-app-border px-2.5 py-1 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent"
+                  >
+                    {join.joiningEmailSentAt ? 'Resend Email' : 'Send Email'}
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setSelectedJoining(join)}
@@ -169,6 +202,24 @@ export function JoiningPage({
             setJoinings((prev) => prev.map((j) => (j.id === updated.id ? updated : j)));
           }}
           onNavigateToEmployees={onNavigateToEmployees}
+        />
+      )}
+
+      {emailJoining && (
+        <SendJoiningEmailModal
+          joining={emailJoining}
+          onClose={() => setEmailJoining(null)}
+          onSent={(result) => {
+            if (result.sent) {
+              setJoinings((prev) =>
+                prev.map((j) =>
+                  j.id === emailJoining.id
+                    ? { ...j, joiningEmailSentAt: new Date().toISOString() }
+                    : j,
+                ),
+              );
+            }
+          }}
         />
       )}
     </Page>

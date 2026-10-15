@@ -1,0 +1,60 @@
+name: Deploy
+
+# CD: runs on the office Linux server through a SELF-HOSTED runner, so GitHub
+# never needs inbound access to the office network. The runner dials out to
+# GitHub, picks up this job, and runs it locally against the local Docker.
+#
+# Trigger: a push to `prod` (i.e. a merged PR main -> prod). The CI workflow
+# runs on the same PR beforehand; protect `prod` so it can't be merged red.
+
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch: # manual "Run workflow" button, e.g. to redeploy / roll back
+
+# Never run two deploys at once, and never cancel one halfway through.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, tapcrm-prod]
+    defaults:
+      run:
+        working-directory: tapcrm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Secrets stay ON the server, never in git or GitHub: /opt/tapcrm/.env
+      # is created once by hand (see .env.example for every variable).
+      - name: Load production env file
+        run: |
+          test -f /opt/tapcrm/.env || { echo "Missing /opt/tapcrm/.env on the server"; exit 1; }
+          cp /opt/tapcrm/.env .env
+
+      - name: Build and start
+        # `up` builds the images, runs the one-shot `migrate` service
+        # (migrations + app DB role password), then starts server and client.
+        # The project name is fixed (`name: tapcrm` in the compose file), so
+        # the postgres/redis volumes survive every deploy.
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
+
+      - name: Wait for healthy server
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose -f docker-compose.yml -f docker-compose.prod.yml ps -q server)" 2>/dev/null || echo starting)
+            echo "server health: $status"
+            [ "$status" = "healthy" ] && exit 0
+            sleep 5
+          done
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 server
+          exit 1
+
+      - name: Remove the env file from the workspace
+        if: always()
+        run: rm -f .env
+
+      - name: Clean up old images
+        run: docker image prune -f

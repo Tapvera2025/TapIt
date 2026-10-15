@@ -590,7 +590,7 @@ export function PetComingSoonModal({ pet, onClose }: ComingSoonModalProps): Reac
                 </span>
               </div>
               <h3 id="pet-modal-title" className="mt-1 text-base sm:text-lg font-bold text-app-foreground">
-                I am your <span className="text-app-accent">Tap AI Agent</span>
+                <span className="text-app-accent">AI Pet feature</span>
               </h3>
               <p className="text-xs text-app-muted">{pet.label} · {pet.personality}</p>
             </div>
@@ -662,6 +662,8 @@ export function PetComingSoonModal({ pet, onClose }: ComingSoonModalProps): Reac
           <button
             type="button"
             onClick={handleNotifyToggle}
+            role="switch"
+            aria-checked={notified}
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
               notified
                 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
@@ -669,7 +671,7 @@ export function PetComingSoonModal({ pet, onClose }: ComingSoonModalProps): Reac
             }`}
           >
             <span>{notified ? '✓' : '🔔'}</span>
-            <span>{notified ? 'Early Access Reserved!' : 'Notify me on launch'}</span>
+            <span>{notified ? 'Early Access Reserved!' : 'Notify me when available'}</span>
           </button>
 
           <button
@@ -696,7 +698,7 @@ export function SidebarPet({ pet }: { pet: PetOption }): React.JSX.Element {
 
   return (
     <>
-      <div className="relative shrink-0 w-full h-12 overflow-hidden my-1">
+      <div className="sidebar-pet-track relative my-1 h-14 w-full shrink-0 overflow-hidden">
         {/* Hover Hint Bubble */}
         {hovered && (
           <div
@@ -837,30 +839,78 @@ export function SidebarPet({ pet }: { pet: PetOption }): React.JSX.Element {
 // ── Header Button + Picker Dropdown ──────────────────────────────────────────
 
 function PetPicker({
+  anchorRef,
   activePetId,
   onSelect,
   onDisable,
   onClose,
 }: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
   activePetId: string | null;
   onSelect: (petId: string) => void;
   onDisable: () => void;
   onClose: () => void;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const ref = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+
+  useEffect(() => {
+    function updatePosition(): void {
+      if (anchorRef.current) {
+        const rect = anchorRef.current.getBoundingClientRect();
+        setCoords({
+          top: rect.bottom + 8,
+          right: Math.max(12, window.innerWidth - rect.right),
+        });
+      }
+    }
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [anchorRef]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent): void {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (
+        ref.current &&
+        !ref.current.contains(target) &&
+        anchorRef.current &&
+        !anchorRef.current.contains(target)
+      ) {
+        onClose();
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose, anchorRef]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       ref={ref}
-      className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-app-border bg-app-surface p-3 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+      data-ai-pet-picker="true"
+      onMouseDown={(event) => event.stopPropagation()}
+      style={{
+        position: 'fixed',
+        top: `${coords.top}px`,
+        right: `${coords.right}px`,
+        zIndex: 9999,
+      }}
+      className="pet-picker-panel w-64 rounded-2xl border border-app-border bg-app-surface p-3 shadow-lg"
     >
       <div className="mb-2 flex items-center justify-between px-1">
         <p className="text-[10px] font-bold uppercase tracking-wider text-app-muted">
@@ -912,20 +962,29 @@ function PetPicker({
           </button>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-export function AiPetButton(): React.JSX.Element {
+export function AiPetButton({
+  className = '',
+  wrapperClassName = '',
+}: {
+  className?: string;
+  wrapperClassName?: string;
+}): React.JSX.Element {
   const { activePet, activePetId, setActivePetId } = useAiPet();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="relative">
+    <div className={`relative ${wrapperClassName}`}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setPickerOpen((prev) => !prev)}
-        className={`flex items-center gap-1.5 rounded-lg border p-2 text-sm transition-all ${
+        className={`navbar-action-button flex items-center gap-1.5 rounded-lg border p-2 text-sm transition-all ${className} ${
           activePet
             ? 'border-app-accent/50 bg-app-accent/10 text-app-accent shadow-sm'
             : 'border-app-border text-app-muted hover:border-app-accent hover:text-app-accent'
@@ -938,12 +997,13 @@ export function AiPetButton(): React.JSX.Element {
             <AnimatedSvgPet petId={activePet.id} isWalking={false} />
           </div>
         ) : (
-          <span className="block text-base leading-none">🐾</span>
+          <span className="pet-button-paw block text-base leading-none">🐾</span>
         )}
       </button>
 
       {pickerOpen && (
         <PetPicker
+          anchorRef={buttonRef}
           activePetId={activePetId}
           onSelect={(id) => setActivePetId(id)}
           onDisable={() => setActivePetId(null)}

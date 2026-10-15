@@ -1,55 +1,64 @@
-import { Card } from '../../../ui/components.js';
+import { Button, Card } from '../../../ui/components.js';
+import { Icon } from '../../../ui/Icon.js';
 
 export interface TodoProgressProps {
   readonly totalCount: number;
   readonly completedCount: number;
   readonly className?: string;
+  readonly onAddTodo?: (() => void) | undefined;
 }
 
 export function TodoProgress({
   totalCount,
   completedCount,
   className = '',
+  onAddTodo,
 }: TodoProgressProps): React.JSX.Element {
   const safeTotalCount = Math.max(0, Number.isFinite(totalCount) ? totalCount : 0);
-  const safeCompletedCount = Math.max(0, Number.isFinite(completedCount) ? completedCount : 0);
+  const safeCompletedCount = Math.max(
+    0,
+    Number.isFinite(completedCount) ? completedCount : 0,
+  );
   const percentage =
     safeTotalCount === 0
       ? 0
-      : Math.min(100, Math.max(0, Math.round((safeCompletedCount / safeTotalCount) * 100)));
+      : Math.min(
+          100,
+          Math.max(0, Math.round((safeCompletedCount / safeTotalCount) * 100)),
+        );
 
   return (
     <Card
-      className={`p-2.5 sm:p-3 transition hover:border-app-accent/40 col-span-2 lg:col-span-1 flex flex-col justify-between ${className}`}
+      className={`flex h-full min-h-[9.5rem] w-full flex-col justify-between p-2.5 sm:p-3 transition hover:border-app-accent/40 ${className}`}
     >
-      <div className="flex items-center justify-between gap-1.5">
-        <div className="flex items-baseline gap-1.5 min-w-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-baseline gap-1.5">
           <span className="text-xl font-bold tracking-tight tabular-nums text-app-foreground sm:text-2xl">
             {percentage}%
           </span>
-          <span className="text-xs font-medium text-app-muted truncate">
-            Progress
-          </span>
+          <span className="text-xs font-medium text-app-muted truncate">Progress</span>
         </div>
-        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-app-accent/10 text-app-accent sm:size-7">
-          <svg
-            className="size-3.5 sm:size-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <circle cx="12" cy="12" r="6" />
-            <circle cx="12" cy="2" />
-          </svg>
-        </span>
+        <div className="flex items-center gap-2 self-end sm:self-start">
+          {onAddTodo && (
+            <Button
+              type="button"
+              kind="primary"
+              onClick={onAddTodo}
+              className="inline-flex h-9 items-center gap-2 px-3.5 text-xs font-semibold shadow-xs sm:text-sm"
+              aria-label="Add new todo"
+            >
+              <Icon name="todo" className="size-4 stroke-[2]" />
+              <span>Add Todo</span>
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="mt-1 sm:mt-1.5">
+      <p className="mt-4 text-xs text-app-muted">
+        {safeCompletedCount} of {safeTotalCount} todos completed
+      </p>
+
+      <div className="mt-3 sm:mt-4">
         <div
           role="progressbar"
           aria-label="Overall completion"

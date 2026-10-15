@@ -60,7 +60,12 @@ export interface ScopeResolverPort {
    */
   teamIds(ctx: AuthzContext): Promise<ReadonlySet<TeamId>>;
   poolIds(ctx: AuthzContext): Promise<ReadonlySet<TeamId>>;
+  /** Members of the principal's own pool (VIS-4). Narrower than teamMemberIds. */
   poolMemberIds(ctx: AuthzContext): Promise<ReadonlySet<UserId>>;
+  /** Members of every team in the principal's team subtree (VIS-1). */
+  teamMemberIds(ctx: AuthzContext): Promise<ReadonlySet<UserId>>;
+  /** All active users in the principal's department. */
+  departmentMemberIds(ctx: AuthzContext): Promise<ReadonlySet<UserId>>;
   departmentId(ctx: AuthzContext): Promise<DepartmentId | null>;
 }
 

@@ -1,3 +1,12 @@
+import type { AtsScanSummary, ParsedResumeData } from '@tapcrm/contracts';
+
+export type {
+  ParsedCandidateData,
+  ParsedResumeData,
+  ParsedResumeEducation,
+  ParsedResumeExperience,
+} from '@tapcrm/contracts';
+
 /**
  * Recruitment module frontend domain and entity types.
  *
@@ -135,18 +144,6 @@ export interface UploadCandidateResumeResult {
   readonly previewUrl: string;
 }
 
-export interface ParsedCandidateData {
-  readonly name: string | null;
-  readonly firstName: string | null;
-  readonly lastName: string | null;
-  readonly email: string | null;
-  readonly phone: string | null;
-  readonly skills: string[];
-  readonly education?: Array<{ degree: string; institution?: string; year?: string }> | undefined;
-  readonly experience?: Array<{ title: string; company?: string; duration?: string }> | undefined;
-  readonly summary?: string | null | undefined;
-  readonly rawTextPreview?: string | undefined;
-}
 
 export interface UpdateCandidateStatusInput {
   readonly status: CandidateStatus;
@@ -249,7 +246,7 @@ export interface InterviewFeedback {
 }
 
 export interface SubmitFeedbackInput {
-  readonly interviewerId: string;
+  readonly interviewerId?: string | undefined;
   readonly recommendation: InterviewRecommendation;
   readonly rating?: number | null | undefined;
   readonly feedback: string;
@@ -332,6 +329,11 @@ export interface CandidateJoining {
   readonly status: JoiningStatus;
   readonly employeeId?: string | null | undefined;
   readonly notes?: string | null | undefined;
+  readonly joiningEmailSentAt?: string | null | undefined;
+  readonly joiningEmailTemplateId?: string | null | undefined;
+  readonly acknowledgeToken?: string | null | undefined;
+  readonly acknowledgedAt?: string | null | undefined;
+  readonly acknowledgeIp?: string | null | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -358,7 +360,9 @@ export type RecruitmentTab =
   | 'candidates'
   | 'interviews'
   | 'offers'
-  | 'joining';
+  | 'joining'
+  | 'my-interviews'
+  | 'email-templates';
 
 export interface RecruitmentMetrics {
   readonly openRequisitions: number;
@@ -412,31 +416,9 @@ export type ResumeSubmissionStatus =
 
 export type ResumeSubmissionSource = 'application_link' | 'hr_upload';
 
-export interface ParsedResumeEducation {
-  readonly degree?: string | undefined;
-  readonly institution?: string | undefined;
-  readonly year?: string | undefined;
-}
-
-export interface ParsedResumeExperience {
-  readonly title?: string | undefined;
-  readonly company?: string | undefined;
-  readonly duration?: string | undefined;
-}
-
-export interface ParsedResumeData {
-  readonly name?: string | null | undefined;
-  readonly email?: string | null | undefined;
-  readonly phone?: string | null | undefined;
-  readonly skills: string[];
-  readonly education?: ParsedResumeEducation[] | undefined;
-  readonly experience?: ParsedResumeExperience[] | undefined;
-  readonly summary?: string | null | undefined;
-  readonly rawTextPreview?: string | undefined;
-}
-
 export interface CandidateResumeSubmission {
   readonly id: string;
+  /** Set when the candidate applied through a public application link. */
   readonly applicationLinkId?: string | null | undefined;
   readonly requisitionId: string;
   readonly requisitionTitle?: string | undefined;
@@ -445,19 +427,23 @@ export interface CandidateResumeSubmission {
   readonly lastName: string;
   readonly email: string;
   readonly phone?: string | null | undefined;
-  readonly resumeFilePath: string;
-  readonly resumeFileName: string;
+  readonly resumeFilename: string;
   readonly resumeMimeType: string;
   readonly resumeFileSize: number;
   readonly parsedData?: ParsedResumeData | null | undefined;
   readonly status: ResumeSubmissionStatus;
   readonly rejectionReason?: string | null | undefined;
   readonly candidateId?: string | null | undefined;
-  readonly convertedCandidateId?: string | null | undefined;
-  readonly convertedAt?: string | null | undefined;
-  readonly source: ResumeSubmissionSource;
+  readonly reviewedAt?: string | null | undefined;
+  /** Latest ATS screening result. Present on Resume Inbox list rows. */
+  readonly ats?: AtsScanSummary | null | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/** How the resume reached HR: through a public application link or an HR upload. */
+export function submissionSource(submission: Pick<CandidateResumeSubmission, 'applicationLinkId'>): ResumeSubmissionSource {
+  return submission.applicationLinkId ? 'application_link' : 'hr_upload';
 }
 
 export interface ResumeSubmissionFilter {
@@ -533,4 +519,207 @@ export interface HireCandidateInput {
   readonly reportsTo?: string | null | undefined;
   readonly specialization?: string | null | undefined;
   readonly actualJoiningDate?: string | undefined;
+}
+
+// ---------------------------------------------------------------------
+// 11. Pipeline Rounds (new — revamp)
+// ---------------------------------------------------------------------
+
+export type PipelineRoundMode = 'online' | 'offline' | 'phone';
+
+export interface PipelineRound {
+  readonly id: string;
+  readonly requisitionId: string;
+  readonly name: string;
+  readonly mode: PipelineRoundMode;
+  readonly orderIndex: number;
+  readonly interviewerNote?: string | null | undefined;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface CreatePipelineRoundInput {
+  readonly requisitionId: string;
+  readonly name: string;
+  readonly mode: PipelineRoundMode;
+  readonly orderIndex: number;
+  readonly interviewerNote?: string | null | undefined;
+}
+
+export interface UpdatePipelineRoundInput {
+  readonly name?: string | undefined;
+  readonly mode?: PipelineRoundMode | undefined;
+  readonly orderIndex?: number | undefined;
+  readonly interviewerNote?: string | null | undefined;
+}
+
+export interface ReorderPipelineRoundsInput {
+  readonly rounds: ReadonlyArray<{ readonly id: string; readonly orderIndex: number }>;
+}
+
+// ---------------------------------------------------------------------
+// 12. Candidate Rounds (new — revamp)
+// ---------------------------------------------------------------------
+
+export type CandidateRoundStatus =
+  | 'pending'
+  | 'scheduled'
+  | 'completed'
+  | 'passed'
+  | 'failed'
+  | 'skipped';
+
+export type RoundRecommendation = 'pass' | 'fail' | 'hold';
+
+export interface CandidateRound {
+  readonly id: string;
+  readonly candidateId: string;
+  readonly pipelineRoundId: string;
+  readonly pipelineRoundName?: string | undefined;
+  readonly pipelineRoundOrder?: number | undefined;
+  readonly assignedTo?: string | null | undefined;
+  readonly assignedToName?: string | null | undefined;
+  readonly scheduledAt?: string | null | undefined;
+  readonly mode?: PipelineRoundMode | null | undefined;
+  readonly meetingLink?: string | null | undefined;
+  readonly location?: string | null | undefined;
+  readonly status: CandidateRoundStatus;
+  readonly interviewerNotes?: string | null | undefined;
+  readonly rating?: number | null | undefined;
+  readonly recommendation?: RoundRecommendation | null | undefined;
+  readonly passedAt?: string | null | undefined;
+  readonly failedAt?: string | null | undefined;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** A round on its interviewer's "My Interviews" list: who and what it is for. */
+export interface AssignedInterview extends CandidateRound {
+  readonly candidateName: string;
+  readonly requisitionTitle: string;
+  readonly requisitionNumber: string;
+  /** The round's brief for interviewers, set on the job's pipeline. */
+  readonly interviewerBrief?: string | null | undefined;
+  readonly hasResume: boolean;
+}
+
+/** A scheduled interview on the "My Interviews" list of someone on its panel. */
+export interface AssignedPanelInterview {
+  readonly id: string;
+  readonly candidateId: string;
+  readonly candidateName: string;
+  readonly requisitionId: string;
+  readonly requisitionTitle: string;
+  readonly requisitionNumber: string;
+  readonly stage: InterviewStage;
+  readonly round: number;
+  readonly interviewType: InterviewType;
+  readonly scheduledAt: string;
+  readonly durationMinutes: number;
+  readonly locationOrLink?: string | null | undefined;
+  readonly status: InterviewStatus;
+  readonly notes?: string | null | undefined;
+  /** Everyone on the panel, the signed-in user included. */
+  readonly panel: string[];
+  readonly hasResume: boolean;
+  /** The signed-in user's own feedback, once given. */
+  readonly myFeedback: InterviewFeedback | null;
+}
+
+/** Pipeline rounds assigned to the signed-in user, and interviews naming them on the panel. */
+export interface MyInterviews {
+  readonly rounds: AssignedInterview[];
+  readonly interviews: AssignedPanelInterview[];
+}
+
+/** A panel member's own feedback; the interviewer is always the signed-in user. */
+export interface InterviewerFeedbackInput {
+  readonly recommendation: InterviewRecommendation;
+  readonly rating?: number | null | undefined;
+  readonly feedback: string;
+  readonly strengths?: string | null | undefined;
+  readonly areasForImprovement?: string | null | undefined;
+}
+
+export interface AssignRoundInterviewerInput {
+  readonly assignedTo: string;
+  readonly scheduledAt?: string | null | undefined;
+  readonly mode?: PipelineRoundMode | null | undefined;
+  readonly meetingLink?: string | null | undefined;
+  readonly location?: string | null | undefined;
+}
+
+export interface SubmitRoundFeedbackInput {
+  readonly interviewerNotes?: string | null | undefined;
+  readonly rating?: number | null | undefined;
+  readonly recommendation: RoundRecommendation;
+}
+
+export interface RoundDecisionInput {
+  readonly decision: 'pass' | 'fail' | 'skip';
+  readonly notes?: string | null | undefined;
+}
+
+// ---------------------------------------------------------------------
+// 13. Candidate Events (new — revamp)
+// ---------------------------------------------------------------------
+
+export type CandidateEventType =
+  | 'applied'
+  | 'screening_passed'
+  | 'round_passed'
+  | 'round_failed'
+  | 'round_scheduled'
+  | 'interviewer_assigned'
+  | 'feedback_submitted'
+  | 'selected'
+  | 'rejected'
+  | 'offer_sent'
+  | 'offer_accepted'
+  | 'joining_email_sent'
+  | 'acknowledged'
+  | 'employee_imported';
+
+export interface CandidateEvent {
+  readonly id: string;
+  readonly candidateId: string;
+  readonly eventType: CandidateEventType;
+  readonly actorId?: string | null | undefined;
+  readonly actorName?: string | null | undefined;
+  readonly metadata?: Record<string, unknown> | null | undefined;
+  readonly occurredAt: string;
+}
+
+// ---------------------------------------------------------------------
+// 14. Email Templates (new — revamp)
+// ---------------------------------------------------------------------
+
+export interface RecruitmentEmailTemplate {
+  readonly id: string;
+  readonly name: string;
+  readonly subject: string;
+  readonly body: string;
+  readonly isDefault: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface CreateEmailTemplateInput {
+  readonly name: string;
+  readonly subject: string;
+  readonly body: string;
+  readonly isDefault?: boolean | undefined;
+}
+
+export interface UpdateEmailTemplateInput {
+  readonly name?: string | undefined;
+  readonly subject?: string | undefined;
+  readonly body?: string | undefined;
+  readonly isDefault?: boolean | undefined;
+}
+
+export interface SendJoiningEmailInput {
+  readonly templateId?: string | null | undefined;
+  readonly subject: string;
+  readonly body: string;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { OnboardingStepDto, OnboardingWorkflowDto } from '@tapcrm/contracts';
 import { completeOnboardingStep, listOnboardingWorkflows } from '../api/onboardingApi.js';
+import { SkeletonListItem } from '../../ui/components.js';
 
 interface OnboardingChecklistDrawerProps {
   isOpen: boolean;
@@ -142,7 +143,9 @@ export function OnboardingChecklistDrawer({
           )}
 
           {loading ? (
-            <div className="py-12 text-center text-sm text-app-muted">Loading checklist steps...</div>
+            <div className="overflow-hidden rounded-xl border border-app-border bg-app-surface" role="status" aria-label="Loading onboarding checklist">
+              {Array.from({ length: 4 }, (_, index) => <SkeletonListItem key={index} />)}
+            </div>
           ) : error && !workflow ? null : !workflow ? (
             <div className="py-12 text-center text-sm text-app-muted">
               No active onboarding workflow found for this employee.

@@ -6,3 +6,5 @@
  */
 export { readRow, type Row, type BoardRow } from './repository.js';
 export { liveBoardGroup, type LiveBoardGroup } from './group.js';
+export { LIVE_STATUS_EVENTS } from './events.js';
+export { readPresenceToday, type PresenceSnapshot } from './presence-snapshot.js';

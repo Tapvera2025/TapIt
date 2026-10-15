@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../../../ui/Icon.js';
 import { getCompanyDepartments, type CompanyDepartment } from '../../api/companyApi.js';
 import {
   getEmployeeCurrentNote,
@@ -149,30 +150,33 @@ export function EmployeeNotesPage(): React.JSX.Element {
 
   return (
     <div className="p-5 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        {/* Page Heading */}
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">
-            Super Admin Monitoring
-          </p>
-          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-app-foreground">
-            Employee Notes
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-app-muted">
-            Monitor and review employee personal notepads and revision history across all departments. All views are strictly read-only.
-          </p>
-        </div>
-
-        {/* Filters */}
-        <EmployeeNotesFilters
-          departments={departments}
-          selectedDepartment={selectedDepartment}
-          onSelectDepartment={handleSelectDepartment}
-          search={search}
-          onSearchChange={setSearch}
-          onClearFilters={handleResetFilters}
-          disabled={loading && employees.length === 0}
-        />
+      <div className="mx-auto max-w-7xl space-y-5">
+        <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
+                <Icon name="notepad" className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">Super Admin Monitoring</p>
+                <h1 className="mt-0.5 text-base font-bold text-app-foreground">Employee notes directory</h1>
+                <p className="mt-0.5 text-xs text-app-muted">Read-only access to employee notepads and revision history.</p>
+              </div>
+            </div>
+            <span className="text-sm font-semibold text-app-muted">{loading ? 'Loading…' : `${total} employee${total === 1 ? '' : 's'}`}</span>
+          </div>
+          <div className="border-t border-t-[color:var(--app-border)] px-5 py-3 sm:px-6">
+            <EmployeeNotesFilters
+              departments={departments}
+              selectedDepartment={selectedDepartment}
+              onSelectDepartment={handleSelectDepartment}
+              search={search}
+              onSearchChange={setSearch}
+              onClearFilters={handleResetFilters}
+              disabled={loading && employees.length === 0}
+            />
+          </div>
+        </section>
 
         {/* Global Error Banner */}
         {error && (

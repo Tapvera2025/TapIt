@@ -5,6 +5,7 @@ import {
   assignBreakPolicy,
   type BreakPolicyRow,
 } from '../api/breaksApi.js';
+import { SkeletonTable } from '../../ui/components.js';
 
 /** Break policies and assignments take effect from tomorrow at the earliest (future-dated). */
 function tomorrow(): string {
@@ -323,7 +324,7 @@ export function BreakPoliciesPage(): React.JSX.Element {
       )}
 
       {error && <p className="text-sm text-app-danger">{error}</p>}
-      {loading && <p className="text-sm text-app-muted">Loading policies…</p>}
+      {loading && <SkeletonTable columns={4} rows={5} />}
 
       {!loading && policies.length === 0 && (
         <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">

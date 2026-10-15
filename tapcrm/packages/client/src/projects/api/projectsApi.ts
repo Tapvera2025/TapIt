@@ -118,3 +118,18 @@ export function updateDiscussionGroup(projectId: string, name: string, descripti
     body: JSON.stringify({ name, description }),
   });
 }
+
+export function addDiscussionGroupMembers(projectId: string, memberIds: string[]): Promise<{ conversationId: string }> {
+  return identityRequest(`/api/projects/${encodeURIComponent(projectId)}/discussion-group/members`, {
+    method: 'POST',
+    body: JSON.stringify({ memberIds }),
+  });
+}
+
+export function removeDiscussionGroupMember(projectId: string, userId: string): Promise<{ conversationId: string }> {
+  return identityRequest(`/api/projects/${encodeURIComponent(projectId)}/discussion-group/members/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+}
+
+export function archiveDiscussionGroup(projectId: string): Promise<{ archived: true }> {
+  return identityRequest(`/api/projects/${encodeURIComponent(projectId)}/discussion-group/archive`, { method: 'POST' });
+}

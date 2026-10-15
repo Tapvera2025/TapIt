@@ -18,7 +18,7 @@ const CLIENT_COPY: LoginFormCopy = {
  */
 export function ClientLoginPage({ onSuccess, onForgotPassword }: {
   onSuccess: (result: IdentityLoginResult) => void;
-  onForgotPassword: () => void;
+  onForgotPassword: (email: string) => void;
 }): React.JSX.Element {
   const [notice, setNotice] = useState('');
 

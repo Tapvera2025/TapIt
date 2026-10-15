@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Loading, Notice, Page } from '../../../ui/components.js';
+import { Card, Notice, SkeletonPage, WorkspacePageContainer } from '../../../ui/components.js';
 import { Icon } from '../../../ui/Icon.js';
 import {
   getRecruitmentMetrics,
@@ -70,12 +70,19 @@ export function RecruitmentOverviewPage({
   }, []);
 
   return (
-    <Page
-      eyebrow="People / HR"
-      title="Recruitment Overview"
-      description="Talent acquisition pipeline, active openings, candidate stages, and onboarding readiness."
-      action={
-        <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:items-center">
+    <WorkspacePageContainer>
+      <div className="recruitment-page-header">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
+              <Icon name="briefcase" className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">People / HR</p>
+              <h1 className="mt-0.5 text-xl font-bold text-app-foreground">Recruitment workspace</h1>
+              <p className="mt-0.5 text-xs text-app-muted">Manage openings, candidates, interviews, offers, and joining readiness.</p>
+            </div>
+          </div>
+          <div className="recruitment-page-header-actions">
           {onOpenAddCandidate && (
             <button
               type="button"
@@ -95,22 +102,19 @@ export function RecruitmentOverviewPage({
             </button>
           )}
         </div>
-      }
-    >
+      </div>
       {error && (
-        <div className="mt-6">
+        <div className="mt-5">
           <Notice error>{error}</Notice>
         </div>
       )}
 
       {loading && !metrics ? (
-        <div className="mt-6 space-y-4">
-          <Loading />
-        </div>
+        <div className="mt-5"><SkeletonPage cards={4} rows={4} /></div>
       ) : (
-        <div className="mt-6 space-y-8">
+        <div className="mt-5 space-y-5">
            {/* Visual Recruitment Pipeline Workflow */}
-          <Card className="p-6">
+          <Card className="p-5 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-display text-lg font-bold">HR Recruitment Pipeline</h3>
@@ -247,8 +251,8 @@ export function RecruitmentOverviewPage({
           {/* Recent Operational Highlights */}
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Open Requisitions Summary */}
-            <Card className="p-5">
-              <div className="flex items-center justify-between border-b border-app-border pb-3">
+            <Card className="border-0 p-5">
+              <div className="flex items-center justify-between pb-3">
                 <h3 className="font-display font-bold">Active Openings</h3>
                 <button
                   type="button"
@@ -291,8 +295,8 @@ export function RecruitmentOverviewPage({
             </Card>
 
             {/* Upcoming Interviews Summary */}
-            <Card className="p-5">
-              <div className="flex items-center justify-between border-b border-app-border pb-3">
+            <Card className="border-0 p-5">
+              <div className="flex items-center justify-between pb-3">
                 <h3 className="font-display font-bold">Scheduled Interviews</h3>
                 <button
                   type="button"
@@ -331,7 +335,7 @@ export function RecruitmentOverviewPage({
           onClose={() => setAppLinkRequisition(null)}
         />
       )}
-    </Page>
+    </WorkspacePageContainer>
   );
 }
 

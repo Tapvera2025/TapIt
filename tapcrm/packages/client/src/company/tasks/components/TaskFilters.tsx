@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../../../ui/Icon.js';
+import { Button } from '../../../ui/components.js';
 import type { TaskFiltersProps, TaskListQuery } from '../types/index.js';
 
 type PresetGroup1 = 'all' | 'pending' | 'in_progress' | 'high' | 'completed';
@@ -6,16 +8,19 @@ type PresetGroup1 = 'all' | 'pending' | 'in_progress' | 'high' | 'completed';
 export function TaskFilters({
   query,
   onQueryChange,
+  onCreateTask,
   disabled = false,
   isSuperAdmin = false,
   viewScope = 'my_tasks',
   onViewScopeChange,
 }: TaskFiltersProps): React.JSX.Element {
   const [searchInput, setSearchInput] = useState(query.search ?? '');
+  const [isSearchOpen, setIsSearchOpen] = useState(Boolean(query.search));
 
   // Sync internal search input when query prop resets externally
   useEffect(() => {
     setSearchInput(query.search ?? '');
+    if (query.search) setIsSearchOpen(true);
   }, [query.search]);
 
   // Debounce search input changes by 300ms
@@ -85,10 +90,10 @@ export function TaskFilters({
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-app-border bg-app-surface p-4 text-app-foreground shadow-sm">
-      {/* Super Admin Task Scope Selector */}
-      {isSuperAdmin && (
-        <div className="flex flex-col gap-2 border-b border-app-border/60 pb-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-3 rounded-2xl border border-app-border/80 bg-app-surface/70 p-3 text-app-foreground sm:p-4">
+      {/* Scope, on-demand search, and the primary action share one compact control row. */}
+      <div className="flex flex-col gap-3 border-b border-app-border/60 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        {isSuperAdmin ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-app-muted">Scope:</span>
             <div className="flex items-center gap-1.5">
@@ -119,44 +124,144 @@ export function TaskFilters({
                 All Employee Tasks
               </button>
             </div>
+            {viewScope === 'all_employee_tasks' && (
+              <span className="inline-flex items-center rounded-md bg-app-accent/10 px-2 py-0.5 text-[11px] font-medium text-app-accent">
+                Super Admin View · Organization-wide
+              </span>
+            )}
           </div>
-          {viewScope === 'all_employee_tasks' && (
-            <span className="inline-flex items-center rounded-md bg-app-accent/10 px-2 py-0.5 text-[11px] font-medium text-app-accent">
-              Super Admin View • Organization-wide
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Top row: Search and Sorting */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        {/* Search input with clear button */}
-        <div className="relative w-full md:max-w-md">
-          <input
-            type="text"
-            disabled={disabled}
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search tasks by title or description..."
-            className="w-full rounded-lg border border-app-border bg-app-background py-2 pl-3 pr-8 text-sm text-app-foreground outline-none transition focus:border-app-accent disabled:opacity-50"
-            aria-label="Search tasks"
-          />
-          {searchInput && (
+        ) : (
+          <span className="hidden sm:block" aria-hidden="true" />
+        )}
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+          {isSearchOpen ? (
+            <div className="relative min-w-0 flex-1 sm:w-72 lg:w-80">
+              <Icon
+                name="search"
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-app-muted"
+              />
+              <input
+                type="search"
+                autoFocus
+                disabled={disabled}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search tasks..."
+                className="w-full rounded-xl border border-app-border bg-app-background/70 py-2 pl-9 pr-8 text-sm text-app-foreground outline-none transition focus:border-app-accent disabled:opacity-50"
+                aria-label="Search tasks"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput('');
+                  setIsSearchOpen(false);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-app-muted transition hover:bg-app-muted/10 hover:text-app-foreground"
+                aria-label="Close search"
+              >
+                <Icon name="close" className="size-3.5" />
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={() => setSearchInput('')}
-              className="absolute right-2.5 top-2.5 text-xs text-app-muted hover:text-app-foreground"
-              aria-label="Clear search"
+              disabled={disabled}
+              onClick={() => setIsSearchOpen(true)}
+              className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-app-border bg-app-background/70 text-app-muted transition hover:border-app-accent/60 hover:text-app-accent disabled:opacity-50"
+              aria-label="Open task search"
+              title="Search tasks"
             >
-              ✕
+              <Icon name="search" className="size-4" />
             </button>
           )}
+          {onCreateTask && (
+            <Button
+              type="button"
+              kind="primary"
+              disabled={disabled}
+              onClick={onCreateTask}
+              className="flex-1 whitespace-nowrap sm:flex-none"
+            >
+              <span aria-hidden="true">+</span> Create Task
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* A single compact toolbar keeps filtering and sorting visually related. */}
+      <div className="flex flex-col gap-3 pt-1 xl:flex-row xl:items-center xl:justify-between">
+        <div className="order-2 min-w-0 xl:order-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-muted sm:mr-1">
+              Filter
+            </span>
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-wrap sm:gap-1.5">
+              {(
+                [
+                  { id: 'all', label: 'All' },
+                  { id: 'pending', label: 'Pending' },
+                  { id: 'in_progress', label: 'In Progress' },
+                  { id: 'high', label: 'High Priority' },
+                  { id: 'completed', label: 'Completed' },
+                ] as const
+              ).map((preset) => {
+                const isActive = activePreset1 === preset.id;
+                const isCompleted = preset.id === 'completed';
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => handleSelectGroup1(preset.id)}
+                    className={`flex w-full items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold transition sm:w-auto sm:py-1.5 ${
+                      isCompleted ? 'col-span-2 sm:col-span-1' : ''
+                    } ${
+                      isActive
+                        ? preset.id === 'pending'
+                          ? 'border border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-200'
+                          : preset.id === 'in_progress'
+                            ? 'border border-sky-500/30 bg-sky-500/15 text-sky-700 dark:text-sky-200'
+                            : preset.id === 'completed'
+                              ? 'border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200'
+                              : 'border border-app-accent/40 bg-app-accent/10 text-app-accent'
+                        : 'border border-app-border bg-app-background/60 text-app-foreground hover:border-app-accent/60'
+                    }`}
+                    aria-pressed={isActive}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span
+              className="hidden h-6 w-px bg-app-border/70 sm:block"
+              aria-hidden="true"
+            />
+            <label className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-muted">
+                Due date
+              </span>
+              <select
+                value={query.datePreset ?? 'all'}
+                disabled={disabled}
+                onChange={(e) => handleDatePresetChange(e.target.value)}
+                className="rounded-xl border border-app-border bg-app-background/70 px-3 py-2 text-xs font-medium text-app-foreground outline-none focus:border-app-accent"
+                aria-label="Filter by date preset"
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="this_month">This Month</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </label>
+          </div>
         </div>
 
-        {/* Sorting controls: single row on mobile with 2 equal columns */}
-        <div className="grid w-full grid-cols-2 gap-2 text-xs sm:flex sm:w-auto sm:items-center">
-          <label className="flex w-full items-center gap-1.5 font-medium text-app-muted sm:w-auto">
-            <span className="hidden shrink-0 sm:inline">Sort:</span>
+        <div className="order-1 grid w-full grid-cols-2 gap-2 text-xs sm:w-auto sm:flex sm:items-center xl:order-2 xl:shrink-0">
+          <span className="col-span-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-app-muted sm:col-auto">
+            Sort
+          </span>
+          <label className="flex min-w-0 items-center gap-1.5 font-medium text-app-muted">
             <select
               value={query.sortBy ?? 'createdAt'}
               disabled={disabled}
@@ -167,7 +272,7 @@ export function TaskFilters({
                   page: 1,
                 })
               }
-              className="w-full rounded-lg border border-app-border bg-app-background px-2.5 py-2 text-xs text-app-foreground outline-none focus:border-app-accent sm:py-1.5"
+              className="min-w-0 w-full rounded-xl border border-app-border bg-app-background/70 px-2.5 py-2 text-xs text-app-foreground outline-none focus:border-app-accent sm:w-auto"
               aria-label="Sort by attribute"
             >
               <option value="createdAt">Created Date</option>
@@ -177,8 +282,7 @@ export function TaskFilters({
               <option value="status">Status</option>
             </select>
           </label>
-
-          <label className="flex w-full items-center font-medium text-app-muted sm:w-auto">
+          <label className="flex min-w-0 items-center font-medium text-app-muted">
             <select
               value={query.sortOrder ?? 'desc'}
               disabled={disabled}
@@ -189,76 +293,13 @@ export function TaskFilters({
                   page: 1,
                 })
               }
-              className="w-full rounded-lg border border-app-border bg-app-background px-2.5 py-2 text-xs text-app-foreground outline-none focus:border-app-accent sm:py-1.5"
+              className="min-w-0 w-full rounded-xl border border-app-border bg-app-background/70 px-2.5 py-2 text-xs text-app-foreground outline-none focus:border-app-accent sm:w-auto"
               aria-label="Sort order"
             >
               <option value="desc">Descending (↓)</option>
               <option value="asc">Ascending (↑)</option>
             </select>
           </label>
-        </div>
-      </div>
-
-      {/* Filter Section: Proper row & column arrangement */}
-      <div className="space-y-3 border-t border-app-border/60 pt-3">
-        {/* Status & Priority Presets */}
-        <div>
-          <span className="mb-2 block text-xs font-semibold text-app-muted">
-            Status & Priority:
-          </span>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:flex-wrap md:gap-1.5">
-            {(
-              [
-                { id: 'all', label: 'All' },
-                { id: 'pending', label: 'Pending' },
-                { id: 'in_progress', label: 'In Progress' },
-                { id: 'high', label: 'High Priority' },
-                { id: 'completed', label: 'Completed' },
-              ] as const
-            ).map((preset) => {
-              const isActive = activePreset1 === preset.id;
-              const isCompleted = preset.id === 'completed';
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => handleSelectGroup1(preset.id)}
-                  className={`flex w-full items-center justify-center rounded-lg px-3 py-2 text-center text-xs font-semibold transition sm:w-auto sm:py-1.5 ${
-                    isCompleted
-                      ? 'col-span-2 sm:col-span-1 md:col-span-auto'
-                      : ''
-                  } ${
-                    isActive
-                      ? 'bg-app-accent text-white shadow-sm'
-                      : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent/60'
-                  }`}
-                  aria-pressed={isActive}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Date Filter Preset */}
-        <div className="flex flex-col gap-1.5 pt-1 sm:flex-row sm:items-center sm:gap-3">
-          <span className="shrink-0 text-xs font-semibold text-app-muted">
-            Date Filter:
-          </span>
-          <select
-            value={query.datePreset ?? 'all'}
-            disabled={disabled}
-            onChange={(e) => handleDatePresetChange(e.target.value)}
-            className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-xs font-medium text-app-foreground outline-none focus:border-app-accent sm:w-auto sm:py-1.5"
-            aria-label="Filter by date preset"
-          >
-            <option value="all">All Dates</option>
-            <option value="today">Today</option>
-            <option value="this_month">This Month</option>
-            <option value="overdue">Overdue</option>
-          </select>
         </div>
       </div>
     </div>

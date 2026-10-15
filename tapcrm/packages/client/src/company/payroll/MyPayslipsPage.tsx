@@ -8,7 +8,7 @@ import {
   type SlipDetail,
   type SlipSummary,
 } from '../api/payrollApi.js';
-import { Button, Card, Notice, Page } from '../../ui/components.js';
+import { Button, Card, Notice, Page, SkeletonTable } from '../../ui/components.js';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
@@ -132,7 +132,7 @@ export function MyPayslipsPage(): React.JSX.Element {
   return (
     <Page eyebrow="Payroll" title="My payslips" description="Your published payslips. A corrected month shows its latest revision.">
       {error && <div className="mt-6"><Notice error>{error}</Notice></div>}
-      {loading && <p className="mt-6 text-sm text-app-muted">Loading payslips…</p>}
+      {loading && <div className="mt-6"><SkeletonTable columns={4} rows={5} /></div>}
       {!loading && slips.length === 0 && !error && (
         <Card className="mt-6 text-center"><p className="text-sm text-app-muted">No published payslips yet.</p></Card>
       )}

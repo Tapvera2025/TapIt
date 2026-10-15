@@ -2,7 +2,7 @@
   "name": "tapcrm",
   "version": "0.1.0",
   "private": true,
-  "description": "TapCRM \u2014 role-based operating system for a services company. Modular monolith.",
+  "description": "TapCRM — role-based operating system for a services company. Modular monolith.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
@@ -47,6 +47,7 @@
     "@eslint/js": "^9.15.0",
     "@types/node": "^22.10.1",
     "eslint": "^9.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.4.1",
     "rimraf": "^6.0.1",
     "tsx": "^4.19.2",

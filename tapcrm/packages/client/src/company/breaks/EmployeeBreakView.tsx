@@ -6,6 +6,7 @@ import {
   type BreakAllowance,
   type BreakPrompt,
 } from '../api/breaksApi.js';
+import { SkeletonCard } from '../../ui/components.js';
 
 export function EmployeeBreakView(): React.JSX.Element {
   const [allowance, setAllowance] = useState<BreakAllowance | null>(null);
@@ -21,7 +22,7 @@ export function EmployeeBreakView(): React.JSX.Element {
   }, []);
 
   if (error) return <p className="p-4 text-red-600">{error}</p>;
-  if (!allowance) return <p className="p-4 text-app-muted">Loading...</p>;
+  if (!allowance) return <div className="p-4"><SkeletonCard className="h-48" /></div>;
 
   async function handleExplanation(breachId: string): Promise<void> {
     const text = explanations[breachId];

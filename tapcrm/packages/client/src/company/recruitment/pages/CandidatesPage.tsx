@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
-import { listCandidates, listRequisitions } from '../api/recruitmentApi.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
+import { listCandidates, listRequisitions, softDeleteCandidate } from '../api/recruitmentApi.js';
 import { CandidateDetailModal } from '../components/CandidateDetailModal.js';
 import { CandidateFormModal } from '../components/CandidateFormModal.js';
 import { CandidateStatusBadge } from '../components/StatusBadge.js';
@@ -33,6 +33,8 @@ export function CandidatesPage({
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -61,6 +63,19 @@ export function CandidatesPage({
     void load();
   }, [statusFilter, sourceFilter, reqFilter]);
 
+  async function handleDelete(id: string) {
+    setDeleting(true);
+    try {
+      await softDeleteCandidate(id);
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
+      setConfirmDeleteId(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Failed to remove candidate');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const visible = candidates.filter((c) => {
     if (!search.trim()) return true;
     const s = search.toLowerCase();
@@ -75,7 +90,7 @@ export function CandidatesPage({
   });
 
   return (
-    <Page
+    <Page variant="recruitment"
       eyebrow="People / HR"
       title="Candidate Pipeline"
       description="Talent pool management, applicant tracking, screening, evaluation stages, and selection records."
@@ -157,7 +172,7 @@ export function CandidatesPage({
       {/* Candidates List Table */}
       {loading ? (
         <div className="mt-6">
-          <Loading />
+          <SkeletonTable columns={5} rows={6} />
         </div>
       ) : visible.length === 0 ? (
         <Empty>
@@ -239,6 +254,35 @@ export function CandidatesPage({
                       className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700"
                     >
                       Make Offer
+                    </button>
+                  )}
+
+                  {confirmDeleteId === cand.id ? (
+                    <span className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => void handleDelete(cand.id)}
+                        className="rounded bg-app-danger px-2.5 py-1 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {deleting ? 'Removing...' : 'Confirm'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="rounded border border-app-border px-2.5 py-1 text-xs text-app-muted hover:text-app-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(cand.id)}
+                      className="rounded border border-app-border px-2.5 py-1 text-xs text-app-muted hover:border-app-danger hover:text-app-danger"
+                    >
+                      Remove
                     </button>
                   )}
                 </div>

@@ -27,7 +27,9 @@ import type { Action, Scope } from '@tapcrm/contracts';
  * Domain: 'business'
  * Scopes supported:
  * - own: creator
- * - participant: assigned interviewer / creator (for interviews)
+ * - participant: panel member / creator of an interview, to see it
+ *   (INTERVIEW_PARTICIPANT_ACTIONS); the interviewer of a candidate's round or
+ *   a member of an interview's panel, for INTERVIEWER_ACTIONS
  * - department: matches requisition / record department
  * - all-people: strictly disallowed for business domain per PD-1
  */
@@ -40,6 +42,21 @@ function checkTenantAndScope(
   if (resource['organizationId'] !== ctx.organizationId) return false;
   if (scope === 'all-people') return false; // PD-1: not allowed for business domain
   return true;
+}
+
+/**
+ * What an interviewer does on the round they were assigned: see it, open the
+ * candidate's resume and submit feedback. Being assigned names them as a party
+ * to that round (`interviewerIds` on the round's resource), whatever scope
+ * their position holds the action at — so a Developer Team Manager, a
+ * Developer and HR can all interview. It never extends to other recruitment
+ * actions: an interviewer cannot edit the candidate or decide the round.
+ */
+export const INTERVIEWER_ACTIONS: ReadonlySet<Action> = new Set<Action>(['recruitment:submit-round-feedback']);
+
+function isAssignedInterviewer(ctx: PolicyEvaluationContext, action: Action, resource: Resource): boolean {
+  const interviewers = resource['interviewerIds'];
+  return INTERVIEWER_ACTIONS.has(action) && Array.isArray(interviewers) && interviewers.includes(ctx.principal.id);
 }
 
 export const jobRequisitionPolicy: ResourcePolicy = {
@@ -114,11 +131,15 @@ export const candidatePolicy: ResourcePolicy = {
 
   async check(
     ctx: PolicyEvaluationContext,
-    _action: Action,
+    action: Action,
     resource: Resource,
     scope: Scope,
   ): Promise<boolean> {
     if (!checkTenantAndScope(ctx, resource, scope)) return false;
+
+    // The interviewer of a round (see INTERVIEWER_ACTIONS).
+    if (isAssignedInterviewer(ctx, action, resource)) return true;
+    if (scope === 'participant') return false;
 
     if (scope === 'own') {
       return resource['createdBy'] === ctx.principal.id;
@@ -157,8 +178,8 @@ export const candidatePolicy: ResourcePolicy = {
     return MATCH_NOTHING;
   },
 
-  participantFields(_action: Action): readonly string[] {
-    return [];
+  participantFields(action: Action): readonly string[] {
+    return INTERVIEWER_ACTIONS.has(action) ? ['interviewerIds'] : [];
   },
 
   initiatorField(_action: Action): string | null {
@@ -166,13 +187,23 @@ export const candidatePolicy: ResourcePolicy = {
   },
 };
 
+/**
+ * What being a party to an interview (on its panel, or having scheduled it)
+ * allows: seeing it. Running it — its status, rescheduling, the hiring
+ * decision, feedback in HR's name — stays with HR's scopes; a panel member
+ * gives their own feedback from My Interviews (INTERVIEWER_ACTIONS). Ordinary
+ * employees hold every recruitment action at `participant` (starter matrix),
+ * so without this a panel member could decide the candidate.
+ */
+export const INTERVIEW_PARTICIPANT_ACTIONS: ReadonlySet<Action> = new Set<Action>(['recruitment:view-interviews']);
+
 export const interviewPolicy: ResourcePolicy = {
   resourceType: 'interview',
   domain: 'business',
 
   async check(
     ctx: PolicyEvaluationContext,
-    _action: Action,
+    action: Action,
     resource: Resource,
     scope: Scope,
   ): Promise<boolean> {
@@ -183,6 +214,7 @@ export const interviewPolicy: ResourcePolicy = {
     }
 
     if (scope === 'participant') {
+      if (!INTERVIEW_PARTICIPANT_ACTIONS.has(action)) return false;
       const pId = ctx.principal.id;
       if (resource['createdBy'] === pId) return true;
       if (Array.isArray(resource['interviewerIds']) && resource['interviewerIds'].includes(pId)) {

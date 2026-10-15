@@ -19,7 +19,8 @@ import { CompanyWorkspace } from './company/CompanyWorkspace.js';
 import { ClientWorkspace } from './client-portal/ClientWorkspace.js';
 import { ClientLoginPage } from './client-portal/ClientLoginPage.js';
 import { PublicApplicationPage } from './company/recruitment/pages/PublicApplicationPage.js';
-import type { IdentityLoginResult } from './identity/api/authApi.js';
+import { PublicProposalPage } from './company/sales/proposals/PublicProposalPage.js';
+import type { DevPasswordReset, IdentityLoginResult } from './identity/api/authApi.js';
 
 export function App(): React.JSX.Element {
   const [pathname, setPathname] = useState(window.location.pathname);
@@ -28,6 +29,10 @@ export function App(): React.JSX.Element {
     Boolean(getIdentityAccessToken()),
   );
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
+  // The address typed on the login page, carried to the "Forgot password" page.
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  // Development only (DEV_INSTANT_PASSWORD_RESET): a new admin password to show on the login page.
+  const [devPasswordReset, setDevPasswordReset] = useState<DevPasswordReset | null>(null);
 
   function navigate(nextPath: string): void {
     window.history.pushState({}, '', nextPath);
@@ -60,6 +65,7 @@ export function App(): React.JSX.Element {
   }, []);
 
   function handleIdentityLogin(result: IdentityLoginResult) {
+    setDevPasswordReset(null);
     setCompanyAuthenticated(true);
     setPasswordChangeRequired(result.passwordChangeRequired);
     // Clients who sign in through the company login land in their own portal.
@@ -71,15 +77,62 @@ export function App(): React.JSX.Element {
     navigate('/login');
   }
 
+  function openForgotPassword(email = '') {
+    setDevPasswordReset(null);
+    setForgotPasswordEmail(email);
+    navigate('/forgot-password');
+  }
+
+  function showDevPasswordReset(reset: DevPasswordReset) {
+    setDevPasswordReset(reset);
+    navigate('/login');
+  }
+
   useEffect(() => {
     const handleAuthExpired = () => setAuthenticated(false);
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
   }, []);
 
+  useEffect(() => {
+    const handleButtonClick = (event: MouseEvent) => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const control = target.closest<HTMLElement>(
+        "button:not(:disabled), [role='button']:not([aria-disabled='true'])",
+      );
+      if (!control) return;
+      control.classList.remove('jelly-click');
+      void control.offsetWidth;
+      control.classList.add('jelly-click');
+    };
+    const clearAnimation = (event: AnimationEvent) => {
+      // The listener is bound to document, so event.currentTarget is the
+      // document itself and has no classList. The animation actually fired on
+      // event.target. Guard the element check since bubbled events from text
+      // nodes or non-Element targets would otherwise crash the handler.
+      if (event.animationName !== 'jelly-press') return;
+      const element = event.target;
+      if (element instanceof HTMLElement) {
+        element.classList.remove('jelly-click');
+      }
+    };
+    document.addEventListener('click', handleButtonClick);
+    document.addEventListener('animationend', clearAnimation);
+    return () => {
+      document.removeEventListener('click', handleButtonClick);
+      document.removeEventListener('animationend', clearAnimation);
+    };
+  }, []);
+
   if (pathname.startsWith('/apply/')) {
     const token = pathname.replace(/^\/apply\/?/, '');
     return <PublicApplicationPage token={token} />;
+  }
+  if (pathname.startsWith('/public/proposals/')) {
+    const token = pathname.replace(/^\/public\/proposals\/?/, '');
+    return <PublicProposalPage token={token} />;
   }
   if (pathname === '/accept-invitation') return <AcceptInvitation />;
   if (pathname.startsWith('/platform'))
@@ -116,12 +169,12 @@ export function App(): React.JSX.Element {
       window.history.replaceState({}, '', '/client');
       return <ClientWorkspace pathname="/client" onNavigate={navigate} onLogout={clientLogout} />;
     }
-    return <ClientLoginPage onSuccess={handleClientLogin} onForgotPassword={() => navigate('/forgot-password')} />;
+    return <ClientLoginPage onSuccess={handleClientLogin} onForgotPassword={openForgotPassword} />;
   }
   if (pathname === '/client' || pathname.startsWith('/client/')) {
     if (!companyAuthenticated) {
       window.history.replaceState({}, '', '/client/login');
-      return <ClientLoginPage onSuccess={handleClientLogin} onForgotPassword={() => navigate('/forgot-password')} />;
+      return <ClientLoginPage onSuccess={handleClientLogin} onForgotPassword={openForgotPassword} />;
     }
     return <ClientWorkspace pathname={pathname} onNavigate={navigate} onLogout={clientLogout} />;
   }
@@ -153,12 +206,19 @@ export function App(): React.JSX.Element {
     return (
       <IdentityLoginPage
         onSuccess={handleIdentityLogin}
-        onForgotPassword={() => navigate('/forgot-password')}
+        onForgotPassword={openForgotPassword}
+        devReset={devPasswordReset}
       />
     );
   }
   if (pathname === '/forgot-password')
-    return <ForgotPasswordPage onBack={openCompanyLogin} />;
+    return (
+      <ForgotPasswordPage
+        onBack={openCompanyLogin}
+        initialEmail={forgotPasswordEmail}
+        onDevReset={showDevPasswordReset}
+      />
+    );
   if (pathname === '/reset-password') {
     const params = new URLSearchParams(window.location.search);
     return (
@@ -175,7 +235,7 @@ export function App(): React.JSX.Element {
       return (
         <IdentityLoginPage
           onSuccess={handleIdentityLogin}
-          onForgotPassword={() => navigate('/forgot-password')}
+          onForgotPassword={openForgotPassword}
         />
       );
     }
@@ -196,7 +256,7 @@ export function App(): React.JSX.Element {
       return (
         <IdentityLoginPage
           onSuccess={handleIdentityLogin}
-          onForgotPassword={() => navigate('/forgot-password')}
+          onForgotPassword={openForgotPassword}
         />
       );
     }
@@ -220,7 +280,7 @@ export function App(): React.JSX.Element {
       return (
         <IdentityLoginPage
           onSuccess={handleIdentityLogin}
-          onForgotPassword={() => navigate('/forgot-password')}
+          onForgotPassword={openForgotPassword}
         />
       );
     }
@@ -245,7 +305,7 @@ export function App(): React.JSX.Element {
       return (
         <IdentityLoginPage
           onSuccess={handleIdentityLogin}
-          onForgotPassword={() => navigate('/forgot-password')}
+          onForgotPassword={openForgotPassword}
         />
       );
     }

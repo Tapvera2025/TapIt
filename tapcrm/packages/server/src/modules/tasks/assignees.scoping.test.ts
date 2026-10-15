@@ -39,6 +39,8 @@ vi.mock('../../platform/authz-adapter.js', () => ({
     poolIds: (_ctx: unknown): Promise<ReadonlySet<string>> => mockPoolIds(_ctx),
     subordinateIds: (_ctx: unknown): Promise<ReadonlySet<string>> => mockSubordinateIds(_ctx),
     poolMemberIds: (_ctx: unknown): Promise<ReadonlySet<string>> => mockPoolMemberIds(_ctx),
+    teamMemberIds: async (): Promise<ReadonlySet<string>> => new Set<string>(),
+    departmentMemberIds: async (): Promise<ReadonlySet<string>> => new Set<string>(),
   },
 }));
 

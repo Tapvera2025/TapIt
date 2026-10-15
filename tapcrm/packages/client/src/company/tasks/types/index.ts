@@ -119,6 +119,7 @@ export type TaskViewScope = 'my_tasks' | 'all_employee_tasks';
 export interface TaskFiltersProps {
   readonly query: TaskListQuery;
   readonly onQueryChange: (nextQuery: TaskListQuery) => void;
+  readonly onCreateTask?: (() => void) | undefined;
   readonly disabled?: boolean | undefined;
   readonly isSuperAdmin?: boolean | undefined;
   readonly viewScope?: TaskViewScope | undefined;

@@ -384,3 +384,30 @@ describe('HR-only People approvals (owner decision, 29 Sep 2026)', () => {
     ]);
   });
 });
+
+describe('interviewers (assigned by HR from any position)', () => {
+  const recruitment = new Map<string, RegistryActionDefinition[]>([
+    ['recruitment', ['recruitment:view-candidates', 'recruitment:manage-candidates', 'recruitment:submit-round-feedback']
+      .map((action) => ({ action, module: 'recruitment', positionGrantable: true, superAdminOnly: false }))],
+  ]);
+  const actions = (policies: Array<{ action: string; scope: string }>) =>
+    policies.map((p) => `${p.action}:${p.scope}`).sort();
+
+  it('gives a position with no recruitment access only interview feedback, as a participant', () => {
+    for (const position of ['sub-team-manager', 'dev-dept-head', 'project-manager', 'sales-head']) {
+      expect(actions(expandPermissionCell('recruitment', '—', position, recruitment))).toEqual([
+        'recruitment:submit-round-feedback:participant',
+      ]);
+    }
+  });
+
+  it('keeps the scope a position already has, and gives clients nothing', () => {
+    expect(actions(expandPermissionCell('recruitment', 'department', 'hr', recruitment))).toEqual([
+      'recruitment:manage-candidates:department',
+      'recruitment:submit-round-feedback:department',
+      'recruitment:view-candidates:department',
+    ]);
+    expect(expandPermissionCell('recruitment', '—', 'client', recruitment)).toEqual([]);
+    expect(expandPermissionCell('recruitment', 'glob', 'super-admin', recruitment)).toEqual([]);
+  });
+});

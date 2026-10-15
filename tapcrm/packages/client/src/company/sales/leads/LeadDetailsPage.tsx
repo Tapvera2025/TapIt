@@ -1,20 +1,79 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Page } from '../../../ui/components.js';
+import { Button, Card, Field, Page } from '../../../ui/components.js';
 import { acceptHandover, callbackOutcome, createCallback, createHandover, declineHandover, getCallbacks, getHandoverTargets, getHandovers, getLead, recordHandoverDisposition, updateCallback, type Handover, type HandoverTarget, type Lead, type LeadCallback } from './api.js';
 import { formatCallbackDate, organizationLocalToIso } from './callback-ui.js';
+import { ReassignModal } from './ReassignModal.js';
+import { createDeal } from '../deals/api.js';
 
-export function LeadDetailsPage({ id, currentUserId, organizationTimezone, onBack }: { id: string; currentUserId: string; organizationTimezone: string; onBack: () => void }): React.JSX.Element {
-  const [lead, setLead] = useState<Lead | null>(null); const [handovers, setHandovers] = useState<Handover[]>([]); const [callbacks, setCallbacks] = useState<LeadCallback[]>([]); const [targets, setTargets] = useState<HandoverTarget[]>([]); const [error, setError] = useState('');
+export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canReassign = false, canTransferSourcingCredit = false, canCreateDeal = false, onBack, onNavigate }: { id: string; currentUserId: string; organizationTimezone: string; canReassign?: boolean; canTransferSourcingCredit?: boolean; canCreateDeal?: boolean; onBack: () => void; onNavigate?: (path: string) => void }): React.JSX.Element {
+  const [lead, setLead] = useState<Lead | null>(null); const [handovers, setHandovers] = useState<Handover[]>([]); const [callbacks, setCallbacks] = useState<LeadCallback[]>([]); const [targets, setTargets] = useState<HandoverTarget[]>([]); const [error, setError] = useState(''); const [reassignOpen, setReassignOpen] = useState(false); const [convertOpen, setConvertOpen] = useState(false);
   const reload = () => Promise.all([getLead(id), getHandovers(id), getCallbacks(id)]).then(([nextLead, nextHandovers, nextCallbacks]) => { setLead(nextLead); setHandovers(nextHandovers); setCallbacks(nextCallbacks); }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load lead.'));
   useEffect(() => { void reload(); void getHandoverTargets(id).then(setTargets).catch(() => setTargets([])); }, [id]);
   if (error) return <Page eyebrow="Sales" title="Lead"><p className="text-app-danger">{error}</p><Button className="mt-4" kind="secondary" onClick={onBack}>Back to leads</Button></Page>;
   if (!lead) return <Page eyebrow="Sales" title="Lead"><p className="text-sm text-app-muted">Loading lead…</p></Page>;
-  return <Page eyebrow="Sales" title={lead.contactName} description={`Lead #${lead.leadNumber}`} action={<Button kind="secondary" onClick={onBack}>Back to leads</Button>}><div className="grid gap-6 lg:grid-cols-3"><Card className="lg:col-span-2"><div className="grid gap-5 sm:grid-cols-2">{[['Company', lead.companyName ?? '—'], ['Phone', lead.phone ?? '—'], ['Email', lead.email ?? '—'], ['Source', lead.sourceName], ['Campaign', lead.campaignName ?? '—'], ['Owner', lead.ownerName ?? 'Unrouted'], ['Current holder', lead.currentHolderName ?? 'Unrouted'], ['Territory', lead.territoryName ?? '—'], ['Sales Team', lead.salesTeamName ?? '—'], ['Status', lead.status.replaceAll('_', ' ')], ['Loss reason', lead.lossReason?.replaceAll('_', ' ') ?? '—'], ['Lost at', lead.lostAt ? new Date(lead.lostAt).toLocaleString() : '—'], ['Previous lead', lead.previousLeadId ? 'Re-engaged from retained lead' : '—'], ['Stalled', lead.stalledAt ? (lead.stalledReason ?? 'Yes') : 'No']] .map(([label, value]) => <div key={label}><p className="text-xs font-semibold uppercase tracking-wide text-app-muted">{label}</p><p className="mt-1 font-semibold capitalize">{value}</p></div>)}</div></Card><HandoverPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} handovers={handovers} targets={targets} onReload={reload} /><CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} onReload={reload} /><Card><h2 className="font-display text-lg font-bold">Activity</h2><div className="mt-4 space-y-3">{lead.activities.map((activity) => <div key={activity.id} className="border-l-2 border-app-accent pl-3"><p className="text-sm font-semibold">{activity.eventName}</p><p className="mt-1 text-xs text-app-muted">{new Date(activity.createdAt).toLocaleString()}</p></div>)}</div></Card></div></Page>;
+  const canConvert = canCreateDeal && lead.currentHolderId === currentUserId && lead.status !== 'converted' && lead.status !== 'closed_lost';
+  const action = <div className="flex flex-wrap gap-2">{canConvert && <Button onClick={() => setConvertOpen(true)}>Convert to deal</Button>}{canReassign && <Button kind="secondary" onClick={() => setReassignOpen(true)}>Reassign</Button>}<Button kind="secondary" onClick={onBack}>Back to leads</Button></div>;
+  return <Page eyebrow="Sales" title={lead.contactName} description={`Lead #${lead.leadNumber}`} action={action}>{reassignOpen && <ReassignModal lead={lead} canTransferSourcingCredit={canTransferSourcingCredit} onClose={() => setReassignOpen(false)} onReassigned={(updated) => { setLead(updated); void reload(); }} />}{convertOpen && <ConvertToDealModal lead={lead} onClose={() => setConvertOpen(false)} onCreated={(dealId) => { setConvertOpen(false); if (onNavigate) onNavigate(`/company/sales/deals/${dealId}`); }} />}<div className="grid gap-6 lg:grid-cols-3"><Card className="lg:col-span-2"><div className="grid gap-5 sm:grid-cols-2">{[['Company', lead.companyName ?? '—'], ['Phone', lead.phone ?? '—'], ['Email', lead.email ?? '—'], ['Source', lead.sourceName], ['Campaign', lead.campaignName ?? '—'], ['Owner', lead.ownerName ?? 'Unrouted'], ['Current holder', lead.currentHolderName ?? 'Unrouted'], ['Territory', lead.territoryName ?? '—'], ['Sales Team', lead.salesTeamName ?? '—'], ['Status', lead.status.replaceAll('_', ' ')], ['Loss reason', lead.lossReason?.replaceAll('_', ' ') ?? '—'], ['Lost at', lead.lostAt ? new Date(lead.lostAt).toLocaleString() : '—'], ['Previous lead', lead.previousLeadId ? 'Re-engaged from retained lead' : '—'], ['Stalled', lead.stalledAt ? (lead.stalledReason ?? 'Yes') : 'No']] .map(([label, value]) => <div key={label}><p className="text-xs font-semibold uppercase tracking-wide text-app-muted">{label}</p><p className="mt-1 font-semibold capitalize">{value}</p></div>)}</div></Card><HandoverPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} handovers={handovers} targets={targets} onReload={reload} /><CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} onReload={reload} /><Card><h2 className="font-display text-lg font-bold">Activity</h2><div className="mt-4 space-y-3">{lead.activities.map((activity) => <div key={activity.id} className="border-l-2 border-app-accent pl-3"><p className="text-sm font-semibold">{activity.eventName}</p><p className="mt-1 text-xs text-app-muted">{new Date(activity.createdAt).toLocaleString()}</p></div>)}</div></Card></div></Page>;
 }
 
 function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, onReload }: { lead: Lead; currentUserId: string; organizationTimezone: string; callbacks: LeadCallback[]; onReload: () => Promise<void> }): React.JSX.Element {
   const [scheduledAt, setScheduledAt] = useState(''); const [reason, setReason] = useState(''); const [error, setError] = useState(''); const canSchedule = lead.currentHolderId === currentUserId; const run = async (action: () => Promise<unknown>) => { try { await action(); setError(''); await onReload(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Callback action failed.'); } };
   return <Card><h2 className="font-display text-lg font-bold">Callbacks</h2>{error && <p className="mt-2 text-xs text-app-danger">{error}</p>}{canSchedule && <div className="mt-4 space-y-2"><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm" /><p className="text-xs text-app-muted">Times use the organization timezone: {organizationTimezone}</p><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason" className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm" /><Button disabled={!scheduledAt} onClick={() => void run(() => createCallback({ leadId: lead.id, scheduledAt: organizationLocalToIso(scheduledAt, organizationTimezone), reason: reason.trim() || undefined }))}>Schedule callback</Button></div>}{callbacks.map((callback) => <div key={callback.id} className="mt-4 border-t border-app-border pt-3 text-sm"><p className="font-semibold">{formatCallbackDate(callback.scheduledAt, callback.organizationTimezone)} · {callback.status.replaceAll('_', ' ')}</p><p className="mt-1 text-xs text-app-muted">Owner: {callback.ownerName ?? 'Unknown'}{callback.reason ? ` · ${callback.reason}` : ''}{callback.outcome ? ` · Outcome: ${callback.outcome.replaceAll('_', ' ')}` : ''} · Reminders: {callback.reminders.length}</p>{callback.status === 'pending' && callback.ownerId === currentUserId && <div className="mt-2 flex flex-wrap gap-2"><Button kind="secondary" onClick={() => void run(() => callbackOutcome(callback.id, 'completed', 'connected'))}>Complete</Button><Button kind="secondary" onClick={() => void run(() => callbackOutcome(callback.id, 'not_reachable', 'not_reachable'))}>Not reachable</Button><Button kind="danger" onClick={() => void run(() => callbackOutcome(callback.id, 'cancelled'))}>Cancel</Button><Button kind="secondary" onClick={() => void run(() => updateCallback(callback.id, { scheduledAt: organizationLocalToIso(new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16), callback.organizationTimezone) }))}>Reschedule +1h</Button></div>}</div>)}</Card>;
+}
+
+function ConvertToDealModal({ lead, onClose, onCreated }: { lead: Lead; onClose: () => void; onCreated: (dealId: string) => void }): React.JSX.Element {
+  const [title, setTitle] = useState(lead.companyName ? `${lead.companyName} — ${lead.contactName}` : lead.contactName);
+  const [service, setService] = useState('');
+  const [scope, setScope] = useState('');
+  const [expectedCloseAt, setExpectedCloseAt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function submit(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      const deal = await createDeal({
+        originatingLeadId: lead.id,
+        title: title.trim(),
+        ...(service.trim() ? { serviceRequested: service.trim() } : {}),
+        ...(scope.trim() ? { scopeSummary: scope.trim() } : {}),
+        ...(expectedCloseAt ? { expectedCloseAt: new Date(expectedCloseAt).toISOString() } : {}),
+        ...(lead.contactId ? { contactId: lead.contactId } : {}),
+      });
+      onCreated(deal.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not create the deal.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true">
+      <div className="w-full max-w-lg rounded-xl bg-app-background p-6 shadow-xl">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-bold">Convert lead to deal</h2>
+          <button type="button" onClick={onClose} className="text-sm text-app-muted hover:text-app-foreground">Close</button>
+        </div>
+        {error && <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-2 text-sm text-app-danger">{error}</p>}
+        <div className="mt-4 grid gap-4">
+          <Field label="Deal title" value={title} onChange={setTitle} required />
+          <Field label="Service requested" value={service} onChange={setService} />
+          <label className="text-xs font-semibold text-app-muted">
+            <span className="mb-2 block">Scope summary</span>
+            <textarea value={scope} onChange={(event) => setScope(event.target.value)} className="min-h-[80px] w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm" />
+          </label>
+          <label className="text-xs font-semibold text-app-muted">
+            <span className="mb-2 block">Expected close</span>
+            <input type="date" value={expectedCloseAt} onChange={(event) => setExpectedCloseAt(event.target.value)} className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm" />
+          </label>
+        </div>
+        <div className="mt-5 flex justify-end gap-3">
+          <Button kind="secondary" onClick={onClose}>Cancel</Button>
+          <Button disabled={busy || !title.trim()} onClick={() => void submit()}>{busy ? 'Creating…' : 'Create deal'}</Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function HandoverPanel({ lead, currentUserId, organizationTimezone, handovers, targets, onReload }: { lead: Lead; currentUserId: string; organizationTimezone: string; handovers: Handover[]; targets: HandoverTarget[]; onReload: () => Promise<void> }): React.JSX.Element {

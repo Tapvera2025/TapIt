@@ -1,4 +1,12 @@
-import type { Decimal, CurrencyCode } from '@tapcrm/contracts';
+import type { Decimal, CurrencyCode, ParsedResumeData } from '@tapcrm/contracts';
+
+export type {
+  ParsedCandidateData,
+  ParsedResumeData,
+  ParsedResumeEducation,
+  ParsedResumeExperience,
+  ParsedResumeProject,
+} from '@tapcrm/contracts';
 
 /**
  * Recruitment module domain and entity types.
@@ -105,18 +113,6 @@ export interface UploadCandidateResumeResult {
   readonly previewUrl: string;
 }
 
-export interface ParsedCandidateData {
-  readonly name: string | null;
-  readonly firstName: string | null;
-  readonly lastName: string | null;
-  readonly email: string | null;
-  readonly phone: string | null;
-  readonly skills: string[];
-  readonly education?: ParsedResumeEducation[] | undefined;
-  readonly experience?: ParsedResumeExperience[] | undefined;
-  readonly summary?: string | null | undefined;
-  readonly rawTextPreview?: string | undefined;
-}
 
 // ---------------------------------------------------------------------
 // 3. Interviews & Panel
@@ -255,6 +251,11 @@ export interface CandidateJoining {
   readonly status: JoiningStatus;
   readonly employeeId: string | null;
   readonly notes: string | null;
+  readonly joiningEmailSentAt: Date | string | null;
+  readonly joiningEmailTemplateId: string | null;
+  readonly acknowledgeToken: string | null;
+  readonly acknowledgedAt: Date | string | null;
+  readonly acknowledgeIp: string | null;
   readonly createdBy: string;
   readonly createdAt: Date | string;
   readonly updatedAt: Date | string;
@@ -303,35 +304,6 @@ export type ResumeSubmissionStatus =
   | 'converted'
   | 'rejected';
 
-export interface ParsedResumeEducation {
-  readonly degree?: string | undefined;
-  readonly institution?: string | undefined;
-  readonly year?: string | undefined;
-}
-
-export interface ParsedResumeExperience {
-  readonly title?: string | undefined;
-  readonly company?: string | undefined;
-  readonly duration?: string | undefined;
-}
-
-export interface ParsedResumeProject {
-  readonly title?: string | undefined;
-  readonly description?: string | undefined;
-}
-
-export interface ParsedResumeData {
-  readonly name?: string | null | undefined;
-  readonly email?: string | null | undefined;
-  readonly phone?: string | null | undefined;
-  readonly skills?: string[] | undefined;
-  readonly education?: ParsedResumeEducation[] | undefined;
-  readonly experience?: ParsedResumeExperience[] | undefined;
-  readonly projects?: ParsedResumeProject[] | undefined;
-  readonly summary?: string | null | undefined;
-  readonly rawTextPreview?: string | undefined;
-}
-
 export interface CandidateResumeSubmission {
   readonly id: string;
   readonly organizationId: string;
@@ -365,9 +337,153 @@ export interface CandidateResumeSubmission {
 export interface PublicJobRequisitionDetails {
   readonly title: string;
   readonly requisitionNumber: string;
+  readonly openingsCount: number;
   readonly employmentType: EmploymentType;
   readonly departmentName?: string | null | undefined;
   readonly location: string | null;
   readonly description: string | null;
   readonly requirements: string | null;
+}
+
+// ---------------------------------------------------------------------
+// 11. Pipeline Rounds (new — revamp)
+// ---------------------------------------------------------------------
+
+export type PipelineRoundMode = 'online' | 'offline' | 'phone';
+
+export interface PipelineRound {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly requisitionId: string;
+  readonly name: string;
+  readonly mode: PipelineRoundMode;
+  readonly orderIndex: number;
+  readonly interviewerNote: string | null;
+  readonly createdAt: Date | string;
+  readonly updatedAt: Date | string;
+}
+
+// ---------------------------------------------------------------------
+// 12. Candidate Round Progress (new — revamp)
+// ---------------------------------------------------------------------
+
+export type CandidateRoundStatus =
+  | 'pending'
+  | 'scheduled'
+  | 'completed'
+  | 'passed'
+  | 'failed'
+  | 'skipped';
+
+export type RoundRecommendation = 'pass' | 'fail' | 'hold';
+
+export interface CandidateRound {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly candidateId: string;
+  readonly pipelineRoundId: string;
+  readonly pipelineRoundName?: string;
+  readonly pipelineRoundOrder?: number;
+  readonly assignedTo: string | null;
+  readonly assignedToName?: string | null;
+  readonly scheduledAt: Date | string | null;
+  readonly mode: PipelineRoundMode | null;
+  readonly meetingLink: string | null;
+  readonly location: string | null;
+  readonly status: CandidateRoundStatus;
+  readonly interviewerNotes: string | null;
+  readonly rating: number | null;
+  readonly recommendation: RoundRecommendation | null;
+  readonly passedAt: Date | string | null;
+  readonly failedAt: Date | string | null;
+  readonly createdAt: Date | string;
+  readonly updatedAt: Date | string;
+}
+
+/** A round on its interviewer's "My Interviews" list: who and what it is for. */
+export interface AssignedInterview extends CandidateRound {
+  readonly candidateName: string;
+  readonly requisitionTitle: string;
+  readonly requisitionNumber: string;
+  /** The round's brief for interviewers, set on the job's pipeline. */
+  readonly interviewerBrief: string | null;
+  readonly hasResume: boolean;
+}
+
+/** A scheduled interview, as a member of its panel sees it in My Interviews. */
+export interface AssignedPanelInterview {
+  readonly id: string;
+  readonly candidateId: string;
+  readonly candidateName: string;
+  readonly requisitionId: string;
+  readonly requisitionTitle: string;
+  readonly requisitionNumber: string;
+  readonly stage: InterviewStage;
+  readonly round: number;
+  readonly interviewType: InterviewType;
+  readonly scheduledAt: Date | string;
+  readonly durationMinutes: number;
+  readonly locationOrLink: string | null;
+  readonly status: InterviewStatus;
+  readonly notes: string | null;
+  /** Everyone on the panel, the caller included. */
+  readonly panel: string[];
+  readonly hasResume: boolean;
+  /** The caller's own feedback. Other panel members' feedback is for HR. */
+  readonly myFeedback: InterviewFeedback | null;
+}
+
+/**
+ * Everything the signed-in person interviews for: pipeline rounds HR assigned
+ * to them, and scheduled interviews that name them on the panel.
+ */
+export interface MyInterviews {
+  readonly rounds: AssignedInterview[];
+  readonly interviews: AssignedPanelInterview[];
+}
+
+// ---------------------------------------------------------------------
+// 13. Candidate Activity Timeline (new — revamp)
+// ---------------------------------------------------------------------
+
+export type CandidateEventType =
+  | 'applied'
+  | 'screening_passed'
+  | 'round_passed'
+  | 'round_failed'
+  | 'round_scheduled'
+  | 'interviewer_assigned'
+  | 'feedback_submitted'
+  | 'selected'
+  | 'rejected'
+  | 'offer_sent'
+  | 'offer_accepted'
+  | 'joining_email_sent'
+  | 'acknowledged'
+  | 'employee_imported';
+
+export interface CandidateEvent {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly candidateId: string;
+  readonly eventType: CandidateEventType;
+  readonly actorId: string | null;
+  readonly actorName?: string | null;
+  readonly metadata: Record<string, unknown> | null;
+  readonly occurredAt: Date | string;
+}
+
+// ---------------------------------------------------------------------
+// 14. Email Templates (new — revamp)
+// ---------------------------------------------------------------------
+
+export interface RecruitmentEmailTemplate {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly name: string;
+  readonly subject: string;
+  readonly body: string;
+  readonly isDefault: boolean;
+  readonly createdAt: Date | string;
+  readonly updatedAt: Date | string;
 }

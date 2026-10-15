@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { api, ApiError, clearTokens, saveTokens, updateOrganization } from './api.js';
 import { ModuleToggleModal } from './ModuleToggleModal.js';
 import { ThemeToggle } from '../theme/ThemeToggle.js';
+import { ACCENT_COLORS, useTheme } from '../theme/ThemeContext.js';
+import { Icon } from '../ui/Icon.js';
 
 interface Organization {
   id: string;
@@ -333,66 +335,195 @@ export function PlatformLogin({ onLogin }: { onLogin: () => void }) {
         onSubmit={(e) => {
           void submit(e);
         }}
-        className="w-full max-w-[430px] rounded-[18px] border border-app-border bg-app-surface p-10 shadow-2xl max-[560px]:px-[22px] max-[560px]:py-[30px]"
+        className="relative w-full max-w-[440px] rounded-[22px] border border-app-border bg-app-surface p-8 shadow-[0_24px_80px_rgba(0,0,0,0.14)] max-[560px]:p-6"
       >
-        <div className="mb-6">
+        <ThemeToggle compact className="absolute right-5 top-5 max-[560px]:right-4 max-[560px]:top-4" />
+        <div className="mb-9 pr-12">
           <BrandLogo className="w-[200px]" />
         </div>
-        <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Control panel</p>
-        <h1 className="mt-6 text-4xl">Welcome back.</h1>
-        <p className="mt-2 mb-6 text-sm leading-6 text-app-muted">Sign in to manage companies, access and platform modules.</p>
-        <input
-          className="mt-4 block w-full rounded-[9px] border border-app-border bg-app-background px-[13px] py-3 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
-          placeholder="Master Admin email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <div className="relative">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-app-accent">Control panel</p>
+        <h1 className="font-display text-[clamp(30px,7vw,42px)] font-bold leading-none tracking-[-0.05em]">Welcome back.</h1>
+        <p className="mt-3 text-sm leading-6 text-app-muted">Sign in to manage companies, access and platform modules.</p>
+        <label className="mt-7 block">
+          <span className="mb-2 block text-xs font-semibold text-app-muted">Email address</span>
           <input
-          className="mt-4 block w-full rounded-[9px] border border-app-border bg-app-background px-[13px] py-3 pr-12 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
-            placeholder="Password"
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
+            placeholder="admin@example.com"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <button
-            type="button"
-            className="absolute right-2 top-1/2 grid size-[34px] -translate-y-1/2 place-items-center rounded-[7px] border-0 bg-transparent p-0 text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1"
-            onClick={() => setShowPassword((visible) => !visible)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-            aria-pressed={showPassword}
-          >
-            <svg className="size-[18px] fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.8]" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              {showPassword ? (
-                <>
-                  <path d="M3 3l18 18" />
-                  <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-                  <path d="M9.9 4.3A10.8 10.8 0 0 1 12 4c5.2 0 8.7 4 10 8a13.7 13.7 0 0 1-3.1 5" />
-                  <path d="M6.2 6.2C4.5 7.3 3.2 9.2 2 12c1.3 4 4.8 8 10 8a10.8 10.8 0 0 0 3.4-.5" />
-                </>
-              ) : (
-                <>
-                  <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
-                  <circle cx="12" cy="12" r="2.5" />
-                </>
-              )}
-            </svg>
-          </button>
-        </div>
-        <button className="mt-[22px] w-full rounded-[9px] bg-app-accent px-4 py-[13px] font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60" disabled={busy}>
+        </label>
+        <label className="mt-4 block">
+          <span className="mb-2 block text-xs font-semibold text-app-muted">Password</span>
+          <span className="relative block">
+            <input
+              className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 pr-12 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
+              placeholder="Password"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 grid size-[34px] -translate-y-1/2 place-items-center rounded-[7px] border-0 bg-transparent p-0 text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+            >
+              <svg className="size-[18px] fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.8]" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                {showPassword ? (
+                  <>
+                    <path d="M3 3l18 18" />
+                    <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                    <path d="M9.9 4.3A10.8 10.8 0 0 1 12 4c5.2 0 8.7 4 10 8a13.7 13.7 0 0 1-3.1 5" />
+                    <path d="M6.2 6.2C4.5 7.3 3.2 9.2 2 12c1.3 4 4.8 8 10 8a10.8 10.8 0 0 0 3.4-.5" />
+                  </>
+                ) : (
+                  <>
+                    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+                    <circle cx="12" cy="12" r="2.5" />
+                  </>
+                )}
+              </svg>
+            </button>
+          </span>
+        </label>
+        {error && <p className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-app-danger" role="alert">{error}</p>}
+        <button className="mt-6 w-full rounded-[10px] bg-app-accent px-4 py-3 font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        {error && <p className="mt-3 text-[13px] text-app-danger">{error}</p>}
       </form>
-      <ThemeToggle floating />
     </main>
   );
 }
 
+function AppearanceModeIcon({ mode }: { mode: 'light' | 'dark' }) {
+  return mode === 'light' ? (
+    <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  ) : (
+    <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+      <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.7 6.7 0 0 0 21 12.8Z" />
+    </svg>
+  );
+}
+
+function PlatformAppearancePopover({
+  onLogout,
+  onClose,
+  mobile = false,
+}: {
+  onLogout: () => void;
+  onClose: () => void;
+  mobile?: boolean;
+}) {
+  const { accent, resolvedTheme, setAccent, setTheme } = useTheme();
+
+  return (
+    <div
+      className={`platform-appearance-popover ${mobile ? 'w-full' : 'absolute right-0 top-[calc(100%+0.75rem)] z-40 w-[min(30rem,calc(100vw-2rem))]'} rounded-[22px] border border-app-border bg-app-surface-raised/95 p-4 text-app-foreground shadow-[0_24px_70px_rgba(0,0,0,0.18)] backdrop-blur-xl max-[560px]:rounded-[20px] max-[560px]:p-3.5`}
+      role="dialog"
+      aria-label="Appearance settings"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-app-accent/20 bg-app-accent/10 text-app-accent">
+            <Icon name="settings" className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold tracking-[-0.01em]">Appearance</h2>
+            <p className="mt-0.5 text-xs text-app-muted">Choose your theme and color</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid size-8 shrink-0 place-items-center rounded-lg border border-app-border text-app-muted transition hover:border-app-accent/40 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent"
+          aria-label="Close appearance settings"
+        >
+          <Icon name="chevron-up" className="size-4" />
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2.5 max-[420px]:grid-cols-1">
+        {([
+          { mode: 'light' as const, label: 'Light Mode', description: 'Clean and bright' },
+          { mode: 'dark' as const, label: 'Dark Mode', description: 'Easy on your eyes' },
+        ]).map(({ mode, label, description }) => {
+          const selected = resolvedTheme === mode;
+          return (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setTheme(mode)}
+              aria-pressed={selected}
+              className={`platform-appearance-mode-card flex items-center gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-app-accent ${selected ? 'border-app-accent/60 bg-app-accent/10 text-app-foreground ring-1 ring-inset ring-app-accent/25' : 'border-app-border bg-app-background/35 text-app-foreground hover:border-app-accent/35 hover:bg-app-accent/5'}`}
+            >
+              <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? 'bg-app-accent text-app-on-accent' : 'bg-app-surface text-app-muted'}`}>
+                <AppearanceModeIcon mode={mode} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{label}</span>
+                <span className="mt-0.5 block text-xs text-app-muted">{description}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-5 border-t border-app-border/70 pt-4">
+        <p className="text-sm font-semibold">Accent Color</p>
+        <p className="mt-0.5 text-xs text-app-muted">Change the highlight color</p>
+        <div className="mt-3 flex flex-wrap gap-2.5" role="radiogroup" aria-label="Accent color">
+          {ACCENT_COLORS.map((color) => {
+            const selected = accent === color.id;
+            return (
+              <button
+                key={color.id}
+                type="button"
+                onClick={() => setAccent(color.id)}
+                className={`group inline-flex items-center gap-2 rounded-xl border px-2.5 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-app-accent ${selected ? 'border-app-accent/50 bg-app-accent/10 text-app-foreground' : 'border-app-border bg-app-background/30 text-app-muted hover:border-app-accent/35 hover:text-app-foreground'}`}
+                role="radio"
+                aria-checked={selected}
+                aria-label={`${color.label} accent${selected ? ', selected' : ''}`}
+              >
+                <span
+                  className={`size-4 rounded-full ${selected ? 'ring-2 ring-app-surface ring-offset-1 ring-offset-app-accent' : ''}`}
+                  style={{ backgroundColor: color.hex }}
+                />
+                <span>{color.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onLogout}
+        className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-rose-300/25 bg-rose-500/[0.07] p-3 text-left transition hover:border-rose-400/45 hover:bg-rose-500/[0.12] focus-visible:outline-2 focus-visible:outline-rose-400"
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-500">
+          <Icon name="logout" className="size-4.5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Sign out from your account</span>
+          <span className="mt-0.5 block text-xs text-app-muted">Log out of the platform dashboard</span>
+        </span>
+        <Icon name="chevron-right" className="size-4 text-rose-500" />
+      </button>
+    </div>
+  );
+}
+
 export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [entitlements, setEntitlements] = useState<Record<string, Entitlement[]>>({});
   const [stats, setStats] = useState<Record<string, number>>({});
@@ -797,10 +928,15 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       .some((value) => value.toLowerCase().includes(search));
   });
 
+  const logout = (): void => {
+    clearTokens();
+    onLogout();
+  };
+
   return (
     <main className="min-h-screen bg-app-background px-5 pb-16 pt-[34px] text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)] max-[560px]:px-[15px] max-[560px]:pb-[45px] max-[560px]:pt-6">
       <div className="mx-auto mb-5 max-w-[1320px] min-[561px]:hidden"><BrandLogo className="w-[180px]" /></div>
-      <header className="mx-auto flex max-w-[1320px] items-start justify-between gap-7 max-[560px]:gap-3">
+      <header className="relative mx-auto flex max-w-[1320px] items-start justify-between gap-7 max-[560px]:gap-3">
         <div className="flex items-start gap-[22px] max-[560px]:gap-[13px]">
           <div className="hidden items-center gap-2.5 font-display text-[17px] font-bold tracking-[-0.03em] text-app-muted min-[561px]:flex">
             <BrandLogo className="w-[200px]" />
@@ -811,18 +947,36 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             <p className="mt-[9px] text-sm text-app-muted max-[560px]:max-w-[230px]">Your companies, modules and access in one place.</p>
           </div>
         </div>
-        <div className="flex items-center gap-[9px] max-[560px]:flex-col max-[560px]:items-stretch">
-          <ThemeToggle />
-          <button
-            onClick={() => {
-              clearTokens();
-              onLogout();
-            }}
-            className="rounded-[9px] border border-app-border bg-app-surface px-4 py-2.5 text-app-foreground transition hover:border-app-accent hover:text-app-accent"
-          >
-            Logout
-          </button>
+        <div className="platform-header-actions hidden items-center gap-2 min-[561px]:flex">
+          <div className="platform-appearance-anchor relative">
+            <ThemeToggle
+              compact
+              showChevron
+              onActivate={() => setAppearanceOpen((open) => !open)}
+              className="platform-theme-toggle"
+            />
+            {appearanceOpen && (
+              <PlatformAppearancePopover onLogout={logout} onClose={() => setAppearanceOpen(false)} />
+            )}
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setMobileActionsOpen((open) => !open)}
+          className="platform-mobile-menu-button grid size-9 place-items-center rounded-xl border border-app-border bg-app-surface text-app-foreground transition hover:border-app-accent hover:text-app-accent min-[561px]:hidden"
+          aria-label={mobileActionsOpen ? 'Close dashboard actions' : 'Open dashboard actions'}
+          aria-expanded={mobileActionsOpen}
+        >
+          <span className="sr-only">Dashboard actions</span>
+          <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            {mobileActionsOpen ? <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></> : <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>}
+          </svg>
+        </button>
+        {mobileActionsOpen && (
+          <div className="platform-mobile-actions absolute right-0 top-full z-30 mt-3 w-[min(30rem,calc(100vw-2rem))] min-[561px]:hidden">
+            <PlatformAppearancePopover mobile onLogout={logout} onClose={() => setMobileActionsOpen(false)} />
+          </div>
+        )}
       </header>
       <section className="mx-auto mb-[22px] mt-[42px] grid max-w-[1320px] grid-cols-4 gap-[14px] max-[850px]:grid-cols-2 max-[560px]:mt-[30px] max-[560px]:gap-[9px]">
         {Object.entries(stats).filter(([k]) => !k.endsWith('_invitations')).map(([k, v]) => (

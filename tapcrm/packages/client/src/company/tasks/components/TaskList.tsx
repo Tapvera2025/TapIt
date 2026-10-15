@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Empty, Loading } from '../../../ui/components.js';
+import { SkeletonTable } from '../../../ui/components.js';
 import type { TaskListProps, TaskStatus } from '../types/index.js';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskStatusBadge.js';
 
@@ -40,9 +40,7 @@ export function TaskList({
   onEditTask,
   onAssignTask,
 }: TaskListProps): React.JSX.Element {
-  const [transitioningTaskId, setTransitioningTaskId] = useState<string | null>(
-    null,
-  );
+  const [transitioningTaskId, setTransitioningTaskId] = useState<string | null>(null);
   const [transitionError, setTransitionError] = useState<{
     taskId: string;
     message: string;
@@ -50,12 +48,17 @@ export function TaskList({
   const [openStatusMenu, setOpenStatusMenu] = useState<string | null>(null);
 
   if (loading) {
-    return <Loading />;
+    return <SkeletonTable columns={5} rows={7} />;
   }
 
   if (tasks.length === 0) {
     return (
-      <Empty>No tasks found. Try adjusting your filters or create a new task.</Empty>
+      <div className="rounded-2xl border border-dashed border-app-border bg-app-surface/60 px-6 py-10 text-center">
+        <p className="text-sm font-semibold text-app-foreground">No tasks found</p>
+        <p className="mt-1 text-xs text-app-muted">
+          Try adjusting your filters or create a new task.
+        </p>
+      </div>
     );
   }
 
@@ -71,10 +74,7 @@ export function TaskList({
     } catch (err) {
       setTransitionError({
         taskId,
-        message:
-          err instanceof Error
-            ? err.message
-            : 'Failed to transition task status',
+        message: err instanceof Error ? err.message : 'Failed to transition task status',
       });
     } finally {
       setTransitioningTaskId(null);
@@ -82,7 +82,7 @@ export function TaskList({
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3 lg:space-y-3">
       {tasks.map((task) => {
         const isBusy = transitioningTaskId === task.id;
         const myAssignment = currentUserId
@@ -95,16 +95,14 @@ export function TaskList({
         return (
           <article
             key={task.id}
-            className="rounded-lg border border-app-border bg-app-surface p-4 transition-colors hover:border-app-border/80 shadow-xs"
+            className="rounded-2xl border border-app-border/80 bg-app-surface/75 p-4 transition-colors hover:border-app-accent/40 sm:p-5 lg:p-5"
           >
-            {/* 1. Header: Task Title on left, Status & Actions on right */}
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex-1 min-w-0 pr-2">
-                <h3 className="font-semibold text-sm sm:text-base text-app-foreground leading-snug break-words">
+            <div className="grid gap-4 lg:grid-cols-[minmax(16rem,1.2fr)_minmax(15rem,0.9fr)_auto] lg:items-center lg:gap-6">
+              <div className="min-w-0">
+                <h3 className="break-words text-sm font-semibold leading-snug text-app-foreground sm:text-base">
                   {task.title}
                 </h3>
 
-                {/* 2. Description directly below title */}
                 {task.description && (
                   <p className="mt-1.5 text-xs text-app-muted line-clamp-2 leading-relaxed">
                     {task.description}
@@ -112,8 +110,36 @@ export function TaskList({
                 )}
               </div>
 
-              {/* Status and Actions cluster */}
-              <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start">
+              <div className="flex min-w-0 flex-col items-start gap-2 text-xs text-app-muted">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <TaskPriorityBadge priority={task.priority} />
+                  {task.projectId && (
+                    <span className="max-w-full truncate rounded-md border border-app-border/70 bg-app-background/50 px-2 py-1">
+                      {task.projectName ?? 'Unknown project'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {task.dueDate && (
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-app-border/70 bg-app-background/50 px-2 py-1">
+                      <span className="text-app-muted">Due</span>
+                      <time className="font-medium text-app-foreground" dateTime={task.dueDate}>
+                        {formatDate(task.dueDate)}
+                      </time>
+                    </span>
+                  )}
+                  {task.createdAt && (
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-app-border/70 bg-app-background/50 px-2 py-1">
+                      <span className="text-app-muted">Created</span>
+                      <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
+                        {formatDate(task.createdAt)}
+                      </time>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap lg:justify-end">
                 {availableTransitions.length === 0 ? (
                   <TaskStatusBadge status={task.status} />
                 ) : (
@@ -121,11 +147,18 @@ export function TaskList({
                     <button
                       type="button"
                       disabled={isBusy}
-                      onClick={() => setOpenStatusMenu(openStatusMenu === task.id ? null : task.id)}
+                      onClick={() =>
+                        setOpenStatusMenu(openStatusMenu === task.id ? null : task.id)
+                      }
                       className="disabled:opacity-50"
-                      aria-label={myAssignment ? 'Change my task status' : 'Change task status'}
+                      aria-label={
+                        myAssignment ? 'Change my task status' : 'Change task status'
+                      }
                     >
-                      <TaskStatusBadge status={task.status} className="cursor-pointer hover:ring-1 hover:ring-app-accent/40" />
+                      <TaskStatusBadge
+                        status={task.status}
+                        className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
+                      />
                     </button>
                     {openStatusMenu === task.id && (
                       <div className="absolute left-0 top-full z-20 mt-1 min-w-32 rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg">
@@ -153,7 +186,7 @@ export function TaskList({
                     type="button"
                     disabled={isBusy}
                     onClick={() => onEditTask(task)}
-                    className="h-7 rounded border border-app-border bg-app-surface px-2.5 text-xs font-medium text-app-foreground hover:bg-app-surface-raised hover:border-app-accent/60 transition disabled:opacity-50"
+                    className="h-7 rounded-lg border border-app-border bg-app-background/60 px-2.5 text-xs font-medium text-app-foreground transition hover:border-app-accent/60 hover:bg-app-surface-raised disabled:opacity-50"
                     aria-label={`Edit task ${task.title}`}
                   >
                     Edit
@@ -166,7 +199,7 @@ export function TaskList({
                     type="button"
                     disabled={isBusy}
                     onClick={() => onAssignTask(task)}
-                    className="h-7 rounded border border-app-border bg-app-surface px-2.5 text-xs font-medium text-app-foreground hover:bg-app-surface-raised hover:border-app-accent/60 transition disabled:opacity-50"
+                    className="h-7 rounded-lg border border-app-border bg-app-background/60 px-2.5 text-xs font-medium text-app-foreground transition hover:border-app-accent/60 hover:bg-app-surface-raised disabled:opacity-50"
                     aria-label={`Manage assignees for ${task.title}`}
                   >
                     Assign
@@ -175,38 +208,13 @@ export function TaskList({
               </div>
             </div>
 
-            {/* Transition Error Message if any */}
             {transitionError?.taskId === task.id && (
               <div className="mt-2 text-xs text-app-danger" role="alert">
                 {transitionError.message}
               </div>
             )}
 
-            {/* 3. Metadata Row: Priority · Project · Created */}
-            <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-app-muted">
-              <TaskPriorityBadge priority={task.priority} />
-
-              {task.projectId && (
-                <>
-                  <span className="text-app-muted/40" aria-hidden="true">·</span>
-                  <span className="inline-flex items-center gap-1 text-[11px]">
-                    Project: {task.projectName ?? 'Unknown'}
-                  </span>
-                </>
-              )}
-
-              {task.createdAt && (
-                <>
-                  <span className="text-app-muted/40" aria-hidden="true">·</span>
-                  <span className="text-[11px]">
-                    Created {formatDate(task.createdAt)}
-                  </span>
-                </>
-              )}
-            </div>
-
-            {/* 4. Assignment Row: Created by: Rahul Roy → Assigned to: Employee A [Status], Employee B [Status] */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-app-border/40 pt-2.5 text-xs text-app-muted">
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-app-border/40 pt-3 text-xs text-app-muted">
               <div className="flex items-center gap-1.5">
                 <span className="text-app-muted">Created by:</span>
                 <span className="font-medium text-app-foreground">
@@ -214,7 +222,9 @@ export function TaskList({
                 </span>
               </div>
 
-              <span className="mx-1 text-app-muted/50" aria-hidden="true">→</span>
+              <span className="mx-1 text-app-muted/50" aria-hidden="true">
+                →
+              </span>
 
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-app-muted">Assigned to:</span>
@@ -224,7 +234,8 @@ export function TaskList({
                   <div className="flex flex-wrap items-center gap-2">
                     {task.assignees.map((assignee) => {
                       const isSelf = currentUserId === assignee.id;
-                      const assigneeTransitions = VALID_TRANSITIONS[assignee.status] ?? [];
+                      const assigneeTransitions =
+                        VALID_TRANSITIONS[assignee.status] ?? [];
                       return (
                         <div
                           key={assignee.id}
@@ -250,11 +261,20 @@ export function TaskList({
                               <button
                                 type="button"
                                 disabled={isBusy}
-                                onClick={() => setOpenStatusMenu(openStatusMenu === `${task.id}:${assignee.id}` ? null : `${task.id}:${assignee.id}`)}
+                                onClick={() =>
+                                  setOpenStatusMenu(
+                                    openStatusMenu === `${task.id}:${assignee.id}`
+                                      ? null
+                                      : `${task.id}:${assignee.id}`,
+                                  )
+                                }
                                 className="disabled:opacity-50"
                                 aria-label={`Change status for ${assignee.fullName}`}
                               >
-                                <TaskStatusBadge status={assignee.status} className="cursor-pointer hover:ring-1 hover:ring-app-accent/40" />
+                                <TaskStatusBadge
+                                  status={assignee.status}
+                                  className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
+                                />
                               </button>
                               {openStatusMenu === `${task.id}:${assignee.id}` && (
                                 <div className="absolute left-0 top-full z-20 mt-1 min-w-28 rounded-lg border border-app-border bg-app-surface py-1 text-[11px] shadow-lg">
@@ -264,7 +284,11 @@ export function TaskList({
                                       type="button"
                                       onClick={() => {
                                         setOpenStatusMenu(null);
-                                        void handleTransition(task.id, status, assignee.id);
+                                        void handleTransition(
+                                          task.id,
+                                          status,
+                                          assignee.id,
+                                        );
                                       }}
                                       className="block w-full px-3 py-1.5 text-left hover:bg-app-surface-raised"
                                     >

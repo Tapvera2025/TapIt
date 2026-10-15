@@ -126,8 +126,11 @@ async function up(): Promise<void> {
       await client.query('BEGIN');
       try {
         await client.query(migration.sql);
-        if (migration.version === '0048_intern_positions') {
-          const { reconcileInternPositions } = await import(
+        if (
+          migration.version === '0048_intern_positions'
+          || migration.version === '0088_backfill_registry_actions_and_sales_policies'
+        ) {
+          const bootstrap = await import(
             '../packages/server/src/platform/organizations/bootstrap.js'
           );
           const organizations = await client.query<{
@@ -160,7 +163,11 @@ async function up(): Promise<void> {
             },
           };
           for (const organization of organizations.rows) {
-            await reconcileInternPositions(tx, organization.id, organization.moduleKeys);
+            if (migration.version === '0048_intern_positions') {
+              await bootstrap.reconcileInternPositions(tx, organization.id, organization.moduleKeys);
+            } else {
+              await bootstrap.reconcileAllPositionPolicies(tx, organization.id, organization.moduleKeys);
+            }
           }
         }
         await client.query(

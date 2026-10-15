@@ -50,6 +50,8 @@ describe('HR Task Authorization — Position -> Policy -> Action -> Scope', () =
         poolIds: async () => new Set<string>(),
         subordinateIds: async () => new Set<string>(),
         poolMemberIds: async () => new Set<string>(),
+teamMemberIds: async () => new Set<string>(),
+departmentMemberIds: async () => new Set<string>(),
       },
     };
   }
@@ -122,6 +124,8 @@ describe('HR Task Authorization — Position -> Policy -> Action -> Scope', () =
         teamIds: async () => new Set(),
         poolIds: async () => new Set(),
         poolMemberIds: async () => new Set(),
+        teamMemberIds: async () => new Set<string>(),
+        departmentMemberIds: async () => new Set<string>(),
         departmentId: async (ctx) =>
           ctx.principal.accountType === 'employee' ? ctx.principal.departmentId : null,
       },

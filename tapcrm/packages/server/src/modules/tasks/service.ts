@@ -378,6 +378,11 @@ export async function transitionTask(
         },
       });
 
+      // The creator and the other assignees hear about it; the actor does not.
+      // `from` is this assignee's previous status — the task's own status is not
+      // what moved.
+      await notifyTaskStatusChanged(tx, ctx, { ...existing, status: assignee.status }, input.status);
+
       const updated = await findTaskByIdTx(tx, ctx.organizationId, id);
       if (!updated) {
         throw new TaskNotFoundError();

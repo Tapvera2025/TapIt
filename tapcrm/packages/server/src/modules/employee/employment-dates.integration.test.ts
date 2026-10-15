@@ -20,13 +20,15 @@ const DEPT = randomUUID();
 const POS = randomUUID();
 const EMPLOYEE = randomUUID();
 const ROBOT = randomUUID();
+// The acting super-admin must be a real user: onboarding records who created it.
+const ADMIN = randomUUID();
 
 const asOwner = (reason: string, fragment: ReturnType<typeof sql>) =>
   platformDb.query('migration', reason, fragment);
 
 function ctx(): RequestContext {
   const principal: Principal = {
-    id: randomUUID(),
+    id: ADMIN,
     organizationId: ORG,
     accountType: 'super-admin',
     sessionVersion: 1,
@@ -77,6 +79,11 @@ describe.skipIf(!enabled)('employment dates (PostgreSQL)', () => {
           VALUES (${EMPLOYEE}, ${ORG}, 'employee', 'EMP-ED1', ${`e-${EMPLOYEE}@t.io`}, 'Employee', ${POS}, ${DEPT})`,
     );
     await asOwner(
+      'the acting admin',
+      sql`INSERT INTO app_user (id, organization_id, account_type, email, full_name)
+          VALUES (${ADMIN}, ${ORG}, 'super-admin', ${`admin-${ADMIN}@t.io`}, 'Admin')`,
+    );
+    await asOwner(
       'a service account',
       sql`INSERT INTO app_user (id, organization_id, account_type, email, full_name)
           VALUES (${ROBOT}, ${ORG}, 'service', ${`robot-${ROBOT}@t.io`}, 'Robot')`,
@@ -87,6 +94,9 @@ describe.skipIf(!enabled)('employment dates (PostgreSQL)', () => {
     for (const table of [
       'domain_outbox',
       'audit_outbox',
+      'employee_setup_token',
+      'lifecycle_template',
+      'onboarding_workflow',
       'identity_email_directory',
       'app_user',
     ]) {
