@@ -1,5 +1,4 @@
-import { relative, sep } from 'node:path';
-import { locateInModule, type SourceFile } from './boundary.js';
+import { locateInModule, relativePosix, type SourceFile } from './boundary.js';
 
 /**
  * State machine ownership — attendance design §20, D26.
@@ -17,7 +16,7 @@ export interface PresenceViolation {
   readonly what: string;
 }
 
-const HOME = ['packages', 'contracts', 'src', 'presence.ts'].join(sep);
+const HOME = 'packages/contracts/src/presence.ts';
 
 /** A transition table's keys, or the union spelled out. */
 const DECLARATIONS: readonly { readonly pattern: RegExp; readonly what: string }[] = [
@@ -38,7 +37,7 @@ export function findPresenceViolations(
 ): PresenceViolation[] {
   const violations: PresenceViolation[] = [];
   for (const file of files) {
-    const path = relative(root, file.path);
+    const path = relativePosix(root, file.path);
     if (path !== HOME && !path.endsWith('.test.ts')) {
       for (const { pattern, what } of DECLARATIONS) {
         for (const match of file.text.matchAll(pattern)) {

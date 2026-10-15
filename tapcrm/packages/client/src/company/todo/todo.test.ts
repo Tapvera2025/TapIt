@@ -27,6 +27,14 @@ import { TodoStats } from './components/TodoStats.js';
 import { TodoProgress } from './components/TodoProgress.js';
 import type { MyTodo, TodoPriority } from './types/index.js';
 
+// These suites use renderToStaticMarkup, which has no DOM. The modals render through a
+// portal into document.body, so render the portal content inline and stub the body.
+vi.mock('react-dom', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createPortal: (children: unknown) => children,
+}));
+vi.stubGlobal('document', { body: {} });
+
 describe('My Todo - Frontend Suite', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -505,7 +513,7 @@ describe('My Todo - Frontend Suite', () => {
       expect(html).toContain('Save Changes');
     });
 
-    it('AddTodoModal has proper modal stacking levels (z-50 dialog, z-40 backdrop) below toast notifications (z-9999)', () => {
+    it('AddTodoModal has proper modal stacking levels (z-[100] portal layer, z-50 dialog) below toast notifications (z-9999)', () => {
       const html = renderToStaticMarkup(
         React.createElement(AddTodoModal, {
           isOpen: true,
@@ -516,9 +524,10 @@ describe('My Todo - Frontend Suite', () => {
         }),
       );
 
-      // Dialog is at z-50 and backdrop at z-40, ensuring react-hot-toast (z-9999) floats above
+      // The portal layer is z-[100] and the dialog z-50; both stay far below react-hot-toast (z-9999)
       expect(html).toContain('z-50');
-      expect(html).toContain('z-40');
+      expect(html).toContain('z-[100]');
+      expect(html).not.toContain('z-[9999]');
     });
 
     it('DeleteTodoModal renders confirmation modal with title and prompt text', () => {

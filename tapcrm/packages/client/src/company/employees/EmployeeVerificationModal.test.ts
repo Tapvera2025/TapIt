@@ -4,6 +4,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { EmployeeVerificationModal } from './EmployeeVerificationModal.js';
 import * as verifApi from '../api/verificationApi.js';
 
+// These suites use renderToStaticMarkup, which has no DOM. The modals render through a
+// portal into document.body, so render the portal content inline and stub the body.
+vi.mock('react-dom', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createPortal: (children: unknown) => children,
+}));
+vi.stubGlobal('document', { body: {} });
+
 describe('EmployeeVerificationModal - Marksheet Multi-Document Upload', () => {
   const employeeId = 'emp-12345';
   const employeeName = 'Jane Doe';
