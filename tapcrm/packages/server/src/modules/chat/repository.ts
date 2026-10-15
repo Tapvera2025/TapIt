@@ -9,6 +9,7 @@ import type {
   MessageMention,
   MessagePreview,
   MessageReaction,
+  ChatUnreadSummary,
 } from './types.js';
 
 /* ------------------------------------------------------------------ *
@@ -148,6 +149,30 @@ async function unreadCountsFor(ctx: RequestContext, conversationIds: readonly st
     GROUP BY m.conversation_id
   `);
   return new Map(rows.map((r) => [r.conversationId, Number(r.count)]));
+}
+
+/** Unread message totals across every active conversation the current user can access. */
+export async function unreadSummaryForUser(ctx: RequestContext): Promise<ChatUnreadSummary> {
+  const rows = await db.query<{ kind: ConversationKind; count: string }>(ctx, sql`
+    SELECT c.kind, count(m.id)::text AS count
+    FROM conversation c
+    JOIN conversation_member cm
+      ON cm.organization_id = c.organization_id
+     AND cm.conversation_id = c.id
+     AND cm.user_id = ${ctx.principal.id}
+     AND cm.left_at IS NULL
+    LEFT JOIN message m
+      ON m.organization_id = c.organization_id
+     AND m.conversation_id = c.id
+     AND m.sender_id <> ${ctx.principal.id}
+     AND (cm.last_read_at IS NULL OR m.created_at > cm.last_read_at)
+    WHERE c.organization_id = ${ctx.organizationId}
+      AND c.archived_at IS NULL
+    GROUP BY c.kind
+  `);
+  const counts = { direct: 0, group: 0, project: 0 };
+  for (const row of rows) counts[row.kind] = Number(row.count);
+  return { ...counts, total: counts.direct + counts.group + counts.project };
 }
 
 function toConversation(

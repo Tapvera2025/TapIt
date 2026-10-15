@@ -26,6 +26,7 @@ import { AttendanceReportPage } from './attendance/AttendanceReportPage.js';
 import { DailyLateReportPage } from './attendance/DailyLateReportPage.js';
 import { CorrectionsPage } from './attendance/CorrectionsPage.js';
 import { ShiftsPage } from './shifts/ShiftsPage.js';
+import { WeekdaySchedulesPage } from './shifts/WeekdaySchedulesPage.js';
 import { HolidaysPage } from './holidays/HolidaysPage.js';
 import { LeavePage } from './leave/LeavePage.js';
 import { LeaveQueuePage } from './leave/LeaveQueuePage.js';
@@ -234,6 +235,7 @@ export function CompanyWorkspace({
     '/company/attendance/live': 'Workforce Board',
     '/company/attendance/corrections': 'Corrections',
     '/company/shifts': 'Shifts',
+    '/company/weekday-schedules': 'Weekday Schedules',
     '/company/holidays': 'Holidays',
     '/company/leave/my': 'My Leave',
     '/company/leave/queue': 'Leave Queue',
@@ -403,6 +405,7 @@ export function CompanyWorkspace({
     if (pathname === '/company/attendance/corrections' && can('attendance:correct'))
       return <CorrectionsPage />;
     if (pathname === '/company/shifts' && can('shifts:manage')) return <ShiftsPage />;
+    if (pathname === '/company/weekday-schedules' && can('shifts:manage')) return <WeekdaySchedulesPage />;
     if (pathname === '/company/holidays') return <HolidaysPage />;
     if (pathname === '/company/leave/my') {
       return <LeavePage userId={userId} organizationTimeZone={organizationTimeZone} />;

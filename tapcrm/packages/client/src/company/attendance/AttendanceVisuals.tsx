@@ -5,6 +5,7 @@ export type AttendanceCalendarEntry = { status: EmployeeWiseDay['status']; dayTy
 
 export function attendanceStatus(entry: AttendanceCalendarEntry | undefined): { label: string; className: string } {
   if (!entry) return { label: '—', className: 'bg-app-surface-raised text-app-muted border-app-border' };
+  if (entry.dayType === 'week-off') return { label: 'No attendance record', className: 'bg-app-surface-raised text-app-muted border-app-border' };
   if (entry.isWfh && (entry.status === 'present' || entry.status === 'full-day')) return { label: 'WFH', className: 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800' };
   if (entry.status === 'present' || entry.status === 'full-day') return { label: 'Present', className: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' };
   if (entry.status === 'absent') return { label: 'Absent', className: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800' };

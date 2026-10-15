@@ -362,6 +362,12 @@
   textarea:focus {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 15%, transparent);
   }
+  .task-search-glass input,
+  .task-search-glass input:focus {
+    border: 0;
+    outline: none;
+    box-shadow: none;
+  }
   input,
   select,
   textarea {
@@ -540,8 +546,8 @@
     box-shadow: none !important;
   }
   .platform-theme-toggle {
-    width: 4.5rem !important;
-    min-width: 4.5rem;
+    width: 2.25rem !important;
+    min-width: 2.25rem;
     border-radius: 0.75rem !important;
     background: color-mix(in srgb, var(--app-surface) 86%, var(--theme-primary) 14%) !important;
     color: var(--app-foreground);
@@ -849,7 +855,14 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior-y: contain;
     padding: 20px 24px 24px;
+  }
+  .task-assignee-options {
+    max-height: min(13rem, 35dvh);
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   .ui-dialog-footer {
     flex: none;
@@ -858,8 +871,9 @@
     background: var(--app-surface);
   }
   .ui-dialog::backdrop {
-    background: #080e17a6;
-    backdrop-filter: blur(4px);
+    background: rgb(8 14 23 / 62%);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
   .workspace-sidebar {
     background: var(--sidebar-background) !important;
@@ -910,7 +924,6 @@
       transition: background 160ms ease, transform 160ms ease;
     }
 
-    .sidebar-resize-handle:hover > span,
     .sidebar-resize-handle:focus-visible > span {
       background: color-mix(in srgb, var(--sidebar-active-fg) 55%, transparent);
       transform: scaleY(1.15);
@@ -1078,11 +1091,20 @@
   }
 
   .dark .workspace-sidebar {
-    background: rgba(27, 30, 36, 0.82) !important;
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.09)),
+      color-mix(in srgb, var(--sidebar-background) 94%, transparent) !important;
     border-color: rgba(214, 220, 231, 0.14) !important;
-    backdrop-filter: blur(22px) saturate(115%);
-    -webkit-backdrop-filter: blur(22px) saturate(115%);
+    backdrop-filter: blur(24px) saturate(125%);
+    -webkit-backdrop-filter: blur(24px) saturate(125%);
     box-shadow: 8px 0 24px -24px rgba(0, 0, 0, 0.72);
+  }
+
+  .dark .global-navbar {
+    background-color: color-mix(in srgb, var(--app-surface) 98%, transparent);
+    background-image: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08));
+    backdrop-filter: blur(24px) saturate(125%);
+    -webkit-backdrop-filter: blur(24px) saturate(125%);
   }
 
   .dark .workspace-sidebar .sidebar-decoration {
@@ -1117,21 +1139,11 @@
     border: 1px solid transparent;
   }
 
-  .sidebar-logout:hover {
-    border-color: rgba(244, 63, 94, 0.18);
-    background: rgba(244, 63, 94, 0.08);
-  }
-
   .workspace-sidebar nav button {
     transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   }
 
-  .workspace-sidebar nav button:not([aria-current='page']):hover {
-    transform: none;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sidebar-foreground) 8%, transparent);
-  }
-
-  .workspace-sidebar nav button[aria-current='page'] {
+  .workspace-sidebar nav button[data-company-nav-item][aria-current='page'] {
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sidebar-active-fg) 16%, transparent), 0 4px 12px -10px color-mix(in srgb, var(--theme-primary) 70%, transparent);
   }
 
@@ -1152,8 +1164,8 @@
       inset: auto !important;
       width: auto;
       max-width: none;
-      height: calc(100dvh - 6.5rem) !important;
-      margin: 1.25rem 0 1.25rem 1.25rem !important;
+      height: calc(100dvh - 8rem) !important;
+      margin: var(--company-sidebar-top-gap) 0 1.25rem 1.25rem !important;
       border-radius: 1rem;
       transform: none !important;
     }
@@ -1413,6 +1425,298 @@ nav button[aria-current='page']::before {
 .workspace-sidebar nav button[aria-current='page']::before {
   display: none;
 }
+
+/* One shared selection surface travels between primary sidebar items. It uses
+   the existing active color; only its position and elastic settling change. */
+@media (min-width: 1280px) {
+  :root:not(.dark) .workspace-sidebar {
+    background: color-mix(in srgb, var(--sidebar-background) 92%, var(--theme-primary) 8%) !important;
+  }
+
+  .workspace-sidebar .company-sidebar-active-indicator {
+    position: absolute;
+    z-index: 0;
+    top: var(--sidebar-pill-top, 0px);
+    left: var(--sidebar-pill-left, 0px);
+    width: var(--sidebar-pill-width, 0px);
+    height: var(--sidebar-pill-height, 0px);
+    border-radius: 0.75rem;
+    background: var(--sidebar-active-bg);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sidebar-active-fg) 16%, transparent), 0 4px 12px -10px color-mix(in srgb, var(--theme-primary) 70%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transform-origin: var(--sidebar-pill-origin, center);
+    transform: scaleX(1) scaleY(1);
+    transition: top 420ms cubic-bezier(0.2, 0.8, 0.25, 1), left 420ms cubic-bezier(0.2, 0.8, 0.25, 1), width 240ms ease, height 240ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.25, 1);
+    will-change: top, left, transform;
+  }
+
+  .workspace-sidebar .company-sidebar-active-indicator[data-moving='true'] {
+    animation: sidebar-active-pill-elastic 480ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  .workspace-sidebar nav button[data-company-nav-item][aria-current='page'] {
+    position: relative;
+    background: transparent !important;
+    box-shadow: none !important;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .workspace-sidebar nav button[data-company-nav-item][aria-current='page']:active {
+    cursor: grabbing;
+  }
+
+  .workspace-sidebar .company-sidebar-active-indicator[data-dragging='true'] {
+    transition: none;
+    transform: scaleX(var(--sidebar-pill-squash, 1)) scaleY(var(--sidebar-pill-stretch, 1));
+  }
+
+  .dark .workspace-sidebar .company-sidebar-active-indicator {
+    box-shadow: 0 2px 10px -1px rgba(0, 0, 0, 0.25);
+  }
+
+  @keyframes sidebar-active-pill-elastic {
+    0% { transform: scaleX(0.96) scaleY(0.9); }
+    38% { transform: scaleX(1.025) scaleY(1.12); }
+    70% { transform: scaleX(0.99) scaleY(0.97); }
+    100% { transform: scale(1); }
+  }
+}
+
+/* Give the selected company-nav icon a brief, meaning-specific motion cue on desktop. */
+@media (min-width: 1280px) {
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon] {
+    transform-origin: center;
+    animation: sidebar-icon-arrive 360ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='grid'] {
+    animation-name: sidebar-icon-grid;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='check'] {
+    animation-name: sidebar-icon-check;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='message'] {
+    animation-name: sidebar-icon-message;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='pencil'] {
+    animation-name: sidebar-icon-pencil;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='notepad'],
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='file-text'] {
+    animation-name: sidebar-icon-page;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='users'] {
+    animation-name: sidebar-icon-rise;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='settings'] {
+    animation-name: sidebar-icon-gear;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='calendar'] {
+    animation-name: sidebar-icon-calendar;
+  }
+
+  .workspace-sidebar nav button[aria-current='page'] [data-sidebar-icon='pin'] {
+    animation-name: sidebar-icon-pin;
+  }
+}
+
+@keyframes sidebar-icon-arrive {
+  from { opacity: 0.65; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sidebar-icon-grid {
+  from { opacity: 0.65; transform: scale(0.78) rotate(-9deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes sidebar-icon-check {
+  from { opacity: 0.65; transform: scale(0.86); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sidebar-icon-message {
+  0% { opacity: 0.65; transform: scale(0.84, 0.9); }
+  65% { opacity: 1; transform: scale(1.04, 1.02); }
+  100% { transform: scale(1); }
+}
+
+@keyframes sidebar-icon-pencil {
+  from { opacity: 0.65; transform: rotate(-12deg) scale(0.9); }
+  to { opacity: 1; transform: rotate(0) scale(1); }
+}
+
+@keyframes sidebar-icon-page {
+  from { opacity: 0.65; transform: perspective(80px) rotateY(-22deg) scale(0.94); }
+  to { opacity: 1; transform: perspective(80px) rotateY(0) scale(1); }
+}
+
+@keyframes sidebar-icon-rise {
+  from { opacity: 0.65; transform: translateY(3px) scale(0.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes sidebar-icon-gear {
+  from { opacity: 0.65; transform: rotate(-35deg) scale(0.9); }
+  to { opacity: 1; transform: rotate(0) scale(1); }
+}
+
+@keyframes sidebar-icon-calendar {
+  from { opacity: 0.65; transform: perspective(80px) rotateX(-20deg) scale(0.92); }
+  to { opacity: 1; transform: perspective(80px) rotateX(0) scale(1); }
+}
+
+@keyframes sidebar-icon-pin {
+  from { opacity: 0.65; transform: translateY(-3px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Tablet and desktop notification center: full-screen scrim with a full-height glass drawer. */
+@media (min-width: 768px) {
+  .notification-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    pointer-events: auto;
+  }
+
+  .notification-overlay[data-open='false'] {
+    pointer-events: none;
+  }
+
+  .notification-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(10 14 24 / 38%);
+    opacity: 0;
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+    transition: opacity 290ms ease;
+  }
+
+  .notification-overlay[data-open='true'] .notification-overlay-backdrop {
+    opacity: 1;
+  }
+
+  .notification-panel.notification-panel-drawer {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 1;
+    width: min(24rem, 100vw);
+    max-width: 100vw;
+    max-height: none;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--app-surface) 96%, var(--theme-primary) 4%);
+    border-color: var(--app-border);
+    box-shadow: -12px 0 32px rgb(15 23 42 / 12%);
+    overscroll-behavior: contain;
+    transform: translateX(100%);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 290ms cubic-bezier(0.2, 0.75, 0.25, 1), visibility 0s linear 290ms;
+  }
+
+  .notification-panel-drawer > div:first-child {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    min-height: 3.5rem;
+    border-color: color-mix(in srgb, var(--app-border) 58%, transparent);
+    background: var(--app-surface);
+  }
+
+  .notification-panel-drawer > div:nth-child(2) {
+    padding: 0.5rem 0 0.75rem;
+    background: transparent;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--app-muted) 42%, transparent) transparent;
+  }
+
+  .notification-panel-drawer ul > li {
+    margin: 0 0.75rem 0.5rem;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0.875rem;
+  }
+
+  .notification-panel-drawer .notification-item-button {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--app-border) 78%, transparent);
+    border-radius: inherit;
+    padding: 0.7rem 0.8rem;
+    background: var(--app-surface);
+    box-shadow: none;
+    transition: background-color 140ms ease, border-color 140ms ease;
+  }
+
+  .notification-panel-drawer .notification-item-button[data-read='false'] {
+    border-color: color-mix(in srgb, var(--theme-primary) 26%, var(--app-border));
+    background: color-mix(in srgb, var(--theme-primary) 7%, var(--app-surface));
+    color: var(--app-foreground);
+  }
+
+  .notification-panel-drawer .notification-item-button[data-read='true'] {
+    border-color: color-mix(in srgb, var(--app-border) 82%, transparent);
+    background: color-mix(in srgb, var(--app-surface-raised) 38%, var(--app-surface));
+    color: var(--app-muted);
+    opacity: 1;
+  }
+
+  .notification-panel-drawer .notification-item-button.is-activating {
+    border-color: color-mix(in srgb, var(--theme-primary) 42%, var(--app-border));
+    background: color-mix(in srgb, var(--theme-primary) 11%, var(--app-surface));
+  }
+
+  .notification-panel-drawer .notification-item-title {
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .notification-panel-drawer .notification-item-body,
+  .notification-panel-drawer .notification-item-time {
+    color: var(--app-muted);
+  }
+
+  .notification-panel-drawer .notification-item-button[data-read='false'] .notification-item-title {
+    color: var(--app-foreground);
+  }
+
+  .notification-panel-drawer .notification-item-button[data-read='true'] .notification-item-title {
+    color: var(--app-muted);
+  }
+
+  .notification-panel-drawer .notification-action-tag {
+    display: none;
+  }
+
+  .notification-panel.notification-panel-drawer[data-open='true'] {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: reduce) {
+  .notification-panel.notification-panel-drawer,
+  .notification-overlay-backdrop,
+  .notification-panel-drawer .notification-item-button {
+    transition: none;
+  }
+}
+
 @media (max-width: 640px) {
   .page-heading {
     padding: 18px;
@@ -1570,12 +1874,25 @@ a {
     box-shadow 160ms ease,
     transform 160ms ease;
 }
+.task-assignee-toggle:active {
+  animation: none !important;
+  transform: none !important;
+}
 button:active:not(:disabled),
 a:active,
 [role='button']:active,
 summary:active {
   animation: click-jelly 360ms cubic-bezier(.22, .72, .25, 1);
   transform-origin: center;
+}
+.notification-panel .notification-item-button,
+.notification-panel .notification-item-button:active {
+  animation: none;
+  transform: none;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.notification-panel .notification-item-button:active {
+  background-color: color-mix(in srgb, var(--theme-primary) 8%, var(--app-surface));
 }
 @keyframes click-jelly {
   0% { transform: translateY(0) scale(1); }
@@ -1853,13 +2170,289 @@ summary:active {
   }
 }
 
-/* Give shared outlined controls a clearer edge without changing their palette. */
+/* Keep shared outlined controls crisp without turning one-sided dividers into boxes. */
 @layer utilities {
-  .border-app-border {
+  .border-app-border:not(.border-t):not(.border-b):not(.border-l):not(.border-r):not(.border-x):not(.border-y):not(.border-s):not(.border-e) {
     border-width: 1.5px;
   }
 
-  .border-sidebar-border {
+  .border-sidebar-border:not(.border-t):not(.border-b):not(.border-l):not(.border-r):not(.border-x):not(.border-y):not(.border-s):not(.border-e) {
     border-width: 1.5px;
+  }
+}
+
+/* Desktop Messages tabs: a compact, aligned segmented control above the workspace. */
+.messages-tab-glass-indicator {
+  display: none;
+}
+
+@media (min-width: 1280px) {
+  .company-layout-shell {
+    --company-sidebar-top-gap: 2.75rem;
+  }
+
+  .messages-page {
+    padding-top: var(--company-sidebar-top-gap);
+  }
+
+  .messages-tab-list {
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.9rem;
+    background: color-mix(in srgb, var(--app-surface-raised) 82%, var(--app-background));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
+  }
+
+  .messages-tab-glass-indicator {
+    display: block;
+    position: absolute;
+    left: var(--pill-left, 0px);
+    top: 0.3rem;
+    width: var(--pill-width, 0px);
+    z-index: 11;
+    height: calc(100% - 0.6rem);
+    border: 1px solid color-mix(in srgb, var(--app-accent) 24%, var(--app-border));
+    border-radius: 0.65rem;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.28), color-mix(in srgb, var(--app-surface) 82%, transparent));
+    -webkit-backdrop-filter: blur(12px) saturate(1.25);
+    backdrop-filter: blur(12px) saturate(1.25);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--app-foreground) 6%, transparent), inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+    pointer-events: none !important;
+    overflow: hidden;
+    transition: left 420ms cubic-bezier(0.16, 1, 0.3, 1), width 420ms cubic-bezier(0.16, 1, 0.3, 1), transform 240ms cubic-bezier(0.2, 0.8, 0.25, 1);
+  }
+
+  /* Soft lower rim highlight, like light catching the underside of glass. */
+  .messages-tab-glass-indicator::before {
+    position: absolute;
+    z-index: 12;
+    right: 2px;
+    bottom: 1px;
+    left: 2px;
+    height: 58%;
+    border-radius: 0 0 0.58rem 0.58rem;
+    background:
+      radial-gradient(ellipse at 50% 120%, rgba(255, 255, 255, 0.5), transparent 68%),
+      linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0.42) 100%);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.72), 0 1px 3px rgba(255, 255, 255, 0.2);
+    content: '';
+    pointer-events: none;
+  }
+
+  .messages-tab-list[data-edge-hit='left'],
+  .messages-tab-list[data-edge-hit='right'] {
+    animation: messages-track-edge-stroke 420ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  @keyframes messages-track-edge-stroke {
+    0% { outline: 0 solid color-mix(in srgb, var(--app-accent) 0%, transparent); outline-offset: 0; }
+    28% { outline: 3px solid color-mix(in srgb, var(--app-accent) 38%, transparent); outline-offset: 1px; }
+    58% { outline: 1px solid color-mix(in srgb, var(--app-accent) 24%, transparent); outline-offset: 0; }
+    100% { outline: 0 solid color-mix(in srgb, var(--app-accent) 0%, transparent); outline-offset: 0; }
+  }
+
+  .messages-tab-list[data-edge-hit='left'] .messages-tab-glass-indicator {
+    transform-origin: left center;
+    animation: messages-pill-stretch-left 420ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  .messages-tab-list[data-edge-hit='right'] .messages-tab-glass-indicator {
+    transform-origin: right center;
+    animation: messages-pill-stretch-right 420ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  @keyframes messages-pill-stretch-left {
+    0%, 100% { transform: scaleX(1); }
+    32% { transform: scaleX(1.1); }
+    62% { transform: scaleX(0.985); }
+  }
+
+  @keyframes messages-pill-stretch-right {
+    0%, 100% { transform: scaleX(1); }
+    32% { transform: scaleX(1.1); }
+    62% { transform: scaleX(0.985); }
+  }
+
+  .messages-tab-list[data-dragging='true'] .messages-tab-glass-indicator {
+    transition: none;
+    transform: scaleX(var(--pill-stretch, 1)) scaleY(var(--pill-squash, 1));
+    will-change: left, width, transform;
+  }
+
+  .messages-tab-button {
+    position: relative;
+    z-index: 20;
+    isolation: isolate;
+    min-height: 2.5rem;
+    padding-inline: 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.65rem;
+    line-height: 1.2;
+    transition: none;
+  }
+
+  .messages-tab-button:active,
+  .messages-tab-button:active > span {
+    transform: none !important;
+  }
+
+  .messages-tab-button > span {
+    position: relative;
+    z-index: 1;
+    filter: none !important;
+    opacity: 1;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  /* A faint, inverted label reflection sits below the crisp live text. */
+  .messages-tab-button[aria-pressed='true']::after {
+    position: absolute;
+    z-index: 0;
+    top: 57%;
+    right: 0.35rem;
+    left: 0.35rem;
+    overflow: hidden;
+    color: currentColor;
+    content: attr(data-label);
+    text-align: center;
+    white-space: nowrap;
+    opacity: 0.24;
+    filter: blur(1.1px);
+    transform: scaleY(-1);
+    transform-origin: center;
+    line-height: inherit;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 82%);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 82%);
+    pointer-events: none;
+  }
+
+  .messages-tab-button[aria-pressed='true'] {
+    border-color: transparent;
+    background: transparent;
+    color: var(--app-accent);
+    box-shadow: none;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+
+  .messages-tab-button[aria-pressed='false'] { cursor: pointer; }
+
+  .messages-tab-list[data-dragging='true'] .messages-tab-button[aria-pressed='true'] {
+    cursor: grabbing;
+  }
+
+  .messages-tab-button:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+
+  .dark .messages-tab-list {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, var(--app-background) 88%, var(--app-surface) 12%);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+
+  .dark .messages-tab-glass-indicator {
+    border-color: rgba(255, 255, 255, 0.24);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 2px 8px rgba(0, 0, 0, 0.16);
+  }
+
+  .dark .messages-tab-button[aria-pressed='true']::after {
+    opacity: 0.28;
+    filter: blur(1.2px);
+    text-shadow: 0 0 0.45rem color-mix(in srgb, currentColor 30%, transparent);
+  }
+
+  .dark .messages-tab-glass-indicator::before {
+    display: none;
+  }
+}
+
+/* Scroll-linked glass edge for desktop day mode; surfaces and layout remain intact. */
+@media (min-width: 1280px) {
+  :root:not(.dark) .company-layout-shell {
+    --shell-reflection-position: 45%;
+  }
+
+  :root:not(.dark) .company-layout-shell .global-navbar,
+  :root:not(.dark) .company-layout-shell .workspace-sidebar {
+    border-color: color-mix(in srgb, var(--app-border) 76%, var(--app-muted) 24%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.56),
+      0 8px 24px -16px color-mix(in srgb, var(--app-foreground) 20%, transparent);
+  }
+
+  :root:not(.dark) .company-layout-shell .global-navbar,
+  :root:not(.dark) .company-layout-shell .workspace-sidebar,
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]),
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]) {
+    isolation: isolate;
+  }
+
+  :root:not(.dark) .company-layout-shell .workspace-sidebar {
+    position: relative !important;
+  }
+
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]),
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]) {
+    position: relative;
+  }
+
+  :root:not(.dark) .company-layout-shell .global-navbar::after,
+  :root:not(.dark) .company-layout-shell .workspace-sidebar::after,
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"])::after,
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"])::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      transparent 8%,
+      rgba(255, 255, 255, 0.12) calc(var(--shell-reflection-position) - 18%),
+      rgba(255, 255, 255, 0.9) var(--shell-reflection-position),
+      rgba(255, 255, 255, 0.2) calc(var(--shell-reflection-position) + 18%),
+      transparent 88%
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: 0.82;
+  }
+
+  :root:not(.dark) .company-layout-shell .global-navbar::before,
+  :root:not(.dark) .company-layout-shell .workspace-sidebar::before,
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"])::before,
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"])::before {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 72% 42% at 50% var(--shell-reflection-position), rgba(255, 255, 255, 0.2), transparent 78%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.13), transparent 38%, rgba(255, 255, 255, 0.04));
+    mix-blend-mode: soft-light;
+    opacity: 0.48;
   }
 }

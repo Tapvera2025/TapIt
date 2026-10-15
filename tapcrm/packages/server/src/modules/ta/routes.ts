@@ -93,6 +93,6 @@ export function registerTaRoutes(): void {
     action: 'ta:view-own',
     module: 'ta',
     handler: async ({ ctx, query }) =>
-      service.myStatements(ctx, mySchema.parse(query).taMonth),
+      service.myStatements(ctx, mySchema.parse(query)),
   });
 }

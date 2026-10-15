@@ -373,8 +373,15 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/breaks/prompts/me | `breaks:view` | — |
 | GET | /api/shifts | `shifts:view` | — |
 | GET | /api/shifts/assignments | `shifts:view` | — |
+| GET | /api/shifts/weekday-schedules | `shifts:view` | — |
+| GET | /api/shifts/weekday-schedules/assignments | `shifts:view` | — |
+| GET | /api/shifts/weekday-schedules/exceptions | `shifts:view` | — |
 | POST | /api/shifts | `shifts:manage` | — |
+| POST | /api/shifts/weekday-schedules | `shifts:manage` | — |
+| POST | /api/shifts/weekday-schedules/exceptions | `shifts:manage` | — |
 | PATCH | /api/shifts/:id | `shifts:manage` | id |
+| PATCH | /api/shifts/weekday-schedules/:id | `shifts:manage` | — |
+| PATCH | /api/shifts/weekday-schedules/exceptions/:id | `shifts:manage` | — |
 | POST | /api/shifts/assignments | `shifts:manage` | — |
 | POST | /api/shifts/requests/:id/decide | `shifts:approve` | id |
 | GET | /api/biometric/devices | `biometric:manage` | — |
@@ -709,6 +716,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/projects/:id/messages/client | `communication:client-thread` | id |
 | POST | /api/projects/:id/messages/client | `communication:client-thread` | id |
 | GET | /api/chat/conversations | `chat:view` | — |
+| GET | /api/chat/unread-summary | `chat:view` | — |
 | GET | /api/chat/colleagues | `chat:send` | — |
 | GET | /api/chat/conversations/:id | `chat:view` | id |
 | GET | /api/chat/conversations/:id/messages | `chat:view` | id |

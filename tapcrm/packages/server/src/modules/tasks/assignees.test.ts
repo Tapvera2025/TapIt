@@ -178,7 +178,7 @@ describe('Task Assignee Lookup Security & Scoping', () => {
       expect(pageSource).not.toContain('getCompanyEmployees');
     });
 
-    it('TaskList.tsx displays Created By -> Assigned To assignment relationship', async () => {
+    it('TaskList.tsx displays the creator and the assignees', async () => {
       const fs = await import('node:fs');
       const listSource = fs.readFileSync(
         new URL(
@@ -188,15 +188,12 @@ describe('Task Assignee Lookup Security & Scoping', () => {
         'utf8',
       );
 
-      // Must display "Created by:"
-      expect(listSource).toContain('Created by:');
+      // Must display the creator label (no trailing colon in the card layout)
+      expect(listSource).toContain('Created by');
       expect(listSource).toContain('task.createdByName');
 
-      // Must display relationship arrow
-      expect(listSource).toContain('→');
-
-      // Must display "Assigned to:"
-      expect(listSource).toContain('Assigned to:');
+      // Must display who the task is assigned to (the card shows 'Assigned to · N')
+      expect(listSource).toContain('Assigned to');
       expect(listSource).toContain('assignee.fullName');
 
       // Must NOT call /api/users

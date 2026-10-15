@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
+import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
 
 export function CompanyLayout({
   pathname,
@@ -113,6 +115,40 @@ export function CompanyLayout({
       ? savedWidth
       : 256;
   });
+  const mainScrollRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const main = mainScrollRef.current;
+    if (!main) return;
+
+    const desktopMotion = window.matchMedia('(min-width: 1280px) and (prefers-reduced-motion: no-preference)');
+    let lenis: Lenis | null = null;
+    const syncScrollMode = () => {
+      lenis?.destroy();
+      lenis = desktopMotion.matches
+        ? new Lenis({
+            wrapper: main,
+            content: main,
+            duration: 1.15,
+            smoothWheel: true,
+            syncTouch: false,
+            wheelMultiplier: 0.9,
+            autoRaf: true,
+            // A native dialog is rendered in the top layer but remains in
+            // this main element's event path. Let its own scroll body handle
+            // wheel gestures natively instead of routing them through Lenis.
+            prevent: (node) => node.closest('dialog[open]') !== null,
+          })
+        : null;
+    };
+
+    syncScrollMode();
+    desktopMotion.addEventListener('change', syncScrollMode);
+    return () => {
+      desktopMotion.removeEventListener('change', syncScrollMode);
+      lenis?.destroy();
+    };
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem('tapcrm:sidebar-collapsed', String(sidebarCollapsed));
@@ -139,7 +175,8 @@ export function CompanyLayout({
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
+    <ChatUnreadProvider enabled={canViewChat}>
+      <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
@@ -216,11 +253,25 @@ export function CompanyLayout({
           onResize={setSidebarWidth}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <main
+            ref={mainScrollRef}
+            id="main-content"
+            data-app-scroll-container
+            className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              const maxScroll = element.scrollHeight - element.clientHeight;
+              const progress = maxScroll > 0 ? element.scrollTop / maxScroll : 0.45;
+              element
+                .closest<HTMLElement>('.company-layout-shell')
+                ?.style.setProperty('--shell-reflection-position', `${Math.round(progress * 100)}%`);
+            }}
+          >
             {children}
           </main>
         </div>
       </div>
-    </div>
+      </div>
+    </ChatUnreadProvider>
   );
 }

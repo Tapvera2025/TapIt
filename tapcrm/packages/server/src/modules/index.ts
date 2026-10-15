@@ -85,6 +85,7 @@ import {
 } from './chat/index.js';
 import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
 import { registerProjectPolicies, registerProjectReportJobs, registerProjectRoutes } from './projects/index.js';
+import { registerClientPortalRoutes } from './client-portal/index.js';
 import { registerMyTodoRoutes } from './myTodo/routes.js';
 import { registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
 import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
@@ -182,6 +183,7 @@ export function registerAllRoutes(): void {
   registerChatRoutes();
   registerClientRoutes();
   registerProjectRoutes();
+  registerClientPortalRoutes();
   registerMyTodoRoutes();
   registerOnboardingRoutes();
   registerVerificationRoutes();

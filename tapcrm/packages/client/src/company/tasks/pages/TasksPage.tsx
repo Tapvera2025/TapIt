@@ -338,7 +338,7 @@ export function TasksPage({
 
         {/* Pagination Footer */}
         {data && total > 0 && (
-          <div className="flex flex-col items-center justify-between gap-3 border-t border-app-border pt-4 sm:flex-row">
+          <div className="flex flex-col items-center justify-between gap-3 pt-4 sm:flex-row">
             <p className="text-xs text-app-muted">
               Showing{' '}
               <span className="font-semibold text-app-foreground">{startItem}</span> to{' '}

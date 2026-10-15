@@ -38,6 +38,9 @@ export const NOTIFICATION_TYPES = {
   ROLE_CHANGE_DECIDED: 'access.role_change_decided',
   PLACEMENT_CHANGED: 'employee.placement_changed',
 
+  // working-day exceptions (modules/shifts/notifications.ts)
+  WORKING_DAY_EXCEPTION: 'shifts.working_day_exception',
+
   // payroll (modules/payroll/notifications.ts)
   PAYSLIP_PUBLISHED: 'payroll.payslip_published',
   PAYSLIP_REVISED: 'payroll.payslip_revised',

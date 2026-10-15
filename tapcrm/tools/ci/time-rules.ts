@@ -1,5 +1,4 @@
-import { relative, sep } from 'node:path';
-import { locateInModule, type SourceFile } from './boundary.js';
+import { locateInModule, relativePosix, type SourceFile } from './boundary.js';
 
 /**
  * Time rules — attendance design §5.1.
@@ -49,7 +48,7 @@ export function findDateShortcuts(files: readonly SourceFile[], root: string): T
     if (location === null || !PEOPLE_MODULES.includes(location.module)) continue;
     for (const { pattern, what } of DATE_SHORTCUTS) {
       for (const match of file.text.matchAll(pattern)) {
-        violations.push({ file: relative(root, file.path), line: lineOf(file.text, match.index), what });
+        violations.push({ file: relativePosix(root, file.path), line: lineOf(file.text, match.index), what });
       }
     }
   }
@@ -57,10 +56,10 @@ export function findDateShortcuts(files: readonly SourceFile[], root: string): T
 }
 
 export function findTimeLibraryImports(files: readonly SourceFile[], root: string): TimeRuleViolation[] {
-  const allowed = ['packages', 'server', 'src', 'platform', 'time.ts'].join(sep);
+  const allowed = 'packages/server/src/platform/time.ts';
   const violations: TimeRuleViolation[] = [];
   for (const file of files) {
-    const path = relative(root, file.path);
+    const path = relativePosix(root, file.path);
     if (path === allowed) continue;
     for (const match of file.text.matchAll(LUXON_IMPORT)) {
       violations.push({ file: path, line: lineOf(file.text, match.index), what: 'luxon' });
