@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Empty, Loading, Modal, Notice, Select } from '../../ui/components.js';
 import { createBacklink, createBacklinksBulk, deleteBacklink, getBacklinks, updateBacklink } from './api/offPageSeoApi.js';
-import type { BacklinkCategory, BulkBacklinkResult, SeoBacklink, SeoBacklinkPage } from './types.js';
+import type { BacklinkCategory, BulkBacklinkResult, ReportPeriod, SeoBacklink, SeoBacklinkPage } from './types.js';
 import { Pager } from './components/Pager.js';
 import { ReportKpiCard } from './components/ReportKpiCard.js';
 import { ClientFeedbackPlaceholder } from './components/ClientFeedbackPlaceholder.js';
@@ -10,10 +10,10 @@ import type { Project } from '../api/projectsApi.js';
 const categoryOptions = [{ value: 'others', label: 'Others' }, { value: 'social_media', label: 'Social media' }];
 function normalizeClientUrl(raw: string): string { const value = raw.trim(); if (!value) throw new Error('URL is required.'); if (value.length > 2000) throw new Error('URL must be 2,000 characters or fewer.'); const hasProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(value); if (!hasProtocol && /^[a-z][a-z\d+.-]*:(?!\d{1,5}(?:[/?#]|$))/i.test(value)) throw new Error('Only valid HTTP or HTTPS URLs are allowed.'); const candidate = hasProtocol ? value : `https://${value}`; let parsed: URL; try { parsed = new URL(candidate); } catch { throw new Error('Enter a valid URL, for example https://example.com.'); } if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) throw new Error('Only valid HTTP or HTTPS URLs without credentials are allowed.'); parsed.hostname = parsed.hostname.toLowerCase(); if ((parsed.protocol === 'https:' && parsed.port === '443') || (parsed.protocol === 'http:' && parsed.port === '80')) parsed.port = ''; parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/'; return parsed.toString(); }
 
-export function OffPageSeoPage({ project }: { project: Project }): React.JSX.Element {
+export function OffPageSeoPage({ project, period }: { project: Project; period: ReportPeriod }): React.JSX.Element {
   const [page, setPage] = useState(1); const [search, setSearch] = useState(''); const [category, setCategory] = useState<'all' | BacklinkCategory>('all'); const [data, setData] = useState<SeoBacklinkPage | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [modal, setModal] = useState<'single' | 'bulk' | 'delete' | 'edit' | null>(null); const [selected, setSelected] = useState<SeoBacklink | null>(null);
-  async function load(): Promise<void> { setLoading(true); try { setData(await getBacklinks(project.id, { page, pageSize: 20, search: search || undefined, category })); setError(''); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load backlinks.'); } finally { setLoading(false); } }
-  useEffect(() => { void load(); }, [project.id, page, search, category]);
+  async function load(): Promise<void> { setLoading(true); try { setData(await getBacklinks(project.id, { page, pageSize: 20, search: search || undefined, category, period })); setError(''); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load backlinks.'); } finally { setLoading(false); } }
+  useEffect(() => { void load(); }, [project.id, page, search, category, period]);
   async function saveSingle(input: { url: string; category: BacklinkCategory; notes: string }): Promise<void> { await createBacklink(project.id, input); setModal(null); setNotice('Backlink added.'); if (page === 1) await load(); else setPage(1); }
   async function saveEdit(input: { url: string; category: BacklinkCategory; notes: string }): Promise<void> { if (!selected) return; await updateBacklink(project.id, selected.id, input); setModal(null); setSelected(null); setNotice('Backlink updated.'); await load(); }
   async function saveBulk(input: { urls: string[]; category: BacklinkCategory; notes: string }): Promise<BulkBacklinkResult> { const result = await createBacklinksBulk(project.id, input); setModal(null); setNotice(`${result.createdCount} backlink${result.createdCount === 1 ? '' : 's'} added. ${result.existingCount + result.duplicateCount + result.invalidCount} skipped.`); if (page === 1) await load(); else setPage(1); return result; }
