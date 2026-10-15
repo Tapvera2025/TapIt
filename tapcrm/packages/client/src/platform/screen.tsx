@@ -70,6 +70,114 @@ interface Entitlement {
   status: 'enabled' | 'disabled';
 }
 
+type PlatformKpiVisual = 'line' | 'bars' | 'dots' | 'ring' | 'steps' | 'checkline' | 'xline' | 'hourglass' | 'shieldbars';
+
+const PLATFORM_KPI_META: Record<string, {
+  label: string;
+  description: string;
+  icon: string;
+  visual: PlatformKpiVisual;
+}> = {
+  total_organizations: { label: 'Total organizations', description: 'Total registered organizations', icon: 'building', visual: 'line' },
+  active_organizations: { label: 'Active organizations', description: 'Organizations currently active', icon: 'users', visual: 'steps' },
+  suspended_organizations: { label: 'Suspended organizations', description: 'Organizations currently suspended', icon: 'pause', visual: 'dots' },
+  pending_invitations: { label: 'Pending invitations', description: 'Pending organization invitations', icon: 'inbox', visual: 'ring' },
+  total_invitations: { label: 'Total invitations', description: 'Total invitations sent', icon: 'user-plus', visual: 'bars' },
+  accepted_invitations: { label: 'Accepted invitations', description: 'Invitations accepted', icon: 'check', visual: 'checkline' },
+  revoked_invitations: { label: 'Revoked invitations', description: 'Invitations revoked', icon: 'close', visual: 'xline' },
+  expired_invitations: { label: 'Expired invitations', description: 'Invitations expired', icon: 'clock', visual: 'hourglass' },
+  platform_admins: { label: 'Platform admins', description: 'Total platform administrators', icon: 'shield', visual: 'shieldbars' },
+};
+
+function PlatformKpiCard({ statKey, value }: { statKey: string; value: number }): React.JSX.Element {
+  const normalizedKey = statKey.replace(/([A-Z])/g, '_$1').toLowerCase();
+  const meta = PLATFORM_KPI_META[normalizedKey] ?? {
+    label: normalizedKey.replaceAll('_', ' '),
+    description: 'Live platform data',
+    icon: 'chart',
+    visual: 'line' as const,
+  };
+
+  return (
+    <article className="group relative flex h-[174px] min-h-[174px] flex-col overflow-hidden rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_6%,transparent),color-mix(in_srgb,var(--app-surface)_58%,transparent))] p-5 shadow-[0_14px_36px_color-mix(in_srgb,var(--app-accent)_5%,transparent)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-app-accent/45">
+      <div className="pointer-events-none absolute -right-10 -top-12 size-32 rounded-full bg-app-accent/10 blur-2xl" />
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/35 dark:bg-white/15" />
+      <div className="relative flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3 pr-2">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-app-accent text-app-on-accent shadow-[0_8px_20px_color-mix(in_srgb,var(--app-accent)_35%,transparent)]">
+            <Icon name={meta.icon} className="size-6" />
+          </span>
+          <div className="min-w-0">
+            <p className="max-w-[13rem] whitespace-normal break-words text-sm font-semibold leading-5 text-app-foreground">{meta.label}</p>
+            <strong className="mt-1 block font-display text-3xl font-bold tracking-tight text-app-foreground">{value}</strong>
+            <p className="mt-1 max-w-[13rem] text-xs leading-4 text-app-muted">{meta.description}</p>
+          </div>
+        </div>
+        <div className="absolute right-0 top-5 text-app-accent/80" aria-hidden="true">
+          {meta.visual === 'bars' ? (
+            <svg viewBox="0 0 76 38" className="h-10 w-20" fill="currentColor">
+              <rect x="2" y="25" width="7" height="11" rx="2" />
+              <rect x="16" y="19" width="7" height="17" rx="2" />
+              <rect x="30" y="22" width="7" height="14" rx="2" />
+              <rect x="44" y="11" width="7" height="25" rx="2" />
+              <rect x="58" y="4" width="7" height="32" rx="2" />
+              <rect x="70" y="15" width="4" height="21" rx="2" />
+            </svg>
+          ) : meta.visual === 'steps' ? (
+            <svg viewBox="0 0 88 42" className="h-10 w-24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 34h16V27h16V20h16V13h16V6h14" />
+              <circle cx="84" cy="6" r="3" fill="currentColor" stroke="none" />
+            </svg>
+          ) : meta.visual === 'dots' ? (
+            <svg viewBox="0 0 88 42" className="h-10 w-24" fill="currentColor">
+              <circle cx="12" cy="22" r="4" /><circle cx="32" cy="22" r="4" /><circle cx="52" cy="22" r="4" /><circle cx="72" cy="22" r="4" />
+              <path d="M12 22h60" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="2 7" />
+            </svg>
+          ) : meta.visual === 'ring' ? (
+            <svg viewBox="0 0 48 48" className="h-12 w-12" fill="none" stroke="currentColor" strokeWidth="4">
+              <circle cx="24" cy="24" r="17" opacity=".22" />
+              <path d="M24 7a17 17 0 0 1 15.6 10.2" />
+              <circle cx="40" cy="17" r="2.5" fill="currentColor" stroke="none" />
+            </svg>
+          ) : meta.visual === 'checkline' ? (
+            <svg viewBox="0 0 88 42" className="h-10 w-24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 24l12 10 16-18 13 9 18-16 18 7" />
+              <path d="M70 9h10v10" />
+            </svg>
+          ) : meta.visual === 'xline' ? (
+            <svg viewBox="0 0 88 42" className="h-10 w-24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M3 8h82M3 34h82" opacity=".25" />
+              <path d="M8 10l12 12 12-9 13 13 13-15 12 9" />
+              <path d="M75 20h10M80 15v10" />
+            </svg>
+          ) : meta.visual === 'hourglass' ? (
+            <svg viewBox="0 0 48 48" className="h-12 w-12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13 6h22M13 42h22M16 7c0 8 4 10 8 17-4 7-8 9-8 17M32 7c0 8-4 10-8 17 4 7 8 9 8 17" />
+              <path d="M20 24h8" />
+            </svg>
+          ) : meta.visual === 'shieldbars' ? (
+            <svg viewBox="0 0 88 42" className="h-10 w-24" fill="currentColor">
+              <path d="M4 8h10v26H4zM20 18h10v16H20zM36 12h10v22H36zM52 4h10v30H52zM68 15h10v19H68z" opacity=".82" />
+              <path d="M83 8h2v26h-2z" opacity=".45" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 88 42" className="h-10 w-24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 32c9-13 15-15 24-7s14 8 21 1 13-13 21-7 11 5 18-10" />
+              <circle cx="86" cy="9" r="3" fill="currentColor" stroke="none" />
+            </svg>
+          )}
+        </div>
+      </div>
+      <div className="relative mt-auto flex items-center gap-2 pt-4 text-xs text-app-muted">
+        <span className="inline-flex items-center gap-1 rounded-full bg-app-accent/15 px-2.5 py-1 font-semibold text-app-accent">
+          <Icon name="arrow" className="size-3" /> Live
+        </span>
+        <span>Platform data</span>
+      </div>
+    </article>
+  );
+}
+
 const PLATFORM_GROUPS = [
   { key: 'hr', label: 'HR', moduleKeys: ['employee-directory', 'onboarding', 'live-status', 'attendance', 'break-management', 'shifts', 'biometric', 'leave', 'holidays', 'payroll', 'performance', 'recruitment'] },
   { key: 'sales', label: 'Sales', moduleKeys: ['territories', 'leads', 'callbacks', 'handovers', 'deals', 'approvals'] },
@@ -77,6 +185,50 @@ const PLATFORM_GROUPS = [
   { key: 'client', label: 'Client', moduleKeys: ['clients', 'post-closure', 'client-portal'] },
   { key: 'finance', label: 'Finance', moduleKeys: ['billing-terms', 'invoicing', 'payments', 'receivables', 'payables', 'accounting'] },
 ] as const;
+
+function CompanyDetailsDialog({ org, entitlements, onClose }: { org: Organization; entitlements: Entitlement[]; onClose: () => void }): React.JSX.Element {
+  const sections: Array<{ title: string; fields: Array<[string, string]> }> = [
+    { title: 'Company information', fields: [['Company name', org.name], ['Company code', org.code], ['Legal name', org.legalCompanyName || 'Not provided'], ['Company type', org.companyType], ['Industry', org.industry], ['Website', org.website || 'Not provided'], ['Company email', org.companyEmail]] },
+    { title: 'Primary owner / admin', fields: [['Full name', org.ownerFullName], ['Designation', org.ownerDesignation || 'Not provided'], ['Email', org.ownerEmail], ['Mobile number', org.ownerMobile], ['Alternate number', org.ownerAlternateNumber || 'Not provided']] },
+    { title: 'Contact & address', fields: [['Primary phone', org.primaryPhone], ['Alternate phone', org.alternatePhone || 'Not provided'], ['Support email', org.supportEmail || 'Not provided'], ['Address', [org.addressLine1, org.addressLine2, org.city, org.state, org.country, org.postalCode].filter(Boolean).join(', ') || 'Not provided']] },
+    { title: 'Legal & CRM', fields: [['GSTIN / Tax ID', org.gstin || 'Not provided'], ['PAN / Business ID', org.pan || 'Not provided'], ['Registration number', org.registrationNumber || 'Not provided'], ['Timezone', org.timezone], ['Currency', org.currency]] },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-app-border bg-app-surface p-5 text-app-foreground shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="company-details-title">
+        <div className="flex items-start justify-between gap-4 border-b border-app-border pb-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Tenant details</p>
+            <h2 id="company-details-title" className="mt-1 font-display text-2xl font-bold">{org.name}</h2>
+            <p className="mt-1 text-sm text-app-muted">{org.code} · {org.status}</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-full border border-app-border text-xl text-app-muted hover:border-app-accent hover:text-app-accent" aria-label="Close company details">×</button>
+        </div>
+        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+          {sections.map((section) => (
+            <div key={section.title} className="rounded-xl border border-app-border bg-app-background p-4">
+              <h3 className="font-display text-sm font-semibold">{section.title}</h3>
+              <dl className="mt-3 space-y-3 text-sm">
+                {section.fields.map(([label, value]) => <div key={label}><dt className="text-[10px] font-bold uppercase tracking-[0.08em] text-app-muted">{label}</dt><dd className="mt-0.5 break-words text-app-foreground">{value}</dd></div>)}
+              </dl>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 rounded-xl border border-app-border bg-app-background p-4">
+          <h3 className="font-display text-sm font-semibold">Platform areas</h3>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {PLATFORM_GROUPS.map((group) => {
+              const enabled = group.moduleKeys.filter((key) => entitlements.some((row) => row.key === key && row.status === 'enabled')).length;
+              const status = enabled === group.moduleKeys.length ? 'Enabled' : enabled > 0 ? 'Partially enabled' : 'Disabled';
+              return <span key={group.key} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${status === 'Enabled' ? 'border-app-accent/35 bg-app-accent/10 text-app-accent' : status === 'Partially enabled' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/10 text-[#f5c56b]' : 'border-app-border text-app-muted'}`}>{group.label}: {status}</span>;
+            })}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
 const COUNTRY_CODES = ['+91', '+1', '+44', '+61', '+65', '+971'] as const;
 const TEN_DIGIT_PHONE = /^\d{10}$/;
 const COMPANY_CODE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -530,6 +682,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   const [stats, setStats] = useState<Record<string, number>>({});
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [companySearch, setCompanySearch] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState<Organization | null>(null);
   const [invitationSearch, setInvitationSearch] = useState('');
   const [invitationStatus, setInvitationStatus] = useState('');
   const [invitationPage, setInvitationPage] = useState(1);
@@ -546,6 +699,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [editingOrganizationId, setEditingOrganizationId] = useState<string | null>(null);
+  const [companyFormOpen, setCompanyFormOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -602,6 +756,14 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setInvitationPage(1);
+      void loadInvitations(1, { search: invitationSearch, status: invitationStatus });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [invitationSearch]);
 
   async function resendInvitation(invitation: Invitation) {
     const confirmed = window.confirm(
@@ -718,6 +880,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
         setFormMode('create');
         setEditingOrganizationId(null);
         setFormStep(0);
+        setCompanyFormOpen(false);
         await load();
         return;
       }
@@ -743,6 +906,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       setEditingOrganizationId(null);
       setSelected([]);
       setFormStep(0);
+      setCompanyFormOpen(false);
       await load();
     } catch (err) {
       const fieldErrors = apiFieldErrors(err);
@@ -793,6 +957,19 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     setFormStep(0);
     setMessage(`Editing ${org.name}.`);
     setFormErrors({});
+    setCompanyFormOpen(true);
+  }
+
+  function startCreateCompany(): void {
+    setForm({ ...INITIAL_FORM });
+    setFormMode('create');
+    setEditingOrganizationId(null);
+    setSelected([]);
+    setFormStep(0);
+    setMessage('');
+    setFormErrors({});
+    setInvitationPreview(null);
+    setCompanyFormOpen(true);
   }
 
   function cancelEdit() {
@@ -802,6 +979,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     setFormStep(0);
     setMessage('');
     setFormErrors({});
+    setCompanyFormOpen(false);
   }
 
   function setFormField(field: string, value: string) {
@@ -961,8 +1139,8 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   );
 
   return (
-    <main className="min-h-screen bg-app-background px-5 pb-16 pt-[24px] text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)] max-[560px]:px-[15px] max-[560px]:pb-[45px] max-[560px]:pt-5">
-      <header className="relative mx-auto grid w-full max-w-[1480px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-5 gap-y-3 rounded-2xl border border-app-border bg-app-surface px-5 py-4 max-[850px]:gap-x-3 max-[560px]:rounded-xl max-[560px]:px-3 max-[560px]:py-3">
+    <main className="min-h-screen bg-app-background px-[clamp(12px,2.2vw,24px)] pb-16 pt-[clamp(16px,2.5vw,24px)] text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)] max-[560px]:pb-10">
+      <header className="relative mx-auto grid w-full max-w-[1480px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-5 gap-y-3 rounded-2xl border border-app-border bg-app-surface px-5 py-4 max-[850px]:gap-x-3 max-[700px]:grid-cols-[auto_minmax(0,1fr)] max-[700px]:items-start max-[700px]:px-4 max-[700px]:py-3 max-[560px]:rounded-xl max-[560px]:px-3">
         <button
           type="button"
           onClick={() => setMobileNavOpen((open) => !open)}
@@ -981,7 +1159,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           <h1 className="font-display text-[clamp(22px,2.4vw,30px)] leading-[1.05] tracking-[-0.045em]">Platform Dashboard</h1>
           <p className="mt-1.5 text-xs text-app-muted sm:text-sm">Your companies, modules and access in one place.</p>
         </div>
-        <div className="platform-header-actions col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-2 max-[560px]:gap-1.5">
+        <div className="platform-header-actions col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-2 max-[700px]:col-start-2 max-[700px]:row-start-1 max-[700px]:justify-self-end max-[560px]:gap-1.5">
           <ThemeToggle compact className="platform-theme-toggle" />
           <div className="platform-appearance-anchor relative">
             <button
@@ -1017,27 +1195,45 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                 <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">Overview</p>
                 <h2 className="font-display text-xl font-semibold tracking-[-0.03em]">Platform Overview</h2>
               </div>
-              <span className="text-xs text-app-muted">Live platform data</span>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <span className="text-xs text-app-muted">Live platform data</span>
+                <button type="button" className="rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110" onClick={startCreateCompany}>
+                  + Create company
+                </button>
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-[14px] max-[1100px]:grid-cols-2 max-[560px]:gap-[9px] max-[390px]:grid-cols-1">
-              {Object.entries(stats).map(([k, v]) => (
-                <div className="relative min-h-[126px] overflow-hidden rounded-[14px] border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.08)] max-[560px]:min-h-[108px] max-[560px]:p-[14px]" key={k}>
-                  <span className="block text-xs capitalize text-app-muted">{k.replaceAll('_', ' ')}</span>
-                  <strong className="mt-[13px] block font-display text-[30px] font-bold max-[560px]:text-2xl">{v}</strong>
-                  <span className="mt-[3px] block text-[11px] text-app-accent">Live platform data</span>
-                </div>
-              ))}
+            <div className="grid grid-cols-3 gap-[14px] max-[1100px]:grid-cols-2 max-[700px]:grid-cols-1 max-[560px]:gap-[10px]">
+              {Object.entries(stats).map(([k, v]) => <PlatformKpiCard key={k} statKey={k} value={v} />)}
             </div>
           </section>
-      <section className="grid scroll-mt-5 grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] items-start gap-[18px] max-[1100px]:grid-cols-1" aria-label="Company provisioning and management">
+      <section className="scroll-mt-5" aria-label="Company provisioning and management">
+        {companyFormOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 px-4 py-6 backdrop-blur-sm" role="presentation">
+            <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-app-border bg-app-background shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+              <div className="flex items-start justify-between gap-4 border-b border-app-border px-6 py-5 max-[560px]:px-4">
+                <div>
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">Provisioning</p>
+                  <h2 className="font-display text-xl tracking-[-0.04em]">{formMode === 'edit' ? 'Edit company' : 'Create company'}</h2>
+                  <p className="mt-1 text-xs text-app-muted">Complete the company details and regional setup.</p>
+                </div>
+                <button
+                  type="button"
+                  className="grid size-9 shrink-0 place-items-center rounded-xl border border-app-border text-xl text-app-muted transition hover:border-app-accent hover:text-app-accent disabled:opacity-50"
+                  onClick={() => setCompanyFormOpen(false)}
+                  disabled={busy}
+                  aria-label="Close company form"
+                >
+                  ×
+                </button>
+              </div>
         <form
           id="platform-create-company"
           onSubmit={(e) => {
             e.preventDefault();
           }}
-          className="rounded-2xl border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-[27px] shadow-[0_20px_60px_rgba(0,0,0,0.14)] max-[560px]:p-[20px_16px]"
+          className="bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-6 max-[560px]:p-4"
         >
-          <div className="flex items-start justify-between gap-[15px]">
+            <div className="flex items-start justify-between gap-[15px] max-[700px]:flex-col">
             <div>
               <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Provisioning</p>
               <h2 className="font-display text-[23px] tracking-[-0.045em]">{formMode === 'edit' ? 'Edit Company' : 'Create Company'}</h2>
@@ -1166,13 +1362,21 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             </button>
           </div>}
         </form>
-        <section id="platform-companies" className="max-h-[720px] scroll-mt-5 overflow-y-auto rounded-2xl border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-[27px] shadow-[0_20px_60px_rgba(0,0,0,0.14)] [scrollbar-color:#3f5664_transparent] [scrollbar-width:thin] max-[560px]:max-h-none max-[560px]:overflow-visible max-[560px]:p-[20px_16px]">
+            </div>
+          </div>
+        )}
+        <section id="platform-companies" className="w-full scroll-mt-5 rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_5%,var(--app-background)),color-mix(in_srgb,var(--app-surface)_72%,var(--app-background)))] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.14)] max-[560px]:p-[20px_16px]">
           <div className="flex items-start justify-between gap-[15px]">
             <div>
               <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Tenant management</p>
               <h2 className="font-display text-[23px] tracking-[-0.045em]">Companies</h2>
             </div>
-            <span className="rounded-full border border-app-border px-2.5 py-1.5 text-[11px] text-app-muted">{orgs.length} total</span>
+            <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:w-full max-[700px]:justify-start">
+              <span className="rounded-full border border-app-border px-2.5 py-1.5 text-[11px] text-app-muted">{orgs.length} total</span>
+              <button type="button" className="rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110" onClick={startCreateCompany}>
+                + Create company
+              </button>
+            </div>
           </div>
           <p className="mt-[9px] text-sm text-app-muted">Manage each company&apos;s available platform areas.</p>
           <input
@@ -1184,136 +1388,73 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           />
           {visibleOrganizations.length === 0 ? (
             <p className="mt-[18px] text-sm text-app-muted">No companies match your search.</p>
-          ) : visibleOrganizations.map((o) => (
-            <article key={o.id} className="border-t border-app-border py-[17px] first:mt-[23px]">
-              <div className="flex items-center gap-[11px]">
-                <span className="grid size-[35px] place-items-center rounded-[10px] bg-app-accent/10 font-bold text-app-accent">{o.name.slice(0, 1).toUpperCase()}</span>
-                <div>
-                  <strong className="block text-sm">{o.name}</strong>
-                  <small className="mt-[3px] block text-[11px] uppercase text-app-muted">
-                  {o.code} · {o.status}
-                  </small>
-                </div>
-              </div>
-              <div className="mt-[-35px] flex justify-end gap-[7px] max-[560px]:mt-3 max-[560px]:flex-wrap max-[560px]:justify-start">
-                <button
-                  type="button"
-                  className="rounded-lg border border-app-accent/30 bg-transparent px-2.5 py-[7px] text-[11px] text-app-accent hover:border-app-accent hover:bg-app-accent/10 disabled:cursor-wait disabled:opacity-55"
-                  onClick={() => editOrganization(o)}
-                  disabled={busy || moduleActionKey !== null || deletingId !== null || statusChangingId !== null}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-lg border bg-transparent px-2.5 py-[7px] text-[11px] ${o.status === 'active' ? 'border-[#f3c875]/30 text-[#f3c875] hover:border-[#f3c875] hover:bg-[#f3c875]/10' : 'border-app-accent/30 text-app-accent hover:border-app-accent hover:bg-app-accent/10'} disabled:cursor-wait disabled:opacity-55`}
-                  onClick={() => setPendingCompanyAction({ type: 'status', org: o, nextStatus: o.status === 'active' ? 'suspended' : 'active' })}
-                  disabled={statusChangingId === o.id || deletingId === o.id}
-                >
-                  {statusChangingId === o.id
-                    ? 'Updating…'
-                    : o.status === 'active' ? 'Suspend company' : 'Activate company'}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-lg border border-[#ff8d8d]/30 bg-transparent px-2.5 py-[7px] text-[11px] text-app-danger hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55"
-                  onClick={() => setPendingCompanyAction({ type: 'delete', org: o })}
-                  disabled={deletingId === o.id || statusChangingId === o.id}
-                >
-                  {deletingId === o.id ? 'Removing…' : 'Remove company'}
-                </button>
-              </div>
-              <div className="mt-[14px] ml-[46px] flex flex-wrap gap-[7px] max-[560px]:ml-0">
-                {PLATFORM_GROUPS.map((group) => {
-                  const status = groupStatus(o, group);
-                  const enabled = status === 'enabled';
-                  return (
-                    <button
-                      type="button"
-                      key={group.key}
-                      className={`rounded-full border px-2.5 py-[7px] text-[11px] font-semibold ${status === 'enabled' ? 'border-app-accent/35 bg-app-accent/10 text-app-accent' : status === 'partial' ? 'border-[#f5c56b]/35 text-[#f5c56b]' : 'border-app-border text-app-muted'} hover:border-[#536975] hover:bg-app-surface-raised`}
-                      onClick={() => setPendingModuleAction({ org: o, group, currentlyEnabled: enabled })}
-                      disabled={moduleActionKey !== null}
-                    >
-                      {group.label}: {status}
-                    </button>
-                  );
-                })}
-              </div>
-              <details className="mt-[15px] ml-[46px] text-xs text-app-muted max-[560px]:ml-0">
-                <summary className="cursor-pointer text-app-accent hover:text-app-accent">View company details</summary>
-                <div className="mt-[14px] grid gap-4">
-                  <div>
-                    <h3 className="mb-2 font-display text-xs font-semibold uppercase tracking-[0.03em] text-app-foreground">Company Information</h3>
-                    <div className="mt-[13px] grid grid-cols-2 gap-3 rounded-[9px] border border-app-border bg-app-background p-[14px] max-[560px]:grid-cols-1">
-                      <span className="min-w-0 break-words leading-5"><b className="mb-[3px] block text-[10px] uppercase tracking-[0.08em] text-app-foreground">Company name</b>{o.name}</span>
-                      <span><b>Company code</b>{o.code}</span>
-                      <span><b>Legal name</b>{o.legalCompanyName || 'Not provided'}</span>
-                      <span><b>Company type</b>{o.companyType}</span>
-                      <span><b>Industry</b>{o.industry}</span>
-                      <span><b>Website</b>{o.website || 'Not provided'}</span>
-                      <span><b>Company email</b>{o.companyEmail}</span>
+          ) : (
+            <div className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+              {visibleOrganizations.map((o) => (
+                <article key={o.id} className="flex min-h-[300px] flex-col rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_5%,var(--app-background)),color-mix(in_srgb,var(--app-surface)_72%,var(--app-background)))] p-5 shadow-[0_12px_30px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-app-accent/50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-app-accent/12 text-lg font-bold text-app-accent">{o.name.slice(0, 1).toUpperCase()}</span>
+                      <div className="min-w-0">
+                        <h3 className="truncate font-display text-lg font-bold">{o.name}</h3>
+                        <p className="mt-1 text-xs uppercase tracking-wide text-app-muted">{o.code} · <span className={o.status === 'active' ? 'text-app-accent' : 'text-app-danger'}>{o.status}</span></p>
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-app-border px-2 py-1 text-[10px] font-semibold text-app-muted">{o.timezone}</span>
+                  </div>
+                  <div className="mt-5 grid gap-2 text-xs text-app-muted sm:grid-cols-2">
+                    <span className="truncate">✉ {o.ownerEmail}</span>
+                    <span className="truncate">⌖ {[o.city, o.country].filter(Boolean).join(', ') || 'Location not provided'}</span>
+                  </div>
+                  <div className="mt-5">
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-app-muted">Platform areas</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {PLATFORM_GROUPS.map((group) => {
+                        const status = groupStatus(o, group);
+                        return <button type="button" key={group.key} className={`w-full rounded-xl border px-3 py-2 text-left text-[10px] font-semibold ${status === 'enabled' ? 'border-app-accent/35 bg-app-accent/10 text-app-accent' : status === 'partial' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/[0.04] text-[#f5c56b]' : 'border-app-border text-app-muted'} hover:border-app-accent`} onClick={() => setPendingModuleAction({ org: o, group, currentlyEnabled: status === 'enabled' })} disabled={moduleActionKey !== null}>{group.label}: {status}</button>;
+                      })}
                     </div>
                   </div>
-                  <div>
-                    <h3 className="mb-2 font-display text-xs font-semibold uppercase tracking-[0.03em] text-app-foreground">Primary Owner / Admin</h3>
-                    <div className="mt-[13px] grid grid-cols-2 gap-3 rounded-[9px] border border-app-border bg-app-background p-[14px] max-[560px]:grid-cols-1">
-                      <span className="min-w-0 break-words leading-5"><b className="mb-[3px] block text-[10px] uppercase tracking-[0.08em] text-app-foreground">Full name</b>{o.ownerFullName}</span>
-                      <span><b>Designation</b>{o.ownerDesignation || 'Not provided'}</span>
-                      <span><b>Email</b>{o.ownerEmail}</span>
-                      <span><b>Mobile number</b>{o.ownerMobile}</span>
-                      <span><b>Alternate number</b>{o.ownerAlternateNumber || 'Not provided'}</span>
-                    </div>
+                  <div className="mt-6 grid grid-cols-2 gap-2 border-t border-app-border pt-4 sm:grid-cols-4">
+                    <button type="button" className="col-span-2 min-h-11 rounded-xl bg-app-accent px-3 py-2.5 text-xs font-bold text-app-on-accent transition hover:brightness-110 sm:col-span-1" onClick={() => setSelectedCompany(o)}>View details</button>
+                    <button type="button" className="min-h-11 rounded-xl border border-app-accent/30 px-3 py-2.5 text-xs font-semibold text-app-accent transition hover:bg-app-accent/10" onClick={() => editOrganization(o)} disabled={busy || moduleActionKey !== null || deletingId !== null || statusChangingId !== null}>Edit</button>
+                    <button type="button" className="min-h-11 rounded-xl border border-app-border px-3 py-2.5 text-xs text-app-muted transition hover:border-app-accent hover:text-app-accent" onClick={() => setPendingCompanyAction({ type: 'status', org: o, nextStatus: o.status === 'active' ? 'suspended' : 'active' })} disabled={statusChangingId === o.id || deletingId === o.id}>{o.status === 'active' ? 'Suspend' : 'Activate'}</button>
+                    <button type="button" className="min-h-11 rounded-xl border border-[#ff8d8d]/30 px-3 py-2.5 text-xs text-app-danger transition hover:border-[#ff8d8d]" onClick={() => setPendingCompanyAction({ type: 'delete', org: o })} disabled={deletingId === o.id || statusChangingId === o.id}>{deletingId === o.id ? 'Removing…' : 'Remove'}</button>
                   </div>
-                  <div>
-                    <h3 className="mb-2 font-display text-xs font-semibold uppercase tracking-[0.03em] text-app-foreground">Contact & Address</h3>
-                    <div className="mt-[13px] grid grid-cols-2 gap-3 rounded-[9px] border border-app-border bg-app-background p-[14px] max-[560px]:grid-cols-1">
-                      <span className="min-w-0 break-words leading-5"><b className="mb-[3px] block text-[10px] uppercase tracking-[0.08em] text-app-foreground">Primary phone</b>{o.primaryPhone}</span>
-                      <span><b>Alternate phone</b>{o.alternatePhone || 'Not provided'}</span>
-                      <span><b>Support email</b>{o.supportEmail || 'Not provided'}</span>
-                      <span><b>Address</b>{[o.addressLine1, o.addressLine2, o.city, o.state, o.country, o.postalCode].filter(Boolean).join(', ')}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="mb-2 font-display text-xs font-semibold uppercase tracking-[0.03em] text-app-foreground">Legal & CRM</h3>
-                    <div className="mt-[13px] grid grid-cols-2 gap-3 rounded-[9px] border border-app-border bg-app-background p-[14px] max-[560px]:grid-cols-1">
-                      <span className="min-w-0 break-words leading-5"><b className="mb-[3px] block text-[10px] uppercase tracking-[0.08em] text-app-foreground">GSTIN / Tax ID</b>{o.gstin || 'Not provided'}</span>
-                      <span><b>PAN / Business ID</b>{o.pan || 'Not provided'}</span>
-                      <span><b>Registration number</b>{o.registrationNumber || 'Not provided'}</span>
-                      <span><b>Timezone</b>{o.timezone}</span>
-                      <span><b>Currency</b>{o.currency}</span>
-                    </div>
-                  </div>
-                </div>
-              </details>
-            </article>
-          ))}
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       </section>
-      <section id="platform-invitations" className="mx-auto mt-[18px] max-h-[720px] w-full scroll-mt-5 overflow-y-auto rounded-2xl border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-[27px] shadow-[0_20px_60px_rgba(0,0,0,0.14)] [scrollbar-color:#3f5664_transparent] [scrollbar-width:thin] max-[560px]:max-h-none max-[560px]:overflow-visible max-[560px]:p-[20px_16px]">
-        <div className="flex items-start justify-between gap-[15px]">
+      <section id="platform-invitations" className="mx-auto mt-[18px] w-full scroll-mt-5 rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_5%,var(--app-background)),color-mix(in_srgb,var(--app-surface)_72%,var(--app-background)))] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.14)] max-[560px]:p-[20px_16px]">
+        <div className="flex items-end justify-between gap-5 max-[700px]:flex-col max-[700px]:items-start">
           <div>
-            <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Access lifecycle</p>
-            <h2 className="font-display text-[23px] tracking-[-0.045em]">Admin Invitations</h2>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-app-accent">Access lifecycle</p>
+            <h2 className="font-display text-[clamp(24px,3vw,32px)] font-bold tracking-[-0.045em]">Admin Invitations</h2>
+            <p className="mt-1.5 text-sm text-app-muted">Manage and track invitation status for company administrators.</p>
           </div>
-          <span className="rounded-full border border-app-border px-2.5 py-1.5 text-[11px] text-app-muted">{invitationTotal} total</span>
+          <span className="rounded-full border border-app-accent/30 bg-app-accent/10 px-4 py-2 text-xs font-semibold text-app-accent max-[700px]:self-start">{invitationTotal} total</span>
         </div>
-        <div className="mt-[23px] grid grid-cols-[minmax(0,1fr)_170px_auto] gap-2.5 max-[560px]:grid-cols-1">
-          <input
-            className="block w-full rounded-[9px] border border-app-border bg-app-background px-[13px] py-3 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
-            value={invitationSearch}
-            onChange={(event) => setInvitationSearch(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                void applyInvitationFilters();
-              }
-            }}
-            placeholder="Search company, code or admin email"
-            aria-label="Search invitations"
-          />
+        <div className="mt-6 grid grid-cols-[minmax(0,1fr)_190px_auto] gap-3 rounded-2xl border border-app-accent/20 bg-app-background/45 p-3 max-[700px]:grid-cols-1">
+          <div className="relative">
+            <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-app-muted" />
+            <input
+              className="block w-full rounded-xl border border-app-border bg-app-background py-3 pl-10 pr-3 text-sm text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
+              value={invitationSearch}
+              onChange={(event) => setInvitationSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void applyInvitationFilters();
+                }
+              }}
+              placeholder="Search company, code or admin email"
+              aria-label="Search invitations"
+            />
+          </div>
           <select
-            className="block w-full cursor-pointer rounded-[9px] border border-app-border bg-app-background px-[13px] py-3 text-app-foreground outline-none focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
+            className="block w-full cursor-pointer rounded-xl border border-app-border bg-app-background px-3 py-3 text-sm text-app-foreground outline-none focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
             value={invitationStatus}
             onChange={(event) => {
               void changeInvitationStatus(event.target.value);
@@ -1326,46 +1467,64 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             <option value="EXPIRED">Expired</option>
             <option value="REVOKED">Revoked</option>
           </select>
-          <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-4 py-2.5 text-app-foreground transition hover:border-app-accent hover:text-app-accent" onClick={() => void applyInvitationFilters()}>
+          <button type="button" className="rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110" onClick={() => void applyInvitationFilters()}>
             Search
           </button>
         </div>
-        <div className="mt-[18px]">
+        <div className="mt-6 overflow-hidden rounded-2xl border border-app-accent/20 bg-app-background/35">
+          <div className="hidden grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)_auto] gap-5 border-b border-app-border px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-app-muted lg:grid">
+            <span>Company &amp; admin</span><span>Status</span><span>Timeline</span><span>Actions</span>
+          </div>
+          <div>
           {invitations.length === 0 ? (
-            <p className="mt-[9px] text-sm text-app-muted">No invitations match the current filters.</p>
+            <p className="px-5 py-10 text-center text-sm text-app-muted">No invitations match the current filters.</p>
           ) : invitations.map((invitation) => {
             const canResend = (invitation.status === 'PENDING' || invitation.status === 'EXPIRED') && invitation.companyStatus === 'active';
             const canRevoke = invitation.status === 'PENDING';
             const canResetPassword = invitation.status === 'ACCEPTED' && invitation.companyStatus === 'active';
+            // The View action is always available; optional actions are rendered inside the same compact column.
+            const hasActions = true;
             return (
-              <article className="grid grid-cols-[minmax(190px,1.2fr)_auto_minmax(300px,1.5fr)_auto] items-start gap-[15px] border-t border-app-border py-[17px] max-[850px]:grid-cols-1" key={invitation.id}>
-                <div>
-                  <strong className="block text-sm text-app-foreground">{invitation.companyName}</strong>
-                  <small className="mt-1 block text-[11px] text-app-muted">{invitation.companyCode} · {invitation.adminName}</small>
-                  <span className="mt-1 block text-[11px] text-app-muted">{invitation.adminEmail}</span>
+              <article className={`grid ${hasActions ? 'grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)_auto]' : 'grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)]'} items-start justify-items-start gap-5 border-b border-app-border p-5 text-left last:border-b-0 max-[1100px]:grid-cols-2 max-[1100px]:items-start max-[700px]:grid-cols-1`} key={invitation.id}>
+                <div className="min-w-0 justify-self-start">
+                  <div className="flex items-center gap-3">
+                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-app-accent/15 text-lg font-bold text-app-accent">{invitation.companyName.slice(0, 1).toUpperCase()}</span>
+                    <div className="min-w-0">
+                      <strong className="block truncate text-base font-bold text-app-foreground">{invitation.companyName}</strong>
+                      <small className="mt-1 block text-xs text-app-muted">{invitation.companyCode}</small>
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-1 text-xs text-app-muted">
+                    <span className="block truncate">✉ {invitation.adminEmail}</span>
+                    <span className="block">Admin · {invitation.adminName}</span>
+                  </div>
                 </div>
-                <span className={`rounded-full border px-2 py-1.5 text-[10px] font-bold tracking-[0.04em] ${invitation.status === 'PENDING' ? 'border-app-accent/35 bg-app-accent/10 text-orange-400' : invitation.status === 'ACCEPTED' ? 'border-[#8dd7ff]/30 text-[#8dd7ff]' : invitation.status === 'EXPIRED' ? 'border-[#f5c56b]/35 text-[#f5c56b]' : 'border-[#ff8d8d]/30 text-app-danger'}`}>{invitation.status}</span>
-                <div className="grid grid-cols-4 gap-[9px] text-[11px] text-app-muted max-[560px]:grid-cols-2">
-                  <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Created</b>{formatDate(invitation.createdAt)}</span>
-                  <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Expires</b>{formatDate(invitation.expiresAt)}</span>
-                  <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Last sent</b>{formatDate(invitation.lastSentAt)}</span>
-                  <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Resends</b>{invitation.resendCount}</span>
+                <div className="min-w-0 justify-self-start">
+                  <span className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold tracking-[0.05em] ${invitation.status === 'PENDING' ? 'border-app-accent/35 bg-app-accent/10 text-orange-400' : invitation.status === 'ACCEPTED' ? 'border-emerald-400/35 bg-emerald-400/10 text-emerald-500' : invitation.status === 'EXPIRED' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/10 text-[#f5c56b]' : 'border-[#ff8d8d]/30 bg-[#ff8d8d]/10 text-app-danger'}`}>{invitation.status}</span>
+                  <p className="mt-2 text-xs leading-5 text-app-muted">{invitation.status === 'ACCEPTED' ? 'Invitation accepted and admin account is active.' : invitation.status === 'PENDING' ? 'Invitation is awaiting acceptance.' : invitation.status === 'EXPIRED' ? 'Invitation has expired.' : 'Invitation has been revoked.'}</p>
+                  <span className="mt-2 inline-flex rounded-full border border-app-accent/20 bg-app-accent/10 px-2 py-0.5 text-[9px] font-semibold text-app-accent">{invitation.companyStatus === 'active' ? 'Active company' : 'Suspended company'}</span>
                 </div>
-                <div className="flex flex-wrap justify-end gap-[7px] max-[850px]:justify-start">
-                  <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-[9px] py-[7px] text-[11px] text-app-foreground transition hover:border-app-accent hover:text-app-accent" onClick={() => setViewInvitationId((current) => current === invitation.id ? null : invitation.id)}>
+                <div className="grid w-full grid-cols-4 justify-items-start gap-3 text-left text-xs text-app-muted max-[560px]:grid-cols-2">
+                  <span><b className="mb-1 block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Created</b>{formatDate(invitation.createdAt)}</span>
+                  <span><b className="mb-1 block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Expires</b>{formatDate(invitation.expiresAt)}</span>
+                  <span><b className="mb-1 block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Last sent</b>{formatDate(invitation.lastSentAt)}</span>
+                  <span><b className="mb-1 block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Resends</b>{invitation.resendCount}</span>
+                </div>
+                {hasActions && <div className="flex flex-wrap justify-start gap-2 justify-self-start max-[1100px]:col-span-2 max-[1100px]:justify-start max-[700px]:col-span-1">
+                  <button type="button" className="rounded-xl border border-app-accent/35 bg-app-surface px-3 py-2.5 text-xs font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent" onClick={() => setViewInvitationId((current) => current === invitation.id ? null : invitation.id)}>
                     {viewInvitationId === invitation.id ? 'Hide' : 'View'}
                   </button>
-                  {canResend && <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-[9px] py-[7px] text-[11px] text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => void resendInvitation(invitation)} disabled={invitationActionId === invitation.id}>
+                  {canResend && <button type="button" className="rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-xs text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => void resendInvitation(invitation)} disabled={invitationActionId === invitation.id}>
                     {invitationActionId === invitation.id ? 'Resending…' : 'Resend Invitation'}
                   </button>}
-                  {canResetPassword && <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-[9px] py-[7px] text-[11px] text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => void sendAdminPasswordReset(invitation)} disabled={invitationActionId === invitation.id}>
+                  {canResetPassword && <button type="button" className="rounded-xl bg-app-accent px-3 py-2.5 text-xs font-bold text-app-on-accent transition hover:brightness-110 disabled:cursor-wait disabled:opacity-55" onClick={() => void sendAdminPasswordReset(invitation)} disabled={invitationActionId === invitation.id}>
                     {invitationActionId === invitation.id ? 'Sending…' : 'Send password reset'}
                   </button>}
-                  {canRevoke && <button type="button" className="rounded-[9px] border border-[#ff8d8d]/30 bg-transparent px-[9px] py-[7px] text-[11px] text-app-danger hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55" onClick={() => void revokeInvitation(invitation)} disabled={invitationActionId === invitation.id}>
+                  {canRevoke && <button type="button" className="rounded-xl border border-[#ff8d8d]/30 bg-transparent px-3 py-2.5 text-xs text-app-danger hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55" onClick={() => void revokeInvitation(invitation)} disabled={invitationActionId === invitation.id}>
                     {invitationActionId === invitation.id ? 'Revoking…' : 'Revoke'}
                   </button>}
-                </div>
-                {viewInvitationId === invitation.id && <div className="col-span-full grid grid-cols-3 gap-2.5 rounded-[9px] border border-app-border bg-app-background p-[13px] text-[11px] text-app-muted max-[560px]:grid-cols-1">
+                </div>}
+                {viewInvitationId === invitation.id && <div className="col-span-full grid grid-cols-3 gap-3 rounded-xl border border-app-accent/20 bg-app-background p-4 text-xs text-app-muted max-[560px]:grid-cols-1">
                   <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Company status</b>{invitation.companyStatus}</span>
                   <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Invitation ID</b>{invitation.id}</span>
                   <span><b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">Admin email</b>{invitation.adminEmail}</span>
@@ -1374,6 +1533,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               </article>
             );
           })}
+          </div>
         </div>
         {invitationTotal > 25 && <div className="mt-4 flex items-center justify-end gap-3 text-xs text-app-muted">
           <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-2.5 py-[7px] text-[11px] text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => { const page = invitationPage - 1; setInvitationPage(page); void loadInvitations(page); }} disabled={invitationPage <= 1}>Previous</button>
@@ -1383,6 +1543,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       </section>
         </div>
       </div>
+      {selectedCompany && <CompanyDetailsDialog org={selectedCompany} entitlements={entitlements[selectedCompany.id] ?? []} onClose={() => setSelectedCompany(null)} />}
       {pendingModuleAction && <ModuleToggleModal
         companyName={pendingModuleAction.org.name}
         moduleName={pendingModuleAction.group.label}
