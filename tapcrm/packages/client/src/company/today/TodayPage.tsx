@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { loadTodayStatus, punch, type PunchKind, type LiveRow } from '../live/liveApi.js';
 import { getBreakPrompts, submitBreachExplanation, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
@@ -138,46 +138,27 @@ function GreetingCard({
   allowedMoves,
   fullName,
   now,
-  onPunched,
+  busy,
+  msg,
+  onPunch,
+  breakActionButton,
 }: {
   row: LiveRow | null;
   allowedMoves: readonly string[];
   fullName: string;
   now: Date;
-  onPunched: () => void;
+  busy: PunchKind | null;
+  msg: { ok: boolean; text: string } | null;
+  onPunch: (kind: PunchKind, label: string) => void;
+  breakActionButton: ReactNode;
 }): React.JSX.Element {
   const hour = now.getHours();
-  const [busy, setBusy] = useState<PunchKind | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const state = row?.state ?? 'NOT_IN';
 
   const hasIn = state === 'NOT_IN' && (allowedMoves.includes('in') || allowedMoves.includes('scan'));
   const hasOut = allowedMoves.includes('out');
-  const hasBreakStart = allowedMoves.includes('break-start');
-  const hasBreakEnd = allowedMoves.includes('break-end');
-  const showBreakAction = state === 'WORKING' || state === 'ON_BREAK';
-  const breakAction: Extract<PunchKind, 'break-start' | 'break-end'> = state === 'ON_BREAK' ? 'break-end' : 'break-start';
-  const canBreak = breakAction === 'break-end' ? hasBreakEnd : hasBreakStart;
-
-  async function handle(kind: PunchKind, label: string): Promise<void> {
-    setBusy(kind);
-    setMsg(null);
-    try {
-      const result = await punch(kind);
-      const at = fmtTime12(new Date());
-      setMsg(kind === 'break-start' || kind === 'break-end'
-        ? null
-        : { ok: true, text: result.replayed ? `${label} already recorded.` : `${label} at ${at}.` });
-      onPunched();
-    } catch (err) {
-      setMsg({ ok: false, text: err instanceof Error ? err.message : 'Failed. Try again.' });
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
-    <div className="today-greeting-card dashboard-glass dashboard-glass-surface relative flex flex-col overflow-visible rounded-2xl border border-app-border p-4 lg:h-full">
+    <div className="today-greeting-card dashboard-glass dashboard-glass-surface relative flex flex-col overflow-visible rounded-2xl border border-app-border p-4 lg:pb-2 xl:pb-4">
       <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-app-muted">{getGreeting(hour)}</p>
@@ -203,7 +184,7 @@ function GreetingCard({
         <button
           type="button"
           disabled={busy !== null || !hasIn}
-          onClick={() => hasIn && void handle('in', 'Punch In')}
+          onClick={() => hasIn && onPunch('in', 'Punch In')}
           className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
             hasIn
               ? 'border-app-accent bg-app-accent text-app-on-accent hover:brightness-105'
@@ -216,7 +197,7 @@ function GreetingCard({
         <button
           type="button"
           disabled={busy !== null || !hasOut}
-          onClick={() => hasOut && void handle('out', 'Punch Out')}
+          onClick={() => hasOut && onPunch('out', 'Punch Out')}
           className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
             hasOut
               ? 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
@@ -228,21 +209,7 @@ function GreetingCard({
         </button>
       </div>
 
-      {showBreakAction && (
-        <button
-          type="button"
-          disabled={busy !== null || !canBreak}
-          onClick={() => canBreak && void handle(breakAction, breakAction === 'break-start' ? 'Break Start' : 'Break End')}
-          className={`mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${
-            breakAction === 'break-start'
-              ? 'border border-app-accent/30 bg-app-accent/10 text-app-accent hover:bg-app-accent/15'
-              : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
-          }`}
-        >
-          {breakAction === 'break-start' ? <IconCoffee className="h-4 w-4" /> : <IconSquare className="h-4 w-4" />}
-          {busy === 'break-start' ? 'Starting break…' : busy === 'break-end' ? 'Ending break…' : breakAction === 'break-start' ? 'Start Break' : 'End Break'}
-        </button>
-      )}
+      {breakActionButton}
 
       <div className="mt-2 h-4 min-h-4 overflow-hidden">
         {msg && (
@@ -296,9 +263,11 @@ function StatusPill({ state, isWfh }: { state: string; isWfh?: boolean }): React
 function BreakStatusCard({
   row,
   now,
+  breakActionButton,
 }: {
   row: LiveRow | null;
   now: Date;
+  breakActionButton: ReactNode;
 }): React.JSX.Element {
   const isOnBreak = row?.state === 'ON_BREAK';
   const breakSeconds = elapsedSeconds(isOnBreak ? (row?.since ?? null) : null, now);
@@ -308,9 +277,9 @@ function BreakStatusCard({
   const strokeOffset = circumference * (1 - progress);
 
   return (
-    <div className="today-break-status-card dashboard-glass dashboard-glass-surface flex flex-col rounded-2xl border border-app-border p-4 lg:h-full">
+    <div className="today-break-status-card dashboard-glass dashboard-glass-surface flex flex-col rounded-2xl border border-app-border p-4 md:pt-3">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="today-break-status-header flex items-center justify-between gap-3 md:flex-col md:items-start md:justify-start md:gap-1.5">
         <p className="text-base font-bold text-app-foreground">Break Status</p>
         {isOnBreak ? (
           <span className="flex items-center gap-1.5 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-app-accent dark:bg-orange-950/40">
@@ -324,8 +293,16 @@ function BreakStatusCard({
         )}
       </div>
 
-      <div className="mt-2 flex flex-1 flex-col items-center justify-center">
-        <div className="today-break-timer relative grid size-28 place-items-center rounded-full sm:size-32">
+      <div className="today-break-status-content mt-2 flex flex-1 flex-col items-center justify-center md:mt-0 md:grid md:min-h-0 md:grid-cols-[minmax(0,1fr)_auto] md:gap-4">
+        <div className="today-break-controls contents md:flex md:h-44 md:min-w-0 md:self-center md:flex-col md:items-start md:justify-end md:gap-3 xl:h-[clamp(13rem,15vw,13.75rem)]">
+          <div className="today-break-total order-2 mt-3 w-full rounded-xl border border-app-border bg-app-surface-raised px-2.5 py-1.5 text-center md:order-none md:mt-0 md:max-w-[14rem] md:px-4 md:py-5">
+            <p className="text-[11px] text-app-muted">Total break today</p>
+            <p className="mt-0.5 text-base font-bold tabular-nums text-app-foreground">{fmtHm(row?.breakMinutes ?? 0)}</p>
+          </div>
+          {breakActionButton}
+        </div>
+
+        <div className="today-break-timer relative order-1 grid size-28 place-items-center rounded-full sm:size-32 md:order-none md:self-center md:size-44 xl:size-[clamp(13rem,15vw,13.75rem)]">
           <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
             <circle cx="56" cy="56" r="47" fill="none" stroke="currentColor" strokeWidth="7" className="text-app-accent/15" />
             <circle
@@ -347,13 +324,6 @@ function BreakStatusCard({
             </p>
             <p className="mt-0.5 text-[11px] font-medium text-app-muted">/ 01:00</p>
           </div>
-        </div>
-      </div>
-
-      <div className="mt-3">
-        <div className="rounded-xl border border-app-border bg-app-surface-raised px-2.5 py-1.5 text-center">
-          <p className="text-[11px] text-app-muted">Total break today</p>
-          <p className="mt-0.5 text-base font-bold tabular-nums text-app-foreground">{fmtHm(row?.breakMinutes ?? 0)}</p>
         </div>
       </div>
     </div>
@@ -418,11 +388,14 @@ function TodayActivityCard({
   useEffect(() => {
     const activityList = activityScrollRef.current;
     if (!activityList || items.length <= 3) return;
-    activityList.scrollTop = activityList.scrollHeight;
+    const tabletLayout = window.matchMedia(
+      '(min-width: 768px) and (max-width: 1279px), (min-width: 1280px) and (max-width: 1366px) and (min-height: 900px) and (any-pointer: coarse)',
+    ).matches;
+    activityList.scrollTop = tabletLayout ? 0 : activityList.scrollHeight;
   }, [items.length]);
 
   return (
-    <div className="dashboard-glass dashboard-glass-surface flex min-h-0 flex-col rounded-2xl border border-app-border p-5 lg:h-full">
+    <div className={`today-activity-card dashboard-glass dashboard-glass-surface flex min-h-0 flex-col rounded-2xl border border-app-border p-5${items.length > 10 ? ' today-activity-card--scrolling' : ''}`}>
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 text-base font-bold text-app-foreground">Today's Activity</p>
         <span className="shrink-0 text-[11px] font-medium text-app-muted">
@@ -439,7 +412,7 @@ function TodayActivityCard({
           <p className="mt-1 max-w-[15rem] text-xs leading-5 text-app-muted">Your punch in/out and break activity will appear here.</p>
         </div>
       ) : (
-        <div ref={activityScrollRef} className="today-activity-scroll mt-4 min-h-0 max-h-[18rem] flex-1 space-y-0 overflow-y-auto overscroll-contain pr-2 lg:max-h-none">
+        <div ref={activityScrollRef} className="today-activity-scroll mt-4 min-h-0 max-h-[18rem] flex-1 space-y-0 overflow-y-auto overscroll-contain pr-2 lg:max-h-[min(34rem,calc(100dvh-14rem))] lg:flex-none">
           {items.map((item, idx) => (
             <div key={item.id} className="flex gap-3">
               {/* Left: time */}
@@ -626,6 +599,9 @@ export function TodayPage({
   const [prompts, setPrompts] = useState<BreakPrompt[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [punchBusy, setPunchBusy] = useState<PunchKind | null>(null);
+  const [punchMessage, setPunchMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [isTabletOrLarger, setIsTabletOrLarger] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const abort = useRef<AbortController | null>(null);
   const [version, setVersion] = useState(0);
 
@@ -633,6 +609,13 @@ export function TodayPage({
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const tabletAndUp = window.matchMedia('(min-width: 768px)');
+    const syncViewport = () => setIsTabletOrLarger(tabletAndUp.matches);
+    tabletAndUp.addEventListener('change', syncViewport);
+    return () => tabletAndUp.removeEventListener('change', syncViewport);
   }, []);
 
   // Load data
@@ -668,6 +651,23 @@ export function TodayPage({
 
   const refresh = (): void => setVersion((v) => v + 1);
 
+  async function handlePunch(kind: PunchKind, label: string): Promise<void> {
+    setPunchBusy(kind);
+    setPunchMessage(null);
+    try {
+      const result = await punch(kind);
+      const at = fmtTime12(new Date());
+      setPunchMessage(kind === 'break-start' || kind === 'break-end'
+        ? null
+        : { ok: true, text: result.replayed ? `${label} already recorded.` : `${label} at ${at}.` });
+      refresh();
+    } catch (err) {
+      setPunchMessage({ ok: false, text: err instanceof Error ? err.message : 'Failed. Try again.' });
+    } finally {
+      setPunchBusy(null);
+    }
+  }
+
   if (error) {
     return (
       <WorkspacePageContainer className="text-sm text-app-danger">{error}</WorkspacePageContainer>
@@ -680,26 +680,48 @@ export function TodayPage({
 
   const { row, allowedMoves } = status;
   const activityItems = buildActivityItems(events, row);
+  const isOnBreak = row?.state === 'ON_BREAK';
+  const breakAction: Extract<PunchKind, 'break-start' | 'break-end'> = isOnBreak ? 'break-end' : 'break-start';
+  const canBreak = allowedMoves.includes(breakAction);
+  const shouldShowBreakAction = row?.state === 'WORKING' || isOnBreak;
+  const breakActionButton = shouldShowBreakAction ? (
+    <button
+      type="button"
+      disabled={punchBusy !== null || !canBreak}
+      onClick={() => canBreak && void handlePunch(breakAction, breakAction === 'break-start' ? 'Break Start' : 'Break End')}
+      className={`today-break-action ${isTabletOrLarger ? 'w-full max-w-[14rem] px-4 py-5' : 'mt-2.5 w-full px-4 py-3.5'} flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${
+        breakAction === 'break-start'
+          ? 'border border-app-accent/30 bg-app-accent/10 text-app-accent hover:bg-app-accent/15'
+          : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
+      }`}
+    >
+      {breakAction === 'break-start' ? <IconCoffee className="h-4 w-4" /> : <IconSquare className="h-4 w-4" />}
+      {punchBusy === 'break-start' ? 'Starting break…' : punchBusy === 'break-end' ? 'Ending break…' : breakAction === 'break-start' ? 'Start Break' : 'End Break'}
+    </button>
+  ) : null;
 
   return (
     <>
       <WorkspacePageContainer className="min-w-0 space-y-4">
-        <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-[calc(100dvh-9rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-stretch">
-          <div className="flex min-h-0 min-w-0 flex-col gap-4 lg:h-full">
-            <div className="min-h-0 lg:flex-1">
+        <div className="today-attendance-layout grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] xl:items-start">
+          <div className="today-attendance-left flex min-h-0 min-w-0 flex-col gap-4">
+            <div className="min-h-0 lg:flex-none xl:flex-[0.9]">
               <GreetingCard
                 row={row}
                 allowedMoves={allowedMoves}
                 fullName={fullName}
                 now={now}
-                onPunched={refresh}
+                busy={punchBusy}
+                msg={punchMessage}
+                onPunch={(kind, label) => void handlePunch(kind, label)}
+                breakActionButton={isTabletOrLarger ? null : breakActionButton}
               />
             </div>
-            <div className="min-h-0 lg:flex-1">
-              <BreakStatusCard row={row} now={now} />
+            <div className="min-h-0 lg:flex-none xl:flex-[1.1]">
+              <BreakStatusCard row={row} now={now} breakActionButton={isTabletOrLarger ? breakActionButton : null} />
             </div>
           </div>
-          <div className="min-h-0 min-w-0 overflow-hidden">
+          <div className="today-attendance-activity-slot min-h-0 min-w-0 overflow-hidden">
             <TodayActivityCard items={activityItems} />
           </div>
         </div>

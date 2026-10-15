@@ -102,7 +102,7 @@ export function App(): React.JSX.Element {
       const control = target.closest<HTMLElement>(
         "button:not(:disabled), [role='button']:not([aria-disabled='true'])",
       );
-      if (!control) return;
+      if (!control || control.matches('.task-assignee-toggle')) return;
       control.classList.remove('jelly-click');
       void control.offsetWidth;
       control.classList.add('jelly-click');
