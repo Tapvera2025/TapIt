@@ -218,7 +218,7 @@ export function CompanyLayout({
           onResize={setSidebarWidth}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <main id="main-content" className={`min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto ${pathname === '/company/attendance/my' ? 'overscroll-contain' : ''}`}>
             {children}
           </main>
         </div>

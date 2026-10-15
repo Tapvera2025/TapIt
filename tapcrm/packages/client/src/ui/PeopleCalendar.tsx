@@ -121,6 +121,9 @@ export function PeopleCalendar({
     const lateMarker = markers.find((marker) => marker.startsWith('Late +'));
     const extraMarkers = markers.filter((marker) => marker !== lateMarker);
     const statusClass = TONE_CLASSES[day?.tone ?? 'muted'];
+    const defaultSurfaceClass = surface === 'grid' || surface === 'compact'
+      ? statusClass
+      : 'border-app-border bg-app-surface hover:border-app-accent/50';
     const base = 'group relative min-w-0 rounded-xl border text-left transition-colors duration-150 focus-visible:z-10';
     const sizing = surface === 'grid'
       ? 'min-h-25 p-2.5 lg:min-h-29'
@@ -139,11 +142,11 @@ export function PeopleCalendar({
         aria-label={`${calendarDateLabel(date)}: ${label}${markers.length ? `; ${markers.join(', ')}` : ''}${day?.shiftLabel ? `; shift ${day.shiftLabel}` : ''}`}
         onClick={() => selectDate(date)}
         onKeyDown={(event) => handleDateKeyDown(event, date)}
-        className={`${base} ${sizing} ${isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : 'border-app-border bg-app-surface hover:border-app-accent/50'} ${isCurrentMonth ? '' : 'opacity-45'}`}
+        className={`${base} ${sizing} ${isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : defaultSurfaceClass} ${isCurrentMonth ? '' : 'opacity-45'}`}
       >
         <span className={`${surface === 'list' ? 'w-12 shrink-0' : 'flex items-start justify-between gap-1'} text-sm font-bold tabular-nums`}>
           <span>{surface === 'list' ? calendarDateLabel(date).split(',')[0] : Number(date.slice(-2))}</span>
-          {surface !== 'list' && lateMarker && <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold leading-none text-amber-800 dark:text-amber-200">{lateMarker}</span>}
+          {surface !== 'list' && surface !== 'compact' && lateMarker && <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold leading-none text-amber-800 dark:text-amber-200">{lateMarker}</span>}
         </span>
         {surface === 'compact' && <span aria-hidden="true" className={`mx-auto mt-1 block size-1.5 rounded-full ${TONE_DOT_CLASSES[day?.tone ?? 'muted']}`} />}
         {surface === 'list' && <span className="sr-only">{calendarDateLabel(date)}</span>}

@@ -19,8 +19,31 @@ export function AttendanceLegend(): React.JSX.Element {
   return <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-app-muted">{['present', 'absent', 'wfh', 'half-day', 'leave', 'holiday'].map((key) => { const entry = key === 'wfh' ? { status: 'present', isWfh: true } : { status: key, isWfh: false }; const tone = attendanceStatus(entry); return <span key={key} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 ${tone.className}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{tone.label}</span>; })}</div>;
 }
 
-export function AttendanceKpis({ items }: { items: Array<{ label: string; value: string | number; tone?: string }> }): React.JSX.Element {
-  return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{items.map((item) => <div key={item.label} className={`rounded-2xl border border-app-border bg-app-surface p-4 shadow-sm ${item.tone ?? ''}`}><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-app-muted">{item.label}</p><p className="mt-2 text-xl font-bold tabular-nums">{item.value}</p></div>)}</div>;
+export function AttendanceKpis({ items, className = '', columns = 5 }: { items: Array<{ label: string; value: string | number; tone?: string }>; className?: string; columns?: 4 | 5 }): React.JSX.Element {
+  const largeColumns = columns === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-5';
+  return <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${largeColumns} ${className}`}>{items.map((item) => <div key={item.label} className={`flex min-h-[112px] h-full flex-col rounded-2xl border border-app-border bg-app-surface p-4 shadow-sm ${item.tone ?? ''}`}><p className="min-h-10 text-[10px] font-bold uppercase leading-5 tracking-[0.12em] text-app-muted">{item.label}</p><p className="mt-auto text-xl font-bold tabular-nums">{item.value}</p></div>)}</div>;
+}
+
+export function AttendanceMonthlyHighlights({
+  month,
+  attendance,
+  onTime,
+  totalHours,
+  averageHours,
+}: {
+  month: string;
+  attendance: string;
+  onTime: string;
+  totalHours: string;
+  averageHours: string;
+}): React.JSX.Element {
+  const items = [
+    { label: 'Attendance', value: attendance, className: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
+    { label: 'On time', value: onTime, className: 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300' },
+    { label: 'Total hours', value: totalHours, className: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300' },
+    { label: 'Average / day', value: averageHours, className: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+  ];
+  return <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm"><div><p className="text-sm text-app-muted">This month</p><h2 className="mt-1 text-2xl font-bold">{month}</h2></div><div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">{items.map((item) => <div key={item.label} className={`rounded-2xl border p-4 ${item.className}`}><p className="text-sm font-semibold opacity-80">{item.label}</p><p className="mt-3 text-2xl font-bold tabular-nums">{item.value}</p></div>)}</div></section>;
 }
 
 export function AttendanceCalendar({ month, records, onSelect }: { month: string; records: ReadonlyMap<string, AttendanceCalendarEntry>; onSelect?: (date: string) => void }): React.JSX.Element {

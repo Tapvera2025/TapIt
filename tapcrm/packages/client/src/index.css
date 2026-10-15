@@ -1852,14 +1852,3 @@ summary:active {
     padding: 0.8rem;
   }
 }
-
-/* Give shared outlined controls a clearer edge without changing their palette. */
-@layer utilities {
-  .border-app-border {
-    border-width: 1.5px;
-  }
-
-  .border-sidebar-border {
-    border-width: 1.5px;
-  }
-}
