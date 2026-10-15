@@ -67,7 +67,7 @@ export function DirectMessagesPage({
 
       {showPicker && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setShowPicker(false)}>
-          <div className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
+          <div data-lenis-prevent className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto overscroll-contain p-4" onClick={(event) => event.stopPropagation()}>
             <p className="mb-3 text-sm font-semibold">Start a conversation</p>
             {!colleaguesLoaded ? (
               <Loading />

@@ -40,7 +40,7 @@ export function ProjectDiscussionTab({ project, currentUserId, onProjectUpdated 
   }
 
   return (
-    <div className="h-full min-h-0">
+    <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-app-border bg-app-surface">
       <ConversationWorkspace
         chat={chat}
         kind="project"

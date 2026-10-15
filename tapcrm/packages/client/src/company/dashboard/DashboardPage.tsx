@@ -513,7 +513,7 @@ export function DashboardPage({
               if (!def) return <div key={id} />;
               const Component = def.component;
               return (
-                <div key={id}>
+                <div key={id} className="h-full min-h-0 min-w-0">
                   {editing && (
                     <button
                       type="button"
@@ -524,7 +524,9 @@ export function DashboardPage({
                       <Icon name="close" className="size-3.5" />
                     </button>
                   )}
-                  <Component ctx={ctx} />
+                  <div className="dashboard-widget-content">
+                    <Component ctx={ctx} />
+                  </div>
                 </div>
               );
             })}

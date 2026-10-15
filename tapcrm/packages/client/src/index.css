@@ -893,6 +893,17 @@
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
   }
+  /* Full-screen modal roots must sit above the shared app chrome. Several
+     dialogs use z-50 while the navbar/sidebar/notification layer use 60–80;
+     keeping the root above them lets the existing translucent blur scrim
+     cover those fixed and sticky regions too. */
+  [class~='fixed'][class~='inset-0'][class~='z-50'],
+  [class~='fixed'][class~='inset-0'][class~='z-60'],
+  [class~='fixed'][class~='inset-0'][class~='z-[100]'],
+  [role='dialog'][class~='fixed'][class~='inset-0'],
+  [role='presentation'][class~='fixed'][class~='inset-0'] {
+    z-index: 1000 !important;
+  }
   .workspace-sidebar {
     background: var(--sidebar-background) !important;
     border-color: var(--sidebar-border) !important;
@@ -1182,7 +1193,7 @@
       inset: auto !important;
       width: auto;
       max-width: none;
-      height: calc(100dvh - 8rem) !important;
+      height: calc(100dvh - 9rem) !important;
       margin: var(--company-sidebar-top-gap) 0 1.25rem 1.25rem !important;
       border-radius: 1rem;
       transform: none !important;
@@ -2315,13 +2326,35 @@ summary:active {
   display: none;
 }
 
+/* Shared page-frame spacing for every route rendered in the company shell. */
+.workspace-page-container {
+  padding-inline: 1rem;
+}
+
+.company-layout-shell main[data-app-scroll-container] {
+  padding-block-start: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .workspace-page-container {
+    padding-inline: 1.5rem;
+  }
+}
+
 @media (min-width: 1280px) {
   .company-layout-shell {
     --company-sidebar-top-gap: 2.75rem;
   }
 
-  .messages-page {
-    padding-top: var(--company-sidebar-top-gap);
+  /* The page container owns horizontal gutters; the shell owns the 24px
+     navbar-to-content gap. Keeping top spacing in one layer avoids stacking
+     the old 44px shell inset with each page's 32px outer padding. */
+  .workspace-page-container {
+    padding-inline: 2rem;
+  }
+
+  .company-layout-shell main {
+    padding: 1.5rem 0 1rem;
   }
 
   .messages-tab-list {
@@ -2411,6 +2444,11 @@ summary:active {
     transition: none;
     transform: scaleX(var(--pill-stretch, 1)) scaleY(var(--pill-squash, 1));
     will-change: left, width, transform;
+  }
+
+  /* Keep the tab label single and crisp while the refracting pill moves over it. */
+  .messages-tab-list[data-dragging='true'] .messages-tab-button[aria-pressed='true']::after {
+    content: none;
   }
 
   .messages-tab-button {
@@ -2513,7 +2551,23 @@ summary:active {
 }
 
 /* Scroll-linked glass edge for desktop day mode; surfaces and layout remain intact. */
+.project-detail-liquid-tabs {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 768px) {
+  .project-detail-liquid-tabs .messages-tab-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
 @media (min-width: 1280px) {
+  .project-detail-liquid-tabs {
+    width: 100%;
+  }
+
   :root:not(.dark) .company-layout-shell {
     --shell-reflection-position: 45%;
   }

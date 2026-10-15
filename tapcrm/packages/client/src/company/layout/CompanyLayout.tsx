@@ -134,10 +134,20 @@ export function CompanyLayout({
             syncTouch: false,
             wheelMultiplier: 0.9,
             autoRaf: true,
-            // A native dialog is rendered in the top layer but remains in
-            // this main element's event path. Let its own scroll body handle
-            // wheel gestures natively instead of routing them through Lenis.
-            prevent: (node) => node.closest('dialog[open]') !== null,
+            // Keep nested native scrollers (chat threads, lists, textareas,
+            // popovers) native. Only smooth the page itself, not its children.
+            prevent: (node) => {
+              if (node.closest('dialog[open], [data-lenis-prevent]')) return true;
+              let element: HTMLElement | null = node;
+              while (element && element !== main) {
+                const style = window.getComputedStyle(element);
+                const scrollsY = /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+                const scrollsX = /(auto|scroll)/.test(style.overflowX) && element.scrollWidth > element.clientWidth + 1;
+                if (scrollsY || scrollsX) return true;
+                element = element.parentElement;
+              }
+              return false;
+            },
           })
         : null;
     };

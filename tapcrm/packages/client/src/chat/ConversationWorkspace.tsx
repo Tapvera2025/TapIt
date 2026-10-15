@@ -271,7 +271,7 @@ export function ConversationWorkspace({
             {onNewClick && <Button onClick={onNewClick} className="!px-3 !py-1.5 !text-xs">{newLabel}</Button>}
           </div>
           <div className="mx-4 h-px shrink-0 bg-app-border/70" />
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {chat.conversations.length === 0 && (
               <div className="px-4">
                 <Empty>{emptyHint}</Empty>
@@ -340,7 +340,7 @@ export function ConversationWorkspace({
               {activeConversation && headerExtra?.(activeConversation)}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
               {chat.loadingMessages && chat.messages.length === 0 ? (
                 <SkeletonMessageThread />
               ) : (
@@ -548,6 +548,7 @@ export function ConversationWorkspace({
                   placeholder="Type a message..."
                   rows={1}
                   style={{ maxHeight: MAX_COMPOSER_HEIGHT }}
+                  data-lenis-prevent
                   className="block min-h-10 w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm leading-5 outline-none focus:border-app-accent"
                 />
               </div>
@@ -559,7 +560,7 @@ export function ConversationWorkspace({
 
       {forwardingMessage && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setForwardingMessage(null)}>
-          <div className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto p-4" onClick={(event) => event.stopPropagation()}>
+          <div data-lenis-prevent className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto overscroll-contain p-4" onClick={(event) => event.stopPropagation()}>
             <p className="mb-3 text-sm font-semibold">Forward to…</p>
             <ul>
               {chat.conversations.map((conversation) => (

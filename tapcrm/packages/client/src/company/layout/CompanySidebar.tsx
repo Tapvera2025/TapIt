@@ -928,7 +928,7 @@ export function CompanySidebar({
                           </span>
                           {item.label === 'Messages' && unreadMessages > 0 && (
                             <span
-                              className={`rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
+                              className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
                               aria-label={`${unreadMessages} unread messages`}
                             >
                               {unreadMessages > 99 ? '99+' : unreadMessages}
