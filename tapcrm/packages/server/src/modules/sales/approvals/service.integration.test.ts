@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { installAuthz } from '../../../platform/authz-adapter.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { Principal } from '@tapcrm/contracts';
@@ -26,7 +27,8 @@ import {
  */
 
 const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
-const RUN = randomUUID().slice(0, 8);
+// Digits only: RUN is embedded in E.164 phone numbers (contact_primary_phone_check).
+const RUN = String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
 const ORG = randomUUID();
 const DEPARTMENT = randomUUID();
 const SUPERVISOR_POSITION = randomUUID();
@@ -117,31 +119,32 @@ async function createOpenDealAsAgent(): Promise<string> {
 
 describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
   beforeAll(async () => {
+    installAuthz();
     await asOwner(
       'create organization',
       sql`INSERT INTO organization (id, code, name, timezone) VALUES (${ORG}, ${`SA${RUN}`}, 'Sales Approvals Test', 'Asia/Kolkata')`,
     );
     await asOwner(
       'create department',
-      sql`INSERT INTO department (id, organization_id, name) VALUES (${DEPARTMENT}, ${ORG}, 'Sales')`,
+      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${DEPARTMENT}, ${ORG}, 'SALES', 'Sales', 'sales')`,
     );
     // Agent position: ₹500 cap, 10% max discount, no custom terms.
     await asOwner(
       'create agent position',
-      sql`INSERT INTO position (id, organization_id, department_id, name, level, max_deal_value, max_discount_percent, allows_custom_terms)
-          VALUES (${AGENT_POSITION}, ${ORG}, ${DEPARTMENT}, 'Sales Agent', 1, 500, 10, false)`,
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level, max_deal_value, max_discount_percent, allows_custom_terms)
+          VALUES (${AGENT_POSITION}, ${ORG}, ${DEPARTMENT}, 'SALES_AGENT', 'Sales Agent', 1, 500, 10, false)`,
     );
     // Supervisor position: ₹5000 cap, 20% max discount, no custom terms.
     await asOwner(
       'create supervisor position',
-      sql`INSERT INTO position (id, organization_id, department_id, name, level, max_deal_value, max_discount_percent, allows_custom_terms)
-          VALUES (${SUPERVISOR_POSITION}, ${ORG}, ${DEPARTMENT}, 'Sales Supervisor', 2, 5000, 20, false)`,
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level, max_deal_value, max_discount_percent, allows_custom_terms)
+          VALUES (${SUPERVISOR_POSITION}, ${ORG}, ${DEPARTMENT}, 'SALES_SUPERVISOR', 'Sales Supervisor', 2, 5000, 20, false)`,
     );
     // HOD position: unlimited.
     await asOwner(
       'create hod position',
-      sql`INSERT INTO position (id, organization_id, department_id, name, level, max_deal_value, max_discount_percent, allows_custom_terms)
-          VALUES (${HOD_POSITION}, ${ORG}, ${DEPARTMENT}, 'Sales HOD', 3, NULL, NULL, true)`,
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level, max_deal_value, max_discount_percent, allows_custom_terms)
+          VALUES (${HOD_POSITION}, ${ORG}, ${DEPARTMENT}, 'SALES_HOD', 'Sales HOD', 3, NULL, NULL, true)`,
     );
     await asOwner(
       'create pool team',
@@ -153,23 +156,23 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
     );
     await asOwner(
       'create HOD',
-      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id)
-          VALUES (${HOD}, ${ORG}, 'employee', 'HOD', 'active', ${HOD_POSITION}, ${DEPARTMENT}, ${POOL_TEAM})`,
+      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, employee_id)
+          VALUES (${HOD}, ${ORG}, 'employee', 'HOD', 'active', ${HOD_POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, 'E-' || upper(left(replace(${HOD}::text, '-', ''), 12)))`,
     );
     await asOwner(
       'create supervisor',
-      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, reports_to)
-          VALUES (${SUPERVISOR}, ${ORG}, 'employee', 'Supervisor', 'active', ${SUPERVISOR_POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, ${HOD})`,
+      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, reports_to, employee_id)
+          VALUES (${SUPERVISOR}, ${ORG}, 'employee', 'Supervisor', 'active', ${SUPERVISOR_POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, ${HOD}, 'E-' || upper(left(replace(${SUPERVISOR}::text, '-', ''), 12)))`,
     );
     await asOwner(
       'create agent',
-      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, reports_to)
-          VALUES (${AGENT}, ${ORG}, 'employee', 'Agent', 'active', ${AGENT_POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, ${SUPERVISOR})`,
+      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, reports_to, employee_id)
+          VALUES (${AGENT}, ${ORG}, 'employee', 'Agent', 'active', ${AGENT_POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, ${SUPERVISOR}, 'E-' || upper(left(replace(${AGENT}::text, '-', ''), 12)))`,
     );
     await asOwner(
       'create contact',
-      sql`INSERT INTO contact (id, organization_id, full_name, primary_phone, preferred_timezone)
-          VALUES (${CONTACT}, ${ORG}, 'Rahul Shah', ${'+91980' + RUN}, 'Asia/Kolkata')`,
+      sql`INSERT INTO contact (id, organization_id, full_name, primary_phone, preferred_timezone, created_by)
+          VALUES (${CONTACT}, ${ORG}, 'Rahul Shah', ${'+91980' + RUN}, 'Asia/Kolkata', ${AGENT})`,
     );
   });
 
@@ -224,23 +227,23 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
     const limitedAgentPosition = randomUUID();
     await asOwner(
       'create limited hod position',
-      sql`INSERT INTO position (id, organization_id, department_id, name, level, max_deal_value, max_discount_percent, allows_custom_terms)
-          VALUES (${limitedHodPosition}, ${ORG}, ${DEPARTMENT}, 'Limited HOD', 4, 100, 0, false)`,
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level, max_deal_value, max_discount_percent, allows_custom_terms)
+          VALUES (${limitedHodPosition}, ${ORG}, ${DEPARTMENT}, 'LIMITED_HOD', 'Limited HOD', 4, 100, 0, false)`,
     );
     await asOwner(
       'create limited agent position',
-      sql`INSERT INTO position (id, organization_id, department_id, name, level, max_deal_value, max_discount_percent, allows_custom_terms)
-          VALUES (${limitedAgentPosition}, ${ORG}, ${DEPARTMENT}, 'Limited Agent', 1, 50, 0, false)`,
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level, max_deal_value, max_discount_percent, allows_custom_terms)
+          VALUES (${limitedAgentPosition}, ${ORG}, ${DEPARTMENT}, 'LIMITED_AGENT', 'Limited Agent', 1, 50, 0, false)`,
     );
     await asOwner(
       'create limited hod user',
-      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id)
-          VALUES (${limitedHod}, ${ORG}, 'employee', 'Limited HOD', 'active', ${limitedHodPosition}, ${DEPARTMENT}, ${POOL_TEAM})`,
+      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, employee_id)
+          VALUES (${limitedHod}, ${ORG}, 'employee', 'Limited HOD', 'active', ${limitedHodPosition}, ${DEPARTMENT}, ${POOL_TEAM}, 'E-' || upper(left(replace(${limitedHod}::text, '-', ''), 12)))`,
     );
     await asOwner(
       'create limited agent',
-      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, reports_to)
-          VALUES (${limitedAgent}, ${ORG}, 'employee', 'Limited Agent', 'active', ${limitedAgentPosition}, ${DEPARTMENT}, ${POOL_TEAM}, ${limitedHod})`,
+      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, reports_to, employee_id)
+          VALUES (${limitedAgent}, ${ORG}, 'employee', 'Limited Agent', 'active', ${limitedAgentPosition}, ${DEPARTMENT}, ${POOL_TEAM}, ${limitedHod}, 'E-' || upper(left(replace(${limitedAgent}::text, '-', ''), 12)))`,
     );
 
     const deal = await createDeal(ctxFor(employee(limitedAgent, limitedAgentPosition)), {

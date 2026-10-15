@@ -27,7 +27,8 @@ import {
  */
 
 const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
-const RUN = randomUUID().slice(0, 8);
+// Digits only: RUN is embedded in E.164 phone numbers (contact_primary_phone_check).
+const RUN = String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
 const ORG = randomUUID();
 const DEPARTMENT = randomUUID();
 const POSITION = randomUUID();
@@ -104,17 +105,17 @@ describe.skipIf(!enabled)('sales contracts service (PostgreSQL)', () => {
     );
     await asOwner(
       'create department',
-      sql`INSERT INTO department (id, organization_id, name) VALUES (${DEPARTMENT}, ${ORG}, 'Sales')`,
+      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${DEPARTMENT}, ${ORG}, 'SALES', 'Sales', 'sales')`,
     );
     await asOwner(
       'create agent position',
-      sql`INSERT INTO position (id, organization_id, department_id, name, level, max_deal_value, max_discount_percent, allows_custom_terms)
-          VALUES (${POSITION}, ${ORG}, ${DEPARTMENT}, 'Sales Agent', 1, 50000, 20, false)`,
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level, max_deal_value, max_discount_percent, allows_custom_terms)
+          VALUES (${POSITION}, ${ORG}, ${DEPARTMENT}, 'SALES_AGENT', 'Sales Agent', 1, 50000, 20, false)`,
     );
     await asOwner(
       'create hod position',
-      sql`INSERT INTO position (id, organization_id, department_id, name, level, max_deal_value, max_discount_percent, allows_custom_terms)
-          VALUES (${HOD_POSITION}, ${ORG}, ${DEPARTMENT}, 'Sales HOD', 3, NULL, NULL, true)`,
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level, max_deal_value, max_discount_percent, allows_custom_terms)
+          VALUES (${HOD_POSITION}, ${ORG}, ${DEPARTMENT}, 'SALES_HOD', 'Sales HOD', 3, NULL, NULL, true)`,
     );
     await asOwner(
       'create pool team',
@@ -123,18 +124,18 @@ describe.skipIf(!enabled)('sales contracts service (PostgreSQL)', () => {
     );
     await asOwner(
       'create hod',
-      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id)
-          VALUES (${HOD}, ${ORG}, 'employee', 'Contracts HOD', 'active', ${HOD_POSITION}, ${DEPARTMENT}, ${POOL_TEAM})`,
+      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, employee_id)
+          VALUES (${HOD}, ${ORG}, 'employee', 'Contracts HOD', 'active', ${HOD_POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, 'E-' || upper(left(replace(${HOD}::text, '-', ''), 12)))`,
     );
     await asOwner(
       'create agent',
-      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, reports_to)
-          VALUES (${AGENT}, ${ORG}, 'employee', 'Contracts Agent', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, ${HOD})`,
+      sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, reports_to, employee_id)
+          VALUES (${AGENT}, ${ORG}, 'employee', 'Contracts Agent', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, ${HOD}, 'E-' || upper(left(replace(${AGENT}::text, '-', ''), 12)))`,
     );
     await asOwner(
       'create contact',
-      sql`INSERT INTO contact (id, organization_id, full_name, primary_phone, preferred_timezone)
-          VALUES (${CONTACT}, ${ORG}, 'Priya Kumar', ${'+91981' + RUN}, 'Asia/Kolkata')`,
+      sql`INSERT INTO contact (id, organization_id, full_name, primary_phone, preferred_timezone, created_by)
+          VALUES (${CONTACT}, ${ORG}, 'Priya Kumar', ${'+91981' + RUN}, 'Asia/Kolkata', ${AGENT})`,
     );
   });
 

@@ -25,8 +25,11 @@ import { BidPoolAlreadyClaimedError, BidPoolInvalidStateError } from './errors.j
  */
 
 const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
-const RUN = randomUUID().slice(0, 8);
+// Digits only: RUN is embedded in E.164 phone numbers (contact_primary_phone_check).
+const RUN = String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
 const ORG = randomUUID();
+// Digits only (E.164 phone numbers), unique per contact within a run.
+let PHONE_SEQ = 0;
 const DEPARTMENT = randomUUID();
 const POSITION = randomUUID();
 const POOL_TEAM = randomUUID();
@@ -64,9 +67,9 @@ async function insertPoolOpenLead(now = new Date()): Promise<string> {
   await asOwner(
     'create contact',
     sql`
-      INSERT INTO contact (id, organization_id, full_name, primary_phone, primary_email, preferred_timezone)
+      INSERT INTO contact (id, organization_id, full_name, primary_phone, primary_email, preferred_timezone, created_by)
       VALUES (${contactId}, ${ORG}, ${'Test Lead ' + leadId.slice(0, 4)},
-              ${'+9198000' + leadId.slice(0, 5)}, NULL, 'Asia/Kolkata')
+              ${'+9198000' + String(++PHONE_SEQ).padStart(5, '0')}, NULL, 'Asia/Kolkata', ${AGENT_A})
     `,
   );
   await asOwner(
@@ -129,11 +132,11 @@ describe.skipIf(!enabled)('sales bidding service (PostgreSQL)', () => {
     );
     await asOwner(
       'create department',
-      sql`INSERT INTO department (id, organization_id, name) VALUES (${DEPARTMENT}, ${ORG}, 'Sales')`,
+      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${DEPARTMENT}, ${ORG}, 'SALES', 'Sales', 'sales')`,
     );
     await asOwner(
       'create position',
-      sql`INSERT INTO position (id, organization_id, department_id, name, level) VALUES (${POSITION}, ${ORG}, ${DEPARTMENT}, 'Sales Agent', 1)`,
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level) VALUES (${POSITION}, ${ORG}, ${DEPARTMENT}, 'SALES_AGENT', 'Sales Agent', 1)`,
     );
     await asOwner(
       'create sales pool team',
@@ -142,15 +145,15 @@ describe.skipIf(!enabled)('sales bidding service (PostgreSQL)', () => {
     await asOwner(
       'create agent A',
       sql`
-        INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id)
-        VALUES (${AGENT_A}, ${ORG}, 'employee', 'Agent A', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_TEAM})
+        INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, employee_id)
+        VALUES (${AGENT_A}, ${ORG}, 'employee', 'Agent A', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, 'E-' || upper(left(replace(${AGENT_A}::text, '-', ''), 12)))
       `,
     );
     await asOwner(
       'create agent B',
       sql`
-        INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id)
-        VALUES (${AGENT_B}, ${ORG}, 'employee', 'Agent B', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_TEAM})
+        INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, employee_id)
+        VALUES (${AGENT_B}, ${ORG}, 'employee', 'Agent B', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, 'E-' || upper(left(replace(${AGENT_B}::text, '-', ''), 12)))
       `,
     );
     await asOwner(
