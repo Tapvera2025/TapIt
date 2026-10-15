@@ -6,7 +6,7 @@ export type SeoBlogCategory = 'blog-post' | 'article' | 'news' | 'tutorial' | 'c
 export type SeoBlogStatus = 'draft' | 'published' | 'archived';
 
 export interface SeoKeyword {
-  id: string; projectId: string; keyword: string; initialRank: number; previousRank: number | null;
+  id: string; projectId: string; keyword: string; pastRank: number | null; previousRank: number | null;
   currentRank: number | null; targetUrl: string | null; keywordLink: string | null;
   searchEngine: string; country: string; city: string | null; device: SeoDevice;
   autoFetchFrequency: string; priority: SeoPriority; category: SeoCategory; notes: string | null;

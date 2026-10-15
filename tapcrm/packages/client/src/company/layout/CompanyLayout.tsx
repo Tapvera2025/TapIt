@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
+import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
 
 export function CompanyLayout({
   pathname,
@@ -139,7 +140,8 @@ export function CompanyLayout({
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
+    <ChatUnreadProvider enabled={canViewChat}>
+      <div className="flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
@@ -221,6 +223,7 @@ export function CompanyLayout({
           </main>
         </div>
       </div>
-    </div>
+      </div>
+    </ChatUnreadProvider>
   );
 }

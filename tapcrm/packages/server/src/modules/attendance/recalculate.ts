@@ -164,6 +164,7 @@ export interface AffectedScope {
   readonly userIds?: readonly string[];
   readonly departmentIds?: readonly string[];
   readonly shiftIds?: readonly string[];
+  readonly weekdayScheduleIds?: readonly string[];
 }
 
 /** Whose days a shift or calendar change reaches: named people, or anyone with a day in reach. */
@@ -177,6 +178,7 @@ export async function affectedPeople(
   const filter = {
     ...(scope.departmentIds === undefined ? {} : { departmentIds: scope.departmentIds }),
     ...(scope.shiftIds === undefined ? {} : { shiftIds: scope.shiftIds }),
+    ...(scope.weekdayScheduleIds === undefined ? {} : { weekdayScheduleIds: scope.weekdayScheduleIds }),
   };
   return calc.peopleWithDays(
     tx,

@@ -192,12 +192,12 @@ function latestOf(values: Array<Date | string | null | undefined>): Date | null 
   return times.length ? new Date(Math.max(...times)) : null;
 }
 
-/** Rank history for one keyword as [initial, previous, current]. */
+/** Rank history for one keyword as [past, previous, current]. */
 function rankSeries(item: Keyword): [number, number, number] {
-  const initial = item.initialRank ?? 0;
-  const previous = item.previousRank ?? initial;
-  const current = item.currentRank ?? previous;
-  return [initial, previous, current];
+  const past = item.pastRank ?? 0;
+  const previous = item.previousRank ?? 0;
+  const current = item.currentRank ?? 0;
+  return [past, previous, current];
 }
 
 /* ========================================================================== */
@@ -275,7 +275,7 @@ async function loadData(ctx: RequestContext, projectId: string): Promise<ReportD
     listScreenshots(
       ctx,
       projectId,
-      screenshotListSchema.parse({ page: 1, pageSize: 50 }),
+      screenshotListSchema.parse({ page: 1, pageSize: 50, period: 90 }),
     ),
     overview(reportContext),
   ]);
@@ -740,7 +740,7 @@ function panelTitle(
 }
 
 /**
- * Ranking movement for up to four keywords across Initial → Previous → Current.
+ * Ranking movement for up to four keywords across Past → Previous → Current.
  * A lower rank number is a better position, so the axis starts at 0 on top and
  * improving keywords climb upward.
  */
@@ -756,7 +756,7 @@ function keywordTrendChart(doc: Doc, keywords: Keyword[]): void {
     CONTENT_WIDTH,
   );
 
-  const plotted = keywords.filter((item) => item.initialRank !== null).slice(0, 4);
+  const plotted = keywords.filter((item) => item.pastRank !== null || item.previousRank !== null || item.currentRank !== null).slice(0, 4);
   const plotLeft = MARGIN + 34;
   const plotRight = PAGE_WIDTH - MARGIN - 34;
   const plotTop = y + 56;
@@ -784,7 +784,7 @@ function keywordTrendChart(doc: Doc, keywords: Keyword[]): void {
     });
   }
   // X-axis labels.
-  ['Initial', 'Previous', 'Current'].forEach((label, index) => {
+  ['Past', 'Previous', 'Current'].forEach((label, index) => {
     const x = plotLeft + (plotWidth * index) / 2;
     line(doc, label, x - 30, plotTop + plotHeight + 8, 60, {
       size: 7,
@@ -1176,7 +1176,7 @@ function keywordSection(doc: Doc, data: ReportData, toc: TocEntry[]): void {
   const columns: Column[] = [
     { label: '#', width: 28 },
     { label: 'Keyword', width: 186 },
-    { label: 'Initial rank', width: 72, align: 'right' },
+    { label: 'Past rank', width: 72, align: 'right' },
     { label: 'Previous', width: 72, align: 'right' },
     { label: 'Current', width: 72, align: 'right' },
     { label: 'Trend', width: CONTENT_WIDTH - 430 },
@@ -1194,9 +1194,9 @@ function keywordSection(doc: Doc, data: ReportData, toc: TocEntry[]): void {
         color: COLORS.grey,
       });
       cell(doc, columns, xs, 1, item.keyword, textY, { font: FONT.bold, size: 9 });
-      cell(doc, columns, xs, 2, item.initialRank?.toString() ?? '—', textY, { size: 9 });
-      cell(doc, columns, xs, 3, item.previousRank?.toString() ?? '—', textY, { size: 9 });
-      cell(doc, columns, xs, 4, item.currentRank?.toString() ?? '—', textY, {
+      cell(doc, columns, xs, 2, item.pastRank?.toString() ?? 'N/A', textY, { size: 9 });
+      cell(doc, columns, xs, 3, item.previousRank?.toString() ?? 'N/A', textY, { size: 9 });
+      cell(doc, columns, xs, 4, item.currentRank?.toString() ?? 'N/A', textY, {
         font: FONT.bold,
         size: 9,
         color: COLORS.navy,

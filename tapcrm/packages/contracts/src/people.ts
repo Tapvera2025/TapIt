@@ -19,6 +19,7 @@ export type HalfDays = 0 | 1 | 2;
 /** The SH-1 resolution chain, highest precedence first (design §6.2). */
 export type ShiftSource =
   | 'date-override'
+  | 'weekday-schedule'
   | 'permanent-flexible'
   | 'flexible-request'
   | 'rotation'

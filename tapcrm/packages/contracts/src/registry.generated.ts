@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 194   Bindings: 567
+ * Actions: 194   Bindings: 575
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3440,8 +3440,15 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/breaks/prompts/me', action: 'breaks:view', resourceParam: null },
   { method: 'GET', path: '/api/shifts', action: 'shifts:view', resourceParam: null },
   { method: 'GET', path: '/api/shifts/assignments', action: 'shifts:view', resourceParam: null },
+  { method: 'GET', path: '/api/shifts/weekday-schedules', action: 'shifts:view', resourceParam: null },
+  { method: 'GET', path: '/api/shifts/weekday-schedules/assignments', action: 'shifts:view', resourceParam: null },
+  { method: 'GET', path: '/api/shifts/weekday-schedules/exceptions', action: 'shifts:view', resourceParam: null },
   { method: 'POST', path: '/api/shifts', action: 'shifts:manage', resourceParam: null },
+  { method: 'POST', path: '/api/shifts/weekday-schedules', action: 'shifts:manage', resourceParam: null },
+  { method: 'POST', path: '/api/shifts/weekday-schedules/exceptions', action: 'shifts:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/shifts/:id', action: 'shifts:manage', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/shifts/weekday-schedules/:id', action: 'shifts:manage', resourceParam: null },
+  { method: 'PATCH', path: '/api/shifts/weekday-schedules/exceptions/:id', action: 'shifts:manage', resourceParam: null },
   { method: 'POST', path: '/api/shifts/assignments', action: 'shifts:manage', resourceParam: null },
   { method: 'POST', path: '/api/shifts/requests/:id/decide', action: 'shifts:approve', resourceParam: 'id' },
   { method: 'GET', path: '/api/biometric/devices', action: 'biometric:manage', resourceParam: null },
@@ -3776,6 +3783,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/projects/:id/messages/client', action: 'communication:client-thread', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/messages/client', action: 'communication:client-thread', resourceParam: 'id' },
   { method: 'GET', path: '/api/chat/conversations', action: 'chat:view', resourceParam: null },
+  { method: 'GET', path: '/api/chat/unread-summary', action: 'chat:view', resourceParam: null },
   { method: 'GET', path: '/api/chat/colleagues', action: 'chat:send', resourceParam: null },
   { method: 'GET', path: '/api/chat/conversations/:id', action: 'chat:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/chat/conversations/:id/messages', action: 'chat:view', resourceParam: 'id' },

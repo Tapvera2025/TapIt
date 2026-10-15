@@ -4,6 +4,7 @@ import { getConversation } from './api/chatApi.js';
 import { DirectMessagesPage } from './DirectMessagesPage.js';
 import { InternalGroupsPage } from './InternalGroupsPage.js';
 import { ProjectGroupsPage } from './ProjectGroupsPage.js';
+import { useChatUnread } from './ChatUnreadContext.js';
 
 type Tab = 'direct' | 'group' | 'project';
 
@@ -17,6 +18,7 @@ const TAB_FOR_KIND: Record<string, Tab> = { direct: 'direct', group: 'group', pr
 export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }: { currentUserId: string; isSuperAdmin: boolean; canManageProjects: boolean }): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('direct');
   const [deepLink, setDeepLink] = useState<{ conversationId: string; messageId?: string | undefined } | undefined>(undefined);
+  const unread = useChatUnread();
 
   // A notification click (e.g. a mention) arrives as "?conversationId=...&messageId=...";
   // resolve which tab that conversation lives on, then hand the id down so
@@ -70,6 +72,11 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
           >
             <span className="sm:hidden">{value === 'direct' ? 'Direct' : value === 'group' ? 'Internal' : 'Project'}</span>
             <span className="hidden sm:inline">{tabLabel}</span>
+            {unread[value] > 0 && (
+              <span className="ml-1 rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold text-app-on-accent">
+                {unread[value] > 99 ? '99+' : unread[value]}
+              </span>
+            )}
           </button>
         ))}
       </div>

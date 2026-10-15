@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignmentSchema } from './validators.js';
+import { assignmentSchema, mySchema } from './validators.js';
 
 const valid = {
   departmentId: '00000000-0000-0000-0000-000000000001',
@@ -45,5 +45,20 @@ describe('TA assignment validation', () => {
     expect(() => assignmentSchema.parse({ ...valid, dailyAmountPaise: 0 })).toThrow(
       'Daily TA amount must be greater than zero.',
     );
+  });
+});
+
+describe('My TA pagination validation', () => {
+  it('defaults both table pages and the page size', () => {
+    expect(mySchema.parse({ taMonth: '2026-09-01' })).toMatchObject({
+      statementPage: 1,
+      dayPage: 1,
+      pageSize: 10,
+    });
+  });
+
+  it('rejects invalid pages and oversized page sizes', () => {
+    expect(() => mySchema.parse({ taMonth: '2026-09-01', statementPage: 0 })).toThrow();
+    expect(() => mySchema.parse({ taMonth: '2026-09-01', pageSize: 101 })).toThrow();
   });
 });

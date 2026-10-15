@@ -2,6 +2,7 @@ import { authorize, holdsPolicy, visibilityFilter, type Resource } from '@tapcrm
 import type { DateOnly, ResolvedShift } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
+import { sql } from '../../platform/dal/sql.js';
 import { organizationToday } from '../../platform/organization-time.js';
 import { addDays, daysBetween, systemClock, type Clock } from '../../platform/time.js';
 import {
@@ -12,6 +13,7 @@ import {
   ShiftValidationError,
 } from './errors.js';
 import { recordDaysChanged } from './events.js';
+import { notifyWorkingDayException } from './notifications.js';
 import * as repo from './repository.js';
 import { resolveShift, type AssignmentInput, type ShiftInputs } from './resolve.js';
 import { findWindowOverlaps, validateVersion } from './rules.js';
@@ -21,6 +23,11 @@ import type {
   DecideBody,
   ReviseShiftBody,
   VersionBody,
+  CreateWeekdayScheduleBody,
+  CreateWorkingDayExceptionBody,
+  UpdateWeekdayScheduleBody,
+  UpdateWorkingDayExceptionBody,
+  WorkingDayExceptionListQuery,
 } from './validators.js';
 import { dayWindow } from './windows.js';
 
@@ -139,6 +146,164 @@ export async function listShiftTemplates(
   return db.transaction(ctx, async (tx) =>
     repo.listShifts(tx, await organizationToday(tx, clock)),
   );
+}
+
+export async function listWeekdaySchedules(ctx: RequestContext) {
+  return db.transaction(ctx, (tx) => repo.listWeekdaySchedules(tx));
+}
+
+export async function getEmployeeWeekdaySchedule(
+  ctx: RequestContext,
+  userId: string,
+  clock: Clock = systemClock,
+) {
+  return db.transaction(ctx, async (tx) => {
+    await loadSubject(ctx, tx, userId, 'shifts:view');
+    return repo.findCurrentWeekdayScheduleAssignment(tx, userId, await organizationToday(tx, clock));
+  });
+}
+
+export async function createWeekdaySchedule(
+  ctx: RequestContext,
+  body: CreateWeekdayScheduleBody,
+) {
+  return db.transaction(ctx, async (tx) => {
+    const id = await repo.insertWeekdaySchedule(tx, {
+      organizationId: ctx.organizationId,
+      name: body.name,
+      workingWeekdays: body.workingWeekdays,
+      createdBy: ctx.principal.id,
+    });
+    return {
+      id,
+      name: body.name,
+      workingWeekdays: body.workingWeekdays,
+      status: 'active' as const,
+    };
+  });
+}
+
+export async function updateWeekdaySchedule(
+  ctx: RequestContext,
+  scheduleId: string,
+  body: UpdateWeekdayScheduleBody,
+  clock: Clock = systemClock,
+) {
+  return db.transaction(ctx, async (tx) => {
+    const schedule = await repo.findWeekdaySchedule(tx, scheduleId);
+    if (schedule === null) throw new ShiftNotFoundError('No such weekday schedule.');
+    if (schedule.status === body.status) return { id: scheduleId, status: schedule.status };
+    const effectiveFrom = await organizationToday(tx, clock);
+    await repo.setWeekdayScheduleStatus(tx, scheduleId, body.status);
+    await recordDaysChanged(tx, ctx.organizationId, {
+      weekdayScheduleIds: [scheduleId],
+      from: effectiveFrom,
+      to: null,
+      reason: `Weekday schedule ${body.status}`,
+    });
+    return { id: scheduleId, status: body.status };
+  });
+}
+
+export async function listWorkingDayExceptions(ctx: RequestContext, query: WorkingDayExceptionListQuery) {
+  return db.transaction(ctx, (tx) => repo.listWorkingDayExceptions(tx, ctx.organizationId, query));
+}
+
+function exceptionScope(departmentIds: readonly string[]) {
+  return departmentIds.length === 0 ? {} : { departmentIds };
+}
+
+export async function createWorkingDayException(
+  ctx: RequestContext,
+  body: CreateWorkingDayExceptionBody,
+  clock: Clock = systemClock,
+) {
+  const departmentIds = body.scope.departmentIds;
+  return db.transaction(ctx, async (tx) => {
+    await assertMayChangeFrom(ctx, tx, body.exceptionDate, clock);
+    if (!(await repo.departmentIdsExist(tx, departmentIds))) {
+      throw new ShiftValidationError(
+        SHIFT_ERROR_CODES.EXCEPTION_SCOPE_REQUIRED,
+        'One or more selected departments are no longer available.',
+      );
+    }
+    await tx.query(sql`SELECT pg_advisory_xact_lock(hashtextextended('working-day-exception:' || ${body.exceptionDate}, 0))`);
+    if (await repo.workingDayExceptionConflict(tx, ctx.organizationId, body.exceptionDate, departmentIds)) {
+      throw new ShiftConflictError(
+        SHIFT_ERROR_CODES.EXCEPTION_CONFLICT,
+        'An active working-day exception already covers this date and scope.',
+      );
+    }
+    const id = await repo.insertWorkingDayException(tx, {
+      organizationId: ctx.organizationId,
+      exceptionDate: body.exceptionDate,
+      reason: body.reason,
+      createdBy: ctx.principal.id,
+    });
+    await repo.insertWorkingDayExceptionScopes(
+      tx,
+      ctx.organizationId,
+      id,
+      body.exceptionDate,
+      departmentIds,
+    );
+    await recordDaysChanged(tx, ctx.organizationId, {
+      ...exceptionScope(departmentIds),
+      from: body.exceptionDate,
+      to: body.exceptionDate,
+      reason: 'Working-day exception created',
+    });
+    await notifyWorkingDayException(
+      tx,
+      ctx,
+      id,
+      body.exceptionDate,
+      body.reason,
+      departmentIds,
+      'created',
+    );
+    return { id };
+  });
+}
+
+export async function updateWorkingDayException(
+  ctx: RequestContext,
+  exceptionId: string,
+  body: UpdateWorkingDayExceptionBody,
+  clock: Clock = systemClock,
+) {
+  return db.transaction(ctx, async (tx) => {
+    const exception = await repo.findWorkingDayException(tx, ctx.organizationId, exceptionId);
+    if (exception === null) throw new ShiftNotFoundError('No such working-day exception.');
+    if (exception.status === body.status) return { id: exceptionId, status: exception.status };
+    await assertMayChangeFrom(ctx, tx, exception.exceptionDate, clock);
+    if (body.status === 'active') {
+      await tx.query(sql`SELECT pg_advisory_xact_lock(hashtextextended('working-day-exception:' || ${exception.exceptionDate}, 0))`);
+      if (await repo.workingDayExceptionConflict(tx, ctx.organizationId, exception.exceptionDate, exception.departmentIds)) {
+        throw new ShiftConflictError(
+          SHIFT_ERROR_CODES.EXCEPTION_CONFLICT,
+          'Another active working-day exception already covers this date and scope.',
+        );
+      }
+    }
+    await repo.setWorkingDayExceptionStatus(tx, exceptionId, body.status);
+    await recordDaysChanged(tx, ctx.organizationId, {
+      ...exceptionScope(exception.departmentIds),
+      from: exception.exceptionDate,
+      to: exception.exceptionDate,
+      reason: `Working-day exception ${body.status}`,
+    });
+    await notifyWorkingDayException(
+      tx,
+      ctx,
+      exceptionId,
+      exception.exceptionDate,
+      exception.reason,
+      exception.departmentIds,
+      body.status === 'active' ? 'reactivated' : 'deactivated',
+    );
+    return { id: exceptionId, status: body.status };
+  });
 }
 
 function versionFields(kind: 'fixed' | 'flexible', body: VersionBody) {

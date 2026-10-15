@@ -60,6 +60,40 @@ const weekdays = z.object({
 
 const period = { effectiveFrom: date, effectiveTo: date.nullable().default(null) };
 
+const weekdayList = z
+  .array(z.number().int().min(1).max(7))
+  .min(1, 'Select at least one working weekday.')
+  .max(7)
+  .refine((days) => new Set(days).size === days.length, 'Working weekdays cannot repeat.')
+  .transform((days) => [...days].sort((a, b) => a - b));
+
+export const createWeekdayScheduleSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  workingWeekdays: weekdayList,
+});
+
+export const updateWeekdayScheduleSchema = z.object({
+  status: z.enum(['active', 'inactive']),
+});
+
+export const createWorkingDayExceptionSchema = z.object({
+  exceptionDate: date,
+  reason: z.string().trim().min(1, 'Enter a reason for the working-day exception.').max(500),
+  scope: z.discriminatedUnion('type', [
+    z.object({ type: z.literal('organization'), departmentIds: z.array(z.string().uuid()).max(0).default([]) }),
+    z.object({ type: z.literal('departments'), departmentIds: z.array(z.string().uuid()).min(1, 'Select at least one department.').max(100) }),
+  ]),
+});
+
+export const updateWorkingDayExceptionSchema = z.object({
+  status: z.enum(['active', 'inactive']),
+});
+
+export const workingDayExceptionListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
 export const assignmentSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('template'),
@@ -116,3 +150,8 @@ export type CreateShiftBody = z.infer<typeof createShiftSchema>;
 export type ReviseShiftBody = z.infer<typeof reviseShiftSchema>;
 export type AssignmentBody = z.infer<typeof assignmentSchema>;
 export type DecideBody = z.infer<typeof decideSchema>;
+export type CreateWeekdayScheduleBody = z.infer<typeof createWeekdayScheduleSchema>;
+export type UpdateWeekdayScheduleBody = z.infer<typeof updateWeekdayScheduleSchema>;
+export type CreateWorkingDayExceptionBody = z.infer<typeof createWorkingDayExceptionSchema>;
+export type UpdateWorkingDayExceptionBody = z.infer<typeof updateWorkingDayExceptionSchema>;
+export type WorkingDayExceptionListQuery = z.infer<typeof workingDayExceptionListQuerySchema>;

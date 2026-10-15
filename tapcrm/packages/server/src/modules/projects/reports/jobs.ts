@@ -13,7 +13,7 @@ import { observationWindow, syncProjectRanks } from './sync.js';
  *
  * JB-1: the fetch job's key is `project:windowEnd`, and the observation it
  * writes is unique on the same pair, so a redelivery refreshes that row rather
- * than appending a second one or shifting `previous_rank` twice.
+ * than appending a second one or shifting the rolling rank slots twice.
  *
  * JB-4: a transient Search Console failure throws, so the runner retries with
  * backoff and eventually dead-letters with an alert. A credential or

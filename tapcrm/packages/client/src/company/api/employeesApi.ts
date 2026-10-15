@@ -30,6 +30,8 @@ export interface CreateEmployeeInput {
     emergencyContactRelation?: string;
   };
   shiftId?: string;
+  weekdayScheduleId?: string;
+  weekdayScheduleEffectiveFrom?: string;
   qualifications?: Array<{
     institution: string;
     degree: string;
@@ -100,6 +102,8 @@ export interface UpdateEmployeeInput {
   specialization?: string | null;
   joiningDate?: string | null;
   leavingDate?: string | null;
+  weekdayScheduleId?: string;
+  weekdayScheduleEffectiveFrom?: string;
 }
 
 export interface ClearedReportingLine {
