@@ -522,7 +522,8 @@ function PlatformAppearancePopover({
 }
 
 export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('platform-overview');
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [entitlements, setEntitlements] = useState<Record<string, Entitlement[]>>({});
@@ -933,62 +934,104 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     onLogout();
   };
 
+  const platformNavigation = [
+    { id: 'platform-overview', label: 'Platform Dashboard', icon: 'grid' },
+    { id: 'platform-companies', label: 'Companies', icon: 'building' },
+    { id: 'platform-invitations', label: 'Admin Invitations', icon: 'users' },
+  ] as const;
+
+  const renderPlatformNavigation = (mobile = false) => (
+    <nav aria-label="Master Admin navigation" className={mobile ? 'grid gap-1 sm:grid-cols-3' : 'grid gap-1'}>
+      {platformNavigation.map((item) => (
+        <a
+          key={item.id}
+          href={`#${item.id}`}
+          aria-current={activeSection === item.id ? 'location' : undefined}
+          onClick={() => {
+            setActiveSection(item.id);
+            setMobileNavOpen(false);
+          }}
+          className={`flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${activeSection === item.id ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface hover:text-app-foreground'}`}
+        >
+          <Icon name={item.icon} className="size-[18px] shrink-0" />
+          <span className="truncate">{item.label}</span>
+        </a>
+      ))}
+    </nav>
+  );
+
   return (
-    <main className="min-h-screen bg-app-background px-5 pb-16 pt-[34px] text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)] max-[560px]:px-[15px] max-[560px]:pb-[45px] max-[560px]:pt-6">
-      <div className="mx-auto mb-5 max-w-[1320px] min-[561px]:hidden"><BrandLogo className="w-[180px]" /></div>
-      <header className="relative mx-auto flex max-w-[1320px] items-start justify-between gap-7 max-[560px]:gap-3">
-        <div className="flex items-start gap-[22px] max-[560px]:gap-[13px]">
-          <div className="hidden items-center gap-2.5 font-display text-[17px] font-bold tracking-[-0.03em] text-app-muted min-[561px]:flex">
-            <BrandLogo className="w-[200px]" />
-          </div>
-          <div>
-            <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Master Admin</p>
-            <h1 className="font-display text-[clamp(28px,4vw,42px)] leading-[1.05] tracking-[-0.045em] max-[560px]:text-[30px]">Platform Dashboard</h1>
-            <p className="mt-[9px] text-sm text-app-muted max-[560px]:max-w-[230px]">Your companies, modules and access in one place.</p>
-          </div>
+    <main className="min-h-screen bg-app-background px-5 pb-16 pt-[24px] text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)] max-[560px]:px-[15px] max-[560px]:pb-[45px] max-[560px]:pt-5">
+      <header className="relative mx-auto grid w-full max-w-[1480px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-5 gap-y-3 rounded-2xl border border-app-border bg-app-surface px-5 py-4 max-[850px]:gap-x-3 max-[560px]:rounded-xl max-[560px]:px-3 max-[560px]:py-3">
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen((open) => !open)}
+          className="col-start-1 row-start-1 grid size-9 shrink-0 place-items-center rounded-xl border border-app-border bg-app-background text-app-foreground transition hover:border-app-accent hover:text-app-accent min-[851px]:hidden"
+          aria-label={mobileNavOpen ? 'Close platform navigation' : 'Open platform navigation'}
+          aria-expanded={mobileNavOpen}
+          aria-controls="platform-mobile-navigation"
+        >
+          <Icon name={mobileNavOpen ? 'close' : 'menu'} className="size-5" />
+        </button>
+        <div className="col-start-2 row-start-1 flex min-w-0 items-center min-[851px]:col-start-1">
+          <BrandLogo className="w-[200px] max-[850px]:w-[160px] max-[560px]:w-[138px]" />
         </div>
-        <div className="platform-header-actions hidden items-center gap-2 min-[561px]:flex">
+        <div className="col-start-1 col-span-3 row-start-2 min-w-0 min-[851px]:col-start-2 min-[851px]:col-span-1 min-[851px]:row-start-1">
+          <p className="mb-[5px] text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">Master Admin</p>
+          <h1 className="font-display text-[clamp(22px,2.4vw,30px)] leading-[1.05] tracking-[-0.045em]">Platform Dashboard</h1>
+          <p className="mt-1.5 text-xs text-app-muted sm:text-sm">Your companies, modules and access in one place.</p>
+        </div>
+        <div className="platform-header-actions col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-2 max-[560px]:gap-1.5">
+          <ThemeToggle compact className="platform-theme-toggle" />
           <div className="platform-appearance-anchor relative">
-            <ThemeToggle
-              compact
-              showChevron
-              onActivate={() => setAppearanceOpen((open) => !open)}
-              className="platform-theme-toggle"
-            />
+            <button
+              type="button"
+              onClick={() => setAppearanceOpen((open) => !open)}
+              className="platform-appearance-button grid size-9 place-items-center rounded-xl border border-app-border bg-app-background text-app-muted transition hover:border-app-accent hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
+              aria-label="Appearance settings"
+              aria-expanded={appearanceOpen}
+              aria-haspopup="dialog"
+            >
+              <Icon name="settings" className="size-5" />
+            </button>
             {appearanceOpen && (
               <PlatformAppearancePopover onLogout={logout} onClose={() => setAppearanceOpen(false)} />
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setMobileActionsOpen((open) => !open)}
-          className="platform-mobile-menu-button grid size-9 place-items-center rounded-xl border border-app-border bg-app-surface text-app-foreground transition hover:border-app-accent hover:text-app-accent min-[561px]:hidden"
-          aria-label={mobileActionsOpen ? 'Close dashboard actions' : 'Open dashboard actions'}
-          aria-expanded={mobileActionsOpen}
-        >
-          <span className="sr-only">Dashboard actions</span>
-          <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-            {mobileActionsOpen ? <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></> : <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>}
-          </svg>
-        </button>
-        {mobileActionsOpen && (
-          <div className="platform-mobile-actions absolute right-0 top-full z-30 mt-3 w-[min(30rem,calc(100vw-2rem))] min-[561px]:hidden">
-            <PlatformAppearancePopover mobile onLogout={logout} onClose={() => setMobileActionsOpen(false)} />
-          </div>
-        )}
       </header>
-      <section className="mx-auto mb-[22px] mt-[42px] grid max-w-[1320px] grid-cols-4 gap-[14px] max-[850px]:grid-cols-2 max-[560px]:mt-[30px] max-[560px]:gap-[9px]">
-        {Object.entries(stats).filter(([k]) => !k.endsWith('_invitations')).map(([k, v]) => (
-          <div className="relative min-h-[126px] overflow-hidden rounded-[14px] border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.08)] max-[560px]:min-h-[108px] max-[560px]:p-[14px]" key={k}>
-            <span className="block text-xs capitalize text-app-muted">{k.replaceAll('_', ' ')}</span>
-            <strong className="mt-[13px] block font-display text-[30px] font-bold max-[560px]:text-2xl">{v}</strong>
-            <span className="mt-[3px] block text-[11px] text-app-accent">Live platform data</span>
-          </div>
-        ))}
-      </section>
-      <section className="mx-auto grid max-w-[1320px] grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] items-start gap-[18px] max-[850px]:grid-cols-1">
+      <div className="mx-auto mt-7 flex max-w-[1480px] items-start gap-6 max-[850px]:mt-5 max-[850px]:block">
+        <aside className="sticky top-5 hidden w-[230px] shrink-0 rounded-2xl border border-app-border bg-app-surface p-3 min-[851px]:block">
+          <p className="mb-3 px-3 pt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-app-muted">Platform</p>
+          {renderPlatformNavigation()}
+        </aside>
+        <div className="min-w-0 flex-1">
+          {mobileNavOpen && (
+            <div id="platform-mobile-navigation" className="mb-5 rounded-2xl border border-app-border bg-app-surface p-3 min-[851px]:hidden">
+              {renderPlatformNavigation(true)}
+            </div>
+          )}
+          <section id="platform-overview" className="mb-[22px] scroll-mt-5">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">Overview</p>
+                <h2 className="font-display text-xl font-semibold tracking-[-0.03em]">Platform Overview</h2>
+              </div>
+              <span className="text-xs text-app-muted">Live platform data</span>
+            </div>
+            <div className="grid grid-cols-3 gap-[14px] max-[1100px]:grid-cols-2 max-[560px]:gap-[9px] max-[390px]:grid-cols-1">
+              {Object.entries(stats).map(([k, v]) => (
+                <div className="relative min-h-[126px] overflow-hidden rounded-[14px] border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.08)] max-[560px]:min-h-[108px] max-[560px]:p-[14px]" key={k}>
+                  <span className="block text-xs capitalize text-app-muted">{k.replaceAll('_', ' ')}</span>
+                  <strong className="mt-[13px] block font-display text-[30px] font-bold max-[560px]:text-2xl">{v}</strong>
+                  <span className="mt-[3px] block text-[11px] text-app-accent">Live platform data</span>
+                </div>
+              ))}
+            </div>
+          </section>
+      <section className="grid scroll-mt-5 grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] items-start gap-[18px] max-[1100px]:grid-cols-1" aria-label="Company provisioning and management">
         <form
+          id="platform-create-company"
           onSubmit={(e) => {
             e.preventDefault();
           }}
@@ -1002,7 +1045,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             <span className="grid size-[31px] place-items-center rounded-[9px] bg-app-accent text-[22px] text-app-background">+</span>
           </div>
           <p className="mt-[9px] text-sm text-app-muted">Set up a company workspace and invite its first administrator.</p>
-          <div className={`grid gap-[3px] border-b border-app-border pb-[17px] pt-6 min-[561px]:gap-1 ${formMode === 'edit' ? 'grid-cols-6' : 'grid-cols-7'}`} aria-label={`Step ${formStep + 1} of ${formMode === 'edit' ? 6 : 7}`}>
+          <div className={`grid gap-[3px] border-b border-app-border pb-[17px] pt-6 min-[561px]:gap-1 max-[560px]:grid-cols-3 max-[560px]:gap-y-2.5 ${formMode === 'edit' ? 'grid-cols-6' : 'grid-cols-7'}`} aria-label={`Step ${formStep + 1} of ${formMode === 'edit' ? 6 : 7}`}>
             {(formMode === 'edit' ? ["Company", "Owner", "Contact", "Address", "Legal", "CRM"] : ["Company", "Owner", "Contact", "Address", "Legal", "CRM", "Modules"]).map((label, index) => (
               <div className={`relative flex min-w-0 items-center gap-1 text-[9px] ${index === formStep ? 'text-app-accent' : index < formStep ? 'text-app-muted' : 'text-[#5f717c]'} min-[561px]:gap-[7px] min-[561px]:text-[10px]`} key={label}>
                 <span className={`grid size-[21px] shrink-0 place-items-center rounded-full border text-[10px] ${index <= formStep ? 'border-app-accent bg-app-accent text-app-background' : 'border-app-border'}`}>{index + 1}</span>
@@ -1123,7 +1166,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             </button>
           </div>}
         </form>
-        <section className="max-h-[720px] overflow-y-auto rounded-2xl border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-[27px] shadow-[0_20px_60px_rgba(0,0,0,0.14)] [scrollbar-color:#3f5664_transparent] [scrollbar-width:thin] max-[560px]:p-[20px_16px]">
+        <section id="platform-companies" className="max-h-[720px] scroll-mt-5 overflow-y-auto rounded-2xl border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-[27px] shadow-[0_20px_60px_rgba(0,0,0,0.14)] [scrollbar-color:#3f5664_transparent] [scrollbar-width:thin] max-[560px]:max-h-none max-[560px]:overflow-visible max-[560px]:p-[20px_16px]">
           <div className="flex items-start justify-between gap-[15px]">
             <div>
               <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Tenant management</p>
@@ -1152,7 +1195,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                   </small>
                 </div>
               </div>
-              <div className="mt-[-35px] flex justify-end gap-[7px]">
+              <div className="mt-[-35px] flex justify-end gap-[7px] max-[560px]:mt-3 max-[560px]:flex-wrap max-[560px]:justify-start">
                 <button
                   type="button"
                   className="rounded-lg border border-app-accent/30 bg-transparent px-2.5 py-[7px] text-[11px] text-app-accent hover:border-app-accent hover:bg-app-accent/10 disabled:cursor-wait disabled:opacity-55"
@@ -1247,7 +1290,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           ))}
         </section>
       </section>
-      <section className="mx-auto mt-[18px] max-h-[720px] w-full max-w-[1320px] overflow-y-auto rounded-2xl border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-[27px] shadow-[0_20px_60px_rgba(0,0,0,0.14)] [scrollbar-color:#3f5664_transparent] [scrollbar-width:thin] max-[560px]:p-[20px_16px]">
+      <section id="platform-invitations" className="mx-auto mt-[18px] max-h-[720px] w-full scroll-mt-5 overflow-y-auto rounded-2xl border border-app-border bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-[27px] shadow-[0_20px_60px_rgba(0,0,0,0.14)] [scrollbar-color:#3f5664_transparent] [scrollbar-width:thin] max-[560px]:max-h-none max-[560px]:overflow-visible max-[560px]:p-[20px_16px]">
         <div className="flex items-start justify-between gap-[15px]">
           <div>
             <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">Access lifecycle</p>
@@ -1338,6 +1381,8 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           <button type="button" className="rounded-[9px] border border-app-border bg-app-surface px-2.5 py-[7px] text-[11px] text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55" onClick={() => { const page = invitationPage + 1; setInvitationPage(page); void loadInvitations(page); }} disabled={invitationPage >= Math.ceil(invitationTotal / 25)}>Next</button>
         </div>}
       </section>
+        </div>
+      </div>
       {pendingModuleAction && <ModuleToggleModal
         companyName={pendingModuleAction.org.name}
         moduleName={pendingModuleAction.group.label}

@@ -1,5 +1,4 @@
-import { relative } from 'node:path';
-import type { SourceFile } from './boundary.js';
+import { relativePosix, type SourceFile } from './boundary.js';
 
 export interface MoneyRuleViolation {
   readonly file: string;
@@ -52,9 +51,9 @@ export function findMoneyViolations(
       const hasCompound = COMPOUND_MONEY.test(line);
 
       if (hasDirectMoney || (hasTotal && MONEY_CONTEXT.test(context) && !COUNT_CONTEXT.test(context))) {
-        violations.push({ file: relative(root, file.path), line: index + 1 });
+        violations.push({ file: relativePosix(root, file.path), line: index + 1 });
       } else if (hasCompound) {
-        compound.push({ file: relative(root, file.path), line: index + 1 });
+        compound.push({ file: relativePosix(root, file.path), line: index + 1 });
       }
     });
   }

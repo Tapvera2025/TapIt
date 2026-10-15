@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Lenis from 'lenis';
 import { Icon } from '../../ui/Icon.js';
 import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
@@ -187,8 +187,122 @@ export function CompanySidebar({
   );
   const prevPathnameRef = useRef(pathname);
   const navigationRef = useRef<HTMLElement>(null);
+  const activeNavIndicatorRef = useRef<HTMLDivElement>(null);
+  const navItemRefs = useRef(new Map<string, { button: HTMLButtonElement; label: string }>());
+  const previousActiveTopRef = useRef<number | null>(null);
+  const activeNavMoveTimerRef = useRef<number | undefined>(undefined);
+  const sidebarPillDragRef = useRef<{ pointerId: number; startX: number; startY: number; offsetX: number; offsetY: number; moved: boolean } | null>(null);
+  const sidebarPillDragButtonRef = useRef<HTMLButtonElement | null>(null);
+  const suppressSidebarClickRef = useRef(false);
+  const [isActiveNavMoving, setIsActiveNavMoving] = useState(false);
+  const [isDraggingSidebarPill, setIsDraggingSidebarPill] = useState(false);
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+
+  const restoreActiveSidebarPill = () => {
+    const navigation = navigationRef.current;
+    const indicator = activeNavIndicatorRef.current;
+    const activeItem = navigation?.querySelector<HTMLButtonElement>(
+      '[data-company-nav-item][aria-current="page"]',
+    );
+    if (!navigation || !indicator || !activeItem) return;
+    const navRect = navigation.getBoundingClientRect();
+    const itemRect = activeItem.getBoundingClientRect();
+    indicator.style.setProperty('--sidebar-pill-top', `${itemRect.top - navRect.top + navigation.scrollTop}px`);
+    indicator.style.setProperty('--sidebar-pill-left', `${itemRect.left - navRect.left + navigation.scrollLeft}px`);
+    indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
+    indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
+  };
+
+  const startSidebarPillDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!event.currentTarget.matches('[aria-current="page"]') || !window.matchMedia('(min-width: 1280px)').matches || event.button !== 0) return;
+    const indicatorRect = activeNavIndicatorRef.current?.getBoundingClientRect();
+    if (!indicatorRect) return;
+    sidebarPillDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - indicatorRect.left,
+      offsetY: event.clientY - indicatorRect.top,
+      moved: false,
+    };
+    sidebarPillDragButtonRef.current = event.currentTarget;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const moveSidebarPillDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = sidebarPillDragRef.current;
+    const navigation = navigationRef.current;
+    const indicator = activeNavIndicatorRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !navigation || !indicator) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (Math.hypot(deltaX, deltaY) > 5) drag.moved = true;
+    if (!drag.moved) return;
+
+    setIsDraggingSidebarPill(true);
+    const navRect = navigation.getBoundingClientRect();
+    const pillRect = indicator.getBoundingClientRect();
+    const pillWidth = Number.parseFloat(indicator.style.getPropertyValue('--sidebar-pill-width')) || pillRect.width;
+    const pillHeight = Number.parseFloat(indicator.style.getPropertyValue('--sidebar-pill-height')) || pillRect.height;
+    const maxLeft = Math.max(0, navigation.scrollWidth - pillWidth);
+    const maxTop = Math.max(0, navigation.scrollHeight - pillHeight);
+    const left = Math.max(0, Math.min(maxLeft, event.clientX - navRect.left + navigation.scrollLeft - drag.offsetX));
+    const top = Math.max(0, Math.min(maxTop, event.clientY - navRect.top + navigation.scrollTop - drag.offsetY));
+    indicator.style.setProperty('--sidebar-pill-left', `${left}px`);
+    indicator.style.setProperty('--sidebar-pill-top', `${top}px`);
+    const stretch = 1 + Math.min(0.12, Math.abs(deltaY) * 0.003);
+    const squash = 1 - Math.min(0.035, Math.abs(deltaY) * 0.0009);
+    indicator.style.setProperty('--sidebar-pill-stretch', stretch.toFixed(3));
+    indicator.style.setProperty('--sidebar-pill-squash', squash.toFixed(3));
+    indicator.style.setProperty('--sidebar-pill-origin', deltaY >= 0 ? 'top center' : 'bottom center');
+  };
+
+  const finishSidebarPillDrag = (event: React.PointerEvent<HTMLElement>, commit = true) => {
+    const drag = sidebarPillDragRef.current;
+    const navigation = navigationRef.current;
+    const indicator = activeNavIndicatorRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    let shouldRestore = !drag.moved || !commit;
+
+    if (drag.moved && commit && indicator && navigation) {
+      const pillRect = indicator.getBoundingClientRect();
+      const centerX = pillRect.left + pillRect.width / 2;
+      const centerY = pillRect.top + pillRect.height / 2;
+      const nearest = [...navItemRefs.current.entries()]
+        .map(([path, entry]) => {
+          const rect = entry.button.getBoundingClientRect();
+          const dx = centerX - (rect.left + rect.width / 2);
+          const dy = centerY - (rect.top + rect.height / 2);
+          return { path, label: entry.label, distance: dx * dx + dy * dy };
+        })
+        .sort((a, b) => a.distance - b.distance)[0];
+
+      if (nearest) {
+        suppressSidebarClickRef.current = true;
+        window.setTimeout(() => { suppressSidebarClickRef.current = false; }, 600);
+        if (nearest.label === 'Recruitment') setRecruitmentOpen(true);
+        onNavigate(nearest.path);
+        onClose();
+        if (nearest.path === pathname) shouldRestore = true;
+      } else {
+        shouldRestore = true;
+      }
+    }
+
+    const captureButton = sidebarPillDragButtonRef.current;
+    if (captureButton?.hasPointerCapture(event.pointerId)) captureButton.releasePointerCapture(event.pointerId);
+    sidebarPillDragRef.current = null;
+    sidebarPillDragButtonRef.current = null;
+    setIsDraggingSidebarPill(false);
+    if (indicator) {
+      window.requestAnimationFrame(() => {
+        indicator.style.removeProperty('--sidebar-pill-stretch');
+        indicator.style.removeProperty('--sidebar-pill-squash');
+        if (shouldRestore) restoreActiveSidebarPill();
+      });
+    }
+  };
 
   useEffect(() => {
     const navigation = navigationRef.current;
@@ -214,6 +328,56 @@ export function CompanySidebar({
     }
     prevPathnameRef.current = pathname;
   }, [pathname]);
+
+  useLayoutEffect(() => {
+    const navigation = navigationRef.current;
+    const indicator = activeNavIndicatorRef.current;
+    if (!navigation || !indicator) return;
+
+    const syncActiveIndicator = () => {
+      const activeItem = navigation.querySelector<HTMLButtonElement>(
+        '[data-company-nav-item][aria-current="page"]',
+      );
+      if (!activeItem) {
+        indicator.style.opacity = '0';
+        previousActiveTopRef.current = null;
+        return;
+      }
+
+      const navRect = navigation.getBoundingClientRect();
+      const itemRect = activeItem.getBoundingClientRect();
+      const top = itemRect.top - navRect.top + navigation.scrollTop;
+      indicator.style.setProperty('--sidebar-pill-top', `${top}px`);
+      indicator.style.setProperty('--sidebar-pill-left', `${itemRect.left - navRect.left + navigation.scrollLeft}px`);
+      indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
+      indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
+      indicator.style.opacity = '1';
+
+      const previousTop = previousActiveTopRef.current;
+      if (prevPathnameRef.current !== pathname && previousTop !== null && previousTop !== top) {
+        indicator.style.setProperty('--sidebar-pill-origin', top > previousTop ? 'top center' : 'bottom center');
+        setIsActiveNavMoving(true);
+        if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
+      }
+      previousActiveTopRef.current = top;
+    };
+
+    syncActiveIndicator();
+    const observer = new ResizeObserver(syncActiveIndicator);
+    observer.observe(navigation);
+    const activeItem = navigation.querySelector('[data-company-nav-item][aria-current="page"]');
+    if (activeItem) observer.observe(activeItem);
+    window.addEventListener('resize', syncActiveIndicator);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncActiveIndicator);
+    };
+  }, [pathname, collapsed]);
+
+  useEffect(() => () => {
+    if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
+  }, []);
 
   const isSuperAdmin = accountType === 'super-admin';
   const { activePet } = useAiPet();
@@ -664,7 +828,7 @@ export function CompanySidebar({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-2 text-sidebar-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground xl:hidden"
+          className="rounded-lg p-2 text-sidebar-muted xl:hidden"
           aria-label="Close navigation"
         >
           ×
@@ -672,9 +836,19 @@ export function CompanySidebar({
       </div>
       <nav
         ref={navigationRef}
-        className={`min-h-0 flex-1 space-y-7 overflow-y-auto ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
+        onPointerMove={moveSidebarPillDrag}
+        onPointerUp={finishSidebarPillDrag}
+        onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
+        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
         aria-label="Company navigation"
       >
+        <div
+          ref={activeNavIndicatorRef}
+          className="company-sidebar-active-indicator"
+          data-moving={isActiveNavMoving}
+          data-dragging={isDraggingSidebarPill}
+          aria-hidden="true"
+        />
         {navigation.map((group) => {
           const isOrganization = group.label === 'Organization';
           const activeChild = group.items.some(
@@ -683,14 +857,14 @@ export function CompanySidebar({
           return (
             <div
               key={group.label}
-              className={`${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed ? 'xl:border-t xl:border-sidebar-border/70 xl:pt-4 first:xl:border-t-0 first:xl:pt-0' : ''}`}
+              className={`relative z-[1] ${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed ? 'xl:border-t xl:border-sidebar-border/70 xl:pt-4 first:xl:border-t-0 first:xl:pt-0' : ''}`}
             >
               {isOrganization ? (
                 <button
                   type="button"
                   onClick={() => setOrganizationOpen((openState) => !openState)}
                   aria-expanded={organizationOpen}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
                   title={collapsed ? 'Organization' : undefined}
                 >
                   <Icon name="building" className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`} />
@@ -716,10 +890,20 @@ export function CompanySidebar({
                     return (
                       <div key={item.path}>
                         <button
+                          data-company-nav-item="true"
+                          ref={(element) => {
+                            if (element) navItemRefs.current.set(item.path, { button: element, label: item.label });
+                            else navItemRefs.current.delete(item.path);
+                          }}
                           aria-current={isActive ? 'page' : undefined}
                           type="button"
                           aria-expanded={item.children ? showChildren : undefined}
+                          onPointerDown={startSidebarPillDrag}
                           onClick={() => {
+                            if (suppressSidebarClickRef.current) {
+                              suppressSidebarClickRef.current = false;
+                              return;
+                            }
                             if (isRecruitmentItem) {
                               if (!pathname.startsWith(item.path)) {
                                 setRecruitmentOpen(true);
@@ -733,11 +917,13 @@ export function CompanySidebar({
                               onClose();
                             }
                           }}
-                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
                           title={collapsed ? item.label : undefined}
                         >
                           <span className="flex items-center gap-3">
-                            <Icon name={item.icon} />
+                            <span data-sidebar-icon={item.icon} className="inline-flex shrink-0 items-center justify-center">
+                              <Icon name={item.icon} />
+                            </span>
                             <span className={collapsed ? 'xl:hidden' : ''}>{item.label}</span>
                           </span>
                           {item.label === 'Messages' && unreadMessages > 0 && (
@@ -774,7 +960,7 @@ export function CompanySidebar({
                                     onNavigate(sub.path);
                                     onClose();
                                   }}
-                                  className={`w-full rounded-none px-3 py-2.5 text-left text-xs font-medium ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted hover:bg-sidebar-hover-bg hover:text-sidebar-foreground'}`}
+                                  className={`w-full rounded-none px-3 py-2.5 text-left text-xs font-medium hover:text-sidebar-active-fg ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted'}`}
                                 >
                                   {sub.label}
                                 </button>

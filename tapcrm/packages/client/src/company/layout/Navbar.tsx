@@ -64,9 +64,9 @@ export function Navbar({
   };
 
   return (
-    <header className="global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl">
+    <header className="global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl xl:top-4 xl:mx-5 xl:mt-4 xl:-mb-4 xl:rounded-2xl xl:border">
       <div className="flex h-full min-w-0 items-center gap-2 px-2 sm:gap-3 sm:px-5">
-        <div className="flex min-w-0 shrink items-center gap-1.5 sm:gap-2.5">
+        <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2 lg:gap-1">
           <button
             type="button"
             onClick={(event) => {
@@ -78,9 +78,12 @@ export function Navbar({
             aria-expanded={sidebarExpanded}
             title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
           >
-            <Icon name="menu" className="size-4" />
+            <Icon
+              name={sidebarExpanded ? 'close' : 'menu'}
+              className={`size-4 transition-transform duration-300 ease-in-out motion-reduce:transition-none ${sidebarExpanded ? 'rotate-180' : 'rotate-0'}`}
+            />
           </button>
-          <span className="navbar-brand-mark -ml-1 inline-flex h-9 shrink-0 items-center px-0 sm:ml-0 sm:px-1" aria-label="Tapvera CRM">
+          <span className="navbar-brand-mark -ml-1 lg:-ml-1.5 inline-flex h-9 shrink-0 items-center px-0" aria-label="Tapvera CRM">
             <BrandLogo className="navbar-brand" />
           </span>
         </div>
