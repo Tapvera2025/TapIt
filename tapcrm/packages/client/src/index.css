@@ -362,6 +362,12 @@
   textarea:focus {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 15%, transparent);
   }
+  .task-search-glass input,
+  .task-search-glass input:focus {
+    border: 0;
+    outline: none;
+    box-shadow: none;
+  }
   input,
   select,
   textarea {
