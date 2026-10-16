@@ -1019,7 +1019,7 @@ export function CompanySidebar({
           </div>
         )}
       </nav>
-      {variant === 'company' && activePet && (
+      {activePet && (
         <div className={`sidebar-pet-runway shrink-0 border-t border-sidebar-border/70 px-1 pt-1 ${collapsed ? 'xl:hidden' : ''}`}>
           <SidebarPet pet={activePet} />
         </div>

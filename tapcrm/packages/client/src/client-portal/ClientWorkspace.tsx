@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AiPetButton } from '../company/layout/AiPet.js';
 import { CompanySidebar } from '../company/layout/CompanySidebar.js';
+import { SettingsPage } from '../company/settings/SettingsPage.js';
 import { ThemeToggle } from '../theme/ThemeToggle.js';
 import { BrandLogo } from '../ui/BrandLogo.js';
 import { Icon } from '../ui/Icon.js';
@@ -29,11 +31,13 @@ export function ClientWorkspace({
   if (projectMatch) page = <ClientProjectPage id={decodeURIComponent(projectMatch[1]!)} onNavigate={onNavigate} onError={handleError} />;
   else if (pathname === '/client/projects') page = <ClientProjectsPage onNavigate={onNavigate} onError={handleError} />;
   else if (pathname === '/client/profile') page = <ClientProfilePage onError={handleError} />;
+  else if (pathname === '/client/settings') page = <SettingsPage />;
   else page = <ClientDashboardPage onNavigate={onNavigate} onError={handleError} />;
 
   useEffect(() => {
     if (!accountOpen) return;
     const onPointerDown = (event: MouseEvent) => {
+      if ((event.target as Element | null)?.closest('[data-ai-pet-picker]')) return;
       if (accountRef.current && !accountRef.current.contains(event.target as Node)) setAccountOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
@@ -102,7 +106,14 @@ export function ClientWorkspace({
               {accountOpen && (
                 <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg" role="menu">
                   <p className="border-b border-app-border px-3 py-2.5 text-sm font-semibold text-app-foreground">Client workspace</p>
-                  <button type="button" role="menuitem" onClick={onLogout} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10">
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-xs font-semibold text-app-muted">AI companion</span>
+                    <AiPetButton wrapperClassName="navbar-account-pet" className="size-8 !p-0" />
+                  </div>
+                  <button type="button" role="menuitem" onClick={() => { setAccountOpen(false); onNavigate('/client/settings'); }} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground">
+                    <Icon name="settings" className="size-4" /> Settings
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { setAccountOpen(false); onLogout(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10">
                     <Icon name="logout" className="size-4" /> Sign out
                   </button>
                 </div>
