@@ -73,6 +73,7 @@ export interface AttendanceDayDetail {
   };
   readonly overlays: unknown[];
   readonly corrections: unknown[]; // step 7 fills this
+  readonly allowedActions?: { requestCorrection?: boolean };
 }
 
 /**

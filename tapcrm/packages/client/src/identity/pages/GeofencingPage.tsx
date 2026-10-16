@@ -32,6 +32,11 @@ export function GeofencingPage({ onBack }: { onBack: () => void }): React.JSX.El
   return <main className="min-h-screen bg-app-background p-5 text-app-foreground sm:p-6 md:p-8">
     <div className="mx-auto max-w-7xl">
       <button type="button" onClick={onBack} className="group mb-5 inline-flex items-center gap-2 text-sm font-bold text-app-muted transition-colors hover:text-app-accent"><span className="text-lg leading-none transition-transform group-hover:-translate-x-0.5">←</span> Back to CRM</button>
+      <header className="mb-6 space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">Identity</p>
+        <h1 className="font-display text-2xl font-bold">Geofencing</h1>
+        <p className="text-sm text-app-muted">Manage approved workplace locations and employee sign-in boundaries.</p>
+      </header>
       {message && <p className="mb-4 rounded-lg border border-app-accent/30 bg-app-accent/10 px-4 py-3 text-sm text-app-accent">{message}</p>}
       {error && <p className="mb-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-4 py-3 text-sm text-app-danger">{error}</p>}
       <form onSubmit={(event) => { void create(event); }} className="mb-6 overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">

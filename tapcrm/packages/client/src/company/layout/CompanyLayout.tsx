@@ -177,100 +177,106 @@ export function CompanyLayout({
   return (
     <ChatUnreadProvider enabled={canViewChat}>
       <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
-      <a
-        href="#main-content"
-        className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
-      >
-        Skip to content
-      </a>
-      <button
-        type="button"
-        onClick={() => setSidebarOpen(false)}
-        className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
-        aria-label="Close navigation overlay"
-        aria-hidden={!sidebarOpen}
-        tabIndex={sidebarOpen ? 0 : -1}
-      />
-      <Navbar
-        identity={identity}
-        organizationName={organizationName}
-        sidebarCollapsed={sidebarCollapsed}
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={toggleSidebar}
-        onNavigate={onNavigate}
-        onLogout={onLogout}
-      />
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <CompanySidebar
-          pathname={pathname}
+        <a
+          href="#main-content"
+          className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
+        >
+          Skip to content
+        </a>
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+          aria-label="Close navigation overlay"
+          aria-hidden={!sidebarOpen}
+          tabIndex={sidebarOpen ? 0 : -1}
+        />
+        <Navbar
           identity={identity}
           organizationName={organizationName}
-          accountType={accountType}
-          canRequestRoleChange={canRequestRoleChange}
-          canViewAudit={canViewAudit}
-          canManageLeaveTypes={canManageLeaveTypes}
-          canViewLeaveBalances={canViewLeaveBalances}
-          canUseLeaveQueue={canUseLeaveQueue}
-          canViewEmployees={canViewEmployees}
-          canViewTerritories={canViewTerritories}
-          canViewLeads={canViewLeads}
-          canViewCallbacks={canViewCallbacks}
-          canViewHandovers={canViewHandovers}
-          canViewDeals={canViewDeals}
-          canRecordWin={canRecordWin}
-          canDecideApprovals={canDecideApprovals}
-          canForecast={canForecast}
-          canViewChat={canViewChat}
-          canViewClients={canViewClients}
-          canViewProjects={canViewProjects}
-          canViewLiveBoard={canViewLiveBoard}
-          canViewAttendanceReports={canViewAttendanceReports}
-          canReviewCorrections={canReviewCorrections}
-          canReviewBreaches={canReviewBreaches}
-          canManageBreakPolicies={canManageBreakPolicies}
-          canManageShifts={canManageShifts}
-          canManagePayroll={canManagePayroll}
-          canManagePayrollConfig={canManagePayrollConfig}
-          canViewTa={canViewTa}
-          canManageTa={canManageTa}
-          canManageBiometric={canManageBiometric}
-          canViewAdvances={canViewAdvances}
-          canManageAdvances={canManageAdvances}
-          canViewPenalties={canViewPenalties}
-          canManagePenalties={canManagePenalties}
-          canViewExpenses={canViewExpenses}
-          canApproveExpenses={canApproveExpenses}
-          isHr={isHr}
-          hasRecruitment={hasRecruitment}
-          hasInterviews={hasInterviews}
+          sidebarCollapsed={sidebarCollapsed}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={toggleSidebar}
           onNavigate={onNavigate}
           onLogout={onLogout}
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={toggleSidebar}
-          width={sidebarWidth}
-          onResize={setSidebarWidth}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <main
-            ref={mainScrollRef}
-            id="main-content"
-            data-app-scroll-container
-            className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
-            onScroll={(event) => {
-              const element = event.currentTarget;
-              const maxScroll = element.scrollHeight - element.clientHeight;
-              const progress = maxScroll > 0 ? element.scrollTop / maxScroll : 0.45;
-              element
-                .closest<HTMLElement>('.company-layout-shell')
-                ?.style.setProperty('--shell-reflection-position', `${Math.round(progress * 100)}%`);
-            }}
-          >
-            {children}
-          </main>
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <CompanySidebar
+            pathname={pathname}
+            identity={identity}
+            organizationName={organizationName}
+            accountType={accountType}
+            canRequestRoleChange={canRequestRoleChange}
+            canViewAudit={canViewAudit}
+            canManageLeaveTypes={canManageLeaveTypes}
+            canViewLeaveBalances={canViewLeaveBalances}
+            canUseLeaveQueue={canUseLeaveQueue}
+            canViewEmployees={canViewEmployees}
+            canViewTerritories={canViewTerritories}
+            canViewLeads={canViewLeads}
+            canViewCallbacks={canViewCallbacks}
+            canViewHandovers={canViewHandovers}
+            canViewDeals={canViewDeals}
+            canRecordWin={canRecordWin}
+            canDecideApprovals={canDecideApprovals}
+            canForecast={canForecast}
+            canViewChat={canViewChat}
+            canViewClients={canViewClients}
+            canViewProjects={canViewProjects}
+            canViewLiveBoard={canViewLiveBoard}
+            canViewAttendanceReports={canViewAttendanceReports}
+            canReviewCorrections={canReviewCorrections}
+            canReviewBreaches={canReviewBreaches}
+            canManageBreakPolicies={canManageBreakPolicies}
+            canManageShifts={canManageShifts}
+            canManagePayroll={canManagePayroll}
+            canManagePayrollConfig={canManagePayrollConfig}
+            canViewTa={canViewTa}
+            canManageTa={canManageTa}
+            canManageBiometric={canManageBiometric}
+            canViewAdvances={canViewAdvances}
+            canManageAdvances={canManageAdvances}
+            canViewPenalties={canViewPenalties}
+            canManagePenalties={canManagePenalties}
+            canViewExpenses={canViewExpenses}
+            canApproveExpenses={canApproveExpenses}
+            isHr={isHr}
+            hasRecruitment={hasRecruitment}
+            hasInterviews={hasInterviews}
+            onNavigate={onNavigate}
+            onLogout={onLogout}
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebar}
+            width={sidebarWidth}
+            onResize={setSidebarWidth}
+          />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <main
+              ref={mainScrollRef}
+              id="main-content"
+              data-app-scroll-container
+              className={`min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto ${
+                pathname === '/company/attendance/my' ? 'overscroll-contain' : ''
+              }`}
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                const maxScroll = element.scrollHeight - element.clientHeight;
+                const progress = maxScroll > 0 ? element.scrollTop / maxScroll : 0.45;
+
+                element
+                  .closest<HTMLElement>('.company-layout-shell')
+                  ?.style.setProperty(
+                    '--shell-reflection-position',
+                    `${Math.round(progress * 100)}%`,
+                  );
+              }}
+            >
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
       </div>
     </ChatUnreadProvider>
   );

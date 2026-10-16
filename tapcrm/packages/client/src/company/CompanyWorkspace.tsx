@@ -372,7 +372,7 @@ export function CompanyWorkspace({
       );
     if (pathname === '/company/attendance/today')
       return <TodayPage fullName={fullName} userId={userId} />;
-    if (pathname === '/company/attendance/my') return <AttendancePage userId={userId} />;
+    if (pathname === '/company/attendance/my') return <AttendancePage userId={userId} organizationTimezone={organizationTimeZone} />;
     if (
       pathname === '/company/attendance/employee-wise' &&
       (isHr || canBeyondOwn('attendance:view'))

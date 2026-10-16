@@ -35,6 +35,11 @@ export function HolidaysPage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
+      <header className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">HR · Calendar</p>
+        <h1 className="font-display text-2xl font-bold">Holidays</h1>
+        <p className="text-sm text-app-muted">Review the organization holiday calendar and planned days off.</p>
+      </header>
       <div className="flex items-center gap-3">
         <button
           type="button"
