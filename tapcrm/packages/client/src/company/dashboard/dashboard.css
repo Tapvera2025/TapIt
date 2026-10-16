@@ -40,6 +40,7 @@
 }
 
 .dashboard-grid .react-grid-item {
+  box-sizing: border-box;
   background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: 1rem;
@@ -47,6 +48,27 @@
   padding: 1rem;
   overflow: hidden;
   transition: box-shadow 0.15s ease;
+}
+
+/* Give h-full widget roots a definite, resize-aware containing block. */
+.dashboard-widget-content {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Keep the component's root on the same sizing contract as its grid cell. */
+.dashboard-widget-content > * {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .dashboard-grid.editing .react-grid-item {

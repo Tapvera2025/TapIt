@@ -21,7 +21,7 @@
 /* ── Green (Default / Emerald) ── */
 :root,
 :root[data-accent="green"] {
-  --app-background: #F1F7F5;
+  --app-background: #EAF0EE;
   --app-foreground: #0f172a;
   --app-surface: #FAFCFB;
   --app-surface-raised: #EAF3F0;
@@ -91,7 +91,7 @@
 
 /* ── Violet / Purple ── */
 :root[data-accent="violet"] {
-  --app-background: #F5F3F9;
+  --app-background: #EEEBF3;
   --app-foreground: #0f172a;
   --app-surface: #FCFBFE;
   --app-surface-raised: #F0EDF7;
@@ -160,7 +160,7 @@
 
 /* ── Orange ── */
 :root[data-accent="orange"] {
-  --app-background: #FAF5F0;
+  --app-background: #F3EEE9;
   --app-foreground: #0f172a;
   --app-surface: #FFFCF9;
   --app-surface-raised: #F7EEE7;
@@ -229,7 +229,7 @@
 
 /* ── Blue ── */
 :root[data-accent="blue"] {
-  --app-background: #F2F6FB;
+  --app-background: #EAF0F6;
   --app-foreground: #0f172a;
   --app-surface: #FBFDFF;
   --app-surface-raised: #EAF1F8;
@@ -685,6 +685,24 @@
       linear-gradient(110deg, color-mix(in srgb, var(--theme-primary) 7%, transparent), transparent 42%),
       var(--app-surface);
   }
+  .recruitment-pipeline-connector {
+    border: 1px solid color-mix(in srgb, var(--app-accent) 28%, var(--app-border));
+    background: linear-gradient(145deg, color-mix(in srgb, white 78%, var(--app-accent) 22%), color-mix(in srgb, var(--app-surface) 90%, var(--app-accent) 10%));
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 76%, transparent),
+      0 3px 8px color-mix(in srgb, var(--app-foreground) 12%, transparent),
+      0 0 0 3px color-mix(in srgb, var(--app-surface) 78%, transparent);
+    -webkit-backdrop-filter: blur(12px) saturate(1.3);
+    backdrop-filter: blur(12px) saturate(1.3);
+  }
+  .recruitment-pipeline-connector::before {
+    display: none;
+  }
+  .dark .recruitment-pipeline-connector {
+    border-color: color-mix(in srgb, var(--app-accent) 32%, white 12%);
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), color-mix(in srgb, var(--app-surface) 88%, var(--app-accent) 12%));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 3px 8px rgba(0, 0, 0, 0.36), 0 0 0 3px color-mix(in srgb, var(--app-background) 70%, transparent);
+  }
   .recruitment-page-header-icon {
     display: grid;
     flex: 0 0 auto;
@@ -874,6 +892,17 @@
     background: rgb(8 14 23 / 62%);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
+  }
+  /* Full-screen modal roots must sit above the shared app chrome. Several
+     dialogs use z-50 while the navbar/sidebar/notification layer use 60–80;
+     keeping the root above them lets the existing translucent blur scrim
+     cover those fixed and sticky regions too. */
+  [class~='fixed'][class~='inset-0'][class~='z-50'],
+  [class~='fixed'][class~='inset-0'][class~='z-60'],
+  [class~='fixed'][class~='inset-0'][class~='z-[100]'],
+  [role='dialog'][class~='fixed'][class~='inset-0'],
+  [role='presentation'][class~='fixed'][class~='inset-0'] {
+    z-index: 1000 !important;
   }
   .workspace-sidebar {
     background: var(--sidebar-background) !important;
@@ -1164,7 +1193,7 @@
       inset: auto !important;
       width: auto;
       max-width: none;
-      height: calc(100dvh - 8rem) !important;
+      height: calc(100dvh - 9rem) !important;
       margin: var(--company-sidebar-top-gap) 0 1.25rem 1.25rem !important;
       border-radius: 1rem;
       transform: none !important;
@@ -1460,7 +1489,7 @@ nav button[aria-current='page']::before {
     background: transparent !important;
     box-shadow: none !important;
     cursor: grab;
-    touch-action: none;
+    touch-action: pan-y;
     user-select: none;
   }
 
@@ -2182,17 +2211,150 @@ summary:active {
 }
 
 /* Desktop Messages tabs: a compact, aligned segmented control above the workspace. */
+.recruitment-tab-list {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--app-border) 88%, white 12%);
+  background: color-mix(in srgb, var(--app-surface-raised) 72%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  backdrop-filter: blur(16px) saturate(1.25);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 34%, transparent), 0 3px 12px color-mix(in srgb, var(--app-foreground) 5%, transparent);
+}
+
+.recruitment-tab-glass-indicator {
+  position: absolute;
+  z-index: 0;
+  top: 0.3rem;
+  left: var(--recruitment-pill-left, 0px);
+  width: var(--recruitment-pill-width, 0px);
+  height: calc(100% - 0.6rem);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 25%, var(--app-border));
+  border-radius: 0.65rem;
+  background: linear-gradient(145deg, color-mix(in srgb, white 36%, transparent), color-mix(in srgb, var(--app-surface) 74%, transparent));
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  backdrop-filter: blur(12px) saturate(1.3);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 52%, transparent), 0 2px 7px color-mix(in srgb, var(--app-foreground) 7%, transparent);
+  pointer-events: none;
+  transition: left 420ms cubic-bezier(0.16, 1, 0.3, 1), width 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.recruitment-tab-glass-indicator::after {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  left: 2px;
+  height: 42%;
+  border-radius: 0 0 0.58rem 0.58rem;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, white 36%, transparent));
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, white 55%, transparent);
+  content: '';
+}
+
+.recruitment-tab-button {
+  position: relative;
+  z-index: 1;
+  min-height: 2.5rem;
+  background: transparent;
+  transition: color 180ms ease;
+}
+
+.recruitment-tab-button[aria-selected='true'] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--app-accent);
+}
+
+.recruitment-tab-button[aria-selected='true']::after {
+  position: absolute;
+  z-index: -1;
+  top: 57%;
+  right: 0.4rem;
+  left: 0.4rem;
+  overflow: hidden;
+  color: currentColor;
+  content: attr(data-label);
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0.18;
+  filter: blur(1px);
+  transform: scaleY(-1);
+  transform-origin: center;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 82%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 82%);
+  pointer-events: none;
+}
+
+.recruitment-tab-button:focus-visible {
+  z-index: 2;
+  outline: 2px solid var(--app-accent);
+  outline-offset: -2px;
+}
+
+.recruitment-tab-list[data-dragging='true'] .recruitment-tab-glass-indicator {
+  transition: none;
+  transform: scaleX(var(--pill-stretch, 1)) scaleY(var(--pill-squash, 1));
+  will-change: left, transform;
+}
+
+.recruitment-tab-button:active {
+  transform: none !important;
+}
+
+.dark .recruitment-tab-list {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: color-mix(in srgb, var(--app-background) 74%, var(--app-surface) 26%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.dark .recruitment-tab-glass-indicator {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.dark .recruitment-tab-glass-indicator::after {
+  display: none;
+}
+
+.dark .recruitment-tab-button[aria-selected='true']::after {
+  opacity: 0.24;
+  filter: blur(1.1px);
+}
+
 .messages-tab-glass-indicator {
   display: none;
 }
 
+/* Shared page-frame spacing for every route rendered in the company shell. */
+.workspace-page-container {
+  padding-inline: 1rem;
+}
+
+.company-layout-shell main[data-app-scroll-container] {
+  padding-block-start: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .workspace-page-container {
+    padding-inline: 1.5rem;
+  }
+}
+
 @media (min-width: 1280px) {
   .company-layout-shell {
-    --company-sidebar-top-gap: 2.75rem;
+    --company-sidebar-top-gap: 1rem;
   }
 
-  .messages-page {
-    padding-top: var(--company-sidebar-top-gap);
+  /* The page container owns horizontal gutters; the shell owns the 24px
+     navbar-to-content gap. Keeping top spacing in one layer avoids stacking
+     the old 44px shell inset with each page's 32px outer padding. */
+  .workspace-page-container {
+    padding-inline: 2rem;
+  }
+
+  .company-layout-shell main {
+    padding: 1.5rem 0 1rem;
   }
 
   .messages-tab-list {
@@ -2282,6 +2444,11 @@ summary:active {
     transition: none;
     transform: scaleX(var(--pill-stretch, 1)) scaleY(var(--pill-squash, 1));
     will-change: left, width, transform;
+  }
+
+  /* Keep the tab label single and crisp while the refracting pill moves over it. */
+  .messages-tab-list[data-dragging='true'] .messages-tab-button[aria-pressed='true']::after {
+    content: none;
   }
 
   .messages-tab-button {
@@ -2384,7 +2551,26 @@ summary:active {
 }
 
 /* Scroll-linked glass edge for desktop day mode; surfaces and layout remain intact. */
+.project-detail-liquid-tabs,
+.access-explorer-liquid-tabs {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 768px) {
+  .project-detail-liquid-tabs .messages-tab-button,
+  .access-explorer-liquid-tabs .messages-tab-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
 @media (min-width: 1280px) {
+  .project-detail-liquid-tabs,
+  .access-explorer-liquid-tabs {
+    width: 100%;
+  }
+
   :root:not(.dark) .company-layout-shell {
     --shell-reflection-position: 45%;
   }

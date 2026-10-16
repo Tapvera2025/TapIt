@@ -144,48 +144,53 @@ export function RequisitionsPage({
           No job requisitions match the current criteria. Create a new requisition to begin sourcing candidates.
         </Empty>
       ) : (
-        <section className="mt-6 rounded-2xl border border-app-border bg-app-surface">
-          <div className="hidden border-b border-app-border bg-app-surface-raised px-5 py-3 text-xs font-bold uppercase tracking-wider text-app-muted md:grid md:grid-cols-[1.8fr_1.3fr_1.2fr_1fr_auto] md:items-center md:gap-4">
-            <span>Requisition</span>
-            <span>Department &amp; Role</span>
-            <span>Details</span>
-            <span>Status</span>
-            <span className="text-right">Actions</span>
-          </div>
+        <section className="mt-6 max-w-full overflow-hidden rounded-2xl border border-app-border bg-app-surface">
+          <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
+            <div className="md:min-w-[89rem]">
+            <div className="hidden border-b border-app-border bg-app-surface-raised px-5 py-3 text-xs font-bold uppercase tracking-wider text-app-muted md:grid md:grid-cols-[12rem_12rem_10rem_8rem_minmax(40rem,1fr)] md:items-center md:gap-4">
+              <span>Requisition</span>
+              <span>Department &amp; Role</span>
+              <span>Details</span>
+              <span>Status</span>
+              <span className="text-right">Actions</span>
+            </div>
 
-          <div className="divide-y divide-app-border">
-            {visible.map((req) => (
-              <div
-                key={req.id}
-                className="grid gap-3 px-5 py-4 text-sm md:grid-cols-[1.8fr_1.3fr_1.2fr_1fr_auto] md:items-center md:gap-4"
-              >
+            <div className="divide-y divide-app-border">
+              {visible.map((req) => (
+                <div
+                  key={req.id}
+                  className="grid gap-3 px-5 py-4 text-sm md:grid-cols-[12rem_12rem_10rem_8rem_minmax(40rem,1fr)] md:items-center md:gap-4"
+                >
                 <div className="min-w-0">
-                  <p className="font-semibold text-app-foreground truncate">{req.title}</p>
-                  <p className="text-xs font-mono text-app-muted">{req.requisitionNumber}</p>
+                  <p className="line-clamp-2 font-semibold text-app-foreground" title={req.title}>{req.title}</p>
+                  <p className="truncate text-xs font-mono text-app-muted" title={req.requisitionNumber}>{req.requisitionNumber}</p>
                   {req.location && <p className="text-xs text-app-muted truncate">{req.location}</p>}
                 </div>
 
                 <div className="min-w-0">
-                  <p className="font-medium text-app-foreground truncate">{req.departmentName ?? 'Department'}</p>
-                  {req.positionName && <p className="text-xs text-app-muted truncate">{req.positionName}</p>}
+                  <p className="line-clamp-2 font-medium text-app-foreground" title={req.departmentName ?? 'Department'}>{req.departmentName ?? 'Department'}</p>
+                  {req.positionName && <p className="line-clamp-2 text-xs text-app-muted" title={req.positionName}>{req.positionName}</p>}
                 </div>
 
                 <div className="min-w-0 text-xs">
-                  <span className="font-semibold text-app-foreground">{req.openingsCount} open</span>
-                  <span className="text-app-muted"> · </span>
-                  <span className="capitalize text-app-foreground">{req.employmentType.replace('_', ' ')}</span>
+                  <p>
+                    <span className="font-semibold text-app-foreground">{req.openingsCount} open</span>
+                    <span className="text-app-muted"> · </span>
+                    <span className="capitalize text-app-foreground">{req.employmentType.replace('_', ' ')}</span>
+                  </p>
                   {req.targetHireDate && (
                     <p className="text-app-muted mt-0.5">Target: {new Date(req.targetHireDate).toLocaleDateString()}</p>
                   )}
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <RequisitionStatusBadge status={req.status} />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 pt-2 md:justify-end md:pt-0">
+                <div className="flex min-w-0 flex-col items-start gap-2 pt-2 md:items-end md:pt-0">
                   {/* Platform Redirect Buttons */}
-                  {[
+                  <div className="flex w-full max-w-full flex-wrap items-center justify-start gap-2 md:w-max md:flex-nowrap md:justify-end">
+                    {[
                     {
                       name: 'LinkedIn',
                       href: `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(req.title)}`,
@@ -202,7 +207,7 @@ export function RequisitionsPage({
                       name: 'Internshala',
                       href: `https://internshala.com/jobs/${encodeURIComponent(req.title.toLowerCase().replace(/\s+/g, '-'))}`,
                     },
-                  ].map((platform) => (
+                    ].map((platform) => (
                     <a
                       key={platform.name}
                       href={platform.href}
@@ -214,8 +219,10 @@ export function RequisitionsPage({
                       <Icon name="external-link" className="size-3" />
                       {platform.name}
                     </a>
-                  ))}
+                    ))}
+                  </div>
 
+                  <div className="flex w-full max-w-full flex-wrap items-center justify-start gap-2 border-t border-app-border/70 pt-2 md:w-max md:flex-nowrap md:justify-end">
                   <button
                     type="button"
                     onClick={() => setPipelineRequisition(req)}
@@ -280,9 +287,12 @@ export function RequisitionsPage({
                       Resume
                     </button>
                   )}
+                  </div>
                 </div>
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
+            </div>
           </div>
         </section>
       )}

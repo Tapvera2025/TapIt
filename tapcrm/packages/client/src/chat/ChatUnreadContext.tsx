@@ -1,11 +1,17 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { getIdentityAccessToken, identityApiBasePath } from '../identity/api/authApi.js';
-import { getChatUnreadSummary, type ChatUnreadSummary } from './api/chatApi.js';
+import { getChatUnreadSummary, type ChatUnreadSummary, type ConversationKind } from './api/chatApi.js';
 
 const EMPTY_SUMMARY: ChatUnreadSummary = { total: 0, direct: 0, group: 0, project: 0 };
 const POLL_FALLBACK_MS = 60_000;
 export const CHAT_UNREAD_CHANGED_EVENT = 'tapcrm:chat-unread-changed';
+
+interface ChatUnreadChangedDetail {
+  kind: ConversationKind;
+  count: number;
+  optimistic?: boolean;
+}
 
 const ChatUnreadContext = createContext<ChatUnreadSummary>(EMPTY_SUMMARY);
 
@@ -47,7 +53,21 @@ export function ChatUnreadProvider({ enabled, children }: { enabled: boolean; ch
     });
 
     const onFocus = (): void => refresh();
-    const onUnreadChanged = (): void => refresh();
+    const onUnreadChanged = (event: Event): void => {
+      const detail = (event as CustomEvent<ChatUnreadChangedDetail>).detail;
+      if (detail?.optimistic && detail.count > 0) {
+        setSummary((current) => {
+          const removed = Math.min(current[detail.kind], detail.count);
+          return {
+            ...current,
+            [detail.kind]: current[detail.kind] - removed,
+            total: Math.max(0, current.total - removed),
+          };
+        });
+        return;
+      }
+      refresh();
+    };
     window.addEventListener('focus', onFocus);
     window.addEventListener(CHAT_UNREAD_CHANGED_EVENT, onUnreadChanged);
     const poll = window.setInterval(refresh, POLL_FALLBACK_MS);

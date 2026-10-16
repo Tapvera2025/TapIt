@@ -78,7 +78,7 @@ export function RecruitmentWorkspace({
   return (
     <div className="w-full max-w-full overflow-x-hidden">
       {/* Top Section Navigation Tabs */}
-      <div className="w-full max-w-full px-4 pt-3 md:px-8 md:pt-4">
+      <div className="w-full max-w-full px-4 pt-8 md:px-8 md:pt-10">
         <div className="mx-auto max-w-7xl">
           <RecruitmentTabs
             activeTab={activeTab}
@@ -88,7 +88,7 @@ export function RecruitmentWorkspace({
       </div>
 
       {/* Active Tab Screen */}
-      <div key={activeTab} className="recruitment-route-transition">
+      <div key={activeTab} className="recruitment-route-transition -mt-5 md:-mt-8">
       {activeTab === 'requisitions' ? (
         <RequisitionsPage
           onAddCandidateForRequisition={(req) => {

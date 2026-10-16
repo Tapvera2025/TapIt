@@ -20,7 +20,7 @@ import {
   type CompanyTeam,
 } from '../api/companyApi.js';
 import { listShifts, listWeekdaySchedules, type ShiftTemplate, type WeekdaySchedule } from '../api/shiftsApi.js';
-import { SkeletonTableRows } from '../../ui/components.js';
+import { SkeletonTableRows, WorkspacePageContainer } from '../../ui/components.js';
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -125,8 +125,7 @@ export function EmployeesPage({
   );
 
   return (
-    <div className="p-5 md:p-8">
-      <div className="mx-auto max-w-7xl">
+    <WorkspacePageContainer>
 
         {/* ── Page header ─────────────────────────────────────────────────── */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-app-border bg-app-surface px-5 py-4 sm:px-6">
@@ -435,8 +434,6 @@ export function EmployeesPage({
             </section>
           </div>
         )}
-      </div>
-
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       {editingId && (
         <EditEmployeeModal
@@ -571,7 +568,7 @@ export function EmployeesPage({
           onClose={() => setVerifyingEmployee(null)}
         />
       )}
-    </div>
+    </WorkspacePageContainer>
   );
 }
 
