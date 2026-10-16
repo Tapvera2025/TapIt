@@ -2551,20 +2551,23 @@ summary:active {
 }
 
 /* Scroll-linked glass edge for desktop day mode; surfaces and layout remain intact. */
-.project-detail-liquid-tabs {
+.project-detail-liquid-tabs,
+.access-explorer-liquid-tabs {
   width: 100%;
   max-width: none;
 }
 
 @media (min-width: 768px) {
-  .project-detail-liquid-tabs .messages-tab-button {
+  .project-detail-liquid-tabs .messages-tab-button,
+  .access-explorer-liquid-tabs .messages-tab-button {
     flex: 1 1 0;
     min-width: 0;
   }
 }
 
 @media (min-width: 1280px) {
-  .project-detail-liquid-tabs {
+  .project-detail-liquid-tabs,
+  .access-explorer-liquid-tabs {
     width: 100%;
   }
 

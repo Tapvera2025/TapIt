@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AiPetButton } from '../company/layout/AiPet.js';
 import { CompanySidebar } from '../company/layout/CompanySidebar.js';
 import { SettingsPage } from '../company/settings/SettingsPage.js';
@@ -20,6 +20,11 @@ export function ClientWorkspace({
   const [sidebarWidth, setSidebarWidth] = useState(256);
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
+  const mainScrollRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+  }, [pathname]);
 
   // An employee who lands here with a valid token is sent to their own workspace.
   const handleError = useCallback((cause: unknown) => {
@@ -140,7 +145,7 @@ export function ClientWorkspace({
           onResize={setSidebarWidth}
         />
 
-        <main id="main-content" data-app-scroll-container className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+        <main ref={mainScrollRef} id="main-content" data-app-scroll-container className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
           {page}
         </main>
       </div>

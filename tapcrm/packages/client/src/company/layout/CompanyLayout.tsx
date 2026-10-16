@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
@@ -116,19 +116,24 @@ export function CompanyLayout({
       : 256;
   });
   const mainScrollRef = useRef<HTMLElement>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const lenisRef = useRef<Lenis | null>(null);
+  const contentNeedsViewportHeight = pathname === '/company/messages' || /^\/company\/projects\/[^/]+$/.test(pathname);
 
   useEffect(() => {
     const main = mainScrollRef.current;
-    if (!main) return;
+    const content = scrollContentRef.current;
+    if (!main || !content) return;
 
     const desktopMotion = window.matchMedia('(min-width: 1280px) and (prefers-reduced-motion: no-preference)');
-    let lenis: Lenis | null = null;
     const syncScrollMode = () => {
-      lenis?.destroy();
-      lenis = desktopMotion.matches
+      lenisRef.current?.destroy();
+      lenisRef.current = desktopMotion.matches
         ? new Lenis({
             wrapper: main,
-            content: main,
+            // Keep content separate from the scroll wrapper so Lenis observes
+            // page-height changes as routed views and async data render.
+            content,
             duration: 1.15,
             smoothWheel: true,
             syncTouch: false,
@@ -156,9 +161,24 @@ export function CompanyLayout({
     desktopMotion.addEventListener('change', syncScrollMode);
     return () => {
       desktopMotion.removeEventListener('change', syncScrollMode);
-      lenis?.destroy();
+      lenisRef.current?.destroy();
+      lenisRef.current = null;
     };
   }, []);
+
+  useLayoutEffect(() => {
+    const main = mainScrollRef.current;
+    if (!main) return;
+
+    // Layouts persist between SPA routes, so explicitly start each page at its
+    // top instead of inheriting the previous route's scroll position.
+    main.scrollTop = 0;
+    const lenis = lenisRef.current;
+    if (lenis) {
+      lenis.resize();
+      lenis.scrollTo(0, { immediate: true });
+    }
+  }, [pathname]);
 
   useEffect(() => {
     window.localStorage.setItem('tapcrm:sidebar-collapsed', String(sidebarCollapsed));
@@ -277,7 +297,9 @@ export function CompanyLayout({
                 ?.style.setProperty('--shell-reflection-position', `${Math.round(progress * 100)}%`);
             }}
           >
-            {children}
+            <div ref={scrollContentRef} className={contentNeedsViewportHeight ? 'h-full min-h-full' : 'min-h-full'}>
+              {children}
+            </div>
           </main>
         </div>
       </div>

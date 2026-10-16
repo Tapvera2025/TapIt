@@ -42,6 +42,7 @@ import {
   Page,
   Select,
 } from '../../ui/components.js';
+import { LiquidMessagesTabBar } from '../../chat/LiquidMessagesTabBar.js';
 
 type ExplorerTab = 'person' | 'capability' | 'overrides' | 'role-changes';
 
@@ -230,6 +231,14 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
     return navigationScreensForActions(new Set(personResult.reachableActions));
   }, [personResult]);
   const screensByAction = useMemo(() => navigationScreensByAction(), []);
+  const explorerTabs = [
+    ...(canViewAccess ? [{ value: 'person', label: 'By person' }] : []),
+    { value: 'role-changes', label: 'Role changes' },
+    ...(canViewAccess ? [
+      { value: 'capability', label: 'By power' },
+      { value: 'overrides', label: 'Given directly' },
+    ] : []),
+  ];
 
   if (error) {
     return (
@@ -245,42 +254,12 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
       title="Access Explorer"
       description="See what each person can do and why, who has a particular power, and the powers given to people directly."
     >
-      <div className="mt-6 flex flex-wrap gap-1.5 rounded-2xl border border-app-border bg-app-surface p-1.5">
-        {canViewAccess ? (
-          <button
-            type="button"
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${tab === 'person' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
-            onClick={() => setTab('person')}
-          >
-            By person
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${tab === 'role-changes' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
-          onClick={() => setTab('role-changes')}
-        >
-          Role changes
-        </button>
-        {canViewAccess ? (
-          <button
-            type="button"
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${tab === 'capability' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
-            onClick={() => setTab('capability')}
-          >
-            By power
-          </button>
-        ) : null}
-        {canViewAccess ? (
-          <button
-            type="button"
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${tab === 'overrides' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
-            onClick={() => setTab('overrides')}
-          >
-            Given directly
-          </button>
-        ) : null}
-      </div>
+      <LiquidMessagesTabBar
+        tabs={explorerTabs}
+        value={tab}
+        onChange={(next) => setTab(next as ExplorerTab)}
+        className="mt-6 access-explorer-liquid-tabs"
+      />
 
       {tab === 'person' ? (
         <>

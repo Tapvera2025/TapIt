@@ -312,7 +312,7 @@ export function ConversationWorkspace({
       )}
 
       {/* Thread */}
-      <div className={`relative min-h-0 flex-1 flex-col ${!hideList ? 'md:before:absolute md:before:inset-y-5 md:before:left-0 md:before:w-px md:before:bg-app-border' : ''} ${!hideList && !chat.activeId ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${!hideList ? 'md:before:absolute md:before:inset-y-5 md:before:left-0 md:before:w-px md:before:bg-app-border' : ''} ${!hideList && !chat.activeId ? 'hidden md:flex' : 'flex'}`}>
         {!chat.activeId ? (
           <div className="grid flex-1 place-items-center text-sm text-app-muted">Select a conversation, or start a new one.</div>
         ) : (
