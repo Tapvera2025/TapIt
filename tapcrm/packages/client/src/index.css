@@ -1489,7 +1489,7 @@ nav button[aria-current='page']::before {
     background: transparent !important;
     box-shadow: none !important;
     cursor: grab;
-    touch-action: none;
+    touch-action: pan-y;
     user-select: none;
   }
 
@@ -2343,7 +2343,7 @@ summary:active {
 
 @media (min-width: 1280px) {
   .company-layout-shell {
-    --company-sidebar-top-gap: 2.75rem;
+    --company-sidebar-top-gap: 1rem;
   }
 
   /* The page container owns horizontal gutters; the shell owns the 24px
