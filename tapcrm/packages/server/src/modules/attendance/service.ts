@@ -6,6 +6,7 @@ import { db } from '../../platform/dal/db.js';
 import { daysBetween } from '../../platform/time.js';
 import * as api from './api-repository.js';
 import { loadDayDetail, type AttendanceDayDetail } from './detail.js';
+import { canRequestCorrection } from './correction.js';
 import { ATTENDANCE_ERROR_CODES, AttendanceNotFoundError } from './errors.js';
 import { applyCloseDecision } from './ledger.js';
 import { recalculateRecord } from './recalculate.js';
@@ -147,5 +148,10 @@ export async function dayDetail(
       'There is no attendance day for this person on this date.',
     );
   }
-  return detail;
+  return {
+    ...detail,
+    allowedActions: {
+      requestCorrection: await canRequestCorrection(ctx, userId, date),
+    },
+  };
 }

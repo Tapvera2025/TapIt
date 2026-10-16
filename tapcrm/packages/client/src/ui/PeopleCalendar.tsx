@@ -18,7 +18,6 @@ export interface PeopleCalendarDay {
   label: string;
   tone: CalendarTone;
   markers?: readonly string[];
-  shiftLabel?: string | null;
   halfDay?: boolean;
 }
 
@@ -139,7 +138,7 @@ export function PeopleCalendar({
         id={`${idPrefix}-${surface}-${date}`}
         data-calendar-date={date}
         aria-current={isSelected ? 'date' : undefined}
-        aria-label={`${calendarDateLabel(date)}: ${label}${markers.length ? `; ${markers.join(', ')}` : ''}${day?.shiftLabel ? `; shift ${day.shiftLabel}` : ''}`}
+        aria-label={`${calendarDateLabel(date)}: ${label}${markers.length ? `; ${markers.join(', ')}` : ''}`}
         onClick={() => selectDate(date)}
         onKeyDown={(event) => handleDateKeyDown(event, date)}
         className={`${base} ${sizing} ${isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : defaultSurfaceClass} ${isCurrentMonth ? '' : 'opacity-45'}`}
@@ -155,9 +154,6 @@ export function PeopleCalendar({
             {day?.halfDay && <span aria-hidden="true" className="inline-block size-2 rounded-full bg-current opacity-70 [clip-path:inset(0_50%_0_0)]" />}
             <span className="truncate">{label}</span>
           </span>
-          {surface !== 'strip' && day?.shiftLabel && (
-            <span className="mt-1 block truncate text-[11px] tabular-nums text-app-muted">{day.shiftLabel}</span>
-          )}
           {surface !== 'strip' && extraMarkers.length > 0 && (
             <span className="mt-1 flex flex-wrap gap-1" aria-hidden="true">
               {extraMarkers.map((marker) => (
