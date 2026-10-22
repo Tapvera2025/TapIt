@@ -1,4 +1,4 @@
-import { authorize } from '@tapcrm/authz';
+import { authorize, holdsPolicy } from '@tapcrm/authz';
 import type { DateOnly, AttendanceEventInput } from '@tapcrm/contracts';
 import { readDay } from '@tapcrm/contracts';
 import { randomUUID } from 'node:crypto';
@@ -137,6 +137,33 @@ async function authorizeSubject(
     teamId: subject.teamId,
     workDate,
     organizationToday: today,
+  });
+}
+
+/**
+ * Read-side permission used to render the employee correction affordance.
+ * The write endpoint still calls authorizeSubject, so this helper never
+ * replaces request authorization; it keeps the UI decision aligned with the
+ * same policy and lookback constraint used by the POST endpoint.
+ */
+export async function canRequestCorrection(
+  ctx: RequestContext,
+  userId: string,
+  workDate: DateOnly,
+): Promise<boolean> {
+  return db.transaction(ctx, async (tx) => {
+    const subject = await repo.findCorrectionSubject(tx, userId);
+    if (subject === null) return false;
+    return holdsPolicy(ctx, 'attendance:request-correction', {
+      type: 'attendanceCorrection',
+      id: userId,
+      userId: subject.id,
+      organizationId: subject.organizationId,
+      departmentId: subject.departmentId,
+      teamId: subject.teamId,
+      workDate,
+      organizationToday: await organizationToday(tx),
+    });
   });
 }
 

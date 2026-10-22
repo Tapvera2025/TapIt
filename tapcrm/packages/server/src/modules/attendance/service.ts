@@ -6,6 +6,7 @@ import { db } from '../../platform/dal/db.js';
 import { daysBetween } from '../../platform/time.js';
 import * as api from './api-repository.js';
 import { loadDayDetail, type AttendanceDayDetail } from './detail.js';
+import { canRequestCorrection } from './correction.js';
 import { ATTENDANCE_ERROR_CODES, AttendanceNotFoundError } from './errors.js';
 import { applyCloseDecision } from './ledger.js';
 import { recalculateRecord } from './recalculate.js';
@@ -14,6 +15,28 @@ import type { ListQuery } from './validators.js';
 
 /** AT-13: the read API serves at most a quarter; anything longer is an export. */
 export const MAX_READ_DAYS = 92;
+
+/**
+ * Reconcile overdue open days for one person before a live-status read.
+ *
+ * This reuses the same closure decision as the scheduled auto-close worker;
+ * it is deliberately limited to overdue rows and never recalculates payroll
+ * values. The caller may refresh its own projection after this returns.
+ */
+export async function reconcileOverdueForUser(
+  tx: Parameters<typeof repo.lockPerson>[0],
+  userId: string,
+  now: Date,
+  from: DateOnly | null = null,
+  to: DateOnly | null = null,
+): Promise<readonly { id: string; userId: string; workDate: DateOnly; closeDueAt: Date; inputVersion: number }[]> {
+  await repo.lockPerson(tx, userId);
+  const overdue = await repo.closeDueRecords(tx, now, null, MAX_READ_DAYS, userId, from, to);
+  for (const record of overdue) {
+    await applyCloseDecision(tx, record.userId, record.workDate);
+  }
+  return overdue;
+}
 
 /** One stored day as the list returns it: what the calculator stored, nothing computed (L17). */
 export interface AttendanceDayView {
@@ -115,18 +138,8 @@ export async function listRecords(
     // The same visibility filter must also gate the repair, and closure
     // must hold the person's lock before changing the ledger.
     if (query.userId === undefined || visibleRows.length === 0) return visibleRows;
-    await repo.lockPerson(tx, query.userId);
-    const overdue = await repo.closeDueRecords(
-      tx,
-      new Date(),
-      null,
-      MAX_READ_DAYS,
-      query.userId,
-      query.from,
-      query.to,
-    );
+    const overdue = await reconcileOverdueForUser(tx, query.userId, new Date(), query.from, query.to);
     for (const record of overdue) {
-      await applyCloseDecision(tx, record.userId, record.workDate);
       await recalculateRecord(tx, record.id);
     }
     return api.listRecordsInRange(tx, visibility, query.from, query.to, query.userId ?? null);
@@ -147,5 +160,10 @@ export async function dayDetail(
       'There is no attendance day for this person on this date.',
     );
   }
-  return detail;
+  return {
+    ...detail,
+    allowedActions: {
+      requestCorrection: await canRequestCorrection(ctx, userId, date),
+    },
+  };
 }

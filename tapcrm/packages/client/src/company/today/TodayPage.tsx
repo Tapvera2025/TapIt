@@ -3,6 +3,7 @@ import { loadTodayStatus, punch, type PunchKind, type LiveRow } from '../live/li
 import { getBreakPrompts, submitBreachExplanation, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
 import { SkeletonTodayPage, WorkspacePageContainer } from '../../ui/components.js';
+import { organizationToday } from '../organizationDate.js';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ function GreetingCard({
   const hour = now.getHours();
   const state = row?.state ?? 'NOT_IN';
 
-  const hasIn = state === 'NOT_IN' && (allowedMoves.includes('in') || allowedMoves.includes('scan'));
+  const hasIn = allowedMoves.includes('in');
   const hasOut = allowedMoves.includes('out');
   return (
     <div className="today-greeting-card dashboard-glass dashboard-glass-surface relative flex flex-col overflow-visible rounded-2xl border border-app-border p-4 lg:pb-2 xl:pb-4">
@@ -590,9 +591,11 @@ function buildActivityItems(
 export function TodayPage({
   fullName,
   userId,
+  organizationTimezone,
 }: {
   fullName: string;
   userId: string;
+  organizationTimezone: string;
 }): React.JSX.Element {
   const [status, setStatus] = useState<{ row: LiveRow | null; allowedMoves: readonly string[] } | null>(null);
   const [events, setEvents] = useState<AttendanceEventView[]>([]);
@@ -623,7 +626,7 @@ export function TodayPage({
     abort.current?.abort();
     abort.current = new AbortController();
     const sig = abort.current.signal;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = organizationToday(organizationTimezone);
 
     void (async () => {
       try {
@@ -647,7 +650,7 @@ export function TodayPage({
     })();
 
     return () => { abort.current?.abort(); };
-  }, [version, userId]);
+  }, [organizationTimezone, version, userId]);
 
   const refresh = (): void => setVersion((v) => v + 1);
 
