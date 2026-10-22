@@ -88,7 +88,7 @@ export function RecruitmentWorkspace({
       </div>
 
       {/* Active Tab Screen */}
-      <div key={activeTab} className="recruitment-route-transition -mt-5 md:-mt-8">
+      <div key={activeTab} className="recruitment-route-transition mt-4 md:mt-6">
       {activeTab === 'requisitions' ? (
         <RequisitionsPage
           onAddCandidateForRequisition={(req) => {

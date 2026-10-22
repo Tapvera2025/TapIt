@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { IdentityApiError } from '../api/authApi.js';
 import { getMySessions, revokeAllMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../api/sessionsApi.js';
 import { Icon } from '../../ui/Icon.js';
+import { WorkspacePageContainer } from '../../ui/components.js';
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
@@ -74,37 +75,79 @@ export function SessionsPage({ onBack, onSignedOut }: { onBack: () => void; onSi
     } finally { setBusy(false); }
   }
 
-  return <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-app-background p-4 sm:p-6 text-app-foreground md:p-10">
-    <div className="mx-auto w-full max-w-5xl">
-      <button type="button" onClick={onBack} className="mb-6 text-sm font-bold text-app-accent hover:underline">Back to CRM</button>
-      <header className="page-toolbar">
-        <div className="min-w-0 max-w-full">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-app-accent">Account security</p>
-          <h1 className="mt-1 break-words font-display text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
-            Active sessions
-          </h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-app-muted sm:mt-3">
-            Review where your TapCRM account is currently signed in. These are your sessions only.
-          </p>
-        </div>
-        {!loading && sessions.length > 0 && <div className="page-toolbar-action"><button type="button" onClick={() => setConfirm({ kind: 'all' })} className="w-full rounded-lg border border-[#d86b6b]/40 px-4 py-2.5 text-sm font-bold text-app-danger hover:bg-[#d86b6b]/10 sm:w-auto">Sign out everywhere</button></div>}
-      </header>
-      {notice && <p className="mt-6 rounded-lg border border-app-accent/30 bg-app-accent/10 px-4 py-3 text-sm text-app-accent">{notice}</p>}
-      {error && <div className="mt-6 rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-4 text-sm text-app-danger"><p>{error}</p><button type="button" onClick={() => { void load(); }} className="mt-2 font-bold underline">Retry</button></div>}
-      {loading && <div className="mt-8 grid gap-4 md:grid-cols-2" aria-label="Loading sessions" aria-busy="true">{[1, 2].map((item) => <div key={item} className="h-48 animate-pulse rounded-2xl border border-app-border bg-app-surface" />)}</div>}
-      {!loading && !error && sessions.length === 0 && <div className="mt-8 rounded-2xl border border-app-border bg-app-surface p-8 text-center"><h2 className="font-display text-xl font-bold">No active sessions</h2><p className="mt-2 text-sm text-app-muted">You&apos;re not currently signed in anywhere else.</p></div>}
-      {!loading && sessions.length > 0 && <>
-        <section className="mt-8"><h2 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-app-muted">Current session</h2>{sessions.filter((session) => session.current).map((session) => <SessionCard key={session.id} session={session} onRevoke={() => setConfirm({ kind: 'one', session })} />)}</section>
-        <section className="mt-8"><h2 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-app-muted">Other active sessions</h2>{sessions.filter((session) => !session.current).length === 0 ? <p className="rounded-xl border border-app-border bg-app-surface p-5 text-sm text-app-muted">No other active sessions.</p> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{sessions.filter((session) => !session.current).map((session) => <SessionCard key={session.id} session={session} onRevoke={() => setConfirm({ kind: 'one', session })} />)}</div>}</section>
-      </>}
+  const currentSessions = sessions.filter((session) => session.current);
+  const otherSessions = sessions.filter((session) => !session.current);
+
+  return (
+    <div className="min-h-full w-full text-app-foreground">
+      <WorkspacePageContainer className="space-y-6">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-sm font-semibold text-app-muted transition-colors hover:text-app-accent">
+          <span aria-hidden="true" className="text-lg leading-none">←</span> Back to CRM
+        </button>
+
+        <header className="page-toolbar">
+          <div className="min-w-0 max-w-full">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-app-accent">Account security</p>
+            <h1 className="mt-1 break-words font-display text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
+              Active sessions
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-app-muted sm:mt-3">
+              Review where your TapCRM account is currently signed in. These are your sessions only.
+            </p>
+          </div>
+          {!loading && sessions.length > 0 && (
+            <div className="page-toolbar-action">
+              <button type="button" onClick={() => setConfirm({ kind: 'all' })} className="w-full rounded-xl border border-app-danger/35 bg-app-danger/5 px-4 py-2.5 text-sm font-bold text-app-danger transition-colors hover:bg-app-danger/10 sm:w-auto">
+                Sign out everywhere
+              </button>
+            </div>
+          )}
+        </header>
+
+        {notice && <p className="rounded-xl border border-app-accent/30 bg-app-accent/10 px-4 py-3 text-sm text-app-accent">{notice}</p>}
+        {error && <div className="rounded-xl border border-app-danger/30 bg-app-danger/5 p-4 text-sm text-app-danger"><p>{error}</p><button type="button" onClick={() => { void load(); }} className="mt-2 font-bold underline">Retry</button></div>}
+        {loading && <div className="grid gap-4 md:grid-cols-2" aria-label="Loading sessions" aria-busy="true">{[1, 2].map((item) => <div key={item} className="h-48 animate-pulse rounded-2xl border border-app-border bg-app-surface" />)}</div>}
+        {!loading && !error && sessions.length === 0 && (
+          <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center shadow-sm">
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-app-accent/10 text-app-accent"><Icon name="monitor" className="size-6" /></span>
+            <h2 className="mt-4 font-display text-xl font-bold">No active sessions</h2>
+            <p className="mt-2 text-sm text-app-muted">You&apos;re not currently signed in anywhere else.</p>
+          </div>
+        )}
+        {!loading && sessions.length > 0 && (
+          <div className="space-y-8">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-app-muted">Current session</h2>
+                <span className="rounded-full bg-app-accent/10 px-2.5 py-1 text-[11px] font-semibold text-app-accent">This device</span>
+              </div>
+              {currentSessions.map((session) => <SessionCard key={session.id} session={session} onRevoke={() => setConfirm({ kind: 'one', session })} />)}
+            </section>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-app-muted">Other active sessions</h2>
+                <span className="text-xs font-medium text-app-muted">{otherSessions.length} {otherSessions.length === 1 ? 'device' : 'devices'}</span>
+              </div>
+              {otherSessions.length === 0 ? (
+                <p className="rounded-xl border border-app-border bg-app-surface p-5 text-sm text-app-muted">No other active sessions.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  {otherSessions.map((session) => <SessionCard key={session.id} session={session} onRevoke={() => setConfirm({ kind: 'one', session })} />)}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </WorkspacePageContainer>
+
+      {confirm && <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-5 backdrop-blur-md" role="presentation"><section className="w-full max-w-md rounded-2xl border border-app-border bg-app-surface p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="session-confirm-title"><h2 id="session-confirm-title" className="font-display text-2xl font-bold">{confirm.kind === 'all' ? 'Sign out of all sessions?' : 'Revoke this session?'}</h2><p className="mt-3 text-sm leading-6 text-app-muted">{confirm.kind === 'all' ? 'This will sign out your TapCRM account on all active devices, including this device.' : `The ${deviceName(confirm.session!)} session will be signed out of TapCRM.`}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={busy} onClick={() => setConfirm(null)} className="rounded-lg border border-app-border px-4 py-2.5 text-sm font-bold disabled:opacity-50">Cancel</button><button type="button" disabled={busy} onClick={() => { void confirmRevoke(); }} className="rounded-lg bg-[#d86b6b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Working...' : confirm.kind === 'all' ? 'Sign out everywhere' : 'Revoke session'}</button></div></section></div>}
     </div>
-    {confirm && <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-5 backdrop-blur-md" role="presentation"><section className="w-full max-w-md rounded-2xl border border-app-border bg-app-surface p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="session-confirm-title"><h2 id="session-confirm-title" className="font-display text-2xl font-bold">{confirm.kind === 'all' ? 'Sign out of all sessions?' : 'Revoke this session?'}</h2><p className="mt-3 text-sm leading-6 text-app-muted">{confirm.kind === 'all' ? 'This will sign out your TapCRM account on all active devices, including this device.' : `The ${deviceName(confirm.session!)} session will be signed out of TapCRM.`}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={busy} onClick={() => setConfirm(null)} className="rounded-lg border border-app-border px-4 py-2.5 text-sm font-bold disabled:opacity-50">Cancel</button><button type="button" disabled={busy} onClick={() => { void confirmRevoke(); }} className="rounded-lg bg-[#d86b6b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Working...' : confirm.kind === 'all' ? 'Sign out everywhere' : 'Revoke session'}</button></div></section></div>}
-  </main>;
+  );
 }
 
 function SessionCard({ session, onRevoke }: { session: IdentitySession; onRevoke: () => void }): React.JSX.Element {
   return (
-    <article className="w-full max-w-full rounded-2xl border border-app-border bg-app-surface p-4 sm:p-5 shadow-[0_14px_40px_rgba(0,0,0,0.08)]">
+    <article className={`w-full max-w-full rounded-2xl border border-app-border bg-app-surface p-4 shadow-[0_14px_40px_rgba(0,0,0,0.06)] sm:p-5 ${session.current ? 'ring-1 ring-inset ring-app-accent/20' : ''}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-lg text-app-accent" aria-hidden="true">
