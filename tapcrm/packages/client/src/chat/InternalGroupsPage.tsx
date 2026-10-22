@@ -164,7 +164,7 @@ function CreateGroupModal({
           className="mb-3 w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm outline-none focus:border-app-accent"
         />
         <p className="mb-1 text-xs font-semibold text-app-muted">Members</p>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {colleagues.length === 0 ? (
             <Loading />
           ) : (
@@ -263,7 +263,7 @@ export function ManageGroupModal({
         </div>
 
         <p className="mb-1 text-xs font-semibold text-app-muted">Members</p>
-        <ul className="mb-3 min-h-0 flex-1 overflow-y-auto">
+        <ul data-lenis-prevent className="mb-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {conversation.members.map((member) => (
             <li key={member.userId} className="flex items-center justify-between gap-2 py-1 text-sm">
               <span>{member.fullName}</span>

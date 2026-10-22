@@ -137,6 +137,11 @@ export function LeaveTypesPage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
+      <header className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">Leave</p>
+        <h1 className="font-display text-2xl font-bold">Leave types</h1>
+        <p className="text-sm text-app-muted">Configure the leave types employees can request and their yearly accrual rules.</p>
+      </header>
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold">Leave types</h2>
