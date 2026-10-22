@@ -371,7 +371,7 @@ export function CompanyWorkspace({
         />
       );
     if (pathname === '/company/attendance/today')
-      return <TodayPage fullName={fullName} userId={userId} />;
+      return <TodayPage fullName={fullName} userId={userId} organizationTimezone={organizationTimeZone} />;
     if (pathname === '/company/attendance/my') return <AttendancePage userId={userId} organizationTimezone={organizationTimeZone} />;
     if (
       pathname === '/company/attendance/employee-wise' &&

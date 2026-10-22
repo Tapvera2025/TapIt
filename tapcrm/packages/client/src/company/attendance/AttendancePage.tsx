@@ -17,20 +17,10 @@ import {
 import { calendarMonth } from '../../ui/calendar-model.js';
 import { attendanceStatus, MonthlyAttendanceKpis } from './AttendanceVisuals.js';
 import { Card, WorkspacePageContainer } from '../../ui/components.js';
-
-function todayDate(timezone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
-  return `${values['year']}-${values['month']}-${values['day']}`;
-}
+import { organizationToday } from '../organizationDate.js';
 
 function currentMonth(timezone: string): string {
-  return todayDate(timezone).slice(0, 7);
+  return organizationToday(timezone).slice(0, 7);
 }
 
 function addDays(value: string, amount: number): string {
@@ -107,7 +97,7 @@ function fmtMonth(value: string): string {
 }
 
 export function AttendancePage({ userId, organizationTimezone }: { userId: string; organizationTimezone: string }): React.JSX.Element {
-  const today = todayDate(organizationTimezone);
+  const today = organizationToday(organizationTimezone);
   const [month, setMonth] = useState(currentMonth(organizationTimezone));
   const [selectedDate, setSelectedDate] = useState(today);
   const [view, setView] = useState<'month' | 'week'>('month');
