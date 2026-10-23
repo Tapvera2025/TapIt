@@ -52,7 +52,7 @@ function dayLabel(day: AttendanceDayView): string {
   if (day.dayType === 'holiday') return 'Holiday';
   if (day.dayType === 'leave') return 'On leave';
   if (day.state === 'open' && !day.status && day.arrivalAt !== null) return 'In progress — punch out pending';
-  if (day.status) return day.status;
+  if (day.status) return attendanceStatus({ status: day.status, dayType: day.dayType, isWfh: day.isWfh }).label;
   if (day.minutes.worked > 0) return `${Math.floor(day.minutes.worked / 60)}h ${day.minutes.worked % 60}m`;
   return 'No record';
 }

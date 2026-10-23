@@ -62,10 +62,8 @@ export function MonthlyAttendanceKpis({
   const circumference = 2 * Math.PI * radius;
   const segmentGap = 3;
   let segmentOffset = 0;
-  let offset = 0;
   const primaryPercentages = primaryItems.map((item) => {
     const percentage = total > 0 ? (item.value / total) * 100 : 0;
-    offset += percentage;
     return { ...item, percentage };
   });
 
