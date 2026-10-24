@@ -19,10 +19,9 @@ import { addDays, instantAt } from '../../platform/time.js';
  * board use, so they cannot disagree about when a day began or ended.
  */
 
-export const RULES_VERSION = 'attendance-rules/1';
+export const RULES_VERSION = 'attendance-rules/2';
 
 /** SH-4: flexible days use fixed thresholds, not settings. */
-const FLEXIBLE_FULL_DAY = 480;
 const FLEXIBLE_HALF_DAY = 300;
 
 export interface Overlay {
@@ -374,15 +373,14 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
     .filter((overlay) => overlay.consequence === 'deduct-minutes')
     .reduce((sum, overlay) => sum + (overlay.minutes ?? 0), 0);
   const effective = Math.max(0, workedMinutes - deducted);
-  const fullDay =
-    input.shift.kind === 'flexible'
-      ? FLEXIBLE_FULL_DAY
-      : (input.shift.fullDayMinutes ?? Infinity);
   const halfDay =
     input.shift.kind === 'flexible'
       ? FLEXIBLE_HALF_DAY
       : (input.shift.halfDayMinutes ?? Infinity);
-  let present = effective >= fullDay ? 2 : effective >= halfDay ? 1 : 0;
+  // Reaching the half-day threshold is a fully paid present day. The separate
+  // half-day status remains available for explicit policy consequences and
+  // approved half-day leave, handled above/below this threshold calculation.
+  let present = effective >= halfDay ? 2 : 0;
   if (consequences.some((overlay) => overlay.consequence === 'mark-half-day'))
     present = Math.min(present, 1);
   if (consequences.some((overlay) => overlay.consequence === 'mark-absent')) present = 0;

@@ -22,6 +22,7 @@ import {
   insertMessage,
   listColleagues as repoListColleagues,
   listConversationsForUser,
+  unreadSummaryForUser,
   listMessages as repoListMessages,
   markConversationRead,
   removeConversationMember,
@@ -86,6 +87,10 @@ export async function loadMessageResource(ctx: RequestContext, id: string): Prom
 
 export async function listConversations(ctx: RequestContext, kind?: ConversationKind): Promise<Conversation[]> {
   return listConversationsForUser(ctx, kind);
+}
+
+export async function getUnreadSummary(ctx: RequestContext) {
+  return unreadSummaryForUser(ctx);
 }
 
 export async function listColleagues(ctx: RequestContext): Promise<{ id: string; fullName: string }[]> {

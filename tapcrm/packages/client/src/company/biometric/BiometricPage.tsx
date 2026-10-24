@@ -59,6 +59,11 @@ export function BiometricPage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
+      <header className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">HR · Attendance</p>
+        <h1 className="font-display text-2xl font-bold">Biometric attendance</h1>
+        <p className="text-sm text-app-muted">Manage biometric devices, employee PIN mappings, and imported punch records.</p>
+      </header>
       <div className="flex flex-wrap gap-2">
         {(['devices', 'mapping', 'punches'] as const).map((key) => (
           <button

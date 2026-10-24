@@ -54,6 +54,8 @@ export const createEmployeeSchema = z.object({
     })
     .optional(),
   shiftId: z.string().uuid().optional(),
+  weekdayScheduleId: z.string().uuid().optional(),
+  weekdayScheduleEffectiveFrom: date.optional(),
   qualifications: z
     .array(
       z.object({
@@ -107,6 +109,8 @@ export const updateEmployeeSchema = z
     joiningDate: date.nullable(),
     /** The last day they work here, inclusive. */
     leavingDate: date.nullable(),
+    weekdayScheduleId: z.string().uuid(),
+    weekdayScheduleEffectiveFrom: date,
   })
   .partial()
   .strict()

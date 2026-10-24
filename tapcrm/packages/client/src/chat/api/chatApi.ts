@@ -1,6 +1,12 @@
 import { identityRequest } from '../../identity/api/authApi.js';
 
 export type ConversationKind = 'direct' | 'group' | 'project';
+export interface ChatUnreadSummary {
+  total: number;
+  direct: number;
+  group: number;
+  project: number;
+}
 export const REACTION_EMOJI = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
 export type ReactionEmoji = (typeof REACTION_EMOJI)[number];
 
@@ -51,6 +57,10 @@ export interface ChatMessage {
 
 export function getConversations(kind?: ConversationKind): Promise<Conversation[]> {
   return identityRequest(`/api/chat/conversations${kind ? `?kind=${kind}` : ''}`);
+}
+
+export function getChatUnreadSummary(): Promise<ChatUnreadSummary> {
+  return identityRequest('/api/chat/unread-summary');
 }
 
 export function getConversation(id: string): Promise<Conversation> {

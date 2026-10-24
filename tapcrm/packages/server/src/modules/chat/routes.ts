@@ -4,6 +4,7 @@ import {
   addGroupMembers,
   archiveGroup,
   createInternalGroup,
+  getUnreadSummary,
   forwardMessage,
   getConversation,
   listColleagues,
@@ -51,6 +52,14 @@ export function registerChatRoutes(): void {
     action: 'chat:view',
     module: 'chat',
     handler: async ({ ctx, query }) => listConversations(ctx, listConversationsQuerySchema.parse(query).kind),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/chat/unread-summary',
+    action: 'chat:view',
+    module: 'chat',
+    handler: async ({ ctx }) => getUnreadSummary(ctx),
   });
 
   // Who a Direct Message can be started with — every employee/super-admin in

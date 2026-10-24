@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getChatColleagues } from '../chat/index.js';
+import { LiquidMessagesTabBar } from '../chat/LiquidMessagesTabBar.js';
 import { TasksPage } from '../company/tasks/index.js';
 import { Button, Card, Notice, SkeletonDetail, SkeletonMessageThread } from '../ui/components.js';
 import { getProject, setProjectTeam, type Project } from './api/projectsApi.js';
@@ -9,12 +10,12 @@ import { ProjectDiscussionTab } from './ProjectDiscussionTab.js';
 import { ProjectReportsPage } from './reports/ProjectReportsPage.js';
 
 type Tab = 'details' | 'discussions' | 'tasks' | 'reports';
-const TABS: Array<[Tab, string]> = [
-  ['details', 'Project Details'],
-  ['discussions', 'Project Discussions'],
-  ['tasks', 'Task Assignment'],
-  ['reports', 'Reports'],
-];
+const TABS = [
+  { value: 'details', label: 'Project Details', shortLabel: 'Details' },
+  { value: 'discussions', label: 'Project Discussions', shortLabel: 'Discussion' },
+  { value: 'tasks', label: 'Task Assignment', shortLabel: 'Tasks' },
+  { value: 'reports', label: 'Reports', shortLabel: 'Reports' },
+] as const;
 
 const PRIORITY_LABEL: Record<Project['priority'], string> = { low: 'Low', medium: 'Medium', high: 'High' };
 const STATUS_LABEL: Record<Project['workStatus'], string> = { new: 'New', ongoing: 'Ongoing', ended: 'Ended', expired: 'Expired' };
@@ -60,21 +61,17 @@ export function ProjectDetailPage({
         <Button kind="secondary" onClick={() => setShowEdit(true)} className="!shrink-0 !px-3 !py-1.5 !text-xs">Edit project</Button>
       </div>
 
-      <div className="flex shrink-0 gap-1 border-b border-app-border px-4 pt-1.5">
-        {TABS.map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setTab(value)}
-            className={`rounded-t-lg px-3 py-1.5 text-sm font-semibold ${tab === value ? 'border-b-2 border-app-accent text-app-accent' : 'text-app-muted hover:text-app-foreground'}`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="shrink-0 border-b border-app-border px-4 py-1.5">
+        <LiquidMessagesTabBar
+          tabs={TABS}
+          value={tab}
+          onChange={(next) => setTab(next as Tab)}
+          className="project-detail-liquid-tabs !pt-0"
+        />
       </div>
 
       {tab === 'discussions' ? (
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 p-2 sm:p-4">
           <ProjectDiscussionTab project={project} currentUserId={currentUserId} onProjectUpdated={setProject} />
         </div>
       ) : (

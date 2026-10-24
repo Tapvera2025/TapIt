@@ -23,7 +23,16 @@ export async function loadToday(
   userId: string,
   now: Date,
 ): Promise<{ row: repo.Row | null; allowedMoves: readonly EventKind[] }> {
-  const row = await repo.readRow(tx, userId);
+  // A live read is also a safe recovery point for a delayed auto-close job.
+  // Reuse attendance's idempotent closure decision, then refresh the live
+  // projection only when the row is overdue or its next rollover is due.
+  const overdue = await AttendanceFacade.reconcileOverdueForUser(tx, userId, now);
+  let row = await repo.readRow(tx, userId);
+  if (row !== null && (overdue.length > 0 || row.rolloverDueAt <= now)) {
+    const projector = AttendanceFacade.presenceProjector();
+    if (projector !== null) await projector.refresh(tx, userId, now);
+    row = await repo.readRow(tx, userId);
+  }
   const currentDay = await AttendanceFacade.currentDayFor(tx, userId, now);
 
   // No row yet → only allow punch in if the employee has a shift today.
@@ -31,6 +40,18 @@ export async function loadToday(
     const todayWindow = await ShiftsFacade.dayWindowContaining(tx, userId, now);
     const shift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
     return { row: null, allowedMoves: shift.kind !== 'none' ? ['in'] : [] };
+  }
+
+  // Once a previous day has been auto-closed, the attendance ledger is
+  // finished even though currentDayFor intentionally ignores system
+  // auto-outs for event attribution. Do not expose the old day's Punch Out;
+  // resolve today's shift and offer only today's Punch In.
+  if (row.state === 'FINISHED' && currentDay !== null) {
+    const todayWindow = await ShiftsFacade.dayWindowContaining(tx, userId, now);
+    if (row.workDate < todayWindow.date) {
+      const todayShift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
+      return { row, allowedMoves: todayShift.kind !== 'none' ? ['in'] : [] };
+    }
   }
 
   // A stale open session AND the new day's opening window has begun:

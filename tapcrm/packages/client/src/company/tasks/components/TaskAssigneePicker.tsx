@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { getTaskAssignees } from '../api/tasksApi.js';
 import type {
   TaskAssignableUser,
@@ -16,7 +16,10 @@ export function TaskAssigneePicker({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [listPlacement, setListPlacement] = useState<'above' | 'below'>('below');
+  const [listMaxHeight, setListMaxHeight] = useState(208);
   const containerRef = useRef<HTMLDivElement>(null);
+  const controlRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
 
   useEffect(() => {
@@ -85,6 +88,38 @@ export function TaskAssigneePicker({
     });
   }, [assignees, selectedAssigneeIds, searchTerm]);
 
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const updateListPosition = () => {
+      const control = controlRef.current;
+      if (!control) return;
+
+      const dialogBody = control.closest<HTMLElement>('.ui-dialog-body');
+      const controlRect = control.getBoundingClientRect();
+      const bounds = dialogBody?.getBoundingClientRect() ?? {
+        top: 0,
+        bottom: window.innerHeight,
+      };
+      const below = Math.max(0, bounds.bottom - controlRect.bottom - 8);
+      const above = Math.max(0, controlRect.top - bounds.top - 8);
+      const desiredHeight = Math.min(208, Math.max(48, availableAssignees.length * 48));
+      const placeAbove = above > below;
+      const availableSpace = placeAbove ? above : below;
+
+      setListPlacement(placeAbove ? 'above' : 'below');
+      setListMaxHeight(Math.max(48, Math.min(desiredHeight, availableSpace)));
+    };
+
+    updateListPosition();
+    window.addEventListener('resize', updateListPosition);
+    window.addEventListener('scroll', updateListPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateListPosition);
+      window.removeEventListener('scroll', updateListPosition, true);
+    };
+  }, [isOpen, availableAssignees.length]);
+
   function handleAdd(id: string) {
     if (!selectedAssigneeIds.includes(id)) {
       onChange([...selectedAssigneeIds, id]);
@@ -135,7 +170,7 @@ export function TaskAssigneePicker({
       )}
 
       {/* Search / Selector Input */}
-      <div className="relative">
+      <div ref={controlRef} className="relative">
         <input
           type="text"
           disabled={disabled}
@@ -163,6 +198,63 @@ export function TaskAssigneePicker({
             Loading...
           </div>
         )}
+
+        {isOpen && !disabled && (
+          <ul
+            id={listboxId}
+            role="listbox"
+            style={{
+              maxHeight: `${listMaxHeight}px`,
+              overflowY: 'auto',
+              overscrollBehaviorY: 'contain',
+              WebkitOverflowScrolling: 'touch',
+              touchAction: 'pan-y',
+            }}
+            className={`task-assignee-options absolute z-20 w-full overflow-y-auto rounded-md border border-app-border bg-app-surface shadow-md outline-none ${listPlacement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+            onWheel={(event) => {
+              const list = event.currentTarget;
+              const atTop = list.scrollTop <= 0 && event.deltaY < 0;
+              const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1 && event.deltaY > 0;
+              if (atTop || atBottom) event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            {availableAssignees.length === 0 ? (
+              <li className="px-3 py-2 text-xs text-app-muted">
+                {loadError
+                  ? `Error: ${loadError}`
+                  : assignees.length === 0
+                    ? 'No assignable employees found in your scope'
+                    : 'No matching unassigned employees'}
+              </li>
+            ) : (
+              availableAssignees.map((emp) => (
+                <li
+                  key={emp.id}
+                  role="option"
+                  aria-selected="false"
+                  tabIndex={0}
+                  onClick={() => handleAdd(emp.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleAdd(emp.id);
+                    }
+                  }}
+                  className="cursor-pointer border-b border-app-border/30 px-3 py-1.5 text-xs transition last:border-b-0 hover:bg-app-accent/5 hover:text-app-accent focus:bg-app-accent/5 focus:text-app-accent"
+                >
+                  <div className="font-medium text-app-foreground">
+                    {emp.fullName}
+                  </div>
+                  <div className="text-[11px] text-app-muted">
+                    {emp.email ?? emp.positionName ?? 'Employee'}
+                    {emp.departmentName ? ` • ${emp.departmentName}` : ''}
+                  </div>
+                </li>
+              ))
+            )}
+          </ul>
+        )}
       </div>
 
       {loadError && (
@@ -171,49 +263,6 @@ export function TaskAssigneePicker({
         </p>
       )}
 
-      {/* Dropdown Options List */}
-      {isOpen && !disabled && (
-        <ul
-          id={listboxId}
-          role="listbox"
-          className="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-md border border-app-border bg-app-surface shadow-md outline-none"
-        >
-          {availableAssignees.length === 0 ? (
-            <li className="px-3 py-2 text-xs text-app-muted">
-              {loadError
-                ? `Error: ${loadError}`
-                : assignees.length === 0
-                  ? 'No assignable employees found in your scope'
-                  : 'No matching unassigned employees'}
-            </li>
-          ) : (
-            availableAssignees.map((emp) => (
-              <li
-                key={emp.id}
-                role="option"
-                aria-selected="false"
-                tabIndex={0}
-                onClick={() => handleAdd(emp.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleAdd(emp.id);
-                  }
-                }}
-                className="cursor-pointer border-b border-app-border/30 px-3 py-1.5 text-xs transition last:border-b-0 hover:bg-app-accent/5 hover:text-app-accent focus:bg-app-accent/5 focus:text-app-accent"
-              >
-                <div className="font-medium text-app-foreground">
-                  {emp.fullName}
-                </div>
-                <div className="text-[11px] text-app-muted">
-                  {emp.email ?? emp.positionName ?? 'Employee'}
-                  {emp.departmentName ? ` • ${emp.departmentName}` : ''}
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
-      )}
     </div>
   );
 }

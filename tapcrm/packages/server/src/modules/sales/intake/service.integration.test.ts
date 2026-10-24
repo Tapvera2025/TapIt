@@ -21,7 +21,8 @@ import { ingest, IntakeConnectorNotFoundError } from './service.js';
  *   - unknown connector throws IntakeConnectorNotFoundError
  */
 const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
-const RUN = randomUUID().slice(0, 8);
+// Digits only: RUN is embedded in E.164 phone numbers (contact_primary_phone_check).
+const RUN = String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
 const ORG = randomUUID();
 const ACTOR = randomUUID();
 const SOURCE = randomUUID();

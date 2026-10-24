@@ -135,11 +135,8 @@ export function TaskFilters({
         )}
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           {isSearchOpen ? (
-            <div className="relative min-w-0 flex-1 sm:w-72 lg:w-80">
-              <Icon
-                name="search"
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-app-muted"
-              />
+            <div className="task-search-glass relative flex min-w-0 flex-1 items-center gap-2 rounded-full border border-app-border/80 bg-app-surface/75 px-4 py-1.5 shadow-sm backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/50 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--app-accent)_12%,transparent)] sm:w-72 sm:flex-none lg:w-80">
+              <Icon name="search" className="size-[18px] shrink-0 text-app-muted" />
               <input
                 type="search"
                 autoFocus
@@ -147,7 +144,7 @@ export function TaskFilters({
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search tasks..."
-                className="w-full rounded-xl border border-app-border bg-app-background/70 py-2 pl-9 pr-8 text-sm text-app-foreground outline-none transition focus:border-app-accent disabled:opacity-50"
+                className="min-w-0 flex-1 bg-transparent py-2 text-sm text-app-foreground outline-none placeholder:text-app-muted/80 disabled:opacity-50"
                 aria-label="Search tasks"
               />
               <button
@@ -156,10 +153,10 @@ export function TaskFilters({
                   setSearchInput('');
                   setIsSearchOpen(false);
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-app-muted transition hover:bg-app-muted/10 hover:text-app-foreground"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/50"
                 aria-label="Close search"
               >
-                <Icon name="close" className="size-3.5" />
+                <Icon name="close" className="size-4" />
               </button>
             </div>
           ) : (
@@ -167,11 +164,11 @@ export function TaskFilters({
               type="button"
               disabled={disabled}
               onClick={() => setIsSearchOpen(true)}
-              className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-app-border bg-app-background/70 text-app-muted transition hover:border-app-accent/60 hover:text-app-accent disabled:opacity-50"
+              className="task-search-trigger inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-app-border/80 bg-app-surface/75 text-app-muted shadow-sm backdrop-blur-xl transition-[color,border-color,background-color,box-shadow] hover:border-app-accent/50 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/50 disabled:opacity-50"
               aria-label="Open task search"
               title="Search tasks"
             >
-              <Icon name="search" className="size-4" />
+              <Icon name="search" className="size-[18px]" />
             </button>
           )}
           {onCreateTask && (

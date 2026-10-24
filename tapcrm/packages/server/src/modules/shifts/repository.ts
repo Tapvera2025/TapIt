@@ -14,6 +14,8 @@ import {
   type ShiftInputs,
   type ShiftSettingInput,
   type ShiftVersionInput,
+  type WorkingDayExceptionInput,
+  type WeekdayScheduleInput,
 } from './resolve.js';
 
 /**
@@ -29,6 +31,24 @@ export interface Subject {
   readonly departmentId: string | null;
   readonly teamId: string | null;
   readonly status: string;
+}
+
+export interface WorkingDayExceptionRecord {
+  id: string;
+  exceptionDate: DateOnly;
+  reason: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  departmentIds: string[];
+  departmentNames: string[];
+}
+
+export interface WorkingDayExceptionPage {
+  readonly items: WorkingDayExceptionRecord[];
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+  readonly totalPages: number;
 }
 
 export async function findSubject(tx: Tx, userId: string): Promise<Subject | null> {
@@ -99,12 +119,18 @@ export async function loadShiftInputs(
   const departmentIds = [
     ...new Set([today, ...[...(placements?.values() ?? [])].map((p) => p.departmentId)]),
   ].filter((id): id is string => id !== null);
+  const departmentIdsByDate = new Map<DateOnly, string | null>();
+  for (let date = first; date <= last; date = addDays(date, 1)) {
+    departmentIdsByDate.set(date, placements?.get(date)?.departmentId ?? today);
+  }
   const [
     timezone,
     shifts,
     rotations,
     overrides,
     assignments,
+    weekdaySchedules,
+    workingDayExceptions,
     flexibleRequests,
     departmentDefaults,
     settings,
@@ -121,6 +147,32 @@ export async function loadShiftInputs(
         FROM shift_assignment
         WHERE user_id = ${userId} AND effective_from <= ${last}
           AND (effective_to IS NULL OR effective_to > ${first})
+      `),
+    tx.query<WeekdayScheduleInput>(sql`
+        SELECT a.effective_from::text AS effective_from,
+               a.effective_to::text AS effective_to,
+               s.working_weekdays AS working_weekdays,
+               s.status
+        FROM weekday_schedule_assignment a
+        JOIN weekday_schedule s
+          ON s.organization_id = a.organization_id AND s.id = a.schedule_id
+        WHERE a.user_id = ${userId} AND a.effective_from <= ${last}
+          AND (a.effective_to IS NULL OR a.effective_to > ${first})
+      `),
+    tx.query<WorkingDayExceptionInput & { departmentIds: string[] }>(sql`
+        SELECT e.exception_date::text AS date,
+               COALESCE(
+                 (
+                   SELECT array_agg(s.department_id)
+                   FROM working_day_exception_scope s
+                   WHERE s.organization_id = e.organization_id
+                     AND s.exception_id = e.id
+                 ),
+                 ARRAY[]::uuid[]
+               ) AS department_ids
+        FROM working_day_exception e
+        WHERE e.status = 'active'
+          AND e.exception_date BETWEEN ${first} AND ${last}
       `),
     tx.query<FlexibleRequestInput>(sql`
         SELECT from_date::text AS from_date, to_date::text AS to_date FROM shift_request
@@ -148,6 +200,9 @@ export async function loadShiftInputs(
     rotations,
     overrides,
     assignments,
+    weekdaySchedules,
+    workingDayExceptions,
+    departmentIdsByDate,
     flexibleRequests,
     departmentDefaults: departmentDefaultsFor(
       departmentDefaults,
@@ -180,6 +235,275 @@ export interface ShiftWithVersion extends ShiftRow {
   graceMinutes: number | null;
   fullDayMinutes: number | null;
   halfDayMinutes: number | null;
+}
+
+export interface WeekdayScheduleRow {
+  id: string;
+  name: string;
+  workingWeekdays: number[];
+  status: 'active' | 'inactive';
+  createdAt: string;
+}
+
+export interface WeekdayScheduleAssignmentRow {
+  scheduleId: string;
+  scheduleName: string;
+  workingWeekdays: number[];
+  effectiveFrom: DateOnly;
+  effectiveTo: DateOnly | null;
+}
+
+export async function listWeekdaySchedules(tx: Tx): Promise<WeekdayScheduleRow[]> {
+  return tx.query<WeekdayScheduleRow>(sql`
+    SELECT id, name, working_weekdays AS "workingWeekdays", status,
+           created_at AS "createdAt"
+    FROM weekday_schedule
+    ORDER BY status DESC, name ASC
+  `);
+}
+
+export async function findWeekdaySchedule(
+  tx: Tx,
+  scheduleId: string,
+): Promise<WeekdayScheduleRow | null> {
+  return tx.maybeOne<WeekdayScheduleRow>(sql`
+    SELECT id, name, working_weekdays AS "workingWeekdays", status,
+           created_at AS "createdAt"
+    FROM weekday_schedule
+    WHERE id = ${scheduleId}
+  `);
+}
+
+export async function findCurrentWeekdayScheduleAssignment(
+  tx: Tx,
+  userId: string,
+  asOfDate: DateOnly,
+): Promise<WeekdayScheduleAssignmentRow | null> {
+  return tx.maybeOne<WeekdayScheduleAssignmentRow>(sql`
+    SELECT a.schedule_id AS "scheduleId", s.name AS "scheduleName",
+           s.working_weekdays AS "workingWeekdays",
+           a.effective_from AS "effectiveFrom", a.effective_to AS "effectiveTo"
+    FROM weekday_schedule_assignment a
+    JOIN weekday_schedule s
+      ON s.organization_id = a.organization_id AND s.id = a.schedule_id
+    WHERE a.user_id = ${userId}
+      AND a.effective_from <= ${asOfDate}
+      AND (a.effective_to IS NULL OR a.effective_to > ${asOfDate})
+    ORDER BY a.effective_from DESC
+    LIMIT 1
+  `);
+}
+
+export async function insertWeekdaySchedule(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    name: string;
+    workingWeekdays: readonly number[];
+    createdBy: string;
+  },
+): Promise<string> {
+  const row = await tx.one<{ id: string }>(sql`
+    INSERT INTO weekday_schedule (organization_id, name, working_weekdays, created_by)
+    VALUES (${input.organizationId}, ${input.name}, ${input.workingWeekdays}::smallint[], ${input.createdBy})
+    RETURNING id
+  `);
+  return row.id;
+}
+
+export async function setWeekdayScheduleStatus(
+  tx: Tx,
+  scheduleId: string,
+  status: 'active' | 'inactive',
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE weekday_schedule SET status = ${status} WHERE id = ${scheduleId}
+  `);
+}
+
+export async function listWorkingDayExceptions(
+  tx: Tx,
+  organizationId: string,
+  query: { page: number; pageSize: number },
+): Promise<WorkingDayExceptionPage> {
+  const [rows, count] = await Promise.all([
+    tx.query<Omit<WorkingDayExceptionRecord, 'departmentIds' | 'departmentNames'>>(sql`
+      SELECT id, exception_date::text AS exception_date, reason, status, created_at::text AS created_at
+      FROM working_day_exception
+      WHERE organization_id = ${organizationId}
+      ORDER BY exception_date DESC, created_at DESC, id DESC
+      LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}
+    `),
+    tx.one<{ count: number }>(sql`
+      SELECT count(*)::int AS count
+      FROM working_day_exception
+      WHERE organization_id = ${organizationId}
+    `),
+  ]);
+  const ids = rows.map((row) => row.id);
+  const scopes = ids.length === 0
+    ? []
+    : await tx.query<{ exceptionId: string; departmentId: string; departmentName: string }>(sql`
+        SELECT s.exception_id, s.department_id, d.name AS department_name
+        FROM working_day_exception_scope s
+        JOIN department d
+          ON d.organization_id = s.organization_id AND d.id = s.department_id
+        WHERE s.organization_id = ${organizationId}
+          AND s.exception_id = ANY(${ids}::uuid[])
+        ORDER BY d.name
+      `);
+  const byException = new Map<string, { ids: string[]; names: string[] }>();
+  for (const scope of scopes) {
+    const current = byException.get(scope.exceptionId) ?? { ids: [], names: [] };
+    current.ids.push(scope.departmentId);
+    current.names.push(scope.departmentName);
+    byException.set(scope.exceptionId, current);
+  }
+  const items = rows.map((row) => {
+    const scope = byException.get(row.id) ?? { ids: [], names: [] };
+    return { ...row, departmentIds: scope.ids, departmentNames: scope.names };
+  });
+  return {
+    items,
+    total: count.count,
+    page: query.page,
+    pageSize: query.pageSize,
+    totalPages: Math.max(1, Math.ceil(count.count / query.pageSize)),
+  };
+}
+
+export async function findWorkingDayException(
+  tx: Tx,
+  organizationId: string,
+  id: string,
+): Promise<WorkingDayExceptionRecord | null> {
+  const rows = await tx.query<Omit<WorkingDayExceptionRecord, 'departmentIds' | 'departmentNames'>>(sql`
+    SELECT id, exception_date::text AS exception_date, reason, status, created_at::text AS created_at
+    FROM working_day_exception
+    WHERE organization_id = ${organizationId} AND id = ${id}
+  `);
+  const row = rows[0];
+  if (row === undefined) return null;
+  const scopes = await tx.query<{ departmentId: string; departmentName: string }>(sql`
+    SELECT s.department_id, d.name AS department_name
+    FROM working_day_exception_scope s
+    JOIN department d
+      ON d.organization_id = s.organization_id AND d.id = s.department_id
+    WHERE s.organization_id = ${organizationId} AND s.exception_id = ${id}
+    ORDER BY d.name
+  `);
+  return {
+    ...row,
+    departmentIds: scopes.map((scope) => scope.departmentId),
+    departmentNames: scopes.map((scope) => scope.departmentName),
+  };
+}
+
+export async function insertWorkingDayException(
+  tx: Tx,
+  input: { organizationId: string; exceptionDate: DateOnly; reason: string; createdBy: string },
+): Promise<string> {
+  const row = await tx.one<{ id: string }>(sql`
+    INSERT INTO working_day_exception (organization_id, exception_date, reason, created_by)
+    VALUES (${input.organizationId}, ${input.exceptionDate}, ${input.reason}, ${input.createdBy})
+    RETURNING id
+  `);
+  return row.id;
+}
+
+export async function insertWorkingDayExceptionScopes(
+  tx: Tx,
+  organizationId: string,
+  exceptionId: string,
+  exceptionDate: DateOnly,
+  departmentIds: readonly string[],
+): Promise<void> {
+  for (const departmentId of departmentIds) {
+    await tx.query(sql`
+      INSERT INTO working_day_exception_scope
+        (organization_id, exception_id, exception_date, department_id)
+      VALUES (${organizationId}, ${exceptionId}, ${exceptionDate}, ${departmentId})
+    `);
+  }
+}
+
+export async function setWorkingDayExceptionStatus(
+  tx: Tx,
+  id: string,
+  status: 'active' | 'inactive',
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE working_day_exception
+    SET status = ${status}, updated_at = now()
+    WHERE id = ${id}
+  `);
+}
+
+export async function workingDayExceptionConflict(
+  tx: Tx,
+  organizationId: string,
+  exceptionDate: DateOnly,
+  departmentIds: readonly string[],
+): Promise<boolean> {
+  return (await tx.maybeOne<{ id: string }>(sql`
+    SELECT e.id
+    FROM working_day_exception e
+    WHERE e.organization_id = ${organizationId}
+      AND e.exception_date = ${exceptionDate}
+      AND e.status = 'active'
+      AND (
+        ${departmentIds.length === 0}
+        OR NOT EXISTS (
+          SELECT 1 FROM working_day_exception_scope existing_org_scope
+          WHERE existing_org_scope.exception_id = e.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM working_day_exception_scope existing_scope
+          WHERE existing_scope.exception_id = e.id
+            AND existing_scope.department_id = ANY(${[...departmentIds]}::uuid[])
+        )
+      )
+    LIMIT 1
+  `)) !== null;
+}
+
+export async function departmentIdsExist(tx: Tx, departmentIds: readonly string[]): Promise<boolean> {
+  if (departmentIds.length === 0) return true;
+  const row = await tx.maybeOne<{ count: number }>(sql`
+    SELECT count(*)::int AS count
+    FROM department
+    WHERE id = ANY(${[...departmentIds]}::uuid[])
+  `);
+  return row?.count === departmentIds.length;
+}
+
+export async function insertWeekdayScheduleAssignment(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    userId: string;
+    scheduleId: string;
+    effectiveFrom: DateOnly;
+    createdBy: string;
+  },
+): Promise<string> {
+  await tx.query(sql`
+    UPDATE weekday_schedule_assignment
+    SET effective_to = ${input.effectiveFrom}
+    WHERE organization_id = ${input.organizationId}
+      AND user_id = ${input.userId}
+      AND effective_from < ${input.effectiveFrom}
+      AND (effective_to IS NULL OR effective_to > ${input.effectiveFrom})
+  `);
+  const row = await tx.one<{ id: string }>(sql`
+    INSERT INTO weekday_schedule_assignment
+      (organization_id, user_id, schedule_id, effective_from, created_by)
+    VALUES
+      (${input.organizationId}, ${input.userId}, ${input.scheduleId}, ${input.effectiveFrom}, ${input.createdBy})
+    RETURNING id
+  `);
+  return row.id;
 }
 
 /** Templates with the version in force on `date` (null before the first one). */

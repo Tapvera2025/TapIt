@@ -9,13 +9,21 @@
 import type { DateOnly, PlacementsByDate, ResolvedShift } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { addDays, localDateOf } from '../../platform/time.js';
-import { findShift, insertAssignment, loadShiftInputs } from './repository.js';
+import {
+  findShift,
+  findWeekdaySchedule,
+  insertAssignment,
+  insertWeekdayScheduleAssignment,
+  loadShiftInputs,
+} from './repository.js';
 import { resolveShift } from './resolve.js';
 import {
   dayWindow as windowOf,
   dayWindowContaining as windowContaining,
   type DayWindow,
 } from './windows.js';
+import { SHIFT_ERROR_CODES, ShiftValidationError } from './errors.js';
+import { recordDaysChanged } from './events.js';
 
 export type { DayWindow } from './windows.js';
 export { SHIFT_EVENTS, type DaysChanged } from './events.js';
@@ -143,4 +151,37 @@ export async function assignTemplateShift(
     reason: 'Initial onboarding shift assignment',
     createdBy: input.createdBy,
   });
+}
+
+/** Assigns a weekday schedule to a user from their joining date. */
+export async function assignWeekdaySchedule(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    userId: string;
+    scheduleId: string;
+    effectiveFrom: DateOnly;
+    createdBy: string;
+  },
+): Promise<string> {
+  const schedule = await findWeekdaySchedule(tx, input.scheduleId);
+  if (!schedule || schedule.status !== 'active') {
+    throw new ShiftValidationError(
+      SHIFT_ERROR_CODES.INACTIVE,
+      'The selected weekday schedule is invalid or inactive.',
+    );
+  }
+  const assignmentId = await insertWeekdayScheduleAssignment(tx, input);
+
+  // Reuse the existing shift -> outbox -> attendance refresh pipeline so an
+  // effective-date schedule change rebuilds existing/open attendance days.
+  // Historical days before the effective date remain unchanged.
+  await recordDaysChanged(tx, input.organizationId, {
+    userIds: [input.userId],
+    from: input.effectiveFrom,
+    to: null,
+    reason: 'Weekday schedule assignment',
+  });
+
+  return assignmentId;
 }

@@ -41,6 +41,11 @@ const SPECIFIER_PATTERNS: readonly RegExp[] = [
  * Where a path sits under `server/src/modules`: the module folder and the path
  * inside it. Null for anything else, including files directly in `modules/`.
  */
+/** Repo-relative path with forward slashes on every OS, so reports and rules compare equal on Windows and Linux. */
+export function relativePosix(root: string, path: string): string {
+  return relative(root, path).split(sep).join('/');
+}
+
 export function locateInModule(
   root: string,
   absolutePath: string,
@@ -73,7 +78,7 @@ export function findBoundaryViolations(
         const isFacade = target.inside.length === 1 && target.inside[0] === 'facade';
         if (isFacade) continue;
         violations.push({
-          file: relative(root, file.path),
+          file: relativePosix(root, file.path),
           line: file.text.slice(0, match.index).split('\n').length,
           from: own.module,
           to: target.module,

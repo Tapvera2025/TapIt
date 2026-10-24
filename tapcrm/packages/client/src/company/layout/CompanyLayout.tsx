@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
+import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
 
 export function CompanyLayout({
   pathname,
@@ -33,6 +35,7 @@ export function CompanyLayout({
   canManageShifts,
   canManagePayroll,
   canManagePayrollConfig,
+  canViewAccounting,
   canViewTa,
   canManageTa,
   canManageBiometric,
@@ -87,6 +90,7 @@ export function CompanyLayout({
   canManageShifts: boolean;
   canManagePayroll: boolean;
   canManagePayrollConfig: boolean;
+  canViewAccounting: boolean;
   canViewTa: boolean;
   canManageTa: boolean;
   canManageBiometric: boolean;
@@ -106,8 +110,8 @@ export function CompanyLayout({
   children: React.ReactNode;
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    window.localStorage.getItem('tapcrm:sidebar-collapsed') === 'true',
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem('tapcrm:sidebar-collapsed') === 'true',
   );
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const savedWidth = Number(window.localStorage.getItem('tapcrm:sidebar-width'));
@@ -115,6 +119,70 @@ export function CompanyLayout({
       ? savedWidth
       : 256;
   });
+  const mainScrollRef = useRef<HTMLElement>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const lenisRef = useRef<Lenis | null>(null);
+  const contentNeedsViewportHeight = pathname === '/company/messages' || /^\/company\/projects\/[^/]+$/.test(pathname);
+
+  useEffect(() => {
+    const main = mainScrollRef.current;
+    const content = scrollContentRef.current;
+    if (!main || !content) return;
+
+    const desktopMotion = window.matchMedia('(min-width: 1280px) and (prefers-reduced-motion: no-preference)');
+    const syncScrollMode = () => {
+      lenisRef.current?.destroy();
+      lenisRef.current = desktopMotion.matches
+        ? new Lenis({
+            wrapper: main,
+            // Keep content separate from the scroll wrapper so Lenis observes
+            // page-height changes as routed views and async data render.
+            content,
+            duration: 1.15,
+            smoothWheel: true,
+            syncTouch: false,
+            wheelMultiplier: 0.9,
+            autoRaf: true,
+            // Keep nested native scrollers (chat threads, lists, textareas,
+            // popovers) native. Only smooth the page itself, not its children.
+            prevent: (node) => {
+              if (node.closest('dialog[open], [data-lenis-prevent]')) return true;
+              let element: HTMLElement | null = node;
+              while (element && element !== main) {
+                const style = window.getComputedStyle(element);
+                const scrollsY = /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+                const scrollsX = /(auto|scroll)/.test(style.overflowX) && element.scrollWidth > element.clientWidth + 1;
+                if (scrollsY || scrollsX) return true;
+                element = element.parentElement;
+              }
+              return false;
+            },
+          })
+        : null;
+    };
+
+    syncScrollMode();
+    desktopMotion.addEventListener('change', syncScrollMode);
+    return () => {
+      desktopMotion.removeEventListener('change', syncScrollMode);
+      lenisRef.current?.destroy();
+      lenisRef.current = null;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const main = mainScrollRef.current;
+    if (!main) return;
+
+    // Layouts persist between SPA routes, so explicitly start each page at its
+    // top instead of inheriting the previous route's scroll position.
+    main.scrollTop = 0;
+    const lenis = lenisRef.current;
+    if (lenis) {
+      lenis.resize();
+      lenis.scrollTo(0, { immediate: true });
+    }
+  }, [pathname]);
 
   useEffect(() => {
     window.localStorage.setItem('tapcrm:sidebar-collapsed', String(sidebarCollapsed));
@@ -141,89 +209,112 @@ export function CompanyLayout({
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
-      <a
-        href="#main-content"
-        className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
-      >
-        Skip to content
-      </a>
-      <button
-        type="button"
-        onClick={() => setSidebarOpen(false)}
-        className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
-        aria-label="Close navigation overlay"
-        aria-hidden={!sidebarOpen}
-        tabIndex={sidebarOpen ? 0 : -1}
-      />
-      <Navbar
-        identity={identity}
-        organizationName={organizationName}
-        sidebarCollapsed={sidebarCollapsed}
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={toggleSidebar}
-        onNavigate={onNavigate}
-        onLogout={onLogout}
-      />
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <CompanySidebar
-          pathname={pathname}
+    <ChatUnreadProvider enabled={canViewChat}>
+      <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
+        <a
+          href="#main-content"
+          className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
+        >
+          Skip to content
+        </a>
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+          aria-label="Close navigation overlay"
+          aria-hidden={!sidebarOpen}
+          tabIndex={sidebarOpen ? 0 : -1}
+        />
+        <Navbar
           identity={identity}
           organizationName={organizationName}
-          accountType={accountType}
-          canRequestRoleChange={canRequestRoleChange}
-          canViewAudit={canViewAudit}
-          canManageLeaveTypes={canManageLeaveTypes}
-          canViewLeaveBalances={canViewLeaveBalances}
-          canUseLeaveQueue={canUseLeaveQueue}
-          canViewEmployees={canViewEmployees}
-          canViewTerritories={canViewTerritories}
-          canViewLeads={canViewLeads}
-          canViewCallbacks={canViewCallbacks}
-          canViewHandovers={canViewHandovers}
-          canViewDeals={canViewDeals}
-          canRecordWin={canRecordWin}
-          canDecideApprovals={canDecideApprovals}
-          canForecast={canForecast}
-          canViewChat={canViewChat}
-          canViewClients={canViewClients}
-          canViewSocial={canViewSocial}
-          canViewProjects={canViewProjects}
-          canViewLiveBoard={canViewLiveBoard}
-          canViewAttendanceReports={canViewAttendanceReports}
-          canReviewCorrections={canReviewCorrections}
-          canReviewBreaches={canReviewBreaches}
-          canManageBreakPolicies={canManageBreakPolicies}
-          canManageShifts={canManageShifts}
-          canManagePayroll={canManagePayroll}
-          canManagePayrollConfig={canManagePayrollConfig}
-          canViewTa={canViewTa}
-          canManageTa={canManageTa}
-          canManageBiometric={canManageBiometric}
-          canViewAdvances={canViewAdvances}
-          canManageAdvances={canManageAdvances}
-          canViewPenalties={canViewPenalties}
-          canManagePenalties={canManagePenalties}
-          canViewExpenses={canViewExpenses}
-          canApproveExpenses={canApproveExpenses}
-          isHr={isHr}
-          hasRecruitment={hasRecruitment}
-          hasInterviews={hasInterviews}
+          sidebarCollapsed={sidebarCollapsed}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={toggleSidebar}
           onNavigate={onNavigate}
           onLogout={onLogout}
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={toggleSidebar}
-          width={sidebarWidth}
-          onResize={setSidebarWidth}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <main id="main-content" className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-            {children}
-          </main>
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <CompanySidebar
+            pathname={pathname}
+            identity={identity}
+            organizationName={organizationName}
+            accountType={accountType}
+            canRequestRoleChange={canRequestRoleChange}
+            canViewAudit={canViewAudit}
+            canManageLeaveTypes={canManageLeaveTypes}
+            canViewLeaveBalances={canViewLeaveBalances}
+            canUseLeaveQueue={canUseLeaveQueue}
+            canViewEmployees={canViewEmployees}
+            canViewTerritories={canViewTerritories}
+            canViewLeads={canViewLeads}
+            canViewCallbacks={canViewCallbacks}
+            canViewHandovers={canViewHandovers}
+            canViewDeals={canViewDeals}
+            canRecordWin={canRecordWin}
+            canDecideApprovals={canDecideApprovals}
+            canForecast={canForecast}
+            canViewChat={canViewChat}
+            canViewClients={canViewClients}
+            canViewProjects={canViewProjects}
+            canViewLiveBoard={canViewLiveBoard}
+            canViewAttendanceReports={canViewAttendanceReports}
+            canReviewCorrections={canReviewCorrections}
+            canReviewBreaches={canReviewBreaches}
+            canManageBreakPolicies={canManageBreakPolicies}
+            canManageShifts={canManageShifts}
+            canManagePayroll={canManagePayroll}
+            canManagePayrollConfig={canManagePayrollConfig}
+            canViewAccounting={canViewAccounting}
+            canViewTa={canViewTa}
+            canManageTa={canManageTa}
+            canManageBiometric={canManageBiometric}
+            canViewAdvances={canViewAdvances}
+            canManageAdvances={canManageAdvances}
+            canViewPenalties={canViewPenalties}
+            canManagePenalties={canManagePenalties}
+            canViewExpenses={canViewExpenses}
+            canApproveExpenses={canApproveExpenses}
+            isHr={isHr}
+            hasRecruitment={hasRecruitment}
+            hasInterviews={hasInterviews}
+            onNavigate={onNavigate}
+            onLogout={onLogout}
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebar}
+            width={sidebarWidth}
+            onResize={setSidebarWidth}
+          />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <main
+              ref={mainScrollRef}
+              id="main-content"
+              data-app-scroll-container
+              className={`min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto ${
+                pathname === '/company/attendance/my' ? 'overscroll-contain' : ''
+              }`}
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                const maxScroll = element.scrollHeight - element.clientHeight;
+                const progress = maxScroll > 0 ? element.scrollTop / maxScroll : 0.45;
+
+                element
+                  .closest<HTMLElement>('.company-layout-shell')
+                  ?.style.setProperty(
+                    '--shell-reflection-position',
+                    `${Math.round(progress * 100)}%`,
+                  );
+              }}
+            >
+              <div ref={scrollContentRef} className={contentNeedsViewportHeight ? 'h-full min-h-full' : 'min-h-full'}>
+                {children}
+              </div>
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+    </ChatUnreadProvider>
   );
 }

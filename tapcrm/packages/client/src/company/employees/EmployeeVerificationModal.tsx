@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../../ui/Icon.js';
 import {
   DOCUMENT_TYPE_LABELS,
@@ -481,13 +482,14 @@ export function EmployeeVerificationModal({
   const progressPercent = Math.round((progress.approvedCount / progress.requiredCount) * 100);
   const statusBadge = getStatusBadge(data?.status);
 
-  return (
+  return createPortal(
+    (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
     >
-      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-xs transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={onClose} />
 
       <dialog
         open
@@ -1334,5 +1336,7 @@ export function EmployeeVerificationModal({
         </div>
       )}
     </div>
+    ),
+    document.body,
   );
 }

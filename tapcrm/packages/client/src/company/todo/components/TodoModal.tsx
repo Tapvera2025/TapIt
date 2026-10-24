@@ -1,4 +1,5 @@
 import { useEffect, useId, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface TodoModalProps {
   readonly title: string;
@@ -26,16 +27,16 @@ export function TodoModal({
     };
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-[#080e17a6] backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -61,6 +62,7 @@ export function TodoModal({
         </div>
         <div className="mt-5">{children}</div>
       </dialog>
-    </div>
+    </div>,
+    document.body,
   );
 }

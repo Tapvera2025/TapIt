@@ -26,6 +26,7 @@ import { AttendanceReportPage } from './attendance/AttendanceReportPage.js';
 import { DailyLateReportPage } from './attendance/DailyLateReportPage.js';
 import { CorrectionsPage } from './attendance/CorrectionsPage.js';
 import { ShiftsPage } from './shifts/ShiftsPage.js';
+import { WeekdaySchedulesPage } from './shifts/WeekdaySchedulesPage.js';
 import { HolidaysPage } from './holidays/HolidaysPage.js';
 import { LeavePage } from './leave/LeavePage.js';
 import { LeaveQueuePage } from './leave/LeaveQueuePage.js';
@@ -71,6 +72,7 @@ import { PenaltiesPage } from './penalties/PenaltiesPage.js';
 import { MyPenaltiesPage } from './penalties/MyPenaltiesPage.js';
 import { ExpenseApprovalsPage, MyExpensesPage } from './expenses/ExpensesPages.js';
 import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
+import { AccountingPage } from './finance/accounting/AccountingPage.js';
 
 export function CompanyWorkspace({
   pathname: rawPathname,
@@ -86,7 +88,10 @@ export function CompanyWorkspace({
   const [error, setError] = useState('');
   // "My Interviews" is in the sidebar only for people with interviews: a round
   // HR assigned to them, or a scheduled interview naming them on the panel.
-  const hasInterviews = useHasAssignedInterviews(Boolean(identity?.enabledModules.includes('recruitment')), pathname);
+  const hasInterviews = useHasAssignedInterviews(
+    Boolean(identity?.enabledModules.includes('recruitment')),
+    pathname,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -159,6 +164,15 @@ export function CompanyWorkspace({
   const canDecideApprovals = isSuperAdmin || can('approvals:decide');
   const canReviewDelivery = isSuperAdmin || can('delivery:approve');
   const canForecast = isSuperAdmin || can('deals:forecast');
+  const canViewAccounting =
+    isSuperAdmin ||
+    can('accounting:view-ledger') ||
+    can('accounting:view-statements') ||
+    can('accounting:tax-export');
+  const canManageAccountingAccounts = isSuperAdmin || can('accounting:manage-accounts');
+  const canPostAccounting = isSuperAdmin || can('accounting:post-journal');
+  const canCloseAccounting = isSuperAdmin || can('accounting:close-period');
+  const canTaxAccounting = isSuperAdmin || can('accounting:tax-export');
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
   const canViewSocial = isSuperAdmin || can('social:view');
@@ -173,13 +187,13 @@ export function CompanyWorkspace({
   const userId = identity.user.id;
   const fullName = identity.user.fullName;
   const organizationTimeZone = identity.organization?.timezone ?? 'UTC';
-  const canReassignLeadsFromUi = isSuperAdmin || (
-    identity.user.accountType === 'employee'
-    && (identity.user.departmentCode?.toLowerCase().includes('sales') ?? false)
-    && ['hod', 'head', 'manager', 'director'].some((hint) =>
-      (identity.user.positionCode ?? '').toLowerCase().includes(hint),
-    )
-  );
+  const canReassignLeadsFromUi =
+    isSuperAdmin ||
+    (identity.user.accountType === 'employee' &&
+      (identity.user.departmentCode?.toLowerCase().includes('sales') ?? false) &&
+      ['hod', 'head', 'manager', 'director'].some((hint) =>
+        (identity.user.positionCode ?? '').toLowerCase().includes(hint),
+      ));
   const hasRecruitment = identity.enabledModules.includes('recruitment');
   const isOrganization =
     isSuperAdmin &&
@@ -191,6 +205,7 @@ export function CompanyWorkspace({
     (pathname === '/company/recruitment' || pathname.startsWith('/company/recruitment/'));
 
   const pageTitles: Record<string, string> = {
+    '/company/finance/accounting': 'Accounting',
     '/company/todo': 'My Todo',
     '/company/my-todo': 'My Todo',
     '/company/messages': 'Messages',
@@ -237,6 +252,7 @@ export function CompanyWorkspace({
     '/company/attendance/live': 'Workforce Board',
     '/company/attendance/corrections': 'Corrections',
     '/company/shifts': 'Shifts',
+    '/company/weekday-schedules': 'Weekday Schedules',
     '/company/holidays': 'Holidays',
     '/company/leave/my': 'My Leave',
     '/company/leave/queue': 'Leave Queue',
@@ -252,9 +268,33 @@ export function CompanyWorkspace({
     ? 'Organization'
     : isRecruitment
       ? 'Recruitment'
-      : pageTitles[pathname] ?? (pathname.startsWith('/company/projects/') ? 'Project' : pathname.startsWith('/company/sales/territories/') ? 'Territories' : pathname.startsWith('/company/sales/callbacks/') ? 'Callbacks' : pathname.startsWith('/company/sales/leads/') ? 'Leads' : pathname.startsWith('/company/sales/deals/') ? 'Deals' : 'Dashboard');
+      : (pageTitles[pathname] ??
+        (pathname.startsWith('/company/projects/')
+          ? 'Project'
+          : pathname.startsWith('/company/sales/territories/')
+            ? 'Territories'
+            : pathname.startsWith('/company/sales/callbacks/')
+              ? 'Callbacks'
+              : pathname.startsWith('/company/sales/leads/')
+                ? 'Leads'
+                : pathname.startsWith('/company/sales/deals/')
+                  ? 'Deals'
+                  : 'Dashboard'));
 
   function renderContent(): React.JSX.Element {
+    if (pathname === '/company/finance/accounting' && canViewAccounting) {
+      const queryTab = new URLSearchParams(rawPathname.split('?')[1] ?? '').get('tab');
+      return (
+        <AccountingPage
+          initialTab={queryTab ?? 'dashboard'}
+          onNavigate={onNavigate}
+          canManageAccounts={canManageAccountingAccounts}
+          canPost={canPostAccounting}
+          canClose={canCloseAccounting}
+          canTax={canTaxAccounting}
+        />
+      );
+    }
     if (
       pathname === '/company/expenses/mine' &&
       (isSuperAdmin || isHr || can('payables:claim'))
@@ -279,11 +319,13 @@ export function CompanyWorkspace({
       );
     if (isOrganization) return <OrganizationWorkspace pathname={pathname} />;
     // Anyone HR assigns an interview round to, whatever their department.
-    if (hasRecruitment && pathname === '/company/my-interviews') return <MyInterviewsPage />;
+    if (hasRecruitment && pathname === '/company/my-interviews')
+      return <MyInterviewsPage />;
     if (isRecruitment)
       return <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />;
     // Links in older "interview assigned" notifications, for people outside HR.
-    if (hasRecruitment && pathname === '/company/recruitment/my-interviews') return <MyInterviewsPage />;
+    if (hasRecruitment && pathname === '/company/recruitment/my-interviews')
+      return <MyInterviewsPage />;
     if (pathname === '/company/access' && isSuperAdmin)
       return <AccessExplorerPage key="person" />;
     if (pathname === '/company/access/role-changes' && isSuperAdmin) {
@@ -352,7 +394,13 @@ export function CompanyWorkspace({
       return <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={userId} />;
     }
     if (pathname === '/company/messages' && canViewChat)
-      return <MessagesPage currentUserId={userId} isSuperAdmin={isSuperAdmin} canManageProjects={isSuperAdmin || can('projects:manage')} />;
+      return (
+        <MessagesPage
+          currentUserId={userId}
+          isSuperAdmin={isSuperAdmin}
+          canManageProjects={isSuperAdmin || can('projects:manage')}
+        />
+      );
     if (pathname === '/company/clients' && canViewClients) return <ClientsPage />;
     if ((pathname === '/company/social' || pathname.startsWith('/company/social/')) && canViewSocial)
       return <SocialWorkspace pathname={pathname} onNavigate={onNavigate} canManage={isSuperAdmin || can('social:manage')} canApprove={isSuperAdmin || can('social:approve')} canConnect={isSuperAdmin || can('social:connect')} canPublish={isSuperAdmin || can('social:publish')} canSettings={isSuperAdmin || can('social:settings')} />;
@@ -374,8 +422,17 @@ export function CompanyWorkspace({
         />
       );
     if (pathname === '/company/attendance/today')
-      return <TodayPage fullName={fullName} userId={userId} />;
-    if (pathname === '/company/attendance/my') return <AttendancePage userId={userId} />;
+      return (
+        <TodayPage
+          fullName={fullName}
+          userId={userId}
+          organizationTimezone={organizationTimeZone}
+        />
+      );
+    if (pathname === '/company/attendance/my')
+      return (
+        <AttendancePage userId={userId} organizationTimezone={organizationTimeZone} />
+      );
     if (
       pathname === '/company/attendance/employee-wise' &&
       (isHr || canBeyondOwn('attendance:view'))
@@ -408,6 +465,8 @@ export function CompanyWorkspace({
     if (pathname === '/company/attendance/corrections' && can('attendance:correct'))
       return <CorrectionsPage />;
     if (pathname === '/company/shifts' && can('shifts:manage')) return <ShiftsPage />;
+    if (pathname === '/company/weekday-schedules' && can('shifts:manage'))
+      return <WeekdaySchedulesPage />;
     if (pathname === '/company/holidays') return <HolidaysPage />;
     if (pathname === '/company/leave/my') {
       return <LeavePage userId={userId} organizationTimeZone={organizationTimeZone} />;
@@ -519,30 +578,90 @@ export function CompanyWorkspace({
         );
     }
     const callbackDetail = pathname.match(/^\/company\/sales\/callbacks\/([^/]+)$/);
-    if (callbackDetail && canViewCallbacks) return <CallbackDetailPage id={callbackDetail[1]!} currentUserId={userId} onBack={() => onNavigate('/company/sales/callbacks')} onNavigate={onNavigate} />;
-    if (pathname === '/company/sales/leads/stalled' && canViewLeads) return <StalledLeadsPage onBack={() => onNavigate('/company/sales/leads')} onNavigate={onNavigate} />;
-    if (pathname === '/company/sales/leads/re-engagement' && canViewLeads) return <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />;
-    if (pathname === '/company/sales/leads' && canViewLeads) return <LeadsPage onNavigate={onNavigate} />;
-    if (pathname === '/company/sales/bid-pool' && canViewLeads) return <BidPoolPage onNavigate={onNavigate} />;
-    if (pathname === '/company/sales/my-work' && canViewLeads) return <MyWorkPage userId={userId} onNavigate={onNavigate} />;
-    if (pathname === '/company/sales/triage' && canReassignLeadsFromUi) return <TriagePage onNavigate={onNavigate} />;
-    if (pathname === '/company/sales/supervisor' && canReassignLeadsFromUi) return <SupervisorDashboardPage />;
+    if (callbackDetail && canViewCallbacks)
+      return (
+        <CallbackDetailPage
+          id={callbackDetail[1]!}
+          currentUserId={userId}
+          onBack={() => onNavigate('/company/sales/callbacks')}
+          onNavigate={onNavigate}
+        />
+      );
+    if (pathname === '/company/sales/leads/stalled' && canViewLeads)
+      return (
+        <StalledLeadsPage
+          onBack={() => onNavigate('/company/sales/leads')}
+          onNavigate={onNavigate}
+        />
+      );
+    if (pathname === '/company/sales/leads/re-engagement' && canViewLeads)
+      return (
+        <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />
+      );
+    if (pathname === '/company/sales/leads' && canViewLeads)
+      return <LeadsPage onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/bid-pool' && canViewLeads)
+      return <BidPoolPage onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/my-work' && canViewLeads)
+      return <MyWorkPage userId={userId} onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/triage' && canReassignLeadsFromUi)
+      return <TriagePage onNavigate={onNavigate} />;
+    if (pathname === '/company/sales/supervisor' && canReassignLeadsFromUi)
+      return <SupervisorDashboardPage />;
     const leadDetail = pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
-    if (leadDetail && canViewLeads) return <LeadDetailsPage id={leadDetail[1]!} currentUserId={userId} organizationTimezone={organizationTimeZone} canReassign={canReassignLeadsFromUi} canTransferSourcingCredit={isSuperAdmin} canCreateDeal={isSuperAdmin || can('deals:create')} onBack={() => onNavigate('/company/sales/leads')} onNavigate={onNavigate} />;
+    if (leadDetail && canViewLeads)
+      return (
+        <LeadDetailsPage
+          id={leadDetail[1]!}
+          currentUserId={userId}
+          organizationTimezone={organizationTimeZone}
+          canReassign={canReassignLeadsFromUi}
+          canTransferSourcingCredit={isSuperAdmin}
+          canCreateDeal={isSuperAdmin || can('deals:create')}
+          onBack={() => onNavigate('/company/sales/leads')}
+          onNavigate={onNavigate}
+        />
+      );
     if (pathname === '/company/sales/deals' && canViewDeals) {
       return <DealsPage isSalesHod={canReassignLeadsFromUi} onNavigate={onNavigate} />;
     }
-    const proposalEditor = pathname.match(/^\/company\/sales\/deals\/([^/]+)\/proposals$/);
+    const proposalEditor = pathname.match(
+      /^\/company\/sales\/deals\/([^/]+)\/proposals$/,
+    );
     if (proposalEditor && canViewDeals) {
-      return <ProposalEditorPage dealId={proposalEditor[1]!} onBack={() => onNavigate(`/company/sales/deals/${proposalEditor[1]}`)} />;
+      return (
+        <ProposalEditorPage
+          dealId={proposalEditor[1]!}
+          onBack={() => onNavigate(`/company/sales/deals/${proposalEditor[1]}`)}
+        />
+      );
     }
     const deliveryBrief = pathname.match(/^\/company\/sales\/deals\/([^/]+)\/delivery$/);
     if (deliveryBrief && canViewDeals) {
-      return <DeliveryBriefPage dealId={deliveryBrief[1]!} canReviewDelivery={canReviewDelivery} canApproveDeals={canApproveDeals} onBack={() => onNavigate(`/company/sales/deals/${deliveryBrief[1]}`)} onNavigate={onNavigate} />;
+      return (
+        <DeliveryBriefPage
+          dealId={deliveryBrief[1]!}
+          canReviewDelivery={canReviewDelivery}
+          canApproveDeals={canApproveDeals}
+          onBack={() => onNavigate(`/company/sales/deals/${deliveryBrief[1]}`)}
+          onNavigate={onNavigate}
+        />
+      );
     }
     const dealDetail = pathname.match(/^\/company\/sales\/deals\/([^/]+)$/);
     if (dealDetail && canViewDeals) {
-      return <DealDetailPage id={dealDetail[1]!} currentUserId={userId} canApprove={canApproveDeals} canDecideApprovals={canDecideApprovals} canRecordWin={canRecordWin} canConfirmPayment={canConfirmPayment} onBack={() => onNavigate('/company/sales/deals')} onNavigate={onNavigate} />;
+      return (
+        <DealDetailPage
+          id={dealDetail[1]!}
+          currentUserId={userId}
+          canApprove={canApproveDeals}
+          canDecideApprovals={canDecideApprovals}
+          canRecordWin={canRecordWin}
+          canConfirmPayment={canConfirmPayment}
+          onBack={() => onNavigate('/company/sales/deals')}
+          onNavigate={onNavigate}
+        />
+      );
     }
     if (pathname === '/company/sales/approvals' && canDecideApprovals) {
       return <ApprovalsQueuePage onNavigate={onNavigate} />;
@@ -588,6 +707,7 @@ export function CompanyWorkspace({
       canManageShifts={can('shifts:manage')}
       canManagePayroll={isSuperAdmin || can('payroll:manage')}
       canManagePayrollConfig={isSuperAdmin || can('payroll:manage-config')}
+      canViewAccounting={canViewAccounting}
       canViewTa={isSuperAdmin || can('ta:view') || can('ta:view-own')}
       canManageTa={isSuperAdmin || can('ta:manage')}
       canManageBiometric={can('biometric:manage')}

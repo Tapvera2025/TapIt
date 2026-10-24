@@ -4,7 +4,7 @@ import { db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { GenerationDecision } from '../../platform/jobs/generation.js';
 import { addDays } from '../../platform/time.js';
-import { calculate } from './calculate.js';
+import { calculate, RULES_VERSION } from './calculate.js';
 import * as calc from './calculation-repository.js';
 import { isEmployedOn } from './employment.js';
 import { ATTENDANCE_EVENTS } from './events.js';
@@ -53,7 +53,7 @@ export async function recalculateRecord(
   if (owner === null) return 'missing';
   await lockPerson(tx, owner.userId);
   const record = await calc.lockRecordForCalculation(tx, recordId);
-  if (record.calculatedInputVersion >= record.inputVersion) return 'current';
+  if (record.calculatedInputVersion >= record.inputVersion && record.rulesVersion === RULES_VERSION) return 'current';
   const person = await findAppUser(tx, owner.userId);
 
   const retiredAutoOut = await hasRetiredAutoOut(tx, recordId);
@@ -164,6 +164,7 @@ export interface AffectedScope {
   readonly userIds?: readonly string[];
   readonly departmentIds?: readonly string[];
   readonly shiftIds?: readonly string[];
+  readonly weekdayScheduleIds?: readonly string[];
 }
 
 /** Whose days a shift or calendar change reaches: named people, or anyone with a day in reach. */
@@ -177,6 +178,7 @@ export async function affectedPeople(
   const filter = {
     ...(scope.departmentIds === undefined ? {} : { departmentIds: scope.departmentIds }),
     ...(scope.shiftIds === undefined ? {} : { shiftIds: scope.shiftIds }),
+    ...(scope.weekdayScheduleIds === undefined ? {} : { weekdayScheduleIds: scope.weekdayScheduleIds }),
   };
   return calc.peopleWithDays(
     tx,

@@ -136,7 +136,7 @@ export async function syncProjectRanks(
     } catch (cause) {
       if (cause instanceof SearchConsoleUnavailableError) {
         // Transient. Record nothing and let the job runner's backoff retry;
-        // a half-written run would make `previous_rank` meaningless.
+        // a half-written run would make the rolling past/previous slots meaningless.
         await db.transaction(ctx, (tx) => recordSyncOutcome(tx, ctx, projectId, 'failed', `Search Console is unavailable: ${cause.message}`, 0));
         throw cause;
       }

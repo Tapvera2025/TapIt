@@ -47,7 +47,7 @@ import type {
   UpdateEmployeeInput,
 } from './validators.js';
 import { notifyPlacementChanged } from './notifications.js';
-import { assignTemplateShift } from '../shifts/facade.js';
+import { assignTemplateShift, assignWeekdaySchedule } from '../shifts/facade.js';
 import { createOnboardingWorkflow } from '../onboarding/facade.js';
 import { localDateOf } from '../../platform/time.js';
 
@@ -208,6 +208,16 @@ export async function provisionEmployee(ctx: RequestContext, input: CreateEmploy
         organizationId: ctx.organizationId,
         userId: employee.id,
         shiftId: input.shiftId,
+        effectiveFrom: effectiveDate,
+        createdBy: ctx.principal.id,
+      });
+    }
+    if (input.weekdayScheduleId) {
+      const effectiveDate = input.weekdayScheduleEffectiveFrom ?? input.joiningDate ?? localDateOf(new Date(), 'UTC');
+      await assignWeekdaySchedule(tx, {
+        organizationId: ctx.organizationId,
+        userId: employee.id,
+        scheduleId: input.weekdayScheduleId,
         effectiveFrom: effectiveDate,
         createdBy: ctx.principal.id,
       });
@@ -426,6 +436,16 @@ export async function updateEmployee(
     }
 
     await updateProfile(tx, ctx.organizationId, userId, changes);
+    if (input.weekdayScheduleId !== undefined) {
+      const effectiveDate = input.weekdayScheduleEffectiveFrom ?? localDateOf(new Date(), 'UTC');
+      await assignWeekdaySchedule(tx, {
+        organizationId: ctx.organizationId,
+        userId,
+        scheduleId: input.weekdayScheduleId,
+        effectiveFrom: effectiveDate,
+        createdBy: ctx.principal.id,
+      });
+    }
     const profileFields = Object.keys(changes) as (keyof typeof changes)[];
     if (profileFields.length > 0) {
       const pick = (source: Record<string, unknown>) =>

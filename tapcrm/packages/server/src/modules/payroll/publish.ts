@@ -4,7 +4,7 @@ import { sql } from '../../platform/dal/sql.js';
 import type { DateOnly } from '@tapcrm/contracts';
 import * as AttFacade from '../attendance/facade.js';
 import * as BreakFacade from '../break-management/facade.js';
-import { post } from '../accounting/facade.js';
+import { postSourceJournalTx } from '../finance/facade.js';
 import { writePayrollAudit } from './audit.js';
 import { resolveConfig } from './config.js';
 import {
@@ -41,8 +41,20 @@ export function slipComponents(totals: {
 }): SlipComponent[] {
   return [
     // Salary expense is the gross; what is owed to people is the gross less deductions.
-    { code: 'gross', kind: 'earning', amountPaise: totals.grossPaise, debitRole: 'salary-expense', creditRole: 'salary-payable' },
-    { code: 'deductions', kind: 'deduction', amountPaise: totals.deductionsPaise, debitRole: 'salary-payable', creditRole: 'statutory-liability' },
+    {
+      code: 'gross',
+      kind: 'earning',
+      amountPaise: totals.grossPaise,
+      debitRole: 'salary-expense',
+      creditRole: 'salary-payable',
+    },
+    {
+      code: 'deductions',
+      kind: 'deduction',
+      amountPaise: totals.deductionsPaise,
+      debitRole: 'salary-payable',
+      creditRole: 'statutory-liability',
+    },
     {
       code: 'employer-contributions',
       kind: 'employer-contribution',
@@ -61,7 +73,7 @@ export function slipComponents(totals: {
  *    the settings, the population and every employee's inputs. Any difference
  *    from the frozen run is a named blocker, and nothing is published.
  * 3. Publish all draft slips (immutable, revision 0).
- * 4. Write the balanced posting intent via the accounting facade.
+ * 4. Post the payroll journal via the accounting facade.
  * 5. Mark the run published and write the `payroll.published` outbox event.
  */
 export async function publishRun(
@@ -101,24 +113,68 @@ export async function publishRun(
     const from = run.periodStart as DateOnly;
     const to = run.periodEnd as DateOnly;
     const breakEvaluation = await breakEvaluationRequired(tx, ctx.organizationId);
-    const liveOpen = await AttFacade.openItems(tx, userIds, from, to, { breakEvaluation });
-    const unresolvedBreaches = await BreakFacade.unresolvedBreaches(tx, userIds, from, to);
+    const liveOpen = await AttFacade.openItems(tx, userIds, from, to, {
+      breakEvaluation,
+    });
+    const unresolvedBreaches = await BreakFacade.unresolvedBreaches(
+      tx,
+      userIds,
+      from,
+      to,
+    );
 
     const blockers: PublishBlocker[] = [
-      ...liveOpen.map((o) => ({ userId: o.userId, workDate: o.workDate ?? null, kind: o.kind, sourceId: o.sourceId })),
-      ...unresolvedBreaches.map((b) => ({ userId: b.userId, workDate: b.workDate ?? null, kind: `break:${b.kind}`, sourceId: b.id })),
+      ...liveOpen.map((o) => ({
+        userId: o.userId,
+        workDate: o.workDate ?? null,
+        kind: o.kind,
+        sourceId: o.sourceId,
+      })),
+      ...unresolvedBreaches.map((b) => ({
+        userId: b.userId,
+        workDate: b.workDate ?? null,
+        kind: `break:${b.kind}`,
+        sourceId: b.id,
+      })),
     ];
 
     const config = await resolveConfig(tx, ctx.organizationId, run.periodStart);
-    const live = await employeesInPeriod(tx, ctx.organizationId, run.periodStart, run.periodEnd);
-    const change = populationChange(userIds, live.map((e) => e.userId));
-    for (const userId of change.joined) blockers.push({ userId, workDate: null, kind: 'joined-after-freeze', sourceId: null });
-    for (const userId of change.left) blockers.push({ userId, workDate: null, kind: 'left-after-freeze', sourceId: null });
+    const live = await employeesInPeriod(
+      tx,
+      ctx.organizationId,
+      run.periodStart,
+      run.periodEnd,
+    );
+    const change = populationChange(
+      userIds,
+      live.map((e) => e.userId),
+    );
+    for (const userId of change.joined)
+      blockers.push({
+        userId,
+        workDate: null,
+        kind: 'joined-after-freeze',
+        sourceId: null,
+      });
+    for (const userId of change.left)
+      blockers.push({
+        userId,
+        workDate: null,
+        kind: 'left-after-freeze',
+        sourceId: null,
+      });
 
     if (!config || config.id !== run.configId) {
-      blockers.push({ userId: null, workDate: null, kind: 'settings-changed', sourceId: config?.id ?? null });
+      blockers.push({
+        userId: null,
+        workDate: null,
+        kind: 'settings-changed',
+        sourceId: config?.id ?? null,
+      });
     } else {
-      const frozenFingerprints = new Map(employees.map((e) => [e.userId, e.inputsFingerprint]));
+      const frozenFingerprints = new Map(
+        employees.map((e) => [e.userId, e.inputsFingerprint]),
+      );
       const stillIncluded = live.filter((e) => frozenFingerprints.has(e.userId));
       const current = await freezeEmployees(
         tx,
@@ -129,7 +185,12 @@ export async function publishRun(
       );
       for (const emp of current) {
         if (emp.fingerprint !== frozenFingerprints.get(emp.userId)) {
-          blockers.push({ userId: emp.userId, workDate: null, kind: 'inputs-changed', sourceId: null });
+          blockers.push({
+            userId: emp.userId,
+            workDate: null,
+            kind: 'inputs-changed',
+            sourceId: null,
+          });
         }
       }
     }
@@ -138,8 +199,12 @@ export async function publishRun(
 
     // Every employee has the draft slip computed from exactly their frozen inputs.
     const slips = await tx.query<{
-      id: string; userId: string; inputsFingerprint: string;
-      grossPaise: string; deductionsPaise: string; netPaise: string;
+      id: string;
+      userId: string;
+      inputsFingerprint: string;
+      grossPaise: string;
+      deductionsPaise: string;
+      netPaise: string;
       employerContributionPaise: string;
     }>(sql`
       SELECT id, user_id AS "userId", inputs_fingerprint AS "inputsFingerprint",
@@ -190,20 +255,28 @@ export async function publishRun(
       (sum, s) => ({
         grossPaise: sum.grossPaise + BigInt(s.grossPaise),
         deductionsPaise: sum.deductionsPaise + BigInt(s.deductionsPaise),
-        employerContributionPaise: sum.employerContributionPaise + BigInt(s.employerContributionPaise),
+        employerContributionPaise:
+          sum.employerContributionPaise + BigInt(s.employerContributionPaise),
       }),
       { grossPaise: 0n, deductionsPaise: 0n, employerContributionPaise: 0n },
     );
-    const intent = buildRunPostingIntent(slipComponents(totals).filter((c) => c.amountPaise > 0n));
-    await post(tx, {
-      organizationId: ctx.organizationId,
-      runId,
-      payslipId: null,
-      kind: intent.kind,
-      lines: intent.lines,
-      debitTotalPaise: intent.debitTotalPaise,
-      creditTotalPaise: intent.creditTotalPaise,
-    });
+    const intent = buildRunPostingIntent(
+      slipComponents(totals).filter((c) => c.amountPaise > 0n),
+    );
+    if (intent.kind === 'posting')
+      await postSourceJournalTx(tx, {
+        organizationId: ctx.organizationId,
+        postedBy: ctx.principal.id,
+        entryDate: run.periodEnd,
+        sourceType: 'payroll.run',
+        sourceId: runId,
+        description: `Payroll published for ${month}`,
+        lines: intent.lines.map((line) => ({
+          accountKey: line.role,
+          amountPaise: line.amountPaise,
+          side: line.side,
+        })),
+      });
 
     await tx.query(sql`
       UPDATE payroll_run SET status = 'published', published_at = now(), inputs_changed = false
@@ -225,9 +298,18 @@ export async function publishRun(
       targetType: 'payrollRun',
       targetId: runId,
       before: { status: 'review' },
-      after: { status: 'published', periodStart: run.periodStart, payslips: slips.length },
+      after: {
+        status: 'published',
+        periodStart: run.periodStart,
+        payslips: slips.length,
+      },
     });
-    await notifyPayslipsPublished(tx, ctx, { id: runId, periodStart: run.periodStart }, slips.map((s) => s.userId));
+    await notifyPayslipsPublished(
+      tx,
+      ctx,
+      { id: runId, periodStart: run.periodStart },
+      slips.map((s) => s.userId),
+    );
 
     return { status: 'published', publishedAt, payslips: slips.length };
   });
@@ -235,13 +317,16 @@ export async function publishRun(
 
 export class PublishBlockedError extends Error {
   constructor(readonly blockers: PublishBlocker[]) {
-    super('PAYROLL_NOT_PUBLISHABLE: ' + JSON.stringify(blockers.map(b => b.kind)));
+    super('PAYROLL_NOT_PUBLISHABLE: ' + JSON.stringify(blockers.map((b) => b.kind)));
     this.name = 'PublishBlockedError';
   }
 }
 
 /** Remember on the run that its inputs moved, so the screen can offer a recalculation. */
-export async function markInputsChanged(ctx: RequestContext, runId: string): Promise<void> {
+export async function markInputsChanged(
+  ctx: RequestContext,
+  runId: string,
+): Promise<void> {
   await db.transaction(ctx, (tx) =>
     tx.query(sql`
       UPDATE payroll_run SET inputs_changed = true

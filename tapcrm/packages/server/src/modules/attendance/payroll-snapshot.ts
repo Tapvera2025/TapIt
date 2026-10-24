@@ -140,7 +140,8 @@ export interface OpenItem {
     | 'not-evaluated'
     | 'stale-evaluation'
     | 'pending-correction'
-    | 'open-review-item';
+    | 'open-review-item'
+    | 'attendance-refresh-pending';
   readonly sourceId: string | null;
 }
 
@@ -191,6 +192,28 @@ export async function openItems(
   `);
   for (const r of dayRows) {
     items.push({ userId: r.userId, workDate: r.workDate, kind: r.kind as OpenItem['kind'], sourceId: r.recordId });
+  }
+
+  // A schedule, holiday, or working-day exception change may already be
+  // committed while its durable attendance refresh is still waiting for the
+  // worker. Do not allow payroll to treat the old attendance snapshot as
+  // final; the caller can retry once the existing refresh job completes.
+  const refreshRows = await tx.query<{ userId: string; fromDate: DateOnly; id: string }>(sql`
+    SELECT user_id AS "userId", from_date::text AS "fromDate", id
+    FROM attendance_refresh_request
+    WHERE user_id = ANY(${userIds}::uuid[])
+      AND completed_at IS NULL
+      AND failed_at IS NULL
+      AND from_date <= ${to}
+      AND (to_date IS NULL OR to_date >= ${from})
+  `);
+  for (const row of refreshRows) {
+    items.push({
+      userId: row.userId,
+      workDate: row.fromDate,
+      kind: 'attendance-refresh-pending',
+      sourceId: row.id,
+    });
   }
 
   // 2. Pending corrections

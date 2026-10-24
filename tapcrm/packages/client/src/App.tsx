@@ -14,8 +14,10 @@ import {
   getIdentityAccessToken,
   identityLogout,
 } from './identity/index.js';
-import { IDENTITY_EXPIRED_EVENT } from './identity/api/authApi.js';
+import { IDENTITY_EXPIRED_EVENT, getIdentityAccountType } from './identity/api/authApi.js';
 import { CompanyWorkspace } from './company/CompanyWorkspace.js';
+import { ClientWorkspace } from './client-portal/ClientWorkspace.js';
+import { ClientLoginPage } from './client-portal/ClientLoginPage.js';
 import { PublicApplicationPage } from './company/recruitment/pages/PublicApplicationPage.js';
 import { PublicProposalPage } from './company/sales/proposals/PublicProposalPage.js';
 import type { DevPasswordReset, IdentityLoginResult } from './identity/api/authApi.js';
@@ -66,9 +68,9 @@ export function App(): React.JSX.Element {
     setDevPasswordReset(null);
     setCompanyAuthenticated(true);
     setPasswordChangeRequired(result.passwordChangeRequired);
-    navigate(
-      result.passwordChangeRequired ? '/company/password-change' : '/company/dashboard',
-    );
+    // Clients who sign in through the company login land in their own portal.
+    const home = result.user.accountType === 'client' ? '/client' : '/company/dashboard';
+    navigate(result.passwordChangeRequired ? '/company/password-change' : home);
   }
 
   function openCompanyLogin() {
@@ -100,7 +102,7 @@ export function App(): React.JSX.Element {
       const control = target.closest<HTMLElement>(
         "button:not(:disabled), [role='button']:not([aria-disabled='true'])",
       );
-      if (!control) return;
+      if (!control || control.matches('.task-assignee-toggle')) return;
       control.classList.remove('jelly-click');
       void control.offsetWidth;
       control.classList.add('jelly-click');
@@ -148,6 +150,41 @@ export function App(): React.JSX.Element {
         onComplete={openCompanyLogin}
       />
     );
+  }
+  const isClientSession = companyAuthenticated && getIdentityAccountType() === 'client';
+  const clientLogout = () => {
+    void identityLogout().finally(() => {
+      setCompanyAuthenticated(false);
+      setPasswordChangeRequired(false);
+      navigate('/client/login');
+    });
+  };
+  const handleClientLogin = (result: IdentityLoginResult) => {
+    setCompanyAuthenticated(true);
+    setPasswordChangeRequired(result.passwordChangeRequired);
+    navigate(result.passwordChangeRequired ? '/company/password-change' : '/client');
+  };
+  if (pathname === '/client/login') {
+    if (isClientSession) {
+      window.history.replaceState({}, '', '/client');
+      return <ClientWorkspace pathname="/client" onNavigate={navigate} onLogout={clientLogout} />;
+    }
+    return <ClientLoginPage onSuccess={handleClientLogin} onForgotPassword={openForgotPassword} />;
+  }
+  if (pathname === '/client' || pathname.startsWith('/client/')) {
+    if (!companyAuthenticated) {
+      window.history.replaceState({}, '', '/client/login');
+      return <ClientLoginPage onSuccess={handleClientLogin} onForgotPassword={openForgotPassword} />;
+    }
+    return <ClientWorkspace pathname={pathname} onNavigate={navigate} onLogout={clientLogout} />;
+  }
+  // A client session must never render the employee workspace.
+  if (
+    isClientSession &&
+    (pathname === '/login' || pathname.startsWith('/company/') || pathname === '/organization' || pathname.startsWith('/organization/'))
+  ) {
+    window.history.replaceState({}, '', '/client');
+    return <ClientWorkspace pathname="/client" onNavigate={navigate} onLogout={clientLogout} />;
   }
   if (pathname === '/login') {
     if (companyAuthenticated) {

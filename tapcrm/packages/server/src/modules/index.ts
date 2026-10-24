@@ -86,11 +86,13 @@ import {
 } from './chat/index.js';
 import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
 import { registerProjectPolicies, registerProjectReportJobs, registerProjectRoutes } from './projects/index.js';
+import { registerClientPortalRoutes } from './client-portal/index.js';
 import { registerMyTodoRoutes } from './myTodo/routes.js';
 import { registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
 import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
 import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
 import { registerTaRoutes } from './ta/routes.js';
+import { registerAccountingJobs, registerAccountingPolicies, registerAccountingRoutes } from './finance/accounting/index.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -140,6 +142,7 @@ export function registerAllPolicies(): void {
   registerClientPolicies();
   registerSocialPolicies();
   registerProjectPolicies();
+  registerAccountingPolicies();
 }
 
 /** Realtime wiring that has no route/policy shape of its own (the typing relay). */
@@ -185,9 +188,11 @@ export function registerAllRoutes(): void {
   registerClientRoutes();
   registerSocialRoutes();
   registerProjectRoutes();
+  registerClientPortalRoutes();
   registerMyTodoRoutes();
   registerOnboardingRoutes();
   registerVerificationRoutes();
+  registerAccountingRoutes();
 }
 
 let jobsRegistered = false;
@@ -210,4 +215,5 @@ export function registerAllJobs(): void {
   registerSalesIntakeJobs();
   registerProjectReportJobs();
   registerSocialJobs();
+  registerAccountingJobs();
 }

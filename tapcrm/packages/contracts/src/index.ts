@@ -23,6 +23,8 @@ export * from './principal.js';
 export * from './identity-bootstrap.js';
 export * from './platform.js';
 export * from './people.js';
+export * from './accounting.js';
+export * from './accounting-ledger.js';
 export * from './presence.js';
 export * from './biometric.js';
 export * from './leave.js';

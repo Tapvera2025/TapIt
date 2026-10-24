@@ -19,6 +19,7 @@ interface ThemeContextValue {
 }
 
 const THEME_STORAGE_KEY = 'tapcrm.theme';
+const THEME_MIGRATION_KEY = 'tapcrm.theme-system-default-v1';
 const ACCENT_STORAGE_KEY = 'tapcrm.accent';
 const VALID_ACCENTS: AccentColor[] = ['green', 'violet', 'orange', 'blue'];
 
@@ -30,10 +31,20 @@ function systemTheme(): 'light' | 'dark' {
 }
 
 function initialTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'system';
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
-  return 'dark';
+  if (stored === 'system') return 'system';
+
+  // Older versions only had a manual light/dark toggle. Treat those legacy
+  // values as the old default and opt into system sync once after upgrading.
+  if (window.localStorage.getItem(THEME_MIGRATION_KEY) !== '1') {
+    window.localStorage.setItem(THEME_MIGRATION_KEY, '1');
+    window.localStorage.setItem(THEME_STORAGE_KEY, 'system');
+    return 'system';
+  }
+
+  if (stored === 'light' || stored === 'dark') return stored;
+  return 'system';
 }
 
 function initialAccent(): AccentColor {
@@ -74,8 +85,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const handleChange = (event: MediaQueryListEvent) => {
       setSystemResolvedTheme(event.matches ? 'dark' : 'light');
     };
-    media.addEventListener('change', handleChange);
-    return () => media.removeEventListener('change', handleChange);
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', handleChange);
+      return () => media.removeEventListener('change', handleChange);
+    }
+
+    // Safari versions before MediaQueryList.addEventListener use this API.
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
   }, [theme]);
 
   return (

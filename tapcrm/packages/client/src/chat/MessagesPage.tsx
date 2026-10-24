@@ -1,26 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { APP_NAVIGATE_EVENT, type AppNavigateEvent } from '../navigationEvent.js';
 import { getConversation } from './api/chatApi.js';
 import { DirectMessagesPage } from './DirectMessagesPage.js';
 import { InternalGroupsPage } from './InternalGroupsPage.js';
 import { ProjectGroupsPage } from './ProjectGroupsPage.js';
+import { LiquidMessagesTabBar } from './LiquidMessagesTabBar.js';
+import { useChatUnread } from './ChatUnreadContext.js';
 
 type Tab = 'direct' | 'group' | 'project';
-
 const TAB_FOR_KIND: Record<string, Tab> = { direct: 'direct', group: 'group', project: 'project' };
 
-/**
- * The Messages module: Direct Messages (Phase 2), Internal Groups (Phase 3)
- * and Project Groups (Phase 4) — one conversation per project, created by
- * the project wizard's second step.
- */
+/** The Messages module: Direct Messages, Internal Groups, and Project Groups. */
 export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }: { currentUserId: string; isSuperAdmin: boolean; canManageProjects: boolean }): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('direct');
   const [deepLink, setDeepLink] = useState<{ conversationId: string; messageId?: string | undefined } | undefined>(undefined);
+  const unread = useChatUnread();
+  const tabs = useMemo(() => [
+    { value: 'direct', label: 'Direct Messages', shortLabel: 'Direct', badge: unread.direct },
+    { value: 'group', label: 'Internal Groups', shortLabel: 'Internal', badge: unread.group },
+    { value: 'project', label: 'Project Groups', shortLabel: 'Project', badge: unread.project },
+  ] as const, [unread.direct, unread.group, unread.project]);
 
-  // A notification click (e.g. a mention) arrives as "?conversationId=...&messageId=...";
-  // resolve which tab that conversation lives on, then hand the id down so
-  // ConversationWorkspace opens it and scrolls to the message.
+  // A notification click (e.g. a mention) arrives as a conversation deep link.
+  // Resolve its kind, then let the matching inbox open and scroll to the message.
   useEffect(() => {
     const resolve = (search: string): void => {
       const params = new URLSearchParams(search);
@@ -35,13 +37,7 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
         .catch(() => undefined);
     };
 
-    resolve(window.location.search); // arriving here fresh (e.g. from another page)
-
-    // Also arriving here: a SECOND notification clicked while already on this
-    // page. The URL changes (pushState) but this component's own mount
-    // effect would never re-run on its own, since "pathname" itself doesn't
-    // change when the destination is already "/company/messages" — so listen
-    // for App.tsx's navigate() directly instead of only reading on mount.
+    resolve(window.location.search);
     const onNavigate = (event: Event): void => {
       const target = (event as AppNavigateEvent).detail;
       const [path, search] = target.split('?');
@@ -53,26 +49,15 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3 sm:px-4 sm:pb-4 md:px-8 md:pb-8">
-      <div className="flex shrink-0 gap-1 overflow-x-auto px-1 pt-3 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {([['direct', 'Direct Messages'], ['group', 'Internal Groups'], ['project', 'Project Groups']] as const).map(([value, tabLabel]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => {
-              // A manual tab switch overrides whatever a notification deep
-              // link opened — otherwise the old conversation keeps forcing
-              // itself back open every time its tab remounts.
-              setDeepLink(undefined);
-              setTab(value);
-            }}
-            className={`whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors sm:px-3 sm:text-sm ${tab === value ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
-          >
-            <span className="sm:hidden">{value === 'direct' ? 'Direct' : value === 'group' ? 'Internal' : 'Project'}</span>
-            <span className="hidden sm:inline">{tabLabel}</span>
-          </button>
-        ))}
-      </div>
+    <div className="messages-page flex h-full min-h-0 flex-col px-3 pb-3 sm:px-4 sm:pb-4 md:px-8 md:pb-8">
+      <LiquidMessagesTabBar
+        tabs={tabs}
+        value={tab}
+        onChange={(next) => {
+          setDeepLink(undefined);
+          setTab(next as Tab);
+        }}
+      />
       <div className="mt-3 min-h-0 flex-1 overflow-hidden rounded-2xl bg-app-surface">
         {tab === 'direct' ? (
           <DirectMessagesPage currentUserId={currentUserId} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />

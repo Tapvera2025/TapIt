@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../../../ui/Icon.js';
+import { WorkspacePageContainer } from '../../../ui/components.js';
 import { getCompanyDepartments, type CompanyDepartment } from '../../api/companyApi.js';
 import {
   getEmployeeCurrentNote,
@@ -149,8 +150,7 @@ export function EmployeeNotesPage(): React.JSX.Element {
   }
 
   return (
-    <div className="p-5 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-5">
+    <WorkspacePageContainer className="space-y-5">
         <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
           <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
@@ -229,7 +229,6 @@ export function EmployeeNotesPage(): React.JSX.Element {
             }}
           />
         )}
-      </div>
-    </div>
+    </WorkspacePageContainer>
   );
 }

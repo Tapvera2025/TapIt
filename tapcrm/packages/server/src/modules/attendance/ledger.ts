@@ -105,7 +105,7 @@ export async function factsForDay(
 ): Promise<repo.DayFactsRow> {
   const facts = await loadFacts(tx, userId, date, date);
   const recorded = await repo.placementsBetween(tx, userId, date, date);
-  const types = await dayTypes(tx, userId, date, date, recorded);
+  const types = await dayTypes(tx, userId, date, date, recorded, facts);
   return toFactsRow(date, facts.get(date)!, types.get(date));
 }
 
@@ -120,16 +120,26 @@ async function dayTypes(
   first: DateOnly,
   last: DateOnly,
   recorded: ReadonlyMap<DateOnly, repo.Placement>,
+  facts?: ReadonlyMap<DateOnly, DayFacts>,
 ): Promise<Map<DateOnly, repo.DayFactsRow['dayType']>> {
   const person = await repo.findAppUser(tx, userId);
   const calendar = await CalendarFacade.dayTypeRange(tx, userId, first, last, {
     placements: recorded,
   });
   return new Map(
-    calendar.map((day) => [
-      day.date,
-      person !== null && isEmployedOn(person, day.date) ? day.type : 'not-employed',
-    ]),
+    calendar.map((day) => {
+      const fact = facts?.get(day.date);
+      const isScheduledWeekOff =
+        day.type === 'working' &&
+        fact?.shift.kind === 'none' &&
+        (fact.shift.source === 'weekday-schedule' || fact.shift.source === 'rotation');
+      return [
+        day.date,
+        person !== null && isEmployedOn(person, day.date)
+          ? isScheduledWeekOff ? 'week-off' : day.type
+          : 'not-employed',
+      ];
+    }),
   );
 }
 
@@ -235,7 +245,7 @@ export async function reattribute(
   const first = addDays(lo, -1);
   const last = addDays(hi, 1);
   const recorded = await repo.placementsBetween(tx, userId, first, last);
-  const calendar = await dayTypes(tx, userId, first, last, recorded);
+  const calendar = await dayTypes(tx, userId, first, last, recorded, facts);
   const factsRow = (date: DateOnly) =>
     toFactsRow(date, facts.get(date)!, calendar.get(date));
   const owning = new Set<DateOnly>();

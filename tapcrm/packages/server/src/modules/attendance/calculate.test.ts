@@ -97,9 +97,9 @@ describe('§8.3 worked examples — status and units (present / paid leave / unp
     expect([r.status, ...units(r)]).toEqual(['absent', 0, 0, 0, 2, 0]);
   });
 
-  it('worked between the half-day and full-day thresholds → half-day', () => {
+  it('worked between the half-day and full-day thresholds → present', () => {
     const r = day({ events: workday('09:00:00', '14:00:00') });
-    expect([r.status, ...units(r)]).toEqual(['half-day', 1, 0, 0, 1, 0]);
+    expect([r.status, ...units(r)]).toEqual(['present', 2, 0, 0, 0, 0]);
   });
 
   it('first-half paid leave, then worked the afternoon → half-day-leave, present for the other half', () => {
@@ -304,7 +304,7 @@ describe('days that are not judged, or not yet', () => {
 
   it('a flexible day uses 480 and 300 minutes (SH-4), with no lateness', () => {
     const r = day({ shift: shift(null, null), events: workday('11:00:00', '16:30:00') });
-    expect([r.status, r.lateMinutes]).toEqual(['half-day', 0]);
+    expect([r.status, r.lateMinutes]).toEqual(['present', 0]);
   });
 
   it('outside the employment window → not-employed', () => {

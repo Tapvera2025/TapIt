@@ -1,5 +1,4 @@
-import { relative } from 'node:path';
-import { locateInModule, type SourceFile } from './boundary.js';
+import { locateInModule, relativePosix, type SourceFile } from './boundary.js';
 
 /**
  * Table ownership — attendance design §6.2 ("no other module reads the shift*
@@ -46,7 +45,7 @@ export function findForeignTableUse(
       const owner = TABLE_OWNERS.find((candidate) => candidate.tables.test(table));
       if (owner === undefined || owner.module === module) continue;
       violations.push({
-        file: relative(root, file.path),
+        file: relativePosix(root, file.path),
         line: file.text.slice(0, match.index).split('\n').length,
         table,
         owner: owner.module,

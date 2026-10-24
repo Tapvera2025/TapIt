@@ -30,6 +30,11 @@ export function PayrollCyclePage(): React.JSX.Element {
 
   return (
     <div className="mx-auto max-w-lg space-y-4 p-4 sm:p-6">
+      <header className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">Payroll</p>
+        <h1 className="font-display text-2xl font-bold">Payroll cycle</h1>
+        <p className="text-sm text-app-muted">Review the current payroll cycle and published employee payslips.</p>
+      </header>
       <div className="rounded-2xl border border-app-border bg-app-surface p-5">
         <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">Latest payslip</p>
         {data?.currentSlip ? (

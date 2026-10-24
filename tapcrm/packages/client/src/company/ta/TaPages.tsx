@@ -549,6 +549,8 @@ export function TaManagementPage(): React.JSX.Element {
 
 export function MyTaPage(): React.JSX.Element {
   const [month, setMonth] = useState(monthStart());
+  const [statementPage, setStatementPage] = useState(1);
+  const [dayPage, setDayPage] = useState(1);
   const [data, setData] = useState<{
     statements: Array<Record<string, string | null>>;
     days: Array<{
@@ -558,24 +560,24 @@ export function MyTaPage(): React.JSX.Element {
       eligibleUnits: string;
       dailyAmountPaise: string | null;
     }>;
-  }>({ statements: [], days: [] });
+    statementPage: number;
+    dayPage: number;
+    pageSize: number;
+    statementTotal: number;
+    statementTotalPages: number;
+    daysTotal: number;
+    dayTotalPages: number;
+    summary: { dailyRates: string[]; eligibleDays: number; calculatedAmountPaise: number };
+  }>({ statements: [], days: [], statementPage: 1, dayPage: 1, pageSize: 10, statementTotal: 0, statementTotalPages: 1, daysTotal: 0, dayTotalPages: 1, summary: { dailyRates: [], eligibleDays: 0, calculatedAmountPaise: 0 } });
   const [error, setError] = useState('');
   useEffect(() => {
-    void listMyTa(month)
+    void listMyTa(month, { statementPage, dayPage, pageSize: 10 })
       .then(setData)
       .catch((cause) => setError(errorMessage(cause)));
-  }, [month]);
-  const dailyRates = [
-    ...new Set(data.statements.map((item) => item['dailyAmountPaise'])),
-  ];
-  const eligibleDays = data.statements.reduce(
-    (total, item) => total + Number(item['eligibleDays'] ?? 0),
-    0,
-  );
-  const calculatedAmountPaise = data.statements.reduce(
-    (total, item) => total + Number(item['calculatedAmountPaise'] ?? 0),
-    0,
-  );
+  }, [month, statementPage, dayPage]);
+  const dailyRates = data.summary.dailyRates;
+  const eligibleDays = data.summary.eligibleDays;
+  const calculatedAmountPaise = data.summary.calculatedAmountPaise;
   return (
     <Page
       eyebrow="Self service"
@@ -593,7 +595,11 @@ export function MyTaPage(): React.JSX.Element {
                   className="mt-2 block rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
                   type="month"
                   value={month.slice(0, 7)}
-                  onChange={(event) => setMonth(`${event.target.value}-01`)}
+                  onChange={(event) => {
+                    setMonth(`${event.target.value}-01`);
+                    setStatementPage(1);
+                    setDayPage(1);
+                  }}
                 />
               </label>
             </div>
@@ -655,6 +661,7 @@ export function MyTaPage(): React.JSX.Element {
                   </tbody>
                 </table>
               </div>
+              <MyTaPagination page={data.statementPage} totalPages={data.statementTotalPages} total={data.statementTotal} label="statements" onPage={setStatementPage} />
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[500px] text-sm">
                   <thead>
@@ -687,6 +694,7 @@ export function MyTaPage(): React.JSX.Element {
                   </tbody>
                 </table>
               </div>
+              <MyTaPagination page={data.dayPage} totalPages={data.dayTotalPages} total={data.daysTotal} label="days" onPage={setDayPage} />
             </Card>
           </>
         ) : (
@@ -698,7 +706,11 @@ export function MyTaPage(): React.JSX.Element {
                   className="mt-2 block rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
                   type="month"
                   value={month.slice(0, 7)}
-                  onChange={(event) => setMonth(`${event.target.value}-01`)}
+                  onChange={(event) => {
+                    setMonth(`${event.target.value}-01`);
+                    setStatementPage(1);
+                    setDayPage(1);
+                  }}
                 />
               </label>
             </div>
@@ -711,5 +723,17 @@ export function MyTaPage(): React.JSX.Element {
         )}
       </div>
     </Page>
+  );
+}
+
+function MyTaPagination({ page, totalPages, total, label, onPage }: { page: number; totalPages: number; total: number; label: string; onPage: (page: number) => void }): React.JSX.Element {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-app-border pt-3 text-xs text-app-muted">
+      <span>{total} {label} · Page {page} of {totalPages}</span>
+      <div className="flex gap-2">
+        <button type="button" className="rounded-lg border border-app-border px-3 py-1.5 disabled:opacity-50" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</button>
+        <button type="button" className="rounded-lg border border-app-border px-3 py-1.5 disabled:opacity-50" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>Next</button>
+      </div>
+    </div>
   );
 }

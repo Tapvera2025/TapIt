@@ -19,8 +19,10 @@ import {
 import {
   listShifts,
   getEmployeeShift,
+  getEmployeeWeekdaySchedule,
   assignShiftToEmployee,
   type ShiftTemplate,
+  type WeekdaySchedule,
 } from '../api/shiftsApi.js';
 import { Button, Modal, Notice, SkeletonProfile } from '../../ui/components.js';
 
@@ -99,6 +101,7 @@ export function EditEmployeeModal({
   designations,
   isSuperAdmin,
   canRequestRoleChange,
+  weekdaySchedules,
   onClose,
   onSaved,
   onRequestRoleChange,
@@ -107,6 +110,7 @@ export function EditEmployeeModal({
   departments: CompanyDepartment[];
   teams: CompanyTeam[];
   designations: CompanyDesignation[];
+  weekdaySchedules: WeekdaySchedule[];
   isSuperAdmin: boolean;
   canRequestRoleChange: boolean;
   onClose: () => void;
@@ -144,6 +148,8 @@ export function EditEmployeeModal({
   const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
   const [selectedShiftId, setSelectedShiftId] = useState('');
   const [shiftEffectiveFrom, setShiftEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [weekdayScheduleId, setWeekdayScheduleId] = useState('');
+  const [weekdayScheduleEffectiveFrom, setWeekdayScheduleEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
 
   // Account
   const [statusReason, setStatusReason] = useState('');
@@ -175,6 +181,12 @@ export function EditEmployeeModal({
         const id = today?.shiftId ?? null;
         setCurrentShiftId(id);
         setSelectedShiftId(id ?? '');
+      })
+      .catch(() => undefined);
+    getEmployeeWeekdaySchedule(userId)
+      .then((assignment) => {
+        setWeekdayScheduleId(assignment?.scheduleId ?? '');
+        setWeekdayScheduleEffectiveFrom(assignment?.effectiveFrom ?? new Date().toISOString().slice(0, 10));
       })
       .catch(() => undefined);
   }, [userId]);
@@ -303,6 +315,26 @@ export function EditEmployeeModal({
       onSaved(`Shift changed to ${shift?.name ?? 'selected shift'} effective ${shiftEffectiveFrom}.`);
     } catch (err) {
       setError(errorText(err, 'Unable to save the shift.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveWeekdaySchedule(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    if (!weekdayScheduleId || !weekdayScheduleEffectiveFrom) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await updateEmployee(userId, {
+        weekdayScheduleId,
+        weekdayScheduleEffectiveFrom,
+      });
+      const schedule = weekdaySchedules.find((item) => item.id === weekdayScheduleId);
+      onSaved(`Weekday schedule changed to ${schedule?.name ?? 'selected schedule'} effective ${weekdayScheduleEffectiveFrom}.`);
+    } catch (err) {
+      setError(errorText(err, 'Unable to save the weekday schedule.'));
     } finally {
       setBusy(false);
     }
@@ -475,6 +507,38 @@ export function EditEmployeeModal({
               <div className="flex justify-end gap-2 md:col-span-2">
                 <Button kind="secondary" onClick={onClose}>Close</Button>
                 <Button type="submit" disabled={busy || !selectedShiftId}>{busy ? 'Saving…' : 'Assign shift'}</Button>
+              </div>
+            </form>
+          )}
+
+          {tab === 'shift' && (
+            <form onSubmit={(e) => void saveWeekdaySchedule(e)} className="mt-6 grid gap-4 border-t border-app-border pt-5 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <h3 className="font-display text-base font-bold">Weekday schedule</h3>
+                <p className="mt-1 text-xs text-app-muted">Controls working weekdays only. The assigned Shift continues to control timings and attendance thresholds.</p>
+              </div>
+              <Choice
+                label="Weekday schedule"
+                value={weekdayScheduleId}
+                onChange={setWeekdayScheduleId}
+                options={weekdaySchedules.map((schedule) => ({ value: schedule.id, label: schedule.name }))}
+                empty={weekdaySchedules.length === 0 ? 'No active schedules available' : 'Select a weekday schedule'}
+                disabled={weekdaySchedules.length === 0}
+              />
+              <div>
+                <label className="mb-2 block text-xs font-semibold text-app-muted">Effective from</label>
+                <input
+                  type="date"
+                  value={weekdayScheduleEffectiveFrom}
+                  onChange={(e) => setWeekdayScheduleEffectiveFrom(e.target.value)}
+                  className={inputClass}
+                  required
+                />
+              </div>
+              {error && <div className="md:col-span-2"><Notice error>{error}</Notice></div>}
+              <div className="flex justify-end gap-2 md:col-span-2">
+                <Button kind="secondary" onClick={onClose}>Close</Button>
+                <Button type="submit" disabled={busy || !weekdayScheduleId}>{busy ? 'Saving…' : 'Save weekday schedule'}</Button>
               </div>
             </form>
           )}

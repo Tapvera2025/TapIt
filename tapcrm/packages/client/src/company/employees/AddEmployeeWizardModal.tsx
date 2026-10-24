@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   getCompanyLadder,
   getCompanyReportingManagers,
@@ -8,7 +9,7 @@ import {
   type CompanyReportingManager,
   type CompanyTeam,
 } from '../api/companyApi.js';
-import type { ShiftTemplate } from '../api/shiftsApi.js';
+import type { ShiftTemplate, WeekdaySchedule } from '../api/shiftsApi.js';
 import { createEmployee, getNextEmployeeId, type CreateEmployeeInput } from '../api/employeesApi.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 
@@ -20,6 +21,7 @@ interface AddEmployeeWizardModalProps {
   teams: CompanyTeam[];
   designations: CompanyDesignation[];
   shifts: ShiftTemplate[];
+  weekdaySchedules: WeekdaySchedule[];
 }
 
 type WizardFieldErrors = {
@@ -45,6 +47,7 @@ type WizardFieldErrors = {
 
   // Stage 3: Shift & Skills
   shiftId?: string;
+  weekdayScheduleId?: string;
   skills?: string;
   newSkillName?: string;
 
@@ -78,6 +81,7 @@ export function AddEmployeeWizardModal({
   teams,
   designations,
   shifts,
+  weekdaySchedules,
 }: AddEmployeeWizardModalProps): React.JSX.Element | null {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [busy, setBusy] = useState(false);
@@ -201,6 +205,7 @@ export function AddEmployeeWizardModal({
 
   // Stage 3: Shift & Skills
   const [shiftId, setShiftId] = useState('');
+  const [weekdayScheduleId, setWeekdayScheduleId] = useState('');
   const [skillsList, setSkillsList] = useState<Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>>([]);
   const [newSkillName, setNewSkillName] = useState('');
   const [newSkillProficiency, setNewSkillProficiency] = useState<'beginner' | 'intermediate' | 'advanced' | 'expert'>('intermediate');
@@ -360,6 +365,11 @@ export function AddEmployeeWizardModal({
     } else if (s === 3) {
       if (!shiftId.trim()) {
         errs.shiftId = 'Please select a shift schedule.';
+      }
+      if (!weekdayScheduleId.trim()) {
+        errs.weekdayScheduleId = weekdaySchedules.length === 0
+          ? 'Create an active weekday schedule before adding an employee.'
+          : 'Please select a weekday schedule.';
       }
 
       if (skillsList.length === 0) {
@@ -522,6 +532,7 @@ export function AddEmployeeWizardModal({
       ...(phone.trim() ? { phone: phone.trim() } : {}),
       ...(Object.keys(personalInfo).length > 0 ? { personalInfo } : {}),
       ...(shiftId ? { shiftId } : {}),
+      ...(weekdayScheduleId ? { weekdayScheduleId } : {}),
       ...(qualifications.length > 0 ? { qualifications } : {}),
       ...(skillsList.length > 0 ? { skills: skillsList } : {}),
     };
@@ -540,13 +551,14 @@ export function AddEmployeeWizardModal({
     }
   }
 
-  return (
+  return createPortal(
+    (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
     >
-      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-xs transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={onClose} />
 
       <dialog
         open
@@ -1071,6 +1083,30 @@ export function AddEmployeeWizardModal({
                 </p>
               </div>
 
+              <div>
+                <label htmlFor="wizard-weekdayScheduleId" className="mb-1 block text-xs font-semibold text-app-muted">Weekday schedule *</label>
+                <select
+                  id="wizard-weekdayScheduleId"
+                  value={weekdayScheduleId}
+                  onChange={(e) => {
+                    setWeekdayScheduleId(e.target.value);
+                    clearFieldError('weekdayScheduleId');
+                  }}
+                  className={`w-full rounded-lg border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent ${
+                    fieldErrors.weekdayScheduleId ? 'border-red-500' : 'border-app-border'
+                  }`}
+                >
+                  <option value="">Select weekday schedule *</option>
+                  {weekdaySchedules.map((schedule) => (
+                    <option key={schedule.id} value={schedule.id}>{schedule.name}</option>
+                  ))}
+                </select>
+                {fieldErrors.weekdayScheduleId && <p className="mt-1 text-xs text-red-500">{fieldErrors.weekdayScheduleId}</p>}
+                <p className="mt-1 text-xs text-app-muted">
+                  This controls working weekdays only. Shift timings remain from the selected shift.
+                </p>
+              </div>
+
               <div id="wizard-skills" className="rounded-xl border border-app-border bg-app-background/50 p-4">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-app-muted">Skills & Competencies *</h3>
                 <div className="flex gap-2">
@@ -1362,5 +1398,7 @@ export function AddEmployeeWizardModal({
         </div>
       </dialog>
     </div>
+    ),
+    document.body,
   );
 }

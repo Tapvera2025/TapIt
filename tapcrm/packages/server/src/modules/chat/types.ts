@@ -9,6 +9,13 @@
 
 export type ConversationKind = 'direct' | 'group' | 'project';
 
+export interface ChatUnreadSummary {
+  readonly total: number;
+  readonly direct: number;
+  readonly group: number;
+  readonly project: number;
+}
+
 export const REACTION_EMOJI = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
 export type ReactionEmoji = (typeof REACTION_EMOJI)[number];
 

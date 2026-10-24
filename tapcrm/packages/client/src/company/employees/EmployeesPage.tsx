@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   listInactiveEmployees,
   resetEmployeePassword,
@@ -18,8 +19,8 @@ import {
   type CompanyEmployee,
   type CompanyTeam,
 } from '../api/companyApi.js';
-import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
-import { SkeletonTableRows } from '../../ui/components.js';
+import { listShifts, listWeekdaySchedules, type ShiftTemplate, type WeekdaySchedule } from '../api/shiftsApi.js';
+import { SkeletonTableRows, WorkspacePageContainer } from '../../ui/components.js';
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export function EmployeesPage({
   const [teams, setTeams] = useState<CompanyTeam[]>([]);
   const [designations, setDesignations] = useState<CompanyDesignation[]>([]);
   const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
+  const [weekdaySchedules, setWeekdaySchedules] = useState<WeekdaySchedule[]>([]);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [onboardingEmployee, setOnboardingEmployee] = useState<{ id: string; name: string; setupUrl?: string | null | undefined } | null>(null);
@@ -82,19 +84,21 @@ export function EmployeesPage({
   async function load(): Promise<void> {
     setLoading(true);
     try {
-      const [nextEmployees, nextDepartments, nextTeams, nextDesignations, nextShifts] =
+      const [nextEmployees, nextDepartments, nextTeams, nextDesignations, nextShifts, nextWeekdaySchedules] =
         await Promise.all([
           getCompanyEmployees(),
           getCompanyDepartments(),
           getCompanyTeams(),
           getCompanyDesignations(),
           listShifts(),
+          listWeekdaySchedules(),
         ]);
       setEmployees(nextEmployees);
       setDepartments(nextDepartments.filter((item) => item.status === 'active'));
       setTeams(nextTeams);
       setDesignations(nextDesignations.filter((item) => item.status === 'active'));
       setShifts(nextShifts.filter((s) => s.status === 'active'));
+      setWeekdaySchedules(nextWeekdaySchedules.filter((schedule) => schedule.status === 'active'));
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load employees.');
@@ -121,8 +125,7 @@ export function EmployeesPage({
   );
 
   return (
-    <div className="p-5 md:p-8">
-      <div className="mx-auto max-w-7xl">
+    <WorkspacePageContainer>
 
         {/* ── Page header ─────────────────────────────────────────────────── */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-app-border bg-app-surface px-5 py-4 sm:px-6">
@@ -195,6 +198,7 @@ export function EmployeesPage({
             teams={teams}
             designations={designations}
             shifts={shifts}
+            weekdaySchedules={weekdaySchedules}
           />
         )}
 
@@ -430,8 +434,6 @@ export function EmployeesPage({
             </section>
           </div>
         )}
-      </div>
-
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       {editingId && (
         <EditEmployeeModal
@@ -439,6 +441,7 @@ export function EmployeesPage({
           departments={departments}
           teams={teams}
           designations={designations}
+          weekdaySchedules={weekdaySchedules}
           isSuperAdmin={isSuperAdmin}
           canRequestRoleChange={canRequestRoleChange}
           onClose={() => setEditingId(null)}
@@ -453,9 +456,9 @@ export function EmployeesPage({
         />
       )}
 
-      {resetTarget && (
+      {resetTarget && createPortal((
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Reset employee password"
@@ -544,7 +547,7 @@ export function EmployeesPage({
             )}
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {onboardingEmployee && (
         <OnboardingChecklistDrawer
@@ -565,7 +568,7 @@ export function EmployeesPage({
           onClose={() => setVerifyingEmployee(null)}
         />
       )}
-    </div>
+    </WorkspacePageContainer>
   );
 }
 

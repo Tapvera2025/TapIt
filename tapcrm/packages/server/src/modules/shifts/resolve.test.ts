@@ -118,6 +118,81 @@ describe('SH-1 — one chain, highest precedence first (design §6.2)', () => {
   });
 });
 
+describe('weekday schedules', () => {
+  it('keeps the assigned shift on working weekdays and returns no shift on week-offs', () => {
+    const person = inputs({
+      shiftList: [DAY],
+      assignments: [template('day')],
+      weekdaySchedules: [{
+        effectiveFrom: d('2026-01-01'),
+        effectiveTo: null,
+        workingWeekdays: [1, 2, 3, 4, 5],
+      }],
+    });
+
+    expect(resolveShift(person, d('2026-09-28'))).toMatchObject({
+      source: 'template',
+      shiftId: 'day',
+    });
+    expect(resolveShift(person, d('2026-10-04'))).toMatchObject({
+      source: 'weekday-schedule',
+      kind: 'none',
+      shiftId: null,
+    });
+  });
+
+  it('preserves existing all-days behavior when no weekday schedule is assigned', () => {
+    expect(resolveShift(inputs({ shiftList: [DAY], assignments: [template('day')] }), d('2026-10-04'))).toMatchObject({
+      source: 'template',
+      shiftId: 'day',
+    });
+  });
+
+  it('does not resolve attendance from an inactive weekday schedule', () => {
+    const person = inputs({
+      shiftList: [DAY],
+      assignments: [template('day')],
+      weekdaySchedules: [{
+        effectiveFrom: d('2026-01-01'),
+        effectiveTo: null,
+        workingWeekdays: [1, 2, 3, 4, 5],
+        status: 'inactive',
+      }],
+    });
+    expect(resolveShift(person, d('2026-09-28'))).toMatchObject({
+      source: 'weekday-schedule',
+      kind: 'none',
+    });
+  });
+
+  it('turns a scheduled week-off into a working day for the matching exception scope', () => {
+    const person = inputs({
+      shiftList: [DAY],
+      assignments: [template('day')],
+      weekdaySchedules: [{
+        effectiveFrom: d('2026-01-01'),
+        effectiveTo: null,
+        workingWeekdays: [1, 2, 3, 4, 5],
+      }],
+      workingDayExceptions: [{ date: d('2026-10-04'), departmentIds: ['dept-a'] }],
+      departmentIdsByDate: new Map([[d('2026-10-04'), 'dept-a']]),
+    });
+
+    expect(resolveShift(person, d('2026-10-04'))).toMatchObject({
+      source: 'template',
+      shiftId: 'day',
+      kind: 'fixed',
+    });
+    expect(resolveShift({
+      ...person,
+      departmentIdsByDate: new Map([[d('2026-10-04'), 'dept-b']]),
+    }, d('2026-10-04'))).toMatchObject({
+      source: 'weekday-schedule',
+      kind: 'none',
+    });
+  });
+});
+
 describe('SH-2 — a template edit never reaches back', () => {
   const edited = inputs({
     shiftList: [

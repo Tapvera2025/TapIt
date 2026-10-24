@@ -258,6 +258,7 @@ export function MyTodoPage(): React.JSX.Element {
           completedCount={stats.completed}
           todayCount={stats.today}
           upcomingCount={stats.upcoming}
+          onAddTodo={handleOpenAdd}
         >
           <TodoProgress
             totalCount={stats.total}

@@ -6,7 +6,7 @@ import { organizationToday } from '../../platform/organization-time.js';
 import { taAttendanceDays, taAttendanceTotals, xlsxBuffer } from '../attendance/facade.js';
 import { writeTaAudit } from './audit.js';
 import { TaConflictError, TaError } from './errors.js';
-import type { AssignmentBody, ListQuery } from './validators.js';
+import type { AssignmentBody, ListQuery, MyQuery } from './validators.js';
 
 const dayBefore = (month: string): string => {
   const date = new Date(`${month.slice(0, 7)}-01T00:00:00.000Z`);
@@ -329,7 +329,8 @@ export async function changeAssignmentStatus(
   });
 }
 
-export async function myStatements(ctx: RequestContext, taMonth: string) {
+export async function myStatements(ctx: RequestContext, query: MyQuery) {
+  const { taMonth, statementPage, dayPage, pageSize } = query;
   return db.transaction(ctx, async (tx) => {
     const statements = await tx.query<any>(sql`
       SELECT s.id, s.ta_month::text AS "taMonth", s.daily_amount_paise::text AS "dailyAmountPaise",
@@ -357,7 +358,27 @@ export async function myStatements(ctx: RequestContext, taMonth: string) {
         ? [{ ...day, dailyAmountPaise: null }]
         : covering.map((s) => ({ ...day, dailyAmountPaise: s.dailyAmountPaise }));
     });
-    return { statements, days };
+    const statementTotal = statements.length;
+    const daysTotal = days.length;
+    const statementStart = (statementPage - 1) * pageSize;
+    const dayStart = (dayPage - 1) * pageSize;
+    const summary = {
+      dailyRates: [...new Set(statements.map((item) => item.dailyAmountPaise))],
+      eligibleDays: statements.reduce((total, item) => total + Number(item.eligibleDays ?? 0), 0),
+      calculatedAmountPaise: statements.reduce((total, item) => total + Number(item.calculatedAmountPaise ?? 0), 0),
+    };
+    return {
+      statements: statements.slice(statementStart, statementStart + pageSize),
+      days: days.slice(dayStart, dayStart + pageSize),
+      statementPage,
+      dayPage,
+      pageSize,
+      statementTotal,
+      statementTotalPages: Math.max(1, Math.ceil(statementTotal / pageSize)),
+      daysTotal,
+      dayTotalPages: Math.max(1, Math.ceil(daysTotal / pageSize)),
+      summary,
+    };
   });
 }
 

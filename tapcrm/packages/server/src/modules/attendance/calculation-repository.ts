@@ -31,6 +31,7 @@ export interface RecordForCalculation {
   closeDueAt: Date;
   dayType: 'working' | 'week-off' | 'holiday' | 'not-employed';
   attributionFlags: string[];
+  rulesVersion: string | null;
   inputVersion: number;
   calculatedInputVersion: number;
   calculationVersion: number;
@@ -42,7 +43,7 @@ export async function lockRecordForCalculation(
 ): Promise<RecordForCalculation> {
   return tx.one<RecordForCalculation>(sql`
     SELECT id, user_id, organization_id, work_date::text AS work_date, state,
-           shift_snapshot, placement_snapshot, close_due_at, day_type,
+           shift_snapshot, placement_snapshot, close_due_at, day_type, rules_version,
            attribution_flags, input_version, calculated_input_version, calculation_version
     FROM attendance_record WHERE id = ${recordId}
     FOR UPDATE
@@ -207,7 +208,8 @@ export async function staleRecords(
 ): Promise<{ id: string; inputVersion: number }[]> {
   return tx.query<{ id: string; inputVersion: number }>(sql`
     SELECT id, input_version FROM attendance_record
-    WHERE calculated_input_version < input_version
+    WHERE (calculated_input_version < input_version
+           OR rules_version IS DISTINCT FROM ${RULES_VERSION})
       AND input_changed_at < ${changedBefore}
       AND (${after}::uuid IS NULL OR id > ${after}::uuid)
     ORDER BY id
@@ -249,19 +251,30 @@ export async function peopleWithDays(
   filter: {
     readonly departmentIds?: readonly string[];
     readonly shiftIds?: readonly string[];
+    readonly weekdayScheduleIds?: readonly string[];
   },
   from: DateOnly,
   to: DateOnly | null,
 ): Promise<string[]> {
   const departments = [...(filter.departmentIds ?? [])];
   const shifts = [...(filter.shiftIds ?? [])];
-  const everyone = departments.length === 0 && shifts.length === 0;
+  const weekdaySchedules = [...(filter.weekdayScheduleIds ?? [])];
+  const everyone = departments.length === 0 && shifts.length === 0 && weekdaySchedules.length === 0;
   const rows = await tx.query<{ userId: string }>(sql`
     SELECT DISTINCT r.user_id FROM attendance_record r
     WHERE r.work_date >= ${from} AND (${to}::date IS NULL OR r.work_date <= ${to}::date)
       AND (${everyone}
            OR r.placement_snapshot->>'departmentId' = ANY(${departments}::text[])
-           OR r.shift_snapshot->>'shiftId' = ANY(${shifts}::text[]))
+           OR r.shift_snapshot->>'shiftId' = ANY(${shifts}::text[])
+           OR EXISTS (
+             SELECT 1
+             FROM weekday_schedule_assignment wsa
+             WHERE wsa.organization_id = r.organization_id
+               AND wsa.user_id = r.user_id
+               AND wsa.schedule_id = ANY(${weekdaySchedules}::uuid[])
+               AND wsa.effective_from <= r.work_date
+               AND (wsa.effective_to IS NULL OR wsa.effective_to > r.work_date)
+           ))
     ORDER BY r.user_id
   `);
   return rows.map((row) => row.userId);

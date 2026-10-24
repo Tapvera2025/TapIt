@@ -125,6 +125,11 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
+      <header className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">Leave</p>
+        <h1 className="font-display text-2xl font-bold">My leave</h1>
+        <p className="text-sm text-app-muted">Apply for leave, review your requests, and check your available balances.</p>
+      </header>
       {/* Balances */}
       {balances.length > 0 && (
         <div className="flex flex-wrap gap-2">

@@ -16,6 +16,7 @@ function fmt(minutes: number): string { return `${Math.floor(minutes / 60)}h ${m
 function time(value: string | null): string { return value ? new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'; }
 function statusCode(day: EmployeeWiseDay | undefined): string {
   if (!day) return '—';
+  if (day.dayType === 'week-off') return '—';
   if (day.isWfh && (day.status === 'present' || day.status === 'full-day')) return 'P · WFH';
   if (day.status === 'present' || day.status === 'full-day') return 'P';
   if (day.status === 'half-day') return 'HD';

@@ -3,13 +3,21 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
+import { z } from 'zod';
 import {
   assign,
+  createWeekdaySchedule,
+  createWorkingDayException,
+  getEmployeeWeekdaySchedule,
   createShift,
   decideRequest,
   explainShifts,
+  listWeekdaySchedules,
+  listWorkingDayExceptions,
   listShiftTemplates,
   reviseShift,
+  updateWeekdaySchedule,
+  updateWorkingDayException,
 } from './service.js';
 import {
   assignmentSchema,
@@ -17,6 +25,11 @@ import {
   decideSchema,
   explainQuerySchema,
   reviseShiftSchema,
+  createWeekdayScheduleSchema,
+  updateWeekdayScheduleSchema,
+  createWorkingDayExceptionSchema,
+  updateWorkingDayExceptionSchema,
+  workingDayExceptionListQuerySchema,
 } from './validators.js';
 
 /** Design §6.4 — the six bindings AUTHORIZATION.md §6.5 lists. Raising and listing requests wait for G3. */
@@ -62,6 +75,76 @@ export function registerShiftRoutes(): void {
     action: 'shifts:manage',
     module: 'shifts',
     handler: async ({ ctx, body }) => createShift(ctx, createShiftSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/shifts/weekday-schedules',
+    action: 'shifts:view',
+    module: 'shifts',
+    handler: async ({ ctx }) => listWeekdaySchedules(ctx),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/shifts/weekday-schedules/assignments',
+    action: 'shifts:view',
+    module: 'shifts',
+    handler: async ({ ctx, query }) =>
+      getEmployeeWeekdaySchedule(ctx, z.string().uuid().parse(query['userId'])),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/shifts/weekday-schedules',
+    action: 'shifts:manage',
+    module: 'shifts',
+    handler: async ({ ctx, body }) =>
+      createWeekdaySchedule(ctx, createWeekdayScheduleSchema.parse(body)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/shifts/weekday-schedules/exceptions',
+    action: 'shifts:view',
+    module: 'shifts',
+    handler: async ({ ctx, query }) =>
+      listWorkingDayExceptions(ctx, workingDayExceptionListQuerySchema.parse(query)),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/shifts/weekday-schedules/exceptions',
+    action: 'shifts:manage',
+    module: 'shifts',
+    handler: async ({ ctx, body }) =>
+      createWorkingDayException(ctx, createWorkingDayExceptionSchema.parse(body)),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/shifts/weekday-schedules/exceptions/:id',
+    action: 'shifts:manage',
+    module: 'shifts',
+    handler: async ({ ctx, params, body }) =>
+      updateWorkingDayException(
+        ctx,
+        params['id']!,
+        updateWorkingDayExceptionSchema.parse(body),
+      ),
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/shifts/weekday-schedules/:id',
+    action: 'shifts:manage',
+    module: 'shifts',
+    handler: async ({ ctx, params, body }) =>
+      updateWeekdaySchedule(
+        ctx,
+        params['id']!,
+        updateWeekdayScheduleSchema.parse(body),
+      ),
   });
 
   route({

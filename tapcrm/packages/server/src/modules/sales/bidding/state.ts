@@ -123,7 +123,7 @@ export async function recordView(
   await tx.query(sql`
     INSERT INTO bid_pool_view (organization_id, lead_id, agent_id, action, pass_reason, pass_until, first_seen_at, last_seen_at)
     VALUES (${organizationId}, ${leadId}, ${agentId}, ${action}, ${passReason}, ${passUntil}, ${now}, ${now})
-    ON CONFLICT (lead_id, agent_id) DO UPDATE
+    ON CONFLICT (organization_id, lead_id, agent_id) DO UPDATE
       SET action       = EXCLUDED.action,
           pass_reason  = EXCLUDED.pass_reason,
           pass_until   = EXCLUDED.pass_until,

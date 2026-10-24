@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../ui/Icon.js';
 import type { AppNotification } from './api/notificationsApi.js';
 import { useNotifications } from './useNotifications.js';
@@ -23,15 +24,86 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
   const { items, unreadCount, hasMore, loading, error, incoming, dismissIncoming, loadMore, markRead, markAllRead } =
     useNotifications();
   const [open, setOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState(() => window.matchMedia('(min-width: 768px)').matches);
+  const [panelMounted, setPanelMounted] = useState(false);
+  const [panelVisible, setPanelVisible] = useState(false);
+  const [activatingNotificationId, setActivatingNotificationId] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openFrame = useRef<number | null>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
+
+  const clearPanelTimers = useCallback(() => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    if (openFrame.current !== null) cancelAnimationFrame(openFrame.current);
+    closeTimer.current = null;
+    openFrame.current = null;
+  }, []);
+
+  const showPanel = () => {
+    clearPanelTimers();
+    setOpen(true);
+    setPanelMounted(true);
+    if (window.matchMedia('(min-width: 768px)').matches) {
+      setPanelVisible(false);
+      openFrame.current = requestAnimationFrame(() => setPanelVisible(true));
+    }
+  };
+
+  const closePanel = useCallback(() => {
+    if (activationTimer.current) clearTimeout(activationTimer.current);
+    activationTimer.current = null;
+    setActivatingNotificationId(null);
+    setOpen(false);
+    clearPanelTimers();
+    if (window.matchMedia('(min-width: 768px)').matches) {
+      setPanelMounted(true);
+      setPanelVisible(false);
+      closeTimer.current = setTimeout(() => setPanelMounted(false), 290);
+    } else {
+      setPanelMounted(false);
+      setPanelVisible(false);
+    }
+  }, [clearPanelTimers]);
+
+  useEffect(() => {
+    const tabletAndUp = window.matchMedia('(min-width: 768px)');
+    const onBreakpointChange = (event: MediaQueryListEvent) => {
+      setDrawerMode(event.matches);
+      clearPanelTimers();
+      if (event.matches) {
+        if (openRef.current) {
+          setPanelMounted(true);
+          setPanelVisible(true);
+        } else {
+          setPanelMounted(false);
+          setPanelVisible(false);
+        }
+      } else {
+        setPanelMounted(openRef.current);
+        setPanelVisible(false);
+      }
+    };
+    tabletAndUp.addEventListener('change', onBreakpointChange);
+    return () => tabletAndUp.removeEventListener('change', onBreakpointChange);
+  }, [clearPanelTimers]);
+
+  useEffect(() => () => {
+    clearPanelTimers();
+    if (activationTimer.current) clearTimeout(activationTimer.current);
+  }, [clearPanelTimers]);
 
   useEffect(() => {
     if (!open) return;
     const onPointer = (event: MouseEvent) => {
-      if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!root.current?.contains(target) && !panelRef.current?.contains(target)) closePanel();
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') closePanel();
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);
@@ -39,7 +111,7 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
       document.removeEventListener('mousedown', onPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, closePanel]);
 
   useEffect(() => {
     if (!incoming) return;
@@ -50,21 +122,110 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
   const openNotification = (notification: AppNotification) => {
     void markRead(notification.id);
     dismissIncoming();
-    setOpen(false);
+    closePanel();
     if (notification.link) onNavigate(notification.link);
   };
 
+  const activateNotification = (notification: AppNotification) => {
+    if (!drawerMode) {
+      openNotification(notification);
+      return;
+    }
+
+    if (activationTimer.current) clearTimeout(activationTimer.current);
+    setActivatingNotificationId(notification.id);
+    void markRead(notification.id);
+    dismissIncoming();
+    activationTimer.current = setTimeout(() => {
+      closePanel();
+      if (notification.link) onNavigate(notification.link);
+      setActivatingNotificationId(null);
+      activationTimer.current = null;
+    }, 220);
+  };
+
   const badge = unreadCount > 99 ? '99+' : String(unreadCount);
+  const panel = (drawerMode ? panelMounted : open) ? (
+    <div
+      ref={panelRef}
+      id="notification-panel"
+      className={`notification-panel ui-card fixed inset-x-3 top-20 z-50 flex max-h-[70dvh] flex-col overflow-hidden ${drawerMode ? 'notification-panel-drawer' : ''}`}
+      data-open={drawerMode ? panelVisible && open : undefined}
+      aria-hidden={drawerMode ? !open : undefined}
+      inert={drawerMode ? !open : undefined}
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-app-border px-4 py-3">
+        <p className="text-sm font-semibold">Notifications</p>
+        <button
+          type="button"
+          onClick={() => void markAllRead()}
+          disabled={unreadCount === 0}
+          className="text-xs font-semibold text-app-accent disabled:text-app-muted disabled:opacity-60"
+        >
+          Mark all read
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {error && <p role="alert" className="p-4 text-sm text-app-danger">{error}</p>}
+        {!error && items.length === 0 && (
+          <p className="p-6 text-center text-sm text-app-muted">You&apos;re all caught up.</p>
+        )}
+        <ul>
+          {items.map((notification) => (
+            <li key={notification.id} className="border-b border-app-border last:border-b-0">
+              <button
+                type="button"
+                onClick={() => activateNotification(notification)}
+                data-read={notification.read}
+                className={`notification-item-button flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-app-surface-raised ${notification.read ? 'opacity-70' : ''} ${activatingNotificationId === notification.id ? 'is-activating' : ''}`}
+              >
+                <span
+                  className={`mt-1.5 size-2 shrink-0 rounded-full ${notification.read ? 'bg-transparent' : 'bg-app-accent'}`}
+                  aria-label={notification.read ? undefined : 'Unread'}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="notification-item-title truncate text-sm font-semibold">{notification.title}</span>
+                    {notification.priority === 'operational' && (
+                      <span className="notification-action-tag shrink-0 rounded bg-app-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-app-accent">
+                        Action
+                      </span>
+                    )}
+                  </span>
+                  {notification.body && (
+                    <span className="notification-item-body mt-0.5 line-clamp-2 block text-xs text-app-muted">{notification.body}</span>
+                  )}
+                  <span className="notification-item-time mt-1 block text-[11px] text-app-muted">{timeAgo(notification.createdAt)}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loading}
+            className="w-full px-4 py-3 text-center text-xs font-semibold text-app-accent disabled:opacity-60"
+          >
+            {loading ? 'Loading…' : 'Load older'}
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div ref={root} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => (open ? closePanel() : showPanel())}
         className={`navbar-action-button relative rounded-lg border border-app-border p-2.5 text-app-muted hover:text-app-accent ${className}`}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-haspopup="true"
         aria-expanded={open}
+        aria-controls="notification-panel"
         title="Notifications"
       >
         <Icon name="bell" />
@@ -78,70 +239,17 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
         )}
       </button>
 
-      {open && (
-        <div className="ui-card fixed inset-x-3 top-20 z-50 flex max-h-[70dvh] flex-col overflow-hidden md:absolute md:inset-x-auto md:right-0 md:top-full md:mt-2 md:w-96">
-          <div className="flex items-center justify-between gap-3 border-b border-app-border px-4 py-3">
-            <p className="text-sm font-semibold">Notifications</p>
-            <button
-              type="button"
-              onClick={() => void markAllRead()}
-              disabled={unreadCount === 0}
-              className="text-xs font-semibold text-app-accent disabled:text-app-muted disabled:opacity-60"
-            >
-              Mark all read
-            </button>
-          </div>
+      {drawerMode
+        ? panel && createPortal(
+            <div className="notification-overlay" data-open={panelVisible && open}>
+              <div className="notification-overlay-backdrop" aria-hidden="true" />
+              {panel}
+            </div>,
+            document.body,
+          )
+        : panel}
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {error && <p role="alert" className="p-4 text-sm text-app-danger">{error}</p>}
-            {!error && items.length === 0 && (
-              <p className="p-6 text-center text-sm text-app-muted">You&apos;re all caught up.</p>
-            )}
-            <ul>
-              {items.map((notification) => (
-                <li key={notification.id} className="border-b border-app-border last:border-b-0">
-                  <button
-                    type="button"
-                    onClick={() => openNotification(notification)}
-                    className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-app-surface-raised ${notification.read ? 'opacity-70' : ''}`}
-                  >
-                    <span
-                      className={`mt-1.5 size-2 shrink-0 rounded-full ${notification.read ? 'bg-transparent' : 'bg-app-accent'}`}
-                      aria-label={notification.read ? undefined : 'Unread'}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold">{notification.title}</span>
-                        {notification.priority === 'operational' && (
-                          <span className="shrink-0 rounded bg-app-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-app-accent">
-                            Action
-                          </span>
-                        )}
-                      </span>
-                      {notification.body && (
-                        <span className="mt-0.5 line-clamp-2 block text-xs text-app-muted">{notification.body}</span>
-                      )}
-                      <span className="mt-1 block text-[11px] text-app-muted">{timeAgo(notification.createdAt)}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {hasMore && (
-              <button
-                type="button"
-                onClick={() => void loadMore()}
-                disabled={loading}
-                className="w-full px-4 py-3 text-center text-xs font-semibold text-app-accent disabled:opacity-60"
-              >
-                {loading ? 'Loading…' : 'Load older'}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {incoming && !open && (
+      {incoming && !open && !panelMounted && (
         <div role="status" aria-live="polite" className="ui-card fixed bottom-4 right-4 z-50 w-[min(22rem,calc(100vw-2rem))]">
           <button type="button" onClick={() => openNotification(incoming)} className="block w-full px-4 py-3 text-left">
             <span className="block text-sm font-semibold">{incoming.title}</span>

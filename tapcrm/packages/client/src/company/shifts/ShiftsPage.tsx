@@ -74,6 +74,11 @@ export function ShiftsPage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
+      <header className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">HR · Scheduling</p>
+        <h1 className="font-display text-2xl font-bold">Shift templates</h1>
+        <p className="text-sm text-app-muted">Create and manage the shift timings used by employee attendance.</p>
+      </header>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">Shift Templates</h2>
         {!showForm && (

@@ -20,6 +20,10 @@
     "socket.io-client": "^4.8.4",
     "tailwindcss": "^4.3.3"
   },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-arm64-gnu": "4.3.3",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.3"
+  },
   "devDependencies": {
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",

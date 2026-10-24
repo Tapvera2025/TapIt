@@ -28,6 +28,7 @@ import { findDateShortcuts, findTimeLibraryImports } from './time-rules.js';
 import { findForeignTableUse } from './tables.js';
 import { findPresenceViolations } from './presence-rules.js';
 import { inspectTenantRls } from './rls.js';
+import { findMoneyViolations } from './money-rules.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -203,53 +204,24 @@ const POLICY_FILTER = /^[ \t]*(?:async\s+)?filter\s*\(/m;
  * CI-21 — no authoritative money field maps to JavaScript number
  * ================================================================== */
 {
-  // A bare `value` is a generic name (a stat card's counter, a helper's
-  // parameter), so it no longer counts as money.
-  // `number\b(?!\()` is a TYPE annotation; `: Number(x)` is a conversion call.
-  const MONEY = /\b(amount|total|balance|price|salary|discount|net|gross|tax|paid|due)\w*\s*[?]?:\s*number\b(?!\()/i;
-  // A bare `total: number` beside rows/page/count is a row count, not money.
-  const PAGINATION_NEARBY = /\b(rows|items|page|pageSize|totalPages)\b|count\s*\(/i;
-  // Compound names such as `maxDealValue` ARE money, but the original pattern
-  // could not see them (`\b` never matches inside a camelCase word). They are
-  // reported as phased debt, and become blocking under `--strict`, instead of
-  // turning the build red for code that predates the rule.
-  const COMPOUND_MONEY = /\b\w+(?:Value|Amount|Price|Total|Balance)\s*[?]?:\s*number\b/;
-  const compound: string[] = [];
-  let violations = 0;
-  for (const file of sourceFiles) {
-    const lines = read(file).split('\n');
-    lines.forEach((line, i) => {
-        if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
-        // Counts, percentages, time durations, basis points and attendance units are legitimately numbers; money is not.
-        if (/count|percent|index|length|version|attempts|limit|port|seconds|minutes|units|ms\b|bps\b|Bps\b|pages|keywords|blogs/i.test(line)) return;
-        if (
-          /\btotal\s*[?]?:\s*number\b/.test(line) &&
-          PAGINATION_NEARBY.test(lines.slice(Math.max(0, i - 3), i + 4).join('\n'))
-        ) {
-          return;
-        }
-        if (MONEY.test(line)) {
-          blocking(
-            'CI-21',
-            'PG-5',
-            `${rel(file)}:${i + 1} types a monetary field as \`number\`. Use \`Decimal\` — ` +
-              '0.1 + 0.2 is not 0.3, and an invoice built on that does not reconcile.',
-          );
-          violations += 1;
-        } else if (COMPOUND_MONEY.test(line)) {
-          compound.push(`${rel(file)}:${i + 1}`);
-        }
-      });
+  const result = findMoneyViolations(sourceFiles.map((file) => ({ path: file, text: read(file) })), ROOT);
+  for (const violation of result.violations) {
+    blocking(
+      'CI-21',
+      'PG-5',
+      `${violation.file}:${violation.line} types a monetary field as \`number\`. Use \`Decimal\` — ` +
+        '0.1 + 0.2 is not 0.3, and an invoice built on that does not reconcile.',
+    );
   }
-  if (compound.length > 0) {
+  if (result.compound.length > 0) {
     phased(
       'CI-21',
       'PG-5',
-      `${compound.length} compound money field(s) typed as \`number\` (e.g. maxDealValue): ` +
-        compound.join(', '),
+      `${result.compound.length} compound money field(s) typed as \`number\` (e.g. maxDealValue): ` +
+        result.compound.map((violation) => `${violation.file}:${violation.line}`).join(', '),
     );
   }
-  if (violations === 0) ok('CI-21  no money typed as JavaScript number');
+  if (result.violations.length === 0) ok('CI-21  no money typed as JavaScript number');
 }
 
 /* ================================================================== *
