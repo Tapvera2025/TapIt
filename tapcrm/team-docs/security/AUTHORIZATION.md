@@ -195,6 +195,12 @@
 | `accounting:reopen-period` | accounting | accountingPeriod | business | yes | no | — | yes | no | yes |
 | `accounting:view-statements` | accounting | — | business | yes | no | — | yes | no | no |
 | `accounting:tax-export` | accounting | — | business | yes | no | — | yes | no | no |
+| `social:view` | social | socialWorkspace | business | no | no | — | yes | yes | no |
+| `social:manage` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:publish` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:connect` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:settings` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:approve` | social | socialPost | business | yes | yes | createdBy | yes | no | no |
 | `clients:view` | clients | client | business | no | no | — | yes | yes | no |
 | `clients:manage` | clients | client | business | yes | no | — | yes | no | no |
 | `clients:manage-requests` | clients | clientRequest | business | no | no | — | yes | yes | no |
@@ -717,11 +723,36 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/accounting/tax/gstr1 | `accounting:tax-export` | — |
 | POST | /api/accounting/tax/gstr3b | `accounting:tax-export` | — |
 | POST | /api/accounting/tax/tds | `accounting:tax-export` | — |
+<<<<<<< HEAD
 | POST | /api/accounting/tax/tds-receivable/reconciliation | `accounting:tax-export` | — |
 | POST | /api/accounting/tax/gstr2b/import | `accounting:tax-export` | — |
 | GET | /api/accounting/tax/gstr2b/:id/reconciliation | `accounting:tax-export` | — |
 | GET | /api/accounting/tax/artifacts | `accounting:tax-export` | — |
 | GET | /api/accounting/tax/artifacts/:id/download | `accounting:tax-export` | — |
+=======
+| GET | /api/social/providers | `social:view` | — |
+| GET | /api/social/clients | `social:view` | — |
+| GET | /api/social/clients/:clientId | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/accounts | `social:view` | clientId |
+| POST | /api/social/clients/:clientId/oauth/:platform/start | `social:connect` | clientId |
+| POST | /api/social/clients/:clientId/oauth/:platform/complete | `social:connect` | clientId |
+| POST | /api/social/clients/:clientId/oauth/:platform/select | `social:connect` | clientId |
+| DELETE | /api/social/clients/:clientId/accounts/:accountId | `social:connect` | clientId |
+| GET | /api/social/clients/:clientId/posts | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/posts/:postId | `social:view` | clientId |
+| POST | /api/social/clients/:clientId/posts | `social:manage` | clientId |
+| PATCH | /api/social/clients/:clientId/posts/:postId | `social:manage` | clientId |
+| POST | /api/social/clients/:clientId/posts/:postId/actions | `social:manage` | clientId |
+| POST | /api/social/clients/:clientId/posts/:postId/publish | `social:publish` | clientId |
+| POST | /api/social/clients/:clientId/posts/:postId/review | `social:approve` | postId |
+| POST | /api/social/clients/:clientId/media | `social:manage` | clientId |
+| GET | /api/social/clients/:clientId/media/:mediaId | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/settings | `social:view` | clientId |
+| PUT | /api/social/clients/:clientId/settings | `social:settings` | clientId |
+| GET | /api/social/clients/:clientId/analytics | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/analytics/export | `social:view` | clientId |
+| POST | /api/social/clients/:clientId/analytics/sync | `social:manage` | clientId |
+>>>>>>> 34bc681 (WIP: social module scaffolding, authz hardening, and seed updates)
 | GET | /api/clients | `clients:view` | — |
 | GET | /api/clients/:id | `clients:view` | id |
 | POST | /api/clients | `clients:manage` | — |

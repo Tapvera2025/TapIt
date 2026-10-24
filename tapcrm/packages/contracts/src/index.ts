@@ -31,3 +31,4 @@ export * from './leave.js';
 export * from './dashboard.js';
 export * from './recruitment-ats.js';
 export * from './recruitment-resume.js';
+export * from './social.js';

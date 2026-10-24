@@ -27,6 +27,7 @@ export function CompanyLayout({
   canForecast,
   canViewChat,
   canViewClients,
+  canViewSocial,
   canViewProjects,
   canViewLiveBoard,
   canViewAttendanceReports,
@@ -84,6 +85,7 @@ export function CompanyLayout({
   canForecast: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
+  canViewSocial: boolean;
   canViewProjects: boolean;
   canViewLiveBoard: boolean;
   canViewAttendanceReports: boolean;
@@ -239,10 +241,52 @@ export function CompanyLayout({
         <Navbar
           identity={identity}
           organizationName={organizationName}
+<<<<<<< HEAD
           organizationCode={organizationCode}
           sidebarCollapsed={sidebarCollapsed}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={toggleSidebar}
+=======
+          accountType={accountType}
+          canRequestRoleChange={canRequestRoleChange}
+          canViewAudit={canViewAudit}
+          canManageLeaveTypes={canManageLeaveTypes}
+          canViewLeaveBalances={canViewLeaveBalances}
+          canUseLeaveQueue={canUseLeaveQueue}
+          canViewEmployees={canViewEmployees}
+          canViewTerritories={canViewTerritories}
+          canViewLeads={canViewLeads}
+          canViewCallbacks={canViewCallbacks}
+          canViewHandovers={canViewHandovers}
+          canViewDeals={canViewDeals}
+          canRecordWin={canRecordWin}
+          canDecideApprovals={canDecideApprovals}
+          canForecast={canForecast}
+          canViewChat={canViewChat}
+          canViewClients={canViewClients}
+          canViewSocial={canViewSocial}
+          canViewProjects={canViewProjects}
+          canViewLiveBoard={canViewLiveBoard}
+          canViewAttendanceReports={canViewAttendanceReports}
+          canReviewCorrections={canReviewCorrections}
+          canReviewBreaches={canReviewBreaches}
+          canManageBreakPolicies={canManageBreakPolicies}
+          canManageShifts={canManageShifts}
+          canManagePayroll={canManagePayroll}
+          canManagePayrollConfig={canManagePayrollConfig}
+          canViewTa={canViewTa}
+          canManageTa={canManageTa}
+          canManageBiometric={canManageBiometric}
+          canViewAdvances={canViewAdvances}
+          canManageAdvances={canManageAdvances}
+          canViewPenalties={canViewPenalties}
+          canManagePenalties={canManagePenalties}
+          canViewExpenses={canViewExpenses}
+          canApproveExpenses={canApproveExpenses}
+          isHr={isHr}
+          hasRecruitment={hasRecruitment}
+          hasInterviews={hasInterviews}
+>>>>>>> 34bc681 (WIP: social module scaffolding, authz hardening, and seed updates)
           onNavigate={onNavigate}
           onLogout={onLogout}
           searchDestinations={searchDestinations}

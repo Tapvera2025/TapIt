@@ -63,6 +63,7 @@ const MODULES = new Set([
   'resource-planning',
   'delivery',
   'clients',
+  'social',
   'post-closure',
   'client-portal',
   'billing-terms',

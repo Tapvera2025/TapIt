@@ -30,3 +30,6 @@ the project overview remains in the repository [README](../README.md).
   changing the source document's meaning.
 - Keep cross-document links relative to this folder so files remain navigable
   when opened from an editor or repository browser.
+
+- [Manage Social Media setup and operations](setup/social-media.md)
+- [Official social platform APIs and approvals](setup/social-platforms.md)

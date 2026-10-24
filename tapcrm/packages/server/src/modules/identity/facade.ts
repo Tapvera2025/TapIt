@@ -15,5 +15,10 @@ export { hashIdentityPassword } from './password/service.js';
 export { sendEmployeeCredentials, sendEmployeeInvitation } from './notifications/invitation-email.js';
 export { userResource } from './security/unlock.js';
 export { sendBiometricDeviceAlert } from './notifications/biometric-email.js';
+<<<<<<< HEAD
 export { resolvePrincipal } from './authentication/authenticate.js';
 export { escapeHtml, sendEmail } from '../../platform/email/index.js';
+=======
+export { resolvePrincipal, loadActivePrincipal } from './authentication/authenticate.js';
+export { escapeHtml, sendEmail } from './notifications/mailer.js';
+>>>>>>> 34bc681 (WIP: social module scaffolding, authz hardening, and seed updates)

@@ -1,0 +1,122 @@
+<h2>Acknowledge Flow — What does HR see after candidate clicks?</h2>
+<p class="subtitle">Candidate clicks "Acknowledge Now" in email → where does HR see it?</p>
+
+<div class="options" style="margin-top:24px;flex-direction:column;">
+
+  <!-- OPTION A: Status badge on joining record -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Status badge on the Joining record</h3>
+      <p style="font-size:12px;opacity:.7;margin-bottom:12px;">The candidate's joining row in the Joining tab shows an acknowledgement badge that updates live. Simple, no extra page needed.</p>
+
+      <div style="background:#1a1a2e;border-radius:10px;overflow:hidden;max-width:520px;">
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;padding:7px 14px;background:#16162a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.5;gap:8px;">
+          <span>Candidate</span><span>Joining Date</span><span>Status</span><span>Acknowledgement</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;padding:12px 14px;border-top:1px solid #2a2a3a;gap:8px;align-items:center;">
+          <div>
+            <div style="font-size:12px;font-weight:700;">Rohan Mehta</div>
+            <div style="font-size:10px;opacity:.5;">People Ops Lead</div>
+          </div>
+          <div style="font-size:11px;">15 Nov 2026</div>
+          <div><span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">Confirmed</span></div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">✓ Acknowledged</span>
+            <span style="font-size:10px;opacity:.45;">Oct 3, 2026 · 9:41 AM</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;padding:12px 14px;border-top:1px solid #2a2a3a;gap:8px;align-items:center;">
+          <div>
+            <div style="font-size:12px;font-weight:700;">Aarav Sharma</div>
+            <div style="font-size:10px;opacity:.5;">Sr. Frontend Engineer</div>
+          </div>
+          <div style="font-size:11px;">1 Dec 2026</div>
+          <div><span style="background:#f59e0b22;color:#f59e0b;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">Pending</span></div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <span style="background:#33334a;color:rgba(255,255,255,.4);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">⏳ Awaiting</span>
+            <span style="font-size:10px;opacity:.4;cursor:pointer;text-decoration:underline;">Resend email</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION B: Badge + CRM Notification + Timeline -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>⭐ Badge + CRM Notification + Activity Timeline</h3>
+      <p style="font-size:12px;opacity:.7;margin-bottom:12px;">Same badge on the joining record, but HR also gets a CRM notification bell alert. Inside the candidate's detail panel, an activity timeline shows every key event — email sent, acknowledged, joining confirmed, employee imported.</p>
+
+      <div style="background:#1a1a2e;border-radius:10px;padding:14px;max-width:480px;">
+
+        <!-- Notification bell -->
+        <div style="display:flex;align-items:center;gap:10px;background:#10b98115;border:1px solid #10b98133;border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+          <span style="font-size:18px;">🔔</span>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#10b981;">Rohan Mehta acknowledged their joining offer</div>
+            <div style="font-size:10px;opacity:.55;">Today · 9:41 AM · People Ops Lead</div>
+          </div>
+        </div>
+
+        <!-- Activity timeline inside candidate panel -->
+        <div style="font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Candidate Activity Timeline</div>
+        <div style="display:flex;flex-direction:column;gap:0;">
+
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="display:flex;flex-direction:column;align-items:center;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#10b981;flex-shrink:0;margin-top:2px;"></div>
+              <div style="width:1px;flex:1;background:#2a2a3a;min-height:28px;"></div>
+            </div>
+            <div style="padding-bottom:14px;">
+              <div style="font-size:11px;font-weight:600;color:#10b981;">✓ Offer Acknowledged</div>
+              <div style="font-size:10px;opacity:.5;">Oct 3, 2026 · 9:41 AM — Candidate clicked "Acknowledge Now"</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="display:flex;flex-direction:column;align-items:center;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#6366f1;flex-shrink:0;margin-top:2px;"></div>
+              <div style="width:1px;flex:1;background:#2a2a3a;min-height:28px;"></div>
+            </div>
+            <div style="padding-bottom:14px;">
+              <div style="font-size:11px;font-weight:600;">Joining Email Sent</div>
+              <div style="font-size:10px;opacity:.5;">Oct 2, 2026 · 4:15 PM — Sent by Archi (HR)</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="display:flex;flex-direction:column;align-items:center;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0;margin-top:2px;"></div>
+              <div style="width:1px;flex:1;background:#2a2a3a;min-height:28px;"></div>
+            </div>
+            <div style="padding-bottom:14px;">
+              <div style="font-size:11px;font-weight:600;">Final HR Round — Passed</div>
+              <div style="font-size:10px;opacity:.5;">Oct 1, 2026 · Interviewer: HR Manager</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="display:flex;flex-direction:column;align-items:center;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#ec4899;flex-shrink:0;margin-top:2px;"></div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;">Applied — Resume Submitted</div>
+              <div style="font-size:10px;opacity:.5;">Sep 20, 2026 · via Form Link</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;gap:8px;margin-top:12px;border-top:1px solid #2a2a3a;padding-top:12px;">
+          <button style="flex:1;background:#6366f1;color:white;border:none;border-radius:8px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;">Import to Employee →</button>
+          <button style="background:#252540;color:white;border:1px solid #333;border-radius:8px;padding:8px 12px;font-size:11px;cursor:pointer;">Resend Email</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#10b981;font-weight:600;">Recommended — full audit trail, HR never misses an acknowledgement</div>
+    </div>
+  </div>
+
+</div>
