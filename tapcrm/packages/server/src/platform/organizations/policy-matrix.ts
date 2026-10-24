@@ -88,6 +88,8 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   'resource-planning': [G, _, _, _, ownV, dept, team, team, _, _, _],
   delivery: [G, _, _, _, par, par, _, teamV, _, _, A],
   clients: [G, _, _, dept, own, deptV, team, _, pool, own, A],
+  // Social credentials and publishing require explicit grants by the tenant administrator.
+  social: [G, _, _, _, _, _, _, _, _, _, _],
   'post-closure': [G, _, _, dept, own, _, team, _, pool, own, _],
   'client-portal': [G, _, _, dept, own, _, _, _, _, _, A],
   'billing-terms': [G, _, _, _, _, _, _, _, _, _, _],

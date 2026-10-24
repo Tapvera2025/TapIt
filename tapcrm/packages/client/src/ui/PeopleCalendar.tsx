@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addCalendarDays,
   calendarDateLabel,
@@ -22,6 +22,13 @@ export interface PeopleCalendarDay {
   halfDay?: boolean;
 }
 
+/** Payload carried on a calendar drag. `type` lets the drop target reject unsupported sources. */
+export interface CalendarDragPayload {
+  type: string;
+  id: string;
+  fromDate?: string;
+}
+
 export interface PeopleCalendarProps {
   month: string;
   selectedDate: string;
@@ -31,6 +38,24 @@ export interface PeopleCalendarProps {
   onSelectDate: (date: string) => void;
   onViewChange: (view: 'month' | 'week') => void;
   idPrefix?: string;
+  title?: string;
+  emptyLabel?: string;
+  detailHint?: string;
+  resourceLabel?: string;
+  /** Optional drop handler. Receives the target date and the payload the drag source attached. */
+  onDropOnDate?: (date: string, payload: CalendarDragPayload) => void;
+  /** Expected `type` on dropped payloads; drops without a matching type are ignored. */
+  dropPayloadType?: string;
+}
+
+const DRAG_MIME = 'application/x-tapcrm-calendar';
+/** Serialize a drag payload for a calendar-aware source. Call this in your drag source's onDragStart. */
+export function setCalendarDragPayload(
+  event: React.DragEvent,
+  payload: CalendarDragPayload,
+): void {
+  event.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
+  event.dataTransfer.effectAllowed = 'move';
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
@@ -63,12 +88,48 @@ export function PeopleCalendar({
   onSelectDate,
   onViewChange,
   idPrefix = 'people-calendar',
+  title = 'Work calendar',
+  emptyLabel = 'No attendance record',
+  detailHint = 'Tap a date to view its attendance details.',
+  resourceLabel = 'attendance',
+  onDropOnDate,
+  dropPayloadType,
 }: PeopleCalendarProps): React.JSX.Element {
   if (!validMonth(month) || !validDateOnly(selectedDate)) {
     throw new Error('PeopleCalendar requires a month and selected DateOnly.');
   }
   const rootRef = useRef<HTMLDivElement>(null);
   const keyboardFocusDate = useRef<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const dropEnabled = Boolean(onDropOnDate);
+
+  function handleDragOver(event: React.DragEvent, date: string): void {
+    if (!dropEnabled) return;
+    if (!event.dataTransfer.types.includes(DRAG_MIME)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (dragOverDate !== date) setDragOverDate(date);
+  }
+  function handleDragLeave(event: React.DragEvent, date: string): void {
+    if (!dropEnabled) return;
+    if (dragOverDate === date && event.currentTarget === event.target)
+      setDragOverDate(null);
+  }
+  function handleDrop(event: React.DragEvent, date: string): void {
+    if (!dropEnabled || !onDropOnDate) return;
+    const raw = event.dataTransfer.getData(DRAG_MIME);
+    setDragOverDate(null);
+    if (!raw) return;
+    event.preventDefault();
+    try {
+      const payload = JSON.parse(raw) as CalendarDragPayload;
+      if (dropPayloadType && payload.type !== dropPayloadType) return;
+      if (payload.fromDate === date) return;
+      onDropOnDate(date, payload);
+    } catch {
+      /* ignore malformed drops */
+    }
+  }
   const byDate = useMemo(() => new Map(days.map((day) => [day.date, day])), [days]);
   const monthDays = useMemo(() => calendarMonth(month), [month]);
   const weekDays = useMemo(() => calendarWeek(selectedDate), [selectedDate]);
@@ -116,7 +177,7 @@ export function PeopleCalendar({
     const day = byDate.get(date);
     const isSelected = selectedDate === date;
     const isCurrentMonth = date.startsWith(month);
-    const label = day?.label ?? 'No attendance record';
+    const label = day?.label ?? emptyLabel;
     const markers = (day?.markers ?? []).slice(0, 2);
     const lateMarker = markers.find((marker) => marker.startsWith('Late +'));
     const extraMarkers = markers.filter((marker) => marker !== lateMarker);
@@ -129,6 +190,7 @@ export function PeopleCalendar({
         : surface === 'compact'
           ? 'aspect-square min-h-10 p-1 text-center'
         : 'flex w-full items-center gap-3 p-3';
+    const isDropTarget = dropEnabled && dragOverDate === date;
     return (
       <button
         key={`${surface}-${date}`}
@@ -139,7 +201,15 @@ export function PeopleCalendar({
         aria-label={`${calendarDateLabel(date)}: ${label}${markers.length ? `; ${markers.join(', ')}` : ''}${day?.shiftLabel ? `; shift ${day.shiftLabel}` : ''}`}
         onClick={() => selectDate(date)}
         onKeyDown={(event) => handleDateKeyDown(event, date)}
-        className={`${base} ${sizing} ${isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : 'border-app-border bg-app-surface hover:border-app-accent/50'} ${isCurrentMonth ? '' : 'opacity-45'}`}
+        {...(dropEnabled
+          ? {
+              onDragOver: (event: React.DragEvent) => handleDragOver(event, date),
+              onDragEnter: (event: React.DragEvent) => handleDragOver(event, date),
+              onDragLeave: (event: React.DragEvent) => handleDragLeave(event, date),
+              onDrop: (event: React.DragEvent) => handleDrop(event, date),
+            }
+          : {})}
+        className={`${base} ${sizing} ${isDropTarget ? 'border-app-accent bg-app-accent/15 ring-2 ring-app-accent' : isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : 'border-app-border bg-app-surface hover:border-app-accent/50'} ${isCurrentMonth ? '' : 'opacity-45'}`}
       >
         <span className={`${surface === 'list' ? 'w-12 shrink-0' : 'flex items-start justify-between gap-1'} text-sm font-bold tabular-nums`}>
           <span>{surface === 'list' ? calendarDateLabel(date).split(',')[0] : Number(date.slice(-2))}</span>
@@ -173,7 +243,7 @@ export function PeopleCalendar({
     <div ref={rootRef} className="rounded-2xl border border-app-border bg-app-surface p-3 sm:p-4">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-app-muted">Work calendar</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-app-muted">{title}</p>
           <h2 className="mt-0.5 text-xl font-bold tracking-tight">{calendarMonthLabel(month)}</h2>
         </div>
         <div className="flex items-center gap-2">
@@ -193,7 +263,7 @@ export function PeopleCalendar({
         </div>
       </div>
 
-      <div className="hidden grid-cols-7 gap-1.5 md:grid" role="grid" aria-label={`${calendarMonthLabel(month)} attendance`}>
+      <div className="hidden grid-cols-7 gap-1.5 md:grid" role="grid" aria-label={`${calendarMonthLabel(month)} ${resourceLabel}`}>
         {WEEKDAYS.map((weekday) => <div key={weekday} className="px-2 pb-1 text-xs font-semibold text-app-muted">{weekday}</div>)}
         {desktopDays.map((date) => dayButton(date, 'grid'))}
       </div>
@@ -205,10 +275,10 @@ export function PeopleCalendar({
               {dayButton(date, 'compact')}
             </div>
           ))}
-        </div> : <div role="grid" aria-label={`${calendarMonthLabel(month)} attendance`}>
+        </div> : <div role="grid" aria-label={`${calendarMonthLabel(month)} ${resourceLabel}`}>
           <div className="mb-1 grid grid-cols-7 gap-1">{WEEKDAYS.map((weekday) => <div key={weekday} className="text-center text-[10px] font-semibold text-app-muted">{weekday.slice(0, 1)}</div>)}</div>
           <div className="grid grid-cols-7 gap-1">{monthDays.map((date) => dayButton(date, 'compact'))}</div>
-          <p className="mt-3 text-xs text-app-muted">Tap a date to view its attendance details.</p>
+          <p className="mt-3 text-xs text-app-muted">{detailHint}</p>
         </div>}
       </div>
       <p className="sr-only" role="status" aria-live="polite">Selected {calendarDateLabel(selectedDate)}</p>

@@ -53,7 +53,7 @@ export const DELIVERY_MODULES = [
   'delivery',
 ] as const;
 
-export const CLIENT_MODULES = ['clients', 'post-closure', 'client-portal'] as const;
+export const CLIENT_MODULES = ['clients', 'social', 'post-closure', 'client-portal'] as const;
 
 export const FINANCE_MODULES = [
   'billing-terms',
@@ -146,6 +146,7 @@ export const MODULE_PHASE: Readonly<Record<ModuleName, number>> = {
   delivery: 4,
   // P5 — Client and Insight
   clients: 5,
+  social: 5,
   'post-closure': 5,
   'client-portal': 5,
   'project-communication': 5,

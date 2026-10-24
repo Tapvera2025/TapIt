@@ -61,6 +61,7 @@ import { useHasAssignedInterviews } from './recruitment/useAssignedInterviews.js
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 import { MessagesPage } from '../chat/index.js';
 import { ClientsPage } from '../clients/index.js';
+import { SocialWorkspace } from '../social/SocialWorkspace.js';
 import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 import { MyTodoPage } from './todo/index.js';
 import { SettingsPage } from './settings/SettingsPage.js';
@@ -160,6 +161,7 @@ export function CompanyWorkspace({
   const canForecast = isSuperAdmin || can('deals:forecast');
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
+  const canViewSocial = isSuperAdmin || can('social:view');
   const canViewProjects = isSuperAdmin || can('projects:view');
   const canManageLeaveTypes = can('leave:manage-types');
   const canAcknowledgeLeave = can('leave:acknowledge');
@@ -193,6 +195,7 @@ export function CompanyWorkspace({
     '/company/my-todo': 'My Todo',
     '/company/messages': 'Messages',
     '/company/clients': 'Clients',
+    '/company/social': 'Manage Social Media',
     '/company/projects': 'Projects',
     '/company/my-notepad': 'My Notepad',
     '/company/notepad': 'My Notepad',
@@ -351,6 +354,8 @@ export function CompanyWorkspace({
     if (pathname === '/company/messages' && canViewChat)
       return <MessagesPage currentUserId={userId} isSuperAdmin={isSuperAdmin} canManageProjects={isSuperAdmin || can('projects:manage')} />;
     if (pathname === '/company/clients' && canViewClients) return <ClientsPage />;
+    if ((pathname === '/company/social' || pathname.startsWith('/company/social/')) && canViewSocial)
+      return <SocialWorkspace pathname={pathname} onNavigate={onNavigate} canManage={isSuperAdmin || can('social:manage')} canApprove={isSuperAdmin || can('social:approve')} canConnect={isSuperAdmin || can('social:connect')} canPublish={isSuperAdmin || can('social:publish')} canSettings={isSuperAdmin || can('social:settings')} />;
     if (pathname === '/company/projects' && canViewProjects)
       return (
         <ProjectsPage
@@ -573,6 +578,7 @@ export function CompanyWorkspace({
       canForecast={canForecast}
       canViewChat={canViewChat}
       canViewClients={canViewClients}
+      canViewSocial={canViewSocial}
       canViewProjects={canViewProjects}
       canViewLiveBoard={canBeyondOwn('attendance:view-live')}
       canViewAttendanceReports={isHr || canBeyondOwn('attendance:view')}

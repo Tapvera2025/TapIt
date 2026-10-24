@@ -1,0 +1,102 @@
+<h2>Joining Email — How does HR compose & send it?</h2>
+<p class="subtitle">This email goes to the accepted candidate with an "Acknowledge Now" button. Pick the editing experience.</p>
+
+<div class="options" style="margin-top:24px;flex-direction:column;">
+
+  <!-- OPTION A: Simple form fields -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Simple Form — Fill in the blanks</h3>
+      <p style="font-size:12px;opacity:.7;margin-bottom:12px;">HR fills structured fields — joining date, role, department, reporting manager, message. The system assembles a professional email automatically. No design work needed.</p>
+
+      <div style="background:#1a1a2e;border-radius:10px;padding:14px;max-width:480px;display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <div style="font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Candidate</div>
+          <div style="background:#252540;border-radius:7px;padding:8px 10px;font-size:12px;font-weight:600;">Rohan Mehta · rohan.mehta@example.com</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <div style="font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Joining Date *</div>
+            <div style="background:#252540;border-radius:7px;padding:8px 10px;font-size:12px;">15 Nov 2026</div>
+          </div>
+          <div>
+            <div style="font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Role / Designation</div>
+            <div style="background:#252540;border-radius:7px;padding:8px 10px;font-size:12px;">People Ops Lead</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Reporting Manager</div>
+          <div style="background:#252540;border-radius:7px;padding:8px 10px;font-size:12px;">Ananya Singh (Director of Operations)</div>
+        </div>
+        <div>
+          <div style="font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Personal Message (optional)</div>
+          <div style="background:#252540;border-radius:7px;padding:8px 10px;font-size:12px;opacity:.5;font-style:italic;">We're thrilled to have you on board...</div>
+        </div>
+        <div style="background:#252540;border-radius:7px;padding:10px 12px;border:1px dashed #6366f133;">
+          <div style="font-size:10px;opacity:.5;margin-bottom:6px;">📧 Email Preview (auto-generated)</div>
+          <div style="font-size:11px;line-height:1.6;opacity:.7;">
+            <strong>Subject:</strong> Joining Confirmation — People Ops Lead at TapCRM<br/>
+            Dear Rohan, We're excited to confirm your joining on <strong>15 Nov 2026</strong>...<br/>
+            <div style="margin-top:8px;background:#6366f1;color:white;border-radius:6px;padding:5px 12px;display:inline-block;font-weight:700;font-size:11px;">Acknowledge Now →</div>
+          </div>
+        </div>
+        <button style="background:#6366f1;color:white;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">Send Joining Email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION B: Rich template editor -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>⭐ Template Editor with Variables</h3>
+      <p style="font-size:12px;opacity:.7;margin-bottom:12px;">HR edits a rich email template with placeholders like <code style="background:#252540;padding:1px 5px;border-radius:4px;">{{candidate_name}}</code>, <code style="background:#252540;padding:1px 5px;border-radius:4px;">{{joining_date}}</code>, <code style="background:#252540;padding:1px 5px;border-radius:4px;">{{role}}</code>. The template is reusable — org saves it once, HR tweaks per candidate. Live preview updates as they type.</p>
+
+      <div style="background:#1a1a2e;border-radius:10px;padding:14px;max-width:520px;">
+        <!-- Split: editor left, preview right -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <!-- Editor -->
+          <div>
+            <div style="font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Template Editor</div>
+            <div style="background:#252540;border-radius:8px;padding:10px;font-size:11px;line-height:1.7;color:rgba(255,255,255,.75);">
+              Dear <span style="background:#6366f133;color:#6366f1;border-radius:3px;padding:1px 4px;">{{candidate_name}}</span>,<br/><br/>
+              We are delighted to confirm your selection for the role of <span style="background:#f59e0b33;color:#f59e0b;border-radius:3px;padding:1px 4px;">{{role}}</span> at TapCRM.<br/><br/>
+              Your joining date is <span style="background:#10b98133;color:#10b981;border-radius:3px;padding:1px 4px;">{{joining_date}}</span>. You will report to <span style="background:#ec489933;color:#ec4899;border-radius:3px;padding:1px 4px;">{{reporting_manager}}</span>.<br/><br/>
+              Please acknowledge this offer by clicking below.
+            </div>
+            <div style="margin-top:6px;">
+              <div style="font-size:10px;opacity:.5;margin-bottom:4px;">Available variables</div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                <span style="background:#6366f122;color:#6366f1;border-radius:4px;padding:2px 6px;font-size:10px;">{{candidate_name}}</span>
+                <span style="background:#f59e0b22;color:#f59e0b;border-radius:4px;padding:2px 6px;font-size:10px;">{{role}}</span>
+                <span style="background:#10b98122;color:#10b981;border-radius:4px;padding:2px 6px;font-size:10px;">{{joining_date}}</span>
+                <span style="background:#ec489922;color:#ec4899;border-radius:4px;padding:2px 6px;font-size:10px;">{{reporting_manager}}</span>
+                <span style="background:#33334a;color:rgba(255,255,255,.5);border-radius:4px;padding:2px 6px;font-size:10px;">{{department}}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live preview -->
+          <div>
+            <div style="font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Live Preview</div>
+            <div style="background:white;border-radius:8px;padding:12px;color:#111;font-size:11px;line-height:1.6;">
+              <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#6366f1;">TapCRM</div>
+              <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Joining Confirmation 🎉</div>
+              Dear <strong>Rohan Mehta</strong>,<br/><br/>
+              We are delighted to confirm your selection for <strong>People Ops Lead</strong> at TapCRM.<br/><br/>
+              Your joining date is <strong>15 Nov 2026</strong>. You will report to <strong>Ananya Singh</strong>.<br/><br/>
+              Please acknowledge this offer:
+              <div style="margin-top:10px;text-align:center;">
+                <span style="background:#6366f1;color:white;border-radius:7px;padding:7px 18px;font-size:11px;font-weight:700;display:inline-block;">Acknowledge Now →</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button style="margin-top:12px;width:100%;background:#6366f1;color:white;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">Send to Rohan Mehta</button>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#10b981;font-weight:600;">Recommended — reusable template saves time for every new hire</div>
+    </div>
+  </div>
+
+</div>

@@ -1,3 +1,4 @@
+import { buildSocialOAuthRouter } from './modules/social/index.js';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import {
@@ -133,6 +134,8 @@ export function buildApp(options: BuildOptions = {}): Express {
   // without re-reading the stream.
   app.use(express.raw({ type: 'text/csv', limit: 20 * 1024 * 1024 }));
 
+  // Scoped upload body limit; other CRM endpoints retain their current limit.
+  app.use('/api/social', express.json({ limit: '72mb' }));
   app.use(express.json({ limit: '15mb' }));
 
   app.use(requestId);
@@ -152,6 +155,7 @@ export function buildApp(options: BuildOptions = {}): Express {
   // Master Admin authentication is a separate principal/session namespace.
   app.use(`${config.API_BASE_PATH}/platform`, buildPlatformRouter());
 
+  app.use(`${config.API_BASE_PATH}/social/oauth`, buildSocialOAuthRouter());
   app.use(config.API_BASE_PATH, publicIdentity);
   app.use(`${config.API_BASE_PATH}/public/recruitment`, buildPublicRecruitmentRouter());
   app.use(`${config.API_BASE_PATH}/public/proposals`, buildPublicProposalPortalRouter());

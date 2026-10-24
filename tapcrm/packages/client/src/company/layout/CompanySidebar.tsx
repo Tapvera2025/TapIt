@@ -90,6 +90,7 @@ export function CompanySidebar({
   canForecast = false,
   canViewChat = false,
   canViewClients = false,
+  canViewSocial = false,
   canViewProjects = false,
   canViewLiveBoard = false,
   canViewAttendanceReports = false,
@@ -147,6 +148,7 @@ export function CompanySidebar({
   canForecast?: boolean;
   canViewChat?: boolean;
   canViewClients?: boolean;
+  canViewSocial?: boolean;
   canViewProjects?: boolean;
   canViewLiveBoard?: boolean;
   canViewAttendanceReports?: boolean;
@@ -342,7 +344,7 @@ export function CompanySidebar({
           },
         ]
       : []),
-    ...(canViewClients || canViewProjects
+    ...(canViewClients || canViewProjects || canViewSocial
       ? [
           {
             label: 'Delivery',
@@ -352,6 +354,9 @@ export function CompanySidebar({
                 : []),
               ...(canViewProjects
                 ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }]
+                : []),
+              ...(canViewSocial
+                ? [{ label: 'Manage Social Media', path: '/company/social', icon: 'share' }]
                 : []),
             ],
           },

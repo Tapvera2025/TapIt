@@ -1,3 +1,4 @@
+import { registerSocialPolicies, registerSocialRoutes, registerSocialJobs } from './social/index.js';
 import { registerBreakPolicyResolver } from './attendance/facade.js';
 import { registerPaymentReadinessPort } from './sales/deals/payments-port.js';
 import { manualPaymentReadinessPort } from './sales/deals/manual-payment-port.js';
@@ -137,6 +138,7 @@ export function registerAllPolicies(): void {
   registerNotepadPolicies();
   registerChatPolicies();
   registerClientPolicies();
+  registerSocialPolicies();
   registerProjectPolicies();
 }
 
@@ -181,6 +183,7 @@ export function registerAllRoutes(): void {
   registerMyNotepadAdminRoutes();
   registerChatRoutes();
   registerClientRoutes();
+  registerSocialRoutes();
   registerProjectRoutes();
   registerMyTodoRoutes();
   registerOnboardingRoutes();
@@ -206,4 +209,5 @@ export function registerAllJobs(): void {
   registerSalesJobs();
   registerSalesIntakeJobs();
   registerProjectReportJobs();
+  registerSocialJobs();
 }

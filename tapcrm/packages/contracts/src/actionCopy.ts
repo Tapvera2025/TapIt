@@ -19,6 +19,35 @@ export interface ActionCopy {
 }
 
 export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
+  'social:view': {
+    title: 'See social workspaces',
+    description:
+      'See accounts, calendars, posts and platform analytics for accessible CRM clients.',
+  },
+  'social:manage': {
+    title: 'Prepare social content',
+    description:
+      'Upload media, create drafts, submit content for approval and cancel unpublished schedules.',
+  },
+  'social:publish': {
+    title: 'Publish social content',
+    description:
+      'Publish or schedule eligible content to connected client social accounts.',
+  },
+  'social:connect': {
+    title: 'Connect social accounts',
+    description:
+      'Authorize, reconnect and disconnect official social platform integrations for accessible clients.',
+  },
+  'social:settings': {
+    title: 'Manage social settings',
+    description: 'Change client workspace timezones and required content approval.',
+  },
+  'social:approve': {
+    title: 'Review social content',
+    description:
+      'Approve another person’s content or request changes with reviewer comments.',
+  },
   'advance:approve': {
     title: 'Approve advances',
     description:

@@ -23,6 +23,7 @@ export function CompanyLayout({
   canForecast,
   canViewChat,
   canViewClients,
+  canViewSocial,
   canViewProjects,
   canViewLiveBoard,
   canViewAttendanceReports,
@@ -76,6 +77,7 @@ export function CompanyLayout({
   canForecast: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
+  canViewSocial: boolean;
   canViewProjects: boolean;
   canViewLiveBoard: boolean;
   canViewAttendanceReports: boolean;
@@ -185,6 +187,7 @@ export function CompanyLayout({
           canForecast={canForecast}
           canViewChat={canViewChat}
           canViewClients={canViewClients}
+          canViewSocial={canViewSocial}
           canViewProjects={canViewProjects}
           canViewLiveBoard={canViewLiveBoard}
           canViewAttendanceReports={canViewAttendanceReports}

@@ -1,0 +1,125 @@
+<h2>Interviewer Panel — What does the assigned interviewer see?</h2>
+<p class="subtitle">When the Tech Lead is assigned to a candidate's round, where do they go and what do they see?</p>
+
+<div class="options" style="margin-top:24px;flex-direction:column;">
+
+  <!-- OPTION A: Notification → Opens inside existing CRM -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Inside the CRM — "My Interviews" tab</h3>
+      <p style="font-size:12px;opacity:.7;margin-bottom:12px;">Interviewer gets a CRM notification. They click it → lands on a "My Interviews" tab under Recruitment showing only interviews assigned to them. They open a candidate, fill feedback, and submit.</p>
+
+      <div style="background:#1a1a2e;border-radius:10px;padding:14px;max-width:500px;">
+        <!-- Nav indicator -->
+        <div style="display:flex;gap:2px;margin-bottom:12px;background:#111122;border-radius:8px;padding:4px;">
+          <span style="padding:4px 10px;font-size:10px;opacity:.4;">Overview</span>
+          <span style="padding:4px 10px;font-size:10px;opacity:.4;">Candidates</span>
+          <span style="padding:4px 10px;font-size:10px;opacity:.4;">Interviews</span>
+          <span style="background:#6366f1;border-radius:6px;padding:4px 10px;font-size:10px;font-weight:700;color:white;">My Interviews <span style="background:#ef4444;border-radius:10px;padding:1px 5px;font-size:9px;margin-left:3px;">2</span></span>
+        </div>
+
+        <!-- Assigned interviews list -->
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="background:#252540;border-radius:8px;padding:10px 12px;border-left:3px solid #f59e0b;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div style="font-size:12px;font-weight:700;">Aarav Sharma</div>
+                <div style="font-size:10px;opacity:.55;margin-top:2px;">Technical Round · Senior Frontend Engineer</div>
+                <div style="font-size:10px;color:#f59e0b;margin-top:3px;">Tomorrow, 11:00 AM · Video Call</div>
+              </div>
+              <button style="background:#6366f1;color:white;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;">Open</button>
+            </div>
+          </div>
+          <div style="background:#252540;border-radius:8px;padding:10px 12px;border-left:3px solid #6366f1;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div style="font-size:12px;font-weight:700;">Vikram Deshmukh</div>
+                <div style="font-size:10px;opacity:.55;margin-top:2px;">Technical Round · Senior Frontend Engineer</div>
+                <div style="font-size:10px;color:#6366f1;margin-top:3px;">Friday, 3:00 PM · In-Person</div>
+              </div>
+              <button style="background:#6366f1;color:white;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;">Open</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feedback form preview -->
+        <div style="margin-top:12px;background:#111122;border-radius:8px;padding:12px;border:1px solid #2a2a3a;">
+          <div style="font-size:11px;font-weight:700;margin-bottom:8px;opacity:.7;">Submit Feedback — Aarav Sharma</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <span style="background:#10b98122;color:#10b981;border-radius:20px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">✓ Pass</span>
+            <span style="background:#252540;color:white;border-radius:20px;padding:3px 8px;font-size:10px;opacity:.6;cursor:pointer;">✗ Fail</span>
+            <span style="background:#252540;color:white;border-radius:20px;padding:3px 8px;font-size:10px;opacity:.6;cursor:pointer;">⏸ Hold</span>
+          </div>
+          <div style="background:#1a1a2e;border-radius:6px;padding:7px 10px;font-size:11px;opacity:.4;margin-bottom:6px;">Rating: ★★★★☆</div>
+          <div style="background:#1a1a2e;border-radius:6px;padding:7px 10px;font-size:11px;opacity:.4;margin-bottom:6px;">Feedback notes...</div>
+          <div style="background:#1a1a2e;border-radius:6px;padding:7px 10px;font-size:11px;opacity:.4;">Strengths / Areas to improve...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION B: Dedicated Interviewer view separate from HR view -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>⭐ Separate Interviewer Dashboard — clean, focused</h3>
+      <p style="font-size:12px;opacity:.7;margin-bottom:12px;">The interviewer has their own dedicated section in the CRM (not mixed with HR recruitment pages). They only see what's relevant to them — their assigned interviews, candidate info, and a clean form to submit feedback. HR controls everything else.</p>
+
+      <div style="background:#1a1a2e;border-radius:10px;padding:14px;max-width:500px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <div>
+            <div style="font-size:14px;font-weight:700;">My Interview Queue</div>
+            <div style="font-size:11px;opacity:.5;">2 pending · 1 completed this week</div>
+          </div>
+          <span style="background:#f59e0b22;color:#f59e0b;border-radius:20px;padding:3px 10px;font-size:10px;font-weight:700;">2 Pending</span>
+        </div>
+
+        <!-- Interview card - expanded -->
+        <div style="background:#252540;border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid #6366f144;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+            <div>
+              <div style="font-size:13px;font-weight:700;">Aarav Sharma</div>
+              <div style="font-size:10px;opacity:.55;">Technical Round · Sr. Frontend Engineer</div>
+            </div>
+            <span style="background:#f59e0b22;color:#f59e0b;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;">Tomorrow 11am</span>
+          </div>
+
+          <!-- Candidate info snippet -->
+          <div style="background:#1a1a2e;border-radius:7px;padding:9px 11px;margin-bottom:10px;font-size:11px;">
+            <div style="opacity:.5;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Previous Rounds</div>
+            <div style="display:flex;align-items:center;gap:6px;"><span style="color:#10b981;">✓</span> HR Screening — Passed · <span style="opacity:.5">"Good communication, strong portfolio"</span></div>
+          </div>
+
+          <!-- Quick feedback -->
+          <div style="font-size:11px;opacity:.6;margin-bottom:6px;">Your evaluation</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <button style="flex:1;background:#10b98122;color:#10b981;border:1px solid #10b98144;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;">✓ Pass</button>
+            <button style="flex:1;background:#252540;color:white;border:1px solid #333;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;opacity:.6;">✗ Fail</button>
+            <button style="flex:1;background:#252540;color:white;border:1px solid #333;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;opacity:.6;">⏸ Hold</button>
+          </div>
+          <textarea style="width:100%;background:#1a1a2e;border:1px solid #2a2a3a;border-radius:7px;padding:8px;font-size:11px;color:rgba(255,255,255,.6);resize:none;box-sizing:border-box;" rows="2" placeholder="Feedback, strengths, areas to improve..." readonly></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+            <div style="display:flex;gap:3px;">
+              <span style="color:#f59e0b;font-size:13px;">★</span><span style="color:#f59e0b;font-size:13px;">★</span><span style="color:#f59e0b;font-size:13px;">★</span><span style="color:#f59e0b;font-size:13px;">★</span><span style="color:#333;font-size:13px;">★</span>
+              <span style="font-size:10px;opacity:.4;margin-left:4px;">Rating</span>
+            </div>
+            <button style="background:#6366f1;color:white;border:none;border-radius:7px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer;">Submit Feedback</button>
+          </div>
+        </div>
+
+        <!-- Collapsed second card -->
+        <div style="background:#252540;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;opacity:.6;">
+          <div>
+            <div style="font-size:12px;font-weight:600;">Vikram Deshmukh</div>
+            <div style="font-size:10px;opacity:.6;">Technical Round · Friday 3pm</div>
+          </div>
+          <span style="font-size:11px;opacity:.5;">Expand ↓</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#10b981;font-weight:600;">Recommended — clean separation of HR view vs interviewer view</div>
+    </div>
+  </div>
+
+</div>

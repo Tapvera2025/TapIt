@@ -66,7 +66,7 @@ const schema = z.object({
 
   S3_ENDPOINT: z.string().url().optional(),
   /** The storage address browsers reach, for signed download links; defaults to S3_ENDPOINT. */
-  S3_PUBLIC_ENDPOINT: z.string().url().optional(),
+  S3_PUBLIC_ENDPOINT: optionalEnvString(z.string().url().optional()),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string().default('tapcrm-files'),
   // FS-6 — statutory artifacts go to a write-once bucket with object lock.

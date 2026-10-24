@@ -8,6 +8,7 @@ COPY packages/authz/package.json packages/authz/package.json
 COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
 RUN npm ci \
+  && npm install --os=linux --cpu=arm64 --libc=glibc @tailwindcss/oxide lightningcss rollup \
   && npm cache clean --force \
   && rm -rf /root/.cache/node-gyp
 

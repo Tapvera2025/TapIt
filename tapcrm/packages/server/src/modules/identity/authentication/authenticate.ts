@@ -1,3 +1,4 @@
+import type { RequestContext } from '../../../platform/dal/context.js';
 import type { Request } from 'express';
 import { bootstrapDb, db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
@@ -44,4 +45,29 @@ export async function resolvePrincipalFromToken(token: string, options: { touch?
     `).then(() => undefined),
   );
   return { principal: toPrincipal(user), organizationId: user.organizationId, expiresAt: claims.expiresAt };
+}
+
+/** Current principal for durable user-authorized work; no session is invented for the job. */
+export async function loadActivePrincipal(ctx: RequestContext, userId: string) {
+  const user = await db.maybeOne<IdentityUser>(
+    ctx,
+    sql`
+    SELECT u.id, u.organization_id, u.account_type, u.status, u.session_version,
+           u.position_id, u.department_id, u.team_id, u.reports_to, u.client_id,
+           u.must_change_password, u.locked_until, p.organizational_level,
+           o.status AS organization_status
+    FROM app_user u JOIN organization o ON o.id = u.organization_id
+    LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
+    WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${userId}
+  `,
+  );
+  if (
+    !user ||
+    user.status !== 'active' ||
+    user.organizationStatus !== 'active' ||
+    user.mustChangePassword ||
+    (user.lockedUntil && user.lockedUntil > new Date())
+  )
+    return null;
+  return toPrincipal(user);
 }

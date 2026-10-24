@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 194   Bindings: 567
+ * Actions: 200   Bindings: 589
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -192,6 +192,12 @@ export type Action =
   | 'shifts:approve'
   | 'shifts:manage'
   | 'shifts:view'
+  | 'social:approve'
+  | 'social:connect'
+  | 'social:manage'
+  | 'social:publish'
+  | 'social:settings'
+  | 'social:view'
   | 'status:punch'
   | 'system:manage-integrations'
   | 'system:manage-retention'
@@ -388,6 +394,12 @@ export const ACTIONS: readonly Action[] = [
   'shifts:approve',
   'shifts:manage',
   'shifts:view',
+  'social:approve',
+  'social:connect',
+  'social:manage',
+  'social:publish',
+  'social:settings',
+  'social:view',
   'status:punch',
   'system:manage-integrations',
   'system:manage-retention',
@@ -2993,6 +3005,96 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'social:approve': {
+    action: 'social:approve',
+    module: 'social',
+    resource: 'socialPost',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: true,
+    initiatorField: 'createdBy',
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'social:connect': {
+    action: 'social:connect',
+    module: 'social',
+    resource: 'socialWorkspace',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'social:manage': {
+    action: 'social:manage',
+    module: 'social',
+    resource: 'socialWorkspace',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'social:publish': {
+    action: 'social:publish',
+    module: 'social',
+    resource: 'socialWorkspace',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'social:settings': {
+    action: 'social:settings',
+    module: 'social',
+    resource: 'socialWorkspace',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'social:view': {
+    action: 'social:view',
+    module: 'social',
+    resource: 'socialWorkspace',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'status:punch': {
     action: 'status:punch',
     module: 'live-status',
@@ -3761,6 +3863,28 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/accounting/tax/gstr1', action: 'accounting:tax-export', resourceParam: null },
   { method: 'POST', path: '/api/accounting/tax/gstr3b', action: 'accounting:tax-export', resourceParam: null },
   { method: 'POST', path: '/api/accounting/tax/tds', action: 'accounting:tax-export', resourceParam: null },
+  { method: 'GET', path: '/api/social/providers', action: 'social:view', resourceParam: null },
+  { method: 'GET', path: '/api/social/clients', action: 'social:view', resourceParam: null },
+  { method: 'GET', path: '/api/social/clients/:clientId', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/accounts', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/oauth/:platform/start', action: 'social:connect', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/oauth/:platform/complete', action: 'social:connect', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/oauth/:platform/select', action: 'social:connect', resourceParam: 'clientId' },
+  { method: 'DELETE', path: '/api/social/clients/:clientId/accounts/:accountId', action: 'social:connect', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/posts', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/posts/:postId', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/posts', action: 'social:manage', resourceParam: 'clientId' },
+  { method: 'PATCH', path: '/api/social/clients/:clientId/posts/:postId', action: 'social:manage', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/posts/:postId/actions', action: 'social:manage', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/posts/:postId/publish', action: 'social:publish', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/posts/:postId/review', action: 'social:approve', resourceParam: 'postId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/media', action: 'social:manage', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/media/:mediaId', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/settings', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'PUT', path: '/api/social/clients/:clientId/settings', action: 'social:settings', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/analytics', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/analytics/export', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/analytics/sync', action: 'social:manage', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/clients', action: 'clients:view', resourceParam: null },
   { method: 'GET', path: '/api/clients/:id', action: 'clients:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/clients', action: 'clients:manage', resourceParam: null },
