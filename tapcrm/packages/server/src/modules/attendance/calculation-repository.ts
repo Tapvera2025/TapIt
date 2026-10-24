@@ -31,6 +31,7 @@ export interface RecordForCalculation {
   closeDueAt: Date;
   dayType: 'working' | 'week-off' | 'holiday' | 'not-employed';
   attributionFlags: string[];
+  rulesVersion: string | null;
   inputVersion: number;
   calculatedInputVersion: number;
   calculationVersion: number;
@@ -42,7 +43,7 @@ export async function lockRecordForCalculation(
 ): Promise<RecordForCalculation> {
   return tx.one<RecordForCalculation>(sql`
     SELECT id, user_id, organization_id, work_date::text AS work_date, state,
-           shift_snapshot, placement_snapshot, close_due_at, day_type,
+           shift_snapshot, placement_snapshot, close_due_at, day_type, rules_version,
            attribution_flags, input_version, calculated_input_version, calculation_version
     FROM attendance_record WHERE id = ${recordId}
     FOR UPDATE
@@ -207,7 +208,8 @@ export async function staleRecords(
 ): Promise<{ id: string; inputVersion: number }[]> {
   return tx.query<{ id: string; inputVersion: number }>(sql`
     SELECT id, input_version FROM attendance_record
-    WHERE calculated_input_version < input_version
+    WHERE (calculated_input_version < input_version
+           OR rules_version IS DISTINCT FROM ${RULES_VERSION})
       AND input_changed_at < ${changedBefore}
       AND (${after}::uuid IS NULL OR id > ${after}::uuid)
     ORDER BY id

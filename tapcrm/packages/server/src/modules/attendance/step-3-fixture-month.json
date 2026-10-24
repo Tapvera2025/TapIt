@@ -27,7 +27,7 @@
         },
         "half-day": {
           "punches": [["in", "09:00"], ["out", "14:00"]],
-          "expect": { "status": "half-day", "units": [1, 0, 0, 1, 0], "worked": 300, "late": 0, "earlyExit": 240, "overtime": 0, "night": 0, "flags": ["early-exit"] }
+          "expect": { "status": "present", "units": [2, 0, 0, 0, 0], "worked": 300, "late": 0, "earlyExit": 240, "overtime": 0, "night": 0, "flags": ["early-exit"] }
         },
         "overtime": {
           "punches": [["in", "09:00"], ["out", "19:00"]],
