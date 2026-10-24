@@ -100,6 +100,7 @@ export function CompanySidebar({
   canManageShifts = false,
   canManagePayroll = false,
   canManagePayrollConfig = false,
+  canViewAccounting = false,
   canViewTa = false,
   canManageTa = false,
   canManageBiometric = false,
@@ -157,6 +158,7 @@ export function CompanySidebar({
   canManageShifts?: boolean;
   canManagePayroll?: boolean;
   canManagePayrollConfig?: boolean;
+  canViewAccounting?: boolean;
   canViewTa?: boolean;
   canManageTa?: boolean;
   canManageBiometric?: boolean;
@@ -188,10 +190,19 @@ export function CompanySidebar({
   const prevPathnameRef = useRef(pathname);
   const navigationRef = useRef<HTMLElement>(null);
   const activeNavIndicatorRef = useRef<HTMLDivElement>(null);
-  const navItemRefs = useRef(new Map<string, { button: HTMLButtonElement; label: string }>());
+  const navItemRefs = useRef(
+    new Map<string, { button: HTMLButtonElement; label: string }>(),
+  );
   const previousActiveTopRef = useRef<number | null>(null);
   const activeNavMoveTimerRef = useRef<number | undefined>(undefined);
-  const sidebarPillDragRef = useRef<{ pointerId: number; startX: number; startY: number; offsetX: number; offsetY: number; moved: boolean } | null>(null);
+  const sidebarPillDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    offsetX: number;
+    offsetY: number;
+    moved: boolean;
+  } | null>(null);
   const sidebarPillDragButtonRef = useRef<HTMLButtonElement | null>(null);
   const suppressSidebarClickRef = useRef(false);
   const [isActiveNavMoving, setIsActiveNavMoving] = useState(false);
@@ -208,14 +219,25 @@ export function CompanySidebar({
     if (!navigation || !indicator || !activeItem) return;
     const navRect = navigation.getBoundingClientRect();
     const itemRect = activeItem.getBoundingClientRect();
-    indicator.style.setProperty('--sidebar-pill-top', `${itemRect.top - navRect.top + navigation.scrollTop}px`);
-    indicator.style.setProperty('--sidebar-pill-left', `${itemRect.left - navRect.left + navigation.scrollLeft}px`);
+    indicator.style.setProperty(
+      '--sidebar-pill-top',
+      `${itemRect.top - navRect.top + navigation.scrollTop}px`,
+    );
+    indicator.style.setProperty(
+      '--sidebar-pill-left',
+      `${itemRect.left - navRect.left + navigation.scrollLeft}px`,
+    );
     indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
     indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
   };
 
   const startSidebarPillDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!event.currentTarget.matches('[aria-current="page"]') || !window.matchMedia('(min-width: 1280px)').matches || event.button !== 0) return;
+    if (
+      !event.currentTarget.matches('[aria-current="page"]') ||
+      !window.matchMedia('(min-width: 1280px)').matches ||
+      event.button !== 0
+    )
+      return;
     const indicatorRect = activeNavIndicatorRef.current?.getBoundingClientRect();
     if (!indicatorRect) return;
     sidebarPillDragRef.current = {
@@ -243,22 +265,41 @@ export function CompanySidebar({
     setIsDraggingSidebarPill(true);
     const navRect = navigation.getBoundingClientRect();
     const pillRect = indicator.getBoundingClientRect();
-    const pillWidth = Number.parseFloat(indicator.style.getPropertyValue('--sidebar-pill-width')) || pillRect.width;
-    const pillHeight = Number.parseFloat(indicator.style.getPropertyValue('--sidebar-pill-height')) || pillRect.height;
+    const pillWidth =
+      Number.parseFloat(indicator.style.getPropertyValue('--sidebar-pill-width')) ||
+      pillRect.width;
+    const pillHeight =
+      Number.parseFloat(indicator.style.getPropertyValue('--sidebar-pill-height')) ||
+      pillRect.height;
     const maxLeft = Math.max(0, navigation.scrollWidth - pillWidth);
     const maxTop = Math.max(0, navigation.scrollHeight - pillHeight);
-    const left = Math.max(0, Math.min(maxLeft, event.clientX - navRect.left + navigation.scrollLeft - drag.offsetX));
-    const top = Math.max(0, Math.min(maxTop, event.clientY - navRect.top + navigation.scrollTop - drag.offsetY));
+    const left = Math.max(
+      0,
+      Math.min(
+        maxLeft,
+        event.clientX - navRect.left + navigation.scrollLeft - drag.offsetX,
+      ),
+    );
+    const top = Math.max(
+      0,
+      Math.min(maxTop, event.clientY - navRect.top + navigation.scrollTop - drag.offsetY),
+    );
     indicator.style.setProperty('--sidebar-pill-left', `${left}px`);
     indicator.style.setProperty('--sidebar-pill-top', `${top}px`);
     const stretch = 1 + Math.min(0.12, Math.abs(deltaY) * 0.003);
     const squash = 1 - Math.min(0.035, Math.abs(deltaY) * 0.0009);
     indicator.style.setProperty('--sidebar-pill-stretch', stretch.toFixed(3));
     indicator.style.setProperty('--sidebar-pill-squash', squash.toFixed(3));
-    indicator.style.setProperty('--sidebar-pill-origin', deltaY >= 0 ? 'top center' : 'bottom center');
+    indicator.style.setProperty(
+      '--sidebar-pill-origin',
+      deltaY >= 0 ? 'top center' : 'bottom center',
+    );
   };
 
-  const finishSidebarPillDrag = (event: React.PointerEvent<HTMLElement>, commit = true) => {
+  const finishSidebarPillDrag = (
+    event: React.PointerEvent<HTMLElement>,
+    commit = true,
+  ) => {
     const drag = sidebarPillDragRef.current;
     const navigation = navigationRef.current;
     const indicator = activeNavIndicatorRef.current;
@@ -280,7 +321,9 @@ export function CompanySidebar({
 
       if (nearest) {
         suppressSidebarClickRef.current = true;
-        window.setTimeout(() => { suppressSidebarClickRef.current = false; }, 600);
+        window.setTimeout(() => {
+          suppressSidebarClickRef.current = false;
+        }, 600);
         if (nearest.label === 'Recruitment') setRecruitmentOpen(true);
         onNavigate(nearest.path);
         onClose();
@@ -291,7 +334,8 @@ export function CompanySidebar({
     }
 
     const captureButton = sidebarPillDragButtonRef.current;
-    if (captureButton?.hasPointerCapture(event.pointerId)) captureButton.releasePointerCapture(event.pointerId);
+    if (captureButton?.hasPointerCapture(event.pointerId))
+      captureButton.releasePointerCapture(event.pointerId);
     sidebarPillDragRef.current = null;
     sidebarPillDragButtonRef.current = null;
     setIsDraggingSidebarPill(false);
@@ -348,17 +392,31 @@ export function CompanySidebar({
       const itemRect = activeItem.getBoundingClientRect();
       const top = itemRect.top - navRect.top + navigation.scrollTop;
       indicator.style.setProperty('--sidebar-pill-top', `${top}px`);
-      indicator.style.setProperty('--sidebar-pill-left', `${itemRect.left - navRect.left + navigation.scrollLeft}px`);
+      indicator.style.setProperty(
+        '--sidebar-pill-left',
+        `${itemRect.left - navRect.left + navigation.scrollLeft}px`,
+      );
       indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
       indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
       indicator.style.opacity = '1';
 
       const previousTop = previousActiveTopRef.current;
-      if (prevPathnameRef.current !== pathname && previousTop !== null && previousTop !== top) {
-        indicator.style.setProperty('--sidebar-pill-origin', top > previousTop ? 'top center' : 'bottom center');
+      if (
+        prevPathnameRef.current !== pathname &&
+        previousTop !== null &&
+        previousTop !== top
+      ) {
+        indicator.style.setProperty(
+          '--sidebar-pill-origin',
+          top > previousTop ? 'top center' : 'bottom center',
+        );
         setIsActiveNavMoving(true);
-        if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
-        activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
+        if (activeNavMoveTimerRef.current !== undefined)
+          window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(
+          () => setIsActiveNavMoving(false),
+          480,
+        );
       }
       previousActiveTopRef.current = top;
     };
@@ -366,7 +424,9 @@ export function CompanySidebar({
     syncActiveIndicator();
     const observer = new ResizeObserver(syncActiveIndicator);
     observer.observe(navigation);
-    const activeItem = navigation.querySelector('[data-company-nav-item][aria-current="page"]');
+    const activeItem = navigation.querySelector(
+      '[data-company-nav-item][aria-current="page"]',
+    );
     if (activeItem) observer.observe(activeItem);
     window.addEventListener('resize', syncActiveIndicator);
     return () => {
@@ -375,9 +435,13 @@ export function CompanySidebar({
     };
   }, [pathname, collapsed]);
 
-  useEffect(() => () => {
-    if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (activeNavMoveTimerRef.current !== undefined)
+        window.clearTimeout(activeNavMoveTimerRef.current);
+    },
+    [],
+  );
 
   const isSuperAdmin = accountType === 'super-admin';
   const { activePet } = useAiPet();
@@ -398,7 +462,9 @@ export function CompanySidebar({
 
   const resizeSidebar = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (!resizeStartRef.current || !onResize) return;
-    onResize(clampWidth(resizeStartRef.current.width + event.clientX - resizeStartRef.current.x));
+    onResize(
+      clampWidth(resizeStartRef.current.width + event.clientX - resizeStartRef.current.x),
+    );
   };
 
   const stopResize = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -424,7 +490,9 @@ export function CompanySidebar({
       items: [
         { label: 'Dashboard', path: '/company/dashboard', icon: 'grid' },
         { label: 'Tasks', path: '/company/tasks', icon: 'check' },
-        ...(hasInterviews ? [{ label: 'My Interviews', path: '/company/my-interviews', icon: 'calendar' }] : []),
+        ...(hasInterviews
+          ? [{ label: 'My Interviews', path: '/company/my-interviews', icon: 'calendar' }]
+          : []),
         ...(canViewChat
           ? [{ label: 'Messages', path: '/company/messages', icon: 'message' }]
           : []),
@@ -523,13 +591,26 @@ export function CompanySidebar({
           },
         ]
       : []),
-    ...(canViewTerritories || canViewLeads || canViewCallbacks || canViewHandovers || canViewDeals || canDecideApprovals || canRecordWin || canForecast
+    ...(canViewTerritories ||
+    canViewLeads ||
+    canViewCallbacks ||
+    canViewHandovers ||
+    canViewDeals ||
+    canDecideApprovals ||
+    canRecordWin ||
+    canForecast
       ? [
           {
             label: 'Sales',
             items: [
               ...(canViewTerritories
-                ? [{ label: 'Territories', path: '/company/sales/territories', icon: 'map' }]
+                ? [
+                    {
+                      label: 'Territories',
+                      path: '/company/sales/territories',
+                      icon: 'map',
+                    },
+                  ]
                 : []),
               ...(canViewLeads
                 ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }]
@@ -538,16 +619,40 @@ export function CompanySidebar({
                 ? [{ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase' }]
                 : []),
               ...(canDecideApprovals
-                ? [{ label: 'Approvals', path: '/company/sales/approvals', icon: 'check' }]
+                ? [
+                    {
+                      label: 'Approvals',
+                      path: '/company/sales/approvals',
+                      icon: 'check',
+                    },
+                  ]
                 : []),
               ...(canRecordWin
-                ? [{ label: 'Wins to record', path: '/company/sales/wins', icon: 'check' }]
+                ? [
+                    {
+                      label: 'Wins to record',
+                      path: '/company/sales/wins',
+                      icon: 'check',
+                    },
+                  ]
                 : []),
               ...(canViewCallbacks
-                ? [{ label: 'Callbacks', path: '/company/sales/callbacks', icon: 'calendar' }]
+                ? [
+                    {
+                      label: 'Callbacks',
+                      path: '/company/sales/callbacks',
+                      icon: 'calendar',
+                    },
+                  ]
                 : []),
               ...(canViewHandovers
-                ? [{ label: 'Handovers', path: '/company/sales/handovers', icon: 'share' }]
+                ? [
+                    {
+                      label: 'Handovers',
+                      path: '/company/sales/handovers',
+                      icon: 'share',
+                    },
+                  ]
                 : []),
               ...(canForecast
                 ? [{ label: 'Reports', path: '/company/sales/reports', icon: 'chart' }]
@@ -646,7 +751,11 @@ export function CompanySidebar({
         ...(canManageShifts
           ? [
               { label: 'Shifts', path: '/company/shifts', icon: 'layers' },
-              { label: 'Weekday Schedules', path: '/company/weekday-schedules', icon: 'calendar' },
+              {
+                label: 'Weekday Schedules',
+                path: '/company/weekday-schedules',
+                icon: 'calendar',
+              },
             ]
           : []),
       ],
@@ -763,6 +872,20 @@ export function CompanySidebar({
           : []),
       ],
     },
+    ...(canViewAccounting
+      ? [
+          {
+            label: 'Finance',
+            items: [
+              {
+                label: 'Accounting',
+                path: '/company/finance/accounting',
+                icon: 'wallet',
+              },
+            ],
+          },
+        ]
+      : []),
     {
       label: 'Identity & Access',
       items: [
@@ -796,7 +919,11 @@ export function CompanySidebar({
   return (
     <aside
       className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-200 ease-out will-change-transform xl:static xl:my-5 xl:ml-5 xl:h-[calc(100dvh-6.5rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
-      style={collapsed ? undefined : ({ '--company-sidebar-width': `${width}px` } as React.CSSProperties)}
+      style={
+        collapsed
+          ? undefined
+          : ({ '--company-sidebar-width': `${width}px` } as React.CSSProperties)
+      }
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
       data-sidebar-open={open ? 'true' : 'false'}
     >
@@ -820,11 +947,18 @@ export function CompanySidebar({
           <span aria-hidden="true" />
         </button>
       )}
-      <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
-        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
+      <div
+        className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}
+      >
+        <p
+          className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}
+        >
           Company Workspace
         </p>
-        <span className={`hidden size-2 rounded-full bg-app-accent xl:block ${collapsed ? '' : 'xl:hidden'}`} aria-hidden="true" />
+        <span
+          className={`hidden size-2 rounded-full bg-app-accent xl:block ${collapsed ? '' : 'xl:hidden'}`}
+          aria-hidden="true"
+        />
         <button
           type="button"
           onClick={onClose}
@@ -867,12 +1001,19 @@ export function CompanySidebar({
                   className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
                   title={collapsed ? 'Organization' : undefined}
                 >
-                  <Icon name="building" className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`} />
+                  <Icon
+                    name="building"
+                    className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
+                  />
                   <span className={collapsed ? 'xl:hidden' : ''}>Organization</span>
-                  <span aria-hidden="true" className={collapsed ? 'xl:hidden' : ''}>{organizationOpen ? '−' : '+'}</span>
+                  <span aria-hidden="true" className={collapsed ? 'xl:hidden' : ''}>
+                    {organizationOpen ? '−' : '+'}
+                  </span>
                 </button>
               ) : (
-                <p className={`px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted ${collapsed ? 'xl:hidden' : ''}`}>
+                <p
+                  className={`px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted ${collapsed ? 'xl:hidden' : ''}`}
+                >
                   {group.label}
                 </p>
               )}
@@ -892,7 +1033,11 @@ export function CompanySidebar({
                         <button
                           data-company-nav-item="true"
                           ref={(element) => {
-                            if (element) navItemRefs.current.set(item.path, { button: element, label: item.label });
+                            if (element)
+                              navItemRefs.current.set(item.path, {
+                                button: element,
+                                label: item.label,
+                              });
                             else navItemRefs.current.delete(item.path);
                           }}
                           aria-current={isActive ? 'page' : undefined}
@@ -921,10 +1066,15 @@ export function CompanySidebar({
                           title={collapsed ? item.label : undefined}
                         >
                           <span className="flex items-center gap-3">
-                            <span data-sidebar-icon={item.icon} className="inline-flex shrink-0 items-center justify-center">
+                            <span
+                              data-sidebar-icon={item.icon}
+                              className="inline-flex shrink-0 items-center justify-center"
+                            >
                               <Icon name={item.icon} />
                             </span>
-                            <span className={collapsed ? 'xl:hidden' : ''}>{item.label}</span>
+                            <span className={collapsed ? 'xl:hidden' : ''}>
+                              {item.label}
+                            </span>
                           </span>
                           {item.label === 'Messages' && unreadMessages > 0 && (
                             <span
@@ -989,7 +1139,9 @@ export function CompanySidebar({
         </div>
       </nav>
       {activePet && (
-        <div className={`sidebar-pet-runway shrink-0 border-t border-sidebar-border/70 px-1 pt-1 ${collapsed ? 'xl:hidden' : ''}`}>
+        <div
+          className={`sidebar-pet-runway shrink-0 border-t border-sidebar-border/70 px-1 pt-1 ${collapsed ? 'xl:hidden' : ''}`}
+        >
           <SidebarPet pet={activePet} />
         </div>
       )}

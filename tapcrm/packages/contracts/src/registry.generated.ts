@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 194   Bindings: 575
+ * Actions: 194   Bindings: 591
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3753,13 +3753,24 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/payables/runs/:id/execute', action: 'payables:execute-run', resourceParam: 'id' },
   { method: 'GET', path: '/api/accounting/ledger', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'GET', path: '/api/accounting/trial-balance', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/general-ledger', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/reports/trial-balance', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/reports/pnl', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/reports/balance-sheet', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/reports/cash-flow', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/accounts/:id/drill-through', action: 'accounting:view-ledger', resourceParam: 'id' },
+  { method: 'GET', path: '/api/accounting/general-ledger/export', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/trial-balance/export', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/reports/:kind/export', action: 'accounting:view-statements', resourceParam: null },
   { method: 'GET', path: '/api/accounting/journals', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'POST', path: '/api/accounting/journals', action: 'accounting:post-journal', resourceParam: null },
   { method: 'POST', path: '/api/accounting/journals/:id/reverse', action: 'accounting:post-journal', resourceParam: 'id' },
-  { method: 'GET', path: '/api/accounting/accounts', action: 'accounting:manage-accounts', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/accounts', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'POST', path: '/api/accounting/accounts', action: 'accounting:manage-accounts', resourceParam: null },
   { method: 'PATCH', path: '/api/accounting/accounts/:id', action: 'accounting:manage-accounts', resourceParam: 'id' },
-  { method: 'GET', path: '/api/accounting/periods', action: 'accounting:close-period', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/periods', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/periods', action: 'accounting:close-period', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/periods/:id/checklist', action: 'accounting:close-period', resourceParam: 'id' },
   { method: 'POST', path: '/api/accounting/periods/:id/close', action: 'accounting:close-period', resourceParam: 'id' },
   { method: 'POST', path: '/api/accounting/periods/:id/reopen', action: 'accounting:reopen-period', resourceParam: 'id' },
   { method: 'GET', path: '/api/accounting/statements/pnl', action: 'accounting:view-statements', resourceParam: null },
@@ -3768,6 +3779,11 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/accounting/tax/gstr1', action: 'accounting:tax-export', resourceParam: null },
   { method: 'POST', path: '/api/accounting/tax/gstr3b', action: 'accounting:tax-export', resourceParam: null },
   { method: 'POST', path: '/api/accounting/tax/tds', action: 'accounting:tax-export', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/tax/tds-receivable/reconciliation', action: 'accounting:tax-export', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/tax/gstr2b/import', action: 'accounting:tax-export', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/tax/gstr2b/:id/reconciliation', action: 'accounting:tax-export', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/tax/artifacts', action: 'accounting:tax-export', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/tax/artifacts/:id/download', action: 'accounting:tax-export', resourceParam: null },
   { method: 'GET', path: '/api/clients', action: 'clients:view', resourceParam: null },
   { method: 'GET', path: '/api/clients/:id', action: 'clients:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/clients', action: 'clients:manage', resourceParam: null },

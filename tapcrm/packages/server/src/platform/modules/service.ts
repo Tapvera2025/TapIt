@@ -3,6 +3,7 @@ import * as repo from './repository.js';
 import { platformDb, setTenantContext } from '../dal/db.js';
 import { sql } from '../dal/sql.js';
 import { bootstrapOrganization } from '../organizations/bootstrap.js';
+import { provisionAccountingFoundation } from '../../modules/finance/accounting/provisioning.js';
 
 export const PLATFORM_MODULE_GROUPS = [
   { key: 'hr', label: 'HR', moduleKeys: ['employee-directory', 'onboarding', 'live-status', 'attendance', 'break-management', 'shifts', 'biometric', 'leave', 'holidays', 'payroll', 'performance', 'recruitment'] },
@@ -107,6 +108,9 @@ export async function changeOrganizationModule(
         `);
       }
       await bootstrapOrganization(tx, orgId, toEnable.map((item) => item.key));
+      if (toEnable.some((item) => item.key === 'accounting')) {
+        await provisionAccountingFoundation(tx, orgId);
+      }
       return { organizationId: orgId, moduleId: module.id, status: 'enabled' };
     },
   );

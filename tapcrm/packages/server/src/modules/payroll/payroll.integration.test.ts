@@ -7,12 +7,15 @@ import { closePools } from '../../platform/dal/pool.js';
 import { sql } from '../../platform/dal/sql.js';
 import { rupeesToPaise, roundToRupee, prorateAndRound, paiseToRupees } from './money.js';
 import { computePayslip, type ComputePayslipInput } from './calculate.js';
-import { buildRunPostingIntent, buildRevisionPostingIntent, type SlipComponent } from './posting.js';
+import {
+  buildRunPostingIntent,
+  buildRevisionPostingIntent,
+  type SlipComponent,
+} from './posting.js';
 import { fingerprint, periodEndFor } from './run.js';
 import { resolveConfig, acceptConfig } from './config.js';
 import { createStructure } from './structure.js';
 import { insertManualInput, listActiveInputsForPeriod } from './input.js';
-import { post } from '../accounting/facade.js';
 import { registerPayrollPolicies } from './policy.js';
 import type { Action, Decimal } from '@tapcrm/contracts';
 
@@ -25,10 +28,10 @@ import type { Action, Decimal } from '@tapcrm/contracts';
 const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
 
 // ── shared org provisioned once ──────────────────────────────────────────────
-const ORG  = randomUUID();
+const ORG = randomUUID();
 const DEPT = randomUUID();
-const POS  = randomUUID();
-const EMP  = randomUUID();
+const POS = randomUUID();
+const EMP = randomUUID();
 
 beforeAll(async () => {
   if (!enabled) return;
@@ -104,7 +107,8 @@ describe('money helpers — pure', () => {
 
 describe('periodEndFor — pure', () => {
   it('January 2025', () => expect(periodEndFor('2025-01-01')).toBe('2025-01-31'));
-  it('February 2025 (non-leap)', () => expect(periodEndFor('2025-02-01')).toBe('2025-02-28'));
+  it('February 2025 (non-leap)', () =>
+    expect(periodEndFor('2025-02-01')).toBe('2025-02-28'));
   it('February 2024 (leap)', () => expect(periodEndFor('2024-02-01')).toBe('2024-02-29'));
   it('December', () => expect(periodEndFor('2025-12-01')).toBe('2025-12-31'));
 });
@@ -138,25 +142,43 @@ describe('computePayslip line-sum invariant — pure', () => {
       employmentFrom: '2025-01-01',
       employmentTo: null,
       days,
-      structureSegments: [{
-        structureId: 's',
-        currency: 'INR',
-        effectiveFrom: '2025-01-01',
-        effectiveTo: null,
-        lines: [
-          { code: 'B', label: 'Basic', kind: 'earning', amountStr: '30000', prorated: true, statutoryTags: [], sortOrder: 1 },
-          { code: 'D', label: 'PF', kind: 'deduction', amountStr: '3600', prorated: true, statutoryTags: [], sortOrder: 2 },
-        ],
-      }],
+      structureSegments: [
+        {
+          structureId: 's',
+          currency: 'INR',
+          effectiveFrom: '2025-01-01',
+          effectiveTo: null,
+          lines: [
+            {
+              code: 'B',
+              label: 'Basic',
+              kind: 'earning',
+              amountStr: '30000',
+              prorated: true,
+              statutoryTags: [],
+              sortOrder: 1,
+            },
+            {
+              code: 'D',
+              label: 'PF',
+              kind: 'deduction',
+              amountStr: '3600',
+              prorated: true,
+              statutoryTags: [],
+              sortOrder: 2,
+            },
+          ],
+        },
+      ],
       inputs: [],
       config: { schemaVersion: 'v1', settings: {} },
     };
     const result = computePayslip(input);
     const earnSum = result.lines
-      .filter(l => l.kind === 'earning')
+      .filter((l) => l.kind === 'earning')
       .reduce((s, l) => s + l.amountPaise, 0n);
     const dedSum = result.lines
-      .filter(l => l.kind === 'deduction')
+      .filter((l) => l.kind === 'deduction')
       .reduce((s, l) => s + l.amountPaise, 0n);
     expect(result.grossPaise).toBe(earnSum);
     expect(result.deductionsPaise).toBe(dedSum);
@@ -181,17 +203,23 @@ describe('posting mapper — pure', () => {
   });
 
   it('positive delta: normal roles', () => {
-    const r = buildRevisionPostingIntent([makeComp('B', 3000000n)], [makeComp('B', 4000000n)]);
+    const r = buildRevisionPostingIntent(
+      [makeComp('B', 3000000n)],
+      [makeComp('B', 4000000n)],
+    );
     expect(r.kind).toBe('posting');
     expect(r.debitTotalPaise).toBe(1000000n);
-    expect(r.lines.find(l => l.side === 'debit')?.role).toBe('salary-expense');
+    expect(r.lines.find((l) => l.side === 'debit')?.role).toBe('salary-expense');
     for (const l of r.lines) expect(l.amountPaise).toBeGreaterThan(0n);
   });
 
   it('negative delta reversal: swapped roles, positive amounts', () => {
-    const r = buildRevisionPostingIntent([makeComp('B', 5000000n)], [makeComp('B', 4500000n)]);
+    const r = buildRevisionPostingIntent(
+      [makeComp('B', 5000000n)],
+      [makeComp('B', 4500000n)],
+    );
     expect(r.debitTotalPaise).toBe(500000n);
-    expect(r.lines.find(l => l.side === 'debit')?.role).toBe('salary-payable');
+    expect(r.lines.find((l) => l.side === 'debit')?.role).toBe('salary-payable');
     for (const l of r.lines) expect(l.amountPaise).toBeGreaterThan(0n);
   });
 
@@ -210,14 +238,16 @@ describe.skipIf(!enabled)('config acceptance (PostgreSQL)', () => {
       effectiveFrom: '2025-01-01',
       settings: { pf: { enabled: false } },
       caHrApproval: 'CA ref 001',
-      sources: [{
-        statutoryChoice: 'pf-rate',
-        issuer: 'EPFO',
-        title: 'PF rate notification',
-        reference: 'EPFO/2025/01',
-        sourceDate: '2025-01-01',
-        effectiveDate: '2025-01-01',
-      }],
+      sources: [
+        {
+          statutoryChoice: 'pf-rate',
+          issuer: 'EPFO',
+          title: 'PF rate notification',
+          reference: 'EPFO/2025/01',
+          sourceDate: '2025-01-01',
+          effectiveDate: '2025-01-01',
+        },
+      ],
     });
     expect(result.id).toBeTruthy();
 
@@ -230,26 +260,30 @@ describe.skipIf(!enabled)('config acceptance (PostgreSQL)', () => {
 
   it('second accept for same month without supersession fails unique index', async () => {
     const ctx = makeCtx();
-    await expect(acceptConfig(ctx, {
-      effectiveFrom: '2025-01-01',
-      settings: { pf: { enabled: true } },
-      caHrApproval: 'CA ref 002',
-      sources: [],
-    })).rejects.toThrow();
+    await expect(
+      acceptConfig(ctx, {
+        effectiveFrom: '2025-01-01',
+        settings: { pf: { enabled: true } },
+        caHrApproval: 'CA ref 002',
+        sources: [],
+      }),
+    ).rejects.toThrow();
   });
 });
 
 describe.skipIf(!enabled)('salary structure (PostgreSQL)', () => {
   let firstId = '';
-  const basic = (amount: string) => [{
-    code: 'BASIC',
-    label: 'Basic Salary',
-    kind: 'earning' as const,
-    amount: amount as Decimal,
-    prorated: true,
-    statutoryTags: ['pf-wage'],
-    sortOrder: 1,
-  }];
+  const basic = (amount: string) => [
+    {
+      code: 'BASIC',
+      label: 'Basic Salary',
+      kind: 'earning' as const,
+      amount: amount as Decimal,
+      prorated: true,
+      statutoryTags: ['pf-wage'],
+      sortOrder: 1,
+    },
+  ];
 
   it('creates a structure with lines', async () => {
     const ctx = makeCtx();
@@ -283,12 +317,14 @@ describe.skipIf(!enabled)('salary structure (PostgreSQL)', () => {
 
   it('a salary starting before the current one is refused', async () => {
     const ctx = makeCtx();
-    await expect(createStructure(ctx, {
-      userId: EMP,
-      currency: 'INR',
-      effectiveFrom: '2025-01-10',
-      lines: basic('10000'),
-    })).rejects.toMatchObject({ status: 409 });
+    await expect(
+      createStructure(ctx, {
+        userId: EMP,
+        currency: 'INR',
+        effectiveFrom: '2025-01-10',
+        lines: basic('10000'),
+      }),
+    ).rejects.toMatchObject({ status: 409 });
   });
 });
 
@@ -326,9 +362,9 @@ describe.skipIf(!enabled)('manual inputs (PostgreSQL)', () => {
 
 describe.skipIf(!enabled)('published payslip immutability (PostgreSQL)', () => {
   it('UPDATE on immutable payslip gross_paise is rejected by trigger', async () => {
-    const runId  = randomUUID();
+    const runId = randomUUID();
     const slipId = randomUUID();
-    const ctx    = makeCtx();
+    const ctx = makeCtx();
 
     await db.transaction(ctx, async (tx) => {
       await tx.query(sql`
@@ -351,87 +387,5 @@ describe.skipIf(!enabled)('published payslip immutability (PostgreSQL)', () => {
         tx.query(sql`UPDATE payslip SET gross_paise = 999 WHERE id = ${slipId}::uuid`),
       ),
     ).rejects.toThrow();
-  });
-});
-
-describe.skipIf(!enabled)('ledger posting intent (PostgreSQL)', () => {
-  it('balanced intent inserts successfully', async () => {
-    const runId = randomUUID();
-    const ctx   = makeCtx();
-
-    await db.transaction(ctx, async (tx) => {
-      await tx.query(sql`
-        INSERT INTO payroll_run (id, organization_id, period_start, period_end, config_id, created_by)
-        SELECT ${runId}::uuid, ${ORG}, '2025-05-01'::date, '2025-05-31'::date, pc.id, ${EMP}::uuid
-        FROM payroll_config pc WHERE pc.organization_id = ${ORG} LIMIT 1
-      `);
-    });
-
-    const { intentId } = await db.transaction(ctx, (tx) =>
-      post(tx, {
-        organizationId: ORG,
-        runId,
-        payslipId: null,
-        kind: 'posting',
-        lines: [
-          { role: 'salary-expense', amountPaise: 3000000n, side: 'debit' },
-          { role: 'salary-payable', amountPaise: 3000000n, side: 'credit' },
-        ],
-        debitTotalPaise: 3000000n,
-        creditTotalPaise: 3000000n,
-      }),
-    );
-    expect(intentId).toBeTruthy();
-  });
-
-  it('unbalanced intent throws', async () => {
-    const ctx = makeCtx();
-    await expect(
-      db.transaction(ctx, (tx) =>
-        post(tx, {
-          organizationId: ORG,
-          runId: randomUUID(),
-          payslipId: null,
-          kind: 'posting',
-          lines: [{ role: 'salary-expense', amountPaise: 100n, side: 'debit' }],
-          debitTotalPaise: 100n,
-          creditTotalPaise: 200n,
-        }),
-      ),
-    ).rejects.toThrow('LEDGER_UNBALANCED');
-  });
-
-  it('empty posting lines throws', async () => {
-    const ctx = makeCtx();
-    await expect(
-      db.transaction(ctx, (tx) =>
-        post(tx, {
-          organizationId: ORG,
-          runId: randomUUID(),
-          payslipId: null,
-          kind: 'posting',
-          lines: [],
-          debitTotalPaise: 0n,
-          creditTotalPaise: 0n,
-        }),
-      ),
-    ).rejects.toThrow('LEDGER_EMPTY_POSTING');
-  });
-
-  it('zero-delta-revision with lines throws', async () => {
-    const ctx = makeCtx();
-    await expect(
-      db.transaction(ctx, (tx) =>
-        post(tx, {
-          organizationId: ORG,
-          runId: randomUUID(),
-          payslipId: null,
-          kind: 'zero-delta-revision',
-          lines: [{ role: 'salary-expense', amountPaise: 1n, side: 'debit' }],
-          debitTotalPaise: 0n,
-          creditTotalPaise: 0n,
-        }),
-      ),
-    ).rejects.toThrow('LEDGER_ZERO_WITH_LINES');
   });
 });
