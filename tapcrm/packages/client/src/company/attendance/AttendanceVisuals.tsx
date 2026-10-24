@@ -32,7 +32,7 @@ export function MonthlyAttendanceKpis({
   lateDays,
   absentDays,
   halfDays,
-  paidLeave,
+  leavePaidCount,
   unpaidLeave,
   wfhDays,
 }: {
@@ -41,7 +41,7 @@ export function MonthlyAttendanceKpis({
   lateDays: number;
   absentDays: number;
   halfDays: number;
-  paidLeave: number;
+  leavePaidCount: number;
   unpaidLeave: number;
   wfhDays: number;
 }): React.JSX.Element {
@@ -53,7 +53,7 @@ export function MonthlyAttendanceKpis({
     { label: 'Half Days', value: halfDays, color: '#8570e9' },
   ];
   const secondaryItems = [
-    { label: 'Paid Leave', value: paidLeave, color: '#70a5ed' },
+    { label: 'Paid Leave', value: leavePaidCount, color: '#70a5ed' },
     { label: 'Unpaid Leave', value: unpaidLeave, color: '#b6a0f4' },
     { label: 'WFH Days', value: wfhDays, color: '#a7bde8' },
   ];
