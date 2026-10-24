@@ -4,7 +4,7 @@ import { sql } from '../../platform/dal/sql.js';
 import type { DateOnly } from '@tapcrm/contracts';
 import * as AttFacade from '../attendance/facade.js';
 import * as BreakFacade from '../break-management/facade.js';
-import { post } from '../accounting/facade.js';
+import { postSourceJournalTx } from '../finance/facade.js';
 import { writePayrollAudit } from './audit.js';
 import { resolveConfig } from './config.js';
 import {
@@ -15,7 +15,11 @@ import {
   monthLabel,
 } from './errors.js';
 import { PAYROLL_EVENTS, type SlipRevised } from './events.js';
-import { breakEvaluationRequired, freezeEmployees, type PeriodEmployee } from './freeze.js';
+import {
+  breakEvaluationRequired,
+  freezeEmployees,
+  type PeriodEmployee,
+} from './freeze.js';
 import { computeAndWriteDraftSlip } from './snapshot.js';
 import { buildRevisionPostingIntent } from './posting.js';
 import { slipComponents } from './publish.js';
@@ -70,7 +74,10 @@ export async function reviseSlip(
     `);
     if (!sourceSlip) throw new PayrollNotFoundError('Payslip not found');
     if (sourceSlip.status !== 'published') {
-      throw new PayrollConflictError(PAYROLL_ERROR_CODES.NOT_PUBLISHED, 'Only a published payslip can be revised.');
+      throw new PayrollConflictError(
+        PAYROLL_ERROR_CODES.NOT_PUBLISHED,
+        'Only a published payslip can be revised.',
+      );
     }
 
     await AttFacade.lockPerson(tx, sourceSlip.userId);
@@ -105,8 +112,15 @@ export async function reviseSlip(
     const from = sourceSlip.periodStart as DateOnly;
     const to = sourceSlip.periodEnd as DateOnly;
     const breakEvaluation = await breakEvaluationRequired(tx, ctx.organizationId);
-    const openItems = await AttFacade.openItems(tx, [sourceSlip.userId], from, to, { breakEvaluation });
-    const breaches = await BreakFacade.unresolvedBreaches(tx, [sourceSlip.userId], from, to);
+    const openItems = await AttFacade.openItems(tx, [sourceSlip.userId], from, to, {
+      breakEvaluation,
+    });
+    const breaches = await BreakFacade.unresolvedBreaches(
+      tx,
+      [sourceSlip.userId],
+      from,
+      to,
+    );
     if (openItems.length > 0 || breaches.length > 0) {
       throw new PayrollConflictError(
         PAYROLL_ERROR_CODES.NOT_PUBLISHABLE,
@@ -122,7 +136,12 @@ export async function reviseSlip(
 
     // The person's current window, even if it no longer overlaps the month:
     // a historical exit revises the slip down to nothing (design §9, Task 6).
-    const person = await tx.maybeOne<{ fullName: string; accountStatus: string; joinedOn: string | null; leftOn: string | null }>(sql`
+    const person = await tx.maybeOne<{
+      fullName: string;
+      accountStatus: string;
+      joinedOn: string | null;
+      leftOn: string | null;
+    }>(sql`
       SELECT full_name AS "fullName", status AS "accountStatus",
              joined_on::text AS "joinedOn", left_on::text AS "leftOn"
       FROM app_user
@@ -152,8 +171,14 @@ export async function reviseSlip(
 
     const newRevisionNumber = latest.revisionNumber + 1;
     const { payslipId: draftSlipId } = await computeAndWriteDraftSlip(
-      tx, ctx.organizationId, sourceSlip.runId, sourceSlip.userId,
-      sourceSlip.periodStart, sourceSlip.periodEnd, frozen!.inputs, frozen!.fingerprint,
+      tx,
+      ctx.organizationId,
+      sourceSlip.runId,
+      sourceSlip.userId,
+      sourceSlip.periodStart,
+      sourceSlip.periodEnd,
+      frozen!.inputs,
+      frozen!.fingerprint,
     );
 
     const draftSlip = await tx.one<{
@@ -174,22 +199,35 @@ export async function reviseSlip(
       WHERE id = ${draftSlipId}::uuid AND organization_id = ${ctx.organizationId}
     `);
 
-    const components = (slip: { grossPaise: string; deductionsPaise: string; employerContributionPaise: string }) =>
+    const components = (slip: {
+      grossPaise: string;
+      deductionsPaise: string;
+      employerContributionPaise: string;
+    }) =>
       slipComponents({
         grossPaise: BigInt(slip.grossPaise),
         deductionsPaise: BigInt(slip.deductionsPaise),
         employerContributionPaise: BigInt(slip.employerContributionPaise),
       });
-    const deltaIntent = buildRevisionPostingIntent(components(sourceSlip), components(draftSlip));
-    await post(tx, {
-      organizationId: ctx.organizationId,
-      runId: sourceSlip.runId,
-      payslipId: draftSlipId,
-      kind: deltaIntent.kind,
-      lines: deltaIntent.lines,
-      debitTotalPaise: deltaIntent.debitTotalPaise,
-      creditTotalPaise: deltaIntent.creditTotalPaise,
-    });
+    const deltaIntent = buildRevisionPostingIntent(
+      components(sourceSlip),
+      components(draftSlip),
+    );
+    if (deltaIntent.kind === 'posting')
+      await postSourceJournalTx(tx, {
+        organizationId: ctx.organizationId,
+        postedBy: ctx.principal.id,
+        entryDate: sourceSlip.periodEnd,
+        sourceType: 'payroll.revision',
+        sourceId: draftSlipId,
+        description: `Payroll revision ${newRevisionNumber} for ${month}`,
+        reason: input.reason,
+        lines: deltaIntent.lines.map((line) => ({
+          accountKey: line.role,
+          amountPaise: line.amountPaise,
+          side: line.side,
+        })),
+      });
 
     const event: SlipRevised = {
       slipId: draftSlipId,
@@ -207,7 +245,11 @@ export async function reviseSlip(
       targetType: 'payslip',
       targetId: draftSlipId,
       before: { payslipId: sourceSlip.id, revisionNumber: sourceSlip.revisionNumber },
-      after: { userId: sourceSlip.userId, periodStart: sourceSlip.periodStart, revisionNumber: newRevisionNumber },
+      after: {
+        userId: sourceSlip.userId,
+        periodStart: sourceSlip.periodStart,
+        revisionNumber: newRevisionNumber,
+      },
       reason: input.reason,
     });
     await notifyPayslipRevised(tx, ctx, {

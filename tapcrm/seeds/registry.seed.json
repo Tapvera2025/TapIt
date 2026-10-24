@@ -5476,6 +5476,60 @@
     },
     {
       "method": "GET",
+      "path": "/api/accounting/general-ledger",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/reports/trial-balance",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/reports/pnl",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/reports/balance-sheet",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/reports/cash-flow",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/accounts/:id/drill-through",
+      "action": "accounting:view-ledger",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/general-ledger/export",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/trial-balance/export",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/reports/:kind/export",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/accounting/journals",
       "action": "accounting:view-ledger",
       "resourceParam": null
@@ -5495,7 +5549,7 @@
     {
       "method": "GET",
       "path": "/api/accounting/accounts",
-      "action": "accounting:manage-accounts",
+      "action": "accounting:view-ledger",
       "resourceParam": null
     },
     {
@@ -5513,8 +5567,20 @@
     {
       "method": "GET",
       "path": "/api/accounting/periods",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/periods",
       "action": "accounting:close-period",
       "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/periods/:id/checklist",
+      "action": "accounting:close-period",
+      "resourceParam": "id"
     },
     {
       "method": "POST",
@@ -5561,6 +5627,36 @@
     {
       "method": "POST",
       "path": "/api/accounting/tax/tds",
+      "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/tax/tds-receivable/reconciliation",
+      "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/tax/gstr2b/import",
+      "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/tax/gstr2b/:id/reconciliation",
+      "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/tax/artifacts",
+      "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/tax/artifacts/:id/download",
       "action": "accounting:tax-export",
       "resourceParam": null
     },

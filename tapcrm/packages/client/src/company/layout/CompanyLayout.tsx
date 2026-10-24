@@ -34,6 +34,7 @@ export function CompanyLayout({
   canManageShifts,
   canManagePayroll,
   canManagePayrollConfig,
+  canViewAccounting,
   canViewTa,
   canManageTa,
   canManageBiometric,
@@ -87,6 +88,7 @@ export function CompanyLayout({
   canManageShifts: boolean;
   canManagePayroll: boolean;
   canManagePayrollConfig: boolean;
+  canViewAccounting: boolean;
   canViewTa: boolean;
   canManageTa: boolean;
   canManageBiometric: boolean;
@@ -106,8 +108,8 @@ export function CompanyLayout({
   children: React.ReactNode;
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    window.localStorage.getItem('tapcrm:sidebar-collapsed') === 'true',
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem('tapcrm:sidebar-collapsed') === 'true',
   );
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const savedWidth = Number(window.localStorage.getItem('tapcrm:sidebar-width'));
@@ -261,6 +263,7 @@ export function CompanyLayout({
             canManageShifts={canManageShifts}
             canManagePayroll={canManagePayroll}
             canManagePayrollConfig={canManagePayrollConfig}
+            canViewAccounting={canViewAccounting}
             canViewTa={canViewTa}
             canManageTa={canManageTa}
             canManageBiometric={canManageBiometric}

@@ -91,6 +91,7 @@ import { registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.
 import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
 import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
 import { registerTaRoutes } from './ta/routes.js';
+import { registerAccountingJobs, registerAccountingPolicies, registerAccountingRoutes } from './finance/accounting/index.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -139,6 +140,7 @@ export function registerAllPolicies(): void {
   registerChatPolicies();
   registerClientPolicies();
   registerProjectPolicies();
+  registerAccountingPolicies();
 }
 
 /** Realtime wiring that has no route/policy shape of its own (the typing relay). */
@@ -187,6 +189,7 @@ export function registerAllRoutes(): void {
   registerMyTodoRoutes();
   registerOnboardingRoutes();
   registerVerificationRoutes();
+  registerAccountingRoutes();
 }
 
 let jobsRegistered = false;
@@ -208,4 +211,5 @@ export function registerAllJobs(): void {
   registerSalesJobs();
   registerSalesIntakeJobs();
   registerProjectReportJobs();
+  registerAccountingJobs();
 }
