@@ -76,7 +76,7 @@ export function BarChart({
       </div>
     );
   return (
-    <div role="group" aria-label={label} className="chart-glass relative rounded-2xl border border-app-border p-3">
+    <div role="group" aria-label={label} className="chart-glass relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-app-border p-3">
       <div
         className="pointer-events-none absolute inset-x-0 top-5 bottom-10 flex flex-col justify-between"
         aria-hidden="true"
@@ -85,14 +85,14 @@ export function BarChart({
           <div key={line} className="border-t border-dashed border-app-border" />
         ))}
       </div>
-      <div className="relative flex h-60 items-end gap-3 px-2 pt-5 sm:gap-5">
+      <div className="relative flex min-h-0 flex-1 items-end gap-3 px-2 pt-5 sm:gap-5">
         {data.map((item, index) => (
           <div
             key={item.label}
             className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end"
             title={`${item.label}: ${item.value}`}
           >
-            <span className="mb-2 text-xs font-semibold tabular-nums text-app-muted group-hover:text-app-accent">
+            <span className="mb-2 max-w-full truncate text-xs font-semibold tabular-nums text-app-muted group-hover:text-app-accent">
               {item.value}
             </span>
             <div
@@ -104,7 +104,7 @@ export function BarChart({
                 } as CSSProperties
               }
             />
-            <span className="mt-3 w-full truncate text-center text-[11px] text-app-muted">
+            <span className="mt-2 w-full shrink-0 truncate text-center text-[11px] text-app-muted">
               {item.label}
             </span>
           </div>

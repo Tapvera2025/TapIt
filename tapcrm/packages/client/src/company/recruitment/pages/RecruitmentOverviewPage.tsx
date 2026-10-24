@@ -373,10 +373,10 @@ function PipelineStageStep({
       </div>
       {!isLast && (
         <span
-          className="hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 text-app-muted/40 font-bold z-10"
+          className="recruitment-pipeline-connector hidden lg:grid absolute -right-3.5 top-1/2 z-10 size-7 -translate-y-1/2 place-items-center rounded-full text-app-accent"
           aria-hidden="true"
         >
-          →
+          <Icon name="arrow" className="relative z-10 size-3.5" />
         </span>
       )}
     </button>
