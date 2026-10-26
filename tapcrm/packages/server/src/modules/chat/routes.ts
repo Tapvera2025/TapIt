@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ApplicationError } from '../../errors.js';
 import { route } from '../../platform/http/route.js';
 import {
   addGroupMembers,
@@ -36,6 +37,12 @@ import {
 const idParam = z.object({ id: z.string().uuid() });
 const idUserIdParams = z.object({ id: z.string().uuid(), userId: z.string().uuid() });
 
+function requireEmployeeChat(ctx: { principal: { accountType: string } }): void {
+  if (ctx.principal.accountType === 'client') {
+    throw new ApplicationError('Client accounts must use their project discussion', 404, 'CHAT_CONVERSATION_NOT_FOUND');
+  }
+}
+
 /**
  * Chat HTTP routes — Phase 2 of the messaging build (team-docs has the plan).
  *
@@ -51,7 +58,7 @@ export function registerChatRoutes(): void {
     path: '/api/chat/conversations',
     action: 'chat:view',
     module: 'chat',
-    handler: async ({ ctx, query }) => listConversations(ctx, listConversationsQuerySchema.parse(query).kind),
+    handler: async ({ ctx, query }) => { requireEmployeeChat(ctx); return listConversations(ctx, listConversationsQuerySchema.parse(query).kind); },
   });
 
   route({
@@ -59,7 +66,7 @@ export function registerChatRoutes(): void {
     path: '/api/chat/unread-summary',
     action: 'chat:view',
     module: 'chat',
-    handler: async ({ ctx }) => getUnreadSummary(ctx),
+    handler: async ({ ctx }) => { requireEmployeeChat(ctx); return getUnreadSummary(ctx); },
   });
 
   // Who a Direct Message can be started with — every employee/super-admin in
@@ -70,7 +77,7 @@ export function registerChatRoutes(): void {
     path: '/api/chat/colleagues',
     action: 'chat:send',
     module: 'chat',
-    handler: async ({ ctx }) => listColleagues(ctx),
+    handler: async ({ ctx }) => { requireEmployeeChat(ctx); return listColleagues(ctx); },
   });
 
   route({
@@ -114,7 +121,7 @@ export function registerChatRoutes(): void {
     action: 'chat:send',
     module: 'chat',
     status: 201,
-    handler: async ({ ctx, body }) => startDirectConversation(ctx, startDirectConversationSchema.parse(body).userId),
+    handler: async ({ ctx, body }) => { requireEmployeeChat(ctx); return startDirectConversation(ctx, startDirectConversationSchema.parse(body).userId); },
   });
 
   route({
@@ -123,7 +130,7 @@ export function registerChatRoutes(): void {
     action: 'chat:manage-groups',
     module: 'chat',
     status: 201,
-    handler: async ({ ctx, body }) => createInternalGroup(ctx, createGroupConversationSchema.parse(body)),
+    handler: async ({ ctx, body }) => { requireEmployeeChat(ctx); return createInternalGroup(ctx, createGroupConversationSchema.parse(body)); },
   });
 
   route({
