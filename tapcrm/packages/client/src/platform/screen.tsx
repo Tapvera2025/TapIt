@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError, clearTokens, saveTokens, updateOrganization } from './api.js';
 import { ModuleToggleModal } from './ModuleToggleModal.js';
 import { ThemeToggle } from '../theme/ThemeToggle.js';
-import { ACCENT_COLORS, useTheme } from '../theme/ThemeContext.js';
+import { ACCENT_COLORS, useTheme, type Theme } from '../theme/ThemeContext.js';
 import { Icon } from '../ui/Icon.js';
 
 interface Organization {
@@ -513,8 +513,13 @@ export function PlatformLogin({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-function AppearanceModeIcon({ mode }: { mode: 'light' | 'dark' }) {
-  return mode === 'light' ? (
+function AppearanceModeIcon({ mode }: { mode: Theme }) {
+  return mode === 'system' ? (
+    <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M8 21h8M12 17v4M8 10l2 2 5-5" />
+    </svg>
+  ) : mode === 'light' ? (
     <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
       <circle cx="12" cy="12" r="4" />
       <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
@@ -535,7 +540,7 @@ function PlatformAppearancePopover({
   onClose: () => void;
   mobile?: boolean;
 }) {
-  const { accent, resolvedTheme, setAccent, setTheme } = useTheme();
+  const { accent, theme, setAccent, setTheme } = useTheme();
 
   return (
     <div
@@ -563,12 +568,13 @@ function PlatformAppearancePopover({
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2.5 max-[420px]:grid-cols-1">
+      <div className="mt-4 grid grid-cols-3 gap-2.5 max-[560px]:grid-cols-1">
         {([
+          { mode: 'system' as const, label: 'System', description: 'Follow device' },
           { mode: 'light' as const, label: 'Light Mode', description: 'Clean and bright' },
           { mode: 'dark' as const, label: 'Dark Mode', description: 'Easy on your eyes' },
         ]).map(({ mode, label, description }) => {
-          const selected = resolvedTheme === mode;
+          const selected = theme === mode;
           return (
             <button
               key={mode}

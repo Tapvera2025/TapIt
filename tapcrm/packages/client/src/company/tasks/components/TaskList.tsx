@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../../../ui/Icon.js';
 import { SkeletonTable } from '../../../ui/components.js';
 import type { TaskListProps, TaskStatus } from '../types/index.js';
@@ -107,6 +108,91 @@ export function TaskList({
   } | null>(null);
   const [openStatusMenu, setOpenStatusMenu] = useState<string | null>(null);
   const [openAssigneeTaskId, setOpenAssigneeTaskId] = useState<string | null>(null);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+  const statusAnchorRef = useRef<HTMLElement | null>(null);
+  const [statusMenuOptions, setStatusMenuOptions] = useState<{
+    taskId: string;
+    transitions: TaskStatus[];
+    assigneeId: string | undefined;
+  } | null>(null);
+  const [statusMenuPosition, setStatusMenuPosition] = useState<{ top: number; left: number } | null>(null);
+
+  function toggleStatusMenu(
+    key: string,
+    taskId: string,
+    transitions: TaskStatus[],
+    assigneeId: string | undefined,
+    anchor: HTMLElement,
+  ) {
+    if (openStatusMenu === key) {
+      setOpenStatusMenu(null);
+      setStatusMenuOptions(null);
+      statusAnchorRef.current = null;
+      return;
+    }
+    statusAnchorRef.current = anchor;
+    setStatusMenuOptions({ taskId, transitions, assigneeId });
+    setStatusMenuPosition(null);
+    setOpenStatusMenu(key);
+  }
+
+  function closeStatusMenu() {
+    setOpenStatusMenu(null);
+    setStatusMenuOptions(null);
+    setStatusMenuPosition(null);
+    statusAnchorRef.current = null;
+  }
+
+  useEffect(() => {
+    if (!openStatusMenu) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        !statusMenuRef.current?.contains(target) &&
+        !statusAnchorRef.current?.contains(target)
+      ) {
+        closeStatusMenu();
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeStatusMenu();
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openStatusMenu]);
+
+  useLayoutEffect(() => {
+    if (!openStatusMenu || !statusMenuOptions) return;
+    const updatePosition = () => {
+      const anchor = statusAnchorRef.current;
+      if (!anchor?.isConnected) {
+        closeStatusMenu();
+        return;
+      }
+      const rect = anchor.getBoundingClientRect();
+      const width = Math.min(192, window.innerWidth - 16);
+      const height = Math.min(statusMenuOptions.transitions.length * 40 + 8, window.innerHeight - 16);
+      const canOpenBelow = rect.bottom + height + 8 <= window.innerHeight;
+      const top = canOpenBelow ? rect.bottom + 6 : Math.max(8, rect.top - height - 6);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      setStatusMenuPosition((current) =>
+        current?.top === top && current.left === left ? current : { top, left },
+      );
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [openStatusMenu, statusMenuOptions]);
 
   if (loading) {
     return <SkeletonTable columns={5} rows={7} />;
@@ -167,34 +253,22 @@ export function TaskList({
                 <button
                   type="button"
                   disabled={isBusy}
-                  onClick={() =>
-                    setOpenStatusMenu(openStatusMenu === task.id ? null : task.id)
-                  }
+                  onClick={(event) => toggleStatusMenu(
+                    task.id,
+                    task.id,
+                    availableTransitions,
+                    myAssignment?.id,
+                    event.currentTarget,
+                  )}
                   className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent disabled:opacity-50"
                   aria-label={myAssignment ? 'Change my task status' : 'Change task status'}
+                  aria-expanded={openStatusMenu === task.id}
                 >
                   <TaskStatusBadge
                     status={task.status}
                     className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
                   />
                 </button>
-                {openStatusMenu === task.id && (
-                  <div className="absolute right-0 top-full z-20 mt-1 min-w-32 rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg">
-                    {availableTransitions.map((status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        onClick={() => {
-                          setOpenStatusMenu(null);
-                          void handleTransition(task.id, status, myAssignment?.id);
-                        }}
-                        className="block w-full px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                      >
-                        {TRANSITION_LABELS[status] ?? status}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -203,7 +277,7 @@ export function TaskList({
         return (
           <article
             key={task.id}
-            className="rounded-2xl border border-app-border/80 bg-app-surface p-4 shadow-sm transition-shadow hover:shadow-md sm:px-7 sm:py-6"
+            className={`relative rounded-2xl border border-app-border/80 bg-app-surface p-4 shadow-sm transition-shadow hover:shadow-md sm:px-7 sm:py-6 ${openStatusMenu === task.id ? 'z-30' : 'z-0'}`}
           >
             <div className="flex flex-col gap-3 border-b border-app-border/70 pb-4 lg:grid lg:grid-cols-[minmax(15rem,1fr)_minmax(18rem,auto)_auto] lg:items-center lg:gap-6 lg:border-0 lg:pb-0">
               <div className="min-w-0 flex-1 rounded-xl bg-app-surface-raised/40 p-3 lg:rounded-none lg:bg-transparent lg:p-0">
@@ -397,42 +471,22 @@ export function TaskList({
                               <button
                                 type="button"
                                 disabled={isBusy}
-                                onClick={() =>
-                                  setOpenStatusMenu(
-                                    openStatusMenu === `${task.id}:${assignee.id}`
-                                      ? null
-                                      : `${task.id}:${assignee.id}`,
-                                  )
-                                }
+                                onClick={(event) => toggleStatusMenu(
+                                  `${task.id}:${assignee.id}`,
+                                  task.id,
+                                  assigneeTransitions,
+                                  assignee.id,
+                                  event.currentTarget,
+                                )}
                                 className="disabled:opacity-50"
                                 aria-label={`Change status for ${assignee.fullName}`}
+                                aria-expanded={openStatusMenu === `${task.id}:${assignee.id}`}
                               >
                                 <TaskStatusBadge
                                   status={assignee.status}
                                   className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
                                 />
                               </button>
-                              {openStatusMenu === `${task.id}:${assignee.id}` && (
-                                <div className="absolute left-0 top-full z-20 mt-1 min-w-28 rounded-lg border border-app-border bg-app-surface py-1 text-[11px] shadow-lg">
-                                  {assigneeTransitions.map((status) => (
-                                    <button
-                                      key={status}
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenStatusMenu(null);
-                                        void handleTransition(
-                                          task.id,
-                                          status,
-                                          assignee.id,
-                                        );
-                                      }}
-                                      className="block w-full px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      {TRANSITION_LABELS[status] ?? status}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
                             </div>
                           )}
                         </div>
@@ -473,6 +527,38 @@ export function TaskList({
           </article>
         );
       })}
+      {openStatusMenu && statusMenuOptions && statusMenuPosition && createPortal(
+        <div
+          ref={statusMenuRef}
+          role="menu"
+          className="overflow-y-auto rounded-xl border border-app-border bg-app-surface py-1 text-sm text-app-foreground shadow-2xl"
+          style={{
+            position: 'fixed',
+            zIndex: 10000,
+            top: statusMenuPosition.top,
+            left: statusMenuPosition.left,
+            width: 'min(12rem, calc(100vw - 1rem))',
+            maxHeight: 'calc(100dvh - 1rem)',
+          }}
+        >
+          {statusMenuOptions.transitions.map((status) => (
+            <button
+              key={status}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const { taskId, assigneeId } = statusMenuOptions;
+                closeStatusMenu();
+                void handleTransition(taskId, status, assigneeId);
+              }}
+              className="block w-full px-3 py-2.5 text-left hover:bg-app-surface-raised focus-visible:bg-app-surface-raised focus-visible:outline-none"
+            >
+              {TRANSITION_LABELS[status] ?? status}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

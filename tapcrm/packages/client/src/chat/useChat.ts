@@ -47,15 +47,19 @@ export function useChat(kind: ConversationKind): {
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [error, setError] = useState('');
   const activeIdRef = useRef<string | null>(null);
+  const conversationsRef = useRef<Conversation[]>([]);
   const socketRef = useRef<Socket | null>(null);
   const typingTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   activeIdRef.current = activeId;
+  conversationsRef.current = conversations;
 
   const refreshConversations = useCallback(async (): Promise<void> => {
     try {
       const list = await getConversations(kind);
-      setConversations(list);
+      setConversations(list.map((conversation) =>
+        conversation.id === activeIdRef.current ? { ...conversation, unreadCount: 0 } : conversation,
+      ));
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load conversations.');
@@ -71,9 +75,10 @@ export function useChat(kind: ConversationKind): {
       setNextCursor(page.nextCursor);
       void markConversationRead(conversationId)
         .then(() => window.dispatchEvent(new Event(CHAT_UNREAD_CHANGED_EVENT)))
-        .catch(() => undefined);
+        .catch(() => window.dispatchEvent(new Event(CHAT_UNREAD_CHANGED_EVENT)));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load messages.');
+      window.dispatchEvent(new Event(CHAT_UNREAD_CHANGED_EVENT));
     } finally {
       setLoadingMessages(false);
     }
@@ -82,8 +87,17 @@ export function useChat(kind: ConversationKind): {
   const openConversation = useCallback(async (id: string): Promise<void> => {
     setActiveIdState(id);
     setTypingUsers([]);
+    const unreadCount = conversationsRef.current.find((conversation) => conversation.id === id)?.unreadCount ?? 0;
+    setConversations((current) => current.map((conversation) =>
+      conversation.id === id ? { ...conversation, unreadCount: 0 } : conversation,
+    ));
+    if (unreadCount > 0) {
+      window.dispatchEvent(new CustomEvent(CHAT_UNREAD_CHANGED_EVENT, {
+        detail: { kind, count: unreadCount, optimistic: true },
+      }));
+    }
     await loadMessages(id);
-  }, [loadMessages]);
+  }, [kind, loadMessages]);
 
   const loadMoreMessages = useCallback(async (): Promise<void> => {
     if (!activeId || !nextCursor || loadingMessages) return;

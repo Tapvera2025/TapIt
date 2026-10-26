@@ -153,6 +153,7 @@ export function OnboardingChecklistDrawer({
               No active onboarding workflow found for this employee.
             </div>
           ) : (
+            
             <>
               {/* Progress Bar */}
               <div className="rounded-xl border border-app-border bg-app-background/40 p-3">

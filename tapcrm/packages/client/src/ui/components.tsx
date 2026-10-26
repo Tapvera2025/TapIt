@@ -125,7 +125,7 @@ export function WorkspacePageContainer({
   className?: string;
 }): React.JSX.Element {
   return (
-    <div className="w-full p-5 md:p-8">
+    <div className="workspace-page-container w-full">
       <div className={`mx-auto w-full max-w-7xl ${className}`}>{children}</div>
     </div>
   );

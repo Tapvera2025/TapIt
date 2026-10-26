@@ -33,27 +33,33 @@ export function ClientProjectPage({ id, onNavigate, onError }: { id: string; onN
 
   return (
     <Page eyebrow="Project" title={project.name} action={back}>
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card className="md:col-span-2">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg font-bold">Overview</h2>
-            <StatusBadge status={project.workStatus} />
+      <Card className="p-4 sm:p-6">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-bold">Overview</h2>
+          <StatusBadge status={project.workStatus} />
+        </div>
+        <p className="mt-3 whitespace-pre-line break-words text-sm leading-6 text-app-muted">{project.description || 'No description has been added yet.'}</p>
+        <div className="mt-5">
+          <ProgressBar progress={project.progress} />
+        </div>
+
+        <div className="mt-6 grid gap-4 border-t border-app-border pt-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="min-w-0">
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-app-muted">Start date</dt>
+            <dd className="mt-1 break-words text-sm font-medium text-app-foreground">{formatProjectDate(project.startDate)}</dd>
           </div>
-          <p className="mt-3 whitespace-pre-line text-sm text-app-muted">{project.description || 'No description has been added yet.'}</p>
-          <div className="mt-6"><ProgressBar progress={project.progress} /></div>
-        </Card>
-        <Card>
-          <h2 className="font-display text-lg font-bold">Details</h2>
-          <dl className="mt-3 space-y-3 text-sm">
-            <div><dt className="text-xs uppercase tracking-[0.1em] text-app-muted">Start date</dt><dd>{formatProjectDate(project.startDate)}</dd></div>
-            <div><dt className="text-xs uppercase tracking-[0.1em] text-app-muted">Expected end</dt><dd>{formatProjectDate(project.expectedEndDate)}</dd></div>
-            <div>
-              <dt className="text-xs uppercase tracking-[0.1em] text-app-muted">Services</dt>
-              <dd>{project.services.length === 0 ? '—' : project.services.map((s) => (s.service === 'other' ? s.otherLabel : PORTAL_SERVICE_LABELS[s.service] ?? s.service)).join(', ')}</dd>
-            </div>
-          </dl>
-        </Card>
-      </div>
+          <div className="min-w-0">
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-app-muted">Expected end</dt>
+            <dd className="mt-1 break-words text-sm font-medium text-app-foreground">{formatProjectDate(project.expectedEndDate)}</dd>
+          </div>
+          <div className="min-w-0 sm:col-span-2 xl:col-span-1">
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-app-muted">Services</dt>
+            <dd className="mt-1 break-words text-sm font-medium text-app-foreground">
+              {project.services.length === 0 ? '—' : project.services.map((s) => (s.service === 'other' ? s.otherLabel : PORTAL_SERVICE_LABELS[s.service] ?? s.service)).join(', ')}
+            </dd>
+          </div>
+        </div>
+      </Card>
     </Page>
   );
 }

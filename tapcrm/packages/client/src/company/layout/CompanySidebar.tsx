@@ -1,5 +1,4 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import Lenis from 'lenis';
 import { Icon } from '../../ui/Icon.js';
 import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
@@ -71,6 +70,7 @@ function ThemePromoIllustration({ accent }: { accent: AccentColor }): React.JSX.
 }
 
 export function CompanySidebar({
+  variant = 'company',
   pathname,
   identity: _identity,
   organizationName: _organizationName,
@@ -122,6 +122,7 @@ export function CompanySidebar({
   width = 256,
   onResize,
 }: {
+  variant?: 'company' | 'client';
   pathname: string;
   identity: {
     fullName: string;
@@ -231,13 +232,31 @@ export function CompanySidebar({
     indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
   };
 
+  const syncActiveSidebarPill = () => {
+    // Wait until route state commits, then position the shared pill from the
+    // active item itself so it cannot remain at its previous route position.
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const navigation = navigationRef.current;
+      const indicator = activeNavIndicatorRef.current;
+      const activeItem = navigation?.querySelector<HTMLButtonElement>(
+        '[data-company-nav-item][aria-current="page"]',
+      );
+      if (!navigation || !indicator || !activeItem) return;
+      const navRect = navigation.getBoundingClientRect();
+      const itemRect = activeItem.getBoundingClientRect();
+      indicator.style.setProperty('--sidebar-pill-top', `${itemRect.top - navRect.top + navigation.scrollTop}px`);
+      indicator.style.setProperty('--sidebar-pill-left', `${itemRect.left - navRect.left + navigation.scrollLeft}px`);
+      indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
+      indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
+      indicator.style.opacity = '1';
+      setIsActiveNavMoving(true);
+      if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
+      activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
+    }));
+  };
+
   const startSidebarPillDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (
-      !event.currentTarget.matches('[aria-current="page"]') ||
-      !window.matchMedia('(min-width: 1280px)').matches ||
-      event.button !== 0
-    )
-      return;
+    if (!event.currentTarget.matches('[aria-current="page"]') || !window.matchMedia('(min-width: 1280px)').matches || event.button !== 0 || event.pointerType === 'touch') return;
     const indicatorRect = activeNavIndicatorRef.current?.getBoundingClientRect();
     if (!indicatorRect) return;
     sidebarPillDragRef.current = {
@@ -307,9 +326,11 @@ export function CompanySidebar({
     let shouldRestore = !drag.moved || !commit;
 
     if (drag.moved && commit && indicator && navigation) {
-      const pillRect = indicator.getBoundingClientRect();
-      const centerX = pillRect.left + pillRect.width / 2;
-      const centerY = pillRect.top + pillRect.height / 2;
+      // Resolve the destination from the actual release point. The animated
+      // indicator can still be mid-transition on pointer-up, so using its
+      // visual center can incorrectly select the old item (often Dashboard).
+      const centerX = event.clientX;
+      const centerY = event.clientY;
       const nearest = [...navItemRefs.current.entries()]
         .map(([path, entry]) => {
           const rect = entry.button.getBoundingClientRect();
@@ -327,6 +348,7 @@ export function CompanySidebar({
         if (nearest.label === 'Recruitment') setRecruitmentOpen(true);
         onNavigate(nearest.path);
         onClose();
+        syncActiveSidebarPill();
         if (nearest.path === pathname) shouldRestore = true;
       } else {
         shouldRestore = true;
@@ -347,22 +369,6 @@ export function CompanySidebar({
       });
     }
   };
-
-  useEffect(() => {
-    const navigation = navigationRef.current;
-    if (!navigation) return;
-
-    const lenis = new Lenis({
-      wrapper: navigation,
-      content: navigation,
-      duration: 0.9,
-      smoothWheel: true,
-      syncTouch: true,
-      autoRaf: true,
-    });
-
-    return () => lenis.destroy();
-  }, []);
 
   useEffect(() => {
     const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
@@ -401,15 +407,8 @@ export function CompanySidebar({
       indicator.style.opacity = '1';
 
       const previousTop = previousActiveTopRef.current;
-      if (
-        prevPathnameRef.current !== pathname &&
-        previousTop !== null &&
-        previousTop !== top
-      ) {
-        indicator.style.setProperty(
-          '--sidebar-pill-origin',
-          top > previousTop ? 'top center' : 'bottom center',
-        );
+      if (previousTop !== null && Math.abs(previousTop - top) > 1) {
+        indicator.style.setProperty('--sidebar-pill-origin', top > previousTop ? 'top center' : 'bottom center');
         setIsActiveNavMoving(true);
         if (activeNavMoveTimerRef.current !== undefined)
           window.clearTimeout(activeNavMoveTimerRef.current);
@@ -915,6 +914,21 @@ export function CompanySidebar({
       items: [{ label: 'Settings', path: '/company/settings', icon: 'settings' }],
     },
   ];
+  const visibleNavigation: CompanyNavGroup[] = variant === 'client'
+    ? [
+        {
+          label: 'Overview',
+          items: [
+            { label: 'Dashboard', path: '/client', icon: 'grid' },
+            { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
+          ],
+        },
+        {
+          label: 'Account',
+          items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
+        },
+      ]
+    : navigation;
 
   return (
     <aside
@@ -947,13 +961,9 @@ export function CompanySidebar({
           <span aria-hidden="true" />
         </button>
       )}
-      <div
-        className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}
-      >
-        <p
-          className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}
-        >
-          Company Workspace
+      <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
+        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
+          {variant === 'client' ? 'Client Workspace' : 'Company Workspace'}
         </p>
         <span
           className={`hidden size-2 rounded-full bg-app-accent xl:block ${collapsed ? '' : 'xl:hidden'}`}
@@ -973,7 +983,8 @@ export function CompanySidebar({
         onPointerMove={moveSidebarPillDrag}
         onPointerUp={finishSidebarPillDrag}
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
-        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
+        data-lenis-prevent
+        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
         aria-label="Company navigation"
       >
         <div
@@ -983,7 +994,7 @@ export function CompanySidebar({
           data-dragging={isDraggingSidebarPill}
           aria-hidden="true"
         />
-        {navigation.map((group) => {
+        {visibleNavigation.map((group) => {
           const isOrganization = group.label === 'Organization';
           const activeChild = group.items.some(
             (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
@@ -1021,10 +1032,11 @@ export function CompanySidebar({
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
                     const isRecruitmentItem = item.label === 'Recruitment';
-                    const isActive =
-                      pathname === item.path ||
-                      (item.path !== '/company/organization' &&
-                        pathname.startsWith(`${item.path}/`));
+                    const isRootRoute = variant === 'client'
+                      ? item.path === '/client'
+                      : item.path === '/company/organization';
+                    const isActive = pathname === item.path ||
+                      (!isRootRoute && pathname.startsWith(`${item.path}/`));
                     const showChildren = Boolean(
                       item.children && (isRecruitmentItem ? recruitmentOpen : true),
                     );
@@ -1060,6 +1072,7 @@ export function CompanySidebar({
                             } else {
                               onNavigate(item.path);
                               onClose();
+                              syncActiveSidebarPill();
                             }
                           }}
                           className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
@@ -1078,7 +1091,7 @@ export function CompanySidebar({
                           </span>
                           {item.label === 'Messages' && unreadMessages > 0 && (
                             <span
-                              className={`rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
+                              className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
                               aria-label={`${unreadMessages} unread messages`}
                             >
                               {unreadMessages > 99 ? '99+' : unreadMessages}
@@ -1126,17 +1139,19 @@ export function CompanySidebar({
             </div>
           );
         })}
-        <div className={`sidebar-decoration ${collapsed ? 'xl:hidden' : ''}`}>
-          <div className="relative z-10 max-w-[76%]">
-            <p className="text-sm font-medium leading-5">
-              Work smarter.
-              <br />
-              Grow together.
-            </p>
-            <div className="mt-3 h-1 w-10 rounded-full bg-app-accent" />
+        {variant === 'company' && (
+          <div className={`sidebar-decoration ${collapsed ? 'xl:hidden' : ''}`}>
+            <div className="relative z-10 max-w-[76%]">
+              <p className="text-sm font-medium leading-5">
+                Work smarter.
+                <br />
+                Grow together.
+              </p>
+              <div className="mt-3 h-1 w-10 rounded-full bg-app-accent" />
+            </div>
+            <ThemePromoIllustration accent={accent} />
           </div>
-          <ThemePromoIllustration accent={accent} />
-        </div>
+        )}
       </nav>
       {activePet && (
         <div
