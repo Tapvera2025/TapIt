@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 194   Bindings: 591
+ * Actions: 195   Bindings: 591
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -26,6 +26,7 @@ export type Action =
   | 'access:view'
   | 'accounting:close-period'
   | 'accounting:manage-accounts'
+  | 'accounting:manage-periods'
   | 'accounting:post-journal'
   | 'accounting:reopen-period'
   | 'accounting:tax-export'
@@ -222,6 +223,7 @@ export const ACTIONS: readonly Action[] = [
   'access:view',
   'accounting:close-period',
   'accounting:manage-accounts',
+  'accounting:manage-periods',
   'accounting:post-journal',
   'accounting:reopen-period',
   'accounting:tax-export',
@@ -492,6 +494,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     action: 'accounting:manage-accounts',
     module: 'accounting',
     resource: 'ledgerAccount',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'accounting:manage-periods': {
+    action: 'accounting:manage-periods',
+    module: 'accounting',
+    resource: 'accountingPeriod',
     domain: 'business',
     sensitive: true,
     approvalBearing: false,
@@ -3769,7 +3786,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/accounting/accounts', action: 'accounting:manage-accounts', resourceParam: null },
   { method: 'PATCH', path: '/api/accounting/accounts/:id', action: 'accounting:manage-accounts', resourceParam: 'id' },
   { method: 'GET', path: '/api/accounting/periods', action: 'accounting:view-ledger', resourceParam: null },
-  { method: 'POST', path: '/api/accounting/periods', action: 'accounting:close-period', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/periods', action: 'accounting:manage-periods', resourceParam: null },
   { method: 'POST', path: '/api/accounting/periods/:id/checklist', action: 'accounting:close-period', resourceParam: 'id' },
   { method: 'POST', path: '/api/accounting/periods/:id/close', action: 'accounting:close-period', resourceParam: 'id' },
   { method: 'POST', path: '/api/accounting/periods/:id/reopen', action: 'accounting:reopen-period', resourceParam: 'id' },

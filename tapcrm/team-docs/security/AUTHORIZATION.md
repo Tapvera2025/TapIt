@@ -191,6 +191,7 @@
 | `accounting:view-ledger` | accounting | journalEntry | business | yes | no | — | yes | no | no |
 | `accounting:post-journal` | accounting | journalEntry | business | yes | no | — | yes | no | no |
 | `accounting:manage-accounts` | accounting | ledgerAccount | business | yes | no | — | yes | no | no |
+| `accounting:manage-periods` | accounting | accountingPeriod | business | yes | no | — | yes | no | no |
 | `accounting:close-period` | accounting | accountingPeriod | business | yes | yes | lastPostedBy | yes | no | no |
 | `accounting:reopen-period` | accounting | accountingPeriod | business | yes | no | — | yes | no | yes |
 | `accounting:view-statements` | accounting | — | business | yes | no | — | yes | no | no |
@@ -702,7 +703,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/accounting/accounts | `accounting:manage-accounts` | — |
 | PATCH | /api/accounting/accounts/:id | `accounting:manage-accounts` | id |
 | GET | /api/accounting/periods | `accounting:view-ledger` | — |
-| POST | /api/accounting/periods | `accounting:close-period` | — |
+| POST | /api/accounting/periods | `accounting:manage-periods` | — |
 | POST | /api/accounting/periods/:id/checklist | `accounting:close-period` | id |
 | POST | /api/accounting/periods/:id/close | `accounting:close-period` | id |
 | POST | /api/accounting/periods/:id/reopen | `accounting:reopen-period` | id |

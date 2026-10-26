@@ -91,6 +91,21 @@
       "description": ""
     },
     {
+      "action": "accounting:manage-periods",
+      "module": "accounting",
+      "resource": "accountingPeriod",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "accounting:post-journal",
       "module": "accounting",
       "resource": "journalEntry",
@@ -5573,7 +5588,7 @@
     {
       "method": "POST",
       "path": "/api/accounting/periods",
-      "action": "accounting:close-period",
+      "action": "accounting:manage-periods",
       "resourceParam": null
     },
     {

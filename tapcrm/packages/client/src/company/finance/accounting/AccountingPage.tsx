@@ -77,6 +77,8 @@ export function AccountingPage({
   canManageAccounts,
   canPost,
   canClose,
+  canManagePeriods,
+  canViewStatements,
   canTax,
 }: {
   initialTab?: string;
@@ -84,6 +86,8 @@ export function AccountingPage({
   canManageAccounts: boolean;
   canPost: boolean;
   canClose: boolean;
+  canManagePeriods: boolean;
+  canViewStatements: boolean;
   canTax: boolean;
 }): React.JSX.Element {
   const initialRouteTab =
@@ -190,6 +194,8 @@ export function AccountingPage({
             periods={periods}
             canPost={canPost}
             canClose={canClose}
+            canManagePeriods={canManagePeriods}
+            canViewStatements={canViewStatements}
             canTax={canTax}
             onError={setError}
             onRefreshPeriods={refreshPeriods}
@@ -207,6 +213,8 @@ function AccountingTab({
   periods,
   canPost,
   canClose,
+  canManagePeriods,
+  canViewStatements,
   canTax,
   onError,
   onRefreshPeriods,
@@ -217,11 +225,20 @@ function AccountingTab({
   periods: AccountingPeriod[];
   canPost: boolean;
   canClose: boolean;
+  canManagePeriods: boolean;
+  canViewStatements: boolean;
   canTax: boolean;
   onError: (value: string) => void;
   onRefreshPeriods: () => void;
 }): React.JSX.Element {
-  if (tab === 'dashboard') return <DashboardTab period={period} onError={onError} />;
+  if (tab === 'dashboard')
+    return (
+      <DashboardTab
+        period={period}
+        canViewStatements={canViewStatements}
+        onError={onError}
+      />
+    );
   if (tab === 'accounts') return <AccountsTab onError={onError} />;
   if (tab === 'journals')
     return (
@@ -232,13 +249,21 @@ function AccountingTab({
       <PeriodsTab
         periods={periods}
         canManage={canClose}
+        canManagePeriods={canManagePeriods}
         onError={onError}
         onRefresh={onRefreshPeriods}
       />
     );
   if (tab === 'ledger') return <LedgerTab periodId={selectedPeriod} onError={onError} />;
   if (tab === 'reports')
-    return <ReportsTab periodId={selectedPeriod} periods={periods} onError={onError} />;
+    return (
+      <ReportsTab
+        periodId={selectedPeriod}
+        periods={periods}
+        canViewStatements={canViewStatements}
+        onError={onError}
+      />
+    );
   if (tab === 'tax')
     return <TaxTab periodId={selectedPeriod} canTax={canTax} onError={onError} />;
   return <ArtifactsTab onError={onError} />;
@@ -246,9 +271,11 @@ function AccountingTab({
 
 function DashboardTab({
   period,
+  canViewStatements,
   onError,
 }: {
   period?: AccountingPeriod | undefined;
+  canViewStatements: boolean;
   onError: (value: string) => void;
 }): React.JSX.Element {
   const [data, setData] = useState<{
@@ -260,12 +287,18 @@ function DashboardTab({
     if (!period) return;
     void Promise.all([
       getTrialBalance({ periodId: period.id }),
-      getProfitAndLoss({ periodId: period.id }),
-      getBalanceSheet({ periodId: period.id }),
+      canViewStatements ? getProfitAndLoss({ periodId: period.id }) : Promise.resolve(undefined),
+      canViewStatements ? getBalanceSheet({ periodId: period.id }) : Promise.resolve(undefined),
     ])
-      .then(([trial, pnl, balance]) => setData({ trial, pnl, balance }))
+      .then(([trial, pnl, balance]) =>
+        setData({
+          trial,
+          ...(pnl ? { pnl } : {}),
+          ...(balance ? { balance } : {}),
+        }),
+      )
       .catch((cause) => onError(messageOf(cause)));
-  }, [period, onError]);
+  }, [period, canViewStatements, onError]);
   if (!period) return <Empty>No accounting periods are available.</Empty>;
   return (
     <div className="space-y-5">
@@ -701,11 +734,13 @@ function JournalsTab({
 function PeriodsTab({
   periods,
   canManage,
+  canManagePeriods,
   onError,
   onRefresh,
 }: {
   periods: AccountingPeriod[];
   canManage: boolean;
+  canManagePeriods: boolean;
   onError: (value: string) => void;
   onRefresh: () => void;
 }): React.JSX.Element {
@@ -746,7 +781,7 @@ function PeriodsTab({
   }
   return (
     <div className="space-y-5">
-      {canManage && (
+      {canManagePeriods && (
         <Card>
           <div className="grid gap-3 sm:grid-cols-4">
             <Field
@@ -1022,10 +1057,12 @@ function LedgerTab({
 function ReportsTab({
   periodId,
   periods,
+  canViewStatements,
   onError,
 }: {
   periodId: string;
   periods: AccountingPeriod[];
+  canViewStatements: boolean;
   onError: (value: string) => void;
 }): React.JSX.Element {
   const [kind, setKind] = useState<'trial' | 'pnl' | 'balance' | 'cash'>('trial');
@@ -1075,9 +1112,13 @@ function ReportsTab({
             onChange={(value) => setKind(value as typeof kind)}
             options={[
               { value: 'trial', label: 'Trial balance' },
-              { value: 'pnl', label: 'Profit & loss' },
-              { value: 'balance', label: 'Balance sheet' },
-              { value: 'cash', label: 'Cash flow' },
+              ...(canViewStatements
+                ? [
+                    { value: 'pnl', label: 'Profit & loss' },
+                    { value: 'balance', label: 'Balance sheet' },
+                    { value: 'cash', label: 'Cash flow' },
+                  ]
+                : []),
             ]}
           />
           <Select

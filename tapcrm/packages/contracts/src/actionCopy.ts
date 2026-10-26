@@ -127,6 +127,10 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Manage ledger accounts',
     description: 'Add and change the accounts in the chart of accounts.',
   },
+  'accounting:manage-periods': {
+    title: 'Manage accounting periods',
+    description: 'Create accounting periods for the organization.',
+  },
   'accounting:post-journal': {
     title: 'Post journal entries',
     description: 'Record manual entries in the ledger.',

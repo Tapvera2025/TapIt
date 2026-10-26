@@ -171,6 +171,10 @@ export function CompanyWorkspace({
   const canManageAccountingAccounts = isSuperAdmin || can('accounting:manage-accounts');
   const canPostAccounting = isSuperAdmin || can('accounting:post-journal');
   const canCloseAccounting = isSuperAdmin || can('accounting:close-period');
+  const canManageAccountingPeriods =
+    isSuperAdmin || can('accounting:manage-periods');
+  const canViewAccountingStatements =
+    isSuperAdmin || can('accounting:view-statements');
   const canTaxAccounting = isSuperAdmin || can('accounting:tax-export');
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
@@ -288,6 +292,8 @@ export function CompanyWorkspace({
           canManageAccounts={canManageAccountingAccounts}
           canPost={canPostAccounting}
           canClose={canCloseAccounting}
+          canManagePeriods={canManageAccountingPeriods}
+          canViewStatements={canViewAccountingStatements}
           canTax={canTaxAccounting}
         />
       );
