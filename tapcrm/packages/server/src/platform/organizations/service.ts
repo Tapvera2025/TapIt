@@ -11,6 +11,7 @@ import { bootstrapOrganization } from './bootstrap.js';
 import * as organizationRepo from './repository.js';
 import type { OrganizationProfileUpdate } from './repository.js';
 import { normalizeIdentityEmail } from '../../modules/identity/repository.js';
+import { provisionAccountingFoundation } from '../../modules/finance/accounting/provisioning.js';
 
 export async function createOrganization(
   input: {
@@ -128,6 +129,9 @@ export async function createOrganization(
           org.id,
           toEnable.map((module) => module.key),
         );
+        if (toEnable.some((module) => module.key === 'accounting')) {
+          await provisionAccountingFoundation(tx, org.id);
+        }
         const invitation = await createInvitationRecord(tx, {
           organizationId: org.id,
           email: input.adminEmail,
