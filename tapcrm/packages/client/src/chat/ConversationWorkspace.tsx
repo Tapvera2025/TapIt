@@ -58,6 +58,8 @@ export function ConversationWorkspace({
   hideList = false,
   initialConversationId,
   initialMessageId,
+  messageActions,
+  clientMode = false,
 }: {
   /** Owned by the page (not this component), so the page's own "New" flow can drive the same instance. */
   chat: ReturnType<typeof useChat>;
@@ -76,6 +78,13 @@ export function ConversationWorkspace({
   initialConversationId?: string | undefined;
   /** Scroll to and highlight this message once it's loaded, once. */
   initialMessageId?: string | undefined;
+  messageActions?: {
+    sendMessage: typeof sendMessage;
+    reactToMessage: typeof reactToMessage;
+    removeReaction: typeof removeReaction;
+  };
+  /** Client portal discussions share the thread UI but omit company-only actions. */
+  clientMode?: boolean;
 }): React.JSX.Element {
   const [composer, setComposer] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -90,14 +99,17 @@ export function ConversationWorkspace({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [pendingMentions, setPendingMentions] = useState<Map<string, string>>(new Map());
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const threadScrollRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const highlightTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastOpenedInitialIdRef = useRef<string | null>(null);
   const lastScrolledMessageIdRef = useRef<string | null>(null);
+  const openConversation = chat.openConversation;
 
   useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ block: 'end' });
+    const thread = threadScrollRef.current;
+    if (thread) thread.scrollTop = thread.scrollHeight;
   }, [chat.messages.length, chat.activeId]);
 
   const MAX_COMPOSER_HEIGHT = 160;
@@ -144,9 +156,8 @@ export function ConversationWorkspace({
     // same tab/component is still mounted, must still be honored.
     if (!initialConversationId || lastOpenedInitialIdRef.current === initialConversationId) return;
     lastOpenedInitialIdRef.current = initialConversationId;
-    void chat.openConversation(initialConversationId);
-    // Deliberately omits `chat`: openConversation is a stable useCallback.
-  }, [initialConversationId]);
+    void openConversation(initialConversationId);
+  }, [initialConversationId, openConversation]);
 
   useEffect(() => {
     if (!initialMessageId || lastScrolledMessageIdRef.current === initialMessageId) return;
@@ -210,7 +221,7 @@ export function ConversationWorkspace({
       const mentionedUserIds = [...pendingMentions.entries()]
         .filter(([, fullName]) => body.includes(`@${fullName}`))
         .map(([userId]) => userId);
-      const message = await sendMessage(chat.activeId, body, replyTo?.id ?? null, mentionedUserIds);
+      const message = await (messageActions?.sendMessage ?? sendMessage)(chat.activeId, body, replyTo?.id ?? null, mentionedUserIds);
       chat.applyOptimisticMessage(message);
       setComposer('');
       setReplyTo(null);
@@ -244,7 +255,9 @@ export function ConversationWorkspace({
     setReactingMessageId(null);
     const mine = message.reactions.some((r) => r.userId === currentUserId && r.emoji === emoji);
     try {
-      chat.replaceMessage(mine ? await removeReaction(message.id, emoji) : await reactToMessage(message.id, emoji));
+      chat.replaceMessage(mine
+        ? await (messageActions?.removeReaction ?? removeReaction)(message.id, emoji)
+        : await (messageActions?.reactToMessage ?? reactToMessage)(message.id, emoji));
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'Unable to react.');
     }
@@ -317,7 +330,7 @@ export function ConversationWorkspace({
           <div className="grid flex-1 place-items-center text-sm text-app-muted">Select a conversation, or start a new one.</div>
         ) : (
           <>
-            <div className="relative flex shrink-0 items-center justify-between gap-2 p-4 after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:bg-app-border">
+            <div className={`relative flex shrink-0 items-center justify-between gap-3 px-4 py-3 after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:bg-app-border sm:px-5 ${clientMode ? 'bg-app-surface' : ''}`}>
               <div className="flex min-w-0 items-center gap-2">
                 {!hideList && (
                   <button
@@ -329,9 +342,17 @@ export function ConversationWorkspace({
                     <Icon name="chevron-left" className="size-4" />
                   </button>
                 )}
+                {clientMode && (
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent ring-1 ring-inset ring-app-accent/15">
+                    <Icon name="users" className="size-5" />
+                  </span>
+                )}
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{activeConversation ? conversationLabel(activeConversation) : ''}</p>
-                  {activeConversation?.description && kind !== 'direct' && (
+                  <p className={`${clientMode ? 'text-sm sm:text-base' : 'text-sm'} truncate font-semibold`}>{activeConversation ? conversationLabel(activeConversation) : ''}</p>
+                  {clientMode && activeConversation && (
+                    <p className="mt-0.5 truncate text-xs text-app-muted">Project group · {activeConversation.members.length} members</p>
+                  )}
+                  {!clientMode && activeConversation?.description && kind !== 'direct' && (
                     <p className="truncate text-xs text-app-muted">{activeConversation.description}</p>
                   )}
                   {chat.typingUsers.length > 0 && <p className="text-xs text-app-accent">typing…</p>}
@@ -340,7 +361,7 @@ export function ConversationWorkspace({
               {activeConversation && headerExtra?.(activeConversation)}
             </div>
 
-            <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+            <div ref={threadScrollRef} data-lenis-prevent className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}>
               {chat.loadingMessages && chat.messages.length === 0 ? (
                 <SkeletonMessageThread />
               ) : (
@@ -352,18 +373,25 @@ export function ConversationWorkspace({
                       </Button>
                     </div>
                   )}
-                  <ul className="flex min-w-0 flex-col gap-3">
+                  <ul className={`flex min-w-0 flex-col ${clientMode ? 'gap-5 sm:gap-6' : 'gap-3'}`}>
                     {chat.messages.map((message) => {
                       const mine = message.senderId === currentUserId;
                       const unsent = message.deletedAt !== null;
                       const sender = activeConversation?.members.find((m) => m.userId === message.senderId);
                       return (
                         <li key={message.id} id={`chat-message-${message.id}`} className={`min-w-0 flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-                          {!mine && kind !== 'direct' && sender && (
+                          {!mine && kind !== 'direct' && sender && (clientMode ? (
+                            <span className="mb-1 flex max-w-[86%] items-center gap-2 text-xs font-semibold text-app-muted">
+                              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-app-surface-raised text-[10px] font-bold text-app-accent ring-1 ring-inset ring-app-border">
+                                {sender.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+                              </span>
+                              <span className="truncate">{sender.fullName}</span>
+                            </span>
+                          ) : (
                             <span className="mb-0.5 max-w-[80%] truncate text-[11px] font-semibold text-app-muted">{sender.fullName}</span>
-                          )}
+                          ))}
                           <div
-                            className={`max-w-[80%] min-w-0 rounded-xl border px-3 py-2 text-sm break-words transition-colors duration-700 ${mine ? 'border-app-accent/30 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
+                            className={`${clientMode ? 'max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[76%] sm:px-5' : 'max-w-[80%] rounded-xl px-3 py-2 text-sm'} min-w-0 border break-words transition-colors duration-500 ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
                           >
                             {message.forwarded && <p className="mb-1 text-[11px] italic text-app-muted">Forwarded</p>}
                             {message.replyPreview && !unsent && (
@@ -453,13 +481,13 @@ export function ConversationWorkspace({
                                     >
                                       <Icon name="reply" className="size-4" /> Reply
                                     </button>
-                                    <button
+                                    {!clientMode && <button
                                       type="button"
                                       onClick={() => { setForwardingMessage(message); setOpenActionsFor(null); }}
                                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
                                     >
                                       <Icon name="forward" className="size-4" /> Forward
-                                    </button>
+                                    </button>}
                                     <button
                                       type="button"
                                       onClick={() => { void copyText(message.body ?? ''); setOpenActionsFor(null); }}
@@ -474,7 +502,7 @@ export function ConversationWorkspace({
                                     >
                                       <Icon name="smile" className="size-4" /> React
                                     </button>
-                                    {mine && (
+                                    {!clientMode && mine && (
                                       <button
                                         type="button"
                                         onClick={() => { void onUnsend(message); setOpenActionsFor(null); }}
@@ -514,7 +542,7 @@ export function ConversationWorkspace({
               </div>
             )}
 
-            <div className="flex shrink-0 items-stretch gap-2 border-t border-app-border bg-app-surface p-3">
+            <div className={`flex shrink-0 items-stretch gap-2 border-t border-app-border bg-app-surface ${clientMode ? 'p-3 sm:gap-3 sm:p-4' : 'p-3'}`}>
               <div className="relative min-w-0 flex-1">
                 {mentionQuery !== null && (
                   <div data-chat-popover className="absolute bottom-full left-0 z-20 mb-1 w-56 rounded-lg border border-app-border bg-app-surface py-1 text-sm shadow-lg">
@@ -549,10 +577,10 @@ export function ConversationWorkspace({
                   rows={1}
                   style={{ maxHeight: MAX_COMPOSER_HEIGHT }}
                   data-lenis-prevent
-                  className="block min-h-10 w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm leading-5 outline-none focus:border-app-accent"
+                  className={`block min-h-10 w-full resize-none overflow-y-auto whitespace-pre-wrap border border-app-border px-3 py-2.5 text-sm leading-5 outline-none focus:border-app-accent ${clientMode ? 'rounded-xl bg-app-surface-raised sm:px-4' : 'rounded-lg bg-app-background'}`}
                 />
               </div>
-              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0} className="min-w-[4.25rem] shrink-0 self-stretch !py-0">Send</Button>
+              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0} className={`min-w-[4.25rem] shrink-0 self-stretch !py-0 ${clientMode ? '!rounded-xl !px-4' : ''}`}>Send</Button>
             </div>
           </>
         )}

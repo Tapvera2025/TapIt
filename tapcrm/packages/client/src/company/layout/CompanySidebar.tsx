@@ -90,6 +90,7 @@ export function CompanySidebar({
   canDecideApprovals = false,
   canForecast = false,
   canViewChat = false,
+  clientMessagesUnread = 0,
   canViewClients = false,
   canViewProjects = false,
   canViewLiveBoard = false,
@@ -148,6 +149,7 @@ export function CompanySidebar({
   canDecideApprovals?: boolean;
   canForecast?: boolean;
   canViewChat?: boolean;
+  clientMessagesUnread?: number;
   canViewClients?: boolean;
   canViewProjects?: boolean;
   canViewLiveBoard?: boolean;
@@ -810,6 +812,7 @@ export function CompanySidebar({
           items: [
             { label: 'Dashboard', path: '/client', icon: 'grid' },
             { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
+            { label: 'Messages', path: '/client/messages', icon: 'message' },
           ],
         },
         {
@@ -955,12 +958,12 @@ export function CompanySidebar({
                             </span>
                             <span className={collapsed ? 'xl:hidden' : ''}>{item.label}</span>
                           </span>
-                          {item.label === 'Messages' && unreadMessages > 0 && (
+                          {item.label === 'Messages' && (variant === 'client' ? clientMessagesUnread : unreadMessages) > 0 && (
                             <span
                               className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
-                              aria-label={`${unreadMessages} unread messages`}
+                              aria-label={`${variant === 'client' ? clientMessagesUnread : unreadMessages} unread messages`}
                             >
-                              {unreadMessages > 99 ? '99+' : unreadMessages}
+                              {(variant === 'client' ? clientMessagesUnread : unreadMessages) > 99 ? '99+' : (variant === 'client' ? clientMessagesUnread : unreadMessages)}
                             </span>
                           )}
                           {item.children && (
