@@ -112,6 +112,7 @@ export function ConversationWorkspace({
   const threadScrollRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastOpenedInitialIdRef = useRef<string | null>(null);
   const lastScrolledMessageIdRef = useRef<string | null>(null);
@@ -164,6 +165,7 @@ export function ConversationWorkspace({
 
   useEffect(() => () => {
     if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
   }, []);
 
   // Clicking anywhere that isn't one of the popovers themselves (reaction
@@ -304,16 +306,10 @@ export function ConversationWorkspace({
     }
   };
 
-  const toggleMessageActions = (message: ChatMessage, mine: boolean, event: React.MouseEvent<HTMLButtonElement>): void => {
-    if (openActionsFor === message.id) {
-      setOpenActionsFor(null);
-      setActionMenuPosition(null);
-      return;
-    }
-    const anchor = event.currentTarget.getBoundingClientRect();
+  const setMessageActionsPosition = (message: ChatMessage, mine: boolean, anchor: DOMRect): void => {
     const menuWidth = 144;
     const menuHeight = clientMode ? 160 : mine ? 196 : 160;
-    const belowTop = anchor.bottom + 4;
+    const belowTop = anchor.bottom + 4 + (message.reactions.length > 0 ? 20 : 0);
     const top = belowTop + menuHeight <= window.innerHeight - 8
       ? belowTop
       : Math.max(8, anchor.top - menuHeight - 4);
@@ -324,13 +320,43 @@ export function ConversationWorkspace({
     setOpenActionsFor(message.id);
   };
 
+  const toggleMessageActions = (message: ChatMessage, mine: boolean, event: React.MouseEvent<HTMLButtonElement>): void => {
+    if (openActionsFor === message.id) {
+      setOpenActionsFor(null);
+      setActionMenuPosition(null);
+      return;
+    }
+    setMessageActionsPosition(message, mine, event.currentTarget.getBoundingClientRect());
+  };
+
+  const clearLongPress = (): void => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  };
+
+  const startMessageLongPress = (event: React.PointerEvent<HTMLDivElement>, message: ChatMessage, mine: boolean): void => {
+    if (event.pointerType !== 'touch' || !window.matchMedia('(max-width: 767px)').matches || (event.target as HTMLElement).closest('button')) return;
+    clearLongPress();
+    const anchor = event.currentTarget.getBoundingClientRect();
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      setMessageActionsPosition(message, mine, anchor);
+    }, 520);
+  };
+
   const toggleReaction = async (message: ChatMessage, emoji: ReactionEmoji): Promise<void> => {
     setReactingMessageId(null);
-    const mine = message.reactions.some((r) => r.userId === currentUserId && r.emoji === emoji);
+    setReactionDetail(null);
+    const existingReaction = message.reactions.find((r) => r.userId === currentUserId);
     try {
-      chat.replaceMessage(mine
-        ? await (messageActions?.removeReaction ?? removeReaction)(message.id, emoji)
-        : await (messageActions?.reactToMessage ?? reactToMessage)(message.id, emoji));
+      const remove = messageActions?.removeReaction ?? removeReaction;
+      const add = messageActions?.reactToMessage ?? reactToMessage;
+      if (existingReaction?.emoji === emoji) {
+        chat.replaceMessage(await remove(message.id, emoji));
+      } else {
+        if (existingReaction) await remove(message.id, existingReaction.emoji);
+        chat.replaceMessage(await add(message.id, emoji));
+      }
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'Unable to react.');
     }
@@ -483,7 +509,7 @@ export function ConversationWorkspace({
                       const unsent = message.deletedAt !== null;
                       const sender = activeConversation?.members.find((m) => m.userId === message.senderId);
                       return (
-                        <li key={message.id} id={`chat-message-${message.id}`} className={`min-w-0 flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                        <li key={message.id} id={`chat-message-${message.id}`} className={`min-w-0 flex flex-col ${mine ? 'items-end' : 'items-start'} ${message.reactions.length > 0 ? 'mb-3' : ''}`}>
                           {!mine && kind !== 'direct' && sender && (clientMode ? (
                             <span className="mb-1 flex max-w-[86%] items-center gap-2 text-xs font-semibold text-app-muted">
                               <span className="grid size-6 shrink-0 place-items-center rounded-full bg-app-surface-raised text-[10px] font-bold text-app-accent ring-1 ring-inset ring-app-border">
@@ -494,9 +520,16 @@ export function ConversationWorkspace({
                           ) : (
                             <span className="mb-0.5 max-w-[80%] truncate text-[11px] font-semibold text-app-muted">{sender.fullName}</span>
                           ))}
-                          <div className={`${clientMode ? 'max-w-[88%] sm:max-w-[76%]' : 'max-w-[80%]'} relative min-w-0`}>
+                          <div className={`${clientMode ? 'max-w-[88%] sm:max-w-[76%]' : 'max-w-[80%]'} relative w-fit min-w-0`}>
                             <div
-                              className={`${clientMode ? 'rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:px-5' : 'rounded-xl px-3 py-2 text-sm'} w-full min-w-0 overflow-visible border break-words transition-colors duration-500 ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
+                              onPointerDown={(event) => startMessageLongPress(event, message, mine)}
+                              onPointerUp={clearLongPress}
+                              onPointerCancel={clearLongPress}
+                              onPointerMove={clearLongPress}
+                              onContextMenu={(event) => {
+                                if (window.matchMedia('(max-width: 767px)').matches) event.preventDefault();
+                              }}
+                              className={`${clientMode ? 'rounded-[18px] px-4 pb-2.5 pt-3 text-sm leading-6 shadow-sm sm:px-5' : 'rounded-[18px] px-3 pb-2 pt-2 text-sm'} ${mine ? 'rounded-br-[5px]' : 'rounded-bl-[5px]'} ${openActionsFor === message.id ? 'z-50' : ''} group relative w-fit max-w-full min-w-0 overflow-visible border break-words transition-colors duration-500 ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
                             >
                             {message.forwarded && <p className="mb-1 text-[11px] italic text-app-muted">Forwarded</p>}
                             {message.replyPreview && !unsent && (
@@ -508,9 +541,60 @@ export function ConversationWorkspace({
                                 {message.replyPreview.deletedAt ? 'Message unsent' : (message.replyPreview.body ?? '')}
                               </button>
                             )}
-                            <p className={`whitespace-pre-wrap break-words ${unsent ? 'italic text-app-muted' : ''}`}>{unsent ? 'This message was unsent' : renderMessageBody(message.body ?? '', message.mentions)}</p>
+                            <p className={`inline whitespace-pre-wrap break-words ${unsent ? 'italic text-app-muted' : ''}`}>{unsent ? 'This message was unsent' : renderMessageBody(message.body ?? '', message.mentions)}</p>
+                            <span aria-hidden="true" className="ml-2 inline-flex invisible items-center gap-1 whitespace-nowrap text-[10px]">
+                              {timeLabel(message.createdAt)}
+                              {mine && message.seenBy.length > 0 && ' ✓✓'}
+                            </span>
+                            <span className="absolute bottom-1.5 right-2 inline-flex items-center gap-1 whitespace-nowrap text-[10px] text-app-muted">
+                              <time dateTime={message.createdAt}>{timeLabel(message.createdAt)}</time>
+                            {mine && message.seenBy.length > 0 && (
+                              <span data-chat-popover className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setSeenDetailFor(seenDetailFor === message.id ? null : message.id)}
+                                  aria-label="View message read receipts"
+                                  className="flex items-center text-app-accent hover:text-app-accent"
+                                >
+                                  <Icon name="check" className="size-3.5" />
+                                  <Icon name="check" className="-ml-2 size-3.5" />
+                                </button>
+                                {seenDetailFor === message.id && (
+                                  <div className="absolute bottom-full right-0 z-10 mb-1 min-w-max rounded-lg border border-app-border bg-app-surface px-2 py-1 text-[11px] text-app-muted shadow-lg">
+                                    {message.seenBy.map((userId) => {
+                                      const member = activeConversation?.members.find((m) => m.userId === userId);
+                                      return (
+                                        <p key={userId} className="whitespace-nowrap">
+                                          {member?.fullName ?? 'Someone'}
+                                          {member?.lastReadAt ? ` — ${timeLabel(member.lastReadAt)}` : ''}
+                                        </p>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </span>
+                            )}
+                            </span>
+                            {!unsent && (
+                              <span data-chat-popover className="absolute right-1.5 top-1.5 hidden items-center md:flex">
+                                <button
+                                  type="button"
+                                  onClick={(event) => toggleMessageActions(message, mine, event)}
+                                  aria-label={openActionsFor === message.id ? 'Hide message actions' : 'Show message actions'}
+                                  aria-expanded={openActionsFor === message.id}
+                                  className={`pointer-events-none grid size-6 place-items-center rounded-md text-app-muted opacity-0 transition-[background-color,opacity,color] duration-150 group-hover:pointer-events-auto group-hover:bg-app-surface-raised group-hover:opacity-100 group-hover:text-app-accent focus-visible:pointer-events-auto focus-visible:bg-app-surface-raised focus-visible:opacity-100 focus-visible:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1 ${openActionsFor === message.id ? 'pointer-events-auto bg-app-surface-raised opacity-100 text-app-accent' : ''}`}
+                                >
+                                  <Icon name={openActionsFor === message.id ? 'chevron-up' : 'chevron-down'} className="size-3.5" />
+                                </button>
+                              </span>
+                            )}
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none absolute bottom-[-1px] h-3.5 w-3.5 ${mine ? '-right-2 bg-app-accent/10 [clip-path:polygon(0_0,100%_100%,0_100%)]' : '-left-2 bg-app-surface-raised [clip-path:polygon(100%_0,0_100%,100%_100%)]'}`}
+                            />
+                            </div>
                             {message.reactions.length > 0 && (
-                              <div className="relative mt-1 flex flex-wrap gap-1 text-xs">
+                              <div className={`absolute -bottom-3 left-2 flex flex-wrap gap-1 text-xs ${openActionsFor === message.id ? 'z-50' : 'z-10'}`}>
                                 {[...new Set(message.reactions.map((r) => r.emoji))].map((emoji) => {
                                   const reactors = message.reactions.filter((r) => r.emoji === emoji);
                                   const open = reactionDetail?.messageId === message.id && reactionDetail.emoji === emoji;
@@ -518,8 +602,15 @@ export function ConversationWorkspace({
                                     <span key={emoji} data-chat-popover className="relative">
                                       <button
                                         type="button"
-                                        onClick={() => setReactionDetail(open ? null : { messageId: message.id, emoji })}
-                                        className="rounded-full border border-app-border bg-app-surface px-1.5 py-0.5 hover:border-app-accent"
+                                        onClick={() => {
+                                          if (reactors.some((r) => r.userId === currentUserId)) {
+                                            void toggleReaction(message, emoji);
+                                          } else {
+                                            setReactionDetail(open ? null : { messageId: message.id, emoji });
+                                          }
+                                        }}
+                                        aria-label={reactors.some((r) => r.userId === currentUserId) ? 'Remove your reaction' : 'View reactions'}
+                                        className="rounded-full border border-app-border bg-app-surface px-1.5 py-0.5 shadow-sm hover:border-app-accent"
                                       >
                                         {emoji}{reactors.length > 1 ? reactors.length : ''}
                                       </button>
@@ -539,56 +630,21 @@ export function ConversationWorkspace({
                                 })}
                               </div>
                             )}
-                            <div className="mt-2 flex items-center justify-end gap-2 text-[11px] text-app-muted">
-                              <time dateTime={message.createdAt}>{timeLabel(message.createdAt)}</time>
-                            {mine && message.seenBy.length > 0 && (
-                              <span data-chat-popover className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => setSeenDetailFor(seenDetailFor === message.id ? null : message.id)}
-                                  className="hover:text-app-accent"
-                                >
-                                  Seen
-                                </button>
-                                {seenDetailFor === message.id && (
-                                  <div className="absolute bottom-full right-0 z-10 mb-1 min-w-max rounded-lg border border-app-border bg-app-surface px-2 py-1 text-[11px] text-app-muted shadow-lg">
-                                    {message.seenBy.map((userId) => {
-                                      const member = activeConversation?.members.find((m) => m.userId === userId);
-                                      return (
-                                        <p key={userId} className="whitespace-nowrap">
-                                          {member?.fullName ?? 'Someone'}
-                                          {member?.lastReadAt ? ` — ${timeLabel(member.lastReadAt)}` : ''}
-                                        </p>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </span>
-                            )}
-                            {!unsent && (
-                              <span data-chat-popover className="relative flex items-center">
-                                <button
-                                  type="button"
-                                  onClick={(event) => toggleMessageActions(message, mine, event)}
-                                  aria-label={openActionsFor === message.id ? 'Hide message actions' : 'Show message actions'}
-                                  aria-expanded={openActionsFor === message.id}
-                                  className="grid min-h-6 min-w-6 place-items-center rounded-md text-app-muted hover:bg-app-surface-raised hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1"
-                                >
-                                  <Icon name={openActionsFor === message.id ? 'chevron-up' : 'chevron-down'} className="size-3.5" />
-                                </button>
-                              </span>
-                            )}
-                            </div>
-                            </div>
 
                           </div>
 
                           {openActionsFor === message.id && actionMenuPosition && createPortal(
-                            <div
-                              data-chat-popover
-                              className="fixed z-50 min-w-36 max-w-[calc(100vw-2rem)] rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg"
-                              style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
-                            >
+                            <>
+                              <div
+                                className="fixed inset-0 z-40 bg-app-background/25 backdrop-blur-[2px] md:hidden"
+                                aria-hidden="true"
+                                onClick={() => { setOpenActionsFor(null); setActionMenuPosition(null); }}
+                              />
+                              <div
+                                data-chat-popover
+                                className="fixed z-50 min-w-36 max-w-[calc(100vw-2rem)] rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg"
+                                style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
+                              >
                               <button
                                 type="button"
                                 onClick={() => { setReplyTo(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
@@ -626,7 +682,8 @@ export function ConversationWorkspace({
                                   <Icon name="trash" className="size-4" /> Unsend
                                 </button>
                               )}
-                            </div>,
+                              </div>
+                            </>,
                             document.body,
                           )}
 
