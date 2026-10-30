@@ -1,5 +1,5 @@
 import { loadConfig } from '../../../config.js';
-import { escapeHtml, sendEmail } from './mailer.js';
+import { escapeHtml, sendEmail } from '../../../platform/email/index.js';
 
 export interface AdminInvitationEmail {
   readonly to: string;
