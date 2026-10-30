@@ -36,8 +36,6 @@ import { notifyGroupMemberRemoved, notifyGroupMembersAdded, notifyMention, notif
 import type { Conversation, ConversationKind, ConversationResource, Message, ReactionEmoji } from './types.js';
 import type { ListMessagesQuery } from './validators.js';
 
-export { createProjectConversation } from './facade.js';
-
 /** A raw socket event, not an HTTP request, has no principal (TN-9: jobs/sockets build a context explicitly). */
 function relayPrincipal(organizationId: string): Principal {
   return {

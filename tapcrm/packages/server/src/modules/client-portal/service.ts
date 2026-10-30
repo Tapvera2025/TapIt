@@ -2,10 +2,8 @@ import { z } from 'zod';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { ApplicationError } from '../../errors.js';
 import { countProjectsByStatus, findProfile, findProject, findProjectDiscussion, listProjectDiscussions, listProjects } from './repository.js';
-import { getConversation, listMessages, markRead, reactToMessage, removeReactionFromMessage, sendMessage } from '../chat/service.js';
-import { findMessageById } from '../chat/repository.js';
-import type { Conversation, Message, ReactionEmoji } from '../chat/types.js';
-import type { ListMessagesQuery } from '../chat/validators.js';
+import { findMessageById, getConversation, listMessages, markRead, reactToMessage, removeReactionFromMessage, sendMessage } from '../chat/facade.js';
+import type { Conversation, ListMessagesQuery, Message, ReactionEmoji } from '../chat/facade.js';
 import type { PortalDashboard, PortalProfile, PortalProject } from './types.js';
 
 const projectIdSchema = z.string().uuid();

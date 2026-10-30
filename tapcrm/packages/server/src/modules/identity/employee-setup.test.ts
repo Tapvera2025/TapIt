@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Request, Response } from 'express';
 import { setupEmployeePassword, verifyEmployeeSetupToken } from './setup.js';
 import { sendEmployeeInvitation } from './notifications/invitation-email.js';
-import * as mailer from './notifications/mailer.js';
+import * as mailer from '../../platform/email/queue.js';
 import { bootstrapDb, db, platformDb, type Tx } from '../../platform/dal/db.js';
 import { hashToken } from '../../platform/auth/crypto.js';
 import { IdentityNotFoundError, IdentityValidationError } from './errors.js';

@@ -16,4 +16,4 @@ export { sendEmployeeCredentials, sendEmployeeInvitation } from './notifications
 export { userResource } from './security/unlock.js';
 export { sendBiometricDeviceAlert } from './notifications/biometric-email.js';
 export { resolvePrincipal } from './authentication/authenticate.js';
-export { escapeHtml, sendEmail } from './notifications/mailer.js';
+export { escapeHtml, sendEmail } from '../../platform/email/index.js';

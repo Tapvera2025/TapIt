@@ -1,4 +1,4 @@
-import { sendEmail } from './mailer.js';
+import { sendEmail } from '../../../platform/email/index.js';
 
 /**
  * A biometric device needs attention (§10.6, BI-7). Identifiers and times

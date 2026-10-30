@@ -10,6 +10,20 @@ import {
 } from './repository.js';
 import { ChatValidationError } from './errors.js';
 import { notifyGroupMemberRemoved, notifyGroupMembersAdded } from './notifications.js';
+import {
+  getConversation,
+  listMessages,
+  markRead,
+  reactToMessage,
+  removeReactionFromMessage,
+  sendMessage,
+} from './service.js';
+import { findMessageById } from './repository.js';
+
+export { findMessageById, getConversation, listMessages, markRead, reactToMessage, removeReactionFromMessage, sendMessage };
+export { listMessagesQuerySchema, reactionSchema, sendMessageSchema } from './validators.js';
+export type { Conversation, Message, ReactionEmoji } from './types.js';
+export type { ListMessagesQuery } from './validators.js';
 
 /**
  * ChatFacade — the surface other modules call (MB-1). Not exercised by any
