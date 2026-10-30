@@ -4,7 +4,7 @@ import {
   getProjectDiscussionMessages, markProjectDiscussionRead, reactToProjectDiscussionMessage,
   removeProjectDiscussionReaction, sendProjectDiscussionMessage,
 } from './service.js';
-import { listMessagesQuerySchema, reactionSchema, sendMessageSchema } from '../chat/validators.js';
+import { listMessagesQuerySchema, reactionSchema, sendMessageSchema } from '../chat/facade.js';
 
 /**
  * Client portal read API and project-scoped discussion API (PRD §12.3).
