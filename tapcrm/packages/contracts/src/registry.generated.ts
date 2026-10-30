@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 195   Bindings: 591
+ * Actions: 197   Bindings: 613
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -26,10 +26,12 @@ export type Action =
   | 'access:view'
   | 'accounting:close-period'
   | 'accounting:manage-accounts'
+  | 'accounting:manage-finance-settings'
   | 'accounting:manage-periods'
   | 'accounting:post-journal'
   | 'accounting:reopen-period'
   | 'accounting:tax-export'
+  | 'accounting:view-finance-settings'
   | 'accounting:view-ledger'
   | 'accounting:view-statements'
   | 'accounts:manage-ownership'
@@ -223,10 +225,12 @@ export const ACTIONS: readonly Action[] = [
   'access:view',
   'accounting:close-period',
   'accounting:manage-accounts',
+  'accounting:manage-finance-settings',
   'accounting:manage-periods',
   'accounting:post-journal',
   'accounting:reopen-period',
   'accounting:tax-export',
+  'accounting:view-finance-settings',
   'accounting:view-ledger',
   'accounting:view-statements',
   'accounts:manage-ownership',
@@ -505,6 +509,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'accounting:manage-finance-settings': {
+    action: 'accounting:manage-finance-settings',
+    module: 'accounting',
+    resource: null,
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: false,
+      delegationAllowed: false,
+      superAdminOnly: true,
+    },
+    description: "",
+  },
   'accounting:manage-periods': {
     action: 'accounting:manage-periods',
     module: 'accounting',
@@ -552,6 +571,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
   },
   'accounting:tax-export': {
     action: 'accounting:tax-export',
+    module: 'accounting',
+    resource: null,
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'accounting:view-finance-settings': {
+    action: 'accounting:view-finance-settings',
     module: 'accounting',
     resource: null,
     domain: 'business',
@@ -3801,6 +3835,28 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/accounting/tax/gstr2b/:id/reconciliation', action: 'accounting:tax-export', resourceParam: null },
   { method: 'GET', path: '/api/accounting/tax/artifacts', action: 'accounting:tax-export', resourceParam: null },
   { method: 'GET', path: '/api/accounting/tax/artifacts/:id/download', action: 'accounting:tax-export', resourceParam: null },
+  { method: 'GET', path: '/api/finance/foundation', action: 'accounting:view-finance-settings', resourceParam: null },
+  { method: 'PATCH', path: '/api/finance/foundation', action: 'accounting:manage-finance-settings', resourceParam: null },
+  { method: 'GET', path: '/api/billing/profiles', action: 'billing:view-terms', resourceParam: null },
+  { method: 'PUT', path: '/api/billing/profiles', action: 'billing:set-terms', resourceParam: null },
+  { method: 'POST', path: '/api/billing/rate-cards/:id/versions', action: 'billing:set-terms', resourceParam: null },
+  { method: 'GET', path: '/api/billing/rate-cards/:id', action: 'billing:view-terms', resourceParam: 'id' },
+  { method: 'GET', path: '/api/billing/contracts', action: 'billing:view-terms', resourceParam: null },
+  { method: 'POST', path: '/api/billing/contracts', action: 'billing:set-terms', resourceParam: null },
+  { method: 'GET', path: '/api/billing/contracts/:id', action: 'billing:view-terms', resourceParam: 'id' },
+  { method: 'GET', path: '/api/billing/contracts/:id/amendments', action: 'billing:view-terms', resourceParam: 'id' },
+  { method: 'POST', path: '/api/billing/contracts/:id/amend', action: 'billing:set-terms', resourceParam: 'id' },
+  { method: 'POST', path: '/api/billing/contracts/:id/status', action: 'billing:set-terms', resourceParam: 'id' },
+  { method: 'GET', path: '/api/billing/contracts/:id/usage', action: 'billing:view-terms', resourceParam: 'id' },
+  { method: 'POST', path: '/api/billing/contracts/:id/usage', action: 'billing:set-terms', resourceParam: 'id' },
+  { method: 'GET', path: '/api/billing/contracts/:id/documents', action: 'billing:view-terms', resourceParam: 'id' },
+  { method: 'POST', path: '/api/billing/contracts/:id/documents', action: 'billing:set-terms', resourceParam: 'id' },
+  { method: 'GET', path: '/api/billing/contracts/:id/documents/:documentId/download', action: 'billing:view-terms', resourceParam: 'id' },
+  { method: 'GET', path: '/api/billing/schedules', action: 'billing:view-terms', resourceParam: null },
+  { method: 'POST', path: '/api/billing/schedules', action: 'billing:set-terms', resourceParam: null },
+  { method: 'GET', path: '/api/billing/billable-events', action: 'billing:view-terms', resourceParam: null },
+  { method: 'POST', path: '/api/billing/billable-events', action: 'billing:set-terms', resourceParam: null },
+  { method: 'POST', path: '/api/billing/billable-events/:id/decision', action: 'billing:set-terms', resourceParam: null },
   { method: 'GET', path: '/api/clients', action: 'clients:view', resourceParam: null },
   { method: 'GET', path: '/api/clients/:id', action: 'clients:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/clients', action: 'clients:manage', resourceParam: null },

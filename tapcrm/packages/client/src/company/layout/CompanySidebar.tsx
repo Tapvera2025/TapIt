@@ -101,6 +101,8 @@ export function CompanySidebar({
   canManagePayroll = false,
   canManagePayrollConfig = false,
   canViewAccounting = false,
+  canViewFinanceFoundation = false,
+  canViewBillingTerms = false,
   canViewTa = false,
   canManageTa = false,
   canManageBiometric = false,
@@ -160,6 +162,8 @@ export function CompanySidebar({
   canManagePayroll?: boolean;
   canManagePayrollConfig?: boolean;
   canViewAccounting?: boolean;
+  canViewFinanceFoundation?: boolean;
+  canViewBillingTerms?: boolean;
   canViewTa?: boolean;
   canManageTa?: boolean;
   canManageBiometric?: boolean;
@@ -881,10 +885,12 @@ export function CompanySidebar({
                 path: '/company/finance/accounting',
                 icon: 'wallet',
               },
+              ...(canViewFinanceFoundation ? [{ label: 'Finance Settings', path: '/company/finance/settings', icon: 'settings' }] : []),
+              ...(canViewBillingTerms ? [{ label: 'Billing Terms', path: '/company/finance/billing', icon: 'file-text' }] : []),
             ],
           },
         ]
-      : []),
+      : (canViewFinanceFoundation || canViewBillingTerms) ? [{ label: 'Finance', items: [...(canViewFinanceFoundation ? [{ label: 'Finance Settings', path: '/company/finance/settings', icon: 'settings' }] : []), ...(canViewBillingTerms ? [{ label: 'Billing Terms', path: '/company/finance/billing', icon: 'file-text' }] : [])] }] : []),
     {
       label: 'Identity & Access',
       items: [

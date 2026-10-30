@@ -72,6 +72,8 @@ import { MyPenaltiesPage } from './penalties/MyPenaltiesPage.js';
 import { ExpenseApprovalsPage, MyExpensesPage } from './expenses/ExpensesPages.js';
 import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
 import { AccountingPage } from './finance/accounting/AccountingPage.js';
+import { FinanceFoundationPage } from './finance/foundation/FinanceFoundationPage.js';
+import { BillingTermsPage } from './finance/billing-terms/BillingTermsPage.js';
 
 export function CompanyWorkspace({
   pathname: rawPathname,
@@ -176,6 +178,8 @@ export function CompanyWorkspace({
   const canViewAccountingStatements =
     isSuperAdmin || can('accounting:view-statements');
   const canTaxAccounting = isSuperAdmin || can('accounting:tax-export');
+  const canViewFinanceFoundation = isSuperAdmin || can('accounting:view-finance-settings') || can('accounting:manage-finance-settings');
+  const canViewBillingTerms = isSuperAdmin || can('billing:view-terms');
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
   const canViewProjects = isSuperAdmin || can('projects:view');
@@ -208,6 +212,8 @@ export function CompanyWorkspace({
 
   const pageTitles: Record<string, string> = {
     '/company/finance/accounting': 'Accounting',
+    '/company/finance/settings': 'Finance Settings',
+    '/company/finance/billing': 'Billing Terms & Contracts',
     '/company/todo': 'My Todo',
     '/company/my-todo': 'My Todo',
     '/company/messages': 'Messages',
@@ -283,6 +289,12 @@ export function CompanyWorkspace({
                   : 'Dashboard'));
 
   function renderContent(): React.JSX.Element {
+    if (pathname === '/company/finance/settings' && canViewFinanceFoundation) {
+      return <FinanceFoundationPage />;
+    }
+    if (pathname === '/company/finance/billing' && canViewBillingTerms) {
+      return <BillingTermsPage />;
+    }
     if (pathname === '/company/finance/accounting' && canViewAccounting) {
       const queryTab = new URLSearchParams(rawPathname.split('?')[1] ?? '').get('tab');
       return (
@@ -708,6 +720,8 @@ export function CompanyWorkspace({
       canManagePayroll={isSuperAdmin || can('payroll:manage')}
       canManagePayrollConfig={isSuperAdmin || can('payroll:manage-config')}
       canViewAccounting={canViewAccounting}
+      canViewFinanceFoundation={canViewFinanceFoundation}
+      canViewBillingTerms={canViewBillingTerms}
       canViewTa={isSuperAdmin || can('ta:view') || can('ta:view-own')}
       canManageTa={isSuperAdmin || can('ta:manage')}
       canManageBiometric={can('biometric:manage')}

@@ -143,6 +143,14 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Export tax data',
     description: 'Download the figures needed for tax filings.',
   },
+  'accounting:view-finance-settings': {
+    title: 'See finance settings',
+    description: 'See the legal entity, currency and fiscal settings for Finance.',
+  },
+  'accounting:manage-finance-settings': {
+    title: 'Manage finance settings',
+    description: 'Update foundational Finance configuration.',
+  },
   'accounting:view-ledger': {
     title: 'See the ledger',
     description: 'See journal entries and account balances.',

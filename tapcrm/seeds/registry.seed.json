@@ -91,6 +91,21 @@
       "description": ""
     },
     {
+      "action": "accounting:manage-finance-settings",
+      "module": "accounting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": false,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
       "action": "accounting:manage-periods",
       "module": "accounting",
       "resource": "accountingPeriod",
@@ -137,6 +152,21 @@
     },
     {
       "action": "accounting:tax-export",
+      "module": "accounting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:view-finance-settings",
       "module": "accounting",
       "resource": null,
       "domain": "business",
@@ -5673,6 +5703,138 @@
       "method": "GET",
       "path": "/api/accounting/tax/artifacts/:id/download",
       "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/finance/foundation",
+      "action": "accounting:view-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/finance/foundation",
+      "action": "accounting:manage-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/profiles",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/billing/profiles",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/rate-cards/:id/versions",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/rate-cards/:id",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id/amendments",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts/:id/amend",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts/:id/status",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id/usage",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts/:id/usage",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id/documents",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts/:id/documents",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id/documents/:documentId/download",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/schedules",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/schedules",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/billable-events",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/billable-events",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/billable-events/:id/decision",
+      "action": "billing:set-terms",
       "resourceParam": null
     },
     {
