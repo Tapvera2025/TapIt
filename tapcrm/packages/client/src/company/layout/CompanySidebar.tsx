@@ -136,7 +136,7 @@ export function CompanySidebar({
   open,
   onClose,
   collapsed = false,
-  onToggleCollapsed: _onToggleCollapsed,
+  onToggleCollapsed,
   width = 256,
   onResize,
 }: {
@@ -967,7 +967,7 @@ export function CompanySidebar({
 
   return (
     <aside
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-200 ease-out will-change-transform xl:static xl:my-5 xl:ml-5 xl:h-[calc(100dvh-6.5rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-5 xl:ml-5 xl:h-[calc(100dvh-6.5rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
       style={
         collapsed
           ? undefined
@@ -997,13 +997,23 @@ export function CompanySidebar({
         </button>
       )}
       <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
-        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
+        <p className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
           {variant === 'client' ? 'Client Workspace' : 'Company Workspace'}
         </p>
-        <span
-          className={`hidden size-2 rounded-full bg-app-accent xl:block ${collapsed ? '' : 'xl:hidden'}`}
-          aria-hidden="true"
-        />
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="hidden items-center justify-center rounded-lg p-1.5 text-sidebar-muted transition hover:bg-sidebar-hover-bg hover:text-sidebar-foreground xl:flex"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Icon
+              name={collapsed ? 'sidebar-open' : 'sidebar-close'}
+              className="size-4"
+            />
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -1054,8 +1064,8 @@ export function CompanySidebar({
                   name={GROUP_ICONS[group.label] ?? 'grid'}
                   className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
                 />
-                <span className={collapsed ? 'xl:hidden' : ''}>{group.label}</span>
-                <span aria-hidden="true" className={collapsed ? 'xl:hidden' : ''}>
+                <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>{group.label}</span>
+                <span aria-hidden="true" className={`shrink-0 ${collapsed ? 'xl:hidden' : ''}`}>
                   {isOpen ? '−' : '+'}
                 </span>
               </button>
@@ -1116,7 +1126,7 @@ export function CompanySidebar({
                             >
                               <Icon name={item.icon} />
                             </span>
-                            <span className={collapsed ? 'xl:hidden' : ''}>
+                            <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>
                               {item.label}
                             </span>
                           </span>
