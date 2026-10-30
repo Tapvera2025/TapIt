@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, Empty, SkeletonMessageThread } from '../ui/components.js';
 import { Icon } from '../ui/Icon.js';
 import {
@@ -21,6 +22,11 @@ function timeLabel(iso: string): string {
 }
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const CHAT_LIST_MIN_WIDTH = 220;
+const CHAT_LIST_MAX_WIDTH = 320;
+const clampChatListWidth = (width: number): number =>
+  Math.max(CHAT_LIST_MIN_WIDTH, Math.min(CHAT_LIST_MAX_WIDTH, width));
 
 /** Highlights `@FullName` tokens the message actually recorded as mentions — not a live guess from the body text. */
 function renderMessageBody(body: string, mentions: readonly { userId: string; fullName: string }[]): ReactNode {
@@ -92,6 +98,10 @@ export function ConversationWorkspace({
   const [reactingMessageId, setReactingMessageId] = useState<string | null>(null);
   const [reactionDetail, setReactionDetail] = useState<{ messageId: string; emoji: string } | null>(null);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
+  const [actionMenuPosition, setActionMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [chatListWidth, setChatListWidth] = useState(320);
+  const chatListResizeStartRef = useRef<{ x: number; width: number } | null>(null);
+  const [isResizingChatList, setIsResizingChatList] = useState(false);
   const [seenDetailFor, setSeenDetailFor] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -106,6 +116,38 @@ export function ConversationWorkspace({
   const lastOpenedInitialIdRef = useRef<string | null>(null);
   const lastScrolledMessageIdRef = useRef<string | null>(null);
   const openConversation = chat.openConversation;
+
+  const startChatListResize = (event: React.PointerEvent<HTMLButtonElement>): void => {
+    if (!window.matchMedia('(min-width: 768px)').matches || event.button !== 0 || event.pointerType === 'touch') return;
+    event.preventDefault();
+    chatListResizeStartRef.current = { x: event.clientX, width: chatListWidth };
+    setIsResizingChatList(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const resizeChatList = (event: React.PointerEvent<HTMLButtonElement>): void => {
+    const start = chatListResizeStartRef.current;
+    if (!start) return;
+    setChatListWidth(clampChatListWidth(start.width + event.clientX - start.x));
+  };
+
+  const stopChatListResize = (event?: React.PointerEvent<HTMLButtonElement>): void => {
+    chatListResizeStartRef.current = null;
+    setIsResizingChatList(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const resizeChatListWithKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    setChatListWidth((width) => clampChatListWidth(width + (event.key === 'ArrowRight' ? 16 : -16)));
+  };
 
   useEffect(() => {
     const thread = threadScrollRef.current;
@@ -134,11 +176,22 @@ export function ConversationWorkspace({
       setReactionDetail(null);
       setSeenDetailFor(null);
       setOpenActionsFor(null);
+      setActionMenuPosition(null);
       setReactingMessageId(null);
       setMentionQuery(null);
     };
+    const closeActionsOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setOpenActionsFor(null);
+        setActionMenuPosition(null);
+      }
+    };
     document.addEventListener('mousedown', closeOpenPopovers);
-    return () => document.removeEventListener('mousedown', closeOpenPopovers);
+    document.addEventListener('keydown', closeActionsOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOpenPopovers);
+      document.removeEventListener('keydown', closeActionsOnEscape);
+    };
   }, []);
 
   const scrollToMessage = (messageId: string): void => {
@@ -251,6 +304,26 @@ export function ConversationWorkspace({
     }
   };
 
+  const toggleMessageActions = (message: ChatMessage, mine: boolean, event: React.MouseEvent<HTMLButtonElement>): void => {
+    if (openActionsFor === message.id) {
+      setOpenActionsFor(null);
+      setActionMenuPosition(null);
+      return;
+    }
+    const anchor = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 144;
+    const menuHeight = clientMode ? 160 : mine ? 196 : 160;
+    const belowTop = anchor.bottom + 4;
+    const top = belowTop + menuHeight <= window.innerHeight - 8
+      ? belowTop
+      : Math.max(8, anchor.top - menuHeight - 4);
+    const left = mine
+      ? Math.max(8, anchor.right - menuWidth)
+      : Math.min(Math.max(8, anchor.left), window.innerWidth - menuWidth - 8);
+    setActionMenuPosition({ top, left });
+    setOpenActionsFor(message.id);
+  };
+
   const toggleReaction = async (message: ChatMessage, emoji: ReactionEmoji): Promise<void> => {
     setReactingMessageId(null);
     const mine = message.reactions.some((r) => r.userId === currentUserId && r.emoji === emoji);
@@ -278,7 +351,28 @@ export function ConversationWorkspace({
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       {/* Conversation list */}
       {!hideList && (
-        <div className={`flex w-full min-h-0 flex-1 flex-col border-0 bg-transparent outline-none md:h-full md:w-80 md:flex-none ${chat.activeId ? 'hidden md:flex' : ''}`}>
+        <div
+          className={`relative flex w-full min-h-0 flex-1 flex-col border-0 bg-transparent outline-none md:h-full md:w-[var(--chat-list-width)] md:flex-none ${chat.activeId ? 'hidden md:flex' : ''} ${isResizingChatList ? 'select-none' : ''}`}
+          style={{ '--chat-list-width': `${chatListWidth}px` } as React.CSSProperties}
+        >
+          <button
+            type="button"
+            className={`absolute inset-y-0 -right-2 z-20 hidden w-4 cursor-col-resize items-center justify-center md:flex ${isResizingChatList ? 'is-resizing' : ''}`}
+            onPointerDown={startChatListResize}
+            onPointerMove={resizeChatList}
+            onPointerUp={stopChatListResize}
+            onPointerCancel={stopChatListResize}
+            onKeyDown={resizeChatListWithKeyboard}
+            aria-label="Resize conversation list"
+            aria-orientation="vertical"
+            aria-valuemin={CHAT_LIST_MIN_WIDTH}
+            aria-valuemax={CHAT_LIST_MAX_WIDTH}
+            aria-valuenow={chatListWidth}
+            role="separator"
+            title="Drag to resize conversation list"
+          >
+            <span className={`h-12 w-1 rounded-full bg-app-border transition-colors ${isResizingChatList ? 'bg-app-accent' : 'hover:bg-app-accent/70'}`} aria-hidden="true" />
+          </button>
           <div className="flex items-center justify-between gap-2 px-5 py-4">
             <p className="text-sm font-semibold">{title}</p>
             {onNewClick && <Button onClick={onNewClick} className="!px-3 !py-1.5 !text-xs">{newLabel}</Button>}
@@ -361,7 +455,17 @@ export function ConversationWorkspace({
               {activeConversation && headerExtra?.(activeConversation)}
             </div>
 
-            <div ref={threadScrollRef} data-lenis-prevent className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}>
+            <div
+              ref={threadScrollRef}
+              onScroll={() => {
+                if (openActionsFor) {
+                  setOpenActionsFor(null);
+                  setActionMenuPosition(null);
+                }
+              }}
+              data-lenis-prevent
+              className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}
+            >
               {chat.loadingMessages && chat.messages.length === 0 ? (
                 <SkeletonMessageThread />
               ) : (
@@ -390,9 +494,10 @@ export function ConversationWorkspace({
                           ) : (
                             <span className="mb-0.5 max-w-[80%] truncate text-[11px] font-semibold text-app-muted">{sender.fullName}</span>
                           ))}
-                          <div
-                            className={`${clientMode ? 'max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[76%] sm:px-5' : 'max-w-[80%] rounded-xl px-3 py-2 text-sm'} min-w-0 border break-words transition-colors duration-500 ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
-                          >
+                          <div className={`${clientMode ? 'max-w-[88%] sm:max-w-[76%]' : 'max-w-[80%]'} relative min-w-0`}>
+                            <div
+                              className={`${clientMode ? 'rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:px-5' : 'rounded-xl px-3 py-2 text-sm'} w-full min-w-0 overflow-visible border break-words transition-colors duration-500 ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
+                            >
                             {message.forwarded && <p className="mb-1 text-[11px] italic text-app-muted">Forwarded</p>}
                             {message.replyPreview && !unsent && (
                               <button
@@ -434,10 +539,8 @@ export function ConversationWorkspace({
                                 })}
                               </div>
                             )}
-                          </div>
-
-                          <div className="mt-1 flex items-center gap-2 text-[11px] text-app-muted">
-                            <span>{timeLabel(message.createdAt)}</span>
+                            <div className="mt-2 flex items-center justify-end gap-2 text-[11px] text-app-muted">
+                              <time dateTime={message.createdAt}>{timeLabel(message.createdAt)}</time>
                             {mine && message.seenBy.length > 0 && (
                               <span data-chat-popover className="relative">
                                 <button
@@ -463,59 +566,69 @@ export function ConversationWorkspace({
                               </span>
                             )}
                             {!unsent && (
-                              <div data-chat-popover className="relative">
+                              <span data-chat-popover className="relative flex items-center">
                                 <button
                                   type="button"
-                                  onClick={() => setOpenActionsFor(openActionsFor === message.id ? null : message.id)}
-                                  aria-label="Message actions"
-                                  className="rounded p-1 hover:bg-app-surface-raised hover:text-app-accent"
+                                  onClick={(event) => toggleMessageActions(message, mine, event)}
+                                  aria-label={openActionsFor === message.id ? 'Hide message actions' : 'Show message actions'}
+                                  aria-expanded={openActionsFor === message.id}
+                                  className="grid min-h-6 min-w-6 place-items-center rounded-md text-app-muted hover:bg-app-surface-raised hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1"
                                 >
-                                  <Icon name="more" className="size-4" />
+                                  <Icon name={openActionsFor === message.id ? 'chevron-up' : 'chevron-down'} className="size-3.5" />
                                 </button>
-                                {openActionsFor === message.id && (
-                                  <div className={`absolute bottom-full z-20 mb-1 min-w-36 rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg ${mine ? 'right-0' : 'left-0'}`}>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setReplyTo(message); setOpenActionsFor(null); }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      <Icon name="reply" className="size-4" /> Reply
-                                    </button>
-                                    {!clientMode && <button
-                                      type="button"
-                                      onClick={() => { setForwardingMessage(message); setOpenActionsFor(null); }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      <Icon name="forward" className="size-4" /> Forward
-                                    </button>}
-                                    <button
-                                      type="button"
-                                      onClick={() => { void copyText(message.body ?? ''); setOpenActionsFor(null); }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      <Icon name="copy" className="size-4" /> Copy
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setReactingMessageId(message.id); setOpenActionsFor(null); }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      <Icon name="smile" className="size-4" /> React
-                                    </button>
-                                    {!clientMode && mine && (
-                                      <button
-                                        type="button"
-                                        onClick={() => { void onUnsend(message); setOpenActionsFor(null); }}
-                                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-app-danger hover:bg-app-surface-raised"
-                                      >
-                                        <Icon name="trash" className="size-4" /> Unsend
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
+                              </span>
                             )}
+                            </div>
+                            </div>
+
                           </div>
+
+                          {openActionsFor === message.id && actionMenuPosition && createPortal(
+                            <div
+                              data-chat-popover
+                              className="fixed z-50 min-w-36 max-w-[calc(100vw-2rem)] rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg"
+                              style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => { setReplyTo(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                              >
+                                <Icon name="reply" className="size-4" /> Reply
+                              </button>
+                              {!clientMode && <button
+                                type="button"
+                                onClick={() => { setForwardingMessage(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                              >
+                                <Icon name="forward" className="size-4" /> Forward
+                              </button>}
+                              <button
+                                type="button"
+                                onClick={() => { void copyText(message.body ?? ''); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                              >
+                                <Icon name="copy" className="size-4" /> Copy
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setReactingMessageId(message.id); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                              >
+                                <Icon name="smile" className="size-4" /> React
+                              </button>
+                              {!clientMode && mine && (
+                                <button
+                                  type="button"
+                                  onClick={() => { void onUnsend(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-app-danger hover:bg-app-surface-raised"
+                                >
+                                  <Icon name="trash" className="size-4" /> Unsend
+                                </button>
+                              )}
+                            </div>,
+                            document.body,
+                          )}
 
                           {reactingMessageId === message.id && (
                             <div data-chat-popover className="mt-1 flex gap-1 rounded-lg border border-app-border bg-app-surface p-1">
