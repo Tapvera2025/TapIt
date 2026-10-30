@@ -69,6 +69,23 @@ function ThemePromoIllustration({ accent }: { accent: AccentColor }): React.JSX.
   );
 }
 
+const GROUP_ICONS: Record<string, string> = {
+  Overview: 'grid',
+  Communication: 'message',
+  Organization: 'building',
+  People: 'users',
+  Delivery: 'briefcase',
+  Sales: 'dollar-sign',
+  Attendance: 'clock',
+  'Shifts & Leave': 'calendar',
+  'Advances & Penalties': 'alert-circle',
+  Payroll: 'wallet',
+  Finance: 'wallet',
+  'Identity & Access': 'shield',
+  Preferences: 'settings',
+  Account: 'users',
+};
+
 export function CompanySidebar({
   variant = 'company',
   pathname,
@@ -184,9 +201,21 @@ export function CompanySidebar({
   width?: number;
   onResize?: (width: number) => void;
 }): React.JSX.Element {
-  const [organizationOpen, setOrganizationOpen] = useState(
-    pathname.startsWith('/company/organization'),
-  );
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
+    Organization: pathname.startsWith('/company/organization'),
+  }));
+
+  const toggleSection = (label: string) => {
+    setOpenSections((prev) => {
+      const current =
+        prev[label] ??
+        (label === 'Organization'
+          ? pathname.startsWith('/company/organization')
+          : true);
+      return { ...prev, [label]: !current };
+    });
+  };
+
   const [recruitmentOpen, setRecruitmentOpen] = useState(
     pathname.startsWith('/company/recruitment'),
   );
@@ -377,6 +406,9 @@ export function CompanySidebar({
     const isRecruitment = pathname.startsWith('/company/recruitment');
     if (!wasRecruitment && isRecruitment) {
       setRecruitmentOpen(true);
+    }
+    if (pathname.startsWith('/company/organization')) {
+      setOpenSections((prev) => (prev['Organization'] ? prev : { ...prev, Organization: true }));
     }
     prevPathnameRef.current = pathname;
   }, [pathname]);
@@ -998,40 +1030,36 @@ export function CompanySidebar({
           aria-hidden="true"
         />
         {visibleNavigation.map((group) => {
-          const isOrganization = group.label === 'Organization';
           const activeChild = group.items.some(
             (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
           );
+          const isOpen =
+            openSections[group.label] ??
+            (group.label === 'Organization'
+              ? pathname.startsWith('/company/organization')
+              : true);
           return (
             <div
               key={group.label}
               className={`relative z-[1] ${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed ? 'xl:border-t xl:border-sidebar-border/70 xl:pt-4 first:xl:border-t-0 first:xl:pt-0' : ''}`}
             >
-              {isOrganization ? (
-                <button
-                  type="button"
-                  onClick={() => setOrganizationOpen((openState) => !openState)}
-                  aria-expanded={organizationOpen}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
-                  title={collapsed ? 'Organization' : undefined}
-                >
-                  <Icon
-                    name="building"
-                    className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
-                  />
-                  <span className={collapsed ? 'xl:hidden' : ''}>Organization</span>
-                  <span aria-hidden="true" className={collapsed ? 'xl:hidden' : ''}>
-                    {organizationOpen ? '−' : '+'}
-                  </span>
-                </button>
-              ) : (
-                <p
-                  className={`px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted ${collapsed ? 'xl:hidden' : ''}`}
-                >
-                  {group.label}
-                </p>
-              )}
-              {(!isOrganization || organizationOpen) && (
+              <button
+                type="button"
+                onClick={() => toggleSection(group.label)}
+                aria-expanded={isOpen}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
+                title={collapsed ? group.label : undefined}
+              >
+                <Icon
+                  name={GROUP_ICONS[group.label] ?? 'grid'}
+                  className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
+                />
+                <span className={collapsed ? 'xl:hidden' : ''}>{group.label}</span>
+                <span aria-hidden="true" className={collapsed ? 'xl:hidden' : ''}>
+                  {isOpen ? '−' : '+'}
+                </span>
+              </button>
+              {isOpen && (
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
                     const isRecruitmentItem = item.label === 'Recruitment';
