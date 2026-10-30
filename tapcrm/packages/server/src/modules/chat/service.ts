@@ -8,6 +8,7 @@ import {
   addConversationMembers,
   addReaction,
   archiveConversation,
+  authorizedProjectMemberIds,
   conversationMemberIds,
   conversationMemberIdsTx,
   createGroupConversation,
@@ -29,13 +30,11 @@ import {
   removeReaction,
   renameConversation,
   unsendMessage as repoUnsendMessage,
-  validateMemberIds,
+  validateEmployeeMemberIds,
 } from './repository.js';
 import { notifyGroupMemberRemoved, notifyGroupMembersAdded, notifyMention, notifyNewMessage, notifyReaction } from './notifications.js';
 import type { Conversation, ConversationKind, ConversationResource, Message, ReactionEmoji } from './types.js';
 import type { ListMessagesQuery } from './validators.js';
-
-export { createProjectConversation } from './facade.js';
 
 /** A raw socket event, not an HTTP request, has no principal (TN-9: jobs/sockets build a context explicitly). */
 function relayPrincipal(organizationId: string): Principal {
@@ -59,7 +58,7 @@ export function registerChatRealtime(): void {
       jobName: 'chat-typing-relay',
       runId: 'socket',
     });
-    const ids = await conversationMemberIds(ctx, conversationId);
+    const ids = await authorizedProjectMemberIds(ctx, conversationId);
     if (!ids || !ids.includes(userId)) return null;
     return ids;
   });
@@ -71,6 +70,7 @@ function toResource(conversationId: string, organizationId: string, memberIds: r
 
 /** For routes bound with `resourceParam: 'id'` naming a CONVERSATION id. */
 export async function loadConversationResource(ctx: RequestContext, id: string): Promise<Resource | null> {
+  if (ctx.principal.accountType === 'client') return null;
   const memberIds = await conversationMemberIds(ctx, id);
   if (memberIds === null) return null;
   return toResource(id, ctx.organizationId, memberIds);
@@ -78,6 +78,7 @@ export async function loadConversationResource(ctx: RequestContext, id: string):
 
 /** For routes bound with `resourceParam: 'id'` naming a MESSAGE id — resolves to its conversation. */
 export async function loadMessageResource(ctx: RequestContext, id: string): Promise<Resource | null> {
+  if (ctx.principal.accountType === 'client') return null;
   const message = await findMessageById(ctx, id);
   if (!message) return null;
   const memberIds = await conversationMemberIds(ctx, message.conversationId);
@@ -108,7 +109,7 @@ export async function startDirectConversation(ctx: RequestContext, otherUserId: 
   if (otherUserId === ctx.principal.id) throw new ChatValidationError('You cannot start a direct conversation with yourself');
 
   const { id, created } = await db.transaction(ctx, async (tx) => {
-    const [valid] = await validateMemberIds(tx, ctx.organizationId, [otherUserId]);
+    const [valid] = await validateEmployeeMemberIds(tx, ctx.organizationId, [otherUserId]);
     if (!valid) throw new ChatValidationError('That person is not an active member of this organization', { userId: otherUserId });
     return findOrCreateDirectConversation(tx, ctx, otherUserId);
   });
@@ -123,7 +124,7 @@ export async function startDirectConversation(ctx: RequestContext, otherUserId: 
 /** Internal Groups (Phase 3): Super-Admin-only at the route (`chat:manage-groups`). */
 export async function createInternalGroup(ctx: RequestContext, input: { name: string; description?: string | null | undefined; memberIds: readonly string[] }): Promise<Conversation> {
   const { id } = await db.transaction(ctx, async (tx) => {
-    const validIds = await validateMemberIds(tx, ctx.organizationId, input.memberIds);
+    const validIds = await validateEmployeeMemberIds(tx, ctx.organizationId, input.memberIds);
     if (validIds.length !== input.memberIds.length) {
       const missing = input.memberIds.filter((memberId) => !validIds.includes(memberId));
       throw new ChatValidationError('One or more members are not active in this organization', { missingUserIds: missing });
@@ -179,7 +180,7 @@ export async function renameGroup(ctx: RequestContext, id: string, name: string,
 export async function addGroupMembers(ctx: RequestContext, id: string, memberIds: readonly string[]): Promise<Conversation> {
   await requireGroup(ctx, id);
   await db.transaction(ctx, async (tx) => {
-    const validIds = await validateMemberIds(tx, ctx.organizationId, memberIds);
+    const validIds = await validateEmployeeMemberIds(tx, ctx.organizationId, memberIds);
     if (validIds.length !== memberIds.length) {
       const missing = memberIds.filter((memberId) => !validIds.includes(memberId));
       throw new ChatValidationError('One or more members are not active in this organization', { missingUserIds: missing });
@@ -231,7 +232,7 @@ export async function listMessages(ctx: RequestContext, conversationId: string, 
 }
 
 async function fanOutToOtherMembers(ctx: RequestContext, conversationId: string, event: Parameters<typeof emitToUser>[2], payload: Record<string, unknown>): Promise<void> {
-  const memberIds = await conversationMemberIds(ctx, conversationId);
+  const memberIds = await authorizedProjectMemberIds(ctx, conversationId);
   for (const memberId of memberIds ?? []) {
     if (memberId === ctx.principal.id) continue;
     emitToUser(ctx.organizationId, memberId, event, payload);

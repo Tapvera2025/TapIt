@@ -73,6 +73,43 @@ export async function findProject(ctx: RequestContext, clientId: string, project
   return row ? toProject(row) : null;
 }
 
+/** Returns a project's active shared discussion only when the portal user is a current member. */
+export async function findProjectDiscussion(ctx: RequestContext, clientId: string, projectId: string, userId: string): Promise<string | null> {
+  const row = await db.maybeOne<{ id: string }>(ctx, sql`
+    SELECT c.id
+    FROM project p
+    JOIN client cl ON cl.organization_id = p.organization_id AND cl.id = p.client_id AND cl.status = 'active'
+    JOIN conversation c ON c.organization_id = p.organization_id AND c.project_id = p.id
+      AND c.kind = 'project' AND c.archived_at IS NULL
+    JOIN conversation_member cm ON cm.organization_id = c.organization_id AND cm.conversation_id = c.id
+      AND cm.user_id = ${userId} AND cm.left_at IS NULL
+    JOIN app_user u ON u.organization_id = cm.organization_id AND u.id = cm.user_id
+      AND u.status = 'active' AND u.account_type = 'client' AND u.client_id = cl.id
+    WHERE p.organization_id = ${ctx.organizationId} AND p.client_id = ${clientId}
+      AND p.id = ${projectId} AND p.archived_at IS NULL
+    ORDER BY c.created_at, c.id
+    LIMIT 1
+  `);
+  return row?.id ?? null;
+}
+
+/** Every project discussion the authenticated client is currently entitled to see. */
+export async function listProjectDiscussions(ctx: RequestContext, clientId: string, userId: string): Promise<{ conversationId: string; projectId: string; projectName: string }[]> {
+  return db.query<{ conversationId: string; projectId: string; projectName: string }>(ctx, sql`
+    SELECT DISTINCT ON (p.id) c.id AS "conversationId", p.id AS "projectId", p.name AS "projectName"
+    FROM project p
+    JOIN client cl ON cl.organization_id = p.organization_id AND cl.id = p.client_id AND cl.status = 'active'
+    JOIN conversation c ON c.organization_id = p.organization_id AND c.project_id = p.id
+      AND c.kind = 'project' AND c.archived_at IS NULL
+    JOIN conversation_member cm ON cm.organization_id = c.organization_id AND cm.conversation_id = c.id
+      AND cm.user_id = ${userId} AND cm.left_at IS NULL
+    JOIN app_user u ON u.organization_id = cm.organization_id AND u.id = cm.user_id
+      AND u.status = 'active' AND u.account_type = 'client' AND u.client_id = cl.id
+    WHERE p.organization_id = ${ctx.organizationId} AND p.client_id = ${clientId} AND p.archived_at IS NULL
+    ORDER BY p.id, c.created_at, c.id
+  `);
+}
+
 export async function countProjectsByStatus(ctx: RequestContext, clientId: string): Promise<Record<PortalWorkStatus, number>> {
   const rows = await db.query<{ workStatus: PortalWorkStatus; count: number }>(ctx, sql`
     SELECT p.work_status, count(*)::int AS count

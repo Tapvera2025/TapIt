@@ -23,9 +23,9 @@ function currentMonth(timezone: string): string {
   return organizationToday(timezone).slice(0, 7);
 }
 
-function addDays(value: string, amount: number): string {
+function addDays(value: string, dayOffset: number): string {
   const date = new Date(`${value}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + amount);
+  date.setUTCDate(date.getUTCDate() + dayOffset);
   return date.toISOString().slice(0, 10);
 }
 
@@ -334,7 +334,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
         </div>
 
         <div className="grid min-h-0 items-stretch gap-4 xl:h-[25rem] xl:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.9fr)]">
-          {monthlySummary ? <MonthlyAttendanceKpis month={fmtMonth(month)} presentDays={Number(daysValue(monthlySummary.presentUnits))} lateDays={monthlySummary.lateDays} absentDays={Number(daysValue(monthlySummary.absentUnits))} halfDays={monthlySummary.halfDays} paidLeave={Number(daysValue(monthlySummary.paidLeaveUnits))} unpaidLeave={Number(daysValue(monthlySummary.unpaidLeaveUnits))} wfhDays={monthlySummary.wfhDays} /> : <Card><p role="status" className="text-sm text-app-muted">{monthlyLoading ? 'Loading monthly attendance summary…' : 'Monthly attendance summary unavailable.'}</p></Card>}
+          {monthlySummary ? <MonthlyAttendanceKpis month={fmtMonth(month)} presentDays={Number(daysValue(monthlySummary.presentUnits))} lateDays={monthlySummary.lateDays} absentDays={Number(daysValue(monthlySummary.absentUnits))} halfDays={monthlySummary.halfDays} paidLeaveDayCount={Number(daysValue(monthlySummary.paidLeaveUnits))} unpaidLeave={Number(daysValue(monthlySummary.unpaidLeaveUnits))} wfhDays={monthlySummary.wfhDays} /> : <Card><p role="status" className="text-sm text-app-muted">{monthlyLoading ? 'Loading monthly attendance summary…' : 'Monthly attendance summary unavailable.'}</p></Card>}
           <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">Recent days</h2><p className="mt-1 text-sm text-app-muted">Your latest seven attendance records.</p></div></div>
             {recentError && <p role="alert" className="mt-3 text-sm text-app-danger">{recentError}</p>}
