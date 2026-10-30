@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, Empty, SkeletonMessageThread } from '../ui/components.js';
 import { Icon } from '../ui/Icon.js';
 import {
@@ -21,6 +22,11 @@ function timeLabel(iso: string): string {
 }
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const CHAT_LIST_MIN_WIDTH = 220;
+const CHAT_LIST_MAX_WIDTH = 320;
+const clampChatListWidth = (width: number): number =>
+  Math.max(CHAT_LIST_MIN_WIDTH, Math.min(CHAT_LIST_MAX_WIDTH, width));
 
 /** Highlights `@FullName` tokens the message actually recorded as mentions — not a live guess from the body text. */
 function renderMessageBody(body: string, mentions: readonly { userId: string; fullName: string }[]): ReactNode {
@@ -92,6 +98,10 @@ export function ConversationWorkspace({
   const [reactingMessageId, setReactingMessageId] = useState<string | null>(null);
   const [reactionDetail, setReactionDetail] = useState<{ messageId: string; emoji: string } | null>(null);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
+  const [actionMenuPosition, setActionMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [chatListWidth, setChatListWidth] = useState(320);
+  const chatListResizeStartRef = useRef<{ x: number; width: number } | null>(null);
+  const [isResizingChatList, setIsResizingChatList] = useState(false);
   const [seenDetailFor, setSeenDetailFor] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -102,10 +112,43 @@ export function ConversationWorkspace({
   const threadScrollRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastOpenedInitialIdRef = useRef<string | null>(null);
   const lastScrolledMessageIdRef = useRef<string | null>(null);
   const openConversation = chat.openConversation;
+
+  const startChatListResize = (event: React.PointerEvent<HTMLButtonElement>): void => {
+    if (!window.matchMedia('(min-width: 768px)').matches || event.button !== 0 || event.pointerType === 'touch') return;
+    event.preventDefault();
+    chatListResizeStartRef.current = { x: event.clientX, width: chatListWidth };
+    setIsResizingChatList(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const resizeChatList = (event: React.PointerEvent<HTMLButtonElement>): void => {
+    const start = chatListResizeStartRef.current;
+    if (!start) return;
+    setChatListWidth(clampChatListWidth(start.width + event.clientX - start.x));
+  };
+
+  const stopChatListResize = (event?: React.PointerEvent<HTMLButtonElement>): void => {
+    chatListResizeStartRef.current = null;
+    setIsResizingChatList(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const resizeChatListWithKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    setChatListWidth((width) => clampChatListWidth(width + (event.key === 'ArrowRight' ? 16 : -16)));
+  };
 
   useEffect(() => {
     const thread = threadScrollRef.current;
@@ -122,6 +165,7 @@ export function ConversationWorkspace({
 
   useEffect(() => () => {
     if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
   }, []);
 
   // Clicking anywhere that isn't one of the popovers themselves (reaction
@@ -134,11 +178,22 @@ export function ConversationWorkspace({
       setReactionDetail(null);
       setSeenDetailFor(null);
       setOpenActionsFor(null);
+      setActionMenuPosition(null);
       setReactingMessageId(null);
       setMentionQuery(null);
     };
+    const closeActionsOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setOpenActionsFor(null);
+        setActionMenuPosition(null);
+      }
+    };
     document.addEventListener('mousedown', closeOpenPopovers);
-    return () => document.removeEventListener('mousedown', closeOpenPopovers);
+    document.addEventListener('keydown', closeActionsOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOpenPopovers);
+      document.removeEventListener('keydown', closeActionsOnEscape);
+    };
   }, []);
 
   const scrollToMessage = (messageId: string): void => {
@@ -251,13 +306,57 @@ export function ConversationWorkspace({
     }
   };
 
+  const setMessageActionsPosition = (message: ChatMessage, mine: boolean, anchor: DOMRect): void => {
+    const menuWidth = 144;
+    const menuHeight = clientMode ? 160 : mine ? 196 : 160;
+    const belowTop = anchor.bottom + 4 + (message.reactions.length > 0 ? 20 : 0);
+    const top = belowTop + menuHeight <= window.innerHeight - 8
+      ? belowTop
+      : Math.max(8, anchor.top - menuHeight - 4);
+    const left = mine
+      ? Math.max(8, anchor.right - menuWidth)
+      : Math.min(Math.max(8, anchor.left), window.innerWidth - menuWidth - 8);
+    setActionMenuPosition({ top, left });
+    setOpenActionsFor(message.id);
+  };
+
+  const toggleMessageActions = (message: ChatMessage, mine: boolean, event: React.MouseEvent<HTMLButtonElement>): void => {
+    if (openActionsFor === message.id) {
+      setOpenActionsFor(null);
+      setActionMenuPosition(null);
+      return;
+    }
+    setMessageActionsPosition(message, mine, event.currentTarget.getBoundingClientRect());
+  };
+
+  const clearLongPress = (): void => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  };
+
+  const startMessageLongPress = (event: React.PointerEvent<HTMLDivElement>, message: ChatMessage, mine: boolean): void => {
+    if (event.pointerType !== 'touch' || !window.matchMedia('(max-width: 767px)').matches || (event.target as HTMLElement).closest('button')) return;
+    clearLongPress();
+    const anchor = event.currentTarget.getBoundingClientRect();
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      setMessageActionsPosition(message, mine, anchor);
+    }, 520);
+  };
+
   const toggleReaction = async (message: ChatMessage, emoji: ReactionEmoji): Promise<void> => {
     setReactingMessageId(null);
-    const mine = message.reactions.some((r) => r.userId === currentUserId && r.emoji === emoji);
+    setReactionDetail(null);
+    const existingReaction = message.reactions.find((r) => r.userId === currentUserId);
     try {
-      chat.replaceMessage(mine
-        ? await (messageActions?.removeReaction ?? removeReaction)(message.id, emoji)
-        : await (messageActions?.reactToMessage ?? reactToMessage)(message.id, emoji));
+      const remove = messageActions?.removeReaction ?? removeReaction;
+      const add = messageActions?.reactToMessage ?? reactToMessage;
+      if (existingReaction?.emoji === emoji) {
+        chat.replaceMessage(await remove(message.id, emoji));
+      } else {
+        if (existingReaction) await remove(message.id, existingReaction.emoji);
+        chat.replaceMessage(await add(message.id, emoji));
+      }
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'Unable to react.');
     }
@@ -278,7 +377,28 @@ export function ConversationWorkspace({
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       {/* Conversation list */}
       {!hideList && (
-        <div className={`flex w-full min-h-0 flex-1 flex-col border-0 bg-transparent outline-none md:h-full md:w-80 md:flex-none ${chat.activeId ? 'hidden md:flex' : ''}`}>
+        <div
+          className={`relative flex w-full min-h-0 flex-1 flex-col border-0 bg-transparent outline-none md:h-full md:w-[var(--chat-list-width)] md:flex-none ${chat.activeId ? 'hidden md:flex' : ''} ${isResizingChatList ? 'select-none' : ''}`}
+          style={{ '--chat-list-width': `${chatListWidth}px` } as React.CSSProperties}
+        >
+          <button
+            type="button"
+            className={`absolute inset-y-0 -right-2 z-20 hidden w-4 cursor-col-resize items-center justify-center md:flex ${isResizingChatList ? 'is-resizing' : ''}`}
+            onPointerDown={startChatListResize}
+            onPointerMove={resizeChatList}
+            onPointerUp={stopChatListResize}
+            onPointerCancel={stopChatListResize}
+            onKeyDown={resizeChatListWithKeyboard}
+            aria-label="Resize conversation list"
+            aria-orientation="vertical"
+            aria-valuemin={CHAT_LIST_MIN_WIDTH}
+            aria-valuemax={CHAT_LIST_MAX_WIDTH}
+            aria-valuenow={chatListWidth}
+            role="separator"
+            title="Drag to resize conversation list"
+          >
+            <span className={`h-12 w-1 rounded-full bg-app-border transition-colors ${isResizingChatList ? 'bg-app-accent' : 'hover:bg-app-accent/70'}`} aria-hidden="true" />
+          </button>
           <div className="flex items-center justify-between gap-2 px-5 py-4">
             <p className="text-sm font-semibold">{title}</p>
             {onNewClick && <Button onClick={onNewClick} className="!px-3 !py-1.5 !text-xs">{newLabel}</Button>}
@@ -361,7 +481,17 @@ export function ConversationWorkspace({
               {activeConversation && headerExtra?.(activeConversation)}
             </div>
 
-            <div ref={threadScrollRef} data-lenis-prevent className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}>
+            <div
+              ref={threadScrollRef}
+              onScroll={() => {
+                if (openActionsFor) {
+                  setOpenActionsFor(null);
+                  setActionMenuPosition(null);
+                }
+              }}
+              data-lenis-prevent
+              className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}
+            >
               {chat.loadingMessages && chat.messages.length === 0 ? (
                 <SkeletonMessageThread />
               ) : (
@@ -379,7 +509,7 @@ export function ConversationWorkspace({
                       const unsent = message.deletedAt !== null;
                       const sender = activeConversation?.members.find((m) => m.userId === message.senderId);
                       return (
-                        <li key={message.id} id={`chat-message-${message.id}`} className={`min-w-0 flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                        <li key={message.id} id={`chat-message-${message.id}`} className={`min-w-0 flex flex-col ${mine ? 'items-end' : 'items-start'} ${message.reactions.length > 0 ? 'mb-3' : ''}`}>
                           {!mine && kind !== 'direct' && sender && (clientMode ? (
                             <span className="mb-1 flex max-w-[86%] items-center gap-2 text-xs font-semibold text-app-muted">
                               <span className="grid size-6 shrink-0 place-items-center rounded-full bg-app-surface-raised text-[10px] font-bold text-app-accent ring-1 ring-inset ring-app-border">
@@ -390,9 +520,17 @@ export function ConversationWorkspace({
                           ) : (
                             <span className="mb-0.5 max-w-[80%] truncate text-[11px] font-semibold text-app-muted">{sender.fullName}</span>
                           ))}
-                          <div
-                            className={`${clientMode ? 'max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[76%] sm:px-5' : 'max-w-[80%] rounded-xl px-3 py-2 text-sm'} min-w-0 border break-words transition-colors duration-500 ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
-                          >
+                          <div className={`${clientMode ? 'max-w-[88%] sm:max-w-[76%]' : 'max-w-[80%]'} relative w-fit min-w-0`}>
+                            <div
+                              onPointerDown={(event) => startMessageLongPress(event, message, mine)}
+                              onPointerUp={clearLongPress}
+                              onPointerCancel={clearLongPress}
+                              onPointerMove={clearLongPress}
+                              onContextMenu={(event) => {
+                                if (window.matchMedia('(max-width: 767px)').matches) event.preventDefault();
+                              }}
+                              className={`${clientMode ? 'rounded-[18px] px-4 pb-2.5 pt-3 text-sm leading-6 shadow-sm sm:px-5' : 'rounded-[18px] px-3 pb-2 pt-2 text-sm'} ${mine ? 'rounded-br-[5px]' : 'rounded-bl-[5px]'} ${openActionsFor === message.id ? 'z-50' : ''} group relative w-fit max-w-full min-w-0 overflow-visible border break-words transition-colors duration-500 ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
+                            >
                             {message.forwarded && <p className="mb-1 text-[11px] italic text-app-muted">Forwarded</p>}
                             {message.replyPreview && !unsent && (
                               <button
@@ -403,9 +541,60 @@ export function ConversationWorkspace({
                                 {message.replyPreview.deletedAt ? 'Message unsent' : (message.replyPreview.body ?? '')}
                               </button>
                             )}
-                            <p className={`whitespace-pre-wrap break-words ${unsent ? 'italic text-app-muted' : ''}`}>{unsent ? 'This message was unsent' : renderMessageBody(message.body ?? '', message.mentions)}</p>
+                            <p className={`inline whitespace-pre-wrap break-words ${unsent ? 'italic text-app-muted' : ''}`}>{unsent ? 'This message was unsent' : renderMessageBody(message.body ?? '', message.mentions)}</p>
+                            <span aria-hidden="true" className="ml-2 inline-flex invisible items-center gap-1 whitespace-nowrap text-[10px]">
+                              {timeLabel(message.createdAt)}
+                              {mine && message.seenBy.length > 0 && ' ✓✓'}
+                            </span>
+                            <span className="absolute bottom-1.5 right-2 inline-flex items-center gap-1 whitespace-nowrap text-[10px] text-app-muted">
+                              <time dateTime={message.createdAt}>{timeLabel(message.createdAt)}</time>
+                            {mine && message.seenBy.length > 0 && (
+                              <span data-chat-popover className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setSeenDetailFor(seenDetailFor === message.id ? null : message.id)}
+                                  aria-label="View message read receipts"
+                                  className="flex items-center text-app-accent hover:text-app-accent"
+                                >
+                                  <Icon name="check" className="size-3.5" />
+                                  <Icon name="check" className="-ml-2 size-3.5" />
+                                </button>
+                                {seenDetailFor === message.id && (
+                                  <div className="absolute bottom-full right-0 z-10 mb-1 min-w-max rounded-lg border border-app-border bg-app-surface px-2 py-1 text-[11px] text-app-muted shadow-lg">
+                                    {message.seenBy.map((userId) => {
+                                      const member = activeConversation?.members.find((m) => m.userId === userId);
+                                      return (
+                                        <p key={userId} className="whitespace-nowrap">
+                                          {member?.fullName ?? 'Someone'}
+                                          {member?.lastReadAt ? ` — ${timeLabel(member.lastReadAt)}` : ''}
+                                        </p>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </span>
+                            )}
+                            </span>
+                            {!unsent && (
+                              <span data-chat-popover className="absolute right-1.5 top-1.5 hidden items-center md:flex">
+                                <button
+                                  type="button"
+                                  onClick={(event) => toggleMessageActions(message, mine, event)}
+                                  aria-label={openActionsFor === message.id ? 'Hide message actions' : 'Show message actions'}
+                                  aria-expanded={openActionsFor === message.id}
+                                  className={`pointer-events-none grid size-6 place-items-center rounded-md text-app-muted opacity-0 transition-[background-color,opacity,color] duration-150 group-hover:pointer-events-auto group-hover:bg-app-surface-raised group-hover:opacity-100 group-hover:text-app-accent focus-visible:pointer-events-auto focus-visible:bg-app-surface-raised focus-visible:opacity-100 focus-visible:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1 ${openActionsFor === message.id ? 'pointer-events-auto bg-app-surface-raised opacity-100 text-app-accent' : ''}`}
+                                >
+                                  <Icon name={openActionsFor === message.id ? 'chevron-up' : 'chevron-down'} className="size-3.5" />
+                                </button>
+                              </span>
+                            )}
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none absolute bottom-[-1px] h-3.5 w-3.5 ${mine ? '-right-2 bg-app-accent/10 [clip-path:polygon(0_0,100%_100%,0_100%)]' : '-left-2 bg-app-surface-raised [clip-path:polygon(100%_0,0_100%,100%_100%)]'}`}
+                            />
+                            </div>
                             {message.reactions.length > 0 && (
-                              <div className="relative mt-1 flex flex-wrap gap-1 text-xs">
+                              <div className={`absolute -bottom-3 left-2 flex flex-wrap gap-1 text-xs ${openActionsFor === message.id ? 'z-50' : 'z-10'}`}>
                                 {[...new Set(message.reactions.map((r) => r.emoji))].map((emoji) => {
                                   const reactors = message.reactions.filter((r) => r.emoji === emoji);
                                   const open = reactionDetail?.messageId === message.id && reactionDetail.emoji === emoji;
@@ -413,8 +602,15 @@ export function ConversationWorkspace({
                                     <span key={emoji} data-chat-popover className="relative">
                                       <button
                                         type="button"
-                                        onClick={() => setReactionDetail(open ? null : { messageId: message.id, emoji })}
-                                        className="rounded-full border border-app-border bg-app-surface px-1.5 py-0.5 hover:border-app-accent"
+                                        onClick={() => {
+                                          if (reactors.some((r) => r.userId === currentUserId)) {
+                                            void toggleReaction(message, emoji);
+                                          } else {
+                                            setReactionDetail(open ? null : { messageId: message.id, emoji });
+                                          }
+                                        }}
+                                        aria-label={reactors.some((r) => r.userId === currentUserId) ? 'Remove your reaction' : 'View reactions'}
+                                        className="rounded-full border border-app-border bg-app-surface px-1.5 py-0.5 shadow-sm hover:border-app-accent"
                                       >
                                         {emoji}{reactors.length > 1 ? reactors.length : ''}
                                       </button>
@@ -434,88 +630,62 @@ export function ConversationWorkspace({
                                 })}
                               </div>
                             )}
+
                           </div>
 
-                          <div className="mt-1 flex items-center gap-2 text-[11px] text-app-muted">
-                            <span>{timeLabel(message.createdAt)}</span>
-                            {mine && message.seenBy.length > 0 && (
-                              <span data-chat-popover className="relative">
+                          {openActionsFor === message.id && actionMenuPosition && createPortal(
+                            <>
+                              <div
+                                className="fixed inset-0 z-40 bg-app-background/25 backdrop-blur-[2px] md:hidden"
+                                aria-hidden="true"
+                                onClick={() => { setOpenActionsFor(null); setActionMenuPosition(null); }}
+                              />
+                              <div
+                                data-chat-popover
+                                className="fixed z-50 min-w-36 max-w-[calc(100vw-2rem)] rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg"
+                                style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
+                              >
+                              <button
+                                type="button"
+                                onClick={() => { setReplyTo(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                              >
+                                <Icon name="reply" className="size-4" /> Reply
+                              </button>
+                              {!clientMode && <button
+                                type="button"
+                                onClick={() => { setForwardingMessage(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                              >
+                                <Icon name="forward" className="size-4" /> Forward
+                              </button>}
+                              <button
+                                type="button"
+                                onClick={() => { void copyText(message.body ?? ''); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                              >
+                                <Icon name="copy" className="size-4" /> Copy
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setReactingMessageId(message.id); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                              >
+                                <Icon name="smile" className="size-4" /> React
+                              </button>
+                              {!clientMode && mine && (
                                 <button
                                   type="button"
-                                  onClick={() => setSeenDetailFor(seenDetailFor === message.id ? null : message.id)}
-                                  className="hover:text-app-accent"
+                                  onClick={() => { void onUnsend(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-app-danger hover:bg-app-surface-raised"
                                 >
-                                  Seen
+                                  <Icon name="trash" className="size-4" /> Unsend
                                 </button>
-                                {seenDetailFor === message.id && (
-                                  <div className="absolute bottom-full right-0 z-10 mb-1 min-w-max rounded-lg border border-app-border bg-app-surface px-2 py-1 text-[11px] text-app-muted shadow-lg">
-                                    {message.seenBy.map((userId) => {
-                                      const member = activeConversation?.members.find((m) => m.userId === userId);
-                                      return (
-                                        <p key={userId} className="whitespace-nowrap">
-                                          {member?.fullName ?? 'Someone'}
-                                          {member?.lastReadAt ? ` — ${timeLabel(member.lastReadAt)}` : ''}
-                                        </p>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </span>
-                            )}
-                            {!unsent && (
-                              <div data-chat-popover className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => setOpenActionsFor(openActionsFor === message.id ? null : message.id)}
-                                  aria-label="Message actions"
-                                  className="rounded p-1 hover:bg-app-surface-raised hover:text-app-accent"
-                                >
-                                  <Icon name="more" className="size-4" />
-                                </button>
-                                {openActionsFor === message.id && (
-                                  <div className={`absolute bottom-full z-20 mb-1 min-w-36 rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg ${mine ? 'right-0' : 'left-0'}`}>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setReplyTo(message); setOpenActionsFor(null); }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      <Icon name="reply" className="size-4" /> Reply
-                                    </button>
-                                    {!clientMode && <button
-                                      type="button"
-                                      onClick={() => { setForwardingMessage(message); setOpenActionsFor(null); }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      <Icon name="forward" className="size-4" /> Forward
-                                    </button>}
-                                    <button
-                                      type="button"
-                                      onClick={() => { void copyText(message.body ?? ''); setOpenActionsFor(null); }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      <Icon name="copy" className="size-4" /> Copy
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setReactingMessageId(message.id); setOpenActionsFor(null); }}
-                                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                    >
-                                      <Icon name="smile" className="size-4" /> React
-                                    </button>
-                                    {!clientMode && mine && (
-                                      <button
-                                        type="button"
-                                        onClick={() => { void onUnsend(message); setOpenActionsFor(null); }}
-                                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-app-danger hover:bg-app-surface-raised"
-                                      >
-                                        <Icon name="trash" className="size-4" /> Unsend
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
+                              )}
                               </div>
-                            )}
-                          </div>
+                            </>,
+                            document.body,
+                          )}
 
                           {reactingMessageId === message.id && (
                             <div data-chat-popover className="mt-1 flex gap-1 rounded-lg border border-app-border bg-app-surface p-1">

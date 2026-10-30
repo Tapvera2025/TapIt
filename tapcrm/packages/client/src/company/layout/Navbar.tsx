@@ -4,6 +4,8 @@ import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { AiPetButton } from './AiPet.js';
+import { GlobalFeatureSearch } from './GlobalFeatureSearch.js';
+import type { CompanySearchDestination } from './navigation.js';
 
 function initials(fullName: string): string {
   const value = fullName
@@ -25,6 +27,7 @@ export function Navbar({
   onToggleSidebar,
   onNavigate,
   onLogout,
+  searchDestinations,
 }: {
   identity: { fullName: string; email: string; accountType?: string };
   organizationName: string | null;
@@ -33,6 +36,7 @@ export function Navbar({
   onToggleSidebar: () => void;
   onNavigate: (path: string) => void;
   onLogout: () => void;
+  searchDestinations: readonly CompanySearchDestination[];
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -83,14 +87,21 @@ export function Navbar({
               className={`size-4 transition-transform duration-300 ease-in-out motion-reduce:transition-none ${sidebarExpanded ? 'rotate-180' : 'rotate-0'}`}
             />
           </button>
-          <span className="navbar-brand-mark -ml-1 lg:-ml-1.5 inline-flex h-9 shrink-0 items-center px-0" aria-label="Tapvera CRM">
+          <span
+            className="navbar-brand-mark -ml-1 lg:-ml-1.5 inline-flex h-9 shrink-0 items-center px-0"
+            aria-label="Tapvera CRM"
+          >
             <BrandLogo className="navbar-brand" />
           </span>
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          <GlobalFeatureSearch
+            destinations={searchDestinations}
+            onNavigate={onNavigate}
+          />
           <NotificationBell onNavigate={onNavigate} />
-          <ThemeToggle compact className="global-navbar-theme-toggle" />
+          <ThemeToggle compact className="global-navbar-theme-toggle md:hidden" />
           <div ref={accountRef} className="relative">
             <button
               type="button"
@@ -104,25 +115,52 @@ export function Navbar({
                 {initials(identity.fullName)}
               </span>
               <span className="hidden min-w-0 lg:block">
-                <span className="block max-w-28 truncate text-xs font-semibold text-app-foreground">{identity.fullName}</span>
-                <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-app-muted">{role}</span>
+                <span className="block max-w-28 truncate text-xs font-semibold text-app-foreground">
+                  {identity.fullName}
+                </span>
+                <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-app-muted">
+                  {role}
+                </span>
               </span>
-              <Icon name="chevron-down" className="hidden size-3 text-app-muted lg:block" />
+              <Icon
+                name="chevron-down"
+                className="hidden size-3 text-app-muted lg:block"
+              />
             </button>
             {accountOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg" role="menu">
+              <div
+                className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
+                role="menu"
+              >
                 <div className="border-b border-app-border px-3 py-2.5">
-                  <p className="truncate text-sm font-semibold text-app-foreground">{identity.fullName}</p>
+                  <p className="truncate text-sm font-semibold text-app-foreground">
+                    {identity.fullName}
+                  </p>
                   <p className="truncate text-xs text-app-muted">{identity.email}</p>
                 </div>
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                  <span className="text-xs font-semibold text-app-muted">AI companion</span>
-                  <AiPetButton wrapperClassName="navbar-account-pet" className="size-8 !p-0" />
+                  <span className="text-xs font-semibold text-app-muted">
+                    AI companion
+                  </span>
+                  <AiPetButton
+                    wrapperClassName="navbar-account-pet"
+                    className="size-8 !p-0"
+                  />
                 </div>
-                <button type="button" role="menuitem" onClick={() => navigateFromMenu('/company/settings')} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => navigateFromMenu('/company/settings')}
+                  className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
+                >
                   <Icon name="settings" className="size-4" /> Settings
                 </button>
-                <button type="button" role="menuitem" onClick={onLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={onLogout}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10"
+                >
                   <Icon name="logout" className="size-4" /> Log out
                 </button>
               </div>
