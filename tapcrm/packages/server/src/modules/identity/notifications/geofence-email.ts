@@ -1,4 +1,4 @@
-import { sendEmail } from './mailer.js';
+import { sendEmail } from '../../../platform/email/index.js';
 
 export async function sendGeofenceDenialAlert(adminEmail: string, details: { userEmail: string; userName: string; distanceMeters: number; nearestLocationName: string; ip: string | null; accuracyMetres?: number | null }): Promise<void> {
   await sendEmail({
