@@ -9,6 +9,7 @@ import {
   Select,
 } from '../../../ui/components.js';
 import { Icon } from '../../../ui/Icon.js';
+import { LiquidGlassTabs } from '../../recruitment/components/RecruitmentTabs.js';
 import { APP_NAVIGATE_EVENT, type AppNavigateEvent } from '../../../navigationEvent.js';
 import {
   closePeriod,
@@ -110,6 +111,12 @@ export function AccountingPage({
   const tab = allowedTabs.some((item) => item.id === requestedTab)
     ? requestedTab
     : 'dashboard';
+  const liquidTabs = allowedTabs.map((item) => ({
+    id: item.id,
+    label: item.label,
+    path: `/company/finance/accounting?tab=${item.id}`,
+    iconName: item.icon,
+  }));
   const [periods, setPeriods] = useState<AccountingPeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [loading, setLoading] = useState(true);
@@ -129,8 +136,6 @@ export function AccountingPage({
       .catch((cause) => setError(messageOf(cause)))
       .finally(() => setLoading(false));
   }, []);
-  const navigateTab = (next: Tab) =>
-    onNavigate(`/company/finance/accounting?tab=${next}`);
   const period = periods.find((item) => item.id === selectedPeriod);
   const refreshPeriods = () => {
     void listPeriods()
@@ -143,25 +148,12 @@ export function AccountingPage({
       title="Accounting"
       description="Manage the ledger, close periods, financial reports, and statutory tax exports."
     >
-      <div
-        className="flex gap-2 overflow-x-auto border-b border-app-border pb-1"
-        role="tablist"
-        aria-label="Accounting sections"
-      >
-        {allowedTabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.id}
-            onClick={() => navigateTab(item.id)}
-            className={`inline-flex shrink-0 items-center gap-2 rounded-t-xl px-3 py-2.5 text-sm font-semibold transition ${tab === item.id ? 'border-b-2 border-app-accent bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
-          >
-            <Icon name={item.icon} className="size-4" />
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <LiquidGlassTabs
+        items={liquidTabs}
+        activeId={tab}
+        onNavigate={onNavigate}
+        ariaLabel="Accounting sections"
+      />
       {error && <Notice error>{error}</Notice>}
       {loading ? (
         <Loading />
