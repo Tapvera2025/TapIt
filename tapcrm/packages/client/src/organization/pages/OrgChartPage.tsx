@@ -55,7 +55,7 @@ export function OrgChartPage(): React.JSX.Element {
   const moveSession = useRef(0);
   const previewRequest = useRef(0);
   const [zoom, setZoom] = useState(100);
-  const [fitView, setFitView] = useState(true);
+  const [fitView, setFitView] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
   const tree = useRef<HTMLDivElement>(null);
 
@@ -133,15 +133,10 @@ export function OrgChartPage(): React.JSX.Element {
     const content = tree.current;
     if (!container || !content || !fitView) return;
     const fit = (): void => {
-      setZoom(
-        Math.max(
-          1,
-          Math.min(
-            100,
-            Math.floor(((container.clientWidth - 2) / content.offsetWidth) * 100),
-          ),
-        ),
-      );
+      const availableWidth = container.clientWidth - 48;
+      const contentWidth = content.offsetWidth || 1;
+      const calculated = Math.floor((availableWidth / contentWidth) * 100);
+      setZoom(Math.max(85, Math.min(105, calculated)));
     };
     fit();
     const observer = new ResizeObserver(fit);
@@ -362,18 +357,8 @@ export function OrgChartPage(): React.JSX.Element {
           </div>
 
           <div className="org-chart-toolbar">
-            <label className="org-chart-search">
-              <Icon name="search" className="size-4 shrink-0" />
-              <span className="sr-only">Search people, roles, or teams</span>
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search people, roles, or teams…"
-              />
-            </label>
-            <label className="org-chart-filter">
-              <span className="sr-only">Filter by department</span>
+            <label className="org-chart-department-select">
+              <span className="org-chart-department-label">Department</span>
               <select
                 value={departmentId}
                 onChange={(event) => setDepartmentId(event.target.value)}
@@ -386,27 +371,16 @@ export function OrgChartPage(): React.JSX.Element {
                 ))}
               </select>
             </label>
-            <div className="org-chart-expand-actions">
-              <button
-                type="button"
-                onClick={() => setCollapsed(new Set())}
-                disabled={filtering}
-              >
-                Expand all
-              </button>
-              <span aria-hidden="true" />
-              <button
-                type="button"
-                onClick={() =>
-                  setCollapsed(
-                    new Set(branches.map((branch) => `department:${branch.id}`)),
-                  )
-                }
-                disabled={filtering}
-              >
-                Collapse all
-              </button>
-            </div>
+            <label className="org-chart-search">
+              <Icon name="search" className="size-4 shrink-0" />
+              <span className="sr-only">Search people, roles, or teams</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search people, roles, or teams…"
+              />
+            </label>
           </div>
 
           {filtering && (
@@ -426,6 +400,65 @@ export function OrgChartPage(): React.JSX.Element {
               </button>
             </div>
           )}
+
+          <div className="org-chart-canvas-toolbar">
+            <p>
+              {draggingPersonId
+                ? dragLoading
+                  ? 'Finding valid managers…'
+                  : `Drop ${dragSource?.fullName ?? 'this person'} on a highlighted manager to preview the change.`
+                : 'Drag a person onto a highlighted manager, or use Change manager on a card. Every change needs confirmation.'}
+            </p>
+            <div className="org-chart-tree-actions">
+              <button
+                type="button"
+                onClick={() => setCollapsed(new Set())}
+                disabled={filtering}
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setCollapsed(
+                    new Set(branches.map((branch) => `department:${branch.id}`)),
+                  )
+                }
+                disabled={filtering}
+              >
+                Collapse all
+              </button>
+            </div>
+            <div className="org-chart-zoom" role="group" aria-label="Chart zoom">
+              <button
+                type="button"
+                aria-label="Zoom out"
+                disabled={zoom <= 25}
+                onClick={() => changeZoom(-10)}
+              >
+                −
+              </button>
+              <output aria-label="Zoom level">{zoom}%</output>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                disabled={zoom >= 140}
+                onClick={() => changeZoom(10)}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="org-chart-fit"
+                onClick={fitChart}
+                aria-pressed={fitView}
+                aria-label="Fit chart to view"
+                disabled={branches.length === 0}
+              >
+                <Icon name="fit" className="size-4" /> Fit
+              </button>
+            </div>
+          </div>
 
           {branches.length === 0 ? (
             <div className="org-chart-no-results">
@@ -471,7 +504,7 @@ export function OrgChartPage(): React.JSX.Element {
                         className="org-chart-branch"
                         key={branch.id}
                         style={{
-                          width: Math.max(276, 216 + reportingDepth(branch.nodes) * 26),
+                          width: Math.max(280, 220 + reportingDepth(branch.nodes) * 28),
                         }}
                       >
                         <div className="org-chart-department">
@@ -566,43 +599,7 @@ export function OrgChartPage(): React.JSX.Element {
                 Reporting line
               </span>
             </div>
-            <div className="org-chart-zoom" role="group" aria-label="Chart zoom">
-              <button
-                type="button"
-                aria-label="Zoom out"
-                disabled={zoom <= 25}
-                onClick={() => changeZoom(-10)}
-              >
-                −
-              </button>
-              <output aria-label="Zoom level">{zoom}%</output>
-              <button
-                type="button"
-                aria-label="Zoom in"
-                disabled={zoom >= 140}
-                onClick={() => changeZoom(10)}
-              >
-                +
-              </button>
-              <button
-                type="button"
-                className="org-chart-fit"
-                onClick={fitChart}
-                aria-pressed={fitView}
-                aria-label="Fit chart to view"
-                disabled={branches.length === 0}
-              >
-                <Icon name="fit" className="size-4" /> Fit
-              </button>
-            </div>
           </div>
-          <p className="org-chart-hint" role="status">
-            {draggingPersonId
-              ? dragLoading
-                ? 'Finding valid managers…'
-                : `Drop ${dragSource?.fullName ?? 'this person'} on a highlighted manager to preview the change.`
-              : 'Drag a person onto a highlighted manager, or use Change manager on a card. Every change needs confirmation.'}
-          </p>
           {Boolean(dragError) && (
             <div className="org-chart-drag-error">
               <ErrorMessage cause={dragError} />

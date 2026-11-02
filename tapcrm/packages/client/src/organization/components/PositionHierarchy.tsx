@@ -62,7 +62,7 @@ export function PositionHierarchy({
   const dragOrigin = useRef<{ id: string; x: number; y: number } | null>(null);
   const completedDrop = useRef(false);
   const [zoom, setZoom] = useState(100);
-  const [fitView, setFitView] = useState(true);
+  const [fitView, setFitView] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
   const tree = useRef<HTMLDivElement>(null);
   const flat = useMemo(() => flattenPositions(positions), [positions]);
@@ -85,16 +85,12 @@ export function PositionHierarchy({
     const container = viewport.current;
     const content = tree.current;
     if (!container || !content || !fitView) return;
-    const fit = (): void =>
-      setZoom(
-        Math.max(
-          1,
-          Math.min(
-            100,
-            Math.floor(((container.clientWidth - 2) / content.offsetWidth) * 100),
-          ),
-        ),
-      );
+    const fit = (): void => {
+      const availableWidth = container.clientWidth - 48;
+      const contentWidth = content.offsetWidth || 1;
+      const calculated = Math.floor((availableWidth / contentWidth) * 100);
+      setZoom(Math.max(85, Math.min(105, calculated)));
+    };
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(container);
@@ -283,7 +279,7 @@ export function PositionHierarchy({
       </div>
       <div className="position-toolbar">
         <label className="position-department-select">
-          <span>Department</span>
+          <span className="position-department-label">Department</span>
           <select
             value={departmentId}
             onChange={(event) => onDepartmentChange(event.target.value)}
@@ -313,8 +309,8 @@ export function PositionHierarchy({
             <option value="inactive">Inactive</option>
           </select>
         </label>
-        <Button onClick={() => onCreate()}>
-          <span aria-hidden="true">+</span> Add position
+        <Button onClick={() => onCreate()} className="!min-h-[38px] !h-[38px] !py-0 !px-4 !text-xs !font-semibold inline-flex items-center justify-center shrink-0">
+          <span aria-hidden="true" className="mr-1 leading-none">+</span> Add position
         </Button>
         <div className="position-view-toggle" role="group" aria-label="Position view">
           <button
