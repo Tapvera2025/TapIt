@@ -772,7 +772,8 @@ describe('My Todo - Frontend Suite', () => {
           todayCount: 2,
         }),
       );
-      expect(statsHtml).toContain('grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4');
+      expect(statsHtml).toContain('lg:grid-cols-12');
+      expect(statsHtml).toContain('grid grid-cols-2 gap-2 sm:grid-cols-4');
 
       const filtersHtml = renderToStaticMarkup(
         React.createElement(TodoFilters, {

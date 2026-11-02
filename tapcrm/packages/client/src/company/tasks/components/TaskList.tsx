@@ -279,7 +279,7 @@ export function TaskList({
             key={task.id}
             className={`relative rounded-2xl border border-app-border/80 bg-app-surface p-4 shadow-sm transition-shadow hover:shadow-md sm:px-7 sm:py-6 ${openStatusMenu === task.id ? 'z-30' : 'z-0'}`}
           >
-            <div className="flex flex-col gap-3 border-b border-app-border/70 pb-4 lg:grid lg:grid-cols-[minmax(15rem,1fr)_minmax(18rem,auto)_auto] lg:items-center lg:gap-6 lg:border-0 lg:pb-0">
+            <div className="flex flex-col gap-3 border-b border-app-border/70 pb-4 lg:flex lg:flex-row lg:items-start lg:justify-between lg:gap-6 lg:border-0 lg:pb-0">
               <div className="min-w-0 flex-1 rounded-xl bg-app-surface-raised/40 p-3 lg:rounded-none lg:bg-transparent lg:p-0">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 lg:block">
                   <div className="min-w-0">
@@ -330,55 +330,61 @@ export function TaskList({
                 )}
               </div>
 
-              <div className="hidden min-w-0 grid-cols-2 grid-rows-2 gap-2 text-[11px] lg:grid">
-                <span className="flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-app-border/80 bg-app-surface-raised px-2 py-1">
-                  <TaskPriorityBadge priority={task.priority} />
-                </span>
-                {renderOverallStatusControl(`flex h-9 w-full items-center justify-center rounded-lg border px-2 py-1 ${statusCellColor}`)}
-                {task.createdAt && (
-                  <span className="flex h-9 w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-2 py-1 text-app-muted">
-                    <Icon name="calendar" className="size-3 shrink-0" />
-                    <span>Created</span>
-                    <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
-                      {formatDate(task.createdAt)}
-                    </time>
+              <div className="hidden min-w-0 flex-col items-end gap-2 lg:flex lg:shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 items-center justify-center gap-1 rounded-lg border border-app-border/80 bg-app-surface-raised px-3 py-1">
+                    <TaskPriorityBadge priority={task.priority} />
                   </span>
-                )}
-                {task.dueDate && (
-                  <span className="flex h-9 w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-2 py-1 text-app-muted">
-                    <Icon name="clock" className="size-3 shrink-0" />
-                    <span>Due</span>
-                    <time className="font-medium text-app-foreground" dateTime={task.dueDate}>
-                      {formatDate(task.dueDate)}
-                    </time>
-                  </span>
-                )}
-              </div>
+                  {renderOverallStatusControl(
+                    `flex h-9 items-center justify-center rounded-lg border px-3 py-1 ${statusCellColor}`,
+                  )}
+                  {onEditTask && (
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => onEditTask(task)}
+                      className="inline-flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 text-xs font-medium text-app-foreground shadow-sm transition hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent disabled:opacity-50"
+                      aria-label={`Edit task ${task.title}`}
+                    >
+                      <Icon name="pencil" className="size-3.5 text-app-muted" />
+                      Edit
+                    </button>
+                  )}
+                  {onAssignTask && (
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => onAssignTask(task)}
+                      className="inline-flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 text-xs font-medium text-app-foreground shadow-sm transition hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent disabled:opacity-50"
+                      aria-label={`Manage assignees for ${task.title}`}
+                    >
+                      <Icon name="users" className="size-3.5 text-app-muted" />
+                      Assign
+                    </button>
+                  )}
+                </div>
 
-              <div className="hidden flex-wrap items-center gap-2 lg:flex lg:shrink-0 lg:justify-end">
-                {onEditTask && (
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={() => onEditTask(task)}
-                    className="inline-flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 text-xs font-medium text-app-foreground shadow-sm transition hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent disabled:opacity-50"
-                    aria-label={`Edit task ${task.title}`}
-                  >
-                    <Icon name="pencil" className="size-3.5 text-app-muted" />
-                    Edit
-                  </button>
-                )}
-                {onAssignTask && (
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={() => onAssignTask(task)}
-                    className="inline-flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 text-xs font-medium text-app-foreground shadow-sm transition hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent disabled:opacity-50"
-                    aria-label={`Manage assignees for ${task.title}`}
-                  >
-                    <Icon name="users" className="size-3.5 text-app-muted" />
-                    Assign
-                  </button>
+                {(task.createdAt || task.dueDate) && (
+                  <div className="flex items-center gap-2 text-[11px] text-app-muted">
+                    {task.createdAt && (
+                      <span className="flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-2.5 py-1 text-app-muted">
+                        <Icon name="calendar" className="size-3 shrink-0" />
+                        <span>Created</span>
+                        <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
+                          {formatDate(task.createdAt)}
+                        </time>
+                      </span>
+                    )}
+                    {task.dueDate && (
+                      <span className="flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-2.5 py-1 text-app-muted">
+                        <Icon name="clock" className="size-3 shrink-0" />
+                        <span>Due</span>
+                        <time className="font-medium text-app-foreground" dateTime={task.dueDate}>
+                          {formatDate(task.dueDate)}
+                        </time>
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

@@ -1,19 +1,16 @@
 import { useId } from 'react';
-import { Button, Card } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Card } from '../../../ui/components.js';
 
 export interface TodoProgressProps {
   readonly totalCount: number;
   readonly completedCount: number;
   readonly className?: string;
-  readonly onAddTodo?: (() => void) | undefined;
 }
 
 export function TodoProgress({
   totalCount,
   completedCount,
   className = '',
-  onAddTodo,
 }: TodoProgressProps): React.JSX.Element {
   const svgId = useId().replace(/:/g, '');
   const liquidGradientId = `todo-liquid-${svgId}`;
