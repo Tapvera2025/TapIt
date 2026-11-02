@@ -62,6 +62,7 @@ export function CompanyLayout({
     departmentCode?: string | null;
     departmentName?: string | null;
     positionCode?: string | null;
+    positionName?: string | null;
   };
   organizationName: string | null;
   accountType: string;

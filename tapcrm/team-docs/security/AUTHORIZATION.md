@@ -267,6 +267,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/identity/geofence-appeals/:id/decide | `identity:manage-geofence` | — |
 | POST | /api/identity/users/:id/unlock | `identity:unlock-account` | id |
 | GET | /api/org/departments | `org:view-structure` | — |
+| GET | /api/org/currency-settings | `advance:view-own` | — |
+| PUT | /api/org/currency-settings | `system:manage-settings` | — |
 | GET | /api/org/teams | `org:view-structure` | — |
 | GET | /api/org/ladder/:departmentCode | `org:view-structure` | — |
 | GET | /api/org/chart | `org:view-structure` | — |

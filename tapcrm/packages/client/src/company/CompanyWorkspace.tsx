@@ -361,7 +361,7 @@ export function CompanyWorkspace({
       return <TaManagementPage />;
     if (pathname === '/company/my-ta' && (isSuperAdmin || can('ta:view-own')))
       return <MyTaPage />;
-    if (pathname === '/company/settings') return <SettingsPage />;
+    if (pathname === '/company/settings') return <SettingsPage showCurrencyManagement={isSuperAdmin || can('system:manage-settings')} />;
     if (pathname === '/company/sessions') {
       return (
         <SessionsPage
