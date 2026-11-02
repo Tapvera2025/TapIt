@@ -2707,3 +2707,20 @@ summary:active {
     0 0 10px color-mix(in srgb, var(--theme-primary) 50%, transparent);
 }
 
+/* Sidebar horizontal scrollbar prevention */
+.workspace-sidebar,
+.workspace-sidebar nav,
+.company-sidebar-nav {
+  overflow-x: hidden !important;
+}
+
+.workspace-sidebar ::-webkit-scrollbar:horizontal,
+.workspace-sidebar nav::-webkit-scrollbar:horizontal,
+.company-sidebar-nav::-webkit-scrollbar:horizontal {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  background: transparent !important;
+}
+
+

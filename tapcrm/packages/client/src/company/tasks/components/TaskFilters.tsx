@@ -15,12 +15,10 @@ export function TaskFilters({
   onViewScopeChange,
 }: TaskFiltersProps): React.JSX.Element {
   const [searchInput, setSearchInput] = useState(query.search ?? '');
-  const [isSearchOpen, setIsSearchOpen] = useState(Boolean(query.search));
 
   // Sync internal search input when query prop resets externally
   useEffect(() => {
     setSearchInput(query.search ?? '');
-    if (query.search) setIsSearchOpen(true);
   }, [query.search]);
 
   // Debounce search input changes by 300ms
@@ -90,57 +88,75 @@ export function TaskFilters({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-app-border/80 bg-app-surface/70 p-2 sm:px-3.5 sm:py-2 text-app-foreground">
-      {/* Left cluster: Scope, Filter status presets, Due date, and Sort */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+    <div className="flex flex-col gap-2 rounded-2xl border border-app-border/80 bg-app-surface/70 p-2.5 sm:px-3.5 sm:py-2.5 text-app-foreground">
+      <style>{`
+        .task-filter-scroller::-webkit-scrollbar {
+          display: none !important;
+          height: 0 !important;
+          width: 0 !important;
+        }
+      `}</style>
+
+      {/* Row 1: Scope, Filter status presets, and Due date */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 min-w-0 w-full">
         {isSuperAdmin && (
-          <>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[11px] font-semibold text-app-muted">Scope:</span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onViewScopeChange?.('my_tasks')}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                    viewScope === 'my_tasks'
-                      ? 'bg-app-accent text-white shadow-xs'
-                      : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent/60'
-                  }`}
-                  aria-pressed={viewScope === 'my_tasks'}
-                >
-                  My Tasks
-                </button>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onViewScopeChange?.('all_employee_tasks')}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                    viewScope === 'all_employee_tasks'
-                      ? 'bg-app-accent text-white shadow-xs'
-                      : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent/60'
-                  }`}
-                  aria-pressed={viewScope === 'all_employee_tasks'}
-                >
-                  All Employee Tasks
-                </button>
-              </div>
-              {viewScope === 'all_employee_tasks' && (
-                <span className="hidden 2xl:inline-flex items-center rounded-md bg-app-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-app-accent">
-                  Org-wide
-                </span>
-              )}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
+              Scope:
+            </span>
+            <div className="grid grid-cols-2 sm:flex sm:items-center rounded-lg border border-app-border bg-app-background/60 p-0.5 w-full sm:w-auto">
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onViewScopeChange?.('my_tasks')}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold text-center transition ${
+                  viewScope === 'my_tasks'
+                    ? 'bg-app-accent text-white shadow-xs'
+                    : 'text-app-muted hover:text-app-foreground'
+                }`}
+                aria-pressed={viewScope === 'my_tasks'}
+              >
+                My Tasks
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onViewScopeChange?.('all_employee_tasks')}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold text-center transition ${
+                  viewScope === 'all_employee_tasks'
+                    ? 'bg-app-accent text-white shadow-xs'
+                    : 'text-app-muted hover:text-app-foreground'
+                }`}
+                aria-pressed={viewScope === 'all_employee_tasks'}
+              >
+                All Employee Tasks
+              </button>
             </div>
-            <span className="hidden h-5 w-px bg-app-border/70 xl:block" aria-hidden="true" />
-          </>
+            {viewScope === 'all_employee_tasks' && (
+              <span className="hidden xl:inline-flex items-center rounded-md bg-app-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-app-accent">
+                Org-wide
+              </span>
+            )}
+          </div>
         )}
 
-        {/* Filter status presets */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted">
+        {isSuperAdmin && (
+          <span className="hidden h-5 w-px bg-app-border/70 sm:block" aria-hidden="true" />
+        )}
+
+        {/* Filter status presets - smooth swipeable on mobile, flex on desktop */}
+        <div className="flex min-w-0 w-full sm:w-auto sm:max-w-full items-center gap-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
             Filter
           </span>
-          <div className="flex items-center gap-1">
+          <div
+            className="task-filter-scroller flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5 pe-4 sm:pe-0"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
             {(
               [
                 { id: 'all', label: 'All' },
@@ -157,7 +173,7 @@ export function TaskFilters({
                   type="button"
                   disabled={disabled}
                   onClick={() => handleSelectGroup1(preset.id)}
-                  className={`flex items-center justify-center rounded-lg px-2.5 py-1 text-center text-xs font-semibold transition ${
+                  className={`inline-flex shrink-0 items-center justify-center rounded-lg px-2.5 py-1 text-center text-xs font-semibold transition ${
                     isActive
                       ? preset.id === 'pending'
                         ? 'border border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-200'
@@ -177,18 +193,18 @@ export function TaskFilters({
           </div>
         </div>
 
-        <span className="hidden h-5 w-px bg-app-border/70 xl:block" aria-hidden="true" />
+        <span className="hidden h-5 w-px bg-app-border/70 lg:block" aria-hidden="true" />
 
         {/* Due date filter */}
-        <label className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted">
+        <label className="flex items-center gap-1.5 shrink-0 text-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
             Due date
           </span>
           <select
             value={query.datePreset ?? 'all'}
             disabled={disabled}
             onChange={(e) => handleDatePresetChange(e.target.value)}
-            className="rounded-lg border border-app-border bg-app-background/70 px-2 py-1 text-xs font-medium text-app-foreground outline-none focus:border-app-accent"
+            className="h-8 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs font-medium text-app-foreground outline-none focus:border-app-accent cursor-pointer"
             aria-label="Filter by date preset"
           >
             <option value="all">All Dates</option>
@@ -197,12 +213,13 @@ export function TaskFilters({
             <option value="overdue">Overdue</option>
           </select>
         </label>
+      </div>
 
-        <span className="hidden h-5 w-px bg-app-border/70 xl:block" aria-hidden="true" />
-
+      {/* Row 2: Sort on the left, Search Bar & Create Task aligned with Sort on the right */}
+      <div className="flex flex-col gap-2 pt-2 border-t border-app-border/40 sm:flex-row sm:items-center sm:justify-between w-full">
         {/* Sort controls */}
-        <div className="flex items-center gap-1.5 shrink-0 text-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs shrink-0">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
             Sort
           </span>
           <select
@@ -215,7 +232,7 @@ export function TaskFilters({
                 page: 1,
               })
             }
-            className="rounded-lg border border-app-border bg-app-background/70 px-2 py-1 text-xs text-app-foreground outline-none focus:border-app-accent"
+            className="h-8 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs text-app-foreground outline-none focus:border-app-accent cursor-pointer"
             aria-label="Sort by attribute"
           >
             <option value="createdAt">Created Date</option>
@@ -234,65 +251,50 @@ export function TaskFilters({
                 page: 1,
               })
             }
-            className="rounded-lg border border-app-border bg-app-background/70 px-2 py-1 text-xs text-app-foreground outline-none focus:border-app-accent"
+            className="h-8 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs text-app-foreground outline-none focus:border-app-accent cursor-pointer"
             aria-label="Sort order"
           >
             <option value="desc">Descending (↓)</option>
             <option value="asc">Ascending (↑)</option>
           </select>
         </div>
-      </div>
 
-      {/* Right cluster: Search & Primary Action Button */}
-      <div className="flex items-center gap-2 ml-auto shrink-0">
-        {isSearchOpen ? (
-          <div className="task-search-glass relative flex min-w-0 items-center gap-1.5 rounded-full border border-app-border/80 bg-app-surface/75 px-3 py-1 shadow-xs backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/50 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--app-accent)_12%,transparent)] w-48 sm:w-56">
-            <Icon name="search" className="size-4 shrink-0 text-app-muted" />
+        {/* Right cluster: Search Bar & Primary Action Button (aligned with sort on desktop/laptop) */}
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto shrink-0 justify-between sm:justify-end">
+          <div className="task-search-glass relative flex h-8 min-w-0 flex-1 sm:flex-initial sm:w-56 lg:w-64 items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface/75 px-2.5 shadow-xs backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/60 focus-within:ring-1 focus-within:ring-app-accent/30">
+            <Icon name="search" className="size-3.5 shrink-0 text-app-muted" />
             <input
               type="search"
-              autoFocus
               disabled={disabled}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search tasks..."
-              className="min-w-0 flex-1 bg-transparent py-0.5 text-xs text-app-foreground outline-none placeholder:text-app-muted/80 disabled:opacity-50"
+              className="min-w-0 flex-1 bg-transparent py-0 text-xs text-app-foreground outline-none placeholder:text-app-muted/80 disabled:opacity-50"
               aria-label="Search tasks"
             />
-            <button
-              type="button"
-              onClick={() => {
-                setSearchInput('');
-                setIsSearchOpen(false);
-              }}
-              className="grid size-6 shrink-0 place-items-center rounded-full text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none"
-              aria-label="Close search"
-            >
-              <Icon name="close" className="size-3.5" />
-            </button>
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput('')}
+                className="grid size-5 shrink-0 place-items-center rounded-full text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none"
+                aria-label="Clear search"
+              >
+                <Icon name="close" className="size-3" />
+              </button>
+            )}
           </div>
-        ) : (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => setIsSearchOpen(true)}
-            className="task-search-trigger inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-app-border/80 bg-app-surface/75 text-app-muted shadow-xs backdrop-blur-xl transition-[color,border-color,background-color,box-shadow] hover:border-app-accent/50 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/50 disabled:opacity-50"
-            aria-label="Open task search"
-            title="Search tasks"
-          >
-            <Icon name="search" className="size-4" />
-          </button>
-        )}
-        {onCreateTask && (
-          <Button
-            type="button"
-            kind="primary"
-            disabled={disabled}
-            onClick={onCreateTask}
-            className="whitespace-nowrap px-3 py-1.5 text-xs font-semibold"
-          >
-            <span aria-hidden="true">+</span> Create Task
-          </Button>
-        )}
+          {onCreateTask && (
+            <Button
+              type="button"
+              kind="primary"
+              disabled={disabled}
+              onClick={onCreateTask}
+              className="!h-8 !py-0 !px-3.5 !text-xs font-semibold shrink-0 whitespace-nowrap inline-flex items-center justify-center rounded-lg"
+            >
+              <span aria-hidden="true" className="mr-1 text-sm leading-none">+</span> Create Task
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
