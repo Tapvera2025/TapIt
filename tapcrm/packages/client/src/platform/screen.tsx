@@ -7,6 +7,17 @@ import { ACCENT_COLORS, useTheme, type Theme } from '../theme/ThemeContext.js';
 import { Icon } from '../ui/Icon.js';
 import { GlobalFeatureSearch } from '../company/layout/GlobalFeatureSearch.js';
 import type { CompanySearchDestination } from '../company/layout/navigation.js';
+import {
+  validateField,
+  validateStep,
+  getFieldsForStep,
+  getStepForError,
+  COMPANY_TYPES,
+  INDUSTRIES,
+  TIMEZONES,
+  CURRENCIES,
+  COUNTRY_CODES,
+} from './validation.js';
 
 interface Organization {
   id: string;
@@ -438,42 +449,36 @@ function CompanyDetailsDialog({
     </div>
   );
 }
-const COUNTRY_CODES = ['+91', '+1', '+44', '+61', '+65', '+971'] as const;
-const TEN_DIGIT_PHONE = /^\d{10}$/;
-const COMPANY_CODE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
-const POSTAL_CODE = /^[A-Za-z0-9][A-Za-z0-9 -]{2,31}$/;
 const FORM_INPUT_CLASS =
-  'mt-2 block w-full rounded-[9px] border border-app-border bg-app-background px-[13px] py-3 text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20';
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
-function isValidUrl(value: string) {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
+  'mt-2 block w-full rounded-[9px] border bg-app-background px-[13px] py-3 text-app-foreground outline-none placeholder:text-app-muted focus:ring-[3px]';
 
 type FormErrors = {
   name?: string;
   code?: string;
-  companyEmail?: string;
+  legalCompanyName?: string;
+  companyType?: string;
+  industry?: string;
   website?: string;
+  companyEmail?: string;
   ownerFullName?: string;
+  ownerDesignation?: string;
   adminEmail?: string;
   ownerMobile?: string;
+  ownerAlternateNumber?: string;
   primaryPhone?: string;
   alternatePhone?: string;
   supportEmail?: string;
   addressLine1?: string;
+  addressLine2?: string;
   city?: string;
   state?: string;
   country?: string;
   postalCode?: string;
+  gstin?: string;
+  pan?: string;
+  registrationNumber?: string;
+  timezone?: string;
+  currency?: string;
   [key: string]: string | undefined;
 };
 
@@ -481,29 +486,45 @@ function validationMessage(field: string, issue: string) {
   const labels: Record<string, string> = {
     name: 'Company name',
     code: 'Company code',
+    legalCompanyName: 'Legal company name',
+    companyType: 'Company type',
+    industry: 'Industry',
     companyEmail: 'Company email',
     ownerFullName: 'Owner name',
+    ownerDesignation: 'Owner designation',
     adminEmail: 'Owner/admin email',
     ownerMobile: 'Mobile number',
+    ownerAlternateNumber: 'Alternate mobile number',
     primaryPhone: 'Primary phone',
+    alternatePhone: 'Alternate phone',
     addressLine1: 'Address line 1',
+    addressLine2: 'Address line 2',
     city: 'City',
     state: 'State',
     country: 'Country',
     postalCode: 'Postal code',
     website: 'Website',
     supportEmail: 'Support email',
+    gstin: 'GSTIN',
+    pan: 'PAN',
+    registrationNumber: 'Registration number',
+    timezone: 'Timezone',
+    currency: 'Currency',
   };
   const label = labels[field] ?? field;
-  if (
-    issue.toLowerCase().includes('required') ||
-    issue.toLowerCase().includes('too_small')
-  )
+  const lower = issue.toLowerCase();
+  if (lower.includes('required') || lower.includes('too_small'))
     return `${label} is required.`;
   if (field === 'code')
     return 'Company code can contain only letters, numbers, underscores, and hyphens.';
   if (field.toLowerCase().includes('email'))
     return `Enter a valid ${label.toLowerCase()}.`;
+  if (field.toLowerCase().includes('phone') || field.toLowerCase().includes('mobile'))
+    return `${label} must contain exactly 10 digits.`;
+  if (field === 'postalcode' || field === 'postalCode')
+    return 'Enter a valid postal code (3–32 letters, numbers, spaces or hyphens).';
+  if (field === 'gstin') return 'Enter a valid GSTIN / Tax ID.';
+  if (field === 'pan') return 'Enter a valid 10-character PAN (e.g. ABCDE1234F).';
   return issue;
 }
 
@@ -515,7 +536,13 @@ function apiFieldErrors(error: unknown): FormErrors {
         issues?: Array<{ path?: string[]; message?: string }>;
       }
     | undefined;
-  if (details?.fields) return details.fields;
+  if (details?.fields) {
+    const mapped: FormErrors = {};
+    for (const [key, msg] of Object.entries(details.fields)) {
+      mapped[key] = validationMessage(key, msg);
+    }
+    return mapped;
+  }
   return Object.fromEntries(
     (details?.issues ?? []).flatMap((issue) => {
       const field = issue.path?.[0];
@@ -637,7 +664,7 @@ function TextField({
         {required ? ' *' : ''}
       </span>
       <input
-        className={FORM_INPUT_CLASS}
+        className={`${FORM_INPUT_CLASS} ${error ? 'border-app-danger focus:border-app-danger focus:ring-app-danger/20' : 'border-app-border focus:border-app-accent focus:ring-app-accent/20'}`}
         type={type}
         value={value}
         placeholder={placeholder}
@@ -664,12 +691,14 @@ function SelectField({
   options,
   onChange,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
   options: readonly string[];
   onChange: (value: string) => void;
   required?: boolean;
+  error?: string | undefined;
 }) {
   return (
     <label className="block min-w-0">
@@ -678,10 +707,11 @@ function SelectField({
         {required ? ' *' : ''}
       </span>
       <select
-        className={`${FORM_INPUT_CLASS} cursor-pointer`}
+        className={`${FORM_INPUT_CLASS} cursor-pointer ${error ? 'border-app-danger focus:border-app-danger focus:ring-app-danger/20' : 'border-app-border focus:border-app-accent focus:ring-app-accent/20'}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
+        aria-invalid={Boolean(error)}
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -689,6 +719,11 @@ function SelectField({
           </option>
         ))}
       </select>
+      {error && (
+        <span className="mt-1 block text-xs text-app-danger" role="alert">
+          {error}
+        </span>
+      )}
     </label>
   );
 }
@@ -718,7 +753,7 @@ function PhoneField({
       </span>
       <div className="mt-2 grid grid-cols-[82px_minmax(0,1fr)] gap-2">
         <select
-          className={`${FORM_INPUT_CLASS} mt-0 cursor-pointer`}
+          className={`${FORM_INPUT_CLASS} mt-0 cursor-pointer border-app-border focus:border-app-accent focus:ring-app-accent/20`}
           value={countryCode}
           onChange={(event) => onCountryCodeChange(event.target.value)}
           aria-label={`${label} country code`}
@@ -730,7 +765,7 @@ function PhoneField({
           ))}
         </select>
         <input
-          className={`${FORM_INPUT_CLASS} mt-0`}
+          className={`${FORM_INPUT_CLASS} mt-0 ${error ? 'border-app-danger focus:border-app-danger focus:ring-app-danger/20' : 'border-app-border focus:border-app-accent focus:ring-app-accent/20'}`}
           type="tel"
           value={value}
           onChange={(event) =>
@@ -1275,6 +1310,20 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       );
       return;
     }
+
+    const allErrors: FormErrors = {};
+    const maxValidationStep = formMode === 'edit' ? 5 : 5;
+    for (let s = 0; s <= maxValidationStep; s++) {
+      Object.assign(allErrors, validateStep(s, form));
+    }
+    if (Object.keys(allErrors).length > 0) {
+      setFormErrors(allErrors);
+      const firstErrorStep = getStepForError(allErrors, formMode);
+      setFormStep(firstErrorStep);
+      setMessage('Please correct the highlighted fields before submitting.');
+      return;
+    }
+
     setBusy(true);
     setMessage('');
     setFormErrors({});
@@ -1334,6 +1383,10 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     } catch (err) {
       const fieldErrors = apiFieldErrors(err);
       setFormErrors(fieldErrors);
+      if (Object.keys(fieldErrors).length > 0) {
+        const errorStep = getStepForError(fieldErrors, formMode);
+        setFormStep(errorStep);
+      }
       setMessage(
         Object.keys(fieldErrors).length
           ? 'Please correct the highlighted fields.'
@@ -1415,64 +1468,31 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     setForm((current) => ({ ...current, [field]: value }));
     setFormErrors((current) => {
       if (!current[field]) return current;
+      const updatedForm = { ...form, [field]: value };
+      const fieldError = validateField(field, value, updatedForm);
       const next = { ...current };
-      delete next[field];
+      if (fieldError) {
+        next[field] = fieldError;
+      } else {
+        delete next[field];
+      }
       return next;
     });
   }
 
   function goNext() {
-    const requiredByStep = [
-      ['name', 'code', 'companyEmail'],
-      ['ownerFullName', 'adminEmail', 'ownerMobile'],
-      ['primaryPhone'],
-      ['addressLine1', 'city', 'state', 'country', 'postalCode'],
-      [],
-      [],
-    ] as const;
-    const errors: FormErrors = {};
-    for (const field of requiredByStep[formStep] ?? [])
-      if (!form[field].trim()) errors[field] = validationMessage(field, 'required');
-    if (formStep === 0) {
-      if (
-        form.code.trim() &&
-        (!COMPANY_CODE.test(form.code) || form.code.trim().length < 2)
-      )
-        errors['code'] = validationMessage('code', 'format');
-      if (form.companyEmail.trim() && !isValidEmail(form.companyEmail))
-        errors['companyEmail'] = validationMessage('companyEmail', 'format');
-      if (form.website.trim() && !isValidUrl(form.website))
-        errors['website'] = 'Enter a valid website URL.';
-    }
-    if (formStep === 1) {
-      if (form.ownerFullName.trim() && form.ownerFullName.trim().length < 2)
-        errors['ownerFullName'] = 'Owner name must contain at least 2 characters.';
-      if (form.adminEmail.trim() && !isValidEmail(form.adminEmail))
-        errors['adminEmail'] = validationMessage('adminEmail', 'format');
-      if (form.ownerMobile.trim() && !TEN_DIGIT_PHONE.test(form.ownerMobile))
-        errors['ownerMobile'] = 'Mobile number must contain exactly 10 digits.';
-    }
-    if (formStep === 2) {
-      if (form.primaryPhone.trim() && !TEN_DIGIT_PHONE.test(form.primaryPhone))
-        errors['primaryPhone'] = 'Primary phone must contain exactly 10 digits.';
-      if (form.alternatePhone && !TEN_DIGIT_PHONE.test(form.alternatePhone))
-        errors['alternatePhone'] = 'Alternate phone must contain exactly 10 digits.';
-      if (form.supportEmail && !isValidEmail(form.supportEmail))
-        errors['supportEmail'] = 'Enter a valid support email.';
-    }
-    if (formStep === 3) {
-      if (form.postalCode.trim() && !POSTAL_CODE.test(form.postalCode))
-        errors['postalCode'] = 'Enter a valid postal code.';
-      for (const field of ['addressLine1', 'city', 'state', 'country'] as const)
-        if (form[field].trim() && form[field].trim().length < 2)
-          errors[field] =
-            `${field === 'addressLine1' ? 'Address line 1' : field[0]!.toUpperCase() + field.slice(1)} must contain at least 2 characters.`;
-    }
-    setFormErrors(errors);
-    if (Object.keys(errors).length) {
+    const stepErrors = validateStep(formStep, form);
+    if (Object.keys(stepErrors).length > 0) {
+      setFormErrors((current) => ({ ...current, ...stepErrors }));
       setMessage('Please correct the highlighted fields before continuing.');
       return;
     }
+    const currentStepFields = getFieldsForStep(formStep);
+    setFormErrors((current) => {
+      const next = { ...current };
+      for (const f of currentStepFields) delete next[f];
+      return next;
+    });
     setMessage('');
     setFormStep((step) => Math.min(step + 1, formMode === 'edit' ? 5 : 6));
   }
@@ -1823,26 +1843,25 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             onChange={(legalCompanyName) =>
                               setFormField('legalCompanyName', legalCompanyName)
                             }
+                            error={formErrors.legalCompanyName}
                           />
                           <SelectField
                             label="Company Type"
                             value={form.companyType}
-                            options={['Private', 'Public', 'Partnership', 'LLC', 'Other']}
-                            onChange={(companyType) => setForm({ ...form, companyType })}
+                            options={COMPANY_TYPES}
+                            onChange={(companyType) =>
+                              setFormField('companyType', companyType)
+                            }
+                            error={formErrors.companyType}
+                            required
                           />
                           <SelectField
                             label="Industry"
                             value={form.industry}
-                            options={[
-                              'IT / Software',
-                              'Finance',
-                              'Healthcare',
-                              'Education',
-                              'Retail',
-                              'Manufacturing',
-                              'Other',
-                            ]}
-                            onChange={(industry) => setForm({ ...form, industry })}
+                            options={INDUSTRIES}
+                            onChange={(industry) => setFormField('industry', industry)}
+                            error={formErrors.industry}
+                            required
                           />
                           <TextField
                             label="Website"
@@ -1884,8 +1903,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             label="Designation"
                             value={form.ownerDesignation}
                             onChange={(ownerDesignation) =>
-                              setForm({ ...form, ownerDesignation })
+                              setFormField('ownerDesignation', ownerDesignation)
                             }
+                            error={formErrors.ownerDesignation}
                           />
                           <TextField
                             label="Email"
@@ -1915,11 +1935,12 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             value={form.ownerAlternateNumber}
                             countryCode={form.phoneCountryCode}
                             onChange={(ownerAlternateNumber) =>
-                              setForm({ ...form, ownerAlternateNumber })
+                              setFormField('ownerAlternateNumber', ownerAlternateNumber)
                             }
                             onCountryCodeChange={(phoneCountryCode) =>
-                              setForm({ ...form, phoneCountryCode })
+                              setFormField('phoneCountryCode', phoneCountryCode)
                             }
+                            error={formErrors.ownerAlternateNumber}
                           />
                         </div>
                       </div>
@@ -1948,11 +1969,12 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             value={form.alternatePhone}
                             countryCode={form.phoneCountryCode}
                             onChange={(alternatePhone) =>
-                              setForm({ ...form, alternatePhone })
+                              setFormField('alternatePhone', alternatePhone)
                             }
                             onCountryCodeChange={(phoneCountryCode) =>
-                              setForm({ ...form, phoneCountryCode })
+                              setFormField('phoneCountryCode', phoneCountryCode)
                             }
+                            error={formErrors.alternatePhone}
                           />
                           <TextField
                             label="Support Email"
@@ -1985,8 +2007,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             label="Address Line 2"
                             value={form.addressLine2}
                             onChange={(addressLine2) =>
-                              setForm({ ...form, addressLine2 })
+                              setFormField('addressLine2', addressLine2)
                             }
+                            error={formErrors.addressLine2}
                           />
                           <TextField
                             label="City"
@@ -2030,19 +2053,22 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           <TextField
                             label="GSTIN / Tax ID"
                             value={form.gstin}
-                            onChange={(gstin) => setForm({ ...form, gstin })}
+                            onChange={(gstin) => setFormField('gstin', gstin)}
+                            error={formErrors.gstin}
                           />
                           <TextField
                             label="PAN / Business ID"
                             value={form.pan}
-                            onChange={(pan) => setForm({ ...form, pan })}
+                            onChange={(pan) => setFormField('pan', pan)}
+                            error={formErrors.pan}
                           />
                           <TextField
                             label="Registration Number"
                             value={form.registrationNumber}
                             onChange={(registrationNumber) =>
-                              setForm({ ...form, registrationNumber })
+                              setFormField('registrationNumber', registrationNumber)
                             }
+                            error={formErrors.registrationNumber}
                           />
                         </div>
                       </div>
@@ -2060,22 +2086,17 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           <SelectField
                             label="Timezone"
                             value={form.timezone}
-                            options={[
-                              'Asia/Kolkata',
-                              'UTC',
-                              'America/New_York',
-                              'Europe/London',
-                              'Asia/Dubai',
-                              'Asia/Singapore',
-                            ]}
-                            onChange={(timezone) => setForm({ ...form, timezone })}
+                            options={TIMEZONES}
+                            onChange={(timezone) => setFormField('timezone', timezone)}
+                            error={formErrors.timezone}
                             required
                           />
                           <SelectField
                             label="Currency"
                             value={form.currency}
-                            options={['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']}
-                            onChange={(currency) => setForm({ ...form, currency })}
+                            options={CURRENCIES}
+                            onChange={(currency) => setFormField('currency', currency)}
+                            error={formErrors.currency}
                             required
                           />
                         </div>
