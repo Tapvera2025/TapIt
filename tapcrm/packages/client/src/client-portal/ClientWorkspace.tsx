@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import { AiPetButton } from '../company/layout/AiPet.js';
 import { CompanySidebar } from '../company/layout/CompanySidebar.js';
+import { Navbar } from '../company/layout/Navbar.js';
 import { SettingsPage } from '../company/settings/SettingsPage.js';
-import { ThemeToggle } from '../theme/ThemeToggle.js';
-import { BrandLogo } from '../ui/BrandLogo.js';
-import { Icon } from '../ui/Icon.js';
 import { isNotAClientError } from './api/portalApi.js';
 import { listClientProjectDiscussions } from './api/projectDiscussionApi.js';
 import { CLIENT_CHAT_UNREAD_CHANGED_EVENT } from './useClientMessages.js';
@@ -15,7 +12,6 @@ import { ClientProjectPage } from './pages/ClientProjectPage.js';
 import { ClientProjectsPage } from './pages/ClientProjectsPage.js';
 import { ClientMessagesPage } from './pages/ClientMessagesPage.js';
 import { identityApiBasePath, getIdentityAccessToken } from '../identity/api/authApi.js';
-import { GlobalFeatureSearch } from '../company/layout/GlobalFeatureSearch.js';
 import type { CompanySearchDestination } from '../company/layout/navigation.js';
 
 const clientSearchDestinations: readonly CompanySearchDestination[] = [
@@ -69,9 +65,7 @@ export function ClientWorkspace({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(256);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [clientMessagesUnread, setClientMessagesUnread] = useState(0);
-  const accountRef = useRef<HTMLDivElement>(null);
   const mainScrollRef = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
@@ -150,24 +144,6 @@ export function ClientWorkspace({
   else if (pathname === '/client/settings') page = <SettingsPage />;
   else page = <ClientDashboardPage onNavigate={onNavigate} onError={handleError} />;
 
-  useEffect(() => {
-    if (!accountOpen) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if ((event.target as Element | null)?.closest('[data-ai-pet-picker]')) return;
-      if (accountRef.current && !accountRef.current.contains(event.target as Node))
-        setAccountOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setAccountOpen(false);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [accountOpen]);
-
   const toggleSidebar = () => {
     if (window.matchMedia('(min-width: 1280px)').matches)
       setSidebarCollapsed((collapsed) => !collapsed);
@@ -190,109 +166,17 @@ export function ClientWorkspace({
         aria-hidden={!sidebarOpen}
         tabIndex={sidebarOpen ? 0 : -1}
       />
-      <header className="global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl xl:top-4 xl:mx-5 xl:mt-4 xl:rounded-2xl xl:border">
-        <div className="flex h-full min-w-0 items-center gap-2 px-2 sm:gap-3 sm:px-5">
-          <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2 lg:gap-1">
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              className="navbar-action-button inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
-              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Toggle navigation'}
-              aria-expanded={sidebarOpen || !sidebarCollapsed}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Toggle navigation'}
-            >
-              <Icon name={sidebarOpen ? 'close' : 'menu'} className="size-4" />
-            </button>
-            <a
-              href="/client"
-              onClick={(event) => {
-                event.preventDefault();
-                onNavigate('/client');
-              }}
-              className="navbar-brand-mark -ml-1 lg:-ml-1.5 inline-flex h-9 shrink-0 items-center px-0"
-              aria-label="Tapvera CRM client portal"
-            >
-              <BrandLogo className="navbar-brand" />
-            </a>
-          </div>
-
-          <GlobalFeatureSearch
-            destinations={clientSearchDestinations}
-            onNavigate={onNavigate}
-          />
-
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <ThemeToggle compact className="global-navbar-theme-toggle" />
-            <div ref={accountRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setAccountOpen((open) => !open)}
-                className="flex h-9 items-center gap-2 rounded-xl border border-app-border bg-app-surface-raised px-1.5 pr-2 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 sm:pr-2.5"
-                aria-label="Open client account menu"
-                aria-haspopup="menu"
-                aria-expanded={accountOpen}
-              >
-                <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-app-accent/15 text-[10px] font-bold text-app-accent ring-1 ring-inset ring-app-accent/20">
-                  C
-                </span>
-                <span className="hidden min-w-0 lg:block">
-                  <span className="block max-w-32 truncate text-xs font-semibold text-app-foreground">
-                    Client workspace
-                  </span>
-                  <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-app-muted">
-                    Portal
-                  </span>
-                </span>
-                <Icon
-                  name="chevron-down"
-                  className="hidden size-3 text-app-muted lg:block"
-                />
-              </button>
-              {accountOpen && (
-                <div
-                  className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
-                  role="menu"
-                >
-                  <p className="border-b border-app-border px-3 py-2.5 text-sm font-semibold text-app-foreground">
-                    Client workspace
-                  </p>
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                    <span className="text-xs font-semibold text-app-muted">
-                      AI companion
-                    </span>
-                    <AiPetButton
-                      wrapperClassName="navbar-account-pet"
-                      className="size-8 !p-0"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setAccountOpen(false);
-                      onNavigate('/client/settings');
-                    }}
-                    className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
-                  >
-                    <Icon name="settings" className="size-4" /> Settings
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setAccountOpen(false);
-                      onLogout();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10"
-                  >
-                    <Icon name="logout" className="size-4" /> Sign out
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <Navbar
+        identity={{ fullName: 'Client workspace', email: '', accountType: 'client' }}
+        organizationName={null}
+        sidebarCollapsed={sidebarCollapsed}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={toggleSidebar}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        searchDestinations={clientSearchDestinations}
+        settingsPath="/client/settings"
+      />
 
       <div className="flex min-h-0 flex-1">
         <CompanySidebar

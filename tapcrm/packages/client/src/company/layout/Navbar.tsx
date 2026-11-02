@@ -28,6 +28,7 @@ export function Navbar({
   onNavigate,
   onLogout,
   searchDestinations,
+  settingsPath = '/company/settings',
 }: {
   identity: { fullName: string; email: string; accountType?: string };
   organizationName: string | null;
@@ -37,6 +38,7 @@ export function Navbar({
   onNavigate: (path: string) => void;
   onLogout: () => void;
   searchDestinations: readonly CompanySearchDestination[];
+  settingsPath?: string;
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -150,7 +152,7 @@ export function Navbar({
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => navigateFromMenu('/company/settings')}
+                  onClick={() => navigateFromMenu(settingsPath)}
                   className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
                 >
                   <Icon name="settings" className="size-4" /> Settings
