@@ -180,14 +180,14 @@ function PlatformKpiCard({
           <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-app-accent/35 bg-transparent text-app-accent">
             <Icon name={meta.icon} className="size-5" />
           </span>
-          <div className="min-w-0 max-[700px]:flex-1">
+          <div className="min-w-0">
             <p className="max-w-[14rem] whitespace-normal break-words text-xs font-semibold leading-4 text-app-foreground">
               {meta.label}
             </p>
             <strong className="mt-0.5 block font-display text-2xl font-bold tracking-tight text-app-foreground">
               {value}
             </strong>
-            <p className="mt-0.5 max-w-[14rem] text-[11px] leading-4 text-app-muted max-[700px]:ml-auto max-[700px]:text-right">
+            <p className="mt-0.5 max-w-[14rem] text-[11px] leading-4 text-app-muted">
               {meta.description}
             </p>
           </div>
@@ -1619,7 +1619,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setMobileNavOpen((open) => !open)}
-          className="col-start-1 row-start-1 grid size-8 shrink-0 place-items-center rounded-lg border border-app-border bg-app-background text-app-foreground transition hover:border-app-accent hover:text-app-accent min-[851px]:hidden"
+          className="col-start-1 row-start-1 grid size-8 shrink-0 place-items-center rounded-lg border border-app-border bg-app-background text-app-foreground transition hover:border-app-accent hover:text-app-accent min-[851px]:hidden max-[700px]:hidden"
           aria-label={
             mobileNavOpen ? 'Close platform navigation' : 'Open platform navigation'
           }
@@ -1628,7 +1628,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
         >
           <Icon name={mobileNavOpen ? 'close' : 'menu'} className="size-4" />
         </button>
-        <div className="col-start-2 row-start-1 flex min-w-0 items-center min-[851px]:col-start-1">
+        <div className="col-start-2 row-start-1 flex min-w-0 items-center min-[851px]:col-start-1 max-[700px]:col-start-1">
           <BrandLogo className="w-[145px] max-[850px]:w-[128px] max-[560px]:w-[108px]" />
         </div>
         <div className="col-start-1 col-span-3 row-start-2 min-w-0 min-[851px]:col-start-2 min-[851px]:col-span-1 min-[851px]:row-start-1">
@@ -1696,7 +1696,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
 
               </div>
             </div>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-[14px] max-[560px]:gap-[10px]">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-[14px] max-[700px]:grid-cols-2 max-[560px]:gap-[10px]">
               {Object.entries(stats).map(([k, v]) => (
                 <PlatformKpiCard key={k} statKey={k} value={v} />
               ))}
