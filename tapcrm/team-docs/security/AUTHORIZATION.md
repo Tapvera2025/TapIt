@@ -198,6 +198,7 @@
 | `accounting:tax-export` | accounting | — | business | yes | no | — | yes | no | no |
 | `accounting:view-finance-settings` | accounting | — | business | yes | no | — | yes | no | no |
 | `accounting:manage-finance-settings` | accounting | — | business | yes | no | — | no | no | yes |
+| `finance:manage-payment-gateways` | accounting | — | business | yes | no | — | yes | no | no |
 | `clients:view` | clients | client | business | no | no | — | yes | yes | no |
 | `clients:manage` | clients | client | business | yes | no | — | yes | no | no |
 | `clients:manage-requests` | clients | clientRequest | business | no | no | — | yes | yes | no |
@@ -722,6 +723,10 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/accounting/tax/artifacts/:id/download | `accounting:tax-export` | — |
 | GET | /api/finance/foundation | `accounting:view-finance-settings` | — |
 | PATCH | /api/finance/foundation | `accounting:manage-finance-settings` | — |
+| GET | /api/finance/payment-gateways | `finance:manage-payment-gateways` | — |
+| POST | /api/finance/payment-gateways | `finance:manage-payment-gateways` | — |
+| DELETE | /api/finance/payment-gateways/:id | `finance:manage-payment-gateways` | — |
+| POST | /api/finance/payments/create-link | `finance:manage-payment-gateways` | — |
 | GET | /api/billing/profiles | `billing:view-terms` | — |
 | PUT | /api/billing/profiles | `billing:set-terms` | — |
 | POST | /api/billing/rate-cards/:id/versions | `billing:set-terms` | — |

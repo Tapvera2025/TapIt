@@ -270,6 +270,7 @@ export function CompanyWorkspace({
     '/company/my-interviews': 'My Interviews',
     '/company/recruitment/my-interviews': 'My Interviews',
   };
+  const companyOrganizationId = identity.organization?.id ?? '';
   const isEmployees = pathname === '/company/employees';
   const title = isOrganization
     ? 'Organization'
@@ -290,7 +291,7 @@ export function CompanyWorkspace({
 
   function renderContent(): React.JSX.Element {
     if (pathname === '/company/finance/settings' && canViewFinanceFoundation) {
-      return <FinanceFoundationPage />;
+      return <FinanceFoundationPage organizationId={companyOrganizationId} />;
     }
     if (pathname === '/company/finance/billing' && canViewBillingTerms) {
       return <BillingTermsPage />;

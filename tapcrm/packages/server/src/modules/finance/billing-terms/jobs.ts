@@ -36,10 +36,10 @@ export function registerBillingTermsJobs(): BillingTermsJobs {
           RETURNING id
         `);
         for (const row of renewed) {
-          await tx.query(sql`INSERT INTO audit_outbox (organization_id, stream, payload) VALUES (${ctx.organizationId}, 'finance', ${JSON.stringify({ action:'billing.contract.auto_renewed', actorId:ctx.principal.id, actorType:ctx.principal.accountType, targetType:'financeCommercial', targetId:row.id, after:{ endDate:row.endDate, termMonths:row.term }, reason:'Scheduled contract lifecycle renewal', requestId:ctx.requestId, sourceIp:null })}::jsonb)`);
+          await tx.query(sql`INSERT INTO audit_outbox (organization_id, stream, payload) VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({ action:'billing.contract.auto_renewed', actorId:ctx.principal.id, actorType:ctx.principal.accountType, targetType:'financeCommercial', targetId:row.id, after:{ endDate:row.endDate, termMonths:row.term }, reason:'Scheduled contract lifecycle renewal', requestId:ctx.requestId, sourceIp:null })}::jsonb)`);
         }
         for (const row of expired) {
-          await tx.query(sql`INSERT INTO audit_outbox (organization_id, stream, payload) VALUES (${ctx.organizationId}, 'finance', ${JSON.stringify({ action:'billing.contract.expired', actorId:ctx.principal.id, actorType:ctx.principal.accountType, targetType:'financeCommercial', targetId:row.id, after:{ status:'expired' }, reason:'Scheduled contract lifecycle expiry', requestId:ctx.requestId, sourceIp:null })}::jsonb)`);
+          await tx.query(sql`INSERT INTO audit_outbox (organization_id, stream, payload) VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({ action:'billing.contract.expired', actorId:ctx.principal.id, actorType:ctx.principal.accountType, targetType:'financeCommercial', targetId:row.id, after:{ status:'expired' }, reason:'Scheduled contract lifecycle expiry', requestId:ctx.requestId, sourceIp:null })}::jsonb)`);
         }
         const candidates = await tx.query<{ id:string }>(sql`
           INSERT INTO finance_billable_event (organization_id, client_id, contract_id, source_type, source_id, service_key, event_date, currency, quantity, amount, idempotency_key, created_by)

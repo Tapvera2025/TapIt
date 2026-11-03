@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Loading, Notice, Page } from '../../../ui/components.js';
 import { getFinanceFoundation, updateFinanceFoundation, type FinanceFoundation } from './foundationApi.js';
+import { PaymentGatewaysCard } from '../payments/PaymentGatewaysCard.js';
 
 const messageOf = (error: unknown) => error instanceof Error ? error.message : 'Unable to complete the Finance settings request.';
 
-export function FinanceFoundationPage(): React.JSX.Element {
+export function FinanceFoundationPage({ organizationId }: { organizationId: string }): React.JSX.Element {
   const [data, setData] = useState<FinanceFoundation | null>(null);
   const [legalName, setLegalName] = useState('');
   const [countryCode, setCountryCode] = useState('IN');
@@ -81,6 +82,7 @@ export function FinanceFoundationPage(): React.JSX.Element {
         <label className="mt-5 block text-sm font-semibold">Reason for change<textarea className="mt-2 min-h-24 w-full rounded-xl border border-app-border bg-app-surface px-3 py-2.5 font-normal" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required for every change" /></label>
         <div className="mt-5 flex justify-end"><Button type="button" onClick={() => void save()} disabled={saving || !reason.trim()}>{saving ? 'Saving…' : 'Save settings'}</Button></div>
       </Card>
+      <div className="mt-6"><PaymentGatewaysCard organizationId={organizationId} /></div>
     </Page>
   );
 }

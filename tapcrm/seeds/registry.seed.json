@@ -1066,6 +1066,21 @@
       "description": ""
     },
     {
+      "action": "finance:manage-payment-gateways",
+      "module": "accounting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "handoff:confirm",
       "module": "handoff",
       "resource": "projectBrief",
@@ -5715,6 +5730,30 @@
       "method": "PATCH",
       "path": "/api/finance/foundation",
       "action": "accounting:manage-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/finance/payment-gateways",
+      "action": "finance:manage-payment-gateways",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/finance/payment-gateways",
+      "action": "finance:manage-payment-gateways",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/finance/payment-gateways/:id",
+      "action": "finance:manage-payment-gateways",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/finance/payments/create-link",
+      "action": "finance:manage-payment-gateways",
       "resourceParam": null
     },
     {

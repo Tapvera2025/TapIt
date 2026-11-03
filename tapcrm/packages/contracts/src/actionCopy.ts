@@ -159,6 +159,10 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'See financial statements',
     description: 'See the profit and loss, balance sheet and similar statements.',
   },
+  'finance:manage-payment-gateways': {
+    title: 'Manage payment gateways',
+    description: 'Connect and disconnect the company payment provider securely.',
+  },
 
   // Clients (accounts)
   'accounts:manage-ownership': {

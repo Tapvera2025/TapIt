@@ -7,7 +7,7 @@ import type { ProfileInput, RateCardInput, RateCardVersionInput, ContractInput, 
 import { readContractDocument, storeContractDocument, removeContractDocument } from './file-store.js';
 
 async function audit(ctx: RequestContext, action: string, targetId: string, before: unknown, after: unknown, reason: string, tx: Tx) {
-  await tx.query(sql`INSERT INTO audit_outbox (organization_id, stream, payload) VALUES (${ctx.organizationId}, 'finance', ${JSON.stringify({ action, actorId: ctx.principal.id, actorType: ctx.principal.accountType, targetType: 'financeCommercial', targetId, before, after, reason, requestId: ctx.requestId, sourceIp: ctx.sourceIp })}::jsonb)`);
+  await tx.query(sql`INSERT INTO audit_outbox (organization_id, stream, payload) VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({ action, actorId: ctx.principal.id, actorType: ctx.principal.accountType, targetType: 'financeCommercial', targetId, before, after, reason, requestId: ctx.requestId, sourceIp: ctx.sourceIp })}::jsonb)`);
 }
 
 export const getProfiles = (ctx: RequestContext) => repo.listProfiles(ctx);

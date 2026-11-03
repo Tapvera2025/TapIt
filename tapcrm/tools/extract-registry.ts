@@ -114,6 +114,9 @@ const NAMESPACE_TO_MODULE: Record<string, string> = {
   status: 'live-status',
   portal: 'client-portal',
   brief: 'handoff',
+  // Finance gateway administration is intentionally owned by the accounting
+  // entitlement until the remaining finance service modules are delivered.
+  finance: 'accounting',
 };
 
 function moduleForNamespace(ns: string): string | undefined {
