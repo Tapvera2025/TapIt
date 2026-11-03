@@ -38,6 +38,7 @@ export interface SearchAnalyticsRequest {
   readonly dimensions: readonly SearchConsoleDimension[];
   readonly filters?: readonly SearchAnalyticsFilter[];
   readonly rowLimit?: number;
+  readonly startRow?: number;
 }
 
 export interface SearchAnalyticsRow {
@@ -120,6 +121,7 @@ export async function querySearchAnalytics(
         endDate: request.endDate,
         dimensions: request.dimensions,
         rowLimit: Math.min(request.rowLimit ?? MAX_ROWS, MAX_ROWS),
+        ...(request.startRow === undefined ? {} : { startRow: request.startRow }),
         type: 'web',
         ...(filters.length === 0 ? {} : { dimensionFilterGroups: [{ groupType: 'and', filters }] }),
       },

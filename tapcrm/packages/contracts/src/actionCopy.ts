@@ -465,16 +465,29 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   },
 
   // Leads
-  'leads:claim': { title: 'Claim leads', description: 'Pick up a lead from the bidding pool.' },
+  'leads:claim': {
+    title: 'Claim leads',
+    description: 'Pick up a lead from the bidding pool.',
+  },
   'leads:create': { title: 'Add leads', description: 'Add new sales leads.' },
   'leads:edit': { title: 'Edit leads', description: 'Change the details of leads.' },
-  'leads:pass': { title: 'Pass on bid-pool leads', description: 'Decline a lead in the bidding pool with a reason.' },
+  'leads:pass': {
+    title: 'Pass on bid-pool leads',
+    description: 'Decline a lead in the bidding pool with a reason.',
+  },
   'leads:reassign': {
     title: 'Reassign leads',
     description: 'Move leads from one salesperson to another.',
   },
-  'leads:reassign-with-credit': { title: 'Reassign leads and move sourcing credit', description: 'Reassign a lead and also transfer the originating-agent credit to the new owner.' },
-  'leads:rescue-from-triage': { title: 'Rescue leads from triage', description: 'Assign a lead that failed routing to a specific agent.' },
+  'leads:reassign-with-credit': {
+    title: 'Reassign leads and move sourcing credit',
+    description:
+      'Reassign a lead and also transfer the originating-agent credit to the new owner.',
+  },
+  'leads:rescue-from-triage': {
+    title: 'Rescue leads from triage',
+    description: 'Assign a lead that failed routing to a specific agent.',
+  },
   'leads:view': { title: 'See leads', description: 'See sales leads.' },
 
   // Leave
@@ -660,25 +673,83 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   },
 
   // Recruitment
-  'recruitment:manage-candidate-rounds': { title: 'Manage interview rounds', description: 'Assign interviewers and pass/fail candidates through pipeline rounds.' },
-  'recruitment:manage-candidates': { title: 'Manage candidates', description: 'Add candidates, upload CVs, screen them and mark them as hired.' },
-  'recruitment:manage-email-templates': { title: 'Manage email templates', description: 'Create and edit joining email templates.' },
-  'recruitment:manage-interviews': { title: 'Manage interviews', description: 'Schedule and reschedule interviews, and record feedback and decisions.' },
-  'recruitment:manage-joining': { title: 'Manage joining', description: "Track new hires' joining dates and paperwork." },
-  'recruitment:manage-links': { title: 'Manage job application links', description: 'Create and switch off the public links candidates use to apply.' },
-  'recruitment:manage-offers': { title: 'Make job offers', description: 'Create job offers and track their status.' },
-  'recruitment:manage-pipeline': { title: 'Manage interview pipeline', description: 'Create and reorder interview rounds for job posts.' },
-  'recruitment:manage-requisitions': { title: 'Open job positions', description: 'Create and close hiring requests (requisitions).' },
-  'recruitment:manage-submissions': { title: 'Review applications', description: 'Review CVs sent through application links and turn them into candidates.' },
-  'recruitment:send-joining-email': { title: 'Send joining email', description: 'Send the joining confirmation email to an accepted candidate.' },
-  'recruitment:submit-round-feedback': { title: 'Submit interview feedback', description: 'Submit interview notes and recommendation as an assigned interviewer.' },
-  'recruitment:view-candidate-events': { title: 'See candidate timeline', description: 'View the full activity timeline for a candidate.' },
-  'recruitment:view-candidates': { title: 'See candidates', description: 'See candidates and their CVs.' },
-  'recruitment:view-interviews': { title: 'See interviews', description: 'See scheduled interviews and feedback.' },
-  'recruitment:view-joining': { title: 'See joining status', description: "See new hires' joining progress." },
-  'recruitment:view-metrics': { title: 'See hiring numbers', description: 'See the recruitment pipeline and hiring figures.' },
-  'recruitment:view-offers': { title: 'See job offers', description: 'See job offers and their status.' },
-  'recruitment:view-requisitions': { title: 'See open job positions', description: 'See hiring requests (requisitions).' },
+  'recruitment:manage-candidate-rounds': {
+    title: 'Manage interview rounds',
+    description: 'Assign interviewers and pass/fail candidates through pipeline rounds.',
+  },
+  'recruitment:manage-candidates': {
+    title: 'Manage candidates',
+    description: 'Add candidates, upload CVs, screen them and mark them as hired.',
+  },
+  'recruitment:manage-email-templates': {
+    title: 'Manage email templates',
+    description: 'Create and edit joining email templates.',
+  },
+  'recruitment:manage-interviews': {
+    title: 'Manage interviews',
+    description: 'Schedule and reschedule interviews, and record feedback and decisions.',
+  },
+  'recruitment:manage-joining': {
+    title: 'Manage joining',
+    description: "Track new hires' joining dates and paperwork.",
+  },
+  'recruitment:manage-links': {
+    title: 'Manage job application links',
+    description: 'Create and switch off the public links candidates use to apply.',
+  },
+  'recruitment:manage-offers': {
+    title: 'Make job offers',
+    description: 'Create job offers and track their status.',
+  },
+  'recruitment:manage-pipeline': {
+    title: 'Manage interview pipeline',
+    description: 'Create and reorder interview rounds for job posts.',
+  },
+  'recruitment:manage-requisitions': {
+    title: 'Open job positions',
+    description: 'Create and close hiring requests (requisitions).',
+  },
+  'recruitment:manage-submissions': {
+    title: 'Review applications',
+    description:
+      'Review CVs sent through application links and turn them into candidates.',
+  },
+  'recruitment:send-joining-email': {
+    title: 'Send joining email',
+    description: 'Send the joining confirmation email to an accepted candidate.',
+  },
+  'recruitment:submit-round-feedback': {
+    title: 'Submit interview feedback',
+    description: 'Submit interview notes and recommendation as an assigned interviewer.',
+  },
+  'recruitment:view-candidate-events': {
+    title: 'See candidate timeline',
+    description: 'View the full activity timeline for a candidate.',
+  },
+  'recruitment:view-candidates': {
+    title: 'See candidates',
+    description: 'See candidates and their CVs.',
+  },
+  'recruitment:view-interviews': {
+    title: 'See interviews',
+    description: 'See scheduled interviews and feedback.',
+  },
+  'recruitment:view-joining': {
+    title: 'See joining status',
+    description: "See new hires' joining progress.",
+  },
+  'recruitment:view-metrics': {
+    title: 'See hiring numbers',
+    description: 'See the recruitment pipeline and hiring figures.',
+  },
+  'recruitment:view-offers': {
+    title: 'See job offers',
+    description: 'See job offers and their status.',
+  },
+  'recruitment:view-requisitions': {
+    title: 'See open job positions',
+    description: 'See hiring requests (requisitions).',
+  },
 
   // Renewals
   'renewals:view': {
@@ -788,6 +859,142 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   'territories:view': {
     title: 'See sales territories',
     description: 'See territories and who covers them.',
+  },
+
+  // SEO Intelligence
+  'seo:list-sites': { title: 'View SEO sites', description: 'See registered SEO sites.' },
+  'seo:read-content': {
+    title: 'Read assigned content',
+    description:
+      'Read assigned drafts, briefs, history and brand guidance within permitted clients.',
+  },
+  'seo:create-content': {
+    title: 'Create content',
+    description: 'Create briefs and drafts for permitted websites.',
+  },
+  'seo:edit-content': {
+    title: 'Edit assigned content',
+    description:
+      'Save and restore drafts, choose reviewers and submit content for review.',
+  },
+  'seo:comment-content': {
+    title: 'Comment on content drafts',
+    description:
+      'Add anchored review comments and editorial suggestions to assigned content drafts.',
+  },
+  'seo:review-content': {
+    title: 'Review assigned content',
+    description:
+      'Approve an exact version or request changes. Writers cannot approve their own work.',
+  },
+  'seo:export-content': {
+    title: 'Export assigned content',
+    description: 'Download a saved draft as text with an audit record.',
+  },
+  'seo:manage-content-brand': {
+    title: 'Manage brand guidance',
+    description:
+      'Create versioned brand guidance for permitted clients or standalone websites.',
+  },
+  'seo:create-site': {
+    title: 'Add SEO site',
+    description: 'Register a new domain for SEO tracking.',
+  },
+  'seo:read-site': {
+    title: 'View SEO site detail',
+    description: 'See a specific SEO site.',
+  },
+  'seo:update-site': { title: 'Edit SEO site', description: 'Update SEO site settings.' },
+  'seo:list-scans': {
+    title: 'View scan history',
+    description: 'See audit scan runs for a site.',
+  },
+  'seo:trigger-scan': {
+    title: 'Run audit scan',
+    description: 'Start a new SEO audit scan.',
+  },
+  'seo:read-scan': {
+    title: 'View scan details',
+    description: 'See a specific scan run.',
+  },
+  'seo:list-findings': {
+    title: 'View audit findings',
+    description: 'See SEO issues found by scans.',
+  },
+  'seo:read-finding': {
+    title: 'View finding detail',
+    description: 'See a specific SEO finding.',
+  },
+  'seo:update-finding': {
+    title: 'Update finding',
+    description: 'Dismiss or assign a finding.',
+  },
+  'seo:read-search-performance': {
+    title: 'View search performance',
+    description: 'See GSC metrics.',
+  },
+  'seo:sync-search-performance': {
+    title: 'Sync search performance',
+    description: 'Pull latest GSC data.',
+  },
+  'seo:list-keywords': {
+    title: 'View keywords',
+    description: 'See tracked keyword sets for a site.',
+  },
+  'seo:read-rank-tracking': {
+    title: 'View rank tracking',
+    description: 'See SERP position history for tracked keywords.',
+  },
+  'seo:read-ai-visibility': {
+    title: 'View AI visibility',
+    description: 'See AI search platform observations for a site.',
+  },
+  'seo:read-backlinks': {
+    title: 'View backlinks',
+    description: 'See inbound link data for a site.',
+  },
+  'seo:read-cwv': {
+    title: 'View Core Web Vitals',
+    description: 'See CrUX CWV observations for a site.',
+  },
+  'seo:list-fixes': {
+    title: 'View fix proposals',
+    description: 'See AI-generated fix suggestions for audit findings.',
+  },
+  'seo:update-fix': {
+    title: 'Apply or reject fix',
+    description: 'Mark a fix proposal as applied or rejected.',
+  },
+  'seo:list-alerts': {
+    title: 'View monitoring alerts',
+    description: 'See regression and critical-issue alerts.',
+  },
+  'seo:acknowledge-alert': {
+    title: 'Acknowledge alert',
+    description: 'Mark a monitoring alert as acknowledged.',
+  },
+  'seo:export-report': {
+    title: 'Export SEO report',
+    description:
+      'Download a PDF summary of findings, Core Web Vitals and search performance for a site.',
+  },
+  'seo:list-finding-groups': {
+    title: 'View grouped findings',
+    description:
+      'See audit findings collapsed by rule so a template bug on many pages shows as one group.',
+  },
+  'seo:read-findings-trend': {
+    title: 'View findings trend',
+    description:
+      'See open findings over time, split by severity, for the Overview chart.',
+  },
+  'seo:list-rules': {
+    title: 'View SEO rules',
+    description: 'See the active rule catalogue and configuration.',
+  },
+  'seo:update-rule': {
+    title: 'Toggle SEO rule',
+    description: 'Enable or disable an individual SEO audit rule.',
   },
 
   // Employees

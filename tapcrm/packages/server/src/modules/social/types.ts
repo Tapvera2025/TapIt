@@ -8,14 +8,53 @@ import type {
 } from '@tapcrm/contracts';
 import type { ProviderAccount } from './providers/types.js';
 
-export interface AccountRow extends Omit<SocialAccount, 'connectedAt' | 'lastSyncedAt'> {
+export interface AccountRow extends Omit<
+  SocialAccount,
+  'connectedAt' | 'lastSyncedAt' | 'connectionScope'
+> {
   organizationId: string;
   connectionId: string;
+  /** The connection's client; null when the account uses a company-wide connection. */
+  connectionClientId: string | null;
+  /** The company location this account was assigned from, if any. */
+  locationId: string | null;
   connectedAt: Date;
   lastSyncedAt: Date | null;
   metadata: Record<string, unknown>;
   credentialsEncrypted: string | null;
   expiresAt: Date | null;
+}
+/** A social_connection row. `clientId` is null for a company-wide connection. */
+export interface ConnectionRow {
+  id: string;
+  organizationId: string;
+  clientId: string | null;
+  platform: SocialPlatform;
+  credentialsEncrypted: string | null;
+  scopes: string[];
+  expiresAt: Date | null;
+  status: SocialAccount['status'];
+  externalAccountId: string | null;
+  externalAccountEmail: string | null;
+  lastDiscoveredAt: Date | null;
+  lastError: string | null;
+  createdBy: string;
+  createdAt: Date;
+}
+/** A social_connection_location row: a location a company connection can manage. */
+export interface LocationRow {
+  id: string;
+  organizationId: string;
+  connectionId: string;
+  platform: SocialPlatform;
+  externalId: string;
+  name: string;
+  profileImageUrl: string | null;
+  capabilities: string[];
+  metadata: Record<string, unknown>;
+  status: 'available' | 'missing';
+  firstSeenAt: Date;
+  lastSeenAt: Date;
 }
 export interface MediaRow extends Omit<
   SocialMedia,

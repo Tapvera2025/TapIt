@@ -110,6 +110,7 @@ export function CompanySidebar({
   clientMessagesUnread = 0,
   canViewClients = false,
   canViewSocial = false,
+  canViewSeo = false,
   canViewProjects = false,
   canViewLiveBoard = false,
   canViewAttendanceReports = false,
@@ -171,6 +172,7 @@ export function CompanySidebar({
   clientMessagesUnread?: number;
   canViewClients?: boolean;
   canViewSocial?: boolean;
+  canViewSeo?: boolean;
   canViewProjects?: boolean;
   canViewLiveBoard?: boolean;
   canViewAttendanceReports?: boolean;
@@ -629,6 +631,16 @@ export function CompanySidebar({
           },
         ]
       : []),
+    ...(canViewSeo
+      ? [
+          {
+            label: 'SEO Intelligence',
+            items: [
+              { label: 'SEO Dashboard', path: '/company/seo-intelligence', icon: 'trending-up' },
+            ],
+          },
+        ]
+      : []),
     ...(canViewTerritories ||
     canViewLeads ||
     canViewCallbacks ||
@@ -651,7 +663,11 @@ export function CompanySidebar({
                   ]
                 : []),
               ...(canViewLeads
-                ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }]
+                ? [
+                    { label: 'Leads', path: '/company/sales/leads', icon: 'users' },
+                    { label: 'My Work', path: '/company/sales/my-work', icon: 'briefcase' },
+                    { label: 'Bid Pool', path: '/company/sales/bid-pool', icon: 'inbox' },
+                  ]
                 : []),
               ...(canViewDeals
                 ? [{ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase' }]

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { loadTodayStatus, punch, type PunchKind, type LiveRow } from '../live/liveApi.js';
-import { getBreakPrompts, submitBreachExplanation, type BreakPrompt } from '../api/breaksApi.js';
+import { loadTodayStatus, punch, type PunchKind, type LiveRow, type PunchDisabledReason } from '../live/liveApi.js';
+import { getBreakAllowance, getBreakPrompts, submitBreachExplanation, type BreakAllowance, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
 import { SkeletonTodayPage, WorkspacePageContainer } from '../../ui/components.js';
 import { organizationToday } from '../organizationDate.js';
@@ -134,9 +134,16 @@ function IconPlay({ className = 'h-4 w-4' }: { className?: string }): React.JSX.
 
 // ── Greeting Card ────────────────────────────────────────────────────────────
 
+const DISABLED_REASON_COPY: Record<PunchDisabledReason, string> = {
+  'no-shift-today': 'No shift is assigned to you today.',
+  'already-finished': "You've already finished your shift for today.",
+  'on-approved-leave': 'Approved leave for today — no punch required.',
+};
+
 function GreetingCard({
   row,
   allowedMoves,
+  disabledReason,
   fullName,
   now,
   busy,
@@ -146,6 +153,7 @@ function GreetingCard({
 }: {
   row: LiveRow | null;
   allowedMoves: readonly string[];
+  disabledReason: PunchDisabledReason | null | undefined;
   fullName: string;
   now: Date;
   busy: PunchKind | null;
@@ -158,6 +166,7 @@ function GreetingCard({
 
   const hasIn = allowedMoves.includes('in');
   const hasOut = allowedMoves.includes('out');
+  const reasonText = disabledReason && !hasIn && !hasOut ? DISABLED_REASON_COPY[disabledReason] : null;
   return (
     <div className="today-greeting-card dashboard-glass dashboard-glass-surface relative flex flex-col overflow-visible rounded-2xl border border-app-border p-4 lg:pb-2 xl:pb-4">
       <div className="flex min-w-0 items-start justify-between gap-4">
@@ -212,6 +221,12 @@ function GreetingCard({
 
       {breakActionButton}
 
+      {reasonText && (
+        <p className="mt-2 rounded-lg bg-app-surface-raised px-3 py-2 text-xs text-app-muted">
+          {reasonText}
+        </p>
+      )}
+
       <div className="mt-2 h-4 min-h-4 overflow-hidden">
         {msg && (
           <p role="status" className={`truncate text-xs font-medium ${msg.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-app-danger'}`}>
@@ -265,14 +280,19 @@ function BreakStatusCard({
   row,
   now,
   breakActionButton,
+  breakLimitMinutes,
 }: {
   row: LiveRow | null;
   now: Date;
   breakActionButton: ReactNode;
+  breakLimitMinutes: number | null;
 }): React.JSX.Element {
   const isOnBreak = row?.state === 'ON_BREAK';
   const breakSeconds = elapsedSeconds(isOnBreak ? (row?.since ?? null) : null, now);
-  const breakLimitSeconds = 60 * 60;
+  // Fall back to 60 minutes only when the user has no policy / no upper total
+  // configured; otherwise show their actual allowance.
+  const effectiveLimitMinutes = breakLimitMinutes ?? 60;
+  const breakLimitSeconds = effectiveLimitMinutes * 60;
   const progress = Math.min(breakSeconds / breakLimitSeconds, 1);
   const circumference = 2 * Math.PI * 47;
   const strokeOffset = circumference * (1 - progress);
@@ -289,7 +309,11 @@ function BreakStatusCard({
           </span>
         ) : (
           <span className="rounded-full bg-app-surface-raised px-2.5 py-1 text-xs font-medium text-app-muted">
-            {row?.state === 'WORKING' ? 'Active' : row?.state === 'FINISHED' ? 'Ended' : 'Inactive'}
+            {row?.state === 'WORKING'
+              ? 'Working'
+              : row?.state === 'FINISHED'
+                ? 'Day ended'
+                : 'Not punched in'}
           </span>
         )}
       </div>
@@ -323,7 +347,9 @@ function BreakStatusCard({
             <p className="text-2xl font-bold tabular-nums tracking-tight text-app-foreground">
               {isOnBreak ? fmtBreakTimer(breakSeconds) : '00:00'}
             </p>
-            <p className="mt-0.5 text-[11px] font-medium text-app-muted">/ 01:00</p>
+            <p className="mt-0.5 text-[11px] font-medium text-app-muted">
+              / {String(Math.floor(effectiveLimitMinutes / 60)).padStart(2, '0')}:{String(effectiveLimitMinutes % 60).padStart(2, '0')}
+            </p>
           </div>
         </div>
       </div>
@@ -597,9 +623,10 @@ export function TodayPage({
   userId: string;
   organizationTimezone: string;
 }): React.JSX.Element {
-  const [status, setStatus] = useState<{ row: LiveRow | null; allowedMoves: readonly string[] } | null>(null);
+  const [status, setStatus] = useState<{ row: LiveRow | null; allowedMoves: readonly string[]; disabledReason?: PunchDisabledReason | null } | null>(null);
   const [events, setEvents] = useState<AttendanceEventView[]>([]);
   const [prompts, setPrompts] = useState<BreakPrompt[]>([]);
+  const [breakAllowance, setBreakAllowance] = useState<BreakAllowance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [punchBusy, setPunchBusy] = useState<PunchKind | null>(null);
@@ -647,6 +674,10 @@ export function TodayPage({
 
     void (async () => {
       try { setPrompts(await getBreakPrompts(sig)); } catch { /* optional */ }
+    })();
+
+    void (async () => {
+      try { setBreakAllowance(await getBreakAllowance(sig)); } catch { /* optional */ }
     })();
 
     return () => { abort.current?.abort(); };
@@ -712,6 +743,7 @@ export function TodayPage({
               <GreetingCard
                 row={row}
                 allowedMoves={allowedMoves}
+                disabledReason={status.disabledReason ?? null}
                 fullName={fullName}
                 now={now}
                 busy={punchBusy}
@@ -721,7 +753,7 @@ export function TodayPage({
               />
             </div>
             <div className="min-h-0 lg:flex-none xl:flex-[1.1]">
-              <BreakStatusCard row={row} now={now} breakActionButton={isTabletOrLarger ? breakActionButton : null} />
+              <BreakStatusCard row={row} now={now} breakActionButton={isTabletOrLarger ? breakActionButton : null} breakLimitMinutes={breakAllowance?.policy?.upperTotalMinutes ?? null} />
             </div>
           </div>
           <div className="today-attendance-activity-slot min-h-0 min-w-0 overflow-hidden">

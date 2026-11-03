@@ -31,6 +31,35 @@ describe('social credential protection', () => {
       );
     }
   });
+  it('binds a company connection token to that connection, never to a client', () => {
+    vi.stubEnv('SOCIAL_TOKEN_ENCRYPTION_KEY', 'ab'.repeat(32));
+    const company = {
+      organizationId: 'org-a',
+      connectionId: 'connection-a',
+      platform: 'google_business',
+    };
+    const encrypted = encryptCredentials({ accessToken: 'company-token' }, company);
+    expect(decryptCredentials(encrypted, company)).toEqual({
+      accessToken: 'company-token',
+    });
+    for (const other of [
+      { ...company, connectionId: 'connection-b' },
+      { ...company, organizationId: 'org-b' },
+      // The same string as a client id is a different owner.
+      { organizationId: 'org-a', clientId: 'connection-a', platform: 'google_business' },
+    ]) {
+      expect(() => decryptCredentials(encrypted, other)).toThrow(
+        /could not be decrypted/,
+      );
+    }
+    const clientSecret = encryptCredentials(
+      { accessToken: 'client-token' },
+      { organizationId: 'org-a', clientId: 'connection-a', platform: 'google_business' },
+    );
+    expect(() => decryptCredentials(clientSecret, company)).toThrow(
+      /could not be decrypted/,
+    );
+  });
   it('rejects tampered data and a changed key without disclosing secrets', () => {
     vi.stubEnv('SOCIAL_TOKEN_ENCRYPTION_KEY', 'ab'.repeat(32));
     const encrypted = encryptCredentials({ accessToken: 'secret' }, context);

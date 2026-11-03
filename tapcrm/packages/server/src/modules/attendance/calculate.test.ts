@@ -97,8 +97,16 @@ describe('§8.3 worked examples — status and units (present / paid leave / unp
     expect([r.status, ...units(r)]).toEqual(['absent', 0, 0, 0, 2, 0]);
   });
 
-  it('worked between the half-day and full-day thresholds → present', () => {
+  it('worked between the half-day and full-day thresholds → half-day', () => {
+    // Measured time (worked + break) is between halfDay and fullDay, so
+    // this is half credit — not a full present day. The employee needs
+    // to meet the full-day quota (including break) to count as present.
     const r = day({ events: workday('09:00:00', '14:00:00') });
+    expect([r.status, ...units(r)]).toEqual(['half-day', 1, 0, 0, 1, 0]);
+  });
+
+  it('reached the full-day threshold → present', () => {
+    const r = day({ events: workday('09:00:00', '18:00:00') });
     expect([r.status, ...units(r)]).toEqual(['present', 2, 0, 0, 0, 0]);
   });
 
@@ -303,7 +311,14 @@ describe('days that are not judged, or not yet', () => {
   });
 
   it('a flexible day uses 480 and 300 minutes (SH-4), with no lateness', () => {
+    // 11:00–16:30 = 330 minutes, over the 300-min half-day floor but short
+    // of the 480-min full-day quota — so this is a flexible half-day.
     const r = day({ shift: shift(null, null), events: workday('11:00:00', '16:30:00') });
+    expect([r.status, r.lateMinutes]).toEqual(['half-day', 0]);
+  });
+
+  it('a flexible day that meets the full-day quota → present', () => {
+    const r = day({ shift: shift(null, null), events: workday('09:00:00', '17:00:00') });
     expect([r.status, r.lateMinutes]).toEqual(['present', 0]);
   });
 

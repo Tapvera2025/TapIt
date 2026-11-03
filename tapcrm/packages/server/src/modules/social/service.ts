@@ -16,7 +16,7 @@ import type {
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
-import { notify } from '../notifications/facade.js';
+import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
 import {
   SocialConflictError,
   SocialNotFoundError,
@@ -31,8 +31,13 @@ import {
   type SocialContent,
 } from './providers/types.js';
 import { authorizeSocialActor } from './policy.js';
-import { decryptCredentials, encryptCredentials } from './security.js';
 import {
+  decryptCredentials,
+  encryptCredentials,
+  type CredentialContext,
+} from './security.js';
+import {
+  cancelScheduledForAccount,
   ensureClient,
   findAccounts,
   findMedia,
@@ -40,12 +45,12 @@ import {
   findPostParts,
   findSettings,
   queryPosts,
-  refreshPostStatus,
   writeAudit,
 } from './repository.js';
 import {
   providerAccount,
   type AccountRow,
+  type ConnectionRow,
   type MediaRow,
   type PostRow,
 } from './types.js';
@@ -59,6 +64,7 @@ function accountDto(row: AccountRow): SocialAccount {
     name: row.name,
     profileImageUrl: row.profileImageUrl,
     status: row.status,
+    connectionScope: row.connectionClientId === null ? 'company' : 'client',
     capabilities: row.capabilities,
     scopes: row.scopes,
     connectedAt: row.connectedAt.toISOString(),
@@ -192,8 +198,23 @@ export async function saveConnectionAccounts(
   await db.transaction(ctx, async (tx) => {
     await ensureClient(tx, ctx.organizationId, clientId);
     for (const { account, encrypted: credentials } of encrypted) {
+      // A location the company connection already serves to ANOTHER client stays there.
+      const elsewhere = await tx.maybeOne<{ clientName: string }>(
+        sql`SELECT COALESCE(NULLIF(c.business_name, ''), c.client_name) AS client_name FROM social_account a JOIN client c ON c.organization_id = a.organization_id AND c.id = a.client_id
+          WHERE a.organization_id = ${ctx.organizationId} AND a.platform = ${account.platform} AND a.external_id = ${account.externalId}
+            AND a.location_id IS NOT NULL AND a.status <> 'disconnected' AND a.client_id <> ${clientId} LIMIT 1`,
+      );
+      if (elsewhere)
+        throw new SocialConflictError(
+          `${account.name} is assigned to ${elsewhere.clientName} through your company connection. Unassign it there first.`,
+        );
+      // Reuse only this client's own connection. An account that used the company
+      // connection moves to the client's sign-in; the company token is never overwritten.
       const existing = await tx.maybeOne<{ connectionId: string }>(
-        sql`SELECT connection_id FROM social_account WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND platform = ${account.platform} AND external_id = ${account.externalId} FOR UPDATE`,
+        sql`SELECT a.connection_id FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id
+          WHERE a.organization_id = ${ctx.organizationId} AND a.client_id = ${clientId} AND a.platform = ${account.platform} AND a.external_id = ${account.externalId}
+            AND c.client_id = ${clientId}
+          FOR UPDATE OF a`,
       );
       let connectionId = existing?.connectionId;
       if (connectionId) {
@@ -213,7 +234,7 @@ export async function saveConnectionAccounts(
         id: string;
       }>(sql`INSERT INTO social_account(organization_id,client_id,connection_id,platform,external_id,name,profile_image_url,capabilities,metadata)
         VALUES (${ctx.organizationId},${clientId},${connectionId},${account.platform},${account.externalId},${account.name},${account.profileImageUrl ?? null},${capabilities},${JSON.stringify(account.metadata ?? {})}::jsonb)
-        ON CONFLICT(organization_id,client_id,platform,external_id) DO UPDATE SET connection_id = EXCLUDED.connection_id,name = EXCLUDED.name,profile_image_url = EXCLUDED.profile_image_url,capabilities = EXCLUDED.capabilities,metadata = EXCLUDED.metadata,status = 'connected',connected_at = now(),last_error = NULL RETURNING id`);
+        ON CONFLICT(organization_id,client_id,platform,external_id) DO UPDATE SET connection_id = EXCLUDED.connection_id,location_id = NULL,name = EXCLUDED.name,profile_image_url = EXCLUDED.profile_image_url,capabilities = EXCLUDED.capabilities,metadata = EXCLUDED.metadata,status = 'connected',connected_at = now(),last_error = NULL RETURNING id`);
       await writeAudit(
         tx,
         ctx,
@@ -226,6 +247,8 @@ export async function saveConnectionAccounts(
   });
   return listAccounts(ctx, clientId);
 }
+/** Stops an account serving this client. A client connection's own token is removed with it;
+ * a company connection keeps serving the company's other clients. */
 export async function disconnectAccount(
   ctx: RequestContext,
   clientId: string,
@@ -234,23 +257,31 @@ export async function disconnectAccount(
   await db.transaction(ctx, async (tx) => {
     const row = (await findAccounts(tx, ctx.organizationId, clientId, [accountId]))[0];
     if (!row) throw new SocialNotFoundError('Connected account');
+    const company = row.connectionClientId === null;
+    // Connection before account: the lock order every writer of both uses.
+    if (!company)
+      await tx.query(
+        sql`UPDATE social_connection SET status = 'disconnected', credentials_encrypted = NULL, updated_at = now() WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND id = ${row.connectionId}`,
+      );
     await tx.query(
       sql`UPDATE social_account SET status = 'disconnected', last_error = NULL WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND id = ${accountId}`,
     );
-    await tx.query(
-      sql`UPDATE social_connection SET status = 'disconnected', credentials_encrypted = NULL, updated_at = now() WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND id = ${row.connectionId}`,
+    await cancelScheduledForAccount(
+      tx,
+      ctx.organizationId,
+      clientId,
+      accountId,
+      company
+        ? 'Location unassigned from this client before publishing.'
+        : 'Account disconnected before publishing.',
     );
-    const pending = await tx.query<{ postId: string }>(
-      sql`SELECT DISTINCT post_id FROM social_post_destination WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND account_id = ${accountId} AND status = 'scheduled'`,
+    await writeAudit(
+      tx,
+      ctx,
+      clientId,
+      company ? 'account.unassigned' : 'account.disconnected',
+      accountId,
     );
-    for (const item of pending) {
-      await findPost(tx, ctx.organizationId, clientId, item.postId, true);
-      await tx.query(
-        sql`UPDATE social_post_destination SET status = 'cancelled', next_attempt_at = NULL, last_error = 'Account disconnected before publishing.' WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND post_id = ${item.postId} AND account_id = ${accountId} AND status = 'scheduled'`,
-      );
-      await refreshPostStatus(tx, ctx.organizationId, clientId, item.postId);
-    }
-    await writeAudit(tx, ctx, clientId, 'account.disconnected', accountId);
   });
 }
 export async function getPost(
@@ -835,23 +866,37 @@ function csvField(value: string): string {
   return normalized;
 }
 
-/** The refresh call happens outside SQL; a per-connection lease prevents two
- * workers from rotating a refresh token concurrently. */
-export async function credentialsForAccount(
+/** Which owner a connection's token is encrypted for. */
+export function connectionCredentialContext(
+  organizationId: string,
+  connection: Pick<ConnectionRow, 'id' | 'clientId' | 'platform'>,
+): CredentialContext {
+  return connection.clientId === null
+    ? { organizationId, connectionId: connection.id, platform: connection.platform }
+    : { organizationId, clientId: connection.clientId, platform: connection.platform };
+}
+
+/** A usable token for a connection, refreshed when it is about to expire.
+ * The refresh call happens outside SQL; a per-connection lease prevents two
+ * workers from rotating a refresh token concurrently. The stored row is read
+ * fresh, because a company connection is shared: another location may have
+ * refreshed it moments ago. */
+export async function credentialsForConnection(
   ctx: RequestContext,
-  row: AccountRow,
+  connection: Pick<ConnectionRow, 'id' | 'clientId' | 'platform'>,
+  displayName: string,
 ): Promise<OAuthCredential> {
-  if (!row.credentialsEncrypted || row.status !== 'connected')
-    throw new ProviderError('RECONNECT_REQUIRED', `Reconnect ${row.name}.`, {
+  const current = await db.maybeOne<{ credentialsEncrypted: string | null }>(
+    ctx,
+    sql`SELECT credentials_encrypted FROM social_connection WHERE organization_id = ${ctx.organizationId} AND id = ${connection.id}`,
+  );
+  if (!current?.credentialsEncrypted)
+    throw new ProviderError('RECONNECT_REQUIRED', `Reconnect ${displayName}.`, {
       reconnectRequired: true,
     });
-  const context = {
-    organizationId: ctx.organizationId,
-    clientId: row.clientId,
-    platform: row.platform,
-  };
+  const context = connectionCredentialContext(ctx.organizationId, connection);
   const credentials = decryptCredentials<OAuthCredential>(
-    row.credentialsEncrypted,
+    current.credentialsEncrypted,
     context,
   );
   if (
@@ -861,7 +906,7 @@ export async function credentialsForAccount(
     return credentials;
   const lease = await db.maybeOne<{ id: string }>(
     ctx,
-    sql`UPDATE social_connection SET refresh_lease_until = now() + interval '2 minutes' WHERE organization_id = ${ctx.organizationId} AND client_id = ${row.clientId} AND id = ${row.connectionId} AND (refresh_lease_until IS NULL OR refresh_lease_until < now()) AND credentials_encrypted = ${row.credentialsEncrypted} RETURNING id`,
+    sql`UPDATE social_connection SET refresh_lease_until = now() + interval '2 minutes' WHERE organization_id = ${ctx.organizationId} AND id = ${connection.id} AND (refresh_lease_until IS NULL OR refresh_lease_until < now()) AND credentials_encrypted = ${current.credentialsEncrypted} RETURNING id`,
   );
   if (!lease)
     throw new ProviderError(
@@ -870,20 +915,64 @@ export async function credentialsForAccount(
       { transient: true, retryAfter: 120 },
     );
   try {
-    const refreshed = await getProvider(row.platform).refreshCredentials(credentials);
+    const refreshed = await getProvider(connection.platform).refreshCredentials(
+      credentials,
+    );
     const encrypted = encryptCredentials(refreshed, context);
     await db.query(
       ctx,
-      sql`UPDATE social_connection SET credentials_encrypted = ${encrypted}, scopes = ${refreshed.scopes}, expires_at = ${refreshed.expiresAt ?? null}::timestamptz, refresh_lease_until = NULL, updated_at = now() WHERE organization_id = ${ctx.organizationId} AND client_id = ${row.clientId} AND id = ${row.connectionId} AND status = 'connected' AND credentials_encrypted = ${row.credentialsEncrypted}`,
+      sql`UPDATE social_connection SET credentials_encrypted = ${encrypted}, scopes = ${refreshed.scopes}, expires_at = ${refreshed.expiresAt ?? null}::timestamptz, refresh_lease_until = NULL, updated_at = now() WHERE organization_id = ${ctx.organizationId} AND id = ${connection.id} AND status = 'connected' AND credentials_encrypted = ${current.credentialsEncrypted}`,
     );
     return refreshed;
   } catch (error) {
     await db.query(
       ctx,
-      sql`UPDATE social_connection SET refresh_lease_until = NULL WHERE organization_id = ${ctx.organizationId} AND client_id = ${row.clientId} AND id = ${row.connectionId} AND credentials_encrypted = ${row.credentialsEncrypted}`,
+      sql`UPDATE social_connection SET refresh_lease_until = NULL WHERE organization_id = ${ctx.organizationId} AND id = ${connection.id} AND credentials_encrypted = ${current.credentialsEncrypted}`,
     );
     throw error;
   }
+}
+export async function credentialsForAccount(
+  ctx: RequestContext,
+  row: AccountRow,
+): Promise<OAuthCredential> {
+  if (!row.credentialsEncrypted || row.status !== 'connected')
+    throw new ProviderError('RECONNECT_REQUIRED', `Reconnect ${row.name}.`, {
+      reconnectRequired: true,
+    });
+  return credentialsForConnection(
+    ctx,
+    { id: row.connectionId, clientId: row.connectionClientId, platform: row.platform },
+    row.name,
+  );
+}
+
+/** The platform stopped accepting a connection's token. Every account it serves
+ * needs the reconnect, so they all say so. Company admins hear about it once:
+ * on the change, not on every failed attempt after it. */
+export async function markConnectionReconnectRequired(
+  tx: Tx,
+  ctx: RequestContext,
+  connection: Pick<ConnectionRow, 'id' | 'clientId'>,
+  message: string,
+): Promise<void> {
+  const reason = message.slice(0, 1000);
+  const changed = await tx.maybeOne<{ id: string }>(
+    sql`UPDATE social_connection SET status = 'reconnect_required', last_error = ${reason}, updated_at = now() WHERE organization_id = ${ctx.organizationId} AND id = ${connection.id} AND status = 'connected' RETURNING id`,
+  );
+  await tx.query(
+    sql`UPDATE social_account SET status = 'reconnect_required', last_error = ${reason} WHERE organization_id = ${ctx.organizationId} AND connection_id = ${connection.id} AND status = 'connected'`,
+  );
+  if (changed && connection.clientId === null)
+    await notify(tx, ctx, {
+      type: NOTIFICATION_TYPES.SOCIAL_CONNECTION_RECONNECT_REQUIRED,
+      priority: 'operational',
+      audience: { holders: { action: 'system:manage-integrations' } },
+      title: 'Reconnect your company Google Business Profile',
+      body: 'Google stopped accepting the company sign-in. Posts to its locations will fail until someone reconnects it.',
+      link: '/company/social/connections',
+      metadata: { connectionId: connection.id },
+    });
 }
 export async function markAccountError(
   ctx: RequestContext,
@@ -892,13 +981,17 @@ export async function markAccountError(
   reconnect: boolean,
 ): Promise<void> {
   await db.transaction(ctx, async (tx) => {
-    await tx.query(
-      sql`UPDATE social_account SET last_error = ${message.slice(0, 1000)}, status = CASE WHEN ${reconnect} THEN 'reconnect_required' ELSE status END WHERE organization_id = ${ctx.organizationId} AND client_id = ${row.clientId} AND id = ${row.id}`,
-    );
+    // Connection before account: the lock order every writer of both uses.
     if (reconnect)
-      await tx.query(
-        sql`UPDATE social_connection SET status = 'reconnect_required', updated_at = now() WHERE organization_id = ${ctx.organizationId} AND client_id = ${row.clientId} AND id = ${row.connectionId}`,
+      await markConnectionReconnectRequired(
+        tx,
+        ctx,
+        { id: row.connectionId, clientId: row.connectionClientId },
+        message,
       );
+    await tx.query(
+      sql`UPDATE social_account SET last_error = ${message.slice(0, 1000)} WHERE organization_id = ${ctx.organizationId} AND client_id = ${row.clientId} AND id = ${row.id}`,
+    );
   });
 }
 export async function syncAnalytics(

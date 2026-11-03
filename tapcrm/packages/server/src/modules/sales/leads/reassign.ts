@@ -9,7 +9,8 @@
  *   - fail-soft availability — the new owner's `at_capacity` reason is
  *     tolerated (HOD rebalancing), everything else blocks the transfer;
  *   - the state transition, callback owner transfer, routing-decision
- *     audit, outbox notification to the previous holder, realtime emit.
+ *     audit, lead activity entry, outbox notifications to the previous
+ *     holder and the new owner, realtime emit.
  */
 
 import { z } from 'zod';
@@ -20,11 +21,12 @@ import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { PlatformForbiddenError } from '../../../platform/errors.js';
 import { NotEligibleError } from '../../../platform/http/error-handler.js';
+import { describeEligibilityReasons } from '../../../platform/availability/reasons.js';
 import { evaluateAvailability } from '../../../platform/availability/service.js';
 import { notify } from '../../notifications/facade.js';
 import { insertRoutingDecision } from '../intake/repository.js';
 import { emitLeadReassigned } from '../realtime/sales-channel.js';
-import { findLeadTx, insertAudit } from './repository.js';
+import { findLeadTx, insertActivity, insertAudit } from './repository.js';
 import { LeadNotFoundError } from './errors.js';
 import type { Lead } from './types.js';
 
@@ -93,7 +95,7 @@ export async function reassign(
     if (blocking.length > 0) {
       throw new NotEligibleError(
         'NOT_ELIGIBLE',
-        `new owner is not eligible: ${blocking.join(', ')}`,
+        `This person can't take the lead right now (${describeEligibilityReasons(blocking)}).`,
         { unmet: blocking },
       );
     }
@@ -132,15 +134,22 @@ export async function reassign(
          AND id              = ${leadId}
     `);
 
-    if (input.transferPendingCallbacks && previousHolderId && previousHolderId !== input.newOwnerId) {
-      await tx.query(sql`
+    // The lead's open callback follows it to the new owner. This includes one
+    // left with someone else, so reassigning a lead to its current holder
+    // also hands them its callback.
+    let callbacksMoved = 0;
+    if (input.transferPendingCallbacks) {
+      const moved = await tx.query<{ id: string }>(sql`
         UPDATE lead_callback
            SET owner_id   = ${input.newOwnerId},
                updated_at = ${now}
          WHERE organization_id = ${ctx.organizationId}
            AND lead_id         = ${leadId}
-           AND status          = 'scheduled'
+           AND status          = 'pending'
+           AND owner_id       <> ${input.newOwnerId}
+        RETURNING id
       `);
+      callbacksMoved = moved.length;
     }
 
     await insertRoutingDecision(tx, ctx.organizationId, {
@@ -178,6 +187,30 @@ export async function reassign(
         transferSourcingCredit: input.transferSourcingCredit,
       },
     );
+
+    await insertActivity(
+      tx,
+      ctx.organizationId,
+      leadId,
+      'lead.reassigned',
+      ctx.principal.id,
+      { previousOwnerId, ownerId: input.newOwnerId, callbacksMoved },
+    );
+
+    if (previousHolderId !== input.newOwnerId && input.newOwnerId !== ctx.principal.id) {
+      await notify(tx, ctx, {
+        type: 'lead.assigned',
+        priority: 'operational',
+        audience: { users: [input.newOwnerId] },
+        title: 'Lead assigned to you',
+        body:
+          callbacksMoved > 0
+            ? 'A lead has been reassigned to you, along with its pending callback.'
+            : 'A lead has been reassigned to you.',
+        link: `/company/sales/leads/${leadId}`,
+        metadata: { leadId },
+      });
+    }
 
     if (previousHolderId && previousHolderId !== input.newOwnerId) {
       await notify(tx, ctx, {

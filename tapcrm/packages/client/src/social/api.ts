@@ -6,6 +6,9 @@ import {
 import type {
   SocialAccount,
   SocialAnalytics,
+  SocialCompanyConnection,
+  SocialCompanyLocation,
+  SocialCompanyPlatform,
   SocialClient,
   SocialClientPage,
   SocialMedia,
@@ -84,6 +87,48 @@ export const disconnectSocialAccount = (
 ) =>
   identityRequest<{ disconnected: boolean; revocationStatus: string }>(
     `${workspace(clientId)}/accounts/${encodeURIComponent(accountId)}`,
+    { method: 'DELETE', body: JSON.stringify({ revokeGrant }) },
+  );
+const companyConnections = '/api/social/company-connections';
+/** Company-wide sign-ins (today: Google Business Profile), managed by company admins. */
+export const listCompanyConnections = () =>
+  identityRequest<SocialCompanyConnection[]>(companyConnections);
+export const startCompanyConnection = (platform: SocialCompanyPlatform) =>
+  identityRequest<{ authorizationUrl: string }>(
+    `${companyConnections}/oauth/${platform}/start`,
+    { method: 'POST', body: '{}' },
+  );
+export const completeCompanyConnection = (
+  platform: SocialCompanyPlatform,
+  code: string,
+  state: string,
+) =>
+  identityRequest<SocialCompanyConnection>(
+    `${companyConnections}/oauth/${platform}/complete`,
+    { method: 'POST', body: JSON.stringify({ code, state }) },
+  );
+export const listCompanyLocations = (connectionId: string) =>
+  identityRequest<SocialCompanyLocation[]>(
+    `${companyConnections}/${encodeURIComponent(connectionId)}/locations`,
+  );
+export const syncCompanyConnection = (connectionId: string) =>
+  identityRequest<SocialCompanyConnection>(
+    `${companyConnections}/${encodeURIComponent(connectionId)}/sync`,
+    { method: 'POST', body: '{}' },
+  );
+/** Assigns a location to a client, or unassigns it with `clientId` null. */
+export const assignCompanyLocation = (
+  connectionId: string,
+  locationId: string,
+  clientId: string | null,
+) =>
+  identityRequest<SocialCompanyLocation>(
+    `${companyConnections}/${encodeURIComponent(connectionId)}/locations/${encodeURIComponent(locationId)}/client`,
+    { method: 'PUT', body: JSON.stringify({ clientId }) },
+  );
+export const disconnectCompanyConnection = (connectionId: string, revokeGrant: boolean) =>
+  identityRequest<{ disconnected: boolean; revocationStatus: string }>(
+    `${companyConnections}/${encodeURIComponent(connectionId)}`,
     { method: 'DELETE', body: JSON.stringify({ revokeGrant }) },
   );
 export function listSocialPosts(

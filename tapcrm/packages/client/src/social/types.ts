@@ -12,6 +12,9 @@ export type {
   SocialPostList as SocialPostPage,
   SocialPostStatus,
   SocialSettings,
+  SocialCompanyConnection,
+  SocialCompanyLocation,
+  SocialCompanyPlatform,
 } from '@tapcrm/contracts';
 
 export interface SocialProvider {

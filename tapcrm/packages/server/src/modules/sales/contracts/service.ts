@@ -109,13 +109,19 @@ export async function loadDealForContract(ctx: RequestContext, contractId: strin
     responsibleCloserId: string;
     originatingAgentId: string;
     lifecycleStatus: string;
+    createdBy: string | null;
+    closedBy: string | null;
+    paymentInitiatedBy: string | null;
   }>(
     ctx,
     sql`SELECT d.id,
                d.organization_id       AS "organizationId",
                d.responsible_closer_id AS "responsibleCloserId",
                d.originating_agent_id  AS "originatingAgentId",
-               d.lifecycle_status      AS "lifecycleStatus"
+               d.lifecycle_status      AS "lifecycleStatus",
+               d.created_by            AS "createdBy",
+               d.closed_by_id          AS "closedBy",
+               d.payment_initiated_by  AS "paymentInitiatedBy"
           FROM contract c
           JOIN deal d ON d.organization_id = c.organization_id AND d.id = c.deal_id
          WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${contractId}`,
@@ -123,8 +129,14 @@ export async function loadDealForContract(ctx: RequestContext, contractId: strin
   if (!row) return null;
   const resource: DealResource = {
     type: 'deal',
-    ...row,
+    id: row.id,
+    organizationId: row.organizationId,
+    responsibleCloserId: row.responsibleCloserId,
+    originatingAgentId: row.originatingAgentId,
     lifecycleStatus: row.lifecycleStatus as DealResource['lifecycleStatus'],
+    createdBy: row.createdBy,
+    closedBy: row.closedBy,
+    payment: { initiatedBy: row.paymentInitiatedBy },
   };
   return resource;
 }

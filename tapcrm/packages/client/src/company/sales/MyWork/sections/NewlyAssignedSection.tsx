@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '../../../../ui/components.js';
 import { getLeads, type Lead } from '../../leads/api.js';
-import { partitionLeads, relativeTime } from '../myWork-helpers.js';
+import { assignedTime, partitionLeads, relativeTime } from '../myWork-helpers.js';
 import { MyWorkSection } from './Shell.js';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -20,7 +20,7 @@ export function NewlyAssignedSection({
   useEffect(() => {
     let cancelled = false;
     const load = (): void => {
-      getLeads()
+      getLeads({ ownerId: userId, pageSize: 100 })
         .then((page) => {
           if (!cancelled) {
             setLeads(page.items);
@@ -60,7 +60,8 @@ export function NewlyAssignedSection({
                 <p className="font-semibold">{lead.contactName}</p>
                 <p className="mt-1 text-xs text-app-muted">
                   #{lead.leadNumber} · {lead.sourceName}
-                  {lead.companyName ? ` · ${lead.companyName}` : ''} · {relativeTime(lead.createdAt)}
+                  {lead.companyName ? ` · ${lead.companyName}` : ''} · assigned{' '}
+                  {relativeTime(new Date(assignedTime(lead)).toISOString())}
                 </p>
               </div>
               <button

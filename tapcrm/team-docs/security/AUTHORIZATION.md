@@ -17,7 +17,7 @@
 
 ## 6.4 Action Registry
 
-165 actions. Column meanings are as given in the source document:
+222 actions. Column meanings are as given in the source document:
 
 | Column | Meaning |
 | --- | --- |
@@ -243,12 +243,45 @@
 | `recruitment:view-candidate-events` | recruitment | candidate | business | no | no | — | yes | yes | no |
 | `recruitment:manage-email-templates` | recruitment | — | business | no | no | — | yes | yes | no |
 | `recruitment:send-joining-email` | recruitment | candidateJoining | business | no | no | — | yes | yes | no |
+| `seo:list-sites` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:read-content` | seo-intelligence | seo_content_site | business | no | no | — | yes | yes | no |
+| `seo:create-content` | seo-intelligence | seo_content_site | business | no | no | — | yes | yes | no |
+| `seo:edit-content` | seo-intelligence | seo_content_site | business | no | no | — | yes | yes | no |
+| `seo:comment-content` | seo-intelligence | seo_content_document | business | no | no | — | yes | yes | no |
+| `seo:review-content` | seo-intelligence | seo_content_document | business | yes | yes | ownerId | yes | no | no |
+| `seo:export-content` | seo-intelligence | seo_content_site | business | yes | no | — | yes | no | no |
+| `seo:manage-content-brand` | seo-intelligence | seo_content_site | business | yes | no | — | yes | no | no |
+| `seo:create-site` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:read-site` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:update-site` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:list-scans` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:trigger-scan` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-scan` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:list-findings` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-finding` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:update-finding` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:read-search-performance` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:sync-search-performance` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:list-keywords` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-rank-tracking` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-ai-visibility` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-backlinks` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-cwv` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:list-fixes` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:update-fix` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:list-alerts` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:acknowledge-alert` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:list-finding-groups` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-findings-trend` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:export-report` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:list-rules` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:update-rule` | seo-intelligence | — | business | no | no | — | yes | yes | no |
 
 ---
 
 ## 6.5 API Bindings
 
-379 bindings. Every action bound to at least one HTTP route. A route
+635 bindings. Every action bound to at least one HTTP route. A route
 registered at boot with no binding is a startup failure (RM-1); a binding naming
 an unregistered action fails the build (RM-2).
 
@@ -493,6 +526,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PATCH | /api/lead-sources/:id | `leads:edit` | — |
 | POST | /api/leads/import | `leads:create` | — |
 | PATCH | /api/leads/:id | `leads:edit` | id |
+| POST | /api/leads/:id/close-lost | `leads:edit` | id |
 | POST | /api/leads/:id/reassign | `leads:reassign` | id |
 | POST | /api/leads/bulk-reassign | `leads:reassign` | — |
 | POST | /api/leads/:id/reassign-with-credit | `leads:reassign-with-credit` | id |
@@ -745,6 +779,13 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/social/clients/:clientId/analytics | `social:view` | clientId |
 | GET | /api/social/clients/:clientId/analytics/export | `social:view` | clientId |
 | POST | /api/social/clients/:clientId/analytics/sync | `social:manage` | clientId |
+| GET | /api/social/company-connections | `system:manage-integrations` | — |
+| POST | /api/social/company-connections/oauth/:platform/start | `system:manage-integrations` | — |
+| POST | /api/social/company-connections/oauth/:platform/complete | `system:manage-integrations` | — |
+| GET | /api/social/company-connections/:connectionId/locations | `system:manage-integrations` | — |
+| POST | /api/social/company-connections/:connectionId/sync | `system:manage-integrations` | — |
+| PUT | /api/social/company-connections/:connectionId/locations/:locationId/client | `system:manage-integrations` | — |
+| DELETE | /api/social/company-connections/:connectionId | `system:manage-integrations` | — |
 | GET | /api/clients | `clients:view` | — |
 | GET | /api/clients/:id | `clients:view` | id |
 | POST | /api/clients | `clients:manage` | — |
@@ -878,3 +919,50 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/recruitment/requisitions/:id/ats-criteria | `recruitment:manage-requisitions` | id |
 | GET | /api/recruitment/resume-submissions/:id/ats | `recruitment:manage-submissions` | id |
 | POST | /api/recruitment/resume-submissions/:id/ats-scans | `recruitment:manage-submissions` | id |
+| GET | /api/seo/sites | `seo:list-sites` | — |
+| GET | /api/seo/sites/:siteId/content | `seo:read-content` | siteId |
+| POST | /api/seo/sites/:siteId/content | `seo:create-content` | siteId |
+| GET | /api/seo/sites/:siteId/content-members | `seo:read-content` | siteId |
+| GET | /api/seo/sites/:siteId/content-brand | `seo:read-content` | siteId |
+| PUT | /api/seo/sites/:siteId/content-brand | `seo:manage-content-brand` | siteId |
+| GET | /api/seo/sites/:siteId/content/:documentId | `seo:read-content` | siteId |
+| GET | /api/seo/sites/:siteId/content/:documentId/comments | `seo:read-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/comments | `seo:comment-content` | documentId |
+| PATCH | /api/seo/sites/:siteId/content/:documentId/comments/:threadId | `seo:comment-content` | documentId |
+| PUT | /api/seo/sites/:siteId/content/:documentId | `seo:edit-content` | siteId |
+| PUT | /api/seo/sites/:siteId/content/:documentId/body | `seo:edit-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/checkpoint | `seo:edit-content` | siteId |
+| GET | /api/seo/sites/:siteId/content/:documentId/history | `seo:read-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/restore | `seo:edit-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/workflow | `seo:edit-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/review | `seo:review-content` | documentId |
+| POST | /api/seo/sites/:siteId/content/:documentId/export | `seo:export-content` | siteId |
+| POST | /api/seo/sites | `seo:create-site` | — |
+| GET | /api/seo/sites/:siteId | `seo:read-site` | siteId |
+| PATCH | /api/seo/sites/:siteId | `seo:update-site` | siteId |
+| GET | /api/seo/sites/:siteId/scans | `seo:list-scans` | siteId |
+| POST | /api/seo/sites/:siteId/scans | `seo:trigger-scan` | siteId |
+| GET | /api/seo/scans/:scanRunId | `seo:read-scan` | — |
+| GET | /api/seo/sites/:siteId/findings | `seo:list-findings` | siteId |
+| GET | /api/seo/findings/:findingId | `seo:read-finding` | — |
+| PATCH | /api/seo/findings/:findingId | `seo:update-finding` | — |
+| GET | /api/seo/sites/:siteId/gsc-metrics | `seo:read-search-performance` | siteId |
+| POST | /api/seo/sites/:siteId/gsc-sync | `seo:sync-search-performance` | siteId |
+| GET | /api/seo/sites/:siteId/keywords | `seo:list-keywords` | siteId |
+| GET | /api/seo/sites/:siteId/serp-observations | `seo:read-rank-tracking` | siteId |
+| GET | /api/seo/sites/:siteId/rank-status | `seo:read-rank-tracking` | siteId |
+| POST | /api/seo/sites/:siteId/rank-checks | `seo:sync-search-performance` | siteId |
+| GET | /api/seo/sites/:siteId/ai-observations | `seo:read-ai-visibility` | siteId |
+| GET | /api/seo/sites/:siteId/backlinks | `seo:read-backlinks` | siteId |
+| GET | /api/seo/sites/:siteId/cwv-observations | `seo:read-cwv` | siteId |
+| GET | /api/seo/sites/:siteId/performance-status | `seo:read-cwv` | siteId |
+| POST | /api/seo/sites/:siteId/performance-refresh | `seo:trigger-scan` | siteId |
+| GET | /api/seo/sites/:siteId/fix-proposals | `seo:list-fixes` | siteId |
+| PATCH | /api/seo/fix-proposals/:proposalId | `seo:update-fix` | — |
+| GET | /api/seo/sites/:siteId/alerts | `seo:list-alerts` | siteId |
+| PATCH | /api/seo/alerts/:alertId | `seo:acknowledge-alert` | — |
+| GET | /api/seo/sites/:siteId/finding-groups | `seo:list-finding-groups` | siteId |
+| GET | /api/seo/sites/:siteId/findings-trend | `seo:read-findings-trend` | siteId |
+| POST | /api/seo/sites/:siteId/report | `seo:export-report` | siteId |
+| GET | /api/seo/rules | `seo:list-rules` | — |
+| PATCH | /api/seo/rules/:ruleId | `seo:update-rule` | — |

@@ -5,7 +5,7 @@
  *   workload(user) = activeLeadCount + overdueWeight * overdueCallbackCount
  *
  * "Active lead" = `lead.lead_outcome = 'active'` and `lead.owner_id = user`.
- * "Overdue callback" = `lead_callback.status = 'scheduled'` and the
+ * "Overdue callback" = `lead_callback.status = 'pending'` and the
  * scheduled instant has already passed. The weight is a routing input; the
  * aggregation here is unweighted so the router can tune it per call.
  */
@@ -46,7 +46,7 @@ export async function fetchWorkload(
           FROM lead_callback
          WHERE lead_callback.organization_id = ${organizationId}
            AND lead_callback.owner_id        = u.id
-           AND lead_callback.status          = 'scheduled'
+           AND lead_callback.status          = 'pending'
            AND lead_callback.scheduled_at    < now()
       ) c ON true
   `);

@@ -6,7 +6,14 @@ import type { Campaign, DuplicateWarning, Lead, LeadActivity, LeadActivityEvent,
 import type { LeadListQuery, SourceInput, UpdateLeadInput, UpdateSourceInput } from './validators.js';
 
 type SourceRow = LeadSource;
-interface LeadRow extends Omit<Lead, 'activities' | 'createdAt' | 'updatedAt'> { createdAt: Date; updatedAt: Date; activities: LeadActivity[] | null; }
+interface LeadRow extends Omit<Lead, 'activities' | 'createdAt' | 'updatedAt' | 'assignedAt'> { createdAt: Date; updatedAt: Date; assignedAt: Date | null; activities: LeadActivity[] | null; }
+
+/**
+ * A detail from the lead's latest website or ad form. Leads added by hand keep
+ * these on the lead itself; the others only have them on the form they sent.
+ */
+const intakeDetail = (key: string): SqlFragment =>
+  sql`(SELECT s.normalized_payload ->> ${key}::text FROM lead_submission s WHERE s.organization_id = l.organization_id AND s.lead_id = l.id ORDER BY s.source_received_at DESC LIMIT 1)`;
 
 const LEAD_SELECT = sql`
   SELECT l.id, l.organization_id AS "organizationId", l.lead_number::text AS "leadNumber",
@@ -22,6 +29,11 @@ const LEAD_SELECT = sql`
          l.loss_reason AS "lossReason", l.lost_at AS "lostAt", l.previous_lead_id AS "previousLeadId",
          l.stalled_at AS "stalledAt", l.stalled_reason AS "stalledReason",
          l.created_by AS "createdBy", l.created_at AS "createdAt", l.updated_at AS "updatedAt",
+         l.assigned_at AS "assignedAt",
+         COALESCE(l.requirement, ${intakeDetail('serviceRequested')}) AS requirement,
+         COALESCE(l.location, ${intakeDetail('location')}) AS location,
+         COALESCE(l.language_preference, ${intakeDetail('languagePreference')}) AS "languagePreference",
+         COALESCE(l.intake_notes, ${intakeDetail('message')}) AS "intakeNotes",
          COALESCE((SELECT json_agg(json_build_object('id', a.id, 'eventName', a.event_name, 'actorId', a.actor_id, 'metadata', a.metadata, 'createdAt', a.created_at) ORDER BY a.created_at)
                    FROM lead_activity a WHERE a.organization_id = l.organization_id AND a.lead_id = l.id), '[]'::json) AS activities
   FROM lead l
@@ -34,7 +46,7 @@ const LEAD_SELECT = sql`
   LEFT JOIN campaign ON campaign.organization_id = l.organization_id AND campaign.id = l.campaign_id
 `;
 
-function mapLead(row: LeadRow): Lead { return { ...row, status: row.status, lostAt: row.lostAt ? new Date(row.lostAt) : null, stalledAt: row.stalledAt ? new Date(row.stalledAt) : null, activities: row.activities ?? [], createdAt: new Date(row.createdAt), updatedAt: new Date(row.updatedAt) }; }
+function mapLead(row: LeadRow): Lead { return { ...row, status: row.status, lostAt: row.lostAt ? new Date(row.lostAt) : null, stalledAt: row.stalledAt ? new Date(row.stalledAt) : null, activities: row.activities ?? [], createdAt: new Date(row.createdAt), updatedAt: new Date(row.updatedAt), assignedAt: row.assignedAt ? new Date(row.assignedAt) : null }; }
 
 export async function listSources(ctx: RequestContext): Promise<LeadSource[]> { return db.query<SourceRow>(ctx, sql`SELECT id, organization_id AS "organizationId", name, direction, status, created_at AS "createdAt", updated_at AS "updatedAt" FROM lead_source WHERE organization_id = ${ctx.organizationId} ORDER BY name`); }
 export async function findSource(tx: Tx, organizationId: string, id: string): Promise<LeadSource | null> { return tx.maybeOne<LeadSource>(sql`SELECT id, organization_id AS "organizationId", name, direction, status, created_at AS "createdAt", updated_at AS "updatedAt" FROM lead_source WHERE organization_id = ${organizationId} AND id = ${id}`); }
@@ -55,20 +67,55 @@ export async function findLeadTx(tx: Tx, organizationId: string, id: string): Pr
 export async function loadLeadResource(ctx: RequestContext, id: string) { return db.maybeOne<{ id: string; organizationId: string; ownerId: string | null; currentHolderId: string | null; status: string; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null }>(ctx, sql`SELECT l.id, l.organization_id AS "organizationId", l.owner_id AS "ownerId", l.current_holder_id AS "currentHolderId", l.status, l.sales_team_id AS "salesTeamId", l.sales_pool_id AS "salesPoolId", team.department_id AS "departmentId" FROM lead l LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id WHERE l.organization_id = ${ctx.organizationId} AND l.id = ${id}`).then((row) => row ? { type: 'lead' as const, ...row } : null); }
 
 export async function findSourceTx(tx: Tx, organizationId: string, id: string): Promise<LeadSource | null> { return findSource(tx, organizationId, id); }
-export async function insertLead(tx: Tx, organizationId: string, input: { sourceId: string; campaignId: string | null; previousLeadId: string | null; ownerId: string | null; currentHolderId: string | null; territoryId: string | null; salesTeamId: string | null; salesPoolId: string | null; status: LeadStatus; routingStatus: 'assigned' | 'unrouted'; contactName: string; companyName: string | null; phone: string | null; email: string | null; phoneNormalized: string | null; emailNormalized: string | null; createdBy: string }): Promise<string> {
-  const row = await tx.one<{ id: string }>(sql`INSERT INTO lead (organization_id, source_id, campaign_id, previous_lead_id, owner_id, current_holder_id, territory_id, sales_team_id, sales_pool_id, status, routing_status, contact_name, company_name, phone, email, phone_normalized, email_normalized, created_by) VALUES (${organizationId}, ${input.sourceId}, ${input.campaignId}, ${input.previousLeadId}, ${input.ownerId}, ${input.currentHolderId}, ${input.territoryId}, ${input.salesTeamId}, ${input.salesPoolId}, ${input.status}, ${input.routingStatus}, ${input.contactName}, ${input.companyName}, ${input.phone}, ${input.email}, ${input.phoneNormalized}, ${input.emailNormalized}, ${input.createdBy}) RETURNING id`);
+export async function insertLead(tx: Tx, organizationId: string, input: { sourceId: string; campaignId: string | null; previousLeadId: string | null; ownerId: string | null; currentHolderId: string | null; territoryId: string | null; salesTeamId: string | null; salesPoolId: string | null; status: LeadStatus; routingStatus: 'assigned' | 'unrouted'; contactName: string; companyName: string | null; phone: string | null; email: string | null; phoneNormalized: string | null; emailNormalized: string | null; contactId: string | null; companyId: string | null; requirement: string | null; location: string | null; languagePreference: string | null; intakeNotes: string | null; createdBy: string }): Promise<string> {
+  const row = await tx.one<{ id: string }>(sql`INSERT INTO lead (organization_id, source_id, campaign_id, previous_lead_id, owner_id, current_holder_id, territory_id, sales_team_id, sales_pool_id, status, routing_status, contact_name, company_name, phone, email, phone_normalized, email_normalized, contact_id, company_id, requirement, location, language_preference, intake_notes, created_by) VALUES (${organizationId}, ${input.sourceId}, ${input.campaignId}, ${input.previousLeadId}, ${input.ownerId}, ${input.currentHolderId}, ${input.territoryId}, ${input.salesTeamId}, ${input.salesPoolId}, ${input.status}, ${input.routingStatus}, ${input.contactName}, ${input.companyName}, ${input.phone}, ${input.email}, ${input.phoneNormalized}, ${input.emailNormalized}, ${input.contactId}, ${input.companyId}, ${input.requirement}, ${input.location}, ${input.languagePreference}, ${input.intakeNotes}, ${input.createdBy}) RETURNING id`);
   return row.id;
 }
-export async function updateLeadRow(tx: Tx, organizationId: string, id: string, input: UpdateLeadInput, before: Lead, normalized: { phone: string | null; email: string | null }): Promise<void> { await tx.query(sql`UPDATE lead SET contact_name = COALESCE(${input.contactName ?? null}, contact_name), company_name = ${input.companyName === undefined ? before.companyName : input.companyName}, phone = ${input.phone === undefined ? before.phone : input.phone}, email = ${input.email === undefined ? before.email : input.email}, phone_normalized = ${normalized.phone}, email_normalized = ${normalized.email}, campaign_id = ${input.campaignId === undefined ? before.campaignId : input.campaignId}, status = COALESCE(${input.status ?? null}, status) WHERE organization_id = ${organizationId} AND id = ${id}`); }
+
+/**
+ * Upsert a canonical contact for a manual lead so downstream Deal
+ * conversion can resolve `deal.contact_id`. Matches on primary_email or
+ * primary_phone (the partial unique indexes). Returns null when neither
+ * phone normalizes to E.164 nor email is present (should not happen —
+ * the create validator requires one).
+ */
+export async function upsertContactForLead(
+  tx: Tx,
+  organizationId: string,
+  input: { fullName: string; phoneE164: string | null; phoneRaw: string | null; email: string | null; createdBy: string },
+): Promise<string | null> {
+  if (!input.phoneE164 && !input.email) return null;
+  const existing = await tx.maybeOne<{ id: string }>(sql`
+    SELECT id FROM contact
+     WHERE organization_id = ${organizationId}
+       AND (
+         (${input.email}::citext IS NOT NULL AND primary_email = ${input.email}::citext)
+         OR (${input.phoneE164}::text IS NOT NULL AND primary_phone = ${input.phoneE164}::text)
+       )
+     LIMIT 1
+  `);
+  if (existing) return existing.id;
+  const row = await tx.one<{ id: string }>(sql`
+    INSERT INTO contact (organization_id, full_name, primary_phone, primary_phone_raw, primary_email, created_by)
+    VALUES (${organizationId}, ${input.fullName}, ${input.phoneE164}, ${input.phoneRaw}, ${input.email}, ${input.createdBy})
+    RETURNING id
+  `);
+  return row.id;
+}
+export async function updateLeadRow(tx: Tx, organizationId: string, id: string, input: UpdateLeadInput, before: Lead, normalized: { phone: string | null; email: string | null }): Promise<void> { await tx.query(sql`UPDATE lead SET contact_name = COALESCE(${input.contactName ?? null}, contact_name), company_name = ${input.companyName === undefined ? before.companyName : input.companyName}, phone = ${input.phone === undefined ? before.phone : input.phone}, email = ${input.email === undefined ? before.email : input.email}, phone_normalized = ${normalized.phone}, email_normalized = ${normalized.email}, campaign_id = ${input.campaignId === undefined ? before.campaignId : input.campaignId}, status = COALESCE(${input.status ?? null}, status), lead_outcome = CASE WHEN ${input.status ?? null}::text = 'nurture' THEN 'nurture' WHEN ${input.status ?? null}::text IS NOT NULL THEN 'active' ELSE lead_outcome END WHERE organization_id = ${organizationId} AND id = ${id}`); }
+/** Point the lead at its company record (null when it names none). */
+export async function linkLeadCompany(tx: Tx, organizationId: string, id: string, companyId: string | null): Promise<void> {
+  await tx.query(sql`UPDATE lead SET company_id = ${companyId} WHERE organization_id = ${organizationId} AND id = ${id}`);
+}
 export async function insertActivity(tx: Tx, organizationId: string, leadId: string, eventName: LeadActivityEvent, actorId: string | null, metadata: unknown): Promise<void> { await tx.query(sql`INSERT INTO lead_activity (organization_id, lead_id, event_name, actor_id, metadata) VALUES (${organizationId}, ${leadId}, ${eventName}, ${actorId}, ${JSON.stringify(metadata)}::jsonb)`); }
 export async function insertAudit(tx: Tx, ctx: RequestContext, action: string, targetId: string, before: unknown, after: unknown, targetType = 'lead'): Promise<void> { await tx.query(sql`INSERT INTO audit_outbox (organization_id, stream, payload) VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({ action, actorId: ctx.principal.id, actorType: ctx.principal.accountType, targetType, targetId, before, after, requestId: ctx.requestId, sourceIp: ctx.sourceIp })}::jsonb)`); }
 
 export async function findDuplicates(ctx: RequestContext, filter: SqlFragment, phone: string | null, email: string | null): Promise<DuplicateWarning[]> {
   if (!phone && !email) return [];
-  const row = await db.query<{ leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null }>(ctx, sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${ctx.organizationId} AND ${filter} AND ((${phone} IS NOT NULL AND l.phone_normalized = ${phone}) OR (${email} IS NOT NULL AND l.email_normalized = ${email})) ORDER BY l.created_at DESC LIMIT 10`);
+  const row = await db.query<{ leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null }>(ctx, sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${ctx.organizationId} AND ${filter} AND ((${phone}::text IS NOT NULL AND l.phone_normalized = ${phone}::text) OR (${email}::text IS NOT NULL AND l.email_normalized = ${email}::text)) ORDER BY l.created_at DESC LIMIT 10`);
   return row;
 }
 export async function findDuplicatesTx(tx: Tx, organizationId: string, filter: SqlFragment, phone: string | null, email: string | null): Promise<DuplicateWarning[]> {
   if (!phone && !email) return [];
-  return tx.query<DuplicateWarning>(sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${organizationId} AND ${filter} AND ((${phone} IS NOT NULL AND l.phone_normalized = ${phone}) OR (${email} IS NOT NULL AND l.email_normalized = ${email})) ORDER BY l.created_at DESC LIMIT 10`);
+  return tx.query<DuplicateWarning>(sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${organizationId} AND ${filter} AND ((${phone}::text IS NOT NULL AND l.phone_normalized = ${phone}::text) OR (${email}::text IS NOT NULL AND l.email_normalized = ${email}::text)) ORDER BY l.created_at DESC LIMIT 10`);
 }

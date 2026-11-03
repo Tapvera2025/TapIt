@@ -23,6 +23,7 @@ export const RULES_VERSION = 'attendance-rules/2';
 
 /** SH-4: flexible days use fixed thresholds, not settings. */
 const FLEXIBLE_HALF_DAY = 300;
+const FLEXIBLE_FULL_DAY = 480;
 
 export interface Overlay {
   readonly kind:
@@ -368,19 +369,29 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
   if (!input.closed && departure === null)
     return finish({ ...minutes, status: null, units: NO_UNITS });
 
-  // 4–6. Worked time against the day's thresholds, less confirmed deductions.
+  // 4–6. Time against the day's thresholds, less confirmed deductions.
+  //
+  // The "measured" quantity is total time on premises (worked + break),
+  // so an employee who completes the full-day minutes INCLUDING the time
+  // they spent on break still counts as present. This matches the UX
+  // promise "if he or she completes the full day quota including break
+  // minutes." Deduct-minutes policy consequences still subtract from the
+  // measurement.
   const deducted = consequences
     .filter((overlay) => overlay.consequence === 'deduct-minutes')
     .reduce((sum, overlay) => sum + (overlay.minutes ?? 0), 0);
-  const effective = Math.max(0, workedMinutes - deducted);
+  const measured = Math.max(0, workedMinutes + breakMinutes - deducted);
   const halfDay =
     input.shift.kind === 'flexible'
       ? FLEXIBLE_HALF_DAY
       : (input.shift.halfDayMinutes ?? Infinity);
-  // Reaching the half-day threshold is a fully paid present day. The separate
-  // half-day status remains available for explicit policy consequences and
-  // approved half-day leave, handled above/below this threshold calculation.
-  let present = effective >= halfDay ? 2 : 0;
+  const fullDay =
+    input.shift.kind === 'flexible'
+      ? FLEXIBLE_FULL_DAY
+      : (input.shift.fullDayMinutes ?? Infinity);
+  // Three tiers from measured time alone: full present at >= fullDay,
+  // half-day at >= halfDay (but short of fullDay), absent below halfDay.
+  let present = measured >= fullDay ? 2 : measured >= halfDay ? 1 : 0;
   if (consequences.some((overlay) => overlay.consequence === 'mark-half-day'))
     present = Math.min(present, 1);
   if (consequences.some((overlay) => overlay.consequence === 'mark-absent')) present = 0;
@@ -390,7 +401,9 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
     present === 2 ? 'present' : present === 1 ? 'half-day' : 'absent';
   return finish({
     ...minutes,
-    workedMinutes: effective,
+    // Preserve the audit `workedMinutes` (break-exclusive). The threshold
+    // decision above uses measured (break-inclusive) only for status.
+    workedMinutes: Math.max(0, workedMinutes - deducted),
     status,
     units: { ...NO_UNITS, present, absent: 2 - present },
   });

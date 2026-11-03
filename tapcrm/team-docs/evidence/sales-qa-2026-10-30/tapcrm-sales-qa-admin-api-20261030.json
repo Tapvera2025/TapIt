@@ -1,0 +1,8 @@
+{
+  "recordedAt": "2026-10-30T09:52:49.188Z",
+  "method": "Authenticated local API; user explicitly approved existing configured credential verification and local API login; no password/hash saved or displayed",
+  "organizationId": "01a186b3-f39a-7c42-9199-d8b1e9a739ed",
+  "dealId": "01a18c1a-03cc-74f7-8697-d8fdc410a994",
+  "checks": [],
+  "configuredPasswordMatches": false
+}

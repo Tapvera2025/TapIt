@@ -133,12 +133,105 @@ export function PublicProposalPage({ token }: { token: string }): React.JSX.Elem
       {p.timeline && <Section label="Timeline">{p.timeline}</Section>}
       {p.terms && <Section label="Terms">{p.terms}</Section>}
 
-      {p.acceptedAt && (
+      {p.acceptedAt ? (
         <p className="mt-6 rounded-lg bg-emerald-500/15 p-3 text-sm text-emerald-700 dark:text-emerald-300">
           Accepted {new Date(p.acceptedAt).toLocaleString()}
         </p>
+      ) : (
+        <PublicProposalActions token={token} onAccepted={(at) => setState({ data: { ...p, acceptedAt: at } })} />
       )}
     </div>
+  );
+}
+
+function PublicProposalActions({ token, onAccepted }: { token: string; onAccepted: (at: string) => void }): React.JSX.Element {
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState<'' | 'accept' | 'question'>('');
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
+
+  async function accept(): Promise<void> {
+    setBusy('accept');
+    setError(null);
+    try {
+      const res = await fetch(`/api/public/proposals/${encodeURIComponent(token)}/accept`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ comment: comment.trim() || undefined }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { data?: { acceptedAt: string }; message?: string };
+      if (!res.ok) throw new Error(body.message ?? `Request failed (status ${res.status}).`);
+      if (body.data?.acceptedAt) onAccepted(body.data.acceptedAt);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : 'Unable to accept.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function sendQuestion(): Promise<void> {
+    if (!comment.trim()) {
+      setError('Please share your question or change request before sending.');
+      return;
+    }
+    setBusy('question');
+    setError(null);
+    try {
+      const res = await fetch(`/api/public/proposals/${encodeURIComponent(token)}/question`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ comment: comment.trim() }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? `Request failed (status ${res.status}).`);
+      }
+      setSent('Thanks — we received your note and will respond shortly.');
+      setComment('');
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : 'Unable to send.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-xl border border-app-border p-5">
+      <h2 className="font-display text-lg font-bold">Your response</h2>
+      <p className="mt-1 text-xs text-app-muted">
+        Accept to confirm the proposal, or send a question / change request for the team to review.
+      </p>
+      <label className="mt-3 block text-xs font-semibold text-app-muted">
+        <span className="mb-1 block">Comment (optional for accept, required for a question)</span>
+        <textarea
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+          rows={3}
+          className="w-full rounded-lg border border-app-border bg-app-background p-2 text-sm"
+          placeholder="Share any notes, questions, or requested changes."
+        />
+      </label>
+      {error && <p className="mt-3 text-sm text-app-danger">{error}</p>}
+      {sent && <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">{sent}</p>}
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          type="button"
+          disabled={busy !== ''}
+          onClick={() => void accept()}
+          className="rounded-lg bg-app-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {busy === 'accept' ? 'Accepting…' : 'Accept proposal'}
+        </button>
+        <button
+          type="button"
+          disabled={busy !== ''}
+          onClick={() => void sendQuestion()}
+          className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold disabled:opacity-60"
+        >
+          {busy === 'question' ? 'Sending…' : 'Request changes'}
+        </button>
+      </div>
+    </section>
   );
 }
 

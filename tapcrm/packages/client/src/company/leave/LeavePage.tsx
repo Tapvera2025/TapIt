@@ -4,6 +4,7 @@ import {
   listAvailableLeaveTypes,
   getLeaveBalances,
   submitLeave,
+  submitWfh,
   cancelLeave,
   type LeaveRequestSummary,
   type LeaveTypeDto,
@@ -30,6 +31,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
   const [error, setError] = useState<string | null>(null);
   const [supplementalError, setSupplementalError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showWfhForm, setShowWfhForm] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [refreshingTypes, setRefreshingTypes] = useState(false);
@@ -111,11 +113,32 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
     }
   }
 
-  async function refreshTypes(): Promise<void> {
+  async function handleSubmitWfh(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    if (!leaveTypeId || !fromDate || !toDate || !reason.trim()) {
+      setFormError('All fields are required.');
+      return;
+    }
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await submitWfh({ leaveTypeId, fromDate, toDate, reason: reason.trim() });
+      setShowWfhForm(false);
+      setLeaveTypeId(''); setFromDate(''); setToDate(''); setReason('');
+      await load();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to request WFH.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function refreshTypes(mode: 'absence' | 'wfh' = 'absence'): Promise<void> {
     setRefreshingTypes(true);
     setFormError(null);
     try {
-      setLeaveTypes((await listAvailableLeaveTypes()).filter((type) => type.isActive && type.kind === 'absence'));
+      const kind = mode === 'wfh' ? 'attendance-mode' : 'absence';
+      setLeaveTypes((await listAvailableLeaveTypes()).filter((type) => type.isActive && type.kind === kind));
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'Unable to load leave types.');
     } finally {
@@ -153,14 +176,23 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
 
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">My Leave Requests</h2>
-        {!showForm && !loading && !error && (
-          <button
-            type="button"
-            onClick={() => { setShowForm(true); void refreshTypes(); }}
-            className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-app-on-accent"
-          >
-            Apply for leave
-          </button>
+        {!showForm && !showWfhForm && !loading && !error && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowForm(true); setLeaveTypeId(''); void refreshTypes('absence'); }}
+              className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-app-on-accent"
+            >
+              Apply for leave
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowWfhForm(true); setLeaveTypeId(''); void refreshTypes('wfh'); }}
+              className="rounded-lg border border-app-accent/40 bg-app-accent/10 px-3 py-1.5 text-xs font-semibold text-app-accent"
+            >
+              Request WFH
+            </button>
+          </div>
         )}
       </div>
 
@@ -264,6 +296,79 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
             <button
               type="button"
               onClick={() => { setShowForm(false); setFormError(null); }}
+              className="rounded-lg border border-app-border px-4 py-2 text-sm text-app-muted hover:border-app-accent"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {showWfhForm && (
+        <form onSubmit={(e) => void handleSubmitWfh(e)} className="rounded-2xl border border-app-border bg-app-surface p-5 space-y-4">
+          <p className="text-sm font-semibold">Request work from home</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="apply-wfh-type" className="block text-xs font-semibold text-app-muted">WFH type</label>
+              <select
+                id="apply-wfh-type"
+                value={leaveTypeId}
+                onChange={(e) => setLeaveTypeId(e.target.value)}
+                required
+                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+              >
+                <option value="">Select type…</option>
+                {leaveTypes.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              {!refreshingTypes && leaveTypes.length === 0 && (
+                <p className="mt-1 text-xs text-app-muted">
+                  No active WFH leave types are available. Ask HR to configure one.
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-app-muted">From date</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-app-muted">To date</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-app-muted">Reason</label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                placeholder="Why do you need to work from home?"
+                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm placeholder:text-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent/30"
+              />
+            </div>
+          </div>
+          {formError && <p className="text-xs text-app-danger">{formError}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting || refreshingTypes || leaveTypes.length === 0}
+              className="rounded-lg bg-app-accent px-4 py-2 text-sm font-semibold text-app-on-accent disabled:opacity-50"
+            >
+              {submitting ? 'Submitting…' : 'Request WFH'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowWfhForm(false); setFormError(null); }}
               className="rounded-lg border border-app-border px-4 py-2 text-sm text-app-muted hover:border-app-accent"
             >
               Cancel

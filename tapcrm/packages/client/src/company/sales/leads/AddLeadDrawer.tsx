@@ -132,6 +132,10 @@ export function AddLeadDrawer({
           sourceId,
           companyName: companyName.trim() || undefined,
           campaignId: campaignId || undefined,
+          requirement: requirement.trim() || undefined,
+          location: location.trim() || undefined,
+          languagePreference: languagePreference.trim() || undefined,
+          notes: notes.trim() || undefined,
         },
         { idempotencyKey },
       );

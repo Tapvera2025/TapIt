@@ -146,7 +146,7 @@ export function DealDetailPage({
       await reload();
       return result;
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : 'Action failed.');
+      setActionError(humanizeDealError(cause, deal?.currency ?? 'INR'));
       return null;
     } finally {
       setBusy(false);
@@ -319,6 +319,7 @@ export function DealDetailPage({
       {confirmLost && (
         <MarkLostDialog
           busy={busy}
+          error={actionError}
           onClose={() => setConfirmLost(false)}
           onConfirm={async (reason, note) => {
             const result = await runAction(() => markDealLost(deal.id, reason, note));
@@ -330,6 +331,7 @@ export function DealDetailPage({
       {confirmCancel && (
         <CancelAfterWinDialog
           busy={busy}
+          error={actionError}
           onClose={() => setConfirmCancel(false)}
           onConfirm={async (reason) => {
             const result = await runAction(() => cancelDealAfterWin(deal.id, reason));
@@ -354,6 +356,7 @@ export function DealDetailPage({
         <ConfirmPaymentDialog
           currency={deal.currency}
           busy={busy}
+          error={actionError}
           onClose={() => setConfirmPaymentOpen(false)}
           onConfirm={async (input) => {
             const result = await runAction(() => confirmPayment(deal.id, input));
@@ -365,6 +368,7 @@ export function DealDetailPage({
       {revertPaymentOpen && (
         <RevertPaymentDialog
           busy={busy}
+          error={actionError}
           onClose={() => setRevertPaymentOpen(false)}
           onConfirm={async (reason) => {
             const result = await runAction(() => revertPaymentConfirmation(deal.id, reason));
@@ -557,10 +561,12 @@ const LOSS_REASONS: DealLossReason[] = [
 
 function MarkLostDialog({
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (reason: DealLossReason, note?: string) => Promise<void>;
 }): React.JSX.Element {
@@ -568,6 +574,11 @@ function MarkLostDialog({
   const [note, setNote] = useState('');
   return (
     <Modal title="Mark deal lost" onClose={onClose}>
+      {error && (
+        <p className="mb-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+          {error}
+        </p>
+      )}
       <Select
         label="Loss reason"
         value={reason}
@@ -595,16 +606,23 @@ function MarkLostDialog({
 
 function CancelAfterWinDialog({
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
 }): React.JSX.Element {
   const [reason, setReason] = useState('');
   return (
     <Modal title="Cancel after win" onClose={onClose}>
+      {error && (
+        <p className="mb-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+          {error}
+        </p>
+      )}
       <Field
         label="Reason (required)"
         value={reason}
@@ -669,11 +687,13 @@ function ProbabilityDialog({
 function ConfirmPaymentDialog({
   currency,
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   currency: string;
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (input: ConfirmPaymentInput) => Promise<void>;
 }): React.JSX.Element {
@@ -689,6 +709,11 @@ function ConfirmPaymentDialog({
         Record the advance Finance has already received. This flips the deal's payment status to
         "advance confirmed" and unblocks the Won readiness check. All amounts are in {currency}.
       </p>
+      {error && (
+        <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+          {error}
+        </p>
+      )}
       <div className="mt-4 grid gap-4">
         <Field
           label={`Amount received (${currency})`}
@@ -733,10 +758,12 @@ function ConfirmPaymentDialog({
 
 function RevertPaymentDialog({
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
 }): React.JSX.Element {
@@ -748,6 +775,11 @@ function RevertPaymentDialog({
         is confirmed again. Only open deals can be reverted — a confirmed advance on a Won deal
         requires cancel-after-win instead.
       </p>
+      {error && (
+        <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+          {error}
+        </p>
+      )}
       <div className="mt-4">
         <Field label="Reason (required)" value={reason} onChange={setReason} placeholder="Why?" />
       </div>
@@ -761,6 +793,31 @@ function RevertPaymentDialog({
       </div>
     </Modal>
   );
+}
+
+/**
+ * Translate server error strings that embed amounts in minor units (paise)
+ * into the currency's major unit so the user sees "₹60,000" instead of
+ * "6000000". Keeps unmatched messages untouched.
+ */
+function humanizeDealError(cause: unknown, currency: string): string {
+  const raw = cause instanceof Error ? cause.message : 'Action failed.';
+  const belowAdvance = /Confirmed amount \((\d+)\) is below the expected advance \((\d+)\)/.exec(raw);
+  if (belowAdvance) {
+    const [, actual, expected] = belowAdvance;
+    const fmt = (minor: string): string => formatMoney(BigInt(minor), currency);
+    return `Confirmed amount (${fmt(actual!)}) is below the expected advance (${fmt(expected!)}).`;
+  }
+  return raw;
+}
+
+function formatMoney(minor: bigint, currency: string): string {
+  const negative = minor < 0n;
+  const abs = negative ? -minor : minor;
+  const whole = abs / 100n;
+  const fraction = (abs % 100n).toString().padStart(2, '0');
+  const symbol = currency === 'INR' ? '₹' : `${currency} `;
+  return `${negative ? '-' : ''}${symbol}${whole.toLocaleString('en-IN')}.${fraction}`;
 }
 
 /**
@@ -825,7 +882,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">{label}</p>
-      <p className="mt-1 font-semibold capitalize">{children}</p>
+      <p className="mt-1 break-words font-semibold">{children}</p>
     </div>
   );
 }

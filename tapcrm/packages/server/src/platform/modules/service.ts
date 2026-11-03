@@ -4,6 +4,7 @@ import { platformDb, setTenantContext } from '../dal/db.js';
 import { sql } from '../dal/sql.js';
 import { bootstrapOrganization } from '../organizations/bootstrap.js';
 import { provisionAccountingFoundation } from '../../modules/finance/accounting/provisioning.js';
+import { provisionSeoRules } from '../../modules/seo-intelligence/provisioning.js';
 
 export const PLATFORM_MODULE_GROUPS = [
   { key: 'hr', label: 'HR', moduleKeys: ['employee-directory', 'onboarding', 'live-status', 'attendance', 'break-management', 'shifts', 'biometric', 'leave', 'holidays', 'payroll', 'performance', 'recruitment'] },
@@ -11,6 +12,7 @@ export const PLATFORM_MODULE_GROUPS = [
   { key: 'development', label: 'Development', moduleKeys: ['handoff', 'projects', 'tasks', 'resource-planning', 'delivery'] },
   { key: 'client', label: 'Client', moduleKeys: ['clients', 'social', 'post-closure', 'client-portal'] },
   { key: 'finance', label: 'Finance', moduleKeys: ['billing-terms', 'invoicing', 'payments', 'receivables', 'payables', 'accounting'] },
+  { key: 'marketing', label: 'Marketing', moduleKeys: ['seo-intelligence'] },
 ] as const;
 
 const PLATFORM_SELECTABLE_MODULE_KEYS = PLATFORM_MODULE_GROUPS.flatMap(
@@ -110,6 +112,9 @@ export async function changeOrganizationModule(
       await bootstrapOrganization(tx, orgId, toEnable.map((item) => item.key));
       if (toEnable.some((item) => item.key === 'accounting')) {
         await provisionAccountingFoundation(tx, orgId);
+      }
+      if (toEnable.some((item) => item.key === 'seo-intelligence')) {
+        await provisionSeoRules(tx, orgId);
       }
       return { organizationId: orgId, moduleId: module.id, status: 'enabled' };
     },

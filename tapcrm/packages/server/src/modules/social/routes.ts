@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Action } from '@tapcrm/contracts';
+import { SOCIAL_COMPANY_PLATFORMS, type Action } from '@tapcrm/contracts';
 import { route, type Handler } from '../../platform/http/route.js';
 import { ApplicationError } from '../../errors.js';
 import {
@@ -8,7 +8,19 @@ import {
   listSocialClients,
   getSocialClient,
 } from './policy.js';
-import { completeOAuth, selectOAuthAccounts, startOAuth } from './oauth.js';
+import {
+  completeCompanyOAuth,
+  completeOAuth,
+  selectOAuthAccounts,
+  startOAuth,
+} from './oauth.js';
+import {
+  assignCompanyLocation,
+  disconnectCompanyConnection,
+  listCompanyConnections,
+  listCompanyLocations,
+  syncCompanyConnection,
+} from './company.js';
 import {
   listProviderReadiness,
   getProviderReadiness,
@@ -38,6 +50,16 @@ const id = (params: Readonly<Record<string, string>>, key: string) =>
   z.string().uuid().parse(params[key]);
 const platform = (params: Readonly<Record<string, string>>) =>
   z.enum(SOCIAL_PLATFORMS).parse(params['platform']);
+const companyPlatform = (params: Readonly<Record<string, string>>) =>
+  z.enum(SOCIAL_COMPANY_PLATFORMS).parse(params['platform']);
+const oauthCompletion = z
+  .object({
+    code: z.string().min(1).max(8192),
+    state: z.string().min(1).max(8192),
+  })
+  .strict();
+const revocation = z.object({ revokeGrant: z.boolean().default(false) }).strict();
+const assignment = z.object({ clientId: z.string().uuid().nullable() }).strict();
 // Preparing content cannot smuggle a publish or approval command through social:manage.
 const preparePost = socialPostSchema.extend({
   intent: z.enum(['draft', 'submit']).default('draft'),
@@ -127,13 +149,7 @@ export function registerSocialRoutes(): void {
         ctx,
         clientId(params),
         platform(params),
-        z
-          .object({
-            code: z.string().min(1).max(8192),
-            state: z.string().min(1).max(8192),
-          })
-          .strict()
-          .parse(body),
+        oauthCompletion.parse(body),
         req,
         res,
       ),
@@ -161,10 +177,7 @@ export function registerSocialRoutes(): void {
     '/accounts/:accountId',
     'social:connect',
     async ({ ctx, params, body }) => {
-      const { revokeGrant } = z
-        .object({ revokeGrant: z.boolean().default(false) })
-        .strict()
-        .parse(body ?? {});
+      const { revokeGrant } = revocation.parse(body ?? {});
       let revocationStatus = 'not_requested';
       if (revokeGrant) {
         const account = await service.getAccountConnection(
@@ -172,15 +185,22 @@ export function registerSocialRoutes(): void {
           clientId(params),
           id(params, 'accountId'),
         );
+        // Revoking would end the company sign-in for every client it serves.
+        if (account.connectionClientId === null)
+          throw new ApplicationError(
+            'This location uses your company Google connection. Unassign it here; manage the Google sign-in under Company connections.',
+            422,
+            'SOCIAL_COMPANY_CONNECTION',
+          );
         if (account.credentialsEncrypted) {
           try {
             const credentials = decryptCredentials<OAuthCredential>(
               account.credentialsEncrypted,
-              {
-                organizationId: ctx.organizationId,
-                clientId: account.clientId,
+              service.connectionCredentialContext(ctx.organizationId, {
+                id: account.connectionId,
+                clientId: account.connectionClientId,
                 platform: account.platform,
-              },
+              }),
             );
             await getProvider(account.platform).revoke(credentials);
             revocationStatus = 'revoked';
@@ -299,4 +319,61 @@ export function registerSocialRoutes(): void {
     );
     return getAnalytics(ctx, clientId(params), {});
   });
+
+  // Company-wide connections: one platform sign-in for the whole company, whose
+  // locations are assigned to clients. Managing them is a company integration.
+  function company(
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    suffix: string,
+    handler: Handler,
+  ) {
+    route({
+      method,
+      path: `/api/social/company-connections${suffix}`,
+      action: 'system:manage-integrations',
+      module: 'social',
+      handler,
+    });
+  }
+  company('GET', '', async ({ ctx }) => listCompanyConnections(ctx));
+  company('POST', '/oauth/:platform/start', async ({ ctx, params, res }) => {
+    const providerPlatform = companyPlatform(params);
+    const readiness = getProviderReadiness(providerPlatform);
+    if (readiness.status !== 'ready')
+      throw new ApplicationError(readiness.message, 422, 'SOCIAL_SETUP_REQUIRED');
+    return startOAuth(ctx, null, providerPlatform, res);
+  });
+  company('POST', '/oauth/:platform/complete', async ({ ctx, params, body, req, res }) =>
+    completeCompanyOAuth(
+      ctx,
+      companyPlatform(params),
+      oauthCompletion.parse(body),
+      req,
+      res,
+    ),
+  );
+  company('GET', '/:connectionId/locations', async ({ ctx, params }) =>
+    listCompanyLocations(ctx, id(params, 'connectionId')),
+  );
+  company('POST', '/:connectionId/sync', async ({ ctx, params }) =>
+    syncCompanyConnection(ctx, id(params, 'connectionId'), 'manual'),
+  );
+  company(
+    'PUT',
+    '/:connectionId/locations/:locationId/client',
+    async ({ ctx, params, body }) =>
+      assignCompanyLocation(
+        ctx,
+        id(params, 'connectionId'),
+        id(params, 'locationId'),
+        assignment.parse(body).clientId,
+      ),
+  );
+  company('DELETE', '/:connectionId', async ({ ctx, params, body }) =>
+    disconnectCompanyConnection(
+      ctx,
+      id(params, 'connectionId'),
+      revocation.parse(body ?? {}).revokeGrant,
+    ),
+  );
 }

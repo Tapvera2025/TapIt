@@ -11,6 +11,7 @@ import {
   validateReassignForm,
   type ReassignFormInput,
 } from './reassign-helpers.js';
+import { sentenceLabel } from './callback-ui.js';
 
 /**
  * Reassign a lead to a new owner (R1 plan step 1.15). The handover-
@@ -39,6 +40,8 @@ export function ReassignModal({
     transferScheduledActivities: true,
     transferSourcingCredit: false,
   });
+  // Point out a missing field only once the person has used it.
+  const [touched, setTouched] = useState({ newOwnerId: false, reason: false });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -47,7 +50,7 @@ export function ReassignModal({
     getHandoverTargets(lead.id)
       .then((rows) => {
         if (!cancelled) {
-          setTargets(rows);
+          setTargets(rows.filter((row) => row.id !== lead.currentHolderId));
           setTargetsError(null);
         }
       })
@@ -57,7 +60,7 @@ export function ReassignModal({
     return () => {
       cancelled = true;
     };
-  }, [lead.id]);
+  }, [lead.id, lead.currentHolderId]);
 
   const problems = validateReassignForm(form);
   const canSubmit = !submitting && !hasFormProblems(problems);
@@ -122,28 +125,38 @@ export function ReassignModal({
           <span className="mb-2 block">New owner</span>
           <select
             value={form.newOwnerId}
-            onChange={(event) => setForm({ ...form, newOwnerId: event.target.value })}
+            onChange={(event) => {
+              setForm({ ...form, newOwnerId: event.target.value });
+              setTouched({ ...touched, newOwnerId: true });
+            }}
             className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
           >
             <option value="">Select an eligible agent</option>
             {targets.map((target) => (
               <option key={target.id} value={target.id} disabled={!target.selectable}>
-                {target.fullName} · {target.positionCode.replaceAll('-', ' ')} · {target.availability.replaceAll('_', ' ')}
+                {target.fullName} · {target.positionCode.replaceAll('-', ' ')} · {sentenceLabel(target.availability)}
               </option>
             ))}
           </select>
-          {problems.newOwnerId && <p className="mt-1 text-xs text-app-danger">{problems.newOwnerId}</p>}
+          {touched.newOwnerId && problems.newOwnerId && (
+            <p className="mt-1 text-xs text-app-danger">{problems.newOwnerId}</p>
+          )}
         </label>
 
         <div className="mt-4">
           <Field
             label="Reason (required)"
             value={form.reason}
-            onChange={(reason) => setForm({ ...form, reason })}
+            onChange={(reason) => {
+              setForm({ ...form, reason });
+              setTouched({ ...touched, reason: true });
+            }}
             required
             placeholder="At least 5 characters — logged in the audit trail"
           />
-          {problems.reason && <p className="mt-1 text-xs text-app-danger">{problems.reason}</p>}
+          {touched.reason && problems.reason && (
+            <p className="mt-1 text-xs text-app-danger">{problems.reason}</p>
+          )}
         </div>
 
         <fieldset className="mt-5 space-y-2">

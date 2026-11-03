@@ -39,6 +39,13 @@ export interface DiscoveredAccount extends ProviderAccount {
   capabilities: ProviderCapabilities;
 }
 
+/** The platform user who granted access, so a reconnect of the same user is recognised. */
+export interface ProviderIdentity {
+  /** Stable platform user id. Never an email, which a user can change. */
+  externalAccountId: string;
+  email?: string;
+}
+
 export interface SocialMedia {
   url: string;
   mimeType: string;
@@ -104,6 +111,8 @@ export interface SocialProvider {
     codeVerifier?: string;
   }): Promise<OAuthCredential>;
   discoverAccounts(credentials: OAuthCredential): Promise<DiscoveredAccount[]>;
+  /** Required for company-wide connections, which are keyed by the signed-in user. */
+  getAuthorizedIdentity?(credentials: OAuthCredential): Promise<ProviderIdentity>;
   refreshCredentials(credentials: OAuthCredential): Promise<OAuthCredential>;
   validatePost(content: SocialContent, account?: ProviderAccount): string[];
   publishPost(input: PublishInput): Promise<PublishedPost>;

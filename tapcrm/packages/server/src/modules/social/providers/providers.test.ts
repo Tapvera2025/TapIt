@@ -67,7 +67,7 @@ describe('Social provider readiness and OAuth', () => {
     expect(getProviderReadiness('facebook').status).toBe('ready');
   });
 
-  it('requires Google PKCE and sends state with minimum platform scopes', () => {
+  it('requires Google PKCE and sends state with minimum platform scopes plus account identity', () => {
     const google = new GoogleProvider('google_business', config);
     expect(() =>
       google.getAuthorizationUrl({
@@ -85,10 +85,81 @@ describe('Social provider readiness and OAuth', () => {
     expect(url.origin).toBe('https://accounts.google.com');
     expect(url.searchParams.get('state')).toBe('csrf-state');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    // openid + email only identify the signed-in account (one stored token per account).
     expect(url.searchParams.get('scope')).toBe(
-      'https://www.googleapis.com/auth/business.manage',
+      'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/business.manage',
     );
     expect(url.toString()).not.toContain(config.clientSecret);
+  });
+
+  it('identifies the signed-in Google account by its stable id, not its email', async () => {
+    const fetch = mockFetch(
+      response({ sub: '1098765432101234567890', email: 'agency@company-a.test' }),
+      response({ email: 'no-subject@company-a.test' }),
+    );
+    const google = new GoogleProvider('google_business', config);
+    await expect(google.getAuthorizedIdentity(credentials)).resolves.toEqual({
+      externalAccountId: '1098765432101234567890',
+      email: 'agency@company-a.test',
+    });
+    expect(textValue(fetch.mock.calls[0]?.[0])).toBe(
+      'https://openidconnect.googleapis.com/v1/userinfo',
+    );
+    expect(fetch.mock.calls[0]?.[1]?.headers).toEqual({
+      Authorization: 'Bearer test-access',
+    });
+    await expect(google.getAuthorizedIdentity(credentials)).rejects.toMatchObject({
+      code: 'PROVIDER_RESPONSE_INVALID',
+    });
+  });
+
+  it('lists Business Profile locations with an address staff can tell apart', async () => {
+    const fetch = mockFetch(
+      response({ accounts: [{ name: 'accounts/1' }] }),
+      response({
+        locations: [
+          {
+            name: 'locations/10',
+            title: 'Green Cafe',
+            websiteUri: 'https://greencafe.test',
+            metadata: { placeId: 'place-10', mapsUri: 'https://maps.google.com/?cid=10' },
+            storefrontAddress: {
+              addressLines: ['12 Hill Road'],
+              locality: 'Mumbai',
+              administrativeArea: 'Maharashtra',
+              postalCode: '400050',
+            },
+          },
+          { name: 'locations/11', title: 'Green Cafe Delivery' },
+          { name: 'not-a-location', title: 'Ignored' },
+        ],
+      }),
+    );
+    const discovered = await new GoogleProvider(
+      'google_business',
+      config,
+    ).discoverAccounts(credentials);
+    expect(
+      new URL(textValue(fetch.mock.calls[1]?.[0])).searchParams.get('readMask'),
+    ).toBe('name,title,metadata,storefrontAddress,websiteUri');
+    expect(discovered.map((item) => item.externalId)).toEqual([
+      'locations/10',
+      'locations/11',
+    ]);
+    expect(discovered[0]?.metadata).toEqual({
+      accountName: 'accounts/1',
+      locationName: 'locations/10',
+      placeId: 'place-10',
+      mapsUri: 'https://maps.google.com/?cid=10',
+      address: '12 Hill Road, Mumbai, Maharashtra, 400050',
+      websiteUri: 'https://greencafe.test',
+    });
+    expect(discovered[1]?.metadata).toEqual({
+      accountName: 'accounts/1',
+      locationName: 'locations/11',
+      placeId: '',
+      mapsUri: '',
+    });
   });
 
   it('rejects an unsafe redirect URI before making an OAuth request', async () => {

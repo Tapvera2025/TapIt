@@ -13,7 +13,8 @@ import { SocialNotFoundError } from './errors.js';
 import { notify } from '../notifications/facade.js';
 
 const POST = sql`SELECT p.*, ARRAY(SELECT media_id FROM social_post_media pm WHERE pm.organization_id=p.organization_id AND pm.client_id=p.client_id AND pm.post_id=p.id ORDER BY position) AS shared_media_ids, u.full_name AS created_by_name FROM social_post p JOIN app_user u ON u.organization_id = p.organization_id AND u.id = p.created_by`;
-const ACCOUNT = sql`SELECT a.*, c.scopes, c.credentials_encrypted, c.expires_at FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.client_id = a.client_id AND c.id = a.connection_id`;
+// An account's connection is either its client's own or the company's (client_id NULL).
+const ACCOUNT = sql`SELECT a.*, c.scopes, c.credentials_encrypted, c.expires_at, c.client_id AS connection_client_id FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id`;
 const DESTINATION = sql`SELECT d.*, a.name AS account_name, a.platform, d.last_error AS error,
   ARRAY(SELECT dm.media_id FROM social_destination_media dm WHERE dm.organization_id = d.organization_id AND dm.client_id = d.client_id AND dm.destination_id = d.id ORDER BY dm.position) AS media_ids
   FROM social_post_destination d JOIN social_account a ON a.organization_id = d.organization_id AND a.client_id = d.client_id AND a.id = d.account_id`;
@@ -46,10 +47,11 @@ export async function findSettings(
     }
   );
 }
+/** `clientId` is null for company-wide events, such as connecting the company's Google account. */
 export async function writeAudit(
   tx: Tx,
   ctx: RequestContext,
-  clientId: string,
+  clientId: string | null,
   action: string,
   resourceId: string | null,
   details: Record<string, unknown> = {},
@@ -160,6 +162,27 @@ export async function refreshPostStatus(
     published_at = CASE WHEN NOT EXISTS(SELECT 1 FROM social_post_destination d WHERE d.post_id = p.id AND d.status <> 'published') THEN COALESCE(p.published_at,now()) ELSE p.published_at END,
     updated_at = now()
     WHERE p.organization_id = ${organizationId} AND p.client_id = ${clientId} AND p.id = ${postId}`);
+}
+
+/** Cancels an account's scheduled destinations before it stops serving a client.
+ * Each post is locked before its destinations, the order every writer uses. */
+export async function cancelScheduledForAccount(
+  tx: Tx,
+  organizationId: string,
+  clientId: string,
+  accountId: string,
+  reason: string,
+): Promise<void> {
+  const pending = await tx.query<{ postId: string }>(
+    sql`SELECT DISTINCT post_id FROM social_post_destination WHERE organization_id = ${organizationId} AND client_id = ${clientId} AND account_id = ${accountId} AND status = 'scheduled'`,
+  );
+  for (const item of pending) {
+    await findPost(tx, organizationId, clientId, item.postId, true);
+    await tx.query(
+      sql`UPDATE social_post_destination SET status = 'cancelled', next_attempt_at = NULL, last_error = ${reason} WHERE organization_id = ${organizationId} AND client_id = ${clientId} AND post_id = ${item.postId} AND account_id = ${accountId} AND status = 'scheduled'`,
+    );
+    await refreshPostStatus(tx, organizationId, clientId, item.postId);
+  }
 }
 
 export interface DueDestination {

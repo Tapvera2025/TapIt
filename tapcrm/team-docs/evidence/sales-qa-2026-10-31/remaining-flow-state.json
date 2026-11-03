@@ -1,0 +1,24 @@
+{
+  "capturedAt": "2026-10-31T06:58:04.151506+00:00",
+  "timezone": "Asia/Kolkata",
+  "browserPasses": ["public_change_request", "callback_reschedule_one_hour", "callback_cancel", "agent_lead_conversion", "nonbinding_public_acceptance", "simulated_advance_confirmation", "brief_submit", "additional_win", "report_aggregation", "wins_queue_exclusion", "brief_cancel_after_win"],
+  "failures": [
+    { "id": "R4-01", "action": "Mark Lost", "status": 500, "requestId": "62182f2d-9b6c-4e25-bc63-c9204483132a", "error": "column decision_note does not exist", "dealNumber": 342 },
+    { "id": "R4-02", "action": "Cancel after win", "status": 403, "requestId": "94ed9774-c51f-44dc-90be-6e5cd9b68f2a", "error": "deals:approve requires createdBy, absent from loaded deal resource", "dealNumber": 259 }
+  ],
+  "deals": [
+    { "number": 257, "lifecycle": "won", "payment": "advance_confirmed", "cancelledAt": null },
+    { "number": 258, "lifecycle": "lost", "payment": "unpaid", "approval": "pending" },
+    { "number": 259, "id": "01a18eb9-ba7b-7785-8080-0301b11467ac", "lifecycle": "won", "payment": "advance_confirmed", "wonAt": "2026-10-31T06:56:27.563+00:00", "cancelledAt": null, "simulatedReceiptReference": "QA-SIMULATED-NO-FUNDS-R4-CANCEL", "simulatedAmountInr": 60000 },
+    { "number": 342, "id": "01a190bc-9324-7a74-bf0f-6f8ee5b705e7", "lifecycle": "open", "payment": "unpaid", "lostAt": null }
+  ],
+  "callbacks": [
+    { "id": "01a190bb-a51d-71a0-b5ac-34ec71e61955", "status": "rescheduled", "scheduledAt": "2026-11-01T05:00:00+00:00", "parentCallbackId": null },
+    { "id": "01a190bb-b2d6-7d6b-92ad-59487a67d3a7", "status": "cancelled", "scheduledAt": "2026-11-01T06:00:00+00:00", "parentCallbackId": "01a190bb-a51d-71a0-b5ac-34ec71e61955" }
+  ],
+  "brief": { "id": "01a190be-84e6-770e-bfa1-7c40432066e9", "state": "cancelled", "projectId": null },
+  "isolatedTenantSetup": { "clients": 0, "projects": 0 },
+  "latestIntegrationResultsBySuite": { "approvals": { "passed": 11, "failed": 0 }, "contracts": { "passed": 6, "failed": 0 }, "won": { "passed": 6, "failed": 0 }, "portal": { "passed": 10, "failed": 0 }, "deals": { "passed": 7, "failed": 2 }, "bidding": { "passed": 7, "failed": 0, "testFixtureTimezoneCorrected": true } },
+  "fundsMoved": false,
+  "browserAccountsOrPermissionsAdded": false
+}

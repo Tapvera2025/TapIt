@@ -490,6 +490,7 @@ export function Field({
   disabled = false,
   error,
   hint,
+  min,
 }: {
   label: string;
   value: string;
@@ -501,12 +502,15 @@ export function Field({
   error?: string | undefined;
   /** A line under the input, e.g. where an automatically filled value came from. */
   hint?: ReactNode;
+  /** The earliest value a date or time input offers. */
+  min?: string;
 }): React.JSX.Element {
   const input = (
     <input
       required={required}
       disabled={disabled}
       type={type}
+      min={min}
       value={value}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}

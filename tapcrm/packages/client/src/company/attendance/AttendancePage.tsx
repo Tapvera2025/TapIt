@@ -15,6 +15,7 @@ import {
   type EmployeeWiseReport,
 } from './attendanceApi.js';
 import { calendarMonth } from '../../ui/calendar-model.js';
+import { organizationLocalToIso } from '../sales/leads/callback-ui.js';
 import { attendanceStatus, MonthlyAttendanceKpis } from './AttendanceVisuals.js';
 import { Card, WorkspacePageContainer } from '../../ui/components.js';
 import { organizationToday } from '../organizationDate.js';
@@ -48,7 +49,7 @@ function dayTone(day: AttendanceDayView): PeopleCalendarDay['tone'] {
 }
 
 function dayLabel(day: AttendanceDayView): string {
-  if (day.dayType === 'week-off') return 'No attendance record';
+  if (day.dayType === 'week-off') return 'Weekly off';
   if (day.dayType === 'holiday') return 'Holiday';
   if (day.dayType === 'leave') return 'On leave';
   if (day.state === 'open' && !day.status && day.arrivalAt !== null) return 'In progress — punch out pending';
@@ -128,7 +129,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
   }
 
   useEffect(() => { loadMyCorrections(); }, []);
-  const [correctionKind, setCorrectionKind] = useState<'add-event' | 'void-event'>('add-event');
+  const [correctionKind, setCorrectionKind] = useState<'add-event' | 'replace-event' | 'void-event'>('add-event');
   const [correctionEventKind, setCorrectionEventKind] = useState<'in' | 'out' | 'break-start' | 'break-end'>('in');
   const [correctionAt, setCorrectionAt] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
@@ -258,9 +259,17 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
       if (correctionKind === 'void-event') {
         if (!correctionTargetId) { setCorrectionError('Select event to void.'); setSubmitting(false); return; }
         body = { workDate: selectedDate, reason: correctionReason, kind: 'void-event', payload: { targetEventId: correctionTargetId } };
+      } else if (correctionKind === 'replace-event') {
+        if (!correctionTargetId) { setCorrectionError('Select event to change.'); setSubmitting(false); return; }
+        if (!correctionAt) { setCorrectionError('Select the new date/time.'); setSubmitting(false); return; }
+        body = { workDate: selectedDate, reason: correctionReason, kind: 'replace-event', payload: { targetEventId: correctionTargetId, kind: correctionEventKind, at: organizationLocalToIso(correctionAt, organizationTimezone) } };
       } else {
         if (!correctionAt) { setCorrectionError('Select date/time for the event.'); setSubmitting(false); return; }
-        body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: correctionEventKind, at: new Date(correctionAt).toISOString() } };
+        // `correctionAt` comes from an <input type="datetime-local">, which the
+        // browser interprets in the user's local tz. Convert it to the ORG's
+        // local wall-clock so an operator in a different browser tz still
+        // records the event at the time they typed.
+        body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: correctionEventKind, at: organizationLocalToIso(correctionAt, organizationTimezone) } };
       }
       await requestAttendanceCorrection(body);
       setCorrectionNotice('Correction requested. HR will review it; you can follow it below.');
@@ -391,14 +400,14 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
 
               <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2 sm:flex">
-              {(['add-event', 'void-event'] as const).map((k) => (
+              {(['add-event', 'replace-event', 'void-event'] as const).map((k) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => setCorrectionKind(k)}
                   className={`rounded-lg border px-3 py-2 text-xs font-medium sm:py-1.5 ${correctionKind === k ? 'border-app-accent bg-app-accent/10 text-app-accent' : 'border-app-border text-app-muted hover:border-app-accent'}`}
                 >
-                  {k === 'add-event' ? 'Add event' : 'Void event'}
+                  {k === 'add-event' ? 'Add event' : k === 'replace-event' ? 'Change event' : 'Void event'}
                 </button>
               ))}
               </div>
@@ -445,6 +454,48 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+              {correctionKind === 'replace-event' && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-app-muted">Event to change</label>
+                  <select
+                    value={correctionTargetId}
+                    onChange={(e) => setCorrectionTargetId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                  >
+                    <option value="">Select event…</option>
+                    {effectiveEvents.map((ev) => (
+                      <option key={ev.id} value={ev.id}>
+                        {ev.kind.replace(/-/g, ' ')} — {fmtTime(ev.at ?? ev.occurredAt ?? null, organizationTimezone)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-app-muted">New event type</label>
+                  <select
+                    value={correctionEventKind}
+                    onChange={(e) => setCorrectionEventKind(e.target.value as typeof correctionEventKind)}
+                    className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                  >
+                    <option value="in">Check-in</option>
+                    <option value="out">Check-out</option>
+                    <option value="break-start">Break start</option>
+                    <option value="break-end">Break end</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-app-muted">New date & time</label>
+                  <input
+                    type="datetime-local"
+                    value={correctionAt}
+                    onChange={(e) => setCorrectionAt(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                  />
+                </div>
               </div>
             )}
 

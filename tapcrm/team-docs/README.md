@@ -33,3 +33,4 @@ the project overview remains in the repository [README](../README.md).
 
 - [Manage Social Media setup and operations](setup/social-media.md)
 - [Official social platform APIs and approvals](setup/social-platforms.md)
+- [SEO Intelligence module setup](setup/seo-intelligence.md)

@@ -46,9 +46,12 @@ export interface LiveBoard {
   asOf?: string;
 }
 
+export type PunchDisabledReason = 'no-shift-today' | 'already-finished' | 'on-approved-leave';
+
 export interface TodayStatus {
   row: LiveRow | null;
   allowedMoves: readonly string[];
+  disabledReason?: PunchDisabledReason | null;
 }
 
 export function loadLiveBoard(signal?: AbortSignal): Promise<LiveBoard> {

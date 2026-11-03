@@ -1,0 +1,247 @@
+{
+  "method": "Latest result per isolated PostgreSQL suite; bidding rerun separately after fixture-date correction",
+  "suites": [
+    {
+      "file": "packages/server/src/modules/sales/approvals/service.integration.test.ts",
+      "assertions": [
+        {
+          "title": "requestApproval refuses when dimensions do not require approval",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "requestApproval routes to the supervisor when agent cannot cover the value",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "requestApproval blocks when nobody up the chain can cover (no_eligible_approver)",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "a second pending request on the same deal is refused",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "decide approves and flips deal.approval_status",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "decide refuses self-approval (A-1) even if misrouted",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "decide refuses a user who is not the current approver",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "invalidateForDeal flips every pending request to invalidated",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "material updateDraft change invalidates pending approvals automatically",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "escalateIfBreached escalates once past SLA, no second escalation",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "listPending returns the queue for a supervisor",
+          "status": "passed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "file": "packages/server/src/modules/sales/contracts/service.integration.test.ts",
+      "assertions": [
+        {
+          "title": "draft \u2192 sent \u2192 signed walks the deal.contract_status column",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "signed contract rejects re-sending and re-signing",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "amendment creates a new draft and marks the signed contract as amended",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "createDraft refuses when another active contract exists on the deal",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "createDraft refuses an unpublished commercials version",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "voiding a draft frees the deal to create a new contract",
+          "status": "passed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "file": "packages/server/src/modules/sales/deals/service.integration.test.ts",
+      "assertions": [
+        {
+          "title": "createDeal from a claimed lead copies the lead originating_agent_id",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "createDeal with directEntryReason sets the caller as originating agent",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "updateDealStage rejects \"closed\" \u2014 the Win Recorder is the sole writer",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "updateDealStage walks forward through legal transitions",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "overrideProbability without deals:forecast returns 403",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "overrideProbability bypasses the forecast policy for super-admin globalAccess",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "markLost persists lifecycle=lost, loss_reason, lost_at",
+          "status": "failed",
+          "error": "error: column \"decision_note\" does not exist"
+        },
+        {
+          "title": "cancelAfterWin refuses an open deal \u2014 enforces Won Recorder-only path to (closed, won)",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "markLost blocks a second lifecycle transition \u2014 terminals are mutually exclusive",
+          "status": "failed",
+          "error": "error: column \"decision_note\" does not exist"
+        }
+      ]
+    },
+    {
+      "file": "packages/server/src/modules/sales/deals/won.integration.test.ts",
+      "assertions": [
+        {
+          "title": "readinessForClose lists missing delivery_brief for a bare deal (contract_status=not_required default)",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "after signing a contract and starting a brief, readiness is clear and recordWin closes the deal atomically",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "a second recordWin on the same deal is rejected with DEAL_ALREADY_WON",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "recordWin without deals:record-win is 403",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "recordWin on an unready deal returns WIN_READINESS_UNMET with unmet conditions",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "listReadyToClose surfaces deals the HOD can close",
+          "status": "passed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "file": "packages/server/src/modules/sales/proposals/portal/service.integration.test.ts",
+      "assertions": [
+        {
+          "title": "viewProposal returns the masked card for a valid token",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "viewProposal with an unknown token returns NOT_FOUND",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "viewProposal with an expired token returns 410 Gone",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "viewProposal with a revoked token returns 410 Gone",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "viewProposal after supersede returns 410 \u2014 share-link outlives its version",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "acceptProposal records evidence; replay returns the same acceptedAt (idempotent)",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "acceptProposal with a different token on an already-accepted version returns 410",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "rate limit per token breaks at 31st request; no DB write for the overflow",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "rate limit per IP breaks at 11th request from one IP",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "title": "supersede after a successful share returns 410 on next view (ex-plan)",
+          "status": "passed",
+          "error": null
+        }
+      ]
+    }
+  ],
+  "bidding": {
+    "passed": 7,
+    "failed": 0,
+    "evidence": "/private/tmp/tapcrm-sales-bidding-retest.log",
+    "fixtureDate": "localDateOf(now, Asia/Kolkata)",
+    "browserClaim": false
+  }
+}

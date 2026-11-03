@@ -25,12 +25,21 @@ import {
   type ProviderConfig,
   type ProviderInsights,
   type PublishedPost,
+  type ProviderIdentity,
   type PublishInput,
   type SocialContent,
   type SocialProvider,
 } from './types.js';
 
 const BUSINESS_SCOPE = 'https://www.googleapis.com/auth/business.manage';
+/** `openid` + email identify WHICH Google account signed in, so reconnecting the same
+ * account updates one stored token instead of minting another. Google keeps at most
+ * 100 refresh tokens per account per OAuth client and silently cancels the oldest. */
+const BUSINESS_SCOPES = [
+  'openid',
+  'https://www.googleapis.com/auth/userinfo.email',
+  BUSINESS_SCOPE,
+];
 const YOUTUBE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube.readonly',
@@ -46,7 +55,7 @@ export class GoogleProvider implements SocialProvider {
     readonly platform: 'google_business' | 'youtube',
     private readonly config: ProviderConfig,
   ) {
-    this.scopes = platform === 'youtube' ? YOUTUBE_SCOPES : [BUSINESS_SCOPE];
+    this.scopes = platform === 'youtube' ? YOUTUBE_SCOPES : BUSINESS_SCOPES;
     this.capabilities = {
       publishText: platform === 'google_business',
       publishImages: platform === 'google_business',
@@ -133,6 +142,20 @@ export class GoogleProvider implements SocialProvider {
     return tokenFromResponse(result.data, credentials.scopes, credentials);
   }
 
+  async getAuthorizedIdentity(credentials: OAuthCredential): Promise<ProviderIdentity> {
+    const result = await request('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: bearer(credentials.accessToken),
+    });
+    const externalAccountId = string(result.data['sub']);
+    if (!/^[A-Za-z0-9_-]{1,255}$/.test(externalAccountId))
+      throw new ProviderError(
+        'PROVIDER_RESPONSE_INVALID',
+        'Google did not identify the signed-in account. Connect again.',
+      );
+    const email = string(result.data['email']).slice(0, 320);
+    return { externalAccountId, ...(email ? { email } : {}) };
+  }
+
   async discoverAccounts(credentials: OAuthCredential): Promise<DiscoveredAccount[]> {
     if (this.platform === 'youtube') {
       const url = new URL('https://www.googleapis.com/youtube/v3/channels');
@@ -186,7 +209,7 @@ export class GoogleProvider implements SocialProvider {
           `https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations`,
         );
         url.search = form({
-          readMask: 'name,title,metadata',
+          readMask: 'name,title,metadata,storefrontAddress,websiteUri',
           pageSize: '100',
           ...(pageToken ? { pageToken } : {}),
         }).toString();
@@ -195,6 +218,8 @@ export class GoogleProvider implements SocialProvider {
           const name = string(location['name']);
           if (!/^locations\/[^/]+$/.test(name) || seen.has(name)) continue;
           seen.add(name);
+          const address = postalAddress(location['storefrontAddress']);
+          const websiteUri = string(location['websiteUri']);
           discovered.push({
             platform: 'google_business',
             externalId: name,
@@ -206,6 +231,8 @@ export class GoogleProvider implements SocialProvider {
               locationName: name,
               placeId: string(object(location['metadata'])['placeId']),
               mapsUri: string(object(location['metadata'])['mapsUri']),
+              ...(address ? { address } : {}),
+              ...(websiteUri ? { websiteUri } : {}),
             },
           });
         }
@@ -534,4 +561,23 @@ export class GoogleProvider implements SocialProvider {
       body: form({ token: credentials.refreshToken ?? credentials.accessToken }),
     });
   }
+}
+
+/** One readable line from a Google PostalAddress, so staff can tell branches apart.
+ * Service-area businesses that hide their address return nothing. */
+function postalAddress(value: unknown): string {
+  const address = object(value);
+  const lines = Array.isArray(address['addressLines'])
+    ? address['addressLines'].map(string)
+    : [];
+  return [
+    ...lines,
+    string(address['locality']),
+    string(address['administrativeArea']),
+    string(address['postalCode']),
+  ]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(', ')
+    .slice(0, 300);
 }

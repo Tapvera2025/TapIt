@@ -6,6 +6,7 @@ import {
   getCommercials,
   listCommercials,
   publishCommercials,
+  requestCommercialsApproval,
   revokeShareLink,
   updateDraftCommercials,
   type Commercials,
@@ -189,7 +190,15 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
     try {
       const next = await publishCommercials(selected.id);
       setSelected(next);
-      setVersions((prev) => prev.map((v) => (v.id === next.id ? next : v)));
+      // Refresh the full version list so previously-published rows that the
+      // server auto-superseded appear with their new state (QA S11: the
+      // switcher used to keep showing v1 as "Published" after v2 published).
+      try {
+        const refreshed = await listCommercials(dealId);
+        setVersions(refreshed);
+      } catch {
+        setVersions((prev) => prev.map((v) => (v.id === next.id ? next : v)));
+      }
       setPublishOpen(false);
       // After publish, immediately offer the share link UX.
       try {
@@ -199,9 +208,29 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
         // Non-fatal — user can request a link later.
       }
     } catch (cause) {
-      setSaveError(cause instanceof Error ? cause.message : 'Publish failed.');
+      // When commercials dimensions exceed authority (COMMERCIALS_PUBLISH_
+      // BLOCKED, HTTP 409), the user needs to request approval. Surface the
+      // affordance inline so they aren't stuck re-reading an error behind a
+      // modal (QA S08).
+      const message = cause instanceof Error ? cause.message : 'Publish failed.';
+      setSaveError(message);
+      setPublishOpen(false);
     }
   }
+
+  async function requestApproval(): Promise<void> {
+    if (!selected) return;
+    try {
+      await requestCommercialsApproval(selected.id);
+      setSaveError('Approval request submitted. Publishing will be enabled once an approver decides.');
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Could not request approval.');
+    }
+  }
+
+  const needsApprovalForPublish = Boolean(
+    saveError && /COMMERCIALS_PUBLISH_BLOCKED|request approval/i.test(saveError),
+  );
 
   async function regenerateLink(): Promise<void> {
     if (!selected) return;
@@ -266,6 +295,11 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
           {selected && editable && (
             <Button disabled={!canPublish(selected, deal)} onClick={() => setPublishOpen(true)}>
               Publish version {selected.version}
+            </Button>
+          )}
+          {selected && editable && needsApprovalForPublish && (
+            <Button kind="secondary" onClick={() => void requestApproval()}>
+              Request approval
             </Button>
           )}
         </div>
@@ -360,7 +394,7 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
                         <input
                           type="date"
                           disabled={!editable}
-                          value={draftBody?.validityAt?.slice(0, 10) ?? ''}
+                          value={draftBody?.validityAt?.slice(0, 10) ?? selected.validityAt?.slice(0, 10) ?? ''}
                           onChange={(event) => {
                             if (!draftBody) return;
                             const nextBody: CommercialsBodyInput = {
@@ -379,7 +413,7 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
                     <div className="mt-6 grid gap-4">
                       <TextArea
                         label="Scope"
-                        value={draftBody?.scope ?? ''}
+                        value={draftBody?.scope ?? selected.scope ?? ''}
                         disabled={!editable}
                         onChange={(scope) => {
                           if (!draftBody) return;
@@ -390,7 +424,7 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
                       />
                       <TextArea
                         label="Exclusions"
-                        value={draftBody?.exclusions ?? ''}
+                        value={draftBody?.exclusions ?? selected.exclusions ?? ''}
                         disabled={!editable}
                         onChange={(exclusions) => {
                           if (!draftBody) return;
@@ -401,7 +435,7 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
                       />
                       <TextArea
                         label="Timeline"
-                        value={draftBody?.timeline ?? ''}
+                        value={draftBody?.timeline ?? selected.timeline ?? ''}
                         disabled={!editable}
                         onChange={(timeline) => {
                           if (!draftBody) return;
@@ -412,7 +446,7 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
                       />
                       <TextArea
                         label="Terms"
-                        value={draftBody?.terms ?? ''}
+                        value={draftBody?.terms ?? selected.terms ?? ''}
                         disabled={!editable}
                         onChange={(terms) => {
                           if (!draftBody) return;

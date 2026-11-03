@@ -15,14 +15,26 @@ describe('partitionCallbacks', () => {
   it('splits active own callbacks into overdue vs upcoming today, ignoring other users and non-active statuses', () => {
     const cbs = [
       { id: 'a', ownerId: USER, status: 'pending', scheduledAt: new Date(now.getTime() - 60_000).toISOString() },
-      { id: 'b', ownerId: USER, status: 'rescheduled', scheduledAt: new Date(now.getTime() + 3 * 60 * 60_000).toISOString() },
+      { id: 'b', ownerId: USER, status: 'pending', scheduledAt: new Date(now.getTime() + 3 * 60 * 60_000).toISOString() },
       { id: 'c', ownerId: USER, status: 'completed', scheduledAt: new Date(now.getTime() - 60_000).toISOString() },
       { id: 'd', ownerId: OTHER, status: 'pending', scheduledAt: new Date(now.getTime() - 60_000).toISOString() },
       { id: 'e', ownerId: USER, status: 'pending', scheduledAt: new Date(now.getTime() + 48 * 60 * 60_000).toISOString() },
+      { id: 'f', ownerId: USER, status: 'cancelled', scheduledAt: new Date(now.getTime() + 60 * 60_000).toISOString() },
     ];
     const { overdue, upcomingToday } = partitionCallbacks(cbs, USER, now);
     expect(overdue.map((c) => c.id)).toEqual(['a']);
     expect(upcomingToday.map((c) => c.id)).toEqual(['b']);
+  });
+
+  it('shows a rescheduled callback once, at its new time', () => {
+    // Rescheduling closes the old callback and books a new pending one.
+    const cbs = [
+      { id: 'old', ownerId: USER, status: 'rescheduled', scheduledAt: new Date(now.getTime() + 60 * 60_000).toISOString() },
+      { id: 'new', ownerId: USER, status: 'pending', scheduledAt: new Date(now.getTime() + 2 * 60 * 60_000).toISOString() },
+    ];
+    const { overdue, upcomingToday } = partitionCallbacks(cbs, USER, now);
+    expect(overdue).toEqual([]);
+    expect(upcomingToday.map((c) => c.id)).toEqual(['new']);
   });
 });
 
@@ -36,6 +48,34 @@ describe('partitionLeads', () => {
     ];
     const { newlyAssigned } = partitionLeads(leads, USER, now);
     expect(newlyAssigned.map((l) => l.id)).toEqual(['a']);
+  });
+});
+
+describe('partitionLeads after a transfer', () => {
+  const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 60 * 60_000).toISOString();
+
+  it('shows a lead handed to me mid-way until I touch it', () => {
+    const leads = [
+      { id: 'untouched', ownerId: USER, status: 'contacted', routingStatus: 'assigned', createdAt: hoursAgo(72), assignedAt: hoursAgo(2), updatedAt: hoursAgo(2) },
+      { id: 'picked-up', ownerId: USER, status: 'contacted', routingStatus: 'assigned', createdAt: hoursAgo(72), assignedAt: hoursAgo(2), updatedAt: hoursAgo(1) },
+    ];
+    expect(partitionLeads(leads, USER, now).newlyAssigned.map((l) => l.id)).toEqual(['untouched']);
+  });
+
+  it('counts the hand-over time, not when the lead was created', () => {
+    const leads = [
+      { id: 'old-lead-new-owner', ownerId: USER, status: 'assigned', routingStatus: 'assigned', createdAt: hoursAgo(72), assignedAt: hoursAgo(1), updatedAt: hoursAgo(1) },
+      { id: 'handed-over-days-ago', ownerId: USER, status: 'assigned', routingStatus: 'assigned', createdAt: hoursAgo(1), assignedAt: hoursAgo(30), updatedAt: hoursAgo(30) },
+    ];
+    expect(partitionLeads(leads, USER, now).newlyAssigned.map((l) => l.id)).toEqual(['old-lead-new-owner']);
+  });
+
+  it('never shows a converted or lost lead', () => {
+    const leads = [
+      { id: 'won', ownerId: USER, status: 'converted', routingStatus: 'assigned', createdAt: hoursAgo(1), assignedAt: hoursAgo(1), updatedAt: hoursAgo(1) },
+      { id: 'lost', ownerId: USER, status: 'closed_lost', routingStatus: 'assigned', createdAt: hoursAgo(1), assignedAt: hoursAgo(1), updatedAt: hoursAgo(1) },
+    ];
+    expect(partitionLeads(leads, USER, now).newlyAssigned).toEqual([]);
   });
 });
 

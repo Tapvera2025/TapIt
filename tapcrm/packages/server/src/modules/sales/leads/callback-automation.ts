@@ -4,6 +4,7 @@ import { platformDb, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { notifyCallbackMissed, notifyCallbackReminder } from './callback-notifications.js';
 import { insertActivity, insertAudit } from './repository.js';
+import { settleLeadAfterCallbackInTransaction } from './lifecycle.js';
 import { listHandoverTargets } from '../handover/repository.js';
 
 const SYSTEM_ID = '00000000-0000-0000-0000-000000000000';
@@ -103,6 +104,7 @@ async function processOrganization(organizationId: string): Promise<number> {
     `);
     for (const callback of missed) {
       await insertActivity(tx, organizationId, callback.leadId, 'callback.missed', null, { callbackId: callback.id, reason: 'grace_period_expired' });
+      await settleLeadAfterCallbackInTransaction(tx, organizationId, callback.leadId, { status: 'missed', outcome: null }, null);
       await insertAudit(tx, ctx, 'callback.missed', callback.id, { status: 'pending' }, { status: 'missed', reason: 'grace_period_expired' }, 'callback');
       const supervisorId = await resolveSalesSupervisor(tx, ctx, callback.ownerId, callback.leadId);
       await notifyCallbackMissed(tx, ctx, callback.ownerId, supervisorId, callback.leadId, callback.id);

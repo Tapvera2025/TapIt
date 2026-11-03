@@ -140,14 +140,14 @@ export async function findMetaConnectorsByPage(pageIds: readonly string[]): Prom
   }>(
     'webhook-dispatch',
     'resolve Meta connectors for incoming leadgen notification',
+    // SECURITY DEFINER resolver (migration 0121). Webhook has no tenant
+    // context yet, so a direct SELECT would be filtered by RLS.
     sql`
-      SELECT id              AS "connectorId",
-             organization_id AS "organizationId",
+      SELECT id                  AS "connectorId",
+             organization_id     AS "organizationId",
              status,
              external_account_id AS "externalAccountId"
-        FROM sales_connector
-       WHERE kind                 = 'meta'
-         AND external_account_id  = ANY(${pageIds}::text[])
+        FROM resolve_sales_connectors_by_external('meta', ${pageIds}::text[])
     `,
   );
   const map = new Map<string, MetaConnectorMatch>();

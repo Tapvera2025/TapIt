@@ -7,11 +7,13 @@ import {
 } from 'node:crypto';
 import { ApplicationError } from '../../errors.js';
 
-export interface CredentialContext {
-  organizationId: string;
-  clientId: string;
-  platform: string;
-}
+/** Who a stored secret belongs to. The ciphertext only decrypts for that owner. */
+export type CredentialContext =
+  /** A secret held for one client. */
+  | { organizationId: string; clientId: string; platform: string }
+  /** A company-wide secret: a company connection's token, or the PKCE verifier of a
+   * company sign-in that has no connection yet (keyed by its authorization request). */
+  | { organizationId: string; connectionId: string; platform: string };
 
 function encryptionKey(): Buffer {
   const raw = process.env['SOCIAL_TOKEN_ENCRYPTION_KEY'] ?? '';
@@ -29,16 +31,26 @@ function encryptionKey(): Buffer {
 
 function aad(context: CredentialContext): Buffer {
   return Buffer.from(
-    JSON.stringify([
-      'tapcrm-social-v1',
-      context.organizationId,
-      context.clientId,
-      context.platform,
-    ]),
+    JSON.stringify(
+      'connectionId' in context
+        ? [
+            'tapcrm-social-company-v1',
+            context.organizationId,
+            context.connectionId,
+            context.platform,
+          ]
+        : [
+            'tapcrm-social-v1',
+            context.organizationId,
+            context.clientId,
+            context.platform,
+          ],
+    ),
   );
 }
 
-/** AES-GCM binds each credential to its owning organization, client and provider. */
+/** AES-GCM binds each credential to its owning organization, owner (client or
+ * company connection) and provider. A ciphertext copied to another owner fails. */
 export function encryptCredentials<T>(value: T, context: CredentialContext): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv);

@@ -4,7 +4,7 @@ The native CRM module is at `/company/social`. It reuses Identity, CRM clients, 
 
 ## Enable and configure
 
-1. Apply migrations using `npm run migrate`. `0091_social_media.sql` adds 13 tenant-owned social tables, composite client/tenant foreign keys and forced RLS; `0092_social_catalog.sql` registers the module, its client dependency and six permissions; `0093_social_analytics_context.sql` preserves native metric notes/series and post references and makes approval/audit history append-only for the runtime role; `0094_social_story_destination.sql` adds the per-destination `post_type` column that selects Instagram Story vs feed publishing. Migrations are additive and forward-only, following the existing runner. Disable the module to withdraw it; retain history and use a reviewed forward fix or backup restore rather than dropping CRM data.
+1. Apply migrations using `npm run migrate`. `0091_social_media.sql` adds 13 tenant-owned social tables, composite client/tenant foreign keys and forced RLS; `0092_social_catalog.sql` registers the module, its client dependency and six permissions; `0093_social_analytics_context.sql` preserves native metric notes/series and post references and makes approval/audit history append-only for the runtime role; `0094_social_story_destination.sql` adds the per-destination `post_type` column that selects Instagram Story vs feed publishing; `0126_social_company_connections.sql` adds company-wide connections (below). Migrations are additive and forward-only, following the existing runner. Disable the module to withdraw it; retain history and use a reviewed forward fix or backup restore rather than dropping CRM data.
 2. Existing companies with the Clients entitlement receive the Social entitlement with the same enabled/disabled status. New companies can select Manage Social Media in the platform module catalogue.
 3. Generate `SOCIAL_TOKEN_ENCRYPTION_KEY` once using `openssl rand -hex 32`. Store and back up the key as a secret. Changing it without a planned re-encryption procedure makes stored credentials unreadable. Do not paste credentials into source code, client settings or screenshots.
 4. Set `SOCIAL_PUBLIC_BASE_URL` to the exact public CRM origin, e.g. `https://crm.example.com`, with no path, query or credentials. HTTP localhost is supported only outside production. OAuth callbacks use this configured origin, never a request Host header.
@@ -25,10 +25,26 @@ No credentials or approval status are inferred. Connected Accounts shows Setup R
 | `social:approve` | Approve another person's post or request changes |
 | `social:connect` | Official OAuth, reconnect, disconnect and optional grant revocation |
 | `social:settings` | Workspace timezone, approval requirement and client review opt-in |
+| `system:manage-integrations` | Company connections: connect the company's Google account, refresh its locations, assign them to clients, disconnect |
 
 Super Admin follows the existing authorization bypass, except segregation of duties still blocks self-approval. Other employees require explicit position/override grants through the existing Access controls. No broad social permissions are silently assigned to existing employee roles. For ordinary scopes, access follows the existing Clients policy: the client creator or a user assigned to a project for that client. Every API scopes child records to the selected client and tenant; composite foreign keys reject cross-client media/account relationships.
 
 A workspace can opt the existing CRM client login into `social:view` and `social:approve`. Client ownership is checked by the existing absolute A2 constraint. This login cannot connect accounts, upload content, publish, or alter settings. Review notifications are sent only to currently authorized reviewers with access to the client.
+
+## Company-wide Google Business Profile connections
+
+Agencies usually manage their customers' Business Profiles from one Google account that each customer has added as a Manager. Instead of signing in again for every client, a company admin connects that Google account once under **Manage Social Media → Company connections**:
+
+1. **Connect Google account** signs in once. TapIt stores one encrypted token for that Google account (identified by its stable Google id, shown by its email) and lists every location it manages.
+2. **Assign to client** links a location to one CRM client. A location serves one client at a time; moving it cancels the old client's scheduled posts to it. Unassigning keeps published history.
+3. **Refresh locations** (and a daily job) picks up profiles a new customer just shared, and flags ones the account no longer manages as *missing*.
+4. **Disconnect** unassigns every location and cancels their scheduled posts. Revoking at Google is a separate opt-in, because Google removes the user's whole grant.
+
+Why one sign-in: each Google sign-in mints a new refresh token, and Google keeps at most 100 per Google account per OAuth client, silently cancelling the oldest. Per-client sign-ins with one agency account therefore break at scale; a company connection is one token, refreshed once and shared by every location. Signing in again with the same Google account updates that connection and heals every location that needed a reconnect. When Google stops accepting the token, every location on it is marked *reconnect required* and admins holding `system:manage-integrations` get one notification.
+
+The client's own sign-in (Connected Accounts → Connect account) still works for customers who prefer it. Assigning that same location from the company connection moves it onto the company token and keeps the account's post history. A client page can unassign a company location but never revoke the company's Google grant. Database triggers keep a client connection serving only its own client, and a company connection serving clients only through its locations.
+
+The OAuth app, callback URL (`/api/social/oauth/google_business/callback`) and `.env` settings are the same as for client sign-ins; the sealed state decides where the browser returns. The app additionally requests `openid` and `userinfo.email` to recognise the signed-in account.
 
 ## Workflow
 

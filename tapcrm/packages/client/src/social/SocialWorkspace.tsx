@@ -15,6 +15,7 @@ import {
   type SocialConnectionCandidate,
 } from './api.js';
 import { ClientSelector } from './ClientSelector.js';
+import { CompanyConnections } from './CompanyConnections.js';
 import { Composer } from './Composer.js';
 import { Planner } from './Planner.js';
 import { PostDetails } from './PostDetails.js';
@@ -45,6 +46,8 @@ const sections = [
   { id: 'approvals', label: 'Approvals', icon: 'shield' },
   { id: 'analytics', label: 'Analytics', icon: 'chart' },
   { id: 'accounts', label: 'Connected Accounts', icon: 'share' },
+  // Company-wide, not per client: shown only to people who manage integrations.
+  { id: 'connections', label: 'Company connections', icon: 'building' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ] as const;
 
@@ -63,6 +66,7 @@ export function SocialWorkspace({
   canConnect,
   canPublish,
   canSettings,
+  canManageIntegrations,
 }: {
   pathname: string;
   onNavigate: (path: string) => void;
@@ -71,12 +75,16 @@ export function SocialWorkspace({
   canConnect: boolean;
   canPublish: boolean;
   canSettings: boolean;
+  /** Connect the company's own Google account and assign its locations to clients. */
+  canManageIntegrations: boolean;
 }): React.JSX.Element {
   const sectionPart =
     pathname.replace(/^\/company\/social\/?/, '').split('/')[0] || 'overview';
-  const section = sections.some((item) => item.id === sectionPart)
-    ? sectionPart
-    : 'overview';
+  const section =
+    sections.some((item) => item.id === sectionPart) &&
+    (sectionPart !== 'connections' || canManageIntegrations)
+      ? sectionPart
+      : 'overview';
   const [client, setClient] = useState<SocialClient | null>(null);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [providers, setProviders] = useState<SocialProvider[]>([]);
@@ -89,6 +97,7 @@ export function SocialWorkspace({
   const [editing, setEditing] = useState<SocialPost | null>(null);
   const [accountSelection, setAccountSelection] = useState<AccountSelection | null>(null);
   const [selectedExternalIds, setSelectedExternalIds] = useState<string[]>([]);
+  const [accountSearch, setAccountSearch] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [selectionError, setSelectionError] = useState('');
   const oauthHandled = useRef(false);
@@ -146,6 +155,8 @@ export function SocialWorkspace({
   useEffect(() => {
     if (oauthHandled.current || !window.location.hash.startsWith('#social-oauth='))
       return;
+    // A company-wide sign-in returns to Company connections, which completes it.
+    if (window.location.pathname.startsWith('/company/social/connections')) return;
     oauthHandled.current = true;
     const raw = window.location.hash.slice('#social-oauth='.length);
     window.history.replaceState(
@@ -182,6 +193,7 @@ export function SocialWorkspace({
         setClient(selectedClient);
         setSelectedExternalIds([]);
         setSelectionError('');
+        setAccountSearch('');
         setAccountSelection({
           ...choice,
           clientId,
@@ -296,7 +308,7 @@ export function SocialWorkspace({
       title={title}
       description="Plan, review and publish content for every client from one workspace."
       action={
-        canManage && section !== 'create' ? (
+        canManage && section !== 'create' && section !== 'connections' ? (
           <Button onClick={create} disabled={!client}>
             <Icon name="plus" className="mr-2 inline size-4" />
             Create post
@@ -304,22 +316,28 @@ export function SocialWorkspace({
         ) : undefined
       }
     >
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <ClientSelector selected={client} onSelect={chooseClient} />
-        {settings && (
-          <p className="text-xs text-app-muted">
-            <Icon name="clock" className="mr-1 inline size-3.5" />
-            {settings.timezone}
-            {settings.approvalRequired ? ' · Approval required' : ''}
-          </p>
-        )}
-      </div>
+      {section !== 'connections' && (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <ClientSelector selected={client} onSelect={chooseClient} />
+          {settings && (
+            <p className="text-xs text-app-muted">
+              <Icon name="clock" className="mr-1 inline size-3.5" />
+              {settings.timezone}
+              {settings.approvalRequired ? ' · Approval required' : ''}
+            </p>
+          )}
+        </div>
+      )}
       <nav
         aria-label="Social media sections"
         className="flex gap-1 overflow-x-auto border-b border-app-border pb-2"
       >
         {sections
-          .filter((item) => item.id !== 'create' || canManage)
+          .filter(
+            (item) =>
+              (item.id !== 'create' || canManage) &&
+              (item.id !== 'connections' || canManageIntegrations),
+          )
           .map((item) => (
             <button
               key={item.id}
@@ -352,7 +370,9 @@ export function SocialWorkspace({
       {connecting && !accountSelection && (
         <Notice>Completing platform authorization…</Notice>
       )}
-      {initializing || loading ? (
+      {section === 'connections' ? (
+        <CompanyConnections providers={providers} onChanged={changed} />
+      ) : initializing || loading ? (
         <SkeletonPage cards={3} rows={3} />
       ) : !client ? (
         <Card>
@@ -414,9 +434,12 @@ export function SocialWorkspace({
           {section === 'accounts' && (
             <ConnectedAccounts
               clientId={client.id}
+              clientName={client.businessName || client.clientName}
               accounts={accounts}
               providers={providers}
               canConnect={canConnect}
+              canManageIntegrations={canManageIntegrations}
+              onCompanyConnections={() => navigate('connections')}
               onChanged={changed}
             />
           )}
@@ -477,7 +500,42 @@ export function SocialWorkspace({
             {selectionError && <Notice error>{selectionError}</Notice>}
             {accountSelection.candidates.length ? (
               <div className="space-y-2">
-                {accountSelection.candidates.map((candidate) => (
+                <input
+                  type="search"
+                  placeholder="Search accounts…"
+                  value={accountSearch}
+                  onChange={(event) => setAccountSearch(event.target.value)}
+                  disabled={connecting}
+                  className="w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm placeholder:text-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-50"
+                />
+                <div className="flex items-center justify-between pb-1">
+                  <span className="text-xs text-app-muted">
+                    {selectedExternalIds.length} of {accountSelection.candidates.length} selected
+                  </span>
+                  <button
+                    type="button"
+                    disabled={connecting}
+                    className="text-xs font-medium text-app-accent hover:underline disabled:opacity-50"
+                    onClick={() =>
+                      setSelectedExternalIds(
+                        selectedExternalIds.length === accountSelection.candidates.length
+                          ? []
+                          : accountSelection.candidates.map((c) => c.externalId),
+                      )
+                    }
+                  >
+                    {selectedExternalIds.length === accountSelection.candidates.length
+                      ? 'Deselect all'
+                      : 'Select all'}
+                  </button>
+                </div>
+                {accountSelection.candidates
+                  .filter((c) =>
+                    accountSearch.trim() === '' ||
+                    c.name.toLowerCase().includes(accountSearch.toLowerCase()) ||
+                    c.externalId.toLowerCase().includes(accountSearch.toLowerCase()),
+                  )
+                  .map((candidate) => (
                   <label
                     key={candidate.externalId}
                     className="flex cursor-pointer items-center gap-3 rounded-xl border border-app-border p-3"
@@ -505,6 +563,16 @@ export function SocialWorkspace({
                     </span>
                   </label>
                 ))}
+                {accountSearch.trim() !== '' &&
+                  !accountSelection.candidates.some(
+                    (c) =>
+                      c.name.toLowerCase().includes(accountSearch.toLowerCase()) ||
+                      c.externalId.toLowerCase().includes(accountSearch.toLowerCase()),
+                  ) && (
+                    <p className="py-4 text-center text-sm text-app-muted">
+                      No accounts match "{accountSearch}"
+                    </p>
+                  )}
               </div>
             ) : (
               <Notice>

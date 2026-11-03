@@ -112,6 +112,27 @@ async function insertAssignedLead(
   return leadId;
 }
 
+async function insertPendingCallback(leadId: string, ownerId: string): Promise<string> {
+  const callbackId = randomUUID();
+  await asOwner(
+    'create pending callback',
+    sql`
+      INSERT INTO lead_callback (id, organization_id, lead_id, owner_id, scheduled_at, reason, status, created_by)
+      VALUES (${callbackId}, ${ORG}, ${leadId}, ${ownerId}, ${new Date(Date.now() + 24 * 60 * 60_000)},
+              'follow up tomorrow', 'pending', ${ownerId})
+    `,
+  );
+  return callbackId;
+}
+
+async function callbackOwner(callbackId: string): Promise<string> {
+  const rows = await asOwner(
+    'read callback owner',
+    sql`SELECT owner_id FROM lead_callback WHERE id = ${callbackId}`,
+  );
+  return (rows[0] as { ownerId: string }).ownerId;
+}
+
 async function makeAgentEligible(userId: string): Promise<void> {
   const now = new Date();
   const workDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
@@ -255,6 +276,106 @@ describe.skipIf(!enabled)('sales reassignment service (PostgreSQL)', () => {
       sql`SELECT count(*)::int AS n FROM notification_outbox WHERE organization_id = ${ORG} AND payload->>'type' = 'lead.reassigned' AND payload->'audience'->'users' @> ${JSON.stringify([AGENT_A])}::jsonb`,
     );
     expect((notifications[0] as { n: number }).n).toBeGreaterThanOrEqual(1);
+  });
+
+  it('moves the pending callback to the new owner, logs the transfer and tells the new owner', async () => {
+    const leadId = await insertAssignedLead(AGENT_A, AGENT_A);
+    const callbackId = await insertPendingCallback(leadId, AGENT_A);
+
+    await reassign(ctxSuperAdmin(), leadId, {
+      newOwnerId: AGENT_B,
+      reason: 'agent A is on leave this week',
+      transferPendingCallbacks: true,
+      transferScheduledActivities: true,
+      transferSourcingCredit: false,
+    });
+
+    expect(await callbackOwner(callbackId)).toBe(AGENT_B);
+
+    const activity = await asOwner(
+      'read reassignment activity',
+      sql`SELECT metadata FROM lead_activity WHERE organization_id = ${ORG} AND lead_id = ${leadId} AND event_name = 'lead.reassigned'`,
+    );
+    expect(activity).toHaveLength(1);
+    expect((activity[0] as { metadata: unknown }).metadata).toMatchObject({
+      previousOwnerId: AGENT_A,
+      ownerId: AGENT_B,
+      callbacksMoved: 1,
+    });
+
+    const notifications = await asOwner(
+      'read notification for the new owner',
+      sql`SELECT payload FROM notification_outbox WHERE organization_id = ${ORG} AND payload->>'type' = 'lead.assigned' AND payload->'metadata'->>'leadId' = ${leadId}`,
+    );
+    expect(notifications).toHaveLength(1);
+    expect((notifications[0] as { payload: unknown }).payload).toMatchObject({
+      audience: { users: [AGENT_B] },
+      body: 'A lead has been reassigned to you, along with its pending callback.',
+    });
+  });
+
+  it('leaves the callback with the previous owner when pending callbacks are not transferred', async () => {
+    const leadId = await insertAssignedLead(AGENT_A, AGENT_A);
+    const callbackId = await insertPendingCallback(leadId, AGENT_A);
+
+    await reassign(ctxSuperAdmin(), leadId, {
+      newOwnerId: AGENT_B,
+      reason: 'agent A keeps the follow-up call',
+      transferPendingCallbacks: false,
+      transferScheduledActivities: true,
+      transferSourcingCredit: false,
+    });
+
+    expect(await callbackOwner(callbackId)).toBe(AGENT_A);
+  });
+
+  it('reassigning a lead to its current holder hands them a callback left with someone else', async () => {
+    const leadId = await insertAssignedLead(AGENT_A, AGENT_B);
+    const callbackId = await insertPendingCallback(leadId, AGENT_A);
+
+    await reassign(ctxSuperAdmin(), leadId, {
+      newOwnerId: AGENT_B,
+      reason: 'callback was left with agent A',
+      transferPendingCallbacks: true,
+      transferScheduledActivities: true,
+      transferSourcingCredit: false,
+    });
+
+    expect(await callbackOwner(callbackId)).toBe(AGENT_B);
+    // Agent B already held the lead, so nobody is told it changed hands.
+    const notifications = await asOwner(
+      'count notifications for this lead',
+      sql`SELECT count(*)::int AS n FROM notification_outbox WHERE organization_id = ${ORG} AND payload->'metadata'->>'leadId' = ${leadId}`,
+    );
+    expect((notifications[0] as { n: number }).n).toBe(0);
+  });
+
+  it('records when the new owner got the lead, so My Work can show it to them', async () => {
+    const leadId = await insertAssignedLead(AGENT_A, AGENT_A);
+    const before = await asOwner(
+      'read assigned time',
+      sql`SELECT assigned_at FROM lead WHERE id = ${leadId}`,
+    );
+
+    const updated = await reassign(ctxSuperAdmin(), leadId, {
+      newOwnerId: AGENT_B,
+      reason: 'agent A moved to another team',
+      transferPendingCallbacks: true,
+      transferScheduledActivities: true,
+      transferSourcingCredit: false,
+    });
+
+    const rows = await asOwner(
+      'read assigned and updated time',
+      sql`SELECT assigned_at, updated_at FROM lead WHERE id = ${leadId}`,
+    );
+    const row = rows[0] as { assignedAt: Date; updatedAt: Date };
+    expect(row.assignedAt.getTime()).toBeGreaterThan(
+      (before[0] as { assignedAt: Date }).assignedAt.getTime(),
+    );
+    // Untouched since the hand-over: My Work lists it until the new owner acts.
+    expect(row.updatedAt.getTime()).toBe(row.assignedAt.getTime());
+    expect(updated.assignedAt?.getTime()).toBe(row.assignedAt.getTime());
   });
 
   it('HOD employee without leads:reassign-with-credit cannot transfer sourcing credit', async () => {

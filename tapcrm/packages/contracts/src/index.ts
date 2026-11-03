@@ -32,3 +32,7 @@ export * from './dashboard.js';
 export * from './recruitment-ats.js';
 export * from './recruitment-resume.js';
 export * from './social.js';
+export * from './seo-intelligence.js';
+export * from './seo-rule-copy.js';
+export * from './seo-content.js';
+export * from './content-body.js';

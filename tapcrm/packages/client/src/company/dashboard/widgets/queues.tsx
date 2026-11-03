@@ -83,7 +83,12 @@ export function TeamLiveWidget({ ctx }: { ctx: WidgetContext }): React.JSX.Eleme
   const [board, setBoard] = useState<LiveBoard | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    loadLiveBoard(controller.signal).then(setBoard).catch(() => setBoard({ rows: [], groups: {} as LiveBoard['groups'] }));
+    loadLiveBoard(controller.signal)
+      .then(setBoard)
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setBoard({ rows: [], groups: {} as LiveBoard['groups'] });
+      });
     return () => controller.abort();
   }, []);
 

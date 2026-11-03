@@ -3,10 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { Principal } from '@tapcrm/contracts';
 import { createJobContext } from '../../../platform/dal/context.js';
-import { platformDb } from '../../../platform/dal/db.js';
+import { db, platformDb } from '../../../platform/dal/db.js';
 import { closePools } from '../../../platform/dal/pool.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { expire } from '../bidding/service.js';
+import { assignOne } from './direct-router.js';
 
 /**
  * Sales v1.1 — direct-router fairness under concurrency (R1 plan step 1.4).
@@ -151,6 +152,7 @@ describe.skipIf(!enabled)('sales direct-router (PostgreSQL)', () => {
   afterAll(async () => {
     await asOwner('cleanup routing',    sql`DELETE FROM sales_routing_decision WHERE organization_id = ${ORG}`);
     await asOwner('cleanup bid views',  sql`DELETE FROM bid_pool_view          WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup callbacks',  sql`DELETE FROM lead_callback          WHERE organization_id = ${ORG}`);
     await asOwner('cleanup leads',      sql`DELETE FROM lead                   WHERE organization_id = ${ORG}`);
     await asOwner('cleanup contacts',   sql`DELETE FROM contact                WHERE organization_id = ${ORG}`);
     await asOwner('cleanup statuses',   sql`DELETE FROM user_status            WHERE organization_id = ${ORG}`);
@@ -190,5 +192,56 @@ describe.skipIf(!enabled)('sales direct-router (PostgreSQL)', () => {
     for (const row of counts) {
       expect((row as { count: number }).count).toBe(2);
     }
+  });
+
+  // Runs after the test above: it gives agent A an extra lead.
+  it('counts an overdue callback against the agent who owns it', async () => {
+    const leadId = randomUUID();
+    const contactId = randomUUID();
+    await asOwner(
+      'create contact',
+      sql`
+        INSERT INTO contact (id, organization_id, full_name, primary_phone, preferred_timezone, created_by)
+        VALUES (${contactId}, ${ORG}, 'Overdue callback', ${'+9198001' + String(++PHONE_SEQ).padStart(5, '0')},
+                'Asia/Kolkata', ${AGENT_A})
+      `,
+    );
+    await asOwner(
+      'create lead owned by agent A',
+      sql`
+        INSERT INTO lead (
+          id, organization_id, source_id, contact_id, contact_name, status, routing_status,
+          sales_pool_id, sales_team_id, owner_id, current_holder_id, created_by,
+          entry_method, direction, bid_state, claimed_at, lead_stage, lead_outcome
+        ) VALUES (
+          ${leadId}, ${ORG}, ${SOURCE}, ${contactId}, 'Overdue callback', 'callback_scheduled', 'assigned',
+          ${POOL_TEAM}, ${POOL_TEAM}, ${AGENT_A}, ${AGENT_A}, ${AGENT_A},
+          'manual', 'inbound', 'claimed', now(), 'new', 'active'
+        )
+      `,
+    );
+    await asOwner(
+      'create overdue callback',
+      sql`
+        INSERT INTO lead_callback (organization_id, lead_id, owner_id, scheduled_at, status, created_by)
+        VALUES (${ORG}, ${leadId}, ${AGENT_A}, ${new Date(Date.now() - 2 * 60 * 60_000)}, 'pending', ${AGENT_A})
+      `,
+    );
+
+    const ctx = ctxFor(AGENT_A);
+    const result = await db.transaction(ctx, (tx) =>
+      assignOne(ctx, tx, {
+        id: randomUUID(),
+        organizationId: ORG,
+        salesPoolId: POOL_TEAM,
+        salesTeamId: POOL_TEAM,
+      }),
+    );
+
+    const agentA = result?.candidates.find((c) => c.userId === AGENT_A);
+    const agentB = result?.candidates.find((c) => c.userId === AGENT_B);
+    expect(agentA?.overdueCallbackCount).toBe(1);
+    expect(agentB?.overdueCallbackCount).toBe(0);
+    expect(result?.userId).toBe(AGENT_B);
   });
 });
