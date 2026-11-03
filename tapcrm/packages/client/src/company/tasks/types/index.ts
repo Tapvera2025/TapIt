@@ -13,6 +13,8 @@ export interface TaskAssignee {
   readonly fullName: string;
   readonly assignedAt: string | Date;
   readonly status: TaskStatus;
+  readonly statusUpdatedByName?: string | null | undefined;
+  readonly statusUpdatedAt?: string | null | undefined;
 }
 
 export interface TaskAssignableUser {
@@ -33,6 +35,8 @@ export interface Task {
   readonly projectName?: string | null | undefined;
   readonly priority: TaskPriority;
   readonly status: TaskStatus;
+  readonly statusUpdatedByName?: string | null | undefined;
+  readonly statusUpdatedAt?: string | null | undefined;
   readonly dueDate: string | null;
   readonly createdBy: string;
   readonly createdByName?: string | null | undefined;
