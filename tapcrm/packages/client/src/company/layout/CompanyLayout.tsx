@@ -9,6 +9,7 @@ export function CompanyLayout({
   pathname,
   identity,
   organizationName,
+  organizationCode,
   accountType,
   canRequestRoleChange,
   canViewAudit,
@@ -65,6 +66,7 @@ export function CompanyLayout({
     positionName?: string | null;
   };
   organizationName: string | null;
+  organizationCode: string | null;
   accountType: string;
   canRequestRoleChange: boolean;
   canViewAudit: boolean;
@@ -237,6 +239,7 @@ export function CompanyLayout({
         <Navbar
           identity={identity}
           organizationName={organizationName}
+          organizationCode={organizationCode}
           sidebarCollapsed={sidebarCollapsed}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={toggleSidebar}

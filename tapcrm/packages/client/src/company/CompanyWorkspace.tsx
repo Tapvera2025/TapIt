@@ -685,6 +685,7 @@ export function CompanyWorkspace({
       pathname={pathname}
       identity={identity.user}
       organizationName={identity.organization?.name ?? null}
+      organizationCode={identity.organization?.code ?? null}
       accountType={identity.user.accountType}
       canRequestRoleChange={canRequestRoleChange}
       canViewAudit={canViewAudit}
