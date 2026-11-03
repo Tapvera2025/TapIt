@@ -67,6 +67,38 @@ export async function conversationMemberIds(ctx: RequestContext, conversationId:
   return rows.map((r) => r.userId);
 }
 
+/** Active project members, filtering client accounts through the live project/client relationship. */
+export async function authorizedProjectMemberIds(ctx: RequestContext, conversationId: string): Promise<string[] | null> {
+  const kind = await db.maybeOne<{ kind: ConversationKind }>(ctx, sql`
+    SELECT kind FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${conversationId}
+  `);
+  if (!kind) return null;
+  if (kind.kind !== 'project') {
+    const employees = await db.query<{ userId: string }>(ctx, sql`
+      SELECT cm.user_id FROM conversation_member cm
+      JOIN app_user u ON u.organization_id = cm.organization_id AND u.id = cm.user_id
+      WHERE cm.organization_id = ${ctx.organizationId} AND cm.conversation_id = ${conversationId}
+        AND cm.left_at IS NULL AND u.status = 'active' AND u.account_type IN ('employee', 'super-admin')
+    `);
+    return employees.map((row) => row.userId);
+  }
+  const rows = await db.query<{ userId: string }>(ctx, sql`
+    SELECT cm.user_id
+    FROM conversation c
+    JOIN project p ON p.organization_id = c.organization_id AND p.id = c.project_id AND p.archived_at IS NULL
+    JOIN client cl ON cl.organization_id = p.organization_id AND cl.id = p.client_id AND cl.status = 'active'
+    JOIN conversation_member cm ON cm.organization_id = c.organization_id AND cm.conversation_id = c.id AND cm.left_at IS NULL
+    JOIN app_user u ON u.organization_id = cm.organization_id AND u.id = cm.user_id AND u.status = 'active'
+    WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${conversationId}
+      AND c.kind = 'project' AND c.archived_at IS NULL
+      AND (u.account_type <> 'client' OR u.client_id = p.client_id)
+  `);
+  const exists = await db.maybeOne<{ id: string }>(ctx, sql`
+    SELECT id FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${conversationId}
+  `);
+  return exists ? rows.map((row) => row.userId) : null;
+}
+
 /** Same lookup, participating in a caller's open transaction — for notifying inside the same commit as the write (TX-2). */
 export async function conversationMemberIdsTx(tx: Tx, organizationId: string, conversationId: string): Promise<string[]> {
   const rows = await tx.query<{ userId: string }>(sql`
@@ -287,6 +319,17 @@ export async function validateMemberIds(tx: Tx, organizationId: string, userIds:
       AND status = 'active' AND account_type <> 'service'
   `);
   return rows.map((r) => r.id);
+}
+
+/** Generic company chats cannot target client portal accounts. */
+export async function validateEmployeeMemberIds(tx: Tx, organizationId: string, userIds: readonly string[]): Promise<string[]> {
+  if (userIds.length === 0) return [];
+  const rows = await tx.query<{ id: string }>(sql`
+    SELECT id FROM app_user
+    WHERE organization_id = ${organizationId} AND id = ANY(${[...userIds]}::uuid[])
+      AND status = 'active' AND account_type IN ('employee', 'super-admin')
+  `);
+  return rows.map((row) => row.id);
 }
 
 /** `kind` and `name`/`projectId` only, never `direct_pair_key` (dedup is direct-only, CH-1). */

@@ -21,12 +21,14 @@ const chatConversationPolicy: ResourcePolicy = {
   domain: 'business',
 
   async check(ctx, _action, resource: Resource): Promise<boolean> {
+    if (ctx.principal.accountType === 'client') return false;
     if (resource['organizationId'] !== ctx.organizationId) return false;
     const memberIds = resource['memberIds'];
     return Array.isArray(memberIds) && memberIds.includes(ctx.principal.id);
   },
 
   async filter(ctx, _action, scope) {
+    if (ctx.principal.accountType === 'client') return MATCH_NOTHING;
     if (scope === 'all-people') return MATCH_NOTHING;
     // Every other scope value collapses to the same fragment: there is no
     // "see my department's conversations" concept for this resource, only

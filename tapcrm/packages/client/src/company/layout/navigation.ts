@@ -23,6 +23,14 @@ export interface CompanyScreen {
   requiredAction: Action;
 }
 
+export interface CompanySearchDestination {
+  label: string;
+  path: string;
+  icon: string;
+  category: string;
+  keywords: readonly string[];
+}
+
 /**
  * Single universal navigation item for My Todo.
  * Universally available to all authenticated company users without action or role gating.
@@ -445,4 +453,66 @@ export function navigationScreensByAction(): ReadonlyMap<
     }
   }
   return mapping;
+}
+
+/**
+ * Builds the feature-search index from the same navigation registry used by
+ * the workspace navigation. Capability checks happen before results are
+ * returned; route authorization remains authoritative at the server/router.
+ */
+export function companySearchDestinations({
+  actions,
+  isSuperAdmin = false,
+  isHr = false,
+  hasRecruitment = false,
+}: {
+  actions: ReadonlySet<Action>;
+  isSuperAdmin?: boolean;
+  isHr?: boolean;
+  hasRecruitment?: boolean;
+}): CompanySearchDestination[] {
+  const destinations: CompanySearchDestination[] = [];
+  const seen = new Set<string>();
+
+  for (const group of companyNavigation) {
+    for (const item of group.items) {
+      if (item.label === 'Recruitment' && (!isHr || !hasRecruitment)) continue;
+      if (item.requiredAction && !isSuperAdmin && !actions.has(item.requiredAction))
+        continue;
+      if (
+        item.requiredAnyAction &&
+        !isSuperAdmin &&
+        !item.requiredAnyAction.some((action) => actions.has(action))
+      ) {
+        continue;
+      }
+
+      const children = item.children?.length
+        ? item.children
+        : [{ label: item.label, path: item.path }];
+      for (const child of children) {
+        if (seen.has(child.path)) continue;
+        seen.add(child.path);
+        destinations.push({
+          label: child.label,
+          path: child.path,
+          icon: item.icon,
+          category: group.label,
+          keywords: [item.label, group.label, child.label],
+        });
+      }
+    }
+  }
+
+  if (!seen.has('/company/settings')) {
+    destinations.push({
+      label: 'Settings',
+      path: '/company/settings',
+      icon: 'settings',
+      category: 'Preferences',
+      keywords: ['settings', 'theme', 'appearance', 'display mode', 'color'],
+    });
+  }
+
+  return destinations;
 }

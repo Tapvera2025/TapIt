@@ -1,5 +1,5 @@
 import { loadConfig } from '../../../config.js';
-import { sendEmail } from './mailer.js';
+import { sendEmail } from '../../../platform/email/index.js';
 
 export async function sendPasswordResetEmail(email: string, resetToken: string, organizationCode: string): Promise<void> {
   const config = loadConfig();

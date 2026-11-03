@@ -1,4 +1,4 @@
-import { sendEmail } from './mailer.js';
+import { sendEmail } from '../../../platform/email/index.js';
 
 export async function sendRecoveryCodeUsedAlert(email: string, ip: string | null): Promise<void> {
   await sendEmail({

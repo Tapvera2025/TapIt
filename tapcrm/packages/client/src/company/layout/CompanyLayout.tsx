@@ -3,6 +3,7 @@ import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
 import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
+import type { CompanySearchDestination } from './navigation.js';
 
 export function CompanyLayout({
   pathname,
@@ -52,6 +53,7 @@ export function CompanyLayout({
   onNavigate,
   onLogout,
   children,
+  searchDestinations,
 }: {
   pathname: string;
   identity: {
@@ -108,6 +110,7 @@ export function CompanyLayout({
   onNavigate: (path: string) => void;
   onLogout: () => void;
   children: React.ReactNode;
+  searchDestinations: readonly CompanySearchDestination[];
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -122,14 +125,17 @@ export function CompanyLayout({
   const mainScrollRef = useRef<HTMLElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
   const lenisRef = useRef<Lenis | null>(null);
-  const contentNeedsViewportHeight = pathname === '/company/messages' || /^\/company\/projects\/[^/]+$/.test(pathname);
+  const contentNeedsViewportHeight =
+    pathname === '/company/messages' || /^\/company\/projects\/[^/]+$/.test(pathname);
 
   useEffect(() => {
     const main = mainScrollRef.current;
     const content = scrollContentRef.current;
     if (!main || !content) return;
 
-    const desktopMotion = window.matchMedia('(min-width: 1280px) and (prefers-reduced-motion: no-preference)');
+    const desktopMotion = window.matchMedia(
+      '(min-width: 1280px) and (prefers-reduced-motion: no-preference)',
+    );
     const syncScrollMode = () => {
       lenisRef.current?.destroy();
       lenisRef.current = desktopMotion.matches
@@ -150,8 +156,12 @@ export function CompanyLayout({
               let element: HTMLElement | null = node;
               while (element && element !== main) {
                 const style = window.getComputedStyle(element);
-                const scrollsY = /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
-                const scrollsX = /(auto|scroll)/.test(style.overflowX) && element.scrollWidth > element.clientWidth + 1;
+                const scrollsY =
+                  /(auto|scroll)/.test(style.overflowY) &&
+                  element.scrollHeight > element.clientHeight + 1;
+                const scrollsX =
+                  /(auto|scroll)/.test(style.overflowX) &&
+                  element.scrollWidth > element.clientWidth + 1;
                 if (scrollsY || scrollsX) return true;
                 element = element.parentElement;
               }
@@ -233,6 +243,7 @@ export function CompanyLayout({
           onToggleSidebar={toggleSidebar}
           onNavigate={onNavigate}
           onLogout={onLogout}
+          searchDestinations={searchDestinations}
         />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <CompanySidebar
@@ -308,7 +319,12 @@ export function CompanyLayout({
                   );
               }}
             >
-              <div ref={scrollContentRef} className={contentNeedsViewportHeight ? 'h-full min-h-full' : 'min-h-full'}>
+              <div
+                ref={scrollContentRef}
+                className={
+                  contentNeedsViewportHeight ? 'h-full min-h-full' : 'min-h-full'
+                }
+              >
                 {children}
               </div>
             </main>

@@ -28,6 +28,7 @@ import { registerAllJobs } from './modules/index.js';
 import { startAuditDrainer, stopAuditDrainer } from './modules/audit/drainer.js';
 import { startNotificationDispatcher, stopNotificationDispatcher } from './modules/notifications/dispatcher.js';
 import { startJobs, stopJobs } from './platform/jobs/runner.js';
+import { startEmailWorker, stopEmailWorker } from './platform/email/index.js';
 import { stopResumeOcr } from './modules/recruitment/resume-ocr/index.js';
 import { startOutboxDrainer, stopOutboxDrainer } from './platform/outbox/drainer.js';
 import { startRealtime, stopRealtime } from './platform/realtime/server.js';
@@ -61,6 +62,7 @@ void startRealtime(server)
   });
 
 registerAllJobs();
+startEmailWorker();
 let geofenceRetentionTimer: NodeJS.Timeout | null = null;
 void startJobs().catch((error: unknown) => {
   console.error(JSON.stringify({ level: 'error', msg: 'background jobs unavailable; using local retention fallback', error: String(error) }));
@@ -98,6 +100,7 @@ function shutdown(code: number): void {
         stopResumeOcr(),
       ])
         .then(() => stopJobs())
+        .then(() => stopEmailWorker())
         .then(closePools)
         .finally(() => {
           clearTimeout(forced);

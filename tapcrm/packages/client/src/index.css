@@ -1081,7 +1081,7 @@
       margin: 0 !important;
       flex: none !important;
       border-radius: 0 1rem 1rem 0;
-      transition: transform 220ms cubic-bezier(.2, .8, .2, 1) !important;
+      transition: transform 300ms cubic-bezier(0.25, 1, 0.5, 1) !important;
       will-change: transform;
       isolation: isolate;
       background: color-mix(in srgb, var(--sidebar-background) 76%, transparent) !important;
@@ -1191,8 +1191,6 @@
     .workspace-sidebar {
       position: static !important;
       inset: auto !important;
-      width: auto;
-      max-width: none;
       height: calc(100dvh - 9rem) !important;
       margin: var(--company-sidebar-top-gap) 0 1.25rem 1.25rem !important;
       border-radius: 1rem;
@@ -2383,7 +2381,7 @@ summary:active {
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.28), color-mix(in srgb, var(--app-surface) 82%, transparent));
     -webkit-backdrop-filter: blur(12px) saturate(1.25);
     backdrop-filter: blur(12px) saturate(1.25);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--app-foreground) 6%, transparent), inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+    box-shadow: none;
     pointer-events: none !important;
     overflow: hidden;
     transition: left 420ms cubic-bezier(0.16, 1, 0.3, 1), width 420ms cubic-bezier(0.16, 1, 0.3, 1), transform 240ms cubic-bezier(0.2, 0.8, 0.25, 1);
@@ -2401,7 +2399,7 @@ summary:active {
     background:
       radial-gradient(ellipse at 50% 120%, rgba(255, 255, 255, 0.5), transparent 68%),
       linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0.42) 100%);
-    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.72), 0 1px 3px rgba(255, 255, 255, 0.2);
+    box-shadow: none;
     content: '';
     pointer-events: none;
   }
@@ -2446,11 +2444,6 @@ summary:active {
     will-change: left, width, transform;
   }
 
-  /* Keep the tab label single and crisp while the refracting pill moves over it. */
-  .messages-tab-list[data-dragging='true'] .messages-tab-button[aria-pressed='true']::after {
-    content: none;
-  }
-
   .messages-tab-button {
     position: relative;
     z-index: 20;
@@ -2480,26 +2473,8 @@ summary:active {
     text-rendering: geometricPrecision;
   }
 
-  /* A faint, inverted label reflection sits below the crisp live text. */
   .messages-tab-button[aria-pressed='true']::after {
-    position: absolute;
-    z-index: 0;
-    top: 57%;
-    right: 0.35rem;
-    left: 0.35rem;
-    overflow: hidden;
-    color: currentColor;
-    content: attr(data-label);
-    text-align: center;
-    white-space: nowrap;
-    opacity: 0.24;
-    filter: blur(1.1px);
-    transform: scaleY(-1);
-    transform-origin: center;
-    line-height: inherit;
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 82%);
-    mask-image: linear-gradient(to bottom, #000 0%, transparent 82%);
-    pointer-events: none;
+    display: none;
   }
 
   .messages-tab-button[aria-pressed='true'] {
@@ -2536,13 +2511,11 @@ summary:active {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
     -webkit-backdrop-filter: blur(14px) saturate(1.15);
     backdrop-filter: blur(14px) saturate(1.15);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 2px 8px rgba(0, 0, 0, 0.16);
+    box-shadow: none;
   }
 
   .dark .messages-tab-button[aria-pressed='true']::after {
-    opacity: 0.28;
-    filter: blur(1.2px);
-    text-shadow: 0 0 0.45rem color-mix(in srgb, currentColor 30%, transparent);
+    display: none;
   }
 
   .dark .messages-tab-glass-indicator::before {
@@ -2642,3 +2615,112 @@ summary:active {
     opacity: 0.48;
   }
 }
+
+/* ── Fluid Glassmorphism Scrollbar ────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-primary) 38%, rgba(255, 255, 255, 0.4)) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--app-surface-raised) 45%, transparent);
+  border-radius: 9999px;
+  margin: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-primary) 30%, rgba(255, 255, 255, 0.55)),
+    color-mix(in srgb, var(--theme-primary) 50%, rgba(255, 255, 255, 0.25))
+  );
+  border-radius: 9999px;
+  border: 1.5px solid transparent;
+  background-clip: padding-box;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0.5px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-primary) 55%, rgba(255, 255, 255, 0.7)),
+    color-mix(in srgb, var(--theme-primary) 70%, rgba(255, 255, 255, 0.4))
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 0 8px color-mix(in srgb, var(--theme-primary) 40%, transparent);
+  cursor: pointer;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-primary) 70%, rgba(255, 255, 255, 0.8)),
+    color-mix(in srgb, var(--theme-primary) 85%, rgba(255, 255, 255, 0.5))
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    0 0 12px color-mix(in srgb, var(--theme-primary) 65%, transparent);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.dark * {
+  scrollbar-color: color-mix(in srgb, var(--theme-primary) 45%, rgba(255, 255, 255, 0.2)) transparent;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.2),
+    color-mix(in srgb, var(--theme-primary) 40%, rgba(255, 255, 255, 0.06))
+  );
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0.5px rgba(0, 0, 0, 0.3);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.32),
+    color-mix(in srgb, var(--theme-primary) 60%, rgba(255, 255, 255, 0.12))
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.4),
+    0 0 10px color-mix(in srgb, var(--theme-primary) 50%, transparent);
+}
+
+/* Sidebar horizontal scrollbar prevention */
+.workspace-sidebar,
+.workspace-sidebar nav,
+.company-sidebar-nav {
+  overflow-x: hidden !important;
+}
+
+.workspace-sidebar ::-webkit-scrollbar:horizontal,
+.workspace-sidebar nav::-webkit-scrollbar:horizontal,
+.company-sidebar-nav::-webkit-scrollbar:horizontal {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  background: transparent !important;
+}
+
+
