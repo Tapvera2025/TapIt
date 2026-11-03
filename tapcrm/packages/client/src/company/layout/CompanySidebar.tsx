@@ -69,6 +69,23 @@ function ThemePromoIllustration({ accent }: { accent: AccentColor }): React.JSX.
   );
 }
 
+const GROUP_ICONS: Record<string, string> = {
+  Overview: 'grid',
+  Communication: 'message',
+  Organization: 'building',
+  People: 'users',
+  Delivery: 'briefcase',
+  Sales: 'dollar-sign',
+  Attendance: 'clock',
+  'Shifts & Leave': 'calendar',
+  'Advances & Penalties': 'alert-circle',
+  Payroll: 'wallet',
+  Finance: 'wallet',
+  'Identity & Access': 'shield',
+  Preferences: 'settings',
+  Account: 'users',
+};
+
 export function CompanySidebar({
   variant = 'company',
   pathname,
@@ -121,7 +138,7 @@ export function CompanySidebar({
   open,
   onClose,
   collapsed = false,
-  onToggleCollapsed: _onToggleCollapsed,
+  onToggleCollapsed,
   width = 256,
   onResize,
 }: {
@@ -188,9 +205,21 @@ export function CompanySidebar({
   width?: number;
   onResize?: (width: number) => void;
 }): React.JSX.Element {
-  const [organizationOpen, setOrganizationOpen] = useState(
-    pathname.startsWith('/company/organization'),
-  );
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
+    Organization: pathname.startsWith('/company/organization'),
+  }));
+
+  const toggleSection = (label: string) => {
+    setOpenSections((prev) => {
+      const current =
+        prev[label] ??
+        (label === 'Organization'
+          ? pathname.startsWith('/company/organization')
+          : true);
+      return { ...prev, [label]: !current };
+    });
+  };
+
   const [recruitmentOpen, setRecruitmentOpen] = useState(
     pathname.startsWith('/company/recruitment'),
   );
@@ -381,6 +410,9 @@ export function CompanySidebar({
     const isRecruitment = pathname.startsWith('/company/recruitment');
     if (!wasRecruitment && isRecruitment) {
       setRecruitmentOpen(true);
+    }
+    if (pathname.startsWith('/company/organization')) {
+      setOpenSections((prev) => (prev['Organization'] ? prev : { ...prev, Organization: true }));
     }
     prevPathnameRef.current = pathname;
   }, [pathname]);
@@ -941,7 +973,7 @@ export function CompanySidebar({
 
   return (
     <aside
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,margin,padding] duration-200 ease-out will-change-transform xl:static xl:my-5 xl:ml-5 xl:h-[calc(100dvh-6.5rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-5 xl:ml-5 xl:h-[calc(100dvh-6.5rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
       style={
         collapsed
           ? undefined
@@ -971,13 +1003,23 @@ export function CompanySidebar({
         </button>
       )}
       <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
-        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
+        <p className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
           {variant === 'client' ? 'Client Workspace' : 'Company Workspace'}
         </p>
-        <span
-          className={`hidden size-2 rounded-full bg-app-accent xl:block ${collapsed ? '' : 'xl:hidden'}`}
-          aria-hidden="true"
-        />
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="hidden items-center justify-center rounded-lg p-1.5 text-sidebar-muted transition hover:bg-sidebar-hover-bg hover:text-sidebar-foreground xl:flex"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Icon
+              name={collapsed ? 'sidebar-open' : 'sidebar-close'}
+              className="size-4"
+            />
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -993,7 +1035,7 @@ export function CompanySidebar({
         onPointerUp={finishSidebarPillDrag}
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
-        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
+        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
         aria-label="Company navigation"
       >
         <div
@@ -1004,40 +1046,36 @@ export function CompanySidebar({
           aria-hidden="true"
         />
         {visibleNavigation.map((group) => {
-          const isOrganization = group.label === 'Organization';
           const activeChild = group.items.some(
             (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
           );
+          const isOpen =
+            openSections[group.label] ??
+            (group.label === 'Organization'
+              ? pathname.startsWith('/company/organization')
+              : true);
           return (
             <div
               key={group.label}
               className={`relative z-[1] ${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed ? 'xl:border-t xl:border-sidebar-border/70 xl:pt-4 first:xl:border-t-0 first:xl:pt-0' : ''}`}
             >
-              {isOrganization ? (
-                <button
-                  type="button"
-                  onClick={() => setOrganizationOpen((openState) => !openState)}
-                  aria-expanded={organizationOpen}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
-                  title={collapsed ? 'Organization' : undefined}
-                >
-                  <Icon
-                    name="building"
-                    className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
-                  />
-                  <span className={collapsed ? 'xl:hidden' : ''}>Organization</span>
-                  <span aria-hidden="true" className={collapsed ? 'xl:hidden' : ''}>
-                    {organizationOpen ? '−' : '+'}
-                  </span>
-                </button>
-              ) : (
-                <p
-                  className={`px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-section-muted ${collapsed ? 'xl:hidden' : ''}`}
-                >
-                  {group.label}
-                </p>
-              )}
-              {(!isOrganization || organizationOpen) && (
+              <button
+                type="button"
+                onClick={() => toggleSection(group.label)}
+                aria-expanded={isOpen}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
+                title={collapsed ? group.label : undefined}
+              >
+                <Icon
+                  name={GROUP_ICONS[group.label] ?? 'grid'}
+                  className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
+                />
+                <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>{group.label}</span>
+                <span aria-hidden="true" className={`shrink-0 ${collapsed ? 'xl:hidden' : ''}`}>
+                  {isOpen ? '−' : '+'}
+                </span>
+              </button>
+              {isOpen && (
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
                     const isRecruitmentItem = item.label === 'Recruitment';
@@ -1094,7 +1132,7 @@ export function CompanySidebar({
                             >
                               <Icon name={item.icon} />
                             </span>
-                            <span className={collapsed ? 'xl:hidden' : ''}>
+                            <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>
                               {item.label}
                             </span>
                           </span>

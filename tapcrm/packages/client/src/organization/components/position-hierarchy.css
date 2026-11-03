@@ -1,70 +1,101 @@
 .position-explorer {
-  --position-line: color-mix(in srgb, var(--app-muted) 40%, var(--app-border));
+  --position-line: color-mix(in srgb, var(--app-accent) 45%, var(--app-border));
 }
 .position-toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: center;
   gap: 12px;
-  padding: 16px 24px;
+  padding: 12px 24px;
   border-block: 1px solid var(--app-border);
+  background: var(--app-surface);
 }
 .position-department-select {
-  flex: 0 1 240px;
-  min-width: 150px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 210px;
 }
-.position-department-select > span {
-  display: block;
-  margin-bottom: 7px;
+.position-department-select > span,
+.position-department-label {
+  display: inline-block;
+  margin-bottom: 0;
   font-size: 11px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--app-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .position-toolbar select {
   width: 100%;
-  min-height: 40px;
-  padding: 9px 12px;
+  min-height: 38px;
+  height: 38px;
+  padding: 8px 12px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
-  background: var(--app-surface);
+  background: var(--app-surface-raised);
   font-size: 12px;
+  font-weight: 500;
   color: var(--app-foreground);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.position-toolbar select:focus {
+  border-color: var(--app-accent);
 }
 .position-toolbar .org-chart-search {
-  min-height: 40px;
-  max-width: none;
+  min-height: 38px;
+  height: 38px;
+  max-width: 320px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--app-surface-raised);
+  box-sizing: border-box;
 }
 .position-status-select {
-  flex: 0 1 130px;
+  flex: 0 1 135px;
 }
 .position-view-toggle {
   display: flex;
+  align-items: center;
   margin-left: auto;
   padding: 3px;
+  min-height: 38px;
+  height: 38px;
+  box-sizing: border-box;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface-raised);
 }
 .position-view-toggle button {
-  min-height: 32px;
-  padding: 6px 13px;
-  border-radius: 5px;
+  min-height: 30px;
+  height: 30px;
+  padding: 4px 14px;
+  border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   color: var(--app-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 .position-view-toggle button[aria-pressed='true'] {
   background: var(--app-surface);
   color: var(--app-accent);
-  box-shadow: var(--app-shadow);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .position-canvas-toolbar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 16px;
-  padding: 12px 24px;
+  gap: 14px;
+  padding: 8px 24px;
   border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
 }
 .position-canvas-toolbar > p {
   margin-right: auto;
@@ -86,18 +117,18 @@
   cursor: default;
 }
 .position-viewport {
-  max-height: 720px;
-  min-height: 330px;
+  max-height: 780px;
+  min-height: 440px;
   overflow: auto;
   overscroll-behavior: contain;
-  background: radial-gradient(var(--app-border) 0.8px, transparent 0.8px) 0 0 / 24px 24px
+  background: radial-gradient(var(--app-border) 0.9px, transparent 0.9px) 0 0 / 22px 22px
     var(--app-surface-raised);
 }
 .position-diagram {
   position: relative;
   width: max-content;
   margin-inline: auto;
-  padding: 48px 62px 68px;
+  padding: 40px 60px 60px;
 }
 .position-connectors {
   position: absolute;
@@ -110,17 +141,18 @@
 .position-connectors path {
   fill: none;
   stroke: var(--position-line);
-  stroke-width: 1.5;
+  stroke-width: 2;
 }
 .position-leadership {
-  width: 232px;
+  width: 240px;
   margin-inline: auto;
   padding: 14px 20px;
   border: 1px solid var(--org-structure);
   border-top: 2px solid var(--app-accent);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--app-surface);
   text-align: center;
+  box-shadow: 0 4px 14px -3px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
 }
 .position-leadership > span {
   font-size: 8px;
@@ -152,7 +184,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 22px 10px 0;
+  padding: 22px 12px 0;
 }
 .position-tree-node::before {
   display: none;
@@ -168,16 +200,17 @@
 }
 .position-node-card {
   position: relative;
-  width: 232px;
+  width: 240px;
   flex-shrink: 0;
   border: 1px solid var(--app-border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--app-surface);
-  box-shadow: var(--app-shadow);
+  box-shadow: 0 4px 14px -3px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
   cursor: grab;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .position-node-card:active { cursor: grabbing; }
-.position-node-shell { position: relative; z-index: 1; width: 232px; }
+.position-node-shell { position: relative; z-index: 1; width: 240px; }
 .position-node-quick-add {
   position: absolute;
   inset: 0;

@@ -74,6 +74,7 @@ import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
 import { AccountingPage } from './finance/accounting/AccountingPage.js';
 import { FinanceFoundationPage } from './finance/foundation/FinanceFoundationPage.js';
 import { BillingTermsPage } from './finance/billing-terms/BillingTermsPage.js';
+import { companySearchDestinations } from './layout/navigation.js';
 
 export function CompanyWorkspace({
   pathname: rawPathname,
@@ -201,6 +202,12 @@ export function CompanyWorkspace({
         (identity.user.positionCode ?? '').toLowerCase().includes(hint),
       ));
   const hasRecruitment = identity.enabledModules.includes('recruitment');
+  const searchDestinations = companySearchDestinations({
+    actions: new Set(identity.capabilities.map((item) => item.action)),
+    isSuperAdmin,
+    isHr: Boolean(isHr),
+    hasRecruitment,
+  });
   const isOrganization =
     isSuperAdmin &&
     (pathname === '/company/organization' ||
@@ -742,6 +749,7 @@ export function CompanyWorkspace({
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}
+      searchDestinations={searchDestinations}
     >
       {renderContent()}
     </CompanyLayout>

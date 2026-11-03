@@ -9,6 +9,13 @@ interface TabItem {
   readonly iconName: string;
 }
 
+export interface LiquidGlassTabItem {
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly iconName: string;
+}
+
 const TABS: TabItem[] = [
   { id: 'overview', label: 'Overview', path: '/company/recruitment', iconName: 'chart' },
   { id: 'requisitions', label: 'Requisitions', path: '/company/recruitment/requisitions', iconName: 'briefcase' },
@@ -30,6 +37,30 @@ export function RecruitmentTabs({
   readonly onNavigate: (path: string) => void;
   readonly counts?: Partial<Record<RecruitmentTab, number>> | undefined;
 }): React.JSX.Element {
+  return (
+    <LiquidGlassTabs
+      items={TABS}
+      activeId={activeTab}
+      onNavigate={onNavigate}
+      counts={counts}
+      ariaLabel="Recruitment sections"
+    />
+  );
+}
+
+export function LiquidGlassTabs({
+  items,
+  activeId,
+  onNavigate,
+  counts,
+  ariaLabel,
+}: {
+  readonly items: readonly LiquidGlassTabItem[];
+  readonly activeId: string;
+  readonly onNavigate: (path: string) => void;
+  readonly counts?: Readonly<Record<string, number>> | undefined;
+  readonly ariaLabel: string;
+}): React.JSX.Element {
   const navRef = useRef<HTMLElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -41,7 +72,7 @@ export function RecruitmentTabs({
 
   useLayoutEffect(() => {
     const nav = navRef.current;
-    const activeButton = nav?.querySelector<HTMLElement>(`[data-recruitment-tab="${activeTab}"]`);
+    const activeButton = nav?.querySelector<HTMLElement>(`[data-recruitment-tab="${activeId}"]`);
     if (!nav || !activeButton) return;
 
     const moveIndicator = () => {
@@ -67,7 +98,7 @@ export function RecruitmentTabs({
       observer.disconnect();
       window.removeEventListener('resize', moveIndicator);
     };
-  }, [activeTab]);
+  }, [activeId]);
 
   const positionPillAtPointer = (clientX: number, deltaX = 0): boolean => {
     const origin = dragOriginRef.current;
@@ -131,8 +162,8 @@ export function RecruitmentTabs({
     if (shouldContinue) continueEdgeScroll();
   };
 
-  const startPillDrag = (event: ReactPointerEvent<HTMLButtonElement>, tab: RecruitmentTab) => {
-    if (!window.matchMedia('(min-width: 1280px)').matches || tab !== activeTab || event.button !== 0) return;
+  const startPillDrag = (event: ReactPointerEvent<HTMLButtonElement>, tab: string) => {
+    if (!window.matchMedia('(min-width: 1280px)').matches || tab !== activeId || event.button !== 0) return;
     const nav = navRef.current;
     const pill = indicatorRef.current;
     if (!nav || !pill) return;
@@ -166,15 +197,15 @@ export function RecruitmentTabs({
       window.setTimeout(() => { suppressClickRef.current = false; }, 600);
       const pillRect = pill.getBoundingClientRect();
       const center = pillRect.left + pillRect.width / 2;
-      const nearest = TABS.map((tab) => {
+      const nearest = items.map((tab) => {
         const button = nav.querySelector<HTMLElement>(`[data-recruitment-tab="${tab.id}"]`);
         if (!button) return null;
         const rect = button.getBoundingClientRect();
         return { tab, distance: Math.abs(center - (rect.left + rect.width / 2)) };
-      }).filter((entry): entry is { tab: TabItem; distance: number } => entry !== null)
+      }).filter((entry): entry is { tab: LiquidGlassTabItem; distance: number } => entry !== null)
         .sort((a, b) => a.distance - b.distance)[0]?.tab;
 
-      if (nearest && nearest.id !== activeTab) onNavigate(nearest.path);
+      if (nearest && nearest.id !== activeId) onNavigate(nearest.path);
       if (nearest) {
         const button = nav.querySelector<HTMLElement>(`[data-recruitment-tab="${nearest.id}"]`);
         if (button) {
@@ -207,11 +238,11 @@ export function RecruitmentTabs({
         data-dragging={isDragging}
         onPointerMove={movePillWhileDragging}
         className="recruitment-tab-list -mb-px flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl p-1.5 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        aria-label="Recruitment sections"
+        aria-label={ariaLabel}
       >
         <span ref={indicatorRef} className="recruitment-tab-glass-indicator" aria-hidden="true" />
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
+        {items.map((tab) => {
+          const isActive = activeId === tab.id;
           const count = counts?.[tab.id];
 
           return (

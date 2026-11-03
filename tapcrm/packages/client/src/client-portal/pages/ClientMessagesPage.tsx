@@ -34,10 +34,9 @@ export function ClientMessagesPage(): React.JSX.Element {
               chat={chat}
               kind="project"
               currentUserId={chat.currentUserId}
-              title="Client project groups"
+              title={`Client project groups (${chat.conversations.length})`}
               emptyHint="No client project groups have been shared with you yet."
               conversationLabel={(conversation) => conversation.name || 'Client project group'}
-              hideList
               clientMode
               messageActions={{
                 sendMessage: (_conversationId, body, replyToMessageId, mentionedUserIds) => projectId && activeId
