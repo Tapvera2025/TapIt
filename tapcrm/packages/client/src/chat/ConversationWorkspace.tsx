@@ -490,7 +490,7 @@ export function ConversationWorkspace({
                 }
               }}
               data-lenis-prevent
-              className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}
+              className={`min-h-0 flex-1 overscroll-contain ${chat.messages.length > 0 || chat.hasMore ? 'overflow-y-auto' : 'overflow-y-hidden'} ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}
             >
               {chat.loadingMessages && chat.messages.length === 0 ? (
                 <SkeletonMessageThread />
@@ -712,7 +712,7 @@ export function ConversationWorkspace({
               </div>
             )}
 
-            <div className={`flex shrink-0 items-stretch gap-2 border-t border-app-border bg-app-surface ${clientMode ? 'p-3 sm:gap-3 sm:p-4' : 'p-3'}`}>
+            <div className={`flex shrink-0 items-end gap-2 border-t border-app-border bg-app-surface ${clientMode ? 'p-3 sm:gap-3 sm:p-4' : 'p-3'}`}>
               <div className="relative min-w-0 flex-1">
                 {mentionQuery !== null && (
                   <div data-chat-popover className="absolute bottom-full left-0 z-20 mb-1 w-56 rounded-lg border border-app-border bg-app-surface py-1 text-sm shadow-lg">
@@ -750,7 +750,7 @@ export function ConversationWorkspace({
                   className={`block min-h-10 w-full resize-none overflow-y-auto whitespace-pre-wrap border border-app-border px-3 py-2.5 text-sm leading-5 outline-none focus:border-app-accent ${clientMode ? 'rounded-xl bg-app-surface-raised sm:px-4' : 'rounded-lg bg-app-background'}`}
                 />
               </div>
-              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0} className={`min-w-[4.25rem] shrink-0 self-stretch !py-0 ${clientMode ? '!rounded-xl !px-4' : ''}`}>Send</Button>
+              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0} className={`h-10 min-w-[4.25rem] shrink-0 !py-0 ${clientMode ? '!rounded-xl !px-4' : ''}`}>Send</Button>
             </div>
           </>
         )}

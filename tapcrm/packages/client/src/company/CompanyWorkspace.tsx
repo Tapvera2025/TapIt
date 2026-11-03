@@ -199,6 +199,8 @@ export function CompanyWorkspace({
     isSuperAdmin,
     isHr: Boolean(isHr),
     hasRecruitment,
+    hasInterviews,
+    accountType: identity.user.accountType,
   });
   const isOrganization =
     isSuperAdmin &&
@@ -361,7 +363,7 @@ export function CompanyWorkspace({
       return <TaManagementPage />;
     if (pathname === '/company/my-ta' && (isSuperAdmin || can('ta:view-own')))
       return <MyTaPage />;
-    if (pathname === '/company/settings') return <SettingsPage />;
+    if (pathname === '/company/settings') return <SettingsPage showCurrencyManagement={isSuperAdmin || can('system:manage-settings')} />;
     if (pathname === '/company/sessions') {
       return (
         <SessionsPage
@@ -469,7 +471,8 @@ export function CompanyWorkspace({
     if (pathname === '/company/shifts' && can('shifts:manage')) return <ShiftsPage />;
     if (pathname === '/company/weekday-schedules' && can('shifts:manage'))
       return <WeekdaySchedulesPage />;
-    if (pathname === '/company/holidays') return <HolidaysPage />;
+    if (pathname === '/company/holidays')
+      return <HolidaysPage canManage={isSuperAdmin || can('holidays:manage')} />;
     if (pathname === '/company/leave/my') {
       return <LeavePage userId={userId} organizationTimeZone={organizationTimeZone} />;
     }
@@ -682,6 +685,7 @@ export function CompanyWorkspace({
       pathname={pathname}
       identity={identity.user}
       organizationName={identity.organization?.name ?? null}
+      organizationCode={identity.organization?.code ?? null}
       accountType={identity.user.accountType}
       canRequestRoleChange={canRequestRoleChange}
       canViewAudit={canViewAudit}

@@ -12,6 +12,7 @@ export interface AdvanceRow {
   teamName: string | null;
   positionName: string | null;
   requestedAmountPaise: string;
+  currency: string;
   approvedAmountPaise: string | null;
   requestedForPeriod: string;
   requestedAt: string;
@@ -40,6 +41,7 @@ export interface DeductionRow {
   teamName: string | null;
   positionName: string | null;
   requestedAmountPaise: string;
+  currency: string;
   approvedAmountPaise: string;
   approvedAt: string | null;
   requestedForPeriod: string;

@@ -28,6 +28,26 @@ export function createHoliday(body: {
   recurrence?: unknown;
   effectiveFrom?: string;
   effectiveTo?: string;
+  scopes?: Array<{ departmentId: string | null; shiftId: string | null }>;
 }): Promise<{ id: string }> {
   return peopleMutation('/api/holidays', { method: 'POST', body: JSON.stringify(body) }, ['/api/holidays']);
+}
+
+export function withdrawHoliday(id: string): Promise<{ id: string; status: 'withdrawn' }> {
+  return peopleMutation(
+    `/api/holidays/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'withdrawn' }) },
+    ['/api/holidays'],
+  );
+}
+
+export function createHolidayBatch(body: {
+  holidays: Array<{
+    name: string;
+    type: string;
+    holidayDate: string;
+    scopes?: Array<{ departmentId: string | null; shiftId: string | null }>;
+  }>;
+}): Promise<{ ids: string[] }> {
+  return peopleMutation('/api/holidays/bulk', { method: 'POST', body: JSON.stringify(body) }, ['/api/holidays']);
 }

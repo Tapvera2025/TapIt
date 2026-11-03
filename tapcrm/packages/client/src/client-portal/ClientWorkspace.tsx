@@ -169,6 +169,7 @@ export function ClientWorkspace({
       <Navbar
         identity={{ fullName: 'Client workspace', email: '', accountType: 'client' }}
         organizationName={null}
+        organizationCode={null}
         sidebarCollapsed={sidebarCollapsed}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={toggleSidebar}
