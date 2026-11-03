@@ -32,4 +32,59 @@ describe('company feature search', () => {
     expect(searchCompanyDestinations(destinations, 'overview').length).toBeGreaterThan(0);
     expect(searchCompanyDestinations(destinations, 'does-not-exist')).toHaveLength(0);
   });
+
+  it('matches short keywords and multi-word searches across accessible destinations', () => {
+    const destinations = companySearchDestinations({
+      actions: new Set(['attendance:view-live', 'payroll:manage', 'payroll:manage-config']),
+    });
+
+    const wResults = searchCompanyDestinations(destinations, 'W');
+    expect(wResults.some((item) => item.label === 'Workforce Board')).toBe(true);
+    expect(wResults.some((item) => item.label === 'Dashboard')).toBe(false);
+    expect(wResults.some((item) => item.label === 'Holidays')).toBe(false);
+    expect(wResults.some((item) => item.label === 'My Attendance')).toBe(false);
+    expect(searchCompanyDestinations(destinations, 'payroll settings')[0]?.label).toBe('Payroll Settings');
+  });
+
+  it('supports calendar and audit aliases without bypassing permissions', () => {
+    const destinations = companySearchDestinations({
+      actions: new Set(['audit:view']),
+    });
+
+    expect(searchCompanyDestinations(destinations, 'weekends')[0]?.label).toBe('Holidays');
+    expect(searchCompanyDestinations(destinations, 'audit trail')[0]?.label).toBe('Audit Log');
+    expect(companySearchDestinations({ actions: new Set() }).some((item) => item.label === 'Audit Log')).toBe(false);
+  });
+
+  it('indexes every conditional sidebar destination with its matching capability', () => {
+    const destinations = companySearchDestinations({
+      actions: new Set([
+        'deals:view',
+        'deals:record-win',
+        'deals:forecast',
+        'approvals:decide',
+        'shifts:manage',
+        'payroll:manage',
+        'accounting:view-ledger',
+        'access:request-role-change',
+      ]),
+      hasInterviews: true,
+      accountType: 'employee',
+    });
+
+    for (const label of ['My Interviews', 'Deals', 'Approvals', 'Wins to record', 'Reports', 'Weekday Schedules', 'Payroll Cycle', 'Accounting', 'Request Role Change']) {
+      expect(destinations.some((item) => item.label === label)).toBe(true);
+    }
+    expect(searchCompanyDestinations(destinations, 'win record')[0]?.label).toBe('Wins to record');
+  });
+
+  it('returns keyword-only matches from semantic aliases and route terms', () => {
+    const destinations = companySearchDestinations({
+      actions: new Set(['audit:view', 'accounting:view-ledger']),
+    });
+
+    expect(searchCompanyDestinations(destinations, 'records').some((item) => item.label === 'Audit Log')).toBe(true);
+    expect(searchCompanyDestinations(destinations, 'financial').some((item) => item.label === 'Accounting')).toBe(true);
+    expect(searchCompanyDestinations(destinations, 'logged in devices')[0]?.label).toBe('Sessions & Devices');
+  });
 });

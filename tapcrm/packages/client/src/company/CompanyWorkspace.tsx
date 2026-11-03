@@ -199,6 +199,8 @@ export function CompanyWorkspace({
     isSuperAdmin,
     isHr: Boolean(isHr),
     hasRecruitment,
+    hasInterviews,
+    accountType: identity.user.accountType,
   });
   const isOrganization =
     isSuperAdmin &&
