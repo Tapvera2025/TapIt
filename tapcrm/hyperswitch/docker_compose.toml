@@ -1,0 +1,288 @@
+application_source = "main"
+
+[server]
+port = 8080
+host = "0.0.0.0"
+
+[log.file]
+enabled = false
+
+[log.console]
+enabled = true
+level = "INFO"
+
+[master_database]
+username = "db_user"
+password = "db_pass"
+host = "hyperswitch-postgres"
+port = 5432
+dbname = "hyperswitch_db"
+max_pool_size = 5
+min_idle_pool_size = 1
+
+[replica_database]
+username = "db_user"
+password = "db_pass"
+host = "hyperswitch-postgres"
+port = 5432
+dbname = "hyperswitch_db"
+max_pool_size = 5
+min_idle_pool_size = 1
+
+[accounts_database]
+username = "db_user"
+password = "db_pass"
+host = "hyperswitch-postgres"
+port = 5432
+dbname = "hyperswitch_db"
+max_pool_size = 5
+min_idle_pool_size = 1
+
+[global_database]
+username = "db_user"
+password = "db_pass"
+host = "hyperswitch-postgres"
+port = 5432
+dbname = "hyperswitch_db"
+max_pool_size = 5
+min_idle_pool_size = 1
+
+[secrets]
+admin_api_key = "test_admin_api_key_hyperswitch"
+jwt_secret = "tapcrm-local-jwt-secret"
+master_enc_key = "73ad7bbbbc640c845a150f67d058b279849370cd2c1f3c67c4dd6c869213e13a"
+
+[redis]
+host = "hyperswitch-redis"
+port = 6379
+cluster_enabled = false
+redis_lock_expiry_seconds = 100
+
+[forex_api]
+api_key = ""
+fallback_api_key = ""
+data_expiration_delay_in_seconds = 21600
+redis_lock_timeout_in_seconds = 100
+redis_lock_expiry_seconds = 100
+redis_ttl_in_seconds = 172800
+
+[locker]
+mock_locker = true
+locker_enabled = true
+plain_fingerprint_response = true
+
+[lock_settings]
+redis_lock_expiry_seconds = 180
+delay_between_retries_in_milliseconds = 500
+
+[webhooks]
+outgoing_enabled = true
+redis_lock_expiry_seconds = 180
+
+[cors]
+max_age = 30
+wildcard_origin = true
+allowed_methods = "GET,POST,PUT,DELETE"
+
+[api_keys]
+hash_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+[superposition]
+endpoint = "http://hyperswitch-superposition:8080"
+token = "123456"
+org_id = "localorg"
+workspace_id = "dev"
+polling_interval_milliseconds = 15000
+backup_file_path = "/local/config/superposition_seed.toml"
+
+[connectors]
+absa_sanlam.base_url = "dev"
+gotyme_sanlam.base_url = "dev"
+aci.base_url = "https://eu-test.oppwa.com/"
+adyen.base_url = "https://checkout-test.adyen.com/"
+adyenplatform.base_url = "https://balanceplatform-api-test.adyen.com/"
+affirm.base_url = "https://sandbox.affirm.com/api"
+adyen.payout_base_url = "https://pal-test.adyen.com/"
+adyen.dispute_base_url = "https://ca-test.adyen.com/"
+adyen.management_base_url = "https://management-test.adyen.com/"
+airwallex.base_url = "https://api-demo.airwallex.com/"
+amazonpay.base_url = "https://pay-api.amazon.com/sandbox/v2"
+applepay.base_url = "https://apple-pay-gateway-cert.apple.com/"
+archipel.base_url = "https://{{merchant_endpoint_prefix}}/ArchiPEL/Transaction/v1"
+authipay.base_url = "https://prod.emea.api.fiservapps.com/sandbox/ipp/payments-gateway/v2/"
+authorizedotnet.base_url = "https://apitest.authorize.net/xml/v1/request.api"
+bambora.base_url = "https://api.na.bambora.com"
+bamboraapac.base_url = "https://demo.ippayments.com.au/interface/api"
+bankofamerica.base_url = "https://apitest.merchant-services.bankofamerica.com/"
+barclaycard.base_url = "https://api.smartpayfuse-test.barclaycard/"
+billwerk.base_url = "https://api.reepay.com/"
+billwerk.secondary_base_url = "https://card.reepay.com/"
+bitpay.base_url = "https://test.bitpay.com"
+blackhawknetwork.base_url = "https://api-sandbox.blackhawknetwork.com/"
+calida.base_url = "https://dev.eorder.reloadhero.com/"
+bluesnap.base_url = "https://sandbox.bluesnap.com/"
+bluesnap.secondary_base_url = "https://sandpay.bluesnap.com/"
+boku.base_url = "https://$-api4-stage.boku.com"
+braintree.base_url = "https://payments.sandbox.braintree-api.com/graphql"
+breadpay.base_url = "https://api-sandbox.getbread.com"
+cashtocode.base_url = "https://cluster05.api-test.cashtocode.com"
+celero.base_url = "https://sandbox.gotnpgateway.com"
+chargebee.base_url = "https://$.chargebee.com/api/"
+checkbook.base_url = "https://api.sandbox.checkbook.io"
+checkout.base_url = "https://api.sandbox.checkout.com/"
+citigate.base_url = "https://gw-test.cgate.tech"
+coinbase.base_url = "https://api.commerce.coinbase.com"
+coingate.base_url = "https://api-sandbox.coingate.com"
+cryptopay.base_url = "https://business-sandbox.cryptopay.me"
+cybersource.base_url = "https://apitest.cybersource.com/"
+cybersourcedecisionmanager.base_url = "https://apitest.cybersource.com/"
+d24.base_url = "https://api-stg.directa24.com"
+datatrans.base_url = "https://api.sandbox.datatrans.com/"
+datatrans.secondary_base_url = "https://pay.sandbox.datatrans.com/"
+deutschebank.base_url = "https://testmerch.directpos.de/rest-api"
+digitalvirgo.base_url = "https://dcb-integration-service-sandbox-external.staging.digitalvirgo.pl"
+dlocal.base_url = "https://sandbox.dlocal.com/"
+dummyconnector.base_url = "http://localhost:8080/dummy-connector"
+dwolla.base_url = "https://api-sandbox.dwolla.com"
+ebanx.base_url = "https://sandbox.ebanxpay.com/"
+ecommpay.base_url = "https://api.ecommpay.com/"
+elavon.base_url = "https://api.demo.convergepay.com/VirtualMerchantDemo/"
+elavon_pg.base_url = "https://api.sandbox.elavonpayments.com"
+envoy.base_url = "https://www.envoytx.com/MerchantAPI.asmx"
+etisalat.base_url = "https://demo-ipg.ctdev.comtrust.ae:2443"
+facilitapay.base_url = "https://sandbox-api.facilitapay.com/api/v1"
+finix.base_url = "https://finix.sandbox-payments-api.com"
+fiserv.base_url = "https://cert.api.fiservapps.com/"
+fiservcommercehub.base_url = "https://connect-cert.fiservapis.com/ch/"
+fiservemea.base_url = "https://prod.emea.api.fiservapps.com/sandbox"
+fiuu.base_url = "https://sandbox-payment.fiuu.com/"
+flexiti.base_url = "https://onlineapi.flexiti.fi/flexiti/online-api/"
+fiuu.secondary_base_url = "https://sandbox-api.fiuu.com/"
+forte.base_url = "https://sandbox.forte.net/api/v3"
+getnet.base_url = "https://api-test.getneteurope.com/engine/rest"
+gigadat.base_url = "https://interac.express-connect.com/"
+givepayments.base_url = "https://api-sandbox.givepayments.com"
+globalpay.base_url = "https://apis.sandbox.globalpay.com/ucp/"
+globalpayments_heartland.base_url = "https://cert.api2.heartlandportico.com/Hps.Exchange.PosGateway/PosGatewayService.asmx"
+globalpayments_realex.base_url = "https://api.sandbox.realexpayments.com/"
+globepay.base_url = "https://pay.globepay.co/"
+gocardless.base_url = "https://api-sandbox.gocardless.com"
+gpayments.base_url = "https://{{merchant_endpoint_prefix}}-test.api.as1.gpayments.net"
+helcim.base_url = "https://api.helcim.com/"
+hipay.base_url = "https://stage-secure-gateway.hipay-tpp.com/rest/"
+hyperpg.base_url = "https://sandbox.hyperpg.in"
+hyperswitch_vault.base_url = "http://localhost:8080"
+hyperwallet.base_url = "https://uat-api.paylution.com"
+hipay.secondary_base_url = "https://stage-secure2-vault.hipay-tpp.com/rest/"
+hipay.third_base_url = "https://stage-api-gateway.hipay.com/"
+iatapay.base_url = "https://sandbox.iata-pay.iata.org/api/v1"
+ilixium.base_url = "https://prprocessing.ilixium.com/platform/ili"
+imerchantsolutions.base_url = "https://imerchantsolutions.com/api"
+inespay.base_url = "https://apiflow.inespay.com/san/v21"
+interpayments.base_url = "https://api-test.interpayments.com/v1"
+itaubank.base_url = "https://sandbox.devportal.itau.com.br/"
+jpmorgan.base_url = "https://api-mock.payments.jpmorgan.com/api/v2"
+juspaythreedsserver.base_url = "http://localhost:8000"
+katapult.base_url = "https://sandbox.katapult.com/api/v3"
+jpmorgan.secondary_base_url = "https://id.payments.jpmorgan.com"
+jpmorgan_orbital.base_url = "https://orbitalvar1.chasepaymentech.com/gwapi/v4/gateway"
+klarna.base_url = "https://api{{klarna_region}}.playground.klarna.com/"
+loonio.base_url = "https://integration.loonio.ca/"
+merchante.base_url = "https://cert.merchante-solutions.com/mes-api/tridentApi"
+mifinity.base_url = "https://demo.mifinity.com/"
+mollie.base_url = "https://api.mollie.com/v2/"
+moneris.base_url = "https://api.sb.moneris.io"
+mpgs.base_url = "https://test-gateway.mastercard.com"
+mollie.secondary_base_url = "https://api.cc.moneris.io/v1/"
+multisafepay.base_url = "https://testapi.multisafepay.com/"
+netcetera.base_url = "https://api.prev.euc1.acquiring.cloud.netcetera.com/3ds-server"
+nexinets.base_url = "https://apitest.payengine.de/v1"
+nexixpay.base_url = "https://xpaysandbox.nexigroup.com/api/phoenix-0.0/psp/api/v1"
+payconex.base_url = "https://cert.payconex.net"
+paydotcom.base_url = "https://api.pay.com/"
+nmi.base_url = "https://secure.nmi.com/"
+nomupay.base_url = "https://payout-api.sandbox.nomupay.com"
+noon.base_url = "https://api-test{{region}}.noonpayments.com/"
+nordea.base_url = "https://api.nordeaopenbanking.com"
+novalnet.base_url = "https://payport.novalnet.de/v2"
+nsure.base_url = "https://sandbox.nsureapi.com"
+noon.key_mode = "Test"
+nuvei.base_url = "https://ppp-test.nuvei.com/"
+opayo.base_url = "https://pi-test.sagepay.com/"
+opennode.base_url = "https://dev-api.opennode.com"
+paybox.base_url = "https://preprod-ppps.paybox.com/PPPS.php"
+paybox.secondary_base_url = "https://preprod-tpeweb.paybox.com/"
+payeezy.base_url = "https://api-cert.payeezy.com/"
+payjustnow.base_url = "https://sandbox-checkout.payjustnow.io/v2"
+payjustnowinstore.base_url = "https://sandbox.payjustnow.com/api"
+payload.base_url = "https://api.payload.com"
+payme.base_url = "https://sandbox.payme.com/"
+paynearme.base_url = "https://api.paynearme-sandbox.com/json-api"
+payone.base_url = "https://payment.preprod.payone.com/"
+paypal.base_url = "https://api-m.sandbox.paypal.com/"
+paysafe.base_url = "https://api.test.paysafe.com/paymenthub/"
+paystack.base_url = "https://api.paystack.co"
+paytm.base_url = "https://securegw-stage.paytm.in/"
+payu.base_url = "https://secure.snd.payu.com/"
+peachpayments.base_url = "https://apitest.bankint.ppay.io/v/1"
+phonepe.base_url = "https://api.phonepe.com/apis/hermes/"
+placetopay.base_url = "https://test.placetopay.com/rest/gateway"
+plaid.base_url = "https://sandbox.plaid.com"
+powertranz.base_url = "https://staging.ptranz.com/api/"
+prophetpay.base_url = "https://ccm-thirdparty.cps.golf/"
+rapyd.base_url = "https://sandboxapi.rapyd.net"
+razorpay.base_url = "https://api.razorpay.com/"
+recurly.base_url = "https://v3.recurly.com"
+redsys.base_url = "https://sis-t.redsys.es:25443"
+revolv3.base_url = "https://api-sandbox.revolv3.com"
+riskified.base_url = "https://sandbox.riskified.com/api"
+saferpay.base_url = "https://test.saferpay.com/api"
+sanlam_payshield.base_url = "dev"
+santander.base_url = "https://trust-pix-h.santander.com.br/"
+santander.secondary_base_url = "https://trust-open-h.api.santander.com.br/"
+shift4.base_url = "https://api.shift4.com/"
+sift.base_url = "https://api.sift.com/v205"
+silverflow.base_url = "https://api-sbx.silverflow.co/v1"
+signifyd.base_url = "https://api.signifyd.com/"
+square.base_url = "https://connect.squareupsandbox.com/"
+square.secondary_base_url = "https://pci-connect.squareupsandbox.com/"
+stax.base_url = "https://apiprod.fattlabs.com/"
+stripe.base_url = "https://api.stripe.com/"
+stripebilling.base_url = "https://api.stripe.com/"
+taxjar.base_url = "https://api.sandbox.taxjar.com/v2/"
+tesouro.base_url = "https://api.sandbox.tesouro.com"
+threedsecureio.base_url = "https://service.sandbox.3dsecure.io"
+thunes.base_url = "https://api.limonetikqualif.com/"
+tokenex.base_url = "https://test-api.tokenex.com"
+tokenio.base_url = "https://api.sandbox.token.io"
+truelayer.base_url = "https://api.truelayer-sandbox.com"
+trustly.base_url = "https://test.trustly.com/api/1"
+truelayer.secondary_base_url = "https://auth.truelayer-sandbox.com"
+stripe.base_url_file_upload = "https://files.stripe.com/"
+trustpay.base_url = "https://test-tpgw.trustpay.eu/"
+trustpayments.base_url = "https://webservices.securetrading.net/"
+trustpay.base_url_bank_redirects = "https://aapi.trustpay.eu/"
+tsys.base_url = "https://stagegw.transnox.com/"
+tsys_transit.base_url = "https://stagegwapi.transit-pass.com/"
+unified_authentication_service.base_url = "http://localhost:8000"
+vgs.base_url = "https://{{vault_id}}.sandbox.vault-api.verygoodvault.com/"
+vgs.secondary_base_url = "https://auth.verygoodsecurity.com/"
+volt.base_url = "https://gateway.sandbox.volt.io"
+volt.secondary_base_url = "https://api.sandbox.volt.io"
+wellsfargo.base_url = "https://apitest.cybersource.com/"
+wellsfargopayout.base_url = "https://api-sandbox.wellsfargo.com/"
+wise.base_url = "https://api.wise-sandbox.com/"
+worldline.base_url = "https://eu.sandbox.api-ingenico.com/"
+worldpay.base_url = "https://try.access.worldpay.com/"
+worldpaymodular.base_url = "https://try.access.worldpay.com/"
+worldpayraft.base_url = "https://ws-cert.vantiv.com/merchant/servicing/apitransactions/NativeRaftApi/v1"
+worldpayvantiv.base_url = "https://transact.vantivprelive.com/vap/communicator/online"
+worldpayvantiv.secondary_base_url = "https://onlinessr.vantivprelive.com"
+worldpayvantiv.third_base_url = "https://services.vantivprelive.com"
+worldpayxml.base_url = "https://secure-test.worldpay.com/jsp/merchant/xml/paymentService.jsp"
+worldpayxml.secondary_base_url = "https://centinelapistag.cardinalcommerce.com"
+xendit.base_url = "https://api.xendit.co"
+zift.base_url = "https://sandbox-secure.zift.io/"
+zen.base_url = "https://api.zen-test.com/"
+zen.secondary_base_url = "https://secure.zen-test.com/"
+zsl.base_url = "https://api.sitoffalb.net/"

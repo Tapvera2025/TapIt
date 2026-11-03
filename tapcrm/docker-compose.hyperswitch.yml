@@ -1,0 +1,67 @@
+services:
+  hyperswitch-postgres:
+    image: postgres:16-alpine
+    container_name: tapcrm-hyperswitch-postgres
+    environment:
+      POSTGRES_DB: hyperswitch_db
+      POSTGRES_USER: db_user
+      POSTGRES_PASSWORD: db_pass
+    volumes:
+      - hyperswitch_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U db_user -d hyperswitch_db']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  hyperswitch-redis:
+    image: redis:7-alpine
+    container_name: tapcrm-hyperswitch-redis
+    volumes:
+      - hyperswitch_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  hyperswitch-superposition:
+    image: ghcr.io/juspay/superposition-demo:0.113.0
+    container_name: tapcrm-hyperswitch-superposition
+    environment:
+      API_HOSTNAME: http://localhost:8081
+      REDIS_URL: redis://hyperswitch-redis:6379
+    depends_on:
+      hyperswitch-redis:
+        condition: service_healthy
+
+  hyperswitch-server:
+    image: juspaydotin/hyperswitch-router:latest
+    container_name: tapcrm-hyperswitch
+    command: /local/bin/router -f /local/config/docker_compose.toml
+    ports:
+      - '127.0.0.1:8080:8080'
+    volumes:
+      - ./hyperswitch:/local/config:ro
+    environment:
+      ROUTER_PORT: '8080'
+      ROUTER_HOST: '0.0.0.0'
+      ROUTER_ENVIRONMENT: development
+      ROUTER_API_KEYS: test_admin_api_key_hyperswitch
+      DATABASE_URL: postgresql://db_user:db_pass@hyperswitch-postgres:5432/hyperswitch_db
+      REDIS_URL: redis://hyperswitch-redis:6379
+      ROUTER__FOREX_API__REDIS_LOCK_EXPIRY_SECONDS: '100'
+      ROUTER__REDIS_LOCK_EXPIRY_SECONDS: '100'
+      REDIS_LOCK_EXPIRY_SECONDS: '100'
+    depends_on:
+      hyperswitch-postgres:
+        condition: service_healthy
+      hyperswitch-redis:
+        condition: service_healthy
+      hyperswitch-superposition:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  hyperswitch_postgres_data:
+  hyperswitch_redis_data:

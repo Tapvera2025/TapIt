@@ -263,7 +263,7 @@ export function registerAccountingRoutes(): void {
   route({
     method: 'POST',
     path: '/api/accounting/periods',
-    action: 'accounting:close-period',
+    action: 'accounting:manage-periods',
     module: 'accounting',
     status: 201,
     handler: async ({ ctx, body }) => createPeriod(ctx, createPeriodSchema.parse(body)),

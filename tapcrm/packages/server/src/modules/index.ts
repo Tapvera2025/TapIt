@@ -1,6 +1,5 @@
 import { registerBreakPolicyResolver } from './attendance/facade.js';
 import { registerPaymentReadinessPort } from './sales/deals/payments-port.js';
-import { manualPaymentReadinessPort } from './sales/deals/manual-payment-port.js';
 import { breakPolicyResolverImpl } from './break-management/resolver-service.js';
 import { registerPayrollJobs, registerPayrollPorts } from './payroll/facade.js';
 import { registerBreakPolicies } from './break-management/policy.js';
@@ -92,6 +91,9 @@ import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/inde
 import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
 import { registerTaRoutes } from './ta/routes.js';
 import { registerAccountingJobs, registerAccountingPolicies, registerAccountingRoutes } from './finance/accounting/index.js';
+import { registerFinanceFoundationRoutes } from './finance/foundation/index.js';
+import { registerBillingTermsJobs, registerBillingTermsPolicies, registerBillingTermsRoutes } from './finance/billing-terms/index.js';
+import { registerPaymentRoutes, hyperswitchPaymentReadinessPort } from './finance/payments/index.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -100,11 +102,9 @@ import { registerAccountingJobs, registerAccountingPolicies, registerAccountingR
  */
 export function initializePorts(): void {
   registerBreakPolicyResolver(breakPolicyResolverImpl);
-  // Pilot-grade manual payment-confirmation port. Replace when a real
-  // gateway (Stripe/Razorpay) ships — the registration throws on second
-  // call so a gateway port must be wired at the same boot step, not in
-  // addition.
-  registerPaymentReadinessPort(manualPaymentReadinessPort);
+  // Unified gateway-backed readiness port. It deliberately falls back to the
+  // existing manual confirmation semantics for tenants with no active gateway.
+  registerPaymentReadinessPort(hyperswitchPaymentReadinessPort);
   registerPayrollPorts();
 }
 
@@ -141,6 +141,7 @@ export function registerAllPolicies(): void {
   registerClientPolicies();
   registerProjectPolicies();
   registerAccountingPolicies();
+  registerBillingTermsPolicies();
 }
 
 /** Realtime wiring that has no route/policy shape of its own (the typing relay). */
@@ -190,6 +191,9 @@ export function registerAllRoutes(): void {
   registerOnboardingRoutes();
   registerVerificationRoutes();
   registerAccountingRoutes();
+  registerFinanceFoundationRoutes();
+  registerBillingTermsRoutes();
+  registerPaymentRoutes();
 }
 
 let jobsRegistered = false;
@@ -212,4 +216,5 @@ export function registerAllJobs(): void {
   registerSalesIntakeJobs();
   registerProjectReportJobs();
   registerAccountingJobs();
+  registerBillingTermsJobs();
 }

@@ -1,0 +1,4 @@
+[default-configs]
+client_session_validation_enabled = { value = true, schema = { type = "boolean" } }
+
+[dimensions]

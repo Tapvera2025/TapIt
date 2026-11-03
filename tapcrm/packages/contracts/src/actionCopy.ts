@@ -127,6 +127,10 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Manage ledger accounts',
     description: 'Add and change the accounts in the chart of accounts.',
   },
+  'accounting:manage-periods': {
+    title: 'Manage accounting periods',
+    description: 'Create accounting periods for the organization.',
+  },
   'accounting:post-journal': {
     title: 'Post journal entries',
     description: 'Record manual entries in the ledger.',
@@ -139,6 +143,14 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Export tax data',
     description: 'Download the figures needed for tax filings.',
   },
+  'accounting:view-finance-settings': {
+    title: 'See finance settings',
+    description: 'See the legal entity, currency and fiscal settings for Finance.',
+  },
+  'accounting:manage-finance-settings': {
+    title: 'Manage finance settings',
+    description: 'Update foundational Finance configuration.',
+  },
   'accounting:view-ledger': {
     title: 'See the ledger',
     description: 'See journal entries and account balances.',
@@ -146,6 +158,10 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   'accounting:view-statements': {
     title: 'See financial statements',
     description: 'See the profit and loss, balance sheet and similar statements.',
+  },
+  'finance:manage-payment-gateways': {
+    title: 'Manage payment gateways',
+    description: 'Connect and disconnect the company payment provider securely.',
   },
 
   // Clients (accounts)

@@ -36,6 +36,8 @@ export function CompanyLayout({
   canManagePayroll,
   canManagePayrollConfig,
   canViewAccounting,
+  canViewFinanceFoundation,
+  canViewBillingTerms,
   canViewTa,
   canManageTa,
   canManageBiometric,
@@ -91,6 +93,8 @@ export function CompanyLayout({
   canManagePayroll: boolean;
   canManagePayrollConfig: boolean;
   canViewAccounting: boolean;
+  canViewFinanceFoundation: boolean;
+  canViewBillingTerms: boolean;
   canViewTa: boolean;
   canManageTa: boolean;
   canManageBiometric: boolean;
@@ -275,6 +279,8 @@ export function CompanyLayout({
             canManagePayroll={canManagePayroll}
             canManagePayrollConfig={canManagePayrollConfig}
             canViewAccounting={canViewAccounting}
+            canViewFinanceFoundation={canViewFinanceFoundation}
+            canViewBillingTerms={canViewBillingTerms}
             canViewTa={canViewTa}
             canManageTa={canManageTa}
             canManageBiometric={canManageBiometric}

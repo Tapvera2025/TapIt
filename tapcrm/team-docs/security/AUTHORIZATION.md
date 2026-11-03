@@ -191,10 +191,14 @@
 | `accounting:view-ledger` | accounting | journalEntry | business | yes | no | — | yes | no | no |
 | `accounting:post-journal` | accounting | journalEntry | business | yes | no | — | yes | no | no |
 | `accounting:manage-accounts` | accounting | ledgerAccount | business | yes | no | — | yes | no | no |
+| `accounting:manage-periods` | accounting | accountingPeriod | business | yes | no | — | yes | no | no |
 | `accounting:close-period` | accounting | accountingPeriod | business | yes | yes | lastPostedBy | yes | no | no |
 | `accounting:reopen-period` | accounting | accountingPeriod | business | yes | no | — | yes | no | yes |
 | `accounting:view-statements` | accounting | — | business | yes | no | — | yes | no | no |
 | `accounting:tax-export` | accounting | — | business | yes | no | — | yes | no | no |
+| `accounting:view-finance-settings` | accounting | — | business | yes | no | — | yes | no | no |
+| `accounting:manage-finance-settings` | accounting | — | business | yes | no | — | no | no | yes |
+| `finance:manage-payment-gateways` | accounting | — | business | yes | no | — | yes | no | no |
 | `clients:view` | clients | client | business | no | no | — | yes | yes | no |
 | `clients:manage` | clients | client | business | yes | no | — | yes | no | no |
 | `clients:manage-requests` | clients | clientRequest | business | no | no | — | yes | yes | no |
@@ -702,7 +706,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/accounting/accounts | `accounting:manage-accounts` | — |
 | PATCH | /api/accounting/accounts/:id | `accounting:manage-accounts` | id |
 | GET | /api/accounting/periods | `accounting:view-ledger` | — |
-| POST | /api/accounting/periods | `accounting:close-period` | — |
+| POST | /api/accounting/periods | `accounting:manage-periods` | — |
 | POST | /api/accounting/periods/:id/checklist | `accounting:close-period` | id |
 | POST | /api/accounting/periods/:id/close | `accounting:close-period` | id |
 | POST | /api/accounting/periods/:id/reopen | `accounting:reopen-period` | id |
@@ -717,6 +721,32 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/accounting/tax/gstr2b/:id/reconciliation | `accounting:tax-export` | — |
 | GET | /api/accounting/tax/artifacts | `accounting:tax-export` | — |
 | GET | /api/accounting/tax/artifacts/:id/download | `accounting:tax-export` | — |
+| GET | /api/finance/foundation | `accounting:view-finance-settings` | — |
+| PATCH | /api/finance/foundation | `accounting:manage-finance-settings` | — |
+| GET | /api/finance/payment-gateways | `finance:manage-payment-gateways` | — |
+| POST | /api/finance/payment-gateways | `finance:manage-payment-gateways` | — |
+| DELETE | /api/finance/payment-gateways/:id | `finance:manage-payment-gateways` | — |
+| POST | /api/finance/payments/create-link | `finance:manage-payment-gateways` | — |
+| GET | /api/billing/profiles | `billing:view-terms` | — |
+| PUT | /api/billing/profiles | `billing:set-terms` | — |
+| POST | /api/billing/rate-cards/:id/versions | `billing:set-terms` | — |
+| GET | /api/billing/rate-cards/:id | `billing:view-terms` | id |
+| GET | /api/billing/contracts | `billing:view-terms` | — |
+| POST | /api/billing/contracts | `billing:set-terms` | — |
+| GET | /api/billing/contracts/:id | `billing:view-terms` | id |
+| GET | /api/billing/contracts/:id/amendments | `billing:view-terms` | id |
+| POST | /api/billing/contracts/:id/amend | `billing:set-terms` | id |
+| POST | /api/billing/contracts/:id/status | `billing:set-terms` | id |
+| GET | /api/billing/contracts/:id/usage | `billing:view-terms` | id |
+| POST | /api/billing/contracts/:id/usage | `billing:set-terms` | id |
+| GET | /api/billing/contracts/:id/documents | `billing:view-terms` | id |
+| POST | /api/billing/contracts/:id/documents | `billing:set-terms` | id |
+| GET | /api/billing/contracts/:id/documents/:documentId/download | `billing:view-terms` | id |
+| GET | /api/billing/schedules | `billing:view-terms` | — |
+| POST | /api/billing/schedules | `billing:set-terms` | — |
+| GET | /api/billing/billable-events | `billing:view-terms` | — |
+| POST | /api/billing/billable-events | `billing:set-terms` | — |
+| POST | /api/billing/billable-events/:id/decision | `billing:set-terms` | — |
 | GET | /api/clients | `clients:view` | — |
 | GET | /api/clients/:id | `clients:view` | id |
 | POST | /api/clients | `clients:manage` | — |
