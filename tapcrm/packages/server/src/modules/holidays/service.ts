@@ -14,7 +14,7 @@ import {
 import { recordDaysChanged, type DaysChanged } from './events.js';
 import * as repo from './repository.js';
 import { validateHoliday, validateScopeSet } from './rules.js';
-import type { CreateBody, ListQuery, ReviseBody, ScopeRow } from './validators.js';
+import type { BulkCreateBody, CreateBody, ListQuery, ReviseBody, ScopeRow } from './validators.js';
 
 /**
  * SH-6-style rule: a change that takes effect before today needs
@@ -191,6 +191,46 @@ export async function createHoliday(
     };
     await recordDaysChanged(tx, ctx.organizationId, event);
     return { id };
+  });
+}
+
+/** Create multiple dated holidays atomically. Every row is validated before the
+ * transaction writes anything, and each affected date emits its normal event. */
+export async function createHolidayBatch(
+  ctx: RequestContext,
+  body: BulkCreateBody,
+  clock: Clock = systemClock,
+) {
+  for (const holiday of body.holidays) {
+    validateHoliday(holiday);
+    validateScopeSet(holiday.type, holiday.scopes);
+  }
+  return db.transaction(ctx, async (tx) => {
+    const ids: string[] = [];
+    for (const holiday of body.holidays) {
+      await assertScopeTargetsExist(tx, holiday.scopes);
+      await assertMayChangeFrom(ctx, tx, firstAffectedDate(holiday), clock);
+      const id = await repo.insertHoliday(tx, {
+        organizationId: ctx.organizationId,
+        name: holiday.name,
+        type: holiday.type,
+        holidayDate: holiday.holidayDate,
+        recurrence: holiday.recurrence,
+        effectiveFrom: holiday.effectiveFrom,
+        effectiveTo: holiday.effectiveTo,
+        createdBy: ctx.principal.id,
+      });
+      await repo.insertScopes(tx, ctx.organizationId, id, holiday.scopes);
+      const range = rangeOf(holiday);
+      await recordDaysChanged(tx, ctx.organizationId, {
+        ...partitionScope(holiday.scopes),
+        from: range.from,
+        toExclusive: range.toExclusive,
+        reason: 'created',
+      });
+      ids.push(id);
+    }
+    return { ids };
   });
 }
 

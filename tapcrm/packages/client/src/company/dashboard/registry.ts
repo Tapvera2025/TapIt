@@ -27,12 +27,14 @@ const hasBeyondOwn = (action: string) => (id: CompanyIdentity): boolean =>
   id.capabilities.some((item) => item.action === action && item.scope !== 'own');
 
 export const WIDGET_REGISTRY: readonly WidgetDef[] = [
-  // Personal — always available
+  // Personal widgets are available when their underlying module capability is
+  // present. This prevents a dashboard card from calling a protected endpoint
+  // for accounts that do not have attendance enabled.
   {
     id: 'punch-state',
     title: 'Today',
     description: 'Your punch state and hours worked today.',
-    available: () => true,
+    available: has('attendance:view-live'),
     defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
     component: PunchStateWidget,
   },

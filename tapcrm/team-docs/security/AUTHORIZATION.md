@@ -413,6 +413,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/leaves/types/:id | `leave:manage-types` | id |
 | GET | /api/holidays | `holidays:view` | — |
 | POST | /api/holidays | `holidays:manage` | — |
+| POST | /api/holidays/bulk | `holidays:manage` | — |
 | PATCH | /api/holidays/:id | `holidays:manage` | id |
 | GET | /api/payroll/payslips/mine | `payroll:view` | — |
 | GET | /api/payroll/payslips/:id | `payroll:view` | id |

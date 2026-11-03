@@ -3837,6 +3837,12 @@
       "resourceParam": null
     },
     {
+      "method": "POST",
+      "path": "/api/holidays/bulk",
+      "action": "holidays:manage",
+      "resourceParam": null
+    },
+    {
       "method": "PATCH",
       "path": "/api/holidays/:id",
       "action": "holidays:manage",

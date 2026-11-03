@@ -469,7 +469,8 @@ export function CompanyWorkspace({
     if (pathname === '/company/shifts' && can('shifts:manage')) return <ShiftsPage />;
     if (pathname === '/company/weekday-schedules' && can('shifts:manage'))
       return <WeekdaySchedulesPage />;
-    if (pathname === '/company/holidays') return <HolidaysPage />;
+    if (pathname === '/company/holidays')
+      return <HolidaysPage canManage={isSuperAdmin || can('holidays:manage')} />;
     if (pathname === '/company/leave/my') {
       return <LeavePage userId={userId} organizationTimeZone={organizationTimeZone} />;
     }
