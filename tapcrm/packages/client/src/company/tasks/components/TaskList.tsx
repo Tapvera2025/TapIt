@@ -235,6 +235,7 @@ export function TaskList({
         const myAssignment = currentUserId
           ? task.assignees.find((a) => a.id === currentUserId)
           : undefined;
+        const currentStatus = myAssignment ? myAssignment.status : task.status;
         const availableTransitions = myAssignment
           ? (VALID_TRANSITIONS[myAssignment.status] ?? [])
           : (VALID_TRANSITIONS[task.status] ?? []);
@@ -243,11 +244,18 @@ export function TaskList({
           in_progress: 'border-sky-500/30 bg-sky-500/10',
           completed: 'border-emerald-500/30 bg-emerald-500/10',
           cancelled: 'border-neutral-500/30 bg-neutral-500/10',
-        }[task.status];
+        }[currentStatus];
+        const statusUpdatedByName = myAssignment
+          ? (myAssignment.statusUpdatedByName || task.statusUpdatedByName || task.createdByName || 'Unknown')
+          : (task.statusUpdatedByName || task.createdByName || 'Unknown');
+
         const renderOverallStatusControl = (className = '') => (
-          <div className={`relative ${className}`}>
+          <div
+            className={`relative ${className}`}
+            title={`Status updated by ${statusUpdatedByName}`}
+          >
             {availableTransitions.length === 0 ? (
-              <TaskStatusBadge status={task.status} />
+              <TaskStatusBadge status={currentStatus} />
             ) : (
               <>
                 <button
@@ -265,7 +273,7 @@ export function TaskList({
                   aria-expanded={openStatusMenu === task.id}
                 >
                   <TaskStatusBadge
-                    status={task.status}
+                    status={currentStatus}
                     className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
                   />
                 </button>
@@ -277,7 +285,7 @@ export function TaskList({
         return (
           <article
             key={task.id}
-            className={`relative rounded-2xl border border-app-border/80 bg-app-surface p-4 shadow-sm transition-shadow hover:shadow-md sm:px-7 sm:py-6 ${openStatusMenu === task.id ? 'z-30' : 'z-0'}`}
+            className={`relative rounded-2xl border border-app-border/80 bg-app-surface p-4 shadow-sm transition-shadow hover:shadow-md sm:px-7 sm:py-6 hover:z-10 ${openStatusMenu === task.id ? 'z-30' : 'z-0'}`}
           >
             <div className="flex flex-col gap-3 border-b border-app-border/70 pb-4 lg:flex lg:flex-row lg:items-start lg:justify-between lg:gap-6 lg:border-0 lg:pb-0">
               <div className="min-w-0 flex-1 rounded-xl bg-app-surface-raised/40 p-3 lg:rounded-none lg:bg-transparent lg:p-0">
@@ -310,13 +318,27 @@ export function TaskList({
                     {task.projectName ?? 'Unknown project'}
                   </span>
                 )}
-                {task.createdAt && (
+                {(task.createdAt || task.createdByName) && (
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-3 py-1.5 text-app-muted">
                     <Icon name="calendar" className="size-3.5 shrink-0" />
                     <span>Created</span>
-                    <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
-                      {formatDate(task.createdAt)}
-                    </time>
+                    {task.createdAt && (
+                      <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
+                        {formatDate(task.createdAt)}
+                      </time>
+                    )}
+                    {task.createdByName && (
+                      <span className="inline-flex items-center gap-1 border-l border-app-border/80 pl-1.5">
+                        <span className="text-app-muted">Created by</span>
+                        <span
+                          className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border"
+                          aria-hidden="true"
+                        >
+                          {getInitials(task.createdByName)}
+                        </span>
+                        <span className="font-medium text-app-foreground">{task.createdByName}</span>
+                      </span>
+                    )}
                   </span>
                 )}
                 {task.dueDate && (
@@ -364,15 +386,29 @@ export function TaskList({
                   )}
                 </div>
 
-                {(task.createdAt || task.dueDate) && (
+                {(task.createdAt || task.dueDate || task.createdByName) && (
                   <div className="flex items-center gap-2 text-[11px] text-app-muted">
-                    {task.createdAt && (
+                    {(task.createdAt || task.createdByName) && (
                       <span className="flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-2.5 py-1 text-app-muted">
                         <Icon name="calendar" className="size-3 shrink-0" />
                         <span>Created</span>
-                        <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
-                          {formatDate(task.createdAt)}
-                        </time>
+                        {task.createdAt && (
+                          <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
+                            {formatDate(task.createdAt)}
+                          </time>
+                        )}
+                        {task.createdByName && (
+                          <span className="inline-flex items-center gap-1 border-l border-app-border/80 pl-1.5">
+                            <span className="text-app-muted">Created by</span>
+                            <span
+                              className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border"
+                              aria-hidden="true"
+                            >
+                              {getInitials(task.createdByName)}
+                            </span>
+                            <span className="font-medium text-app-foreground">{task.createdByName}</span>
+                          </span>
+                        )}
                       </span>
                     )}
                     {task.dueDate && (
@@ -395,47 +431,94 @@ export function TaskList({
               </div>
             )}
 
-            <section className="mt-0 flex flex-col gap-4 px-0 border-t border-app-border/80 py-3 text-xs text-app-muted lg:mx-0 lg:mt-3 lg:flex-col lg:items-stretch lg:gap-3 lg:bg-transparent lg:px-0 lg:py-3">
-              <div className="flex w-full items-center justify-between border-b border-app-border/60 pb-3 lg:shrink-0 lg:gap-2 lg:pb-3">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-app-muted"><span className="lg:hidden">Initiated by</span><span className="hidden lg:inline">Created by</span></span>
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    className="grid size-7 shrink-0 place-items-center rounded-full bg-app-background text-[10px] font-semibold text-app-muted ring-2 ring-app-surface"
-                    aria-hidden="true"
-                  >
-                    {getInitials(task.createdByName || 'Unknown')}
-                  </span>
-                  <span className="text-sm font-semibold text-app-foreground">
-                    {task.createdByName || 'Unknown'}
-                  </span>
-                </span>
-              </div>
-
-              <Icon name="arrow" className="hidden size-4 shrink-0 text-app-muted/60" />
-
+            <section className="mt-3 flex flex-col gap-2.5 border-t border-app-border/80 pt-3 text-xs text-app-muted">
               <div className="flex min-w-0 flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    className="task-assignee-toggle group inline-flex min-h-9 w-full items-center justify-between rounded-lg px-2 text-left transition-none hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent"
+                    className="task-assignee-toggle group inline-flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2 text-left transition-none hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent"
                     aria-expanded={openAssigneeTaskId === task.id}
                     aria-controls={`task-assignees-${task.id}`}
                     onClick={() =>
                       setOpenAssigneeTaskId(openAssigneeTaskId === task.id ? null : task.id)
                     }
                   >
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-app-muted group-hover:text-app-foreground">
-                      Assigned to · {task.assignees.length}
-                      <Icon
-                        name="chevron-down"
-                        className={`size-4 ${openAssigneeTaskId === task.id ? 'rotate-180' : ''}`}
-                      />
-                    </span>
-                    {task.assignees.length > 0 && (
-                      <span className="text-[11px] text-app-muted">
-                        {task.assignees.filter((assignee) => assignee.status === 'completed').length} of {task.assignees.length} complete
-                      </span>
-                    )}
+                    {(() => {
+                      const assignees = task.assignees;
+                      const isExpanded = openAssigneeTaskId === task.id;
+
+                      if (assignees.length === 0) {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-medium uppercase tracking-wide text-app-muted group-hover:text-app-foreground">
+                              Assigned to
+                            </span>
+                            <span className="text-xs italic text-app-muted/80">Unassigned</span>
+                          </div>
+                        );
+                      }
+
+                      // Show current user first if assigned, then other assignees
+                      const sortedAssignees = [...assignees].sort((a, b) => {
+                        if (currentUserId && a.id === currentUserId) return -1;
+                        if (currentUserId && b.id === currentUserId) return 1;
+                        return 0;
+                      });
+
+                      const displayedAssignees = sortedAssignees.slice(0, 2);
+                      const remainingCount = assignees.length - 2;
+                      const completedCount = assignees.filter((a) => a.status === 'completed').length;
+
+                      return (
+                        <>
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="text-[11px] font-medium uppercase tracking-wide text-app-muted group-hover:text-app-foreground">
+                              Assigned to:
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {displayedAssignees.map((assignee) => {
+                                const isSelf = currentUserId === assignee.id;
+                                return (
+                                  <span
+                                    key={assignee.id}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-app-border/80 bg-app-surface-raised px-2 py-0.5 text-xs font-medium text-app-foreground"
+                                  >
+                                    <span
+                                      className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border/60"
+                                      aria-hidden="true"
+                                    >
+                                      {getInitials(assignee.fullName)}
+                                    </span>
+                                    <span className="truncate max-w-[120px] sm:max-w-[180px]">
+                                      {assignee.fullName}{isSelf && ' (You)'}
+                                    </span>
+                                  </span>
+                                );
+                              })}
+                              {remainingCount > 0 && (
+                                <span
+                                  className="inline-flex items-center rounded-full border border-app-accent/30 bg-app-accent/10 px-2 py-0.5 text-[11px] font-semibold text-app-accent transition group-hover:bg-app-accent/20"
+                                  title={`${remainingCount} more assignee${remainingCount > 1 ? 's' : ''}`}
+                                >
+                                  +{remainingCount} others
+                                </span>
+                              )}
+                              <span className="grid size-5 place-items-center rounded text-app-muted transition group-hover:text-app-foreground">
+                                <Icon
+                                  name="chevron-down"
+                                  className={`size-4 transition-transform duration-200 ${
+                                    isExpanded ? 'rotate-180' : ''
+                                  }`}
+                                />
+                              </span>
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-[11px] text-app-muted">
+                            {completedCount} of {assignees.length} complete
+                          </span>
+                        </>
+                      );
+                    })()}
                   </button>
                 </div>
                 <div
@@ -446,58 +529,69 @@ export function TaskList({
                     <span className="text-xs italic text-app-muted/80">Unassigned</span>
                   ) : (
                     <>
-                      {task.assignees.map((assignee) => {
-                      const isSelf = currentUserId === assignee.id;
-                      const assigneeTransitions =
-                        VALID_TRANSITIONS[assignee.status] ?? [];
-                      return (
-                        <div
-                          key={assignee.id}
-                          className={`inline-flex w-full max-w-full flex-wrap items-center justify-between gap-2 rounded-xl border bg-app-surface px-2.5 py-2.5 text-xs shadow-sm ${
-                            isSelf
-                              ? 'border-app-accent/40'
-                              : 'border-app-border/80'
-                          }`}
-                        >
-                          <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <span
-                              className="grid size-8 shrink-0 place-items-center rounded-full bg-app-surface-raised text-[10px] font-semibold text-app-muted"
-                              aria-hidden="true"
+                      {[...task.assignees]
+                        .sort((a, b) => {
+                          if (currentUserId && a.id === currentUserId) return -1;
+                          if (currentUserId && b.id === currentUserId) return 1;
+                          return 0;
+                        })
+                        .map((assignee) => {
+                          const isSelf = currentUserId === assignee.id;
+                          const assigneeTransitions =
+                            VALID_TRANSITIONS[assignee.status] ?? [];
+                          return (
+                            <div
+                              key={assignee.id}
+                              className="inline-flex w-full max-w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-app-border/80 bg-app-surface px-2.5 py-2.5 text-xs shadow-sm"
                             >
-                              {getInitials(assignee.fullName)}
-                            </span>
-                            <span className={`max-w-40 whitespace-normal break-words font-medium ${isSelf ? 'font-semibold text-app-accent' : 'text-app-foreground'}`}>
-                              {assignee.fullName} {isSelf && '(You)'}
-                            </span>
-                          </span>
-                          {assigneeTransitions.length === 0 ? (
-                            <TaskStatusBadge status={assignee.status} />
-                          ) : (
-                            <div className="relative">
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={(event) => toggleStatusMenu(
-                                  `${task.id}:${assignee.id}`,
-                                  task.id,
-                                  assigneeTransitions,
-                                  assignee.id,
-                                  event.currentTarget,
-                                )}
-                                className="disabled:opacity-50"
-                                aria-label={`Change status for ${assignee.fullName}`}
-                                aria-expanded={openStatusMenu === `${task.id}:${assignee.id}`}
-                              >
-                                <TaskStatusBadge
-                                  status={assignee.status}
-                                  className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
-                                />
-                              </button>
+                              <span className="flex min-w-0 flex-1 items-center gap-2">
+                                <span
+                                  className="grid size-8 shrink-0 place-items-center rounded-full bg-app-surface-raised text-[10px] font-semibold text-app-muted"
+                                  aria-hidden="true"
+                                >
+                                  {getInitials(assignee.fullName)}
+                                </span>
+                                <span className="max-w-40 whitespace-normal break-words font-medium text-app-foreground">
+                                  {assignee.fullName} {isSelf && '(You)'}
+                                </span>
+                              </span>
+                              {(() => {
+                                const assigneeUpdater = assignee.statusUpdatedByName || assignee.fullName;
+                                const isMenuOpen = openStatusMenu === `${task.id}:${assignee.id}`;
+                                return (
+                                  <div
+                                    className="relative inline-flex items-center"
+                                    title={`Status updated by ${assigneeUpdater}`}
+                                  >
+                                    {assigneeTransitions.length === 0 ? (
+                                      <TaskStatusBadge status={assignee.status} />
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={(event) => toggleStatusMenu(
+                                          `${task.id}:${assignee.id}`,
+                                          task.id,
+                                          assigneeTransitions,
+                                          assignee.id,
+                                          event.currentTarget,
+                                        )}
+                                        className="disabled:opacity-50"
+                                        aria-label={`Change status for ${assignee.fullName}`}
+                                        aria-expanded={isMenuOpen}
+                                      >
+                                        <TaskStatusBadge
+                                          status={assignee.status}
+                                          className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
+                                        />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
-                          )}
-                        </div>
-                      );
-                      })}
+                          );
+                        })}
                     </>
                   )}
                 </div>
