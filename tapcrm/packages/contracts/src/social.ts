@@ -33,6 +33,7 @@ export interface SocialSettings {
   approvalRequired: boolean;
   clientReviewEnabled: boolean;
 }
+export type SocialConnectionStatus = 'connected' | 'reconnect_required' | 'disconnected';
 export interface SocialAccount {
   id: string;
   clientId: string;
@@ -40,12 +41,53 @@ export interface SocialAccount {
   externalId: string;
   name: string;
   profileImageUrl: string | null;
-  status: 'connected' | 'reconnect_required' | 'disconnected';
+  status: SocialConnectionStatus;
+  /** `company`: assigned from the company's own platform sign-in. `client`: signed in for this client only. */
+  connectionScope: 'client' | 'company';
   capabilities: string[];
   scopes: string[];
   connectedAt: string;
   lastSyncedAt: string | null;
   lastError: string | null;
+}
+/** Platforms a company can connect once and share across its clients. */
+export const SOCIAL_COMPANY_PLATFORMS = ['google_business'] as const;
+export type SocialCompanyPlatform = (typeof SOCIAL_COMPANY_PLATFORMS)[number];
+/** A company-wide platform sign-in. Its token never leaves the server. */
+export interface SocialCompanyConnection {
+  id: string;
+  platform: SocialCompanyPlatform;
+  accountEmail: string | null;
+  status: SocialConnectionStatus;
+  connectedAt: string;
+  connectedByName: string | null;
+  lastDiscoveredAt: string | null;
+  lastError: string | null;
+  locationCount: number;
+  assignedCount: number;
+}
+export interface SocialCompanyLocationAssignment {
+  accountId: string;
+  clientId: string;
+  clientName: string;
+  status: SocialConnectionStatus;
+  /** `client_connection`: connected earlier through the client's own sign-in, not this company connection. */
+  via: 'company_connection' | 'client_connection';
+}
+/** A location the company connection can manage, and the client it is assigned to. */
+export interface SocialCompanyLocation {
+  id: string;
+  connectionId: string;
+  platform: SocialCompanyPlatform;
+  externalId: string;
+  name: string;
+  address: string | null;
+  websiteUrl: string | null;
+  mapsUrl: string | null;
+  /** `missing`: the connected account no longer manages this location. */
+  status: 'available' | 'missing';
+  lastSeenAt: string;
+  assignment: SocialCompanyLocationAssignment | null;
 }
 export interface SocialMedia {
   id: string;

@@ -282,7 +282,8 @@ export interface AttendanceDayDetail {
 export type CorrectionRequest =
   | { workDate: string; reason: string; kind: 'add-event'; payload: { kind: 'in' | 'out' | 'break-start' | 'break-end'; at: string } }
   | { workDate: string; reason: string; kind: 'replace-event'; payload: { targetEventId: string; kind: 'in' | 'out' | 'break-start' | 'break-end'; at: string } }
-  | { workDate: string; reason: string; kind: 'void-event'; payload: { targetEventId: string } };
+  | { workDate: string; reason: string; kind: 'void-event'; payload: { targetEventId: string } }
+  | { workDate: string; reason: string; kind: 'confirm-as-is'; payload: { reviewItemId: string } };
 
 export interface AttendanceExportStatus {
   jobId: string;

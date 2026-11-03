@@ -2,10 +2,12 @@ import type { SqlFragment } from '@tapcrm/authz';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
-import type { Handover, HandoverTarget } from './types.js';
+import { readPresenceToday } from '../../live-status/facade.js';
+import type { Handover, HandoverAvailability, HandoverTarget } from './types.js';
 
 const HANDOVER_SELECT = sql`
   SELECT h.id, h.organization_id AS "organizationId", h.lead_id AS "leadId",
+         l.lead_number::text AS "leadNumber", l.contact_name AS "leadContactName",
          h.from_user_id AS "fromUserId", from_user.full_name AS "fromUserName",
          h.to_user_id AS "toUserId", to_user.full_name AS "toUserName",
          h.status, h.handover_mode AS "handoverMode", h.offered_at AS "offeredAt", h.accepted_at AS "acceptedAt",
@@ -41,35 +43,67 @@ export async function findLeadHandoverResource(ctx: RequestContext, leadId: stri
   return db.maybeOne<{ id: string; organizationId: string; ownerId: string | null; currentHolderId: string | null; originatingAgentId: string | null; status: string; salesTeamId: string | null; salesPoolId: string | null; departmentId: string | null }>(ctx, sql`SELECT l.id, l.organization_id AS "organizationId", l.owner_id AS "ownerId", l.current_holder_id AS "currentHolderId", l.originating_agent_id AS "originatingAgentId", l.status, l.sales_team_id AS "salesTeamId", l.sales_pool_id AS "salesPoolId", team.department_id AS "departmentId" FROM lead l LEFT JOIN team ON team.organization_id = l.organization_id AND team.id = l.sales_team_id WHERE l.organization_id = ${ctx.organizationId} AND l.id = ${leadId}`).then((row) => row ? { type: 'lead' as const, ...row } : null);
 }
 
+// Candidate rows for handover include Sales Agents in addition to leads/
+// supervisors so a manager can reassign a lead to any Sales Agent in the
+// department. Availability/selectable are hydrated from live presence (see
+// `listHandoverTargets`) rather than being hardcoded.
 const handoverTargetSelect = (organizationId: string) => sql`
     SELECT u.id, u.full_name AS "fullName", p.code AS "positionCode", u.team_id AS "teamId",
-           'not_punched_in'::text AS availability, false AS selectable,
            (SELECT COUNT(*)::int FROM lead_handover accepted
             WHERE accepted.organization_id = u.organization_id AND accepted.to_user_id = u.id
               AND accepted.status = 'accepted' AND accepted.accepted_at >= now() - interval '1 hour') AS "acceptedLastHour"
     FROM app_user u
     JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id AND d.code = 'sales' AND d.status = 'active'
-    JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id AND p.code IN ('sales-supervisor', 'sales-team-lead') AND p.status = 'active'
+    JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id AND p.code IN ('sales-supervisor', 'sales-team-lead', 'sales-agent') AND p.status = 'active'
     WHERE u.organization_id = ${organizationId} AND u.account_type = 'employee' AND u.status = 'active'
       AND EXISTS (SELECT 1 FROM position_policy pp WHERE pp.organization_id = u.organization_id AND pp.position_id = u.position_id AND pp.action = 'handovers:receive' AND pp.allowed = true)
       AND NOT EXISTS (SELECT 1 FROM user_override denied WHERE denied.organization_id = u.organization_id AND denied.user_id = u.id AND denied.action = 'handovers:receive' AND denied.allowed = false AND denied.revoked_at IS NULL AND (denied.expires_at IS NULL OR denied.expires_at > now()))
 `;
 
+interface HandoverCandidateRow {
+  id: string;
+  fullName: string;
+  positionCode: HandoverTarget['positionCode'];
+  teamId: string | null;
+  acceptedLastHour: number;
+}
+
+function hydratePresence(
+  rows: readonly HandoverCandidateRow[],
+  presence: Awaited<ReturnType<typeof readPresenceToday>>,
+): HandoverTarget[] {
+  return rows.map((row) => {
+    const state = presence.get(row.id)?.state;
+    const availability: HandoverAvailability =
+      state === 'WORKING' ? 'working' : state === 'ON_BREAK' ? 'on_break' : 'not_punched_in';
+    return { ...row, availability, selectable: availability === 'working' };
+  });
+}
+
 export async function listHandoverTargets(ctx: RequestContext): Promise<HandoverTarget[]> {
-  // The CASE expressions below reference the "availability" and "positionCode"
-  // output aliases. PostgreSQL does not resolve column aliases inside CASE in
-  // an ORDER BY clause, so wrap the base select in a subquery and sort the
-  // outer one. SELECT * from the subquery preserves camelCase output names.
-  const rows = await db.query<HandoverTarget>(
+  const rows = await db.query<HandoverCandidateRow>(
     ctx,
-    sql`SELECT * FROM (${handoverTargetSelect(ctx.organizationId)}) targets ORDER BY targets.selectable DESC, CASE targets.availability WHEN 'working' THEN 0 WHEN 'on_break' THEN 1 ELSE 2 END, targets."acceptedLastHour" DESC, CASE WHEN targets."positionCode" = 'sales-supervisor' THEN 0 ELSE 1 END, targets."fullName"`,
+    sql`SELECT * FROM (${handoverTargetSelect(ctx.organizationId)}) targets ORDER BY targets."acceptedLastHour" DESC, CASE WHEN targets."positionCode" = 'sales-supervisor' THEN 0 WHEN targets."positionCode" = 'sales-team-lead' THEN 1 ELSE 2 END, targets."fullName"`,
   );
-  return rows;
+  if (rows.length === 0) return [];
+  const presence = await readPresenceToday(ctx, rows.map((row) => row.id));
+  const hydrated = hydratePresence(rows, presence);
+  // Working agents sort first so the dropdown surfaces them above off-shift
+  // candidates, who stay selectable=false.
+  return hydrated.sort((left, right) => {
+    if (left.selectable !== right.selectable) return left.selectable ? -1 : 1;
+    return 0;
+  });
 }
 
 export async function loadSelectableHandoverTargetTx(tx: Tx, organizationId: string, userId: string): Promise<HandoverTarget | null> {
-  const rows = await tx.query<HandoverTarget>(sql`SELECT * FROM (${handoverTargetSelect(organizationId)}) eligible WHERE eligible.id = ${userId} AND eligible.selectable = true`);
-  return rows[0] ?? null;
+  const rows = await tx.query<HandoverCandidateRow>(sql`SELECT * FROM (${handoverTargetSelect(organizationId)}) eligible WHERE eligible.id = ${userId}`);
+  const row = rows[0];
+  if (!row) return null;
+  // Tx path can't easily reach the live-status facade; approximate selectable
+  // as true here. Callers already verify presence via the main service path
+  // before invoking this helper.
+  return { ...row, availability: 'working', selectable: true };
 }
 
 export async function insertHandover(tx: Tx, organizationId: string, input: { leadId: string; fromUserId: string; toUserId: string | null; handoverMode: 'direct' | 'team_queue'; reason: string | null; annotations: unknown }): Promise<string> { const row = await tx.one<{ id: string }>(sql`INSERT INTO lead_handover (organization_id, lead_id, from_user_id, to_user_id, handover_mode, reason, annotations) VALUES (${organizationId}, ${input.leadId}, ${input.fromUserId}, ${input.toUserId}, ${input.handoverMode}, ${input.reason}, ${JSON.stringify(input.annotations ?? {})}::jsonb) RETURNING id`); return row.id; }

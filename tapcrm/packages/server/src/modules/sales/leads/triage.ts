@@ -23,6 +23,7 @@ import { emitLeadReassigned } from '../realtime/sales-channel.js';
 import { addBusinessMinutesSimple, OPERATIONAL_TZ } from '../../../platform/time.js';
 import { insertActivity, insertAudit } from './repository.js';
 import { LeadNotFoundError } from './errors.js';
+import { cancelOpenCallbacksInTransaction } from './lifecycle.js';
 
 export const TRIAGE_ERROR_CODES = {
   NOT_IN_TRIAGE: 'LEAD_NOT_IN_TRIAGE',
@@ -260,6 +261,7 @@ export async function closeFromTriage(
       reason: input.reason,
       lossReason: input.lossReason,
     });
+    await cancelOpenCallbacksInTransaction(tx, ctx, leadId, 'lead_closed_lost');
     await insertAudit(tx, ctx, 'lead.triage_closed', leadId,
       { bidState: 'triage', status: row.status },
       { bidState: 'triage', status: 'closed_lost', lossReason: input.lossReason, reason: input.reason },

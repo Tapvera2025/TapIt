@@ -93,14 +93,15 @@ export async function resolveToken(rawToken: string): Promise<ResolvedToken | nu
   return platformDb.maybeOne<ResolvedToken>(
     'public-portal',
     'resolve proposal portal token from raw value',
+    // SECURITY DEFINER resolver (migration 0122). A direct SELECT would
+    // be filtered by RLS because the portal has no tenant context yet.
     sql`SELECT id              AS "tokenId",
                organization_id AS "organizationId",
                commercials_id  AS "commercialsId",
                token_hash      AS "tokenHash",
                expires_at      AS "expiresAt",
                revoked_at      AS "revokedAt"
-          FROM proposal_portal_token
-         WHERE token_hash = ${tokenHash}`,
+          FROM resolve_proposal_portal_token(${tokenHash})`,
   );
 }
 

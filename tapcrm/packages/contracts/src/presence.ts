@@ -34,8 +34,17 @@ export function nextState(from: PresenceState, kind: EventKind): PresenceState |
   return PRESENCE[from][kind] ?? null;
 }
 
+/**
+ * System-only event kinds that must never appear as a user-selectable move
+ * even though they can transition presence state. `auto-out` is written by
+ * the rollover job, never by a human punch.
+ */
+const SYSTEM_ONLY_EVENT_KINDS: ReadonlySet<EventKind> = new Set(['auto-out']);
+
 export function allowedMoves(from: PresenceState): EventKind[] {
-  return Object.keys(PRESENCE[from]) as EventKind[];
+  return (Object.keys(PRESENCE[from]) as EventKind[]).filter(
+    (kind) => !SYSTEM_ONLY_EVENT_KINDS.has(kind),
+  );
 }
 
 /**

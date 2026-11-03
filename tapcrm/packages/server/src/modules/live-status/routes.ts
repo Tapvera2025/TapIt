@@ -45,8 +45,8 @@ export function registerLiveStatusRoutes(): void {
         // Own view — `/today`. Always for the caller, no scope filter.
         return db.transaction(ctx, async (tx) => {
           const now = systemClock.now();
-          const { row, allowedMoves } = await loadToday(tx, ctx.principal.id, now);
-          return { row, allowedMoves };
+          const { row, allowedMoves, disabledReason } = await loadToday(tx, ctx.principal.id, now);
+          return { row, allowedMoves, disabledReason };
         });
       }
       // Board — scope-filtered by the `userStatus` policy.

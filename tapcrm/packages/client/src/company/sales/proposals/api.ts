@@ -242,6 +242,13 @@ export async function publishCommercials(id: string): Promise<Commercials> {
   return fromWire(wire);
 }
 
+export async function requestCommercialsApproval(id: string): Promise<{ requestId: string }> {
+  return identityRequest(
+    `/api/commercials/${encodeURIComponent(id)}/request-approval`,
+    { method: 'POST', body: JSON.stringify({ commercialsId: id }) },
+  );
+}
+
 export async function supersedeCommercials(id: string): Promise<Commercials> {
   const wire = await identityRequest<CommercialsWire>(
     `/api/commercials/${encodeURIComponent(id)}/supersede`,

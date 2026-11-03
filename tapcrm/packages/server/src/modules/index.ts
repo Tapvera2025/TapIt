@@ -1,4 +1,5 @@
 import { registerSocialPolicies, registerSocialRoutes, registerSocialJobs } from './social/index.js';
+import { registerSeoPolicies, registerSeoRoutes, registerSeoJobs } from './seo-intelligence/index.js';
 import { registerBreakPolicyResolver } from './attendance/facade.js';
 import { registerPaymentReadinessPort } from './sales/deals/payments-port.js';
 import { manualPaymentReadinessPort } from './sales/deals/manual-payment-port.js';
@@ -143,6 +144,7 @@ export function registerAllPolicies(): void {
   registerSocialPolicies();
   registerProjectPolicies();
   registerAccountingPolicies();
+  registerSeoPolicies();
 }
 
 /** Realtime wiring that has no route/policy shape of its own (the typing relay). */
@@ -193,6 +195,7 @@ export function registerAllRoutes(): void {
   registerOnboardingRoutes();
   registerVerificationRoutes();
   registerAccountingRoutes();
+  registerSeoRoutes();
 }
 
 let jobsRegistered = false;
@@ -214,9 +217,7 @@ export function registerAllJobs(): void {
   registerSalesJobs();
   registerSalesIntakeJobs();
   registerProjectReportJobs();
-<<<<<<< HEAD
   registerAccountingJobs();
-=======
   registerSocialJobs();
->>>>>>> 34bc681 (WIP: social module scaffolding, authz hardening, and seed updates)
+  registerSeoJobs();
 }

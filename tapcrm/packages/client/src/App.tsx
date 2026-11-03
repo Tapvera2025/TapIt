@@ -1,5 +1,6 @@
 import { BrandLogo } from './ui/BrandLogo.js';
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { APP_NAVIGATE_EVENT } from './navigationEvent.js';
 import { PlatformDashboard, PlatformLogin } from './platform/screen.js';
 import { AcceptInvitation } from './platform/accept.js';
@@ -246,6 +247,7 @@ export function App(): React.JSX.Element {
           setCompanyAuthenticated(false);
           setPasswordChangeRequired(false);
           navigate('/login');
+          toast.success('Password changed. Sign in again with your new password.');
         }}
       />
     );

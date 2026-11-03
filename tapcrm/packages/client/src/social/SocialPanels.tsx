@@ -20,6 +20,7 @@ import {
   updateSocialSettings,
   syncSocialAnalytics,
 } from './api.js';
+import { AssignLocationModal } from './CompanyConnections.js';
 import {
   dateInZone,
   PlatformMark,
@@ -37,21 +38,30 @@ import type {
 
 export function ConnectedAccounts({
   clientId,
+  clientName,
   accounts,
   providers,
   canConnect,
+  canManageIntegrations,
+  onCompanyConnections,
   onChanged,
 }: {
   clientId: string;
+  clientName: string;
   accounts: SocialAccount[];
   providers: SocialProvider[];
   canConnect: boolean;
+  /** May assign the company Google account's locations to clients. */
+  canManageIntegrations: boolean;
+  onCompanyConnections: () => void;
   onChanged: () => void;
 }): React.JSX.Element {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [revokeGrant, setRevokeGrant] = useState(false);
   const [disconnect, setDisconnect] = useState<SocialAccount | null>(null);
+  const [assigning, setAssigning] = useState(false);
+  const companyPlatform = providers.some((item) => item.platform === 'google_business');
   async function connect(provider: SocialProvider): Promise<void> {
     setBusy(provider.platform);
     setError('');
@@ -73,13 +83,18 @@ export function ConnectedAccounts({
     setBusy(disconnect.id);
     setError('');
     try {
-      const result = await disconnectSocialAccount(clientId, disconnect.id, revokeGrant);
+      const company = disconnect.connectionScope === 'company';
+      const result = await disconnectSocialAccount(
+        clientId,
+        disconnect.id,
+        !company && revokeGrant,
+      );
       if (result.revocationStatus === 'remove_access_in_platform_settings')
         toast(
           'Local access removed. Remove the app in the platform settings to revoke the full grant.',
         );
       setDisconnect(null);
-      toast.success('Account disconnected');
+      toast.success(company ? 'Location unassigned' : 'Account disconnected');
       onChanged();
     } catch (cause) {
       setError(
@@ -106,6 +121,33 @@ export function ConnectedAccounts({
           </div>
         </div>
       </Card>
+      {companyPlatform && (
+        <Card>
+          <div className="flex flex-wrap items-center gap-4">
+            <PlatformMark platform="google_business" />
+            <div className="min-w-48 flex-1">
+              <h3 className="font-semibold">
+                Google Business Profile through your company account
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-app-muted">
+                {canManageIntegrations
+                  ? 'Assign one of the profiles your company’s Google account manages. This client does not need to sign in.'
+                  : 'Your company admin can assign this client’s Business Profile from the company’s Google account.'}
+              </p>
+            </div>
+            {canManageIntegrations && (
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={Boolean(busy)} onClick={() => setAssigning(true)}>
+                  Assign a location
+                </Button>
+                <Button kind="secondary" onClick={onCompanyConnections}>
+                  Company connections
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {providers.map((provider) => (
           <Card key={provider.platform}>
@@ -175,6 +217,9 @@ export function ConnectedAccounts({
                   <h3 className="text-sm font-semibold">{account.name}</h3>
                   <p className="mt-1 text-xs text-app-muted">
                     Connected {new Date(account.connectedAt).toLocaleDateString('en-IN')}
+                    {account.connectionScope === 'company'
+                      ? ' · through your company’s Google account'
+                      : ''}
                   </p>
                   <p className="mt-1 text-[11px] text-app-muted">
                     Permissions:{' '}
@@ -208,20 +253,32 @@ export function ConnectedAccounts({
                 <PostStatus status={account.status} />
                 {canConnect && (
                   <div className="flex gap-2">
-                    {account.status === 'reconnect_required' && (
-                      <Button
-                        kind="secondary"
-                        disabled={Boolean(busy)}
-                        onClick={() => {
-                          const provider = providers.find(
-                            (item) => item.platform === account.platform,
-                          );
-                          if (provider) void connect(provider);
-                        }}
-                      >
-                        Reconnect
-                      </Button>
-                    )}
+                    {account.status === 'reconnect_required' &&
+                      (account.connectionScope === 'company' ? (
+                        // The company sign-in is reconnected once, for every client.
+                        canManageIntegrations && (
+                          <Button
+                            kind="secondary"
+                            disabled={Boolean(busy)}
+                            onClick={onCompanyConnections}
+                          >
+                            Reconnect company account
+                          </Button>
+                        )
+                      ) : (
+                        <Button
+                          kind="secondary"
+                          disabled={Boolean(busy)}
+                          onClick={() => {
+                            const provider = providers.find(
+                              (item) => item.platform === account.platform,
+                            );
+                            if (provider) void connect(provider);
+                          }}
+                        >
+                          Reconnect
+                        </Button>
+                      ))}
                     {account.status !== 'disconnected' && (
                       <Button
                         kind="danger"
@@ -231,7 +288,7 @@ export function ConnectedAccounts({
                           setDisconnect(account);
                         }}
                       >
-                        Disconnect
+                        {account.connectionScope === 'company' ? 'Unassign' : 'Disconnect'}
                       </Button>
                     )}
                   </div>
@@ -246,7 +303,35 @@ export function ConnectedAccounts({
           />
         )}
       </Card>
-      {disconnect && (
+      {disconnect && disconnect.connectionScope === 'company' && (
+        <Modal
+          title="Unassign location"
+          onClose={() => setDisconnect(null)}
+          dirty={false}
+        >
+          <p className="text-sm leading-6">
+            Unassign {disconnect.name} from {clientName}? Scheduled posts to it are
+            cancelled. Your company’s Google account keeps working for your other clients.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button
+              kind="danger"
+              disabled={Boolean(busy)}
+              onClick={() => void confirmDisconnect()}
+            >
+              Unassign location
+            </Button>
+            <Button
+              kind="secondary"
+              disabled={Boolean(busy)}
+              onClick={() => setDisconnect(null)}
+            >
+              Keep it
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {disconnect && disconnect.connectionScope !== 'company' && (
         <Modal
           title="Disconnect account"
           onClose={() => setDisconnect(null)}
@@ -284,6 +369,21 @@ export function ConnectedAccounts({
             </Button>
           </div>
         </Modal>
+      )}
+      {assigning && (
+        <AssignLocationModal
+          clientId={clientId}
+          clientName={clientName}
+          onClose={() => setAssigning(false)}
+          onAssigned={() => {
+            setAssigning(false);
+            onChanged();
+          }}
+          onOpenConnections={() => {
+            setAssigning(false);
+            onCompanyConnections();
+          }}
+        />
       )}
     </div>
   );

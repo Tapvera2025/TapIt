@@ -1,0 +1,35 @@
+{
+  "capturedAt": "2026-10-30T21:33:33.425729+00:00",
+  "localDate": "2026-10-31",
+  "scope": "Four requested Sales fix regressions; live Chrome actions with read-only PostgreSQL supplements",
+  "runtime": {
+    "rebuildCommand": "docker compose up -d --build migrate server client",
+    "buildPassed": true,
+    "migrations": "No pending migrations; service exited successfully",
+    "serverHealthy": true,
+    "clientStarted": true,
+    "checkoutAndContainerSha256": {
+      "packages/server/src/modules/sales/leads/reengagement-service.ts": "8ef45469fe4cab296495023d5f1e0f3b401580426bc41d53dbf15323f8f75535",
+      "packages/server/src/modules/sales/handover/service.ts": "e2f63a6ab5a650622d8a77931f52bab7d4a23ec69adb98f8b76d573d293bd9d2",
+      "packages/client/src/company/sales/leads/LeadDetailsPage.tsx": "a0b08a217e5ae7c7e75a01df58c2c19936f2401efc4ec3fc44418cac547443e0",
+      "packages/client/src/company/sales/deals/DealDetailPage.tsx": "d9b6bd7c0dbfd5e3ad9e91561c8b1a51237d6b69159296da981348c82e682d24"
+    }
+  },
+  "focusedExistingTests": { "filesPassed": 6, "testsPassed": 32, "failed": 0, "skipped": 0 },
+  "regressions": {
+    "R3-01": { "result": "pass", "timezone": "Asia/Kolkata", "leadNumber": 118, "browserLostDate": "2026-10-31", "persistedLostAt": "2026-10-30T21:20:56.436355+00:00" },
+    "R3-02": { "result": "pass", "closedLostLead": 118, "convertedLead": 115, "offerAndQueueControlsAbsent": true },
+    "R3-03": { "result": "pass", "confirmationErrorInsideOpenModal": "Confirmed amount (₹1.00) is below the expected advance (₹60,000.00).", "reversalErrorInsideOpenModal": "deals:confirm-payment: the initiator of an approval-bearing item may not be its approver (A1). This binds every principal including Super Admin." },
+    "R2-03": { "result": "pass_for_NOT_IN_denial", "browserError": "You are not currently punched in or available", "workingSuccessNewlyTested": false }
+  },
+  "midnightBoundaries": [
+    { "utc": "2026-10-30T18:29:59+00:00", "localDate": "2026-10-30" },
+    { "utc": "2026-10-30T18:30:00+00:00", "localDate": "2026-10-31" }
+  ],
+  "handover": { "id": "01a18eba-fb3e-7d06-9e10-b95b5794b82b", "status": "pending", "toUserId": null, "acceptedAt": null, "fromUserId": "01a18c18-4541-7c63-81c2-18bc3cafa778" },
+  "lead": { "leadNumber": 116, "status": "assigned", "ownerId": "01a18c18-450e-732d-8c9e-32df5e3176cf", "currentHolderId": "01a18c18-4541-7c63-81c2-18bc3cafa778" },
+  "receiverPresence": { "userId": "01a18c18-450e-732d-8c9e-32df5e3176cf", "workDate": "2026-10-31", "state": "NOT_IN" },
+  "freshDeal": { "id": "01a18eb9-ba7b-7785-8080-0301b11467ac", "dealNumber": 259, "lifecycleStatus": "open", "paymentStatus": "unpaid", "paymentInitiatedBy": null },
+  "olderDeal": { "dealNumber": 256, "paymentStatus": "advance_confirmed", "paymentInitiatedBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2" },
+  "fundsMoved": false
+}

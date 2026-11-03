@@ -151,6 +151,24 @@ export function submitLeave(body: {
   return peopleMutation('/api/leaves', { method: 'POST', body: JSON.stringify(body) }, ['/api/leaves', '/api/leaves/balances']);
 }
 
+export function submitWfh(body: {
+  leaveTypeId: string;
+  fromDate: string;
+  toDate: string;
+  reason: string;
+}): Promise<LeaveRequestSummary> {
+  return peopleMutation('/api/leaves/wfh', { method: 'POST', body: JSON.stringify(body) }, ['/api/leaves']);
+}
+
+export function submitStandingWfh(body: {
+  leaveTypeId: string;
+  fromDate: string;
+  recurrenceEnd: string;
+  reason: string;
+}): Promise<LeaveRequestSummary> {
+  return peopleMutation('/api/leaves/wfh/standing', { method: 'POST', body: JSON.stringify(body) }, ['/api/leaves']);
+}
+
 export function cancelLeave(id: string): Promise<void> {
   return peopleMutation(`/api/leaves/${encodeURIComponent(id)}`, { method: 'DELETE' }, ['/api/leaves']);
 }

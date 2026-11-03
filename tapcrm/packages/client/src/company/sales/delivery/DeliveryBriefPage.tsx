@@ -14,6 +14,7 @@ import {
   type ReviewDecisionInput,
 } from './api.js';
 import { BriefSections } from './BriefSections.js';
+import { getProjects, type Project } from '../../../projects/api/projectsApi.js';
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
@@ -477,15 +478,66 @@ function AcceptDialog({
   onConfirm: (projectId: string) => Promise<void>;
 }): React.JSX.Element {
   const [projectId, setProjectId] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getProjects(search ? { search, workStatus: 'all' } : { workStatus: 'all' })
+      .then((page) => {
+        if (!cancelled) {
+          setProjects(page.items.filter((p) => !p.archivedAt));
+          setLoadError(null);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) setLoadError(cause instanceof Error ? cause.message : 'Could not load projects.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [search]);
+
   return (
     <Modal title="Accept brief and link project" onClose={onClose}>
       <p className="text-sm text-app-muted">
-        A project must be pre-created in the Projects module. Paste its id below — the link is
-        idempotent on this brief.
+        Pick an existing project to link, or paste the project id. The link is idempotent on this brief.
       </p>
       <div className="mt-4">
         <Field
-          label="Project id"
+          label="Search projects"
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name or client"
+        />
+      </div>
+      <div className="mt-3">
+        <label className="text-xs font-semibold text-app-muted">
+          <span className="mb-2 block">Project</span>
+          <select
+            value={projectId}
+            onChange={(event) => setProjectId(event.target.value)}
+            className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
+          >
+            <option value="">{loading ? 'Loading…' : projects.length === 0 ? 'No projects found' : 'Select a project'}</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name} · {project.clientName}
+              </option>
+            ))}
+          </select>
+        </label>
+        {loadError && <p className="mt-2 text-xs text-app-danger">{loadError}</p>}
+      </div>
+      <div className="mt-3">
+        <Field
+          label="Or paste a project id"
           value={projectId}
           onChange={setProjectId}
           placeholder="UUID of an existing project"

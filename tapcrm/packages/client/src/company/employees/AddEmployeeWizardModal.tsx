@@ -10,6 +10,7 @@ import {
   type CompanyTeam,
 } from '../api/companyApi.js';
 import type { ShiftTemplate, WeekdaySchedule } from '../api/shiftsApi.js';
+import { missingScheduleNotice } from './schedule-notice.js';
 import { createEmployee, getNextEmployeeId, type CreateEmployeeInput } from '../api/employeesApi.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 import { ConfirmDiscardModal, ConfirmCancelButton } from '../../ui/ConfirmDiscardModal.js';
@@ -209,6 +210,7 @@ export function AddEmployeeWizardModal({
   weekdaySchedules,
 }: AddEmployeeWizardModalProps): React.JSX.Element | null {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const scheduleNotice = missingScheduleNotice(shifts.length, weekdaySchedules.length);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
@@ -977,6 +979,15 @@ export function AddEmployeeWizardModal({
             </div>
           ))}
         </div>
+
+        {scheduleNotice && (
+          <div
+            className="shrink-0 mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200"
+            role="status"
+          >
+            {scheduleNotice}
+          </div>
+        )}
 
         {error && (
           <div className="shrink-0 mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-500">

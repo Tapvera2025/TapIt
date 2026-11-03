@@ -1,0 +1,235 @@
+{
+  "recordedAt": "2026-10-30T16:29:15.510Z",
+  "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+  "organizationCode": "QASALESMVUTWNQI",
+  "method": "Read-only authenticated HTTP snapshot after live Chrome tests; no credentials saved",
+  "checks": [
+    {
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+      "status": 200,
+      "data": {
+        "id": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "dealNumber": "256",
+        "originatingLeadId": "01a18c5b-3f00-7374-879e-ecc29385b219",
+        "directEntryReason": null,
+        "contactId": "01a18c5b-3f23-7483-b0a6-02de30527582",
+        "contactName": "Isolated QA Buyer 2026-10-30",
+        "companyId": null,
+        "companyName": null,
+        "serviceRequested": "Website Development",
+        "title": "Isolated QA Closing Journey 2026-10-30",
+        "scopeSummary": "TEST ONLY. No binding offer, delivery, payment, or customer communication.",
+        "originatingAgentId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "originatingAgentName": "Isolated QA Organization Admin",
+        "responsibleCloserId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "responsibleCloserName": "Isolated QA Organization Admin",
+        "closedById": null,
+        "currency": "INR",
+        "expectedCloseAt": null,
+        "probabilityOverride": null,
+        "commercialsId": "01a18da2-57e6-7a7d-b7e4-44f9cb23bb79",
+        "dealStage": "proposal",
+        "approvalStatus": "not_required",
+        "contractStatus": "not_required",
+        "paymentStatus": "unpaid",
+        "lifecycleStatus": "open",
+        "lossReason": null,
+        "lostAt": null,
+        "wonAt": null,
+        "cancelledAt": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.622Z",
+        "updatedAt": "2026-10-30T16:27:31.992Z"
+      }
+    },
+    {
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/commercials",
+      "status": 200,
+      "data": [
+        {
+          "id": "01a18da2-57e6-7a7d-b7e4-44f9cb23bb79",
+          "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+          "dealId": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+          "version": 2,
+          "state": "published",
+          "currency": "INR",
+          "subtotalMinor": "20000000",
+          "discountMinor": "0",
+          "taxMinor": "3600000",
+          "totalMinor": "23600000",
+          "advanceMinor": "6000000",
+          "validityAt": null,
+          "scope": "TEST ONLY. Not a binding offer. No actual funds or delivery.",
+          "exclusions": "Domain and hosting excluded",
+          "timeline": "30 test days",
+          "terms": null,
+          "pdfChecksum": "58865bf5113b81e6fe2e149566cf99282d2d47bb5a9bfb681ca335000df58c6c",
+          "publishedAt": "2026-10-30T16:27:31.992Z",
+          "publishedBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "acceptedAt": null,
+          "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "createdAt": "2026-10-30T16:26:29.221Z",
+          "updatedAt": "2026-10-30T16:27:31.992Z",
+          "items": [
+            {
+              "id": "01a18da3-26f4-7298-b9a4-462f22a6b64a",
+              "commercialsId": "01a18da2-57e6-7a7d-b7e4-44f9cb23bb79",
+              "serviceName": "QA Website Development",
+              "description": "LIVE QA version 2: two synthetic website units; no actual commitment.",
+              "quantity": "2.0000",
+              "unitPriceMinor": "10000000",
+              "itemDiscountMinor": "0",
+              "taxCategory": "standard",
+              "taxRateBps": 1800,
+              "lineTotalMinor": "20000000",
+              "milestone": null,
+              "sortOrder": 0
+            }
+          ]
+        },
+        {
+          "id": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+          "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+          "dealId": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+          "version": 1,
+          "state": "superseded",
+          "currency": "INR",
+          "subtotalMinor": "10000000",
+          "discountMinor": "0",
+          "taxMinor": "1800000",
+          "totalMinor": "11800000",
+          "advanceMinor": "5000000",
+          "validityAt": null,
+          "scope": "TEST ONLY. Not a binding offer. No actual funds or delivery.",
+          "exclusions": "Domain and hosting excluded",
+          "timeline": "30 test days",
+          "terms": null,
+          "pdfChecksum": "be5ce157e5f4f90db6055f7ac49d3e21541446ef520281ae5fe462dd22dd1631",
+          "publishedAt": "2026-10-30T10:29:12.642Z",
+          "publishedBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "acceptedAt": null,
+          "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "createdAt": "2026-10-30T10:29:12.634Z",
+          "updatedAt": "2026-10-30T16:27:31.992Z",
+          "items": [
+            {
+              "id": "01a18c5b-3f3c-7e18-bf99-c902167f7be3",
+              "commercialsId": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+              "serviceName": "QA Website Development",
+              "description": "Synthetic QA work only",
+              "quantity": "1.0000",
+              "unitPriceMinor": "10000000",
+              "itemDiscountMinor": "0",
+              "taxCategory": "standard",
+              "taxRateBps": 1800,
+              "lineTotalMinor": "10000000",
+              "milestone": null,
+              "sortOrder": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/delivery-brief",
+      "status": 200,
+      "data": {
+        "id": "01a18c5b-3f4a-7775-a476-e57a2d7d26e6",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "dealId": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+        "commercialsId": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+        "state": "draft",
+        "content": {
+          "notes": "Synthetic QA brief. No actual delivery or payment."
+        },
+        "projectId": null,
+        "submittedAt": null,
+        "reviewedAt": null,
+        "reviewedBy": null,
+        "acceptedAt": null,
+        "acceptedBy": null,
+        "cancelledAt": null,
+        "cancelledReason": null,
+        "changeNotes": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.649Z",
+        "updatedAt": "2026-10-30T10:29:12.649Z"
+      }
+    },
+    {
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/win-readiness",
+      "status": 200,
+      "data": {
+        "canClose": false,
+        "unmet": [
+          {
+            "condition": "payment",
+            "description": "Advance not yet confirmed by Finance.",
+            "resolver": "Verify and allocate the required advance against this deal."
+          }
+        ]
+      }
+    },
+    {
+      "path": "/api/leads/01a18c5b-3f00-7374-879e-ecc29385b219",
+      "status": 200,
+      "data": {
+        "id": "01a18c5b-3f00-7374-879e-ecc29385b219",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "leadNumber": "114",
+        "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "ownerName": "Isolated QA Organization Admin",
+        "currentHolderId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "currentHolderName": "Isolated QA Organization Admin",
+        "territoryId": null,
+        "territoryName": null,
+        "salesTeamId": null,
+        "salesTeamName": null,
+        "salesPoolId": null,
+        "salesPoolName": null,
+        "sourceId": "01a18c5b-3ef5-7692-8d59-0db1baa6b201",
+        "sourceName": "Isolated QA Outbound 2026-10-30",
+        "sourceDirection": "outbound",
+        "campaignId": null,
+        "campaignName": null,
+        "status": "assigned",
+        "routingStatus": "assigned",
+        "contactId": "01a18c5b-3f23-7483-b0a6-02de30527582",
+        "contactName": "Isolated QA Buyer 2026-10-30",
+        "companyId": null,
+        "companyName": null,
+        "phone": null,
+        "email": "qa.buyer.qasalesmvutwnqi@example.test",
+        "lossReason": null,
+        "lostAt": null,
+        "previousLeadId": null,
+        "stalledAt": null,
+        "stalledReason": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.573Z",
+        "updatedAt": "2026-10-30T10:29:12.608Z",
+        "activities": [
+          {
+            "id": "01a18c5b-3f01-7eef-b702-4570e5d8603d",
+            "eventName": "lead.created",
+            "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "metadata": {
+              "routingStatus": "assigned"
+            },
+            "createdAt": "2026-10-30T10:29:12.573541+00:00"
+          },
+          {
+            "id": "01a18c5b-3f02-7b7e-958d-47ed7218a33d",
+            "eventName": "lead.assigned",
+            "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "metadata": {
+              "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2"
+            },
+            "createdAt": "2026-10-30T10:29:12.573541+00:00"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Button, Field } from '../ui/components.js';
 import { Icon } from '../ui/Icon.js';
 import { listSocialClients } from './api.js';
@@ -8,10 +8,15 @@ import type { SocialClient, SocialClientPage } from './types.js';
 export function ClientSelector({
   selected,
   onSelect,
+  label = 'Client workspace',
+  placeholder = 'Select an existing CRM client',
 }: {
   selected: SocialClient | null;
   onSelect: (client: SocialClient) => void;
+  label?: string;
+  placeholder?: string;
 }): React.JSX.Element {
+  const pickerId = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -64,7 +69,7 @@ export function ClientSelector({
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        aria-controls="social-client-picker"
+        aria-controls={pickerId}
         className="flex w-full items-center gap-3 rounded-xl border border-app-border bg-app-surface px-4 py-3 text-left hover:border-app-accent"
       >
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-app-accent/10 text-app-accent">
@@ -72,19 +77,17 @@ export function ClientSelector({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[10px] font-semibold uppercase tracking-wider text-app-muted">
-            Client workspace
+            {label}
           </span>
           <span className="block truncate text-sm font-semibold">
-            {selected
-              ? selected.businessName || selected.clientName
-              : 'Select an existing CRM client'}
+            {selected ? selected.businessName || selected.clientName : placeholder}
           </span>
         </span>
         <Icon name="chevron-down" className="size-4 text-app-muted" />
       </button>
       {open && (
         <div
-          id="social-client-picker"
+          id={pickerId}
           className="absolute left-0 right-0 z-30 mt-2 min-w-64 rounded-xl border border-app-border bg-app-surface p-3 shadow-xl"
         >
           <Field

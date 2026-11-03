@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { LEAD_STATUSES } from './types.js';
+import { LEAD_LOSS_REASONS, LEAD_STATUSES } from './types.js';
 
 export const sourceSchema = z.object({ name: z.string().trim().min(1).max(160), direction: z.enum(['inbound', 'outbound']), status: z.enum(['active', 'inactive']).optional().default('active') });
 export const updateSourceSchema = z.object({ name: z.string().trim().min(1).max(160).optional(), direction: z.enum(['inbound', 'outbound']).optional(), status: z.enum(['active', 'inactive']).optional() }).refine((value) => Object.keys(value).length > 0, { message: 'At least one source field is required' });
 const leadStatus = z.enum(LEAD_STATUSES);
-export const createLeadSchema = z.object({ contactName: z.string().trim().min(1).max(200), companyName: z.string().trim().max(200).nullable().optional(), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), sourceId: z.string().uuid(), campaignId: z.string().uuid().nullable().optional(), previousLeadId: z.string().uuid().nullable().optional(), status: leadStatus.optional().default('new') }).refine((value) => value.phone || value.email, { message: 'Phone or email is required' });
+export const createLeadSchema = z.object({ contactName: z.string().trim().min(1).max(200), companyName: z.string().trim().max(200).nullable().optional(), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), sourceId: z.string().uuid(), campaignId: z.string().uuid().nullable().optional(), previousLeadId: z.string().uuid().nullable().optional(), status: leadStatus.optional().default('new'), requirement: z.string().trim().max(2000).nullable().optional(), location: z.string().trim().max(500).nullable().optional(), languagePreference: z.string().trim().max(80).nullable().optional(), notes: z.string().trim().max(4000).nullable().optional() }).refine((value) => value.phone || value.email, { message: 'Phone or email is required' });
 export const updateLeadSchema = z.object({ contactName: z.string().trim().min(1).max(200).optional(), companyName: z.string().trim().max(200).nullable().optional(), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), campaignId: z.string().uuid().nullable().optional(), status: z.enum(['new', 'assigned', 'contacted', 'discovery', 'proposal_sent', 'follow_up', 'callback_scheduled', 'nurture']).optional() }).refine((value) => Object.keys(value).length > 0, { message: 'At least one mutable lead field is required' });
 export const leadListQuerySchema = z.object({ search: z.string().trim().max(200).optional(), status: leadStatus.or(z.literal('all')).optional().default('all'), ownerId: z.string().uuid().optional(), sourceId: z.string().uuid().optional(), campaignId: z.string().uuid().optional(), territoryId: z.string().uuid().optional(), salesTeamId: z.string().uuid().optional(), salesPoolId: z.string().uuid().optional(), page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) });
 export const createCallbackSchema = z.object({ leadId: z.string().uuid(), scheduledAt: z.coerce.date(), reason: z.string().trim().max(1000).optional() });
@@ -14,6 +14,21 @@ export const callbackOutcomeSchema = z.object({ status: z.enum(['completed', 'no
 const callbackStatus = z.enum(['pending', 'completed', 'rescheduled', 'not_reachable', 'missed', 'cancelled']);
 export const callbackListQuerySchema = z.object({ status: callbackStatus.or(z.literal('scheduled')).or(z.literal('all')).transform((value) => value === 'scheduled' ? 'pending' : value).optional().default('all'), leadId: z.string().uuid().optional(), ownerId: z.string().uuid().optional(), from: z.coerce.date().optional(), to: z.coerce.date().optional() });
 export const reengagementQuerySchema = z.object({ lossReason: z.string().max(40).optional(), sourceId: z.string().uuid().optional(), campaignId: z.string().uuid().optional(), from: z.coerce.date().optional(), to: z.coerce.date().optional() });
+/** PRD R-LEAD-04: closing a lead as lost needs a reason, and a note for "other". */
+export const closeLeadLostSchema = z
+  .object({
+    lossReason: z.enum(LEAD_LOSS_REASONS),
+    note: z.string().trim().max(1000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.lossReason === 'other' && !value.note)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Add a note explaining why the lead was lost',
+        path: ['note'],
+      });
+  });
+export type CloseLeadLostInput = z.infer<typeof closeLeadLostSchema>;
 export type SourceInput = z.infer<typeof sourceSchema>; export type UpdateSourceInput = z.infer<typeof updateSourceSchema>; export type CreateLeadInput = z.infer<typeof createLeadSchema>; export type UpdateLeadInput = z.infer<typeof updateLeadSchema>; export type LeadListQuery = z.infer<typeof leadListQuerySchema>;
 export type CreateCallbackInput = z.infer<typeof createCallbackSchema>; export type UpdateCallbackInput = z.infer<typeof updateCallbackSchema>; export type CallbackOutcomeInput = z.infer<typeof callbackOutcomeSchema>; export type CallbackListQuery = z.infer<typeof callbackListQuerySchema>;
 export type ReengagementQuery = z.infer<typeof reengagementQuerySchema>;

@@ -16,17 +16,23 @@ import { z } from 'zod';
  * an empty value counts as unset, and anything unrecognised is a startup error.
  */
 const envBoolean = (fallback: boolean) =>
-  z.preprocess((value) => {
-    if (typeof value !== 'string') return value;
-    const normalised = value.trim().toLowerCase();
-    if (normalised === '') return undefined;
-    if (['true', '1', 'yes', 'on'].includes(normalised)) return true;
-    if (['false', '0', 'no', 'off'].includes(normalised)) return false;
-    return value;
-  }, z.boolean({ invalid_type_error: 'must be true or false' }).default(fallback));
+  z.preprocess(
+    (value) => {
+      if (typeof value !== 'string') return value;
+      const normalised = value.trim().toLowerCase();
+      if (normalised === '') return undefined;
+      if (['true', '1', 'yes', 'on'].includes(normalised)) return true;
+      if (['false', '0', 'no', 'off'].includes(normalised)) return false;
+      return value;
+    },
+    z.boolean({ invalid_type_error: 'must be true or false' }).default(fallback),
+  );
 
 const optionalEnvString = (schema: z.ZodOptional<z.ZodString>) =>
-  z.preprocess((value) => typeof value === 'string' && value.trim() === '' ? undefined : value, schema);
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    schema,
+  );
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -102,13 +108,14 @@ const schema = z.object({
   NOTIFICATION_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(100).default(2_000),
 
   API_PORT: z.coerce.number().int().positive().default(4000),
+  CONTENT_COLLAB_PORT: z.coerce.number().int().positive().default(4001),
   API_BASE_PATH: z.string().default('/api'),
   TAPCRM_UPLOAD_DIR: z.string().trim().min(1).default('storage'),
   // Not enforced today: there is no CORS middleware, and the web app reaches the
   // API same-origin through its dev proxy. Emailed links use CLIENT_ORIGIN.
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   CLIENT_ORIGIN: z.string().url().default('http://localhost:5173'),
-  // 
+  //
   EMAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
@@ -138,7 +145,9 @@ const schema = z.object({
   GOOGLE_SEARCH_CONSOLE_AUTH: z.enum(['off', 'service-account', 'oauth']).default('off'),
   GOOGLE_SERVICE_ACCOUNT_EMAIL: optionalEnvString(z.string().trim().email().optional()),
   // The PEM from the service-account key file. Newlines may be written as \n.
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: optionalEnvString(z.string().trim().min(1).optional()),
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: optionalEnvString(
+    z.string().trim().min(1).optional(),
+  ),
   GOOGLE_OAUTH_CLIENT_ID: optionalEnvString(z.string().trim().min(1).optional()),
   GOOGLE_OAUTH_CLIENT_SECRET: optionalEnvString(z.string().trim().min(1).optional()),
   GOOGLE_OAUTH_REFRESH_TOKEN: optionalEnvString(z.string().trim().min(1).optional()),
@@ -169,13 +178,22 @@ function configurationProblems(config: Config): string[] {
     keys.filter((key) => config[key] === undefined).map(String);
 
   if (config.GOOGLE_SEARCH_CONSOLE_AUTH === 'service-account') {
-    const absent = missing(['GOOGLE_SERVICE_ACCOUNT_EMAIL', 'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY']);
+    const absent = missing([
+      'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+      'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
+    ]);
     if (absent.length > 0) {
-      problems.push(`GOOGLE_SEARCH_CONSOLE_AUTH=service-account requires ${absent.join(' and ')}`);
+      problems.push(
+        `GOOGLE_SEARCH_CONSOLE_AUTH=service-account requires ${absent.join(' and ')}`,
+      );
     }
   }
   if (config.GOOGLE_SEARCH_CONSOLE_AUTH === 'oauth') {
-    const absent = missing(['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_OAUTH_REFRESH_TOKEN']);
+    const absent = missing([
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+      'GOOGLE_OAUTH_REFRESH_TOKEN',
+    ]);
     if (absent.length > 0) {
       problems.push(`GOOGLE_SEARCH_CONSOLE_AUTH=oauth requires ${absent.join(', ')}`);
     }
@@ -202,13 +220,19 @@ function productionProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
     problems.push('CLIENT_ORIGIN must be set; it is the base of every emailed link');
   }
   if (config.DEV_INSTANT_PASSWORD_RESET) {
-    problems.push('DEV_INSTANT_PASSWORD_RESET shows new admin passwords on the login page; it is for local development only');
+    problems.push(
+      'DEV_INSTANT_PASSWORD_RESET shows new admin passwords on the login page; it is for local development only',
+    );
   }
   if (config.SECURITY_COUNTER_STORE === 'memory') {
-    problems.push('SECURITY_COUNTER_STORE=memory is single-process; use redis (ID-9, SE-5)');
+    problems.push(
+      'SECURITY_COUNTER_STORE=memory is single-process; use redis (ID-9, SE-5)',
+    );
   }
   if (!config.AUDIT_ARCHIVE_ENCRYPTION_KEY || !config.AUDIT_ARCHIVE_KEY_ID) {
-    problems.push('AUDIT_ARCHIVE_ENCRYPTION_KEY and AUDIT_ARCHIVE_KEY_ID must be managed separately in production');
+    problems.push(
+      'AUDIT_ARCHIVE_ENCRYPTION_KEY and AUDIT_ARCHIVE_KEY_ID must be managed separately in production',
+    );
   }
   return problems;
 }
@@ -248,9 +272,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
  * the setting has a safe default, so it is read without requiring every secret.
  * An invalid value still fails the boot through `loadConfig()`.
  */
-export function passwordBreachCheckMode(env: NodeJS.ProcessEnv = process.env): Config['PASSWORD_BREACH_CHECK'] {
+export function passwordBreachCheckMode(
+  env: NodeJS.ProcessEnv = process.env,
+): Config['PASSWORD_BREACH_CHECK'] {
   if (cached) return cached.PASSWORD_BREACH_CHECK;
-  const parsed = schema.shape.PASSWORD_BREACH_CHECK.safeParse(env['PASSWORD_BREACH_CHECK']);
+  const parsed = schema.shape.PASSWORD_BREACH_CHECK.safeParse(
+    env['PASSWORD_BREACH_CHECK'],
+  );
   return parsed.success ? parsed.data : 'best-effort';
 }
 

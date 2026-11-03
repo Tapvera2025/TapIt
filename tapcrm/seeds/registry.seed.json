@@ -2521,6 +2521,501 @@
       "description": ""
     },
     {
+      "action": "seo:acknowledge-alert",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:comment-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_document",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:create-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:create-site",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:edit-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:export-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:export-report",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-alerts",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-finding-groups",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-findings",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-fixes",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-keywords",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-rules",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-scans",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-sites",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:manage-content-brand",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-ai-visibility",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-backlinks",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-cwv",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-finding",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-findings-trend",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-rank-tracking",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-scan",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-search-performance",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-site",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:review-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_document",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "ownerId",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:sync-search-performance",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:trigger-scan",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:update-finding",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:update-fix",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:update-rule",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:update-site",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "sheets:manage",
       "module": "workspace",
       "resource": "sheet",
@@ -4390,6 +4885,12 @@
     },
     {
       "method": "POST",
+      "path": "/api/leads/:id/close-lost",
+      "action": "leads:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
       "path": "/api/leads/:id/reassign",
       "action": "leads:reassign",
       "resourceParam": "id"
@@ -5914,6 +6415,48 @@
     },
     {
       "method": "GET",
+      "path": "/api/social/company-connections",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/company-connections/oauth/:platform/start",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/company-connections/oauth/:platform/complete",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/company-connections/:connectionId/locations",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/company-connections/:connectionId/sync",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/social/company-connections/:connectionId/locations/:locationId/client",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/social/company-connections/:connectionId",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/clients",
       "action": "clients:view",
       "resourceParam": null
@@ -6709,6 +7252,288 @@
       "path": "/api/recruitment/resume-submissions/:id/ats-scans",
       "action": "recruitment:manage-submissions",
       "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites",
+      "action": "seo:list-sites",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content",
+      "action": "seo:create-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content-members",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content-brand",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/seo/sites/:siteId/content-brand",
+      "action": "seo:manage-content-brand",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content/:documentId",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content/:documentId/comments",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/comments",
+      "action": "seo:comment-content",
+      "resourceParam": "documentId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/sites/:siteId/content/:documentId/comments/:threadId",
+      "action": "seo:comment-content",
+      "resourceParam": "documentId"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/seo/sites/:siteId/content/:documentId",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/seo/sites/:siteId/content/:documentId/body",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/checkpoint",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content/:documentId/history",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/restore",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/workflow",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/review",
+      "action": "seo:review-content",
+      "resourceParam": "documentId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/export",
+      "action": "seo:export-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites",
+      "action": "seo:create-site",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId",
+      "action": "seo:read-site",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/sites/:siteId",
+      "action": "seo:update-site",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/scans",
+      "action": "seo:list-scans",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/scans",
+      "action": "seo:trigger-scan",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/scans/:scanRunId",
+      "action": "seo:read-scan",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/findings",
+      "action": "seo:list-findings",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/findings/:findingId",
+      "action": "seo:read-finding",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/findings/:findingId",
+      "action": "seo:update-finding",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/gsc-metrics",
+      "action": "seo:read-search-performance",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/gsc-sync",
+      "action": "seo:sync-search-performance",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/keywords",
+      "action": "seo:list-keywords",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/serp-observations",
+      "action": "seo:read-rank-tracking",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/rank-status",
+      "action": "seo:read-rank-tracking",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/rank-checks",
+      "action": "seo:sync-search-performance",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/ai-observations",
+      "action": "seo:read-ai-visibility",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/backlinks",
+      "action": "seo:read-backlinks",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/cwv-observations",
+      "action": "seo:read-cwv",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/performance-status",
+      "action": "seo:read-cwv",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/performance-refresh",
+      "action": "seo:trigger-scan",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/fix-proposals",
+      "action": "seo:list-fixes",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/fix-proposals/:proposalId",
+      "action": "seo:update-fix",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/alerts",
+      "action": "seo:list-alerts",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/alerts/:alertId",
+      "action": "seo:acknowledge-alert",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/finding-groups",
+      "action": "seo:list-finding-groups",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/findings-trend",
+      "action": "seo:read-findings-trend",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/report",
+      "action": "seo:export-report",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/rules",
+      "action": "seo:list-rules",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/rules/:ruleId",
+      "action": "seo:update-rule",
+      "resourceParam": null
     }
   ]
 }

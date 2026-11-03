@@ -9,6 +9,7 @@
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
+import { describeEligibilityReasons } from '../../../platform/availability/reasons.js';
 import { evaluateAvailability } from '../../../platform/availability/service.js';
 import { NotEligibleError } from '../../../platform/http/error-handler.js';
 import { insertRoutingDecision } from '../intake/repository.js';
@@ -38,9 +39,13 @@ import {
 } from './state.js';
 
 function throwNotEligible(reasons: readonly string[]): never {
-  throw new NotEligibleError('NOT_ELIGIBLE', `bid pool: caller not eligible: ${reasons.join(', ')}`, {
-    unmet: reasons.length > 0 ? reasons : ['not_active'],
-  });
+  throw new NotEligibleError(
+    'NOT_ELIGIBLE',
+    `You can't claim leads right now (${describeEligibilityReasons(reasons)}).`,
+    {
+      unmet: reasons.length > 0 ? reasons : ['not_active'],
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------

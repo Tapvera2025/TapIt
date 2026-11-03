@@ -63,6 +63,7 @@ import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 import { MessagesPage } from '../chat/index.js';
 import { ClientsPage } from '../clients/index.js';
 import { SocialWorkspace } from '../social/SocialWorkspace.js';
+import { SeoWorkspace } from '../seo-intelligence/SeoWorkspace.js';
 import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 import { MyTodoPage } from './todo/index.js';
 import { SettingsPage } from './settings/SettingsPage.js';
@@ -181,6 +182,7 @@ export function CompanyWorkspace({
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
   const canViewSocial = isSuperAdmin || can('social:view');
+  const canViewSeo = isSuperAdmin || can('seo:list-sites');
   const canViewProjects = isSuperAdmin || can('projects:view');
   const canManageLeaveTypes = can('leave:manage-types');
   const canAcknowledgeLeave = can('leave:acknowledge');
@@ -415,8 +417,46 @@ export function CompanyWorkspace({
         />
       );
     if (pathname === '/company/clients' && canViewClients) return <ClientsPage />;
-    if ((pathname === '/company/social' || pathname.startsWith('/company/social/')) && canViewSocial)
-      return <SocialWorkspace pathname={pathname} onNavigate={onNavigate} canManage={isSuperAdmin || can('social:manage')} canApprove={isSuperAdmin || can('social:approve')} canConnect={isSuperAdmin || can('social:connect')} canPublish={isSuperAdmin || can('social:publish')} canSettings={isSuperAdmin || can('social:settings')} />;
+    if (
+      (pathname === '/company/social' || pathname.startsWith('/company/social/')) &&
+      canViewSocial
+    )
+      return (
+        <SocialWorkspace
+          pathname={pathname}
+          onNavigate={onNavigate}
+          canManage={isSuperAdmin || can('social:manage')}
+          canApprove={isSuperAdmin || can('social:approve')}
+          canConnect={isSuperAdmin || can('social:connect')}
+          canPublish={isSuperAdmin || can('social:publish')}
+          canSettings={isSuperAdmin || can('social:settings')}
+          canManageIntegrations={isSuperAdmin || can('system:manage-integrations')}
+        />
+      );
+    if (
+      (pathname === '/company/seo-intelligence' ||
+        pathname.startsWith('/company/seo-intelligence/')) &&
+      canViewSeo
+    )
+      return (
+        <SeoWorkspace
+          pathname={pathname}
+          onNavigate={onNavigate}
+          canManage={isSuperAdmin || can('seo:create-site')}
+          contentAccess={{
+            userId,
+            userName: fullName,
+            administrator: isSuperAdmin,
+            read: isSuperAdmin || can('seo:read-content'),
+            create: isSuperAdmin || can('seo:create-content'),
+            edit: isSuperAdmin || can('seo:edit-content'),
+            review: isSuperAdmin || can('seo:review-content'),
+            comment: isSuperAdmin || can('seo:comment-content'),
+            export: isSuperAdmin || can('seo:export-content'),
+            brand: isSuperAdmin || can('seo:manage-content-brand'),
+          }}
+        />
+      );
     if (pathname === '/company/projects' && canViewProjects)
       return (
         <ProjectsPage
@@ -634,6 +674,7 @@ export function CompanyWorkspace({
           canReassign={canReassignLeadsFromUi}
           canTransferSourcingCredit={isSuperAdmin}
           canCreateDeal={isSuperAdmin || can('deals:create')}
+          canEditLead={isSuperAdmin || can('leads:edit')}
           onBack={() => onNavigate('/company/sales/leads')}
           onNavigate={onNavigate}
         />
@@ -715,6 +756,7 @@ export function CompanyWorkspace({
       canViewChat={canViewChat}
       canViewClients={canViewClients}
       canViewSocial={canViewSocial}
+      canViewSeo={canViewSeo}
       canViewProjects={canViewProjects}
       canViewLiveBoard={canBeyondOwn('attendance:view-live')}
       canViewAttendanceReports={isHr || canBeyondOwn('attendance:view')}

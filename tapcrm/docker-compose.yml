@@ -52,7 +52,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_MIGRATOR_USER:-tapcrm_migrator} -d ${POSTGRES_DB:-tapcrm}']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_MIGRATOR_USER:-tapcrm_migrator} -d ${POSTGRES_DB:-tapcrm}',
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -180,6 +184,17 @@ services:
       REDIS_URL: redis://redis:6379
       SECURITY_COUNTER_STORE: ${SECURITY_COUNTER_STORE:-redis}
       PASSWORD_BREACH_CHECK: ${PASSWORD_BREACH_CHECK:-best-effort}
+      GOOGLE_SEARCH_CONSOLE_AUTH: ${GOOGLE_SEARCH_CONSOLE_AUTH:-off}
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${GOOGLE_SERVICE_ACCOUNT_EMAIL:-}
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REFRESH_TOKEN: ${GOOGLE_OAUTH_REFRESH_TOKEN:-}
+      GOOGLE_SEARCH_CONSOLE_LAG_DAYS: ${GOOGLE_SEARCH_CONSOLE_LAG_DAYS:-3}
+      GOOGLE_SEARCH_CONSOLE_WINDOW_DAYS: ${GOOGLE_SEARCH_CONSOLE_WINDOW_DAYS:-7}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      CRUX_API_KEY: ${CRUX_API_KEY:-}
+      PAGESPEED_API_KEY: ${PAGESPEED_API_KEY:-}
       RESUME_OCR: ${RESUME_OCR:-true}
       # Empty values keep official social providers in Setup Required.
       SOCIAL_PUBLIC_BASE_URL: ${SOCIAL_PUBLIC_BASE_URL:-}
@@ -220,6 +235,7 @@ services:
       AUDIT_DRAIN_INTERVAL_MS: ${AUDIT_DRAIN_INTERVAL_MS:-5000}
       AUDIT_DRAIN_BATCH_SIZE: ${AUDIT_DRAIN_BATCH_SIZE:-200}
       API_PORT: ${API_PORT:-4000}
+      CONTENT_COLLAB_PORT: ${CONTENT_COLLAB_PORT:-4001}
       # Project screenshots and other local filesystem uploads live on the
       # host-mounted storage directory so container rebuilds do not remove them.
       TAPCRM_UPLOAD_DIR: /app/storage
@@ -245,10 +261,17 @@ services:
         condition: service_completed_successfully
     ports:
       - '127.0.0.1:${API_PORT:-4000}:${API_PORT:-4000}'
+      - '127.0.0.1:${CONTENT_COLLAB_PORT:-4001}:${CONTENT_COLLAB_PORT:-4001}'
     volumes:
       - ./storage:/app/storage
     healthcheck:
-      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:' + process.env.API_PORT + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:' + process.env.API_PORT + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -261,6 +284,7 @@ services:
     environment:
       VITE_HOST: 0.0.0.0
       VITE_API_PROXY_TARGET: http://server:${API_PORT:-4000}
+      VITE_CONTENT_COLLAB_URL: ${VITE_CONTENT_COLLAB_URL:-ws://localhost:${CONTENT_COLLAB_PORT:-4001}}
     depends_on:
       server:
         condition: service_healthy

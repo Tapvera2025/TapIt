@@ -11,7 +11,6 @@ import {
   STAGE_LABELS,
   approvalTone,
   contractTone,
-  formatCurrencyLabel,
   formatProbability,
   formatRelativeDate,
   groupByStage,
@@ -198,7 +197,7 @@ function DealList({
               </p>
               <p className="mt-1 text-xs text-app-muted">
                 Expected close {formatRelativeDate(deal.expectedCloseAt)} · Probability{' '}
-                {formatProbability(deal)} · {formatCurrencyLabel(deal.currency)}
+                {formatProbability(deal)}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -255,7 +254,7 @@ function KanbanBoard({
                   #{deal.dealNumber} · {deal.contactName ?? '—'}
                 </p>
                 <p className="mt-1 text-xs text-app-muted">
-                  {formatCurrencyLabel(deal.currency)} · {formatProbability(deal)} ·{' '}
+                  {formatProbability(deal)} ·{' '}
                   {formatRelativeDate(deal.expectedCloseAt)}
                 </p>
               </button>

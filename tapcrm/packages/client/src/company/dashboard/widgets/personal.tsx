@@ -117,6 +117,7 @@ export function PunchStateWidget(): React.JSX.Element {
   useEffect(() => {
     setLoading(true);
     const controller = new AbortController();
+    // A request cancelled because the widget went away is not a failure.
     loadTodayStatus(controller.signal)
       .then((s) => setStatus(s))
       .catch((err: unknown) => {
@@ -329,8 +330,12 @@ export function TodaysShiftWidget(): React.JSX.Element {
     const controller = new AbortController();
     getMyShiftAssignment(controller.signal)
       .then((s) => setShifts(s))
-      .catch(() => setShifts([]))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!controller.signal.aborted) setShifts([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => controller.abort();
   }, []);
 

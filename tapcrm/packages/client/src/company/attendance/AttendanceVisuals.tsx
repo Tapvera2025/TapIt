@@ -47,17 +47,28 @@ export function MonthlyAttendanceKpis({
   wfhDays: number;
 }): React.JSX.Element {
   const [hoveredSegment, setHoveredSegment] = useState<{ label: string; value: number; percentage: number; color: string } | null>(null);
+  // Ring segments must be a disjoint partition of the month's accounted days
+  // or the percentages lie. "Late" is a subset of present and "Half Days" is
+  // already counted as 0.5 inside presentDays, so neither belongs in the
+  // ring — they stay as KPI cards instead.
+  const fullPresentDays = Math.max(0, presentDays - halfDays * 0.5);
+  const totalLeave = paidLeaveDayCount + unpaidLeave;
   const primaryItems = [
-    { label: 'Present Days', value: presentDays, color: '#42c9a4' },
-    { label: 'Late Days', value: lateDays, color: '#f5b84b' },
-    { label: 'Absent Days', value: absentDays, color: '#f47777' },
+    { label: 'Present Days', value: fullPresentDays, color: '#42c9a4' },
     { label: 'Half Days', value: halfDays, color: '#8570e9' },
+    { label: 'Absent Days', value: absentDays, color: '#f47777' },
+    { label: 'Leave', value: totalLeave, color: '#70a5ed' },
   ];
+  // Secondary section surfaces late/WFH plus leave breakdown as information
+  // KPIs beneath the ring. These overlap other buckets by design (Late is a
+  // subset of Present, WFH is a subset of Present/Half, Paid/Unpaid split the
+  // ring's Leave slice) so they only appear as labels, never on the ring.
   const secondaryItems = [
+    { label: 'Late Days', value: lateDays, color: '#f5b84b' },
     { label: 'Paid Leave', value: paidLeaveDayCount, color: '#70a5ed' },
     { label: 'Unpaid Leave', value: unpaidLeave, color: '#b6a0f4' },
     { label: 'WFH Days', value: wfhDays, color: '#a7bde8' },
-  ];
+  ] as const;
   const total = primaryItems.reduce((sum, item) => sum + item.value, 0);
   const radius = 74;
   const circumference = 2 * Math.PI * radius;
@@ -141,7 +152,7 @@ export function MonthlyAttendanceKpis({
                 <span className="size-3.5 rounded-full" style={{ backgroundColor: item.color }} />
                 <span className="font-medium text-app-foreground">{item.label}</span>
                 <strong className="tabular-nums text-app-foreground">{item.value}</strong>
-                <span className="w-12 text-right tabular-nums text-app-muted">{total > 0 ? `${((item.value / total) * 100).toFixed(1)}%` : '0%'}</span>
+                <span className="w-12 text-right tabular-nums text-app-muted">info</span>
               </div>
             ))}
           </div>

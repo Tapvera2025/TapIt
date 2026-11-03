@@ -60,7 +60,10 @@ export function CorrectionsPage(): React.JSX.Element {
 
   async function decide(item: CorrectionListItem, approve: boolean): Promise<void> {
     setBusy(item.id);
+    // Reset BOTH slots so a prior success doesn't linger above a new failure
+    // and a prior error doesn't linger above a new success.
     setNotice(null);
+    setError(null);
     try {
       const note = notes[item.id]?.trim() || undefined;
       if (approve) await approveCorrection(item.id, note);

@@ -6,6 +6,7 @@ import { defineJob } from '../../platform/jobs/runner.js';
 import { getStorageService } from '../../platform/storage/storage.service.js';
 import { SocialValidationError } from './errors.js';
 import { mediaDto } from './media.js';
+import { activeCompanyConnectionIds, syncCompanyConnection } from './company.js';
 import { authorizePublishingActor } from './policy.js';
 import { getProvider } from './providers/index.js';
 import { ProviderError, type SocialContent } from './providers/types.js';
@@ -204,6 +205,28 @@ export function registerSocialJobs(): void {
         itemsProcessed: result.processed,
         details: { interrupted: result.interrupted },
       };
+    },
+  });
+  // New locations appear once a customer adds the company's Google account as a
+  // manager of their Business Profile; lost ones are flagged before posts fail.
+  defineJob({
+    name: 'social.company-locations-sync',
+    perOrganization: true,
+    module: 'social',
+    schedule: { every: 24 * 60 * 60_000 },
+    attempts: 2,
+    handler: async ({ ctx }) => {
+      let count = 0;
+      for (const connectionId of await activeCompanyConnectionIds(ctx)) {
+        try {
+          await syncCompanyConnection(ctx, connectionId, 'scheduled');
+          count += 1;
+        } catch {
+          // Recorded on the connection (and announced when it needs a reconnect);
+          // one company account failing must not stop the others.
+        }
+      }
+      return { itemsProcessed: count };
     },
   });
   defineJob({
