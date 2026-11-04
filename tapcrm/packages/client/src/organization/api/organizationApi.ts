@@ -20,6 +20,9 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const organizationApi = {
+  currencySettings: () => request<{ supportedCurrencies: string[]; defaultCurrency: string }>('/api/org/currency-settings'),
+  updateCurrencySettings: (body: { supportedCurrencies: string[]; defaultCurrency: string }) =>
+    request<{ supportedCurrencies: string[]; defaultCurrency: string }>('/api/org/currency-settings', { method: 'PUT', body: JSON.stringify(body) }),
   departments: () => request<OrganizationDepartment[]>('/api/org/departments'),
   createDepartment: (body: {
     code: string;

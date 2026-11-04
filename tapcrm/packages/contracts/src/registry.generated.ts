@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 194   Bindings: 591
+ * Actions: 194   Bindings: 594
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3334,6 +3334,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/identity/geofence-appeals/:id/decide', action: 'identity:manage-geofence', resourceParam: null },
   { method: 'POST', path: '/api/identity/users/:id/unlock', action: 'identity:unlock-account', resourceParam: 'id' },
   { method: 'GET', path: '/api/org/departments', action: 'org:view-structure', resourceParam: null },
+  { method: 'GET', path: '/api/org/currency-settings', action: 'advance:view-own', resourceParam: null },
+  { method: 'PUT', path: '/api/org/currency-settings', action: 'system:manage-settings', resourceParam: null },
   { method: 'GET', path: '/api/org/teams', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/ladder/:departmentCode', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/chart', action: 'org:view-structure', resourceParam: null },
@@ -3478,6 +3480,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PUT', path: '/api/leaves/types/:id', action: 'leave:manage-types', resourceParam: 'id' },
   { method: 'GET', path: '/api/holidays', action: 'holidays:view', resourceParam: null },
   { method: 'POST', path: '/api/holidays', action: 'holidays:manage', resourceParam: null },
+  { method: 'POST', path: '/api/holidays/bulk', action: 'holidays:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/holidays/:id', action: 'holidays:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/payroll/payslips/mine', action: 'payroll:view', resourceParam: null },
   { method: 'GET', path: '/api/payroll/payslips/:id', action: 'payroll:view', resourceParam: 'id' },

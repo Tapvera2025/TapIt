@@ -118,7 +118,8 @@ export function PeopleCalendar({
     const label = day?.label ?? 'No attendance record';
     const markers = (day?.markers ?? []).slice(0, 2);
     const lateMarker = markers.find((marker) => marker.startsWith('Late +'));
-    const extraMarkers = markers.filter((marker) => marker !== lateMarker);
+    const holidayMarker = markers.includes('#');
+    const extraMarkers = markers.filter((marker) => marker !== lateMarker && marker !== '#');
     const statusClass = TONE_CLASSES[day?.tone ?? 'muted'];
     const defaultSurfaceClass = surface === 'grid' || surface === 'compact'
       ? statusClass
@@ -143,14 +144,15 @@ export function PeopleCalendar({
         onKeyDown={(event) => handleDateKeyDown(event, date)}
         className={`${base} ${sizing} ${isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : defaultSurfaceClass} ${isCurrentMonth ? '' : 'opacity-45'}`}
       >
-        <span className={`${surface === 'list' ? 'w-12 shrink-0' : 'flex items-start justify-between gap-1'} text-sm font-bold tabular-nums`}>
+        {surface !== 'list' && holidayMarker && <span aria-hidden="true" className={`pointer-events-none absolute right-2 top-1 font-display font-black leading-none text-app-muted/20 ${surface === 'compact' ? 'text-3xl' : 'text-5xl'}`}>#</span>}
+        <span className={`relative z-10 ${surface === 'list' ? 'w-12 shrink-0' : 'flex items-start justify-between gap-1'} text-sm font-bold tabular-nums`}>
           <span>{surface === 'list' ? calendarDateLabel(date).split(',')[0] : Number(date.slice(-2))}</span>
           {surface !== 'list' && surface !== 'compact' && lateMarker && <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold leading-none text-amber-800 dark:text-amber-200">{lateMarker}</span>}
         </span>
         {surface === 'compact' && <span aria-hidden="true" className={`mx-auto mt-1 block size-1.5 rounded-full ${TONE_DOT_CLASSES[day?.tone ?? 'muted']}`} />}
         {surface === 'list' && <span className="sr-only">{calendarDateLabel(date)}</span>}
         {surface !== 'compact' && <span className={surface === 'list' ? 'min-w-0 flex-1' : 'mt-2 block'}>
-          <span className={`inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-4 ${statusClass}`}>
+          <span className={`relative z-10 inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-4 ${statusClass}`}>
             {day?.halfDay && <span aria-hidden="true" className="inline-block size-2 rounded-full bg-current opacity-70 [clip-path:inset(0_50%_0_0)]" />}
             <span className="truncate">{label}</span>
           </span>

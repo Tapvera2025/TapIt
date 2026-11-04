@@ -10,6 +10,7 @@ const paise = z.coerce
   .max(Number.MAX_SAFE_INTEGER, 'Amount is too large.');
 export const requestAdvanceSchema = z.object({
   amountPaise: paise,
+  currency: z.string().regex(/^[A-Z]{3}$/).default('INR'),
   requestedForPeriod: month,
   reason: z
     .string()

@@ -235,27 +235,29 @@ export function TaskList({
         const myAssignment = currentUserId
           ? task.assignees.find((a) => a.id === currentUserId)
           : undefined;
-        const currentStatus = myAssignment ? myAssignment.status : task.status;
+        // A task has a global status and an assignee status. In the personal
+        // task view, the status badge must reflect the signed-in user's
+        // assignment status—the same state changed by the widget.
+        const displayedStatus = myAssignment?.status ?? task.status;
         const availableTransitions = myAssignment
           ? (VALID_TRANSITIONS[myAssignment.status] ?? [])
-          : (VALID_TRANSITIONS[task.status] ?? []);
+          : (VALID_TRANSITIONS[displayedStatus] ?? []);
         const statusCellColor = {
           pending: 'border-amber-500/30 bg-amber-500/10',
           in_progress: 'border-sky-500/30 bg-sky-500/10',
           completed: 'border-emerald-500/30 bg-emerald-500/10',
           cancelled: 'border-neutral-500/30 bg-neutral-500/10',
-        }[currentStatus];
+        }[displayedStatus];
         const statusUpdatedByName = myAssignment
           ? (myAssignment.statusUpdatedByName || task.statusUpdatedByName || task.createdByName || 'Unknown')
           : (task.statusUpdatedByName || task.createdByName || 'Unknown');
-
         const renderOverallStatusControl = (className = '') => (
           <div
             className={`relative ${className}`}
             title={`Status updated by ${statusUpdatedByName}`}
           >
             {availableTransitions.length === 0 ? (
-              <TaskStatusBadge status={currentStatus} />
+              <TaskStatusBadge status={displayedStatus} />
             ) : (
               <>
                 <button
@@ -273,7 +275,7 @@ export function TaskList({
                   aria-expanded={openStatusMenu === task.id}
                 >
                   <TaskStatusBadge
-                    status={currentStatus}
+                    status={displayedStatus}
                     className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
                   />
                 </button>
