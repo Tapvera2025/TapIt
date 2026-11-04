@@ -5,8 +5,6 @@ import { ModuleToggleModal } from './ModuleToggleModal.js';
 import { ThemeToggle } from '../theme/ThemeToggle.js';
 import { ACCENT_COLORS, useTheme, type Theme } from '../theme/ThemeContext.js';
 import { Icon } from '../ui/Icon.js';
-import { GlobalFeatureSearch } from '../company/layout/GlobalFeatureSearch.js';
-import type { CompanySearchDestination } from '../company/layout/navigation.js';
 import {
   validateField,
   validateStep,
@@ -175,7 +173,7 @@ function PlatformKpiCard({
   };
 
   return (
-    <article className="group relative flex h-[150px] min-h-[150px] min-w-0 flex-col overflow-hidden rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_6%,transparent),color-mix(in_srgb,var(--app-surface)_58%,transparent))] p-4 shadow-[0_12px_30px_color-mix(in_srgb,var(--app-accent)_5%,transparent)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-app-accent/45 max-[700px]:h-[172px] max-[700px]:min-h-[172px]">
+    <article className="group relative flex h-[150px] min-h-[150px] min-w-0 flex-col overflow-hidden rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_6%,transparent),color-mix(in_srgb,var(--app-surface)_58%,transparent))] p-4 shadow-[0_12px_30px_color-mix(in_srgb,var(--app-accent)_5%,transparent)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-app-accent/45 max-[700px]:h-auto max-[700px]:min-h-[120px]">
       <div className="pointer-events-none absolute -right-8 -top-10 size-24 rounded-full bg-app-accent/10 blur-2xl" />
       <div className="relative flex min-w-0 items-start gap-2.5">
         <div className="flex min-w-0 flex-1 items-start gap-2.5">
@@ -195,12 +193,7 @@ function PlatformKpiCard({
           </div>
         </div>
       </div>
-      <div className="relative mt-auto flex items-center gap-2 pt-2 text-[11px] text-app-muted">
-        <span className="inline-flex items-center gap-1 rounded-full bg-app-accent/15 px-2 py-0.5 font-semibold text-app-accent">
-          <Icon name="arrow" className="size-2.5" /> Live
-        </span>
-        <span>Platform data</span>
-      </div>
+
     </article>
   );
 }
@@ -267,64 +260,64 @@ function CompanyDetailsDialog({
     icon: string;
     fields: Array<[string, string]>;
   }> = [
-    {
-      title: 'Company information',
-      icon: 'building',
-      fields: [
-        ['Company name', org.name],
-        ['Company code', org.code],
-        ['Legal name', org.legalCompanyName || 'Not provided'],
-        ['Company type', org.companyType],
-        ['Industry', org.industry],
-        ['Website', org.website || 'Not provided'],
-        ['Company email', org.companyEmail],
-      ],
-    },
-    {
-      title: 'Primary owner / admin',
-      icon: 'users',
-      fields: [
-        ['Full name', org.ownerFullName],
-        ['Designation', org.ownerDesignation || 'Not provided'],
-        ['Email', org.ownerEmail],
-        ['Mobile number', org.ownerMobile],
-        ['Alternate number', org.ownerAlternateNumber || 'Not provided'],
-      ],
-    },
-    {
-      title: 'Contact & address',
-      icon: 'pin',
-      fields: [
-        ['Primary phone', org.primaryPhone],
-        ['Alternate phone', org.alternatePhone || 'Not provided'],
-        ['Support email', org.supportEmail || 'Not provided'],
-        [
-          'Address',
-          [
-            org.addressLine1,
-            org.addressLine2,
-            org.city,
-            org.state,
-            org.country,
-            org.postalCode,
-          ]
-            .filter(Boolean)
-            .join(', ') || 'Not provided',
+      {
+        title: 'Company information',
+        icon: 'building',
+        fields: [
+          ['Company name', org.name],
+          ['Company code', org.code],
+          ['Legal name', org.legalCompanyName || 'Not provided'],
+          ['Company type', org.companyType],
+          ['Industry', org.industry],
+          ['Website', org.website || 'Not provided'],
+          ['Company email', org.companyEmail],
         ],
-      ],
-    },
-    {
-      title: 'Legal & CRM',
-      icon: 'shield',
-      fields: [
-        ['GSTIN / Tax ID', org.gstin || 'Not provided'],
-        ['PAN / Business ID', org.pan || 'Not provided'],
-        ['Registration number', org.registrationNumber || 'Not provided'],
-        ['Timezone', org.timezone],
-        ['Currency', org.currency],
-      ],
-    },
-  ];
+      },
+      {
+        title: 'Primary owner / admin',
+        icon: 'users',
+        fields: [
+          ['Full name', org.ownerFullName],
+          ['Designation', org.ownerDesignation || 'Not provided'],
+          ['Email', org.ownerEmail],
+          ['Mobile number', org.ownerMobile],
+          ['Alternate number', org.ownerAlternateNumber || 'Not provided'],
+        ],
+      },
+      {
+        title: 'Contact & address',
+        icon: 'pin',
+        fields: [
+          ['Primary phone', org.primaryPhone],
+          ['Alternate phone', org.alternatePhone || 'Not provided'],
+          ['Support email', org.supportEmail || 'Not provided'],
+          [
+            'Address',
+            [
+              org.addressLine1,
+              org.addressLine2,
+              org.city,
+              org.state,
+              org.country,
+              org.postalCode,
+            ]
+              .filter(Boolean)
+              .join(', ') || 'Not provided',
+          ],
+        ],
+      },
+      {
+        title: 'Legal & CRM',
+        icon: 'shield',
+        fields: [
+          ['GSTIN / Tax ID', org.gstin || 'Not provided'],
+          ['PAN / Business ID', org.pan || 'Not provided'],
+          ['Registration number', org.registrationNumber || 'Not provided'],
+          ['Timezone', org.timezone],
+          ['Currency', org.currency],
+        ],
+      },
+    ];
 
   return (
     <div
@@ -532,9 +525,9 @@ function apiFieldErrors(error: unknown): FormErrors {
   if (!(error instanceof ApiError)) return {};
   const details = error.details as
     | {
-        fields?: Record<string, string>;
-        issues?: Array<{ path?: string[]; message?: string }>;
-      }
+      fields?: Record<string, string>;
+      issues?: Array<{ path?: string[]; message?: string }>;
+    }
     | undefined;
   if (details?.fields) {
     const mapped: FormErrors = {};
@@ -751,19 +744,18 @@ function PhoneField({
         {label}
         {required ? ' *' : ''}
       </span>
-      <div className="mt-2 grid grid-cols-[82px_minmax(0,1fr)] gap-2">
-        <select
-          className={`${FORM_INPUT_CLASS} mt-0 cursor-pointer border-app-border focus:border-app-accent focus:ring-app-accent/20`}
-          value={countryCode}
-          onChange={(event) => onCountryCodeChange(event.target.value)}
-          aria-label={`${label} country code`}
-        >
-          {COUNTRY_CODES.map((code) => (
-            <option key={code} value={code}>
-              {code}
-            </option>
-          ))}
-        </select>
+      <div className="mt-4 grid grid-cols-[82px_minmax(0,1fr)] gap-2">        <select
+        className={`${FORM_INPUT_CLASS} mt-0 cursor-pointer border-app-border focus:border-app-accent focus:ring-app-accent/20`}
+        value={countryCode}
+        onChange={(event) => onCountryCodeChange(event.target.value)}
+        aria-label={`${label} country code`}
+      >
+        {COUNTRY_CODES.map((code) => (
+          <option key={code} value={code}>
+            {code}
+          </option>
+        ))}
+      </select>
         <input
           className={`${FORM_INPUT_CLASS} mt-0 ${error ? 'border-app-danger focus:border-app-danger focus:ring-app-danger/20' : 'border-app-border focus:border-app-accent focus:ring-app-accent/20'}`}
           type="tel"
@@ -971,8 +963,7 @@ function PlatformAppearancePopover({
 
   return (
     <div
-      className={`platform-appearance-popover ${mobile ? 'w-full' : 'absolute right-0 top-[calc(100%+0.75rem)] z-40 w-[min(30rem,calc(100vw-2rem))]'} rounded-[22px] border border-app-border bg-app-surface-raised/95 p-4 text-app-foreground shadow-[0_24px_70px_rgba(0,0,0,0.18)] backdrop-blur-xl max-[560px]:rounded-[20px] max-[560px]:p-3.5`}
-      role="dialog"
+      className={`platform-appearance-popover ${mobile ? 'w-full' : 'absolute right-0 top-[calc(100%+0.75rem)] z-40 w-[min(30rem,calc(100vw-2rem))]'} max-[560px]:fixed max-[560px]:inset-x-3 max-[560px]:top-[4rem] max-[560px]:w-auto max-[560px]:max-h-[calc(100dvh-6rem)] max-[560px]:overflow-y-auto rounded-[22px] border border-app-border bg-app-surface-raised/95 p-4 text-app-foreground shadow-[0_24px_70px_rgba(0,0,0,0.18)] backdrop-blur-xl max-[560px]:rounded-[20px] max-[560px]:p-3.5`} role="dialog"
       aria-label="Appearance settings"
     >
       <div className="flex items-start justify-between gap-4">
@@ -1589,14 +1580,6 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     { id: 'platform-companies', label: 'Companies', icon: 'building' },
     { id: 'platform-invitations', label: 'Admin Invitations', icon: 'users' },
   ] as const;
-  const platformSearchDestinations: readonly CompanySearchDestination[] =
-    platformNavigation.map((item) => ({
-      label: item.label,
-      path: `#${item.id}`,
-      icon: item.icon,
-      category: 'Master Admin',
-      keywords: [item.label, 'platform', 'master admin'],
-    }));
 
   const renderPlatformNavigation = (mobile = false) => (
     <nav
@@ -1636,7 +1619,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setMobileNavOpen((open) => !open)}
-          className="col-start-1 row-start-1 grid size-8 shrink-0 place-items-center rounded-lg border border-app-border bg-app-background text-app-foreground transition hover:border-app-accent hover:text-app-accent min-[851px]:hidden"
+          className="col-start-1 row-start-1 grid size-8 shrink-0 place-items-center rounded-lg border border-app-border bg-app-background text-app-foreground transition hover:border-app-accent hover:text-app-accent min-[851px]:hidden max-[700px]:hidden"
           aria-label={
             mobileNavOpen ? 'Close platform navigation' : 'Open platform navigation'
           }
@@ -1645,7 +1628,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
         >
           <Icon name={mobileNavOpen ? 'close' : 'menu'} className="size-4" />
         </button>
-        <div className="col-start-2 row-start-1 flex min-w-0 items-center min-[851px]:col-start-1">
+        <div className="col-start-2 row-start-1 flex min-w-0 items-center min-[851px]:col-start-1 max-[700px]:col-start-1">
           <BrandLogo className="w-[145px] max-[850px]:w-[128px] max-[560px]:w-[108px]" />
         </div>
         <div className="col-start-1 col-span-3 row-start-2 min-w-0 min-[851px]:col-start-2 min-[851px]:col-span-1 min-[851px]:row-start-1">
@@ -1659,14 +1642,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             Your companies, modules and access in one place.
           </p>
         </div>
-        <GlobalFeatureSearch
-          destinations={platformSearchDestinations}
-          className="col-start-1 row-start-3 col-span-3 min-[851px]:absolute min-[851px]:left-1/2 min-[851px]:top-1/2 min-[851px]:w-[min(26rem,40%)] min-[851px]:-translate-x-1/2 min-[851px]:-translate-y-1/2"
-          onNavigate={(path) => {
-            window.location.hash = path.slice(1);
-            setActiveSection(path.slice(1));
-          }}
-        />
+
         <div className="platform-header-actions col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-1.5 max-[700px]:col-start-2 max-[700px]:row-start-1 max-[700px]:justify-self-end max-[560px]:gap-1">
           <ThemeToggle compact className="platform-theme-toggle" />
           <div className="platform-appearance-anchor relative">
@@ -1717,16 +1693,10 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3">
                 <span className="text-xs text-app-muted">Live platform data</span>
-                <button
-                  type="button"
-                  className="rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110"
-                  onClick={startCreateCompany}
-                >
-                  + Create company
-                </button>
+
               </div>
             </div>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-[14px] max-[560px]:gap-[10px]">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-[14px] max-[700px]:grid-cols-2 max-[560px]:gap-[10px]">
               {Object.entries(stats).map(([k, v]) => (
                 <PlatformKpiCard key={k} statKey={k} value={v} />
               ))}
@@ -1780,9 +1750,6 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           {formMode === 'edit' ? 'Edit Company' : 'Create Company'}
                         </h2>
                       </div>
-                      <span className="grid size-[31px] place-items-center rounded-[9px] bg-app-accent text-[22px] text-app-background">
-                        +
-                      </span>
                     </div>
                     <p className="mt-[9px] text-sm text-app-muted">
                       Set up a company workspace and invite its first administrator.
@@ -1794,14 +1761,14 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                       {(formMode === 'edit'
                         ? ['Company', 'Owner', 'Contact', 'Address', 'Legal', 'CRM']
                         : [
-                            'Company',
-                            'Owner',
-                            'Contact',
-                            'Address',
-                            'Legal',
-                            'CRM',
-                            'Modules',
-                          ]
+                          'Company',
+                          'Owner',
+                          'Contact',
+                          'Address',
+                          'Legal',
+                          'CRM',
+                          'Modules',
+                        ]
                       ).map((label, index) => (
                         <div
                           className={`relative flex min-w-0 items-center gap-1 text-[9px] ${index === formStep ? 'text-app-accent' : index < formStep ? 'text-app-muted' : 'text-[#5f717c]'} min-[561px]:gap-[7px] min-[561px]:text-[10px]`}
@@ -1821,7 +1788,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                         <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">
                           1. Company Information
                         </div>
-                        <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-x-3 gap-y-3 gap-y-10 gap-y-5 min-[561px]:grid-cols-2">
                           <TextField
                             label="Company Name"
                             value={form.name}
@@ -1889,7 +1856,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                         <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">
                           2. Primary Owner / Company Admin
                         </div>
-                        <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-x-3 gap-y-3 gap-y-10 gap-y-5 min-[561px]:grid-cols-2">
                           <TextField
                             label="Full Name"
                             value={form.ownerFullName}
@@ -1950,20 +1917,19 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                         <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">
                           3. Company Contact Details
                         </div>
-                        <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
-                          <PhoneField
-                            label="Primary Phone"
-                            value={form.primaryPhone}
-                            countryCode={form.phoneCountryCode}
-                            onChange={(primaryPhone) =>
-                              setFormField('primaryPhone', primaryPhone)
-                            }
-                            onCountryCodeChange={(phoneCountryCode) =>
-                              setFormField('phoneCountryCode', phoneCountryCode)
-                            }
-                            error={formErrors.primaryPhone}
-                            required
-                          />
+                        <div className="grid grid-cols-1 gap-x-3 gap-y-3 gap-y-10 gap-y-10 min-[561px]:grid-cols-2">                          <PhoneField
+                          label="Primary Phone"
+                          value={form.primaryPhone}
+                          countryCode={form.phoneCountryCode}
+                          onChange={(primaryPhone) =>
+                            setFormField('primaryPhone', primaryPhone)
+                          }
+                          onCountryCodeChange={(phoneCountryCode) =>
+                            setFormField('phoneCountryCode', phoneCountryCode)
+                          }
+                          error={formErrors.primaryPhone}
+                          required
+                        />
                           <PhoneField
                             label="Alternate Phone"
                             value={form.alternatePhone}
@@ -1993,7 +1959,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                         <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">
                           4. Company Address
                         </div>
-                        <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-x-3 gap-y-3 gap-y-10 gap-y-5 min-[561px]:grid-cols-2">
                           <TextField
                             label="Address Line 1"
                             value={form.addressLine1}
@@ -2049,7 +2015,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                         <div className="mb-[13px] font-display text-[13px] font-semibold uppercase tracking-[0.01em] text-app-foreground">
                           5. Business / Legal Details
                         </div>
-                        <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-x-3 gap-y-3 gap-y-10 gap-y-5 min-[561px]:grid-cols-2">
                           <TextField
                             label="GSTIN / Tax ID"
                             value={form.gstin}
@@ -2082,7 +2048,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           Confirm the regional settings for this company before{' '}
                           {formMode === 'edit' ? 'saving it' : 'creating it'}.
                         </p>
-                        <div className="grid grid-cols-1 gap-x-3 min-[561px]:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-x-3 gap-y-3 gap-y-10 gap-y-5 min-[561px]:grid-cols-2">
                           <SelectField
                             label="Timezone"
                             value={form.timezone}
@@ -2245,10 +2211,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                     Companies
                   </h2>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:w-full max-[700px]:justify-start">
-                  <span className="rounded-full border border-app-border px-2.5 py-1.5 text-[11px] text-app-muted">
-                    {orgs.length} total
-                  </span>
+                <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:w-full max-[700px]:justify-end">                  <span className="rounded-full border border-app-border px-2.5 py-1.5 text-[11px] text-app-muted">
+                  {orgs.length} total
+                </span>
                   <button
                     type="button"
                     className="rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110"
@@ -2261,14 +2226,12 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               <p className="mt-[9px] text-sm text-app-muted">
                 Manage each company&apos;s available platform areas.
               </p>
-              <div className="relative mt-5 mb-3 rounded-2xl border border-app-accent/20 bg-app-background/45 p-2 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition focus-within:border-app-accent/50 focus-within:ring-4 focus-within:ring-app-accent/10">
-                <Icon
-                  name="search"
-                  className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-app-accent"
-                />
+              <div className="relative mt-5 mb-3 rounded-2xl border border-app-accent/20 bg-app-background/45 p-2 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition focus-within:border-app-accent/50">                <Icon
+                name="search"
+                className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-app-accent"
+              />
                 <input
-                  className="block w-full rounded-xl border border-transparent bg-transparent py-3 pl-11 pr-11 text-sm text-app-foreground outline-none placeholder:text-app-muted"
-                  value={companySearch}
+                  className="block w-full rounded-xl border-0 bg-transparent py-3 pl-11 pr-11 text-sm text-app-foreground outline-none ring-0 shadow-none placeholder:text-app-muted focus:!border-0 focus:!outline-none focus:!ring-0 focus:!ring-offset-0 focus:!shadow-none" value={companySearch}
                   onChange={(event) => setCompanySearch(event.target.value)}
                   placeholder="Search company name, code or email"
                   aria-label="Search companies"
@@ -2430,7 +2393,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                 {invitationTotal} total
               </span>
             </div>
-            <div className="mt-6 grid grid-cols-[minmax(0,1fr)_190px_auto] gap-3 rounded-2xl border border-app-accent/20 bg-app-background/45 p-3 max-[700px]:grid-cols-1">
+            <div className="mt-6 grid grid-cols-[minmax(0,1fr)_190px] gap-3 rounded-2xl border border-app-accent/20 bg-app-background/45 p-3 max-[700px]:grid-cols-1">
               <div className="relative">
                 <Icon
                   name="search"
@@ -2470,14 +2433,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                   <option value="REVOKED">Revoked</option>
                 </select>
               </div>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110"
-                onClick={() => void applyInvitationFilters()}
-              >
-                <Icon name="search" className="size-4" />
-                Search
-              </button>
+
             </div>
             <div className="mt-6 overflow-hidden rounded-2xl border border-app-accent/20 bg-app-background/35">
               <div className="hidden grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)_auto] gap-5 border-b border-app-border px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-app-muted lg:grid">
