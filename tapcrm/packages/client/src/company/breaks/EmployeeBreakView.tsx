@@ -6,7 +6,7 @@ import {
   type BreakAllowance,
   type BreakPrompt,
 } from '../api/breaksApi.js';
-import { SkeletonCard } from '../../ui/components.js';
+import { SkeletonCard } from '../../ui/index.js';
 
 export function EmployeeBreakView(): React.JSX.Element {
   const [allowance, setAllowance] = useState<BreakAllowance | null>(null);

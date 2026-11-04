@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createGeofenceLocation, decideGeofenceAppeal, getGeofenceAdminData, setGeofenceAssignment, updateGeofenceLocation, type GeofenceAdminData } from '../api/geofenceApi.js';
-import { Icon } from '../../ui/Icon.js';
-import { Page } from '../../ui/components.js';
+import { Icon } from '../../ui/index.js';
+import { Page } from '../../ui/index.js';
 
 const initialForm = { name: '', latitude: '', longitude: '', radiusMetres: '150', accuracyThresholdMetres: '100' };
 

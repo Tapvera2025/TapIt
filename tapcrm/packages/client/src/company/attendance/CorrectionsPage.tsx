@@ -5,7 +5,7 @@ import {
   rejectCorrection,
   type CorrectionListItem,
 } from './attendanceApi.js';
-import { Button, Notice, SkeletonTable, WorkspacePageContainer } from '../../ui/components.js';
+import { Button, Notice, SkeletonTable, WorkspacePageContainer } from '../../ui/index.js';
 
 type Filter = 'pending' | 'approved' | 'rejected' | 'all';
 

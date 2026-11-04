@@ -10,7 +10,7 @@ import {
   type StructureLineKind,
   type StructureSummary,
 } from '../api/payrollApi.js';
-import { Button, Modal, Notice, Page, SkeletonTable } from '../../ui/components.js';
+import { Button, Modal, Notice, Page, SkeletonTable } from '../../ui/index.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;

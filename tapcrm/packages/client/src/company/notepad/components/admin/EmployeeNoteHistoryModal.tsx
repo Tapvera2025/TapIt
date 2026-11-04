@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../../../../ui/Icon.js';
+import { Icon } from '../../../../ui/index.js';
 import type { EmployeeNoteListItem, MyNotepadHistoryItem } from '../../types/index.js';
 import { formatHistoryTimestamp } from '../NoteHistoryModal.js';
 

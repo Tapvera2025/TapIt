@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { Button } from '../../../ui/components.js';
+import { Button } from '../../../ui/index.js';
 import type { CommercialsItemInput } from './api.js';
 import { bpsToPercent, currencySymbol, paiseToRupees, percentToBps, rupeesToPaise } from './proposals-helpers.js';
 

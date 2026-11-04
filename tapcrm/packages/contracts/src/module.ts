@@ -43,6 +43,8 @@ export const SALES_MODULES = [
   'handovers',
   'deals',
   'approvals',
+  'telephony',
+  'lead-imports',
 ] as const;
 
 export const DELIVERY_MODULES = [
@@ -138,6 +140,8 @@ export const MODULE_PHASE: Readonly<Record<ModuleName, number>> = {
   handovers: 3,
   deals: 3,
   approvals: 3,
+  telephony: 3,
+  'lead-imports': 3,
   // P4 — Delivery
   handoff: 4,
   projects: 4,

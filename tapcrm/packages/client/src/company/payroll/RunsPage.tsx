@@ -22,7 +22,7 @@ import {
   type RunStatus,
   type RunSummary,
 } from '../api/payrollApi.js';
-import { Button, Card, Modal, Notice, Page, SkeletonDetail, SkeletonTable } from '../../ui/components.js';
+import { Button, Card, Modal, Notice, Page, SkeletonDetail, SkeletonTable } from '../../ui/index.js';
 
 const STATUS_CLASSES: Record<RunStatus, string> = {
   draft: 'bg-app-background text-app-muted',

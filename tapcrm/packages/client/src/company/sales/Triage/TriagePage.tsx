@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Page } from '../../../ui/components.js';
+import { Button, Card, Field, Page } from '../../../ui/index.js';
 import {
   closeTriageLead,
   getHandoverTargets,

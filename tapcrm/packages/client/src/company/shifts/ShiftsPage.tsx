@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listShifts, createShift, type ShiftTemplate } from '../api/shiftsApi.js';
-import { suggestNextCode } from '../../ui/code-suggest.js';
-import { SkeletonTable } from '../../ui/components.js';
+import { suggestNextCode } from '../../ui/index.js';
+import { SkeletonTable } from '../../ui/index.js';
 
 function fmtTime(value: string | null): string {
   if (!value) return '—';

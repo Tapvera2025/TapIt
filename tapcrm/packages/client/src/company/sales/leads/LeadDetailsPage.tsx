@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Page } from '../../../ui/components.js';
+import { Button, Card, Field, Page } from '../../../ui/index.js';
 import { acceptHandover, callbackOutcome, createCallback, createHandover, declineHandover, getCallbacks, getHandoverTargets, getHandovers, getLead, recordHandoverDisposition, updateCallback, type Handover, type HandoverTarget, type Lead, type LeadCallback } from './api.js';
 import { anHourLater, callbackStatusLabel, formatCallbackDate, organizationLocalToIso, organizationNowLocal, sentenceLabel } from './callback-ui.js';
 import { ReassignModal } from './ReassignModal.js';
@@ -7,16 +7,166 @@ import { LeadStatusPanel } from './LeadStatusPanel.js';
 import { isClosedLeadStatus, leadStatusLabel, lossReasonLabel } from './lead-status.js';
 import { convertedDealId, leadActivityLabel } from './lead-activity.js';
 import { createDeal } from '../deals/api.js';
+import { getCalls, type CallListItem } from '../calls/api.js';
+import { directionLabel, formatCallTime, OUTCOME_LABELS, PROVIDER_NAMES } from '../calls/calls-format.js';
 
-export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canReassign = false, canTransferSourcingCredit = false, canCreateDeal = false, canEditLead = false, onBack, onNavigate }: { id: string; currentUserId: string; organizationTimezone: string; canReassign?: boolean; canTransferSourcingCredit?: boolean; canCreateDeal?: boolean; canEditLead?: boolean; onBack: () => void; onNavigate?: (path: string) => void }): React.JSX.Element {
-  const [lead, setLead] = useState<Lead | null>(null); const [handovers, setHandovers] = useState<Handover[]>([]); const [callbacks, setCallbacks] = useState<LeadCallback[]>([]); const [targets, setTargets] = useState<HandoverTarget[]>([]); const [error, setError] = useState(''); const [reassignOpen, setReassignOpen] = useState(false); const [convertOpen, setConvertOpen] = useState(false);
-  const reload = () => Promise.all([getLead(id), getHandovers(id), getCallbacks(id)]).then(([nextLead, nextHandovers, nextCallbacks]) => { setLead(nextLead); setHandovers(nextHandovers); setCallbacks(nextCallbacks); }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load lead.'));
-  useEffect(() => { void reload(); void getHandoverTargets(id).then(setTargets).catch(() => setTargets([])); }, [id]);
+export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canReassign = false, canTransferSourcingCredit = false, canCreateDeal = false, canEditLead = false, canViewCalls = false, onBack, onNavigate }: { id: string; currentUserId: string; organizationTimezone: string; canReassign?: boolean; canTransferSourcingCredit?: boolean; canCreateDeal?: boolean; canEditLead?: boolean; canViewCalls?: boolean; onBack: () => void; onNavigate?: (path: string) => void }): React.JSX.Element {
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [handovers, setHandovers] = useState<Handover[]>([]);
+  const [callbacks, setCallbacks] = useState<LeadCallback[]>([]);
+  const [targets, setTargets] = useState<HandoverTarget[]>([]);
+  const [calls, setCalls] = useState<CallListItem[]>([]);
+  const [callsLoading, setCallsLoading] = useState(false);
+  const [callsError, setCallsError] = useState('');
+  const [error, setError] = useState('');
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+
+  const reload = () => Promise.all([getLead(id), getHandovers(id), getCallbacks(id)])
+    .then(([nextLead, nextHandovers, nextCallbacks]) => {
+      setLead(nextLead);
+      setHandovers(nextHandovers);
+      setCallbacks(nextCallbacks);
+    })
+    .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load lead.'));
+
+  useEffect(() => {
+    void reload();
+    void getHandoverTargets(id).then(setTargets).catch(() => setTargets([]));
+  }, [id]);
+
+  useEffect(() => {
+    if (!canViewCalls || !lead?.phone || !normalizePhone(lead.phone)) {
+      setCalls([]);
+      setCallsError('');
+      setCallsLoading(false);
+      return;
+    }
+    let current = true;
+    setCallsLoading(true);
+    getCalls({ search: lead.phone, page: 1, pageSize: 50 })
+      .then((result) => {
+        if (!current) return;
+        const phone = normalizePhone(lead.phone);
+        setCalls(result.items.filter((call) => normalizePhone(call.contactNumber) === phone).slice(0, 15));
+        setCallsError('');
+      })
+      .catch((cause: unknown) => {
+        if (current) setCallsError(cause instanceof Error ? cause.message : 'Unable to load matching calls.');
+      })
+      .finally(() => { if (current) setCallsLoading(false); });
+    return () => { current = false; };
+  }, [canViewCalls, lead?.phone]);
+
   if (error) return <Page eyebrow="Sales" title="Lead"><p className="text-app-danger">{error}</p><Button className="mt-4" kind="secondary" onClick={onBack}>Back to leads</Button></Page>;
   if (!lead) return <Page eyebrow="Sales" title="Lead"><p className="text-sm text-app-muted">Loading lead…</p></Page>;
+
   const canConvert = canCreateDeal && lead.currentHolderId === currentUserId && lead.status !== 'converted' && lead.status !== 'closed_lost';
-  const action = <div className="flex flex-wrap gap-2">{canConvert && <Button onClick={() => setConvertOpen(true)}>Convert to deal</Button>}{canReassign && <Button kind="secondary" onClick={() => setReassignOpen(true)}>Reassign</Button>}<Button kind="secondary" onClick={onBack}>Back to leads</Button></div>;
-  return <Page eyebrow="Sales" title={lead.contactName} description={`Lead #${lead.leadNumber}`} action={action}>{reassignOpen && <ReassignModal lead={lead} canTransferSourcingCredit={canTransferSourcingCredit} onClose={() => setReassignOpen(false)} onReassigned={(updated) => { setLead(updated); void reload(); }} />}{convertOpen && <ConvertToDealModal lead={lead} onClose={() => setConvertOpen(false)} onCreated={(dealId) => { setConvertOpen(false); if (onNavigate) onNavigate(`/company/sales/deals/${dealId}`); }} />}<div className="grid gap-6 lg:grid-cols-3"><Card className="lg:col-span-2"><div className="grid gap-5 sm:grid-cols-2">{[['Company', lead.companyName ?? '—'], ['Phone', lead.phone ?? '—'], ['Email', lead.email ?? '—'], ['Requirement', lead.requirement ?? '—'], ['Location', lead.location ?? '—'], ['Language', lead.languagePreference ?? '—'], ['Source', lead.sourceName], ['Campaign', lead.campaignName ?? '—'], ['Owner', lead.ownerName ?? 'Unrouted'], ['Current holder', lead.currentHolderName ?? 'Unrouted'], ['Territory', lead.territoryName ?? '—'], ['Sales Team', lead.salesTeamName ?? '—'], ['Status', leadStatusLabel(lead.status)], ['Loss reason', lead.lossReason ? lossReasonLabel(lead.lossReason) : '—'], ['Lost at', lead.lostAt ? new Date(lead.lostAt).toLocaleString() : '—'], ['Previous lead', lead.previousLeadId ? 'Re-engaged from retained lead' : '—'], ['Stalled', lead.stalledAt ? (lead.stalledReason === 'inactivity' ? 'Yes, no recent activity' : (lead.stalledReason ?? 'Yes')) : 'No']] .map(([label, value]) => <div key={label}><p className="text-xs font-semibold uppercase tracking-wide text-app-muted">{label}</p><p className="mt-1 break-words font-semibold">{value}</p></div>)}</div>{lead.intakeNotes && <div className="mt-5 border-t border-app-border pt-4"><p className="text-xs font-semibold uppercase tracking-wide text-app-muted">Notes</p><p className="mt-1 whitespace-pre-wrap break-words text-sm">{lead.intakeNotes}</p></div>}</Card><LeadStatusPanel lead={lead} canEdit={canEditLead} onChanged={reload} /><HandoverPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} handovers={handovers} targets={targets} onReload={reload} /><CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} onReload={reload} /><Card><h2 className="font-display text-lg font-bold">Activity</h2><div className="mt-4 space-y-3">{lead.activities.map((activity) => { const dealId = convertedDealId(activity); return <div key={activity.id} className="border-l-2 border-app-accent pl-3"><p className="text-sm font-semibold">{leadActivityLabel(activity)}</p><p className="mt-1 text-xs text-app-muted">{new Date(activity.createdAt).toLocaleString()}</p>{dealId && onNavigate && <button type="button" className="mt-1 text-xs font-semibold text-app-accent underline" onClick={() => onNavigate(`/company/sales/deals/${dealId}`)}>Open deal</button>}</div>; })}</div></Card></div></Page>;
+  const action = <div className="flex flex-wrap gap-2">{canConvert && <Button onClick={() => setConvertOpen(true)}>Qualify into a deal</Button>}{canReassign && <Button kind="secondary" onClick={() => setReassignOpen(true)}>Reassign</Button>}<Button kind="secondary" onClick={onBack}>Back to leads</Button></div>;
+  const timeline = [
+    ...lead.activities.map((activity) => ({ kind: 'activity' as const, at: activity.createdAt, activity })),
+    ...calls.map((call) => ({ kind: 'call' as const, at: call.startedAt, call })),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  const pendingCallback = callbacks.find((callback) => callback.status === 'pending');
+  const closed = isClosedLeadStatus(lead.status);
+  const canScheduleCallback = lead.currentHolderId === currentUserId && !closed && !pendingCallback;
+
+  return (
+    <Page eyebrow="Sales" title={lead.contactName} description={`Lead #${lead.leadNumber}`} action={action}>
+      {reassignOpen && <ReassignModal lead={lead} canTransferSourcingCredit={canTransferSourcingCredit} onClose={() => setReassignOpen(false)} onReassigned={(updated) => { setLead(updated); void reload(); }} />}
+      {convertOpen && <ConvertToDealModal lead={lead} onClose={() => setConvertOpen(false)} onCreated={(dealId) => { setConvertOpen(false); if (onNavigate) onNavigate(`/company/sales/deals/${dealId}`); }} />}
+
+      <Card className="mb-6 border-app-accent/30">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-lg font-bold">What should happen next?</h2>
+            {pendingCallback ? (
+              <p className="mt-1 text-sm text-app-muted">A callback is booked for {formatCallbackDate(pendingCallback.scheduledAt, pendingCallback.organizationTimezone)}. Record its outcome after the call.</p>
+            ) : closed ? (
+              <p className="mt-1 text-sm text-app-muted">This lead is closed. Its history stays here for reference.</p>
+            ) : (
+              <p className="mt-1 text-sm text-app-muted">After contacting the lead, schedule a callback, update its status, nurture it, close it, or qualify it into a deal.</p>
+            )}
+          </div>
+          {!pendingCallback && !closed && (
+            <div className="flex flex-wrap gap-2">
+              {canScheduleCallback && <Button kind="secondary" onClick={() => scrollToLeadPanel('lead-callbacks')}>Schedule callback</Button>}
+              {canEditLead && <Button kind="secondary" onClick={() => scrollToLeadPanel('lead-status')}>Update status</Button>}
+              {canConvert && <Button onClick={() => setConvertOpen(true)}>Qualify into a deal</Button>}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <div className="grid gap-5 sm:grid-cols-2">
+            {[
+              ['Company', lead.companyName ?? '—'], ['Phone', lead.phone ?? '—'], ['Email', lead.email ?? '—'],
+              ['Requirement', lead.requirement ?? '—'], ['Location', lead.location ?? '—'], ['Language', lead.languagePreference ?? '—'],
+              ['Source', lead.sourceName], ['Campaign', lead.campaignName ?? '—'], ['Owner', lead.ownerName ?? 'Unrouted'],
+              ['Current holder', lead.currentHolderName ?? 'Unrouted'], ['Territory', lead.territoryName ?? '—'],
+              ['Sales Team', lead.salesTeamName ?? '—'], ['Status', leadStatusLabel(lead.status)],
+              ['Loss reason', lead.lossReason ? lossReasonLabel(lead.lossReason) : '—'],
+              ['Lost at', lead.lostAt ? new Date(lead.lostAt).toLocaleString() : '—'],
+              ['Previous lead', lead.previousLeadId ? 'Re-engaged from retained lead' : '—'],
+              ['Stalled', lead.stalledAt ? (lead.stalledReason === 'inactivity' ? 'Yes, no recent activity' : (lead.stalledReason ?? 'Yes')) : 'No'],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">{label}</p>
+                <p className="mt-1 break-words font-semibold">{value}</p>
+              </div>
+            ))}
+          </div>
+          {lead.intakeNotes && <div className="mt-5 border-t border-app-border pt-4"><p className="text-xs font-semibold uppercase tracking-wide text-app-muted">Notes</p><p className="mt-1 whitespace-pre-wrap break-words text-sm">{lead.intakeNotes}</p></div>}
+        </Card>
+
+        <div id="lead-status"><LeadStatusPanel lead={lead} canEdit={canEditLead} onChanged={reload} /></div>
+        <HandoverPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} handovers={handovers} targets={targets} onReload={reload} />
+        <div id="lead-callbacks"><CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} onReload={reload} /></div>
+
+        <Card className="lg:col-span-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-bold">Lead timeline</h2>
+              <p className="mt-1 text-xs text-app-muted">Lead updates and recent exact phone-number matches from synced calls. Check the caller details when a number is shared.</p>
+            </div>
+            {canViewCalls && onNavigate && <Button kind="secondary" onClick={() => onNavigate('/company/sales/calls/log')}>Open call log</Button>}
+          </div>
+          {callsError && <p className="mt-3 text-sm text-app-danger" role="alert">{callsError}</p>}
+          {callsLoading && <p className="mt-4 text-sm text-app-muted">Checking synced calls for this phone number…</p>}
+          {!callsLoading && canViewCalls && lead.phone && calls.length === 0 && !callsError && <p className="mt-4 text-sm text-app-muted">No recent synced calls with an exact phone-number match were found. Calls must be synced and your account must have Calls access to appear here.</p>}
+          {!canViewCalls && <p className="mt-4 text-sm text-app-muted">Your account can see lead activity. Synced call details require Calls access.</p>}
+          {timeline.length > 0 ? (
+            <ol className="mt-5 space-y-4">
+              {timeline.map((entry) => entry.kind === 'activity' ? (
+                <li key={`activity-${entry.activity.id}`} className="border-l-2 border-app-accent pl-4">
+                  <p className="text-sm font-semibold">{leadActivityLabel(entry.activity)}</p>
+                  <p className="mt-1 text-xs text-app-muted">{new Date(entry.activity.createdAt).toLocaleString()}</p>
+                  {convertedDealId(entry.activity) && onNavigate && <button type="button" className="mt-1 text-xs font-semibold text-app-accent underline" onClick={() => onNavigate(`/company/sales/deals/${convertedDealId(entry.activity)}`)}>Open deal</button>}
+                </li>
+              ) : (
+                <li key={`call-${entry.call.id}`} className="border-l-2 border-app-border pl-4">
+                  <p className="text-sm font-semibold">{directionLabel(entry.call.direction)} call · {OUTCOME_LABELS[entry.call.outcome]}</p>
+                  <p className="mt-1 text-xs text-app-muted">{PROVIDER_NAMES[entry.call.provider]} · {formatCallTime(entry.call.startedAt, organizationTimezone)} · {entry.call.employeeName ?? entry.call.agentName ?? 'Unmatched caller'}</p>
+                  {entry.call.disposition && <p className="mt-1 text-xs">Disposition: {entry.call.disposition}</p>}
+                  {(entry.call.outcome === 'missed' || entry.call.outcome === 'voicemail' || entry.call.outcome === 'abandoned') && !pendingCallback && !isClosedLeadStatus(lead.status) && <button type="button" className="mt-2 text-xs font-semibold text-app-accent underline" onClick={() => scrollToLeadPanel('lead-callbacks')}>Schedule a follow-up callback</button>}
+                </li>
+              ))}
+            </ol>
+          ) : !callsLoading && <p className="mt-4 text-sm text-app-muted">No activity has been recorded for this lead yet.</p>}
+        </Card>
+      </div>
+    </Page>
+  );
+}
+
+function normalizePhone(value: string | null | undefined): string {
+  return value?.replaceAll(/\D/g, '') ?? '';
+}
+
+function scrollToLeadPanel(id: string): void {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, onReload }: { lead: Lead; currentUserId: string; organizationTimezone: string; callbacks: LeadCallback[]; onReload: () => Promise<void> }): React.JSX.Element {

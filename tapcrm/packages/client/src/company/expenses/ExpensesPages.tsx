@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Button, Card, Empty, Loading, Modal, Notice, Page, Select } from '../../ui/components.js';
+import { Button, Card, Empty, Loading, Modal, Notice, Page, Select } from '../../ui/index.js';
 import { peopleDownload } from '../api/client.js';
 import { approveClaim, attachmentUrl, createClaim, deleteClaim, listApprovals, listMine, rejectClaim } from './api/expensesApi.js';
 import { CATEGORY_LABELS, EXPENSE_CATEGORIES, type ExpenseCategory, type ExpenseClaim } from './types.js';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getSeoRuleCopy, getSeoRuleGroupLabel } from '@tapcrm/contracts';
-import { Icon } from '../ui/Icon.js';
+import { Icon } from '../ui/index.js';
 import { RuleReference } from './RuleExplanation.js';
 import {
   SeoEmptyState,

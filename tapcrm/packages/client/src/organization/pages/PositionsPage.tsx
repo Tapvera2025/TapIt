@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { suggestNextCode } from '../../ui/code-suggest.js';
-import { WorkspacePageContainer } from '../../ui/components.js';
+import { suggestNextCode } from '../../ui/index.js';
+import { WorkspacePageContainer } from '../../ui/index.js';
 import {
   ACTIONS,
   REGISTRY,

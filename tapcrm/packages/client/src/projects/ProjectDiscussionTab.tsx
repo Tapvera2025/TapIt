@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ConversationWorkspace, type Conversation } from '../chat/index.js';
 import { useChat } from '../chat/useChat.js';
-import { Button, Empty, Modal, Notice } from '../ui/components.js';
+import { Button, Empty, Modal, Notice } from '../ui/index.js';
 import { updateDiscussionGroup, type Project } from './api/projectsApi.js';
 import { CreateDiscussionGroupModal } from './CreateDiscussionGroupModal.js';
 

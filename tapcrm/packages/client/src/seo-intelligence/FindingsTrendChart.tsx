@@ -12,7 +12,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { useTheme } from '../theme/ThemeContext.js';
-import { Button, Card } from '../ui/components.js';
+import { Button, Card } from '../ui/index.js';
 import { getSeoFindingsTrend } from './api.js';
 import {
   findingsTrendRows,

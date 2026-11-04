@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Button, Field } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button, Field } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import { listSocialClients } from './api.js';
 import type { SocialClient, SocialClientPage } from './types.js';
 

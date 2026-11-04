@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Icon } from '../../ui/Icon.js';
+import { Icon } from '../../ui/index.js';
 import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
@@ -101,6 +101,11 @@ export function CompanySidebar({
   canViewTerritories = false,
   canViewLeads = false,
   canViewCallbacks = false,
+  canViewCalls = false,
+  canTriageSales = false,
+  canViewImports = false,
+  canTrackAssignedCalls = false,
+  canManageCalls = false,
   canViewHandovers = false,
   canViewDeals = false,
   canRecordWin = false,
@@ -163,6 +168,11 @@ export function CompanySidebar({
   canViewTerritories?: boolean;
   canViewLeads?: boolean;
   canViewCallbacks?: boolean;
+  canViewCalls?: boolean;
+  canTriageSales?: boolean;
+  canViewImports?: boolean;
+  canTrackAssignedCalls?: boolean;
+  canManageCalls?: boolean;
   canViewHandovers?: boolean;
   canViewDeals?: boolean;
   canRecordWin?: boolean;
@@ -644,7 +654,10 @@ export function CompanySidebar({
     ...(canViewTerritories ||
     canViewLeads ||
     canViewCallbacks ||
+    canViewCalls ||
+    canManageCalls ||
     canViewHandovers ||
+    canTriageSales ||
     canViewDeals ||
     canDecideApprovals ||
     canRecordWin ||
@@ -653,64 +666,87 @@ export function CompanySidebar({
           {
             label: 'Sales',
             items: [
-              ...(canViewTerritories
-                ? [
-                    {
-                      label: 'Territories',
-                      path: '/company/sales/territories',
-                      icon: 'map',
-                    },
-                  ]
+              {
+                label: 'Overview',
+                path: '/company/sales',
+                icon: 'chart',
+              },
+              ...(canViewLeads
+                ? [{ label: 'My Work', path: '/company/sales/my-work', icon: 'briefcase' }]
                 : []),
               ...(canViewLeads
                 ? [
-                    { label: 'Leads', path: '/company/sales/leads', icon: 'users' },
-                    { label: 'My Work', path: '/company/sales/my-work', icon: 'briefcase' },
-                    { label: 'Bid Pool', path: '/company/sales/bid-pool', icon: 'inbox' },
-                  ]
-                : []),
-              ...(canViewDeals
-                ? [{ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase' }]
-                : []),
-              ...(canDecideApprovals
-                ? [
                     {
-                      label: 'Approvals',
-                      path: '/company/sales/approvals',
-                      icon: 'check',
+                      label: 'Leads',
+                      path: '/company/sales/leads',
+                      icon: 'users',
+                      children: [
+                        { label: 'All leads', path: '/company/sales/leads' },
+                        { label: 'Bid Pool', path: '/company/sales/bid-pool' },
+                        { label: 'Stalled', path: '/company/sales/leads/stalled' },
+                        { label: 'Re-engagement', path: '/company/sales/leads/re-engagement' },
+                        ...(canTriageSales ? [{ label: 'Triage queue', path: '/company/sales/triage' }] : []),
+                        ...(canViewImports ? [{ label: 'Imported leads', path: '/company/sales/leads/imported' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canRecordWin
+              ...(canViewCallbacks || canViewHandovers || canViewCalls
                 ? [
                     {
-                      label: 'Wins to record',
-                      path: '/company/sales/wins',
-                      icon: 'check',
-                    },
-                  ]
-                : []),
-              ...(canViewCallbacks
-                ? [
-                    {
-                      label: 'Callbacks',
-                      path: '/company/sales/callbacks',
+                      label: 'Activities',
+                      path: canViewCallbacks ? '/company/sales/callbacks' : canViewHandovers ? '/company/sales/handovers' : '/company/sales/calls',
                       icon: 'calendar',
+                      children: [
+                        ...(canViewCallbacks ? [{ label: 'Callbacks', path: '/company/sales/callbacks' }] : []),
+                        ...(canViewHandovers ? [{ label: 'Handovers', path: '/company/sales/handovers' }] : []),
+                        ...(canViewCalls ? [
+                          { label: 'Calls', path: '/company/sales/calls' },
+                          { label: 'My calls', path: '/company/sales/calls/me' },
+                          { label: 'Call log', path: '/company/sales/calls/log' },
+                        ] : []),
+                        ...(canTrackAssignedCalls ? [{ label: 'Assigned lead calls', path: '/company/sales/calls/assigned-leads' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canViewHandovers
+              ...(canViewDeals || canDecideApprovals || canRecordWin
                 ? [
                     {
-                      label: 'Handovers',
-                      path: '/company/sales/handovers',
-                      icon: 'share',
+                      label: 'Deals',
+                      path: '/company/sales/deals',
+                      icon: 'briefcase',
+                      children: [
+                        ...(canViewDeals ? [{ label: 'Pipeline', path: '/company/sales/deals' }] : []),
+                        ...(canDecideApprovals ? [{ label: 'Approvals', path: '/company/sales/approvals' }] : []),
+                        ...(canRecordWin ? [{ label: 'Wins to record', path: '/company/sales/wins' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canForecast
-                ? [{ label: 'Reports', path: '/company/sales/reports', icon: 'chart' }]
+              ...(canForecast || canTriageSales
+                ? [
+                    {
+                      label: 'Performance',
+                      path: canForecast ? '/company/sales/reports' : '/company/sales/supervisor',
+                      icon: 'chart',
+                      children: [
+                        ...(canTriageSales ? [{ label: 'Team overview', path: '/company/sales/supervisor' }] : []),
+                        ...(canForecast ? [{ label: 'Reports', path: '/company/sales/reports' }] : []),
+                      ],
+                    },
+                  ]
                 : []),
+              {
+                label: 'Setup',
+                path: '/company/sales/setup',
+                icon: 'settings',
+                children: [
+                  ...(canViewTerritories ? [{ label: 'Territories & routing', path: '/company/sales/territories' }] : []),
+                  ...(canViewLeads ? [{ label: 'Lead sources', path: '/company/sales/leads' }] : []),
+                  ...(canManageCalls ? [{ label: 'Call integrations', path: '/company/sales/call-integrations' }] : []),
+                ],
+              },
             ],
           },
         ]

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, ErrorMessage, Loading, Page } from '../../ui/components.js';
+import { Card, ErrorMessage, Loading, Page } from '../../ui/index.js';
 import { getPortalProfile, type PortalProfile } from '../api/portalApi.js';
 
 export function ClientProfilePage({ onError }: { onError: (cause: unknown) => void }): React.JSX.Element {

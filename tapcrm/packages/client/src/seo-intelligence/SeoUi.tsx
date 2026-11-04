@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Icon } from '../ui/Icon.js';
+import { Icon } from '../ui/index.js';
 import { SeoWebsiteIllustration } from './SeoVisuals.js';
 import type { SeoSeverity } from './types.js';
 

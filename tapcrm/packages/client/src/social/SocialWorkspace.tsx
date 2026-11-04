@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Card, Modal, Notice, Page, SkeletonPage } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button, Card, Modal, Notice, Page, SkeletonPage } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import { APP_NAVIGATE_EVENT } from '../navigationEvent.js';
 import {
   completeSocialConnection,

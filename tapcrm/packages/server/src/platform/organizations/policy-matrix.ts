@@ -82,6 +82,12 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   handovers: [G, _, _, dept, _, _, team, _, pool, own, _],
   deals: [G, _, _, dept, parV, _, team, _, pool, own, _],
   approvals: [G, _, _, dept, _, _, team, _, pool, par, _],
+  // Calls follow the callbacks reach. `telephony:manage` (API keys, user
+  // mapping) is Super Admin only, so no cell emits it.
+  telephony: [G, _, _, dept, _, _, team, _, pool, own, _],
+  // Importing lists and handing them out is a Super Admin decision until the
+  // Super Admin grants it to a position (a Sales Head, say).
+  'lead-imports': [G, _, _, _, _, _, _, _, _, _, _],
   handoff: [G, _, _, par, par, par, _, _, _, _, _],
   projects: [G, _, _, _, own, dept, _, team, _, own, A],
   tasks: [G, dept, dept, _, own, dept, team, team, pool, own, _],

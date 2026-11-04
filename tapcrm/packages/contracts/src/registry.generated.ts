@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 233   Bindings: 668
+ * Actions: 238   Bindings: 697
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -107,6 +107,8 @@ export type Action =
   | 'invoicing:manage-series'
   | 'invoicing:send'
   | 'invoicing:view'
+  | 'lead-imports:manage'
+  | 'lead-imports:view'
   | 'leads:claim'
   | 'leads:create'
   | 'leads:edit'
@@ -248,6 +250,9 @@ export type Action =
   | 'tasks:review'
   | 'tasks:update'
   | 'tasks:view'
+  | 'telephony:listen'
+  | 'telephony:manage'
+  | 'telephony:view'
   | 'territories:manage'
   | 'territories:view'
   | 'users:change-placement'
@@ -342,6 +347,8 @@ export const ACTIONS: readonly Action[] = [
   'invoicing:manage-series',
   'invoicing:send',
   'invoicing:view',
+  'lead-imports:manage',
+  'lead-imports:view',
   'leads:claim',
   'leads:create',
   'leads:edit',
@@ -483,6 +490,9 @@ export const ACTIONS: readonly Action[] = [
   'tasks:review',
   'tasks:update',
   'tasks:view',
+  'telephony:listen',
+  'telephony:manage',
+  'telephony:view',
   'territories:manage',
   'territories:view',
   'users:change-placement',
@@ -1785,6 +1795,36 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     action: 'invoicing:view',
     module: 'invoicing',
     resource: 'invoice',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'lead-imports:manage': {
+    action: 'lead-imports:manage',
+    module: 'lead-imports',
+    resource: null,
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'lead-imports:view': {
+    action: 'lead-imports:view',
+    module: 'lead-imports',
+    resource: null,
     domain: 'business',
     sensitive: false,
     approvalBearing: false,
@@ -3911,6 +3951,51 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'telephony:listen': {
+    action: 'telephony:listen',
+    module: 'telephony',
+    resource: 'telephonyCall',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'telephony:manage': {
+    action: 'telephony:manage',
+    module: 'telephony',
+    resource: null,
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: true,
+    },
+    description: "",
+  },
+  'telephony:view': {
+    action: 'telephony:view',
+    module: 'telephony',
+    resource: 'telephonyCall',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'territories:manage': {
     action: 'territories:manage',
     module: 'territories',
@@ -4242,6 +4327,35 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/callbacks', action: 'callbacks:create', resourceParam: null },
   { method: 'PATCH', path: '/api/callbacks/:id', action: 'callbacks:edit', resourceParam: 'id' },
   { method: 'POST', path: '/api/callbacks/:id/outcome', action: 'callbacks:edit', resourceParam: 'id' },
+  { method: 'GET', path: '/api/telephony/overview', action: 'telephony:view', resourceParam: null },
+  { method: 'GET', path: '/api/telephony/calls', action: 'telephony:view', resourceParam: null },
+  { method: 'GET', path: '/api/telephony/calls/:id', action: 'telephony:view', resourceParam: 'id' },
+  { method: 'GET', path: '/api/telephony/calls/:id/recording', action: 'telephony:listen', resourceParam: 'id' },
+  { method: 'GET', path: '/api/telephony/employees', action: 'telephony:view', resourceParam: null },
+  { method: 'GET', path: '/api/telephony/connections', action: 'telephony:manage', resourceParam: null },
+  { method: 'POST', path: '/api/telephony/connections', action: 'telephony:manage', resourceParam: null },
+  { method: 'PATCH', path: '/api/telephony/connections/:id', action: 'telephony:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/telephony/connections/:id/test', action: 'telephony:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/telephony/connections/:id/sync', action: 'telephony:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/telephony/connections/:id/disconnect', action: 'telephony:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/telephony/connections/:id/runs', action: 'telephony:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/telephony/agents', action: 'telephony:manage', resourceParam: null },
+  { method: 'PUT', path: '/api/telephony/agents/:id/employee', action: 'telephony:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/telephony/agents/rematch', action: 'telephony:manage', resourceParam: null },
+  { method: 'GET', path: '/api/telephony/employee-options', action: 'telephony:manage', resourceParam: null },
+  { method: 'GET', path: '/api/lead-imports', action: 'lead-imports:view', resourceParam: null },
+  { method: 'POST', path: '/api/lead-imports', action: 'lead-imports:manage', resourceParam: null },
+  { method: 'GET', path: '/api/lead-imports/leads', action: 'lead-imports:view', resourceParam: null },
+  { method: 'POST', path: '/api/lead-imports/assign', action: 'lead-imports:manage', resourceParam: null },
+  { method: 'GET', path: '/api/lead-imports/assignees', action: 'lead-imports:manage', resourceParam: null },
+  { method: 'GET', path: '/api/lead-imports/call-tracking', action: 'lead-imports:view', resourceParam: null },
+  { method: 'GET', path: '/api/lead-imports/call-tracking/leads/:id', action: 'lead-imports:view', resourceParam: 'id' },
+  { method: 'GET', path: '/api/lead-imports/:id', action: 'lead-imports:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/lead-imports/:id/preview', action: 'lead-imports:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/lead-imports/:id/start', action: 'lead-imports:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/lead-imports/:id/resume', action: 'lead-imports:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/lead-imports/:id/discard', action: 'lead-imports:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/lead-imports/:id/rows', action: 'lead-imports:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/handovers', action: 'handovers:initiate', resourceParam: null },
   { method: 'GET', path: '/api/handovers/targets', action: 'handovers:initiate', resourceParam: null },
   { method: 'POST', path: '/api/handovers/:id/accept', action: 'handovers:receive', resourceParam: 'id' },

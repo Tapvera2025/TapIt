@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Page } from '../../../ui/components.js';
+import { Page } from '../../../ui/index.js';
 import { BidPoolSection } from './sections/BidPoolSection.js';
 import { DueActivitiesSection } from './sections/DueActivitiesSection.js';
 import { HandoverOffersSection } from './sections/HandoverOffersSection.js';

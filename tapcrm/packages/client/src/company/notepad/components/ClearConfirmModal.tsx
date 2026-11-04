@@ -1,4 +1,4 @@
-import { Button, Modal } from '../../../ui/components.js';
+import { Button, Modal } from '../../../ui/index.js';
 
 export interface ClearConfirmModalProps {
   readonly isOpen: boolean;

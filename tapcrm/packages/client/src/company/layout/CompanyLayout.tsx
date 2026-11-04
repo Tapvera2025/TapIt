@@ -19,6 +19,11 @@ export function CompanyLayout({
   canViewTerritories,
   canViewLeads,
   canViewCallbacks,
+  canViewCalls,
+  canTriageSales,
+  canViewImports = false,
+  canTrackAssignedCalls = false,
+  canManageCalls,
   canViewHandovers,
   canViewDeals,
   canRecordWin,
@@ -76,6 +81,11 @@ export function CompanyLayout({
   canViewTerritories: boolean;
   canViewLeads: boolean;
   canViewCallbacks: boolean;
+  canViewCalls: boolean;
+  canTriageSales: boolean;
+  canViewImports?: boolean;
+  canTrackAssignedCalls?: boolean;
+  canManageCalls: boolean;
   canViewHandovers: boolean;
   canViewDeals: boolean;
   canRecordWin: boolean;
@@ -262,6 +272,11 @@ export function CompanyLayout({
             canViewTerritories={canViewTerritories}
             canViewLeads={canViewLeads}
             canViewCallbacks={canViewCallbacks}
+            canViewCalls={canViewCalls}
+            canTriageSales={canTriageSales}
+            canViewImports={canViewImports}
+            canTrackAssignedCalls={canTrackAssignedCalls}
+            canManageCalls={canManageCalls}
             canViewHandovers={canViewHandovers}
             canViewDeals={canViewDeals}
             canRecordWin={canRecordWin}

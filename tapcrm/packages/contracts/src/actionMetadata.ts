@@ -49,6 +49,8 @@ const MODULE_TITLES: Partial<Record<ActionDefinition['module'], string>> = {
   payables: 'Payables & expenses',
   'project-communication': 'Project conversations',
   reporting: 'Reports',
+  telephony: 'Call analytics',
+  'lead-imports': 'Lead imports',
 };
 
 export function moduleTitle(moduleName: ActionDefinition['module']): string {

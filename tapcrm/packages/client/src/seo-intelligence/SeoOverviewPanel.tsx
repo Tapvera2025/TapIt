@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { getSeoRuleCopy } from '@tapcrm/contracts';
-import { Button } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import { downloadSeoReport } from './api.js';
 import { FindingsTrendChart } from './FindingsTrendChart.js';
 import { SeoDashboardStatusRow } from './SeoDashboardStatusRow.js';

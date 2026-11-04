@@ -44,4 +44,10 @@ describe('lead activity lines', () => {
     );
     expect(leadActivityLabel({ eventName: 'quote.sent_again' })).toBe('quote sent again');
   });
+  it('says where an imported lead came from and how it was assigned', () => {
+    expect(leadActivityLabel({ eventName: 'lead.created', metadata: { importName: 'Expo list', rowNumber: 3 } })).toBe('Imported from “Expo list”');
+    expect(leadActivityLabel({ eventName: 'lead.created', metadata: {} })).toBe('Lead added');
+    expect(leadActivityLabel({ eventName: 'lead.assigned', metadata: { via: 'sheet' } })).toBe('Assigned from the import sheet');
+    expect(leadActivityLabel({ eventName: 'lead.assigned', metadata: { via: 'manual' } })).toBe('Assigned to an owner');
+  });
 });

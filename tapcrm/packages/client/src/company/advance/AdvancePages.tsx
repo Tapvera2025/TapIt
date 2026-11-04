@@ -8,7 +8,7 @@ import {
   Notice,
   Page,
   Select,
-} from '../../ui/components.js';
+} from '../../ui/index.js';
 import {
   approveAdvance,
   createManualAdvance,

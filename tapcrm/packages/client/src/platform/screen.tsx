@@ -1,10 +1,10 @@
-import { BrandLogo } from '../ui/BrandLogo.js';
+import { BrandLogo } from '../ui/index.js';
 import { useEffect, useState } from 'react';
 import { api, ApiError, clearTokens, saveTokens, updateOrganization } from './api.js';
 import { ModuleToggleModal } from './ModuleToggleModal.js';
 import { ThemeToggle } from '../theme/ThemeToggle.js';
 import { ACCENT_COLORS, useTheme, type Theme } from '../theme/ThemeContext.js';
-import { Icon } from '../ui/Icon.js';
+import { Icon } from '../ui/index.js';
 import { GlobalFeatureSearch } from '../company/layout/GlobalFeatureSearch.js';
 import type { CompanySearchDestination } from '../company/layout/navigation.js';
 import {
@@ -227,7 +227,7 @@ const PLATFORM_GROUPS = [
   {
     key: 'sales',
     label: 'Sales',
-    moduleKeys: ['territories', 'leads', 'callbacks', 'handovers', 'deals', 'approvals'],
+    moduleKeys: ['territories', 'leads', 'callbacks', 'handovers', 'deals', 'approvals', 'telephony', 'lead-imports'],
   },
   {
     key: 'development',

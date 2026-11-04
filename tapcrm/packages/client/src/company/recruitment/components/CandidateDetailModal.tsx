@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getIdentityAccessToken } from '../../../identity/api/authApi.js';
-import { Button, Modal, Notice } from '../../../ui/components.js';
+import { Button, Modal, Notice } from '../../../ui/index.js';
 import {
   listInterviews,
   listJoinings,

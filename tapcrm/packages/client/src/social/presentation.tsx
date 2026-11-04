@@ -1,4 +1,4 @@
-import { Icon } from '../ui/Icon.js';
+import { Icon } from '../ui/index.js';
 import {
   PLATFORM_LABELS,
   STATUS_LABELS,

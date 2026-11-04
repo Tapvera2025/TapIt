@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Empty, SkeletonMessageThread } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button, Empty, SkeletonMessageThread } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import {
   REACTION_EMOJI,
   forwardMessage,
@@ -757,20 +757,23 @@ export function ConversationWorkspace({
       </div>
 
       {forwardingMessage && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setForwardingMessage(null)}>
-          <div data-lenis-prevent className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto overscroll-contain p-4" onClick={(event) => event.stopPropagation()}>
-            <p className="mb-3 text-sm font-semibold">Forward to…</p>
-            <ul>
-              {chat.conversations.map((conversation) => (
-                <li key={conversation.id}>
-                  <button type="button" onClick={() => void onForward(conversation.id)} className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-app-surface-raised">
-                    {conversationLabel(conversation)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        createPortal(
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setForwardingMessage(null)}>
+            <div data-lenis-prevent className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto overscroll-contain p-4" onClick={(event) => event.stopPropagation()}>
+              <p className="mb-3 text-sm font-semibold">Forward to…</p>
+              <ul>
+                {chat.conversations.map((conversation) => (
+                  <li key={conversation.id}>
+                    <button type="button" onClick={() => void onForward(conversation.id)} className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-app-surface-raised">
+                      {conversationLabel(conversation)}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>,
+          document.body,
+        )
       )}
 
       {(actionError || chat.error) && (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Page } from '../../../ui/components.js';
+import { Button, Card, Page } from '../../../ui/index.js';
 import { STAGE_LABELS, LIFECYCLE_LABELS, LOSS_REASON_LABELS, formatCurrencyLabel } from '../deals/deals-helpers.js';
 import { paiseToRupees } from '../proposals/proposals-helpers.js';
 import { getForecast, type ForecastReport } from './api.js';

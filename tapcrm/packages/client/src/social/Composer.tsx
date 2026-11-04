@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Card, Field, Notice, Select } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button, Card, Field, Notice, Select } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import { actOnSocialPost, saveSocialPost, uploadSocialMedia } from './api.js';
 import { PlatformMark, SocialEmpty, socialDate } from './presentation.js';
 import { scheduleInZone, scheduleToUtc } from './time.js';

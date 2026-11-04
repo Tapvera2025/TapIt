@@ -10,7 +10,7 @@ import {
   type WeekdaySchedule,
 } from '../api/shiftsApi.js';
 import { getCompanyDepartments, type CompanyDepartment } from '../api/companyApi.js';
-import { Button, Card, Page, SkeletonTableRows } from '../../ui/components.js';
+import { Button, Card, Page, SkeletonTableRows } from '../../ui/index.js';
 
 const WEEKDAYS = [
   { value: 1, short: 'Mon', name: 'Monday' },

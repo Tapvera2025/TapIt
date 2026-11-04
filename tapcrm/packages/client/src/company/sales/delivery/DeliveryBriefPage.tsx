@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Field, Page, Select } from '../../../ui/components.js';
+import { Button, Card, Field, Page, Select } from '../../../ui/index.js';
 import { getDeal, type Deal } from '../deals/api.js';
 import { listCommercials, type Commercials } from '../proposals/api.js';
 import {

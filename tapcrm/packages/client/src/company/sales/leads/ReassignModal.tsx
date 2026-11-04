@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Field } from '../../../ui/components.js';
+import { Button, Field } from '../../../ui/index.js';
 import {
   getHandoverTargets,
   reassignLead,

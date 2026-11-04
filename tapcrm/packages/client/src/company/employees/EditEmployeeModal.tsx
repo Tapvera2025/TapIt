@@ -24,7 +24,7 @@ import {
   type ShiftTemplate,
   type WeekdaySchedule,
 } from '../api/shiftsApi.js';
-import { Button, Modal, Notice, SkeletonProfile } from '../../ui/components.js';
+import { Button, Modal, Notice, SkeletonProfile } from '../../ui/index.js';
 
 type Tab = 'profile' | 'placement' | 'shift' | 'account';
 

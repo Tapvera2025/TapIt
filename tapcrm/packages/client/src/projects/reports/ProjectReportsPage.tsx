@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Empty, Loading, Modal, Notice, Select } from '../../ui/components.js';
+import { Button, Card, Empty, Loading, Modal, Notice, Select } from '../../ui/index.js';
 import { archiveBlog, archiveKeyword, createBlog, createKeyword, downloadProjectReport, getKeywordHistory, getProjectSeoReport, updateBlog, updateKeyword, updateKeywordRank } from './api/projectReportsApi.js';
 import { SearchConsoleCard } from './SearchConsoleCard.js';
 import { OffPageSeoPage } from './OffPageSeoPage.js';

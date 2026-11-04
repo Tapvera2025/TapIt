@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTheme } from './ThemeContext.js';
-import { Icon } from '../ui/Icon.js';
+import { Icon } from '../ui/index.js';
 
 export function ThemeToggle({
   floating = false,

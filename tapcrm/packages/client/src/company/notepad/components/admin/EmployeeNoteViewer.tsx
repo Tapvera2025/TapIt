@@ -1,4 +1,4 @@
-import { Icon } from '../../../../ui/Icon.js';
+import { Icon } from '../../../../ui/index.js';
 import type { EmployeeNoteListItem, MyNotepad } from '../../types/index.js';
 import { formatHistoryTimestamp } from '../NoteHistoryModal.js';
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import { getIdentityAccessToken } from '../../../identity/api/authApi.js';
 import {
   convertResumeSubmission,

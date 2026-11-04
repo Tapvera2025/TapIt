@@ -41,7 +41,7 @@ import {
   Notice,
   Page,
   Select,
-} from '../../ui/components.js';
+} from '../../ui/index.js';
 import { LiquidMessagesTabBar } from '../../chat/LiquidMessagesTabBar.js';
 
 type ExplorerTab = 'person' | 'capability' | 'overrides' | 'role-changes';

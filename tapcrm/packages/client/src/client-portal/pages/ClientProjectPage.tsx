@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, ErrorMessage, Loading, Notice, Page } from '../../ui/components.js';
+import { Card, ErrorMessage, Loading, Notice, Page } from '../../ui/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 import { formatProjectDate } from '../../projects/formatDate.js';
 import { getPortalProject, PORTAL_SERVICE_LABELS, type PortalProject } from '../api/portalApi.js';

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, Field, Loading, Notice, Page, Select } from '../../ui/components.js';
-import { calendarDateLabel } from '../../ui/calendar-model.js';
+import { Button, Card, Empty, Field, Loading, Notice, Page, Select } from '../../ui/index.js';
+import { calendarDateLabel } from '../../ui/index.js';
 import {
   getEmployeeWiseReport,
   searchAttendanceReportEmployees,

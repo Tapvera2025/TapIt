@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listInterviews, listRequisitions, updateInterviewStatus } from '../api/recruitmentApi.js';
 import { InterviewFeedbackModal } from '../components/InterviewFeedbackModal.js';
 import { InterviewScheduleModal } from '../components/InterviewScheduleModal.js';

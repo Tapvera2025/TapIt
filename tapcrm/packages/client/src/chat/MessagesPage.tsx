@@ -6,6 +6,7 @@ import { InternalGroupsPage } from './InternalGroupsPage.js';
 import { ProjectGroupsPage } from './ProjectGroupsPage.js';
 import { LiquidMessagesTabBar } from './LiquidMessagesTabBar.js';
 import { useChatUnread } from './ChatUnreadContext.js';
+import { PanelSurface } from '../ui/index.js';
 
 type Tab = 'direct' | 'group' | 'project';
 const TAB_FOR_KIND: Record<string, Tab> = { direct: 'direct', group: 'group', project: 'project' };
@@ -58,7 +59,7 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
           setTab(next as Tab);
         }}
       />
-      <div className="mt-3 min-h-0 flex-1 overflow-hidden rounded-2xl bg-app-surface">
+      <PanelSurface className="mt-3 min-h-0 flex-1 overflow-hidden rounded-2xl">
         {tab === 'direct' ? (
           <DirectMessagesPage currentUserId={currentUserId} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
         ) : tab === 'group' ? (
@@ -66,7 +67,7 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
         ) : (
           <ProjectGroupsPage currentUserId={currentUserId} canManageProjects={canManageProjects} initialConversationId={deepLink?.conversationId} initialMessageId={deepLink?.messageId} />
         )}
-      </div>
+      </PanelSurface>
     </div>
   );
 }

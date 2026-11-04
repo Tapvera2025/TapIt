@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listHolidays, type Holiday } from '../api/holidaysApi.js';
-import { SkeletonTable } from '../../ui/components.js';
+import { SkeletonTable } from '../../ui/index.js';
 
 function currentYear(): number {
   return new Date().getFullYear();

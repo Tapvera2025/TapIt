@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card } from '../../../ui/components.js';
+import { Card } from '../../../ui/index.js';
 
 export function ClientFeedbackPlaceholder({ area, description }: { area: string; description: string }): React.JSX.Element {
   const [open, setOpen] = useState(false);

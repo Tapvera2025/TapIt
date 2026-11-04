@@ -9,7 +9,7 @@ import {
   replayBiometricPunches,
 } from '../api/biometricApi.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../api/companyApi.js';
-import { Button, Card, Field, Notice, SearchableSelect, Select, SkeletonTable } from '../../ui/components.js';
+import { Button, Card, Field, Notice, SearchableSelect, Select, SkeletonTable } from '../../ui/index.js';
 
 type Tab = 'devices' | 'mapping' | 'punches';
 

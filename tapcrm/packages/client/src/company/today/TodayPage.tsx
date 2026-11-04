@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { loadTodayStatus, punch, type PunchKind, type LiveRow, type PunchDisabledReason } from '../live/liveApi.js';
 import { getBreakAllowance, getBreakPrompts, submitBreachExplanation, type BreakAllowance, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
-import { SkeletonTodayPage, WorkspacePageContainer } from '../../ui/components.js';
+import { Button, GlassSurface, SkeletonTodayPage, TimerRing, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ function GreetingCard({
   const hasOut = allowedMoves.includes('out');
   const reasonText = disabledReason && !hasIn && !hasOut ? DISABLED_REASON_COPY[disabledReason] : null;
   return (
-    <div className="today-greeting-card dashboard-glass dashboard-glass-surface relative flex flex-col overflow-visible rounded-2xl border border-app-border p-4 lg:pb-2 xl:pb-4">
+    <GlassSurface className="today-greeting-card relative flex flex-col overflow-visible rounded-2xl p-4 lg:pb-2 xl:pb-4">
       <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-app-muted">{getGreeting(hour)}</p>
@@ -191,32 +191,24 @@ function GreetingCard({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        <button
-          type="button"
+        <Button
+          kind="primary"
           disabled={busy !== null || !hasIn}
           onClick={() => hasIn && onPunch('in', 'Punch In')}
-          className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
-            hasIn
-              ? 'border-app-accent bg-app-accent text-app-on-accent hover:brightness-105'
-              : 'border-app-border/40 bg-white/40 text-app-muted/40 dark:bg-white/5 cursor-not-allowed'
-          } disabled:cursor-not-allowed`}
+          className="w-full gap-2 py-3.5 text-sm active:scale-[0.97] disabled:cursor-not-allowed"
         >
-          <IconLogIn className={`h-4 w-4 shrink-0 ${hasIn ? 'text-app-on-accent' : 'text-app-muted/40'}`} />
+          <IconLogIn className={`h-4 w-4 shrink-0 ${hasIn ? 'text-app-on-accent' : 'text-app-muted/50'}`} />
           {busy === 'in' ? 'Recording…' : 'Punch In'}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          kind="secondary"
           disabled={busy !== null || !hasOut}
           onClick={() => hasOut && onPunch('out', 'Punch Out')}
-          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
-            hasOut
-              ? 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
-              : 'border border-app-border bg-app-surface-raised text-app-muted/40 cursor-not-allowed'
-          } disabled:cursor-not-allowed`}
+          className="w-full gap-2 py-3.5 text-sm active:scale-[0.97] disabled:cursor-not-allowed"
         >
-          <IconLogOut className={`h-4 w-4 shrink-0 ${hasOut ? 'text-app-on-accent' : 'text-app-muted/40'}`} />
+          <IconLogOut className={`h-4 w-4 shrink-0 ${hasOut ? '' : 'text-app-muted/50'}`} />
           {busy === 'out' ? 'Recording…' : 'Punch Out'}
-        </button>
+        </Button>
       </div>
 
       {breakActionButton}
@@ -235,7 +227,7 @@ function GreetingCard({
         )}
       </div>
 
-    </div>
+    </GlassSurface>
   );
 }
 
@@ -293,12 +285,8 @@ function BreakStatusCard({
   // configured; otherwise show their actual allowance.
   const effectiveLimitMinutes = breakLimitMinutes ?? 60;
   const breakLimitSeconds = effectiveLimitMinutes * 60;
-  const progress = Math.min(breakSeconds / breakLimitSeconds, 1);
-  const circumference = 2 * Math.PI * 47;
-  const strokeOffset = circumference * (1 - progress);
-
   return (
-    <div className="today-break-status-card dashboard-glass dashboard-glass-surface flex flex-col rounded-2xl border border-app-border p-4 md:pt-3">
+    <GlassSurface className="today-break-status-card flex flex-col rounded-2xl p-4 md:pt-3">
       {/* Header */}
       <div className="today-break-status-header flex items-center justify-between gap-3 md:flex-col md:items-start md:justify-start md:gap-1.5">
         <p className="text-base font-bold text-app-foreground">Break Status</p>
@@ -327,33 +315,16 @@ function BreakStatusCard({
           {breakActionButton}
         </div>
 
-        <div className="today-break-timer relative order-1 grid size-28 place-items-center rounded-full sm:size-32 md:order-none md:self-center md:size-44 xl:size-[clamp(13rem,15vw,13.75rem)]">
-          <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
-            <circle cx="56" cy="56" r="47" fill="none" stroke="currentColor" strokeWidth="7" className="text-app-accent/15" />
-            <circle
-              cx="56"
-              cy="56"
-              r="47"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="7"
-              strokeLinecap="round"
-              className="text-app-accent transition-[stroke-dashoffset] duration-500"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeOffset}
-            />
-          </svg>
-          <div className="text-center">
-            <p className="text-2xl font-bold tabular-nums tracking-tight text-app-foreground">
-              {isOnBreak ? fmtBreakTimer(breakSeconds) : '00:00'}
-            </p>
-            <p className="mt-0.5 text-[11px] font-medium text-app-muted">
-              / {String(Math.floor(effectiveLimitMinutes / 60)).padStart(2, '0')}:{String(effectiveLimitMinutes % 60).padStart(2, '0')}
-            </p>
-          </div>
-        </div>
+        <TimerRing
+          value={breakSeconds}
+          max={breakLimitSeconds}
+          label="Break time used"
+          valueLabel={isOnBreak ? fmtBreakTimer(breakSeconds) : '00:00'}
+          caption={`/ ${String(Math.floor(effectiveLimitMinutes / 60)).padStart(2, '0')}:${String(effectiveLimitMinutes % 60).padStart(2, '0')}`}
+          className="order-1 size-28 sm:size-32 md:order-none md:self-center md:size-44 xl:size-[clamp(13rem,15vw,13.75rem)]"
+        />
       </div>
-    </div>
+    </GlassSurface>
   );
 }
 
@@ -422,7 +393,7 @@ function TodayActivityCard({
   }, [items.length]);
 
   return (
-    <div className={`today-activity-card dashboard-glass dashboard-glass-surface flex min-h-0 flex-col rounded-2xl border border-app-border p-5${items.length > 10 ? ' today-activity-card--scrolling' : ''}`}>
+    <GlassSurface className={`today-activity-card flex min-h-0 flex-col rounded-2xl p-5${items.length > 10 ? ' today-activity-card--scrolling' : ''}`}>
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 text-base font-bold text-app-foreground">Today's Activity</p>
         <span className="shrink-0 text-[11px] font-medium text-app-muted">
@@ -470,7 +441,7 @@ function TodayActivityCard({
       {items.length > 3 && (
         <p className="mt-2 text-center text-[11px] text-app-muted">Scroll to view more activity</p>
       )}
-    </div>
+    </GlassSurface>
   );
 }
 
@@ -719,11 +690,11 @@ export function TodayPage({
   const canBreak = allowedMoves.includes(breakAction);
   const shouldShowBreakAction = row?.state === 'WORKING' || isOnBreak;
   const breakActionButton = shouldShowBreakAction ? (
-    <button
-      type="button"
+    <Button
+      kind="secondary"
       disabled={punchBusy !== null || !canBreak}
       onClick={() => canBreak && void handlePunch(breakAction, breakAction === 'break-start' ? 'Break Start' : 'Break End')}
-      className={`today-break-action ${isTabletOrLarger ? 'w-full max-w-[14rem] px-4 py-5' : 'mt-2.5 w-full px-4 py-3.5'} flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`today-break-action ${isTabletOrLarger ? 'w-full max-w-[14rem] px-4 py-5' : 'mt-2.5 w-full px-4 py-3.5'} text-sm font-semibold active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${
         breakAction === 'break-start'
           ? 'border border-app-accent/30 bg-app-accent/10 text-app-accent hover:bg-app-accent/15'
           : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
@@ -731,7 +702,7 @@ export function TodayPage({
     >
       {breakAction === 'break-start' ? <IconCoffee className="h-4 w-4" /> : <IconSquare className="h-4 w-4" />}
       {punchBusy === 'break-start' ? 'Starting break…' : punchBusy === 'break-end' ? 'Ending break…' : breakAction === 'break-start' ? 'Start Break' : 'End Break'}
-    </button>
+    </Button>
   ) : null;
 
   return (
