@@ -299,7 +299,7 @@
 /* Keep the light workspace canvas neutral; appearance themes should tint
    accents and components, not the page background itself. */
 :root:not(.dark) {
-  --app-background: #f3f4f6;
+  --app-background: #f6f7f8;
 }
 
 @theme inline {
