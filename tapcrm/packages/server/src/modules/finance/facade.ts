@@ -9,3 +9,4 @@ export type {
   AccountingPostingLine,
   AccountingPostingResult,
 } from './accounting/facade.js';
+export { refreshInvoiceStatus } from './receivables/service.js';

@@ -121,6 +121,9 @@ export function CompanySidebar({
   canViewAccounting = false,
   canViewFinanceFoundation = false,
   canViewBillingTerms = false,
+  canViewInvoicing = false,
+  canViewReceivables = false,
+  canViewPayables = false,
   canViewTa = false,
   canManageTa = false,
   canManageBiometric = false,
@@ -183,6 +186,9 @@ export function CompanySidebar({
   canViewAccounting?: boolean;
   canViewFinanceFoundation?: boolean;
   canViewBillingTerms?: boolean;
+  canViewInvoicing?: boolean;
+  canViewReceivables?: boolean;
+  canViewPayables?: boolean;
   canViewTa?: boolean;
   canManageTa?: boolean;
   canManageBiometric?: boolean;
@@ -213,9 +219,7 @@ export function CompanySidebar({
     setOpenSections((prev) => {
       const current =
         prev[label] ??
-        (label === 'Organization'
-          ? pathname.startsWith('/company/organization')
-          : true);
+        (label === 'Organization' ? pathname.startsWith('/company/organization') : true);
       return { ...prev, [label]: !current };
     });
   };
@@ -270,28 +274,46 @@ export function CompanySidebar({
   const syncActiveSidebarPill = () => {
     // Wait until route state commits, then position the shared pill from the
     // active item itself so it cannot remain at its previous route position.
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      const navigation = navigationRef.current;
-      const indicator = activeNavIndicatorRef.current;
-      const activeItem = navigation?.querySelector<HTMLButtonElement>(
-        '[data-company-nav-item][aria-current="page"]',
-      );
-      if (!navigation || !indicator || !activeItem) return;
-      const navRect = navigation.getBoundingClientRect();
-      const itemRect = activeItem.getBoundingClientRect();
-      indicator.style.setProperty('--sidebar-pill-top', `${itemRect.top - navRect.top + navigation.scrollTop}px`);
-      indicator.style.setProperty('--sidebar-pill-left', `${itemRect.left - navRect.left + navigation.scrollLeft}px`);
-      indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
-      indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
-      indicator.style.opacity = '1';
-      setIsActiveNavMoving(true);
-      if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
-      activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
-    }));
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => {
+        const navigation = navigationRef.current;
+        const indicator = activeNavIndicatorRef.current;
+        const activeItem = navigation?.querySelector<HTMLButtonElement>(
+          '[data-company-nav-item][aria-current="page"]',
+        );
+        if (!navigation || !indicator || !activeItem) return;
+        const navRect = navigation.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        indicator.style.setProperty(
+          '--sidebar-pill-top',
+          `${itemRect.top - navRect.top + navigation.scrollTop}px`,
+        );
+        indicator.style.setProperty(
+          '--sidebar-pill-left',
+          `${itemRect.left - navRect.left + navigation.scrollLeft}px`,
+        );
+        indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
+        indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
+        indicator.style.opacity = '1';
+        setIsActiveNavMoving(true);
+        if (activeNavMoveTimerRef.current !== undefined)
+          window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(
+          () => setIsActiveNavMoving(false),
+          480,
+        );
+      }),
+    );
   };
 
   const startSidebarPillDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!event.currentTarget.matches('[aria-current="page"]') || !window.matchMedia('(min-width: 1280px)').matches || event.button !== 0 || event.pointerType === 'touch') return;
+    if (
+      !event.currentTarget.matches('[aria-current="page"]') ||
+      !window.matchMedia('(min-width: 1280px)').matches ||
+      event.button !== 0 ||
+      event.pointerType === 'touch'
+    )
+      return;
     const indicatorRect = activeNavIndicatorRef.current?.getBoundingClientRect();
     if (!indicatorRect) return;
     sidebarPillDragRef.current = {
@@ -412,7 +434,9 @@ export function CompanySidebar({
       setRecruitmentOpen(true);
     }
     if (pathname.startsWith('/company/organization')) {
-      setOpenSections((prev) => (prev['Organization'] ? prev : { ...prev, Organization: true }));
+      setOpenSections((prev) =>
+        prev['Organization'] ? prev : { ...prev, Organization: true },
+      );
     }
     prevPathnameRef.current = pathname;
   }, [pathname]);
@@ -446,7 +470,10 @@ export function CompanySidebar({
 
       const previousTop = previousActiveTopRef.current;
       if (previousTop !== null && Math.abs(previousTop - top) > 1) {
-        indicator.style.setProperty('--sidebar-pill-origin', top > previousTop ? 'top center' : 'bottom center');
+        indicator.style.setProperty(
+          '--sidebar-pill-origin',
+          top > previousTop ? 'top center' : 'bottom center',
+        );
         setIsActiveNavMoving(true);
         if (activeNavMoveTimerRef.current !== undefined)
           window.clearTimeout(activeNavMoveTimerRef.current);
@@ -919,12 +946,121 @@ export function CompanySidebar({
                 path: '/company/finance/accounting',
                 icon: 'wallet',
               },
-              ...(canViewFinanceFoundation ? [{ label: 'Finance Settings', path: '/company/finance/settings', icon: 'settings' }] : []),
-              ...(canViewBillingTerms ? [{ label: 'Billing Terms', path: '/company/finance/billing', icon: 'file-text' }] : []),
+              ...(canViewFinanceFoundation
+                ? [
+                    {
+                      label: 'Finance Settings',
+                      path: '/company/finance/settings',
+                      icon: 'settings',
+                    },
+                  ]
+                : []),
+              ...(canViewBillingTerms
+                ? [
+                    {
+                      label: 'Billing Terms',
+                      path: '/company/finance/billing',
+                      icon: 'file-text',
+                    },
+                  ]
+                : []),
+              ...(canViewInvoicing
+                ? [
+                    {
+                      label: 'Invoicing',
+                      path: '/company/finance/invoicing',
+                      icon: 'file-text',
+                    },
+                  ]
+                : []),
+              ...(canViewReceivables
+                ? [
+                    {
+                      label: 'Receivables',
+                      path: '/company/finance/receivables',
+                      icon: 'wallet',
+                    },
+                  ]
+                : []),
+              ...(canViewPayables
+                ? [
+                    {
+                      label: 'Payables',
+                      path: '/company/finance/payables',
+                      icon: 'wallet',
+                    },
+                  ]
+                : []),
+              ...(canViewAccounting
+                ? [
+                    {
+                      label: 'Payments',
+                      path: '/company/finance/payments',
+                      icon: 'wallet',
+                    },
+                  ]
+                : []),
             ],
           },
         ]
-      : (canViewFinanceFoundation || canViewBillingTerms) ? [{ label: 'Finance', items: [...(canViewFinanceFoundation ? [{ label: 'Finance Settings', path: '/company/finance/settings', icon: 'settings' }] : []), ...(canViewBillingTerms ? [{ label: 'Billing Terms', path: '/company/finance/billing', icon: 'file-text' }] : [])] }] : []),
+      : canViewFinanceFoundation ||
+          canViewBillingTerms ||
+          canViewInvoicing ||
+          canViewReceivables ||
+          canViewPayables
+        ? [
+            {
+              label: 'Finance',
+              items: [
+                ...(canViewFinanceFoundation
+                  ? [
+                      {
+                        label: 'Finance Settings',
+                        path: '/company/finance/settings',
+                        icon: 'settings',
+                      },
+                    ]
+                  : []),
+                ...(canViewBillingTerms
+                  ? [
+                      {
+                        label: 'Billing Terms',
+                        path: '/company/finance/billing',
+                        icon: 'file-text',
+                      },
+                    ]
+                  : []),
+                ...(canViewInvoicing
+                  ? [
+                      {
+                        label: 'Invoicing',
+                        path: '/company/finance/invoicing',
+                        icon: 'file-text',
+                      },
+                    ]
+                  : []),
+                ...(canViewReceivables
+                  ? [
+                      {
+                        label: 'Receivables',
+                        path: '/company/finance/receivables',
+                        icon: 'wallet',
+                      },
+                    ]
+                  : []),
+                ...(canViewPayables
+                  ? [
+                      {
+                        label: 'Payables',
+                        path: '/company/finance/payables',
+                        icon: 'wallet',
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          ]
+        : []),
     {
       label: 'Identity & Access',
       items: [
@@ -954,22 +1090,23 @@ export function CompanySidebar({
       items: [{ label: 'Settings', path: '/company/settings', icon: 'settings' }],
     },
   ];
-  const visibleNavigation: CompanyNavGroup[] = variant === 'client'
-    ? [
-        {
-          label: 'Overview',
-          items: [
-            { label: 'Dashboard', path: '/client', icon: 'grid' },
-            { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
-            { label: 'Messages', path: '/client/messages', icon: 'message' },
-          ],
-        },
-        {
-          label: 'Account',
-          items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
-        },
-      ]
-    : navigation;
+  const visibleNavigation: CompanyNavGroup[] =
+    variant === 'client'
+      ? [
+          {
+            label: 'Overview',
+            items: [
+              { label: 'Dashboard', path: '/client', icon: 'grid' },
+              { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
+              { label: 'Messages', path: '/client/messages', icon: 'message' },
+            ],
+          },
+          {
+            label: 'Account',
+            items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
+          },
+        ]
+      : navigation;
 
   return (
     <aside
@@ -1002,8 +1139,12 @@ export function CompanySidebar({
           <span aria-hidden="true" />
         </button>
       )}
-      <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
-        <p className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
+      <div
+        className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}
+      >
+        <p
+          className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}
+        >
           {variant === 'client' ? 'Client Workspace' : 'Company Workspace'}
         </p>
         {onToggleCollapsed && (
@@ -1070,8 +1211,15 @@ export function CompanySidebar({
                   name={GROUP_ICONS[group.label] ?? 'grid'}
                   className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
                 />
-                <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>{group.label}</span>
-                <span aria-hidden="true" className={`shrink-0 ${collapsed ? 'xl:hidden' : ''}`}>
+                <span
+                  className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}
+                >
+                  {group.label}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={`shrink-0 ${collapsed ? 'xl:hidden' : ''}`}
+                >
                   {isOpen ? '−' : '+'}
                 </span>
               </button>
@@ -1079,10 +1227,12 @@ export function CompanySidebar({
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
                     const isRecruitmentItem = item.label === 'Recruitment';
-                    const isRootRoute = variant === 'client'
-                      ? item.path === '/client'
-                      : item.path === '/company/organization';
-                    const isActive = pathname === item.path ||
+                    const isRootRoute =
+                      variant === 'client'
+                        ? item.path === '/client'
+                        : item.path === '/company/organization';
+                    const isActive =
+                      pathname === item.path ||
                       (!isRootRoute && pathname.startsWith(`${item.path}/`));
                     const showChildren = Boolean(
                       item.children && (isRecruitmentItem ? recruitmentOpen : true),
@@ -1132,18 +1282,29 @@ export function CompanySidebar({
                             >
                               <Icon name={item.icon} />
                             </span>
-                            <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>
+                            <span
+                              className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}
+                            >
                               {item.label}
                             </span>
                           </span>
-                          {item.label === 'Messages' && (variant === 'client' ? clientMessagesUnread : unreadMessages) > 0 && (
-                            <span
-                              className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
-                              aria-label={`${variant === 'client' ? clientMessagesUnread : unreadMessages} unread messages`}
-                            >
-                              {(variant === 'client' ? clientMessagesUnread : unreadMessages) > 99 ? '99+' : (variant === 'client' ? clientMessagesUnread : unreadMessages)}
-                            </span>
-                          )}
+                          {item.label === 'Messages' &&
+                            (variant === 'client'
+                              ? clientMessagesUnread
+                              : unreadMessages) > 0 && (
+                              <span
+                                className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
+                                aria-label={`${variant === 'client' ? clientMessagesUnread : unreadMessages} unread messages`}
+                              >
+                                {(variant === 'client'
+                                  ? clientMessagesUnread
+                                  : unreadMessages) > 99
+                                  ? '99+'
+                                  : variant === 'client'
+                                    ? clientMessagesUnread
+                                    : unreadMessages}
+                              </span>
+                            )}
                           {item.children && (
                             <span
                               aria-hidden="true"

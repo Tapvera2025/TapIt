@@ -74,6 +74,10 @@ import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
 import { AccountingPage } from './finance/accounting/AccountingPage.js';
 import { FinanceFoundationPage } from './finance/foundation/FinanceFoundationPage.js';
 import { BillingTermsPage } from './finance/billing-terms/BillingTermsPage.js';
+import { InvoicingPage } from './finance/invoicing/InvoicingPage.js';
+import { PaymentOperationsPage } from './finance/payments/PaymentOperationsPage.js';
+import { ReceivablesPage } from './finance/receivables/ReceivablesPage.js';
+import { PayablesPage } from './finance/payables/PayablesPage.js';
 import { companySearchDestinations } from './layout/navigation.js';
 
 export function CompanyWorkspace({
@@ -174,13 +178,17 @@ export function CompanyWorkspace({
   const canManageAccountingAccounts = isSuperAdmin || can('accounting:manage-accounts');
   const canPostAccounting = isSuperAdmin || can('accounting:post-journal');
   const canCloseAccounting = isSuperAdmin || can('accounting:close-period');
-  const canManageAccountingPeriods =
-    isSuperAdmin || can('accounting:manage-periods');
-  const canViewAccountingStatements =
-    isSuperAdmin || can('accounting:view-statements');
+  const canManageAccountingPeriods = isSuperAdmin || can('accounting:manage-periods');
+  const canViewAccountingStatements = isSuperAdmin || can('accounting:view-statements');
   const canTaxAccounting = isSuperAdmin || can('accounting:tax-export');
-  const canViewFinanceFoundation = isSuperAdmin || can('accounting:view-finance-settings') || can('accounting:manage-finance-settings');
+  const canViewFinanceFoundation =
+    isSuperAdmin ||
+    can('accounting:view-finance-settings') ||
+    can('accounting:manage-finance-settings');
   const canViewBillingTerms = isSuperAdmin || can('billing:view-terms');
+  const canViewInvoicing = isSuperAdmin || can('invoicing:view');
+  const canViewReceivables = isSuperAdmin || can('receivables:view');
+  const canViewPayables = isSuperAdmin || can('payables:view');
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
   const canViewProjects = isSuperAdmin || can('projects:view');
@@ -221,6 +229,10 @@ export function CompanyWorkspace({
     '/company/finance/accounting': 'Accounting',
     '/company/finance/settings': 'Finance Settings',
     '/company/finance/billing': 'Billing Terms & Contracts',
+    '/company/finance/invoicing': 'Invoicing',
+    '/company/finance/payments': 'Payments & Reconciliation',
+    '/company/finance/receivables': 'Receivables & Collections',
+    '/company/finance/payables': 'Payables',
     '/company/todo': 'My Todo',
     '/company/my-todo': 'My Todo',
     '/company/messages': 'Messages',
@@ -302,6 +314,18 @@ export function CompanyWorkspace({
     }
     if (pathname === '/company/finance/billing' && canViewBillingTerms) {
       return <BillingTermsPage />;
+    }
+    if (pathname === '/company/finance/invoicing' && canViewInvoicing) {
+      return <InvoicingPage />;
+    }
+    if (pathname === '/company/finance/payments' && canViewAccounting) {
+      return <PaymentOperationsPage />;
+    }
+    if (pathname === '/company/finance/receivables' && canViewReceivables) {
+      return <ReceivablesPage />;
+    }
+    if (pathname === '/company/finance/payables' && canViewPayables) {
+      return <PayablesPage />;
     }
     if (pathname === '/company/finance/accounting' && canViewAccounting) {
       const queryTab = new URLSearchParams(rawPathname.split('?')[1] ?? '').get('tab');
@@ -730,6 +754,9 @@ export function CompanyWorkspace({
       canViewAccounting={canViewAccounting}
       canViewFinanceFoundation={canViewFinanceFoundation}
       canViewBillingTerms={canViewBillingTerms}
+      canViewInvoicing={canViewInvoicing}
+      canViewReceivables={canViewReceivables}
+      canViewPayables={canViewPayables}
       canViewTa={isSuperAdmin || can('ta:view') || can('ta:view-own')}
       canManageTa={isSuperAdmin || can('ta:manage')}
       canManageBiometric={can('biometric:manage')}

@@ -38,6 +38,9 @@ export function CompanyLayout({
   canViewAccounting,
   canViewFinanceFoundation,
   canViewBillingTerms,
+  canViewInvoicing,
+  canViewReceivables,
+  canViewPayables,
   canViewTa,
   canManageTa,
   canManageBiometric,
@@ -95,6 +98,9 @@ export function CompanyLayout({
   canViewAccounting: boolean;
   canViewFinanceFoundation: boolean;
   canViewBillingTerms: boolean;
+  canViewInvoicing: boolean;
+  canViewReceivables: boolean;
+  canViewPayables: boolean;
   canViewTa: boolean;
   canManageTa: boolean;
   canManageBiometric: boolean;
@@ -281,6 +287,9 @@ export function CompanyLayout({
             canViewAccounting={canViewAccounting}
             canViewFinanceFoundation={canViewFinanceFoundation}
             canViewBillingTerms={canViewBillingTerms}
+            canViewInvoicing={canViewInvoicing}
+            canViewReceivables={canViewReceivables}
+            canViewPayables={canViewPayables}
             canViewTa={canViewTa}
             canManageTa={canManageTa}
             canManageBiometric={canManageBiometric}

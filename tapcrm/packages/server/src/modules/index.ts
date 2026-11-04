@@ -83,17 +83,40 @@ import {
   registerChatRoutes,
 } from './chat/index.js';
 import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
-import { registerProjectPolicies, registerProjectReportJobs, registerProjectRoutes } from './projects/index.js';
+import {
+  registerProjectPolicies,
+  registerProjectReportJobs,
+  registerProjectRoutes,
+} from './projects/index.js';
 import { registerClientPortalRoutes } from './client-portal/index.js';
 import { registerMyTodoRoutes } from './myTodo/routes.js';
 import { registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
 import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
 import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
 import { registerTaRoutes } from './ta/routes.js';
-import { registerAccountingJobs, registerAccountingPolicies, registerAccountingRoutes } from './finance/accounting/index.js';
+import {
+  registerAccountingJobs,
+  registerAccountingPolicies,
+  registerAccountingRoutes,
+} from './finance/accounting/index.js';
 import { registerFinanceFoundationRoutes } from './finance/foundation/index.js';
-import { registerBillingTermsJobs, registerBillingTermsPolicies, registerBillingTermsRoutes } from './finance/billing-terms/index.js';
-import { registerPaymentRoutes, hyperswitchPaymentReadinessPort } from './finance/payments/index.js';
+import {
+  registerBillingTermsJobs,
+  registerBillingTermsPolicies,
+  registerBillingTermsRoutes,
+} from './finance/billing-terms/index.js';
+import {
+  registerPaymentPolicies,
+  registerPaymentRoutes,
+  hyperswitchPaymentReadinessPort,
+} from './finance/payments/index.js';
+import {
+  registerInvoicingPolicies,
+  registerInvoicingRoutes,
+} from './finance/invoicing/index.js';
+import { registerReceivablesRoutes } from './finance/receivables/index.js';
+import { registerReceivablesJobs } from './finance/receivables/index.js';
+import { registerPayablesRoutes } from './finance/payables/index.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -142,6 +165,8 @@ export function registerAllPolicies(): void {
   registerProjectPolicies();
   registerAccountingPolicies();
   registerBillingTermsPolicies();
+  registerInvoicingPolicies();
+  registerPaymentPolicies();
 }
 
 /** Realtime wiring that has no route/policy shape of its own (the typing relay). */
@@ -194,6 +219,9 @@ export function registerAllRoutes(): void {
   registerFinanceFoundationRoutes();
   registerBillingTermsRoutes();
   registerPaymentRoutes();
+  registerInvoicingRoutes();
+  registerReceivablesRoutes();
+  registerPayablesRoutes();
 }
 
 let jobsRegistered = false;
@@ -217,4 +245,5 @@ export function registerAllJobs(): void {
   registerProjectReportJobs();
   registerAccountingJobs();
   registerBillingTermsJobs();
+  registerReceivablesJobs();
 }

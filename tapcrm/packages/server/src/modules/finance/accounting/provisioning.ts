@@ -5,6 +5,7 @@ const STANDARD_ACCOUNTS = [
   ['cash', '1000', 'Cash', 'asset', 'debit'],
   ['accounts-receivable', '1100', 'Accounts Receivable', 'asset', 'debit'],
   ['bank', '1200', 'Bank', 'asset', 'debit'],
+  ['gateway-clearing', '1210', 'Payment Gateway Clearing', 'asset', 'debit'],
   ['tds-receivable', '1300', 'TDS Receivable', 'asset', 'debit'],
   ['input-gst', '1400', 'Input GST', 'asset', 'debit'],
   ['accounts-payable', '2000', 'Accounts Payable', 'liability', 'credit'],
@@ -16,6 +17,7 @@ const STANDARD_ACCOUNTS = [
   ['statutory-liability', '2600', 'Statutory Liability', 'liability', 'credit'],
   ['retained-earnings', '3000', 'Retained Earnings', 'equity', 'credit'],
   ['revenue', '4000', 'Revenue', 'income', 'credit'],
+  ['fx-gain', '4200', 'Realised FX Gain', 'income', 'credit'],
   ['salary-expense', '5000', 'Salary Expense', 'expense', 'debit'],
   [
     'employer-contribution-expense',
@@ -25,6 +27,9 @@ const STANDARD_ACCOUNTS = [
     'debit',
   ],
   ['bad-debt', '5100', 'Bad Debt', 'expense', 'debit'],
+  ['fx-loss', '5110', 'Realised FX Loss', 'expense', 'debit'],
+  ['general-expense', '5400', 'General Operating Expense', 'expense', 'debit'],
+  ['payment-suspense', '2900', 'Payment Suspense', 'liability', 'credit'],
 ] as const;
 
 export async function provisionAccountingFoundation(
@@ -54,5 +59,11 @@ export async function provisionAccountingFoundation(
       interval '1 month'
     ) AS month_start
     ON CONFLICT (organization_id, period_start) DO NOTHING
+  `);
+
+  await tx.query(sql`
+    INSERT INTO finance_payment_controls (organization_id)
+    VALUES (${organizationId})
+    ON CONFLICT (organization_id) DO NOTHING
   `);
 }
