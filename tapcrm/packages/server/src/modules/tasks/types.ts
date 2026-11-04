@@ -14,6 +14,8 @@ export interface TaskAssignee {
   readonly departmentId?: string | null | undefined;
   readonly assignedAt: Date;
   readonly status: TaskStatus;
+  readonly statusUpdatedByName?: string | null | undefined;
+  readonly statusUpdatedAt?: Date | string | null | undefined;
 }
 
 export interface Task {
@@ -25,6 +27,8 @@ export interface Task {
   readonly projectName?: string | null | undefined;
   readonly priority: TaskPriority;
   readonly status: TaskStatus;
+  readonly statusUpdatedByName?: string | null | undefined;
+  readonly statusUpdatedAt?: Date | string | null | undefined;
   readonly dueDate: Date | null;
   readonly createdBy: string;
   readonly createdByName?: string | null | undefined;

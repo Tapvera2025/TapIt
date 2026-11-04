@@ -22,6 +22,7 @@ function initials(fullName: string): string {
 export function Navbar({
   identity,
   organizationName,
+  organizationCode,
   sidebarCollapsed,
   sidebarOpen,
   onToggleSidebar,
@@ -32,6 +33,7 @@ export function Navbar({
 }: {
   identity: { fullName: string; email: string; accountType?: string };
   organizationName: string | null;
+  organizationCode: string | null;
   sidebarCollapsed: boolean;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
@@ -42,7 +44,7 @@ export function Navbar({
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
-  const role = organizationName ? organizationName.slice(0, 3).toUpperCase() : 'ABP';
+  const role = organizationCode?.trim() || organizationName?.slice(0, 3).toUpperCase() || 'ABP';
   const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
 
   useEffect(() => {
@@ -103,7 +105,7 @@ export function Navbar({
             onNavigate={onNavigate}
           />
           <NotificationBell onNavigate={onNavigate} />
-          <ThemeToggle compact className="global-navbar-theme-toggle md:hidden" />
+          <ThemeToggle compact className="global-navbar-theme-toggle" />
           <div ref={accountRef} className="relative">
             <button
               type="button"
@@ -120,7 +122,7 @@ export function Navbar({
                 <span className="block max-w-28 truncate text-xs font-semibold text-app-foreground">
                   {identity.fullName}
                 </span>
-                <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-app-muted">
+                <span className="block whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.12em] text-app-muted" title={role}>
                   {role}
                 </span>
               </span>

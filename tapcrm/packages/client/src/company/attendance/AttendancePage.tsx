@@ -14,6 +14,7 @@ import {
   type CorrectionRequest,
   type EmployeeWiseReport,
 } from './attendanceApi.js';
+import { listHolidays, type Holiday } from '../api/holidaysApi.js';
 import { calendarMonth } from '../../ui/calendar-model.js';
 import { attendanceStatus, MonthlyAttendanceKpis } from './AttendanceVisuals.js';
 import { Card, WorkspacePageContainer } from '../../ui/components.js';
@@ -104,6 +105,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
   const [days, setDays] = useState<AttendanceDayView[]>([]);
   const [daysLoading, setDaysLoading] = useState(true);
   const [daysError, setDaysError] = useState<string | null>(null);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [monthlyReport, setMonthlyReport] = useState<EmployeeWiseReport | null>(null);
   const [monthlyLoading, setMonthlyLoading] = useState(true);
   const [monthlyError, setMonthlyError] = useState<string | null>(null);
@@ -163,6 +165,13 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
     })();
     return () => { daysAbort.current?.abort(); };
   }, [month, userId]);
+
+  useEffect(() => {
+    const holidayGrid = calendarMonth(month);
+    void listHolidays({ from: holidayGrid[0]!, to: holidayGrid[holidayGrid.length - 1]! })
+      .then(({ holidays: rows }) => setHolidays(rows.filter((holiday) => holiday.status === 'active')))
+      .catch(() => setHolidays([]));
+  }, [month]);
 
   useEffect(() => {
     const [year, monthNumber] = month.split('-');
@@ -246,7 +255,9 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
     label: dayLabel(day),
     tone: dayTone(day),
     halfDay: day.status?.toLowerCase().includes('half') ?? false,
-    ...(day.minutes.late > 0 ? { markers: [`Late +${day.minutes.late}m`] } : {}),
+    ...((day.dayType === 'holiday' || day.minutes.late > 0)
+      ? { markers: [ ...(day.dayType === 'holiday' ? ['#'] : []), ...(day.minutes.late > 0 ? [`Late +${day.minutes.late}m`] : []) ] }
+      : {}),
   }));
 
   async function submitCorrection(): Promise<void> {
@@ -291,6 +302,11 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
     ? 'Working'
     : currentRecord?.status ?? (currentRecord?.arrivalAt ? 'Present' : 'No record');
   const recentRecords = [...recentDays].sort((left, right) => right.workDate.localeCompare(left.workDate));
+  const selectedCalendarDay = days.find((day) => day.workDate === selectedDate);
+  const selectedHoliday = selectedCalendarDay?.dayType === 'holiday'
+    ? holidays.find((holiday) => holiday.holidayDate === selectedDate)
+    : undefined;
+  const isSelectedHoliday = selectedCalendarDay?.dayType === 'holiday';
 
   return (
     <WorkspacePageContainer className="space-y-4">
@@ -345,11 +361,12 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
 
       <div className="rounded-2xl border border-app-border bg-app-surface p-4 sm:p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">
-            {fmtDate(selectedDate)}
-          </p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">{fmtDate(selectedDate)}</p>
+            {selectedHoliday && <p className="mt-1 text-sm font-semibold text-app-accent">Holiday: {selectedHoliday.name}</p>}
+          </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            {(detail?.allowedActions?.requestCorrection || (!detailLoading && !detail && selectedDate <= today)) && !showCorrectionForm && (
+            {!isSelectedHoliday && (detail?.allowedActions?.requestCorrection || (!detailLoading && !detail && selectedDate <= today)) && !showCorrectionForm && (
               <button
                 type="button"
                 onClick={() => { setShowCorrectionForm(true); setCorrectionNotice(null); if (!detail) setCorrectionKind('add-event'); }}
@@ -362,7 +379,8 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
               type="button"
               onClick={() => setShowMyCorrections((visible) => !visible)}
               aria-expanded={showMyCorrections}
-              className="w-full rounded-xl border border-app-accent/40 bg-app-accent/10 px-4 py-2.5 text-sm font-semibold text-app-accent transition hover:border-app-accent hover:bg-app-accent/15 sm:w-auto"
+              disabled={isSelectedHoliday}
+              className="w-full rounded-xl border border-app-accent/40 bg-app-accent/10 px-4 py-2.5 text-sm font-semibold text-app-accent transition hover:border-app-accent hover:bg-app-accent/15 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               {showMyCorrections ? 'Hide my requests' : 'My requests'}
               {myCorrections.length > 0 && <span className="ml-1.5 rounded-full bg-app-accent/15 px-1.5 py-0.5 text-xs">{myCorrections.length}</span>}

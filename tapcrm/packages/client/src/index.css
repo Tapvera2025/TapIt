@@ -1011,7 +1011,9 @@
   [role='presentation'][class~='fixed'][class~='inset-0'] {
     z-index: 1000 !important;
   }
-
+  [role='alertdialog'][class~='fixed'][class~='inset-0'] {
+    z-index: 99999 !important;
+  }
   .workspace-sidebar {
     background: var(--sidebar-background) !important;
     border-color: var(--sidebar-border) !important;
