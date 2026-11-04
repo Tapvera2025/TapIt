@@ -2548,6 +2548,48 @@ summary:active {
   max-width: none;
 }
 
+.project-detail-navigation-tabs {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.project-detail-navigation-tabs::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.project-detail-navigation-tab {
+  border-color: transparent;
+  color: var(--app-muted);
+  background: transparent;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.project-detail-navigation-tab:hover {
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 5%, transparent);
+}
+
+.project-detail-navigation-tab[aria-selected='true'] {
+  border-color: color-mix(in srgb, var(--app-accent) 30%, var(--app-border));
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 8%, var(--app-surface));
+}
+
+/* The tab track may scroll internally while the pill is dragged, but its
+   native scrollbar must never become part of the navbar layout. */
+.messages-tab-list {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.messages-tab-list::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 @media (min-width: 768px) {
   .project-detail-liquid-tabs .messages-tab-button,
   .access-explorer-liquid-tabs .messages-tab-button {

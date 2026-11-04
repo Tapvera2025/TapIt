@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { getChatColleagues } from '../chat/index.js';
-import { LiquidMessagesTabBar } from '../chat/LiquidMessagesTabBar.js';
 import { TasksPage } from '../company/tasks/index.js';
 import { Button, Card, Notice, SkeletonDetail, SkeletonMessageThread } from '../ui/components.js';
 import { getProject, setProjectTeam, type Project } from './api/projectsApi.js';
@@ -8,6 +7,7 @@ import { EditProjectModal } from './EditProjectModal.js';
 import { formatProjectDate } from './formatDate.js';
 import { ProjectDiscussionTab } from './ProjectDiscussionTab.js';
 import { ProjectReportsPage } from './reports/ProjectReportsPage.js';
+import { ProjectDetailNavigation } from './ProjectDetailNavigation.js';
 
 type Tab = 'details' | 'discussions' | 'tasks' | 'reports';
 const TABS = [
@@ -52,23 +52,15 @@ export function ProjectDetailPage({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-app-border px-4 py-2.5">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <button type="button" onClick={onBack} className="shrink-0 text-xs font-semibold text-app-muted hover:text-app-accent">← Back</button>
-          <h1 className="truncate font-display text-base font-bold">{project.name}</h1>
-          <p className="shrink-0 text-xs text-app-muted">{project.businessName}</p>
-        </div>
-        <Button kind="secondary" onClick={() => setShowEdit(true)} className="!shrink-0 !px-3 !py-1.5 !text-xs">Edit project</Button>
-      </div>
-
-      <div className="shrink-0 border-b border-app-border px-4 py-1.5">
-        <LiquidMessagesTabBar
-          tabs={TABS}
-          value={tab}
-          onChange={(next) => setTab(next as Tab)}
-          className="project-detail-liquid-tabs !pt-0"
-        />
-      </div>
+      <ProjectDetailNavigation
+        projectName={project.name}
+        businessName={project.businessName}
+        onBack={onBack}
+        onAction={() => setShowEdit(true)}
+        tabs={TABS}
+        value={tab}
+        onChange={(next) => setTab(next as Tab)}
+      />
 
       {tab === 'discussions' ? (
         <div className="min-h-0 flex-1 p-2 sm:p-4">

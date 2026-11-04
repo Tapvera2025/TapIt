@@ -588,6 +588,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/projects/:id/discussion-group/archive | `projects:manage` | id |
 | GET | /api/projects/:id/profitability | `projects:view-financials` | id |
 | GET | /api/projects/:id/reports/on-page-seo | `projects:view` | id |
+| GET | /api/projects/:id/reports/client-feedback | `projects:view` | id |
 | GET | /api/projects/:id/reports/download | `projects:view` | id |
 | POST | /api/projects/:id/reports/on-page-seo/keywords | `projects:manage` | id |
 | PATCH | /api/projects/:id/reports/on-page-seo/keywords/:keywordId | `projects:manage` | id |

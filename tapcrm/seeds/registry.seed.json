@@ -4888,6 +4888,12 @@
     },
     {
       "method": "GET",
+      "path": "/api/projects/:id/reports/client-feedback",
+      "action": "projects:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
       "path": "/api/projects/:id/reports/download",
       "action": "projects:view",
       "resourceParam": "id"

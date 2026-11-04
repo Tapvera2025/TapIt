@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 194   Bindings: 594
+ * Actions: 194   Bindings: 595
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3655,6 +3655,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/projects/:id/discussion-group/archive', action: 'projects:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/projects/:id/profitability', action: 'projects:view-financials', resourceParam: 'id' },
   { method: 'GET', path: '/api/projects/:id/reports/on-page-seo', action: 'projects:view', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/client-feedback', action: 'projects:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/projects/:id/reports/download', action: 'projects:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/keywords', action: 'projects:manage', resourceParam: 'id' },
   { method: 'PATCH', path: '/api/projects/:id/reports/on-page-seo/keywords/:keywordId', action: 'projects:manage', resourceParam: 'id' },
