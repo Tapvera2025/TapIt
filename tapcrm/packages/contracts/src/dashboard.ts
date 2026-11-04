@@ -8,6 +8,7 @@
 
 export const DASHBOARD_WIDGET_IDS = [
   'punch-state',
+  'break-management',
   'todays-shift',
   'my-tasks',
   'my-leave',

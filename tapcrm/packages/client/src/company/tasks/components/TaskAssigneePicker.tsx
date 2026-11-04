@@ -17,7 +17,7 @@ export function TaskAssigneePicker({
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [listPlacement, setListPlacement] = useState<'above' | 'below'>('below');
-  const [listMaxHeight, setListMaxHeight] = useState(208);
+  const [listMaxHeight, setListMaxHeight] = useState(480);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
@@ -95,20 +95,18 @@ export function TaskAssigneePicker({
       const control = controlRef.current;
       if (!control) return;
 
-      const dialogBody = control.closest<HTMLElement>('.ui-dialog-body');
+      const dialog = control.closest<HTMLElement>('.ui-dialog');
       const controlRect = control.getBoundingClientRect();
-      const bounds = dialogBody?.getBoundingClientRect() ?? {
+      const bounds = dialog?.getBoundingClientRect() ?? {
         top: 0,
         bottom: window.innerHeight,
       };
       const below = Math.max(0, bounds.bottom - controlRect.bottom - 8);
       const above = Math.max(0, controlRect.top - bounds.top - 8);
-      const desiredHeight = Math.min(208, Math.max(48, availableAssignees.length * 48));
       const placeAbove = above > below;
-      const availableSpace = placeAbove ? above : below;
 
       setListPlacement(placeAbove ? 'above' : 'below');
-      setListMaxHeight(Math.max(48, Math.min(desiredHeight, availableSpace)));
+      setListMaxHeight(480);
     };
 
     updateListPosition();

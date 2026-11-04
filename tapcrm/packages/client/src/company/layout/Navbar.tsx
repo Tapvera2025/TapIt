@@ -81,7 +81,7 @@ export function Navbar({
               event.stopPropagation();
               onToggleSidebar();
             }}
-            className="navbar-action-button inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
+            className="navbar-action-button inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 xl:hidden"
             aria-label={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
             aria-expanded={sidebarExpanded}
             title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}

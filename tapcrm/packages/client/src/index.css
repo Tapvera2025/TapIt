@@ -882,8 +882,11 @@
     overscroll-behavior-y: contain;
     padding: 20px 24px 24px;
   }
+  .ui-dialog-body:has(.task-assignee-options) {
+    overflow: visible;
+  }
   .task-assignee-options {
-    max-height: min(13rem, 35dvh);
+    max-height: min(30rem, 70dvh);
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
@@ -912,8 +915,17 @@
   }
   .workspace-sidebar {
     background: var(--sidebar-background) !important;
-    border-color: var(--sidebar-border) !important;
+    border-right-width: 1px !important;
+    border-right-color: var(--app-border) !important;
     color: var(--sidebar-foreground) !important;
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--theme-primary) 12%, transparent);
+  }
+
+  @media (min-width: 1280px) {
+    .workspace-sidebar {
+      border: 1px solid var(--app-border) !important;
+      box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--theme-primary) 12%, transparent);
+    }
   }
 
   /* ── Resizable sidebar (desktop only) ──────────────────────────────── */
