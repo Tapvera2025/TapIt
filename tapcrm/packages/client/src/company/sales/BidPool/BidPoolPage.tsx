@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Page } from '../../../ui/components.js';
+import { Button, Card, Page } from '../../../ui/index.js';
 import { BidCard } from './BidCard.js';
 import { useBidPool } from './useBidPool.js';
 

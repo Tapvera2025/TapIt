@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Card, Field, Notice, Select, SkeletonTable } from '../ui/components.js';
+import { Button, Card, Field, Notice, Select, SkeletonTable } from '../ui/index.js';
 import {
   PeopleCalendar,
   setCalendarDragPayload,
   type CalendarDragPayload,
   type PeopleCalendarDay,
-} from '../ui/PeopleCalendar.js';
-import { calendarMonth, calendarWeek } from '../ui/calendar-model.js';
+} from '../ui/index.js';
+import { calendarMonth, calendarWeek } from '../ui/index.js';
 import { actOnSocialPost, listSocialPosts } from './api.js';
 import {
   dateInZone,

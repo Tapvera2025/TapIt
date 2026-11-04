@@ -6,8 +6,8 @@ import {
   type ContentBrand,
   contentBodyToPlainText,
 } from '@tapcrm/contracts';
-import { Button } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import { SeoEmptyState, SeoSectionHeader, SeoBadge } from './SeoUi.js';
 import { useSeoResource } from './useSeoResource.js';
 import * as api from './content-api.js';

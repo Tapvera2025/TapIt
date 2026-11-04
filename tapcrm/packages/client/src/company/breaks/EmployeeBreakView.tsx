@@ -6,7 +6,7 @@ import {
   type BreakAllowance,
   type BreakPrompt,
 } from '../api/breaksApi.js';
-import { SkeletonCard } from '../../ui/components.js';
+import { SkeletonCard } from '../../ui/index.js';
 import { formatMinutes } from '../../ui/format-duration.js';
 
 export function EmployeeBreakView(): React.JSX.Element {

@@ -29,8 +29,8 @@ type Layout = RGLLayoutItem;
 
 const GridLayout = GridLayoutDefault;
 const rglModule = GridLayoutDefault as unknown as RGLModule;
-import { SkeletonCard, WorkspacePageContainer } from '../../ui/components.js';
-import { Icon } from '../../ui/Icon.js';
+import { SkeletonCard, WorkspacePageContainer } from '../../ui/index.js';
+import { Icon } from '../../ui/index.js';
 import type { CompanyIdentity } from '../api/companyApi.js';
 import { getDashboardPreferences, saveDashboardPreferences } from './dashboardApi.js';
 import { availableWidgets, getWidget } from './registry.js';

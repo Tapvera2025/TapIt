@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listRequisitions, softDeleteCandidate } from '../api/recruitmentApi.js';
 import { CandidateDetailModal } from '../components/CandidateDetailModal.js';
 import { CandidateFormModal } from '../components/CandidateFormModal.js';

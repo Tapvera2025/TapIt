@@ -204,9 +204,6 @@ export function PeopleCalendar({
         aria-label={`${calendarDateLabel(date)}: ${label}${markers.length ? `; ${markers.join(', ')}` : ''}`}
         onClick={() => selectDate(date)}
         onKeyDown={(event) => handleDateKeyDown(event, date)}
-<<<<<<< HEAD
-        className={`${base} ${sizing} ${isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : defaultSurfaceClass} ${isCurrentMonth ? '' : 'opacity-45'}`}
-=======
         {...(dropEnabled
           ? {
               onDragOver: (event: React.DragEvent) => handleDragOver(event, date),
@@ -215,8 +212,7 @@ export function PeopleCalendar({
               onDrop: (event: React.DragEvent) => handleDrop(event, date),
             }
           : {})}
-        className={`${base} ${sizing} ${isDropTarget ? 'border-app-accent bg-app-accent/15 ring-2 ring-app-accent' : isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : 'border-app-border bg-app-surface hover:border-app-accent/50'} ${isCurrentMonth ? '' : 'opacity-45'}`}
->>>>>>> 34bc681 (WIP: social module scaffolding, authz hardening, and seed updates)
+        className={`${base} ${sizing} ${isDropTarget ? 'border-app-accent bg-app-accent/15 ring-2 ring-app-accent' : isSelected ? 'border-app-accent bg-app-accent/8 ring-1 ring-app-accent' : defaultSurfaceClass} ${isCurrentMonth ? '' : 'opacity-45'}`}
       >
         {surface !== 'list' && holidayMarker && <span aria-hidden="true" className={`pointer-events-none absolute right-2 top-1 font-display font-black leading-none text-app-muted/20 ${surface === 'compact' ? 'text-3xl' : 'text-5xl'}`}>#</span>}
         <span className={`relative z-10 ${surface === 'list' ? 'w-12 shrink-0' : 'flex items-start justify-between gap-1'} text-sm font-bold tabular-nums`}>

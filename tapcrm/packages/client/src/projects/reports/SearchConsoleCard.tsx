@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Loading, Notice, Select } from '../../ui/components.js';
+import { Button, Card, Loading, Notice, Select } from '../../ui/index.js';
 import { getSearchConsoleSettings, linkSearchConsoleProperty, syncSearchConsoleRanks, unlinkSearchConsoleProperty } from './api/projectReportsApi.js';
 import type { SearchConsoleSettings } from './types.js';
 

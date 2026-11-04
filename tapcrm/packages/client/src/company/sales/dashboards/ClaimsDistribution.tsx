@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card } from '../../../ui/components.js';
+import { Card } from '../../../ui/index.js';
 import { getClaimsDistribution, type ClaimsDistributionRow } from './dashboard-api.js';
 
 const POLL_INTERVAL_MS = 30_000;

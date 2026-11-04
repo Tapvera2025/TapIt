@@ -10,6 +10,7 @@ import {
   type LeaveTypeDto,
   type LeaveBalanceDto,
 } from '../api/leaveApi.js';
+import { Button, GlassSurface, Page } from '../../ui/index.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
@@ -147,17 +148,12 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
   }
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">Leave</p>
-        <h1 className="font-display text-2xl font-bold">My leave</h1>
-        <p className="text-sm text-app-muted">Apply for leave, review your requests, and check your available balances.</p>
-      </header>
+    <Page eyebrow="Leave" title="My leave" description="Apply for leave, review your requests, and check your available balances.">
       {/* Balances */}
       {balances.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {balances.map((b) => (
-            <div key={b.leaveTypeId} className="min-w-44 rounded-xl border border-app-border bg-app-surface px-3 py-2.5">
+            <GlassSurface key={b.leaveTypeId} className="min-w-44 rounded-xl px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-app-muted">{b.leaveTypeName}</p>
               <p className="mt-0.5 text-base font-bold tabular-nums">
                 {b.available}{' '}
@@ -169,7 +165,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 Used {b.consumed}{b.pending > 0 ? ` · ${b.pending} awaiting approval` : ''}
                 {b.enforced ? ' · limit applies' : ''}
               </p>
-            </div>
+            </GlassSurface>
           ))}
         </div>
       )}
@@ -178,20 +174,20 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
         <h2 className="text-sm font-semibold">My Leave Requests</h2>
         {!showForm && !showWfhForm && !loading && !error && (
           <div className="flex gap-2">
-            <button
-              type="button"
+            <Button
+              kind="primary"
               onClick={() => { setShowForm(true); setLeaveTypeId(''); void refreshTypes('absence'); }}
-              className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-app-on-accent"
+              className="px-3 py-1.5 text-xs"
             >
               Apply for leave
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              kind="secondary"
               onClick={() => { setShowWfhForm(true); setLeaveTypeId(''); void refreshTypes('wfh'); }}
-              className="rounded-lg border border-app-accent/40 bg-app-accent/10 px-3 py-1.5 text-xs font-semibold text-app-accent"
+              className="border-app-accent/40 bg-app-accent/10 px-3 py-1.5 text-xs text-app-accent hover:bg-app-accent/15"
             >
               Request WFH
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -206,7 +202,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
       )}
 
       {showForm && (
-        <form onSubmit={(e) => void handleSubmit(e)} className="rounded-2xl border border-app-border bg-app-surface p-5 space-y-4">
+        <form onSubmit={(e) => void handleSubmit(e)} className="ui-glass-surface space-y-4 rounded-2xl p-5">
           <p className="text-sm font-semibold">Apply for leave</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -216,7 +212,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 value={leaveTypeId}
                 onChange={(e) => setLeaveTypeId(e.target.value)}
                 required
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm"
               >
                 <option value="">Select type…</option>
                 {leaveTypes.map((t) => (
@@ -243,12 +239,12 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm"
               />
               <select
                 value={fromHalf}
                 onChange={(e) => setFromHalf(e.target.value as typeof fromHalf)}
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm"
               >
                 <option value="full">Full day</option>
                 <option value="first">First half</option>
@@ -261,12 +257,12 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm"
               />
               <select
                 value={toHalf}
                 onChange={(e) => setToHalf(e.target.value as typeof toHalf)}
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm"
               >
                 <option value="full">Full day</option>
                 <option value="first">First half</option>
@@ -280,32 +276,33 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 onChange={(e) => setReason(e.target.value)}
                 rows={2}
                 placeholder="State the reason for your leave…"
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm placeholder:text-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent/30"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm placeholder:text-app-muted"
               />
             </div>
           </div>
           {formError && <p className="text-xs text-app-danger">{formError}</p>}
           <div className="flex gap-2">
-            <button
+            <Button
               type="submit"
+              kind="primary"
               disabled={submitting || refreshingTypes || leaveTypes.length === 0}
-              className="rounded-lg bg-app-accent px-4 py-2 text-sm font-semibold text-app-on-accent disabled:opacity-50"
+              className="px-4 py-2 text-sm disabled:opacity-50"
             >
               {submitting ? 'Submitting…' : 'Submit request'}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              kind="secondary"
               onClick={() => { setShowForm(false); setFormError(null); }}
-              className="rounded-lg border border-app-border px-4 py-2 text-sm text-app-muted hover:border-app-accent"
+              className="px-4 py-2 text-sm text-app-muted"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
 
       {showWfhForm && (
-        <form onSubmit={(e) => void handleSubmitWfh(e)} className="rounded-2xl border border-app-border bg-app-surface p-5 space-y-4">
+        <form onSubmit={(e) => void handleSubmitWfh(e)} className="ui-glass-surface space-y-4 rounded-2xl p-5">
           <p className="text-sm font-semibold">Request work from home</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -315,7 +312,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 value={leaveTypeId}
                 onChange={(e) => setLeaveTypeId(e.target.value)}
                 required
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm"
               >
                 <option value="">Select type…</option>
                 {leaveTypes.map((t) => (
@@ -334,7 +331,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm"
               />
             </div>
             <div>
@@ -343,7 +340,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm"
               />
             </div>
             <div className="sm:col-span-2">
@@ -353,26 +350,27 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                 onChange={(e) => setReason(e.target.value)}
                 rows={2}
                 placeholder="Why do you need to work from home?"
-                className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm placeholder:text-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent/30"
+                className="ui-form-control mt-1 px-3 py-1.5 text-sm placeholder:text-app-muted"
               />
             </div>
           </div>
           {formError && <p className="text-xs text-app-danger">{formError}</p>}
           <div className="flex gap-2">
-            <button
+            <Button
               type="submit"
+              kind="primary"
               disabled={submitting || refreshingTypes || leaveTypes.length === 0}
-              className="rounded-lg bg-app-accent px-4 py-2 text-sm font-semibold text-app-on-accent disabled:opacity-50"
+              className="px-4 py-2 text-sm disabled:opacity-50"
             >
               {submitting ? 'Submitting…' : 'Request WFH'}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              kind="secondary"
               onClick={() => { setShowWfhForm(false); setFormError(null); }}
-              className="rounded-lg border border-app-border px-4 py-2 text-sm text-app-muted hover:border-app-accent"
+              className="px-4 py-2 text-sm text-app-muted"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -380,17 +378,17 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
       {error && (
         <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-app-danger">
           <span>{error}</span>
-          <button type="button" onClick={() => void load()} className="rounded-lg border border-app-border px-3 py-1.5 text-app-foreground">
+          <Button kind="secondary" onClick={() => void load()} className="px-3 py-1.5 text-xs">
             Try again
-          </button>
+          </Button>
         </div>
       )}
       {loading && <p role="status" className="text-sm text-app-muted">Loading…</p>}
 
       {!loading && !error && leaves.length === 0 && (
-        <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">
+        <GlassSurface className="rounded-2xl p-8 text-center text-sm text-app-muted">
           No leave requests yet.
-        </div>
+        </GlassSurface>
       )}
 
       {!loading && !error && leaves.length > 0 && (
@@ -398,7 +396,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
           {[...leaves]
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
             .map((leave) => (
-              <div key={leave.id} className="rounded-2xl border border-app-border bg-app-surface p-4">
+              <GlassSurface key={leave.id} className="rounded-2xl p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold">{leave.leaveTypeName}</p>
@@ -413,23 +411,23 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                       {leave.status}
                     </span>
                     {leave.allowedActions?.cancel && (
-                      <button
-                        type="button"
+                      <Button
+                        kind="danger"
                         onClick={() => void handleCancel(leave.id)}
-                        className="rounded-lg border border-app-border px-2.5 py-1 text-xs text-app-muted hover:border-rose-400 hover:text-rose-600"
+                        className="px-2.5 py-1 text-xs"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
                 {leave.decisionNote && (
                   <p className="mt-2 text-xs text-app-muted border-t border-app-border pt-2">{leave.decisionNote}</p>
                 )}
-              </div>
+              </GlassSurface>
             ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }

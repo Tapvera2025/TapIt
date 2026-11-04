@@ -1,5 +1,5 @@
-import { Card } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Card } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import type { MyTodo, TodoPriority } from '../types/index.js';
 
 export interface TodoCardProps {

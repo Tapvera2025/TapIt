@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, Card } from '../../../../ui/components.js';
+import { Button, Card } from '../../../../ui/index.js';
 
 /**
  * One section of the My Work dashboard: header with count + urgency,

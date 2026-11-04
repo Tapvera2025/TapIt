@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, Page, Select } from '../../../ui/components.js';
+import { Button, Card, Page, Select } from '../../../ui/index.js';
 import {
   createDraftCommercials,
   createShareLink,

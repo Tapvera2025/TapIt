@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '../../ui/Icon.js';
-import { WorkspacePageContainer } from '../../ui/components.js';
+import { Icon } from '../../ui/index.js';
+import { WorkspacePageContainer } from '../../ui/index.js';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,
@@ -12,7 +12,7 @@ import {
   Notice,
   Select,
 } from '../components/OrganizationUi.js';
-import { suggestNextCode } from '../../ui/code-suggest.js';
+import { suggestNextCode } from '../../ui/index.js';
 import type { OrganizationDepartment } from '../types/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 

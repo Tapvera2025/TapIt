@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card } from '../../../../ui/components.js';
+import { Card } from '../../../../ui/index.js';
 import { getAllCallbacks, type LeadCallback } from '../../leads/api.js';
 import { partitionCallbacks, relativeTime } from '../myWork-helpers.js';
 import { MyWorkSection } from './Shell.js';

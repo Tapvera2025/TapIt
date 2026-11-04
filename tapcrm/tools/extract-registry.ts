@@ -57,6 +57,8 @@ const MODULES = new Set([
   'handovers',
   'deals',
   'approvals',
+  'telephony',
+  'lead-imports',
   'handoff',
   'projects',
   'tasks',

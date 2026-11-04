@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Field } from '../../../ui/components.js';
+import { Button, Field } from '../../../ui/index.js';
 import {
   checkDuplicateLeads,
   createLead,

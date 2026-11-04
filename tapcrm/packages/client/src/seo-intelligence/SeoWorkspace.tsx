@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Button, SkeletonPage } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button, SkeletonPage } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import { AddSiteModal } from './AddSiteModal.js';
 import { SeoOverviewPanel } from './SeoOverviewPanel.js';
 import { SeoFindingsPanel } from './SeoAuditPanel.js';
@@ -286,6 +286,7 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
                   id="seo-website"
                   value={selectedId ?? ''}
                   onChange={(event) => changeSite(event.target.value)}
+                  className="bg-transparent"
                 >
                   {sites.map((site) => (
                     <option key={site.id} value={site.id}>

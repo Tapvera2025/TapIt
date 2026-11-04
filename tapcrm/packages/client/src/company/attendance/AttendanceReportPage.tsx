@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, Loading, Notice, Page, Select } from '../../ui/components.js';
-import { calendarMonth, validDateOnly } from '../../ui/calendar-model.js';
+import { Button, Card, Empty, Loading, Notice, Page, Select } from '../../ui/index.js';
+import { calendarMonth, validDateOnly } from '../../ui/index.js';
 import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
 import { attendanceErrorMessage, getDailyAttendanceReport, getMonthlyAttendanceReport, requestDailyAttendanceExport, requestMonthlyAttendanceExport, type DailyAttendanceRow, type MonthlyAttendanceRow } from './attendanceApi.js';
 import { AttendanceKpis, AttendanceLegend } from './AttendanceVisuals.js';

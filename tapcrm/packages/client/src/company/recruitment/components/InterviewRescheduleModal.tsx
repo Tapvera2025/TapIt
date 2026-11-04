@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Field, Modal, Notice } from '../../../ui/components.js';
+import { Button, Field, Modal, Notice } from '../../../ui/index.js';
 import { rescheduleInterview } from '../api/recruitmentApi.js';
 import type { Interview } from '../types/index.js';
 

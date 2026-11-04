@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Page } from '../../../ui/components.js';
+import { Button, Card, Page } from '../../../ui/index.js';
 import { getTerritory, getTerritoryCoverage, reassignTerritory, type Territory, type TerritoryCoverage } from '../api.js';
 import { getCompanyTeams, type CompanyTeam } from '../../api/companyApi.js';
 

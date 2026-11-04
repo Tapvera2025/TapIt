@@ -131,6 +131,28 @@ export function WorkspacePageContainer({
   );
 }
 
+/** Shared glass surface used by page cards and dashboard panels. */
+export function GlassSurface({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return <div className={`ui-glass-surface ${className}`}>{children}</div>;
+}
+
+/** Shared app surface for panes that contain fixed dialogs or overlays. */
+export function PanelSurface({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return <div className={`ui-panel-surface ${className}`}>{children}</div>;
+}
+
 export function Page({
   eyebrow,
   title,
@@ -474,7 +496,7 @@ export function Button({
     <button
       type="button"
       {...props}
-      className={`rounded-lg px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${styles} ${props.className ?? ''}`}
+      className={`ui-button rounded-xl px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${styles} ${props.className ?? ''}`}
     >
       {children}
     </button>
@@ -514,7 +536,7 @@ export function Field({
       value={value}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
+      className="ui-form-control w-full px-3 py-2.5 text-sm outline-none"
     />
   );
   const message = error && <span className="mt-1 block font-normal text-app-danger" role="alert">{error}</span>;
@@ -547,6 +569,7 @@ export function Select({
   required = false,
   disabled = false,
   error,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -555,6 +578,8 @@ export function Select({
   required?: boolean;
   disabled?: boolean;
   error?: string | undefined;
+  /** The empty option's text, e.g. "All teams" for a filter. Defaults to "Select <label>". */
+  placeholder?: string;
 }): React.JSX.Element {
   return (
     <label className="text-xs font-semibold text-app-muted">
@@ -564,9 +589,9 @@ export function Select({
         disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
+        className="ui-form-control w-full px-3 py-2.5 text-sm outline-none disabled:opacity-50"
       >
-        <option value="">Select {label.toLowerCase()}</option>
+        <option value="">{placeholder ?? `Select ${label.toLowerCase()}`}</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -621,7 +646,7 @@ export function SearchableSelect({
           setQuery(event.target.value);
           setOpen(true);
         }}
-        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
+        className="ui-form-control w-full px-3 py-2.5 text-sm outline-none disabled:opacity-50"
       />
       {open && !disabled && (
         <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-app-border bg-app-surface shadow-xl">

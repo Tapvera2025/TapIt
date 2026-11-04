@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { RecruitmentTab } from '../types/index.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Icon } from '../../../ui/index.js';
 
 interface TabItem {
   readonly id: RecruitmentTab;

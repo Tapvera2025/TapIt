@@ -9,8 +9,8 @@ import {
   Notice,
   SkeletonMetric,
   SkeletonTable,
-} from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+} from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import {
   disconnectSocialAccount,
   downloadSocialAnalyticsCsv,

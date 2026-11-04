@@ -8,7 +8,7 @@ import {
   Notice,
   Page,
   Select,
-} from '../../ui/components.js';
+} from '../../ui/index.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../api/companyApi.js';
 import { listPenalties } from './api/penaltiesApi.js';
 import { downloadPenalties } from './api/penaltiesApi.js';

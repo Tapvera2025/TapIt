@@ -1,4 +1,4 @@
-import { Button, Modal } from '../../../ui/components.js';
+import { Button, Modal } from '../../../ui/index.js';
 import { PENALTY_LABELS, type Penalty } from '../types/index.js';
 import { PayrollStatusBadge, PenaltyStatusBadge } from './PenaltyStatusBadge.js';
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Loading } from '../ui/components.js';
+import { createPortal } from 'react-dom';
+import { Loading } from '../ui/index.js';
 import { getChatColleagues, startDirectConversation, type Conversation } from './api/chatApi.js';
 import { ConversationWorkspace } from './ConversationWorkspace.js';
 import { useChat } from './useChat.js';
@@ -66,26 +67,29 @@ export function DirectMessagesPage({
       />
 
       {showPicker && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setShowPicker(false)}>
-          <div data-lenis-prevent className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto overscroll-contain p-4" onClick={(event) => event.stopPropagation()}>
-            <p className="mb-3 text-sm font-semibold">Start a conversation</p>
-            {!colleaguesLoaded ? (
-              <Loading />
-            ) : colleagues.length === 0 ? (
-              <p className="text-sm text-app-muted">No one else is available to message yet.</p>
-            ) : (
-              <ul>
-                {colleagues.map((person) => (
-                  <li key={person.id}>
-                    <button type="button" onClick={() => void startChatWith(person.id)} className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-app-surface-raised">
-                      {person.fullName}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
+        createPortal(
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setShowPicker(false)}>
+            <div data-lenis-prevent className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto overscroll-contain p-4" onClick={(event) => event.stopPropagation()}>
+              <p className="mb-3 text-sm font-semibold">Start a conversation</p>
+              {!colleaguesLoaded ? (
+                <Loading />
+              ) : colleagues.length === 0 ? (
+                <p className="text-sm text-app-muted">No one else is available to message yet.</p>
+              ) : (
+                <ul>
+                  {colleagues.map((person) => (
+                    <li key={person.id}>
+                      <button type="button" onClick={() => void startChatWith(person.id)} className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-app-surface-raised">
+                        {person.fullName}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )
       )}
 
       {error && (

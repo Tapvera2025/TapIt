@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { PeopleCalendar, type PeopleCalendarDay } from '../../ui/PeopleCalendar.js';
+import { PeopleCalendar, type PeopleCalendarDay } from '../../ui/index.js';
 import {
   attendanceErrorMessage,
   getAttendanceDays,
@@ -15,10 +15,10 @@ import {
   type EmployeeWiseReport,
 } from './attendanceApi.js';
 import { listHolidays, type Holiday } from '../api/holidaysApi.js';
-import { calendarMonth } from '../../ui/calendar-model.js';
+import { calendarMonth } from '../../ui/index.js';
 import { organizationLocalToIso } from '../sales/leads/callback-ui.js';
 import { attendanceStatus, MonthlyAttendanceKpis } from './AttendanceVisuals.js';
-import { Card, WorkspacePageContainer } from '../../ui/components.js';
+import { Card, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
 import { formatMinutes } from '../../ui/format-duration.js';
 

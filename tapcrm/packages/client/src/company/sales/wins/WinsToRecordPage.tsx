@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Page } from '../../../ui/components.js';
+import { Button, Card, Page } from '../../../ui/index.js';
 import {
   getWinReadiness,
   listWinsToRecord,

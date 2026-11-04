@@ -63,6 +63,12 @@ export function leadActivityLabel(activity: LeadActivityLike): string {
       const dealNumber = text(metadata['dealNumber']);
       return dealNumber ? `Converted to deal #${dealNumber}` : 'Converted to a deal';
     }
+    case 'lead.created': {
+      const importName = text(metadata['importName']);
+      return importName ? `Imported from “${importName}”` : (EVENT_LABELS['lead.created'] ?? 'Lead added');
+    }
+    case 'lead.assigned':
+      return metadata['via'] === 'sheet' ? 'Assigned from the import sheet' : (EVENT_LABELS['lead.assigned'] ?? 'Assigned to an owner');
     default:
       return (
         EVENT_LABELS[activity.eventName] ?? activity.eventName.replaceAll(/[._]/g, ' ')

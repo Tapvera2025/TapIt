@@ -20,6 +20,11 @@ export function CompanyLayout({
   canViewTerritories,
   canViewLeads,
   canViewCallbacks,
+  canViewCalls,
+  canTriageSales,
+  canViewImports = false,
+  canTrackAssignedCalls = false,
+  canManageCalls,
   canViewHandovers,
   canViewDeals,
   canRecordWin,
@@ -79,6 +84,11 @@ export function CompanyLayout({
   canViewTerritories: boolean;
   canViewLeads: boolean;
   canViewCallbacks: boolean;
+  canViewCalls: boolean;
+  canTriageSales: boolean;
+  canViewImports?: boolean;
+  canTrackAssignedCalls?: boolean;
+  canManageCalls: boolean;
   canViewHandovers: boolean;
   canViewDeals: boolean;
   canRecordWin: boolean;
@@ -243,52 +253,10 @@ export function CompanyLayout({
         <Navbar
           identity={identity}
           organizationName={organizationName}
-<<<<<<< HEAD
           organizationCode={organizationCode}
           sidebarCollapsed={sidebarCollapsed}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={toggleSidebar}
-=======
-          accountType={accountType}
-          canRequestRoleChange={canRequestRoleChange}
-          canViewAudit={canViewAudit}
-          canManageLeaveTypes={canManageLeaveTypes}
-          canViewLeaveBalances={canViewLeaveBalances}
-          canUseLeaveQueue={canUseLeaveQueue}
-          canViewEmployees={canViewEmployees}
-          canViewTerritories={canViewTerritories}
-          canViewLeads={canViewLeads}
-          canViewCallbacks={canViewCallbacks}
-          canViewHandovers={canViewHandovers}
-          canViewDeals={canViewDeals}
-          canRecordWin={canRecordWin}
-          canDecideApprovals={canDecideApprovals}
-          canForecast={canForecast}
-          canViewChat={canViewChat}
-          canViewClients={canViewClients}
-          canViewSocial={canViewSocial}
-          canViewProjects={canViewProjects}
-          canViewLiveBoard={canViewLiveBoard}
-          canViewAttendanceReports={canViewAttendanceReports}
-          canReviewCorrections={canReviewCorrections}
-          canReviewBreaches={canReviewBreaches}
-          canManageBreakPolicies={canManageBreakPolicies}
-          canManageShifts={canManageShifts}
-          canManagePayroll={canManagePayroll}
-          canManagePayrollConfig={canManagePayrollConfig}
-          canViewTa={canViewTa}
-          canManageTa={canManageTa}
-          canManageBiometric={canManageBiometric}
-          canViewAdvances={canViewAdvances}
-          canManageAdvances={canManageAdvances}
-          canViewPenalties={canViewPenalties}
-          canManagePenalties={canManagePenalties}
-          canViewExpenses={canViewExpenses}
-          canApproveExpenses={canApproveExpenses}
-          isHr={isHr}
-          hasRecruitment={hasRecruitment}
-          hasInterviews={hasInterviews}
->>>>>>> 34bc681 (WIP: social module scaffolding, authz hardening, and seed updates)
           onNavigate={onNavigate}
           onLogout={onLogout}
           searchDestinations={searchDestinations}
@@ -308,6 +276,11 @@ export function CompanyLayout({
             canViewTerritories={canViewTerritories}
             canViewLeads={canViewLeads}
             canViewCallbacks={canViewCallbacks}
+            canViewCalls={canViewCalls}
+            canTriageSales={canTriageSales}
+            canViewImports={canViewImports}
+            canTrackAssignedCalls={canTrackAssignedCalls}
+            canManageCalls={canManageCalls}
             canViewHandovers={canViewHandovers}
             canViewDeals={canViewDeals}
             canRecordWin={canRecordWin}

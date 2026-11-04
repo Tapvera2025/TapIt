@@ -20,7 +20,7 @@ import {
   type CompanyTeam,
 } from '../api/companyApi.js';
 import { listShifts, listWeekdaySchedules, type ShiftTemplate, type WeekdaySchedule } from '../api/shiftsApi.js';
-import { SkeletonTableRows, WorkspacePageContainer } from '../../ui/components.js';
+import { SkeletonTableRows, WorkspacePageContainer } from '../../ui/index.js';
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 

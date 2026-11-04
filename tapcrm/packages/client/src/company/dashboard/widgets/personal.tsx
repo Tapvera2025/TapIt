@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '../../../ui/Icon.js';
+import { Icon } from '../../../ui/index.js';
 import { getMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../../../identity/api/sessionsApi.js';
 import { loadTodayStatus, punch, type PunchKind, type TodayStatus } from '../../live/liveApi.js';
 import { getMyShiftAssignment, type ShiftAssignment } from '../../api/shiftsApi.js';

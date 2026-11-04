@@ -129,11 +129,6 @@ export function buildApp(options: BuildOptions = {}): Express {
   app.use(`${config.API_BASE_PATH}/webhooks/whatsapp`, buildWhatsAppWebhookRouter());
   app.use(`${config.API_BASE_PATH}/webhooks/gbp-call`, buildGbpWebhookRouter());
 
-  // Lead imports (R1 step 1.11) ship a CSV body as text/csv. Install the
-  // raw parser globally so the authenticated route handler sees a Buffer
-  // without re-reading the stream.
-  app.use(express.raw({ type: 'text/csv', limit: 20 * 1024 * 1024 }));
-
   // Scoped upload body limit; other CRM endpoints retain their current limit.
   app.use('/api/social', express.json({ limit: '72mb' }));
   app.use(express.json({ limit: '15mb' }));

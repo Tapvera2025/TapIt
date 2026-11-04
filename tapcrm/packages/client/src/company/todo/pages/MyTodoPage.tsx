@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Notice, SkeletonCard, WorkspacePageContainer } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Notice, SkeletonCard, WorkspacePageContainer } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import {
   completeTodo,
   createTodo,

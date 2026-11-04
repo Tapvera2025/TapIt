@@ -1,5 +1,5 @@
 import { ConversationWorkspace } from '../../chat/ConversationWorkspace.js';
-import { Loading, Notice } from '../../ui/components.js';
+import { Loading, Notice } from '../../ui/index.js';
 import { reactToProjectDiscussionMessage, removeProjectDiscussionReaction, sendProjectDiscussionMessage } from '../api/projectDiscussionApi.js';
 import { useClientMessages } from '../useClientMessages.js';
 import { useEffect } from 'react';

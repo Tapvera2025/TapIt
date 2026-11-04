@@ -1,4 +1,4 @@
-import { Card } from '../../../ui/components.js';
+import { Card } from '../../../ui/index.js';
 import type { Commercials } from './api.js';
 import {
   COMMERCIALS_STATE_LABELS,

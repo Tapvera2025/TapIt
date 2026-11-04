@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '../../ui/Icon.js';
-import { WorkspacePageContainer } from '../../ui/components.js';
+import { Icon } from '../../ui/index.js';
+import { WorkspacePageContainer } from '../../ui/index.js';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Button, Modal } from '../ui/components.js';
+import { Button, Modal } from '../ui/index.js';
 import { getClients, type Client } from '../clients/api/clientsApi.js';
 import { createSeoSite } from './api.js';
 import type { SeoSite } from './types.js';
-import { Icon } from '../ui/Icon.js';
+import { Icon } from '../ui/index.js';
 
 export function AddSiteModal({
   onClose,

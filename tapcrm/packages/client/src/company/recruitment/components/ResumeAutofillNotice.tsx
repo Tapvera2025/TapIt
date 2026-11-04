@@ -1,6 +1,6 @@
 import type { ParsedCandidateData } from '@tapcrm/contracts';
 import { useEffect, useState } from 'react';
-import { Icon } from '../../../ui/Icon.js';
+import { Icon } from '../../../ui/index.js';
 import {
   formatYears,
   resumeHighlights,

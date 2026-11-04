@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Field, Page, Select } from '../../../ui/components.js';
+import { Button, Card, Field, Page, Select } from '../../../ui/index.js';
 import { listDeals, type Deal, type DealListQuery } from './api.js';
 import {
   APPROVAL_LABELS,
@@ -82,7 +82,7 @@ export function DealsPage({ isSalesHod, onNavigate }: DealsPageProps): React.JSX
     <Page
       eyebrow="Sales"
       title="Deals"
-      description="Pipeline of qualified leads moving toward a signed, paid, delivered close."
+      description="A deal is a qualified business opportunity moving toward a signed, paid, delivered close. A lead stays in Leads until it is ready for this pipeline."
       action={
         <div className="flex flex-wrap gap-2">
           {canKanban && (

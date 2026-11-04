@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getChatColleagues } from '../chat/index.js';
 import { TasksPage } from '../company/tasks/index.js';
-import { Button, Card, Notice, SkeletonDetail, SkeletonMessageThread } from '../ui/components.js';
+import { Button, Card, Notice, SkeletonDetail, SkeletonMessageThread } from '../ui/index.js';
 import { getProject, setProjectTeam, type Project } from './api/projectsApi.js';
 import { EditProjectModal } from './EditProjectModal.js';
 import { formatProjectDate } from './formatDate.js';

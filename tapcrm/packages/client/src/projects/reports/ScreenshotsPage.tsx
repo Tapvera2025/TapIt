@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Empty, Loading, Modal, Notice } from '../../ui/components.js';
+import { Button, Card, Empty, Loading, Modal, Notice } from '../../ui/index.js';
 import { deleteScreenshot, getScreenshotContent, getScreenshots, updateScreenshot, uploadScreenshots } from './api/screenshotsApi.js';
 import { Pager } from './components/Pager.js';
 import { ClientFeedbackPlaceholder } from './components/ClientFeedbackPlaceholder.js';

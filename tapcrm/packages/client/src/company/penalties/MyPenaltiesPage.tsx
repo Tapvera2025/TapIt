@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../ui/components.js';
+import { Card, Empty, Loading, Notice, Page } from '../../ui/index.js';
 import { listMyPenalties } from './api/penaltiesApi.js';
 import { PenaltyDetailDrawer } from './components/PenaltyDetailDrawer.js';
 import { MyPenaltyTable } from './components/MyPenaltyTable.js';

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Icon } from '../ui/Icon.js';
+import { Icon } from '../ui/index.js';
 import type { AppNotification } from './api/notificationsApi.js';
 import { useNotifications } from './useNotifications.js';
 

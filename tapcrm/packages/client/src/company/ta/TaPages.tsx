@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Field, Modal, Notice, Page, Select } from '../../ui/components.js';
+import { Button, Card, Field, Modal, Notice, Page, Select } from '../../ui/index.js';
 import {
   getCompanyDepartments,
   getCompanyEmployees,

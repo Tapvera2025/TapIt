@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getCompanyEmployees, type CompanyEmployee } from '../company/api/companyApi.js';
-import { Button, Loading } from '../ui/components.js';
+import { Button, Loading } from '../ui/index.js';
 import {
   addGroupMembers,
   archiveGroup,
@@ -146,7 +147,7 @@ function CreateGroupModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="ui-card flex max-h-[80vh] w-full max-w-sm flex-col p-4" onClick={(event) => event.stopPropagation()}>
         <p className="mb-3 text-sm font-semibold">New Internal Group</p>
@@ -185,7 +186,8 @@ function CreateGroupModal({
           <Button onClick={() => void submit()} disabled={saving || !name.trim() || selected.size === 0}>Create</Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -232,7 +234,7 @@ export function ManageGroupModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="ui-card flex max-h-[80vh] w-full max-w-sm flex-col p-4" onClick={(event) => event.stopPropagation()}>
         <p className="mb-3 text-sm font-semibold">Manage “{conversation.name}”</p>
@@ -310,6 +312,7 @@ export function ManageGroupModal({
           <Button kind="secondary" onClick={onClose}>Close</Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Page } from '../../../ui/components.js';
+import { Button, Card, Field, Page } from '../../../ui/index.js';
 import { createLeadSource, getCampaigns, getLeadSources, getLeads, type Campaign, type Lead, type LeadSource } from './api.js';
 import { AddLeadDrawer, useAddLeadShortcut } from './AddLeadDrawer.js';
+import { ImportLeadsWizard } from './imports/ImportLeadsWizard.js';
+import { LeadsViewTabs } from './imports/LeadsViewTabs.js';
+import { IMPORTED_LEADS_PATH } from './imports/import-format.js';
 
-export function LeadsPage({ onNavigate }: { onNavigate: (path: string) => void }): React.JSX.Element {
+export function LeadsPage({ onNavigate, canViewImports = false, canImport = false }: { onNavigate: (path: string) => void; canViewImports?: boolean; canImport?: boolean }): React.JSX.Element {
+  const [importOpen, setImportOpen] = useState(false);
   const [items, setItems] = useState<Lead[]>([]); const [sources, setSources] = useState<LeadSource[]>([]); const [campaigns, setCampaigns] = useState<Campaign[]>([]); const [open, setOpen] = useState(false); const [sourceOpen, setSourceOpen] = useState(false); const [error, setError] = useState('');
   const reload = () => Promise.all([getLeads(), getLeadSources(), getCampaigns()]).then(([page, nextSources, nextCampaigns]) => { setItems(page.items); setSources(nextSources); setCampaigns(nextCampaigns); }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load leads.'));
   useEffect(() => { void reload(); }, []);
   const [duplicates, setDuplicates] = useState<Array<{ leadId: string; leadNumber: string; ownerName: string | null }>>([]);
   useAddLeadShortcut(() => setOpen(true));
-  return <Page eyebrow="Sales" title="Leads" description="Capture and review sales leads. Routing follows the configured Territories foundation when applicable." action={<div className="flex flex-wrap gap-2"><Button kind="secondary" onClick={() => onNavigate('/company/sales/leads/re-engagement')}>Re-engagement</Button><Button kind="secondary" onClick={() => onNavigate('/company/sales/leads/stalled')}>Stalled queue</Button><Button onClick={() => setOpen(true)}>New Lead</Button></div>}>
+  return <Page eyebrow="Sales" title="Leads" description="A lead is a new enquiry or potential customer. Qualify it into a deal when there is a real commercial opportunity. Inbound routing follows territory rules when configured." action={<div className="flex flex-wrap gap-2"><Button kind="secondary" onClick={() => onNavigate('/company/sales/leads/re-engagement')}>Re-engagement</Button><Button kind="secondary" onClick={() => onNavigate('/company/sales/leads/stalled')}>Stalled queue</Button>{canImport && <Button kind="secondary" onClick={() => setImportOpen(true)}>Import leads</Button>}<Button onClick={() => setOpen(true)}>New Lead</Button></div>}>
+    {canViewImports && <LeadsViewTabs active="all" onNavigate={onNavigate} />}
+    {importOpen && <ImportLeadsWizard sources={sources} campaigns={campaigns} onClose={() => setImportOpen(false)} onDone={(importId) => { setImportOpen(false); onNavigate(`${IMPORTED_LEADS_PATH}?import=${importId}`); }} />}
     {error && <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger">{error}</p>}
     {duplicates.length > 0 && <Card className="mb-6 border border-amber-500/40 bg-amber-500/10"><p className="font-semibold">Possible duplicate lead created</p><p className="mt-1 text-sm text-app-muted">Review these existing records before continuing outreach: {duplicates.map((duplicate) => `#${duplicate.leadNumber}${duplicate.ownerName ? ` (${duplicate.ownerName})` : ''}`).join(', ')}.</p></Card>}
     {open && <AddLeadDrawer sources={sources} campaigns={campaigns} onClose={() => setOpen(false)} onCreated={(lead, dupes) => { setDuplicates(dupes); void reload(); if (!dupes.length) onNavigate(`/company/sales/leads/${lead.id}`); }} onOpenExisting={(leadId) => onNavigate(`/company/sales/leads/${leadId}`)} />}

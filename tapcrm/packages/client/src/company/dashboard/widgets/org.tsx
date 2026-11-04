@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '../../../ui/Icon.js';
-import { RingChart, BarChart, Progress } from '../../../ui/charts.js';
+import { Icon } from '../../../ui/index.js';
+import { RingChart, BarChart, Progress } from '../../../ui/index.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../../api/companyApi.js';
 
 function Panel({ children }: { children: React.ReactNode }): React.JSX.Element {

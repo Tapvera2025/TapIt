@@ -196,6 +196,8 @@ services:
       CRUX_API_KEY: ${CRUX_API_KEY:-}
       PAGESPEED_API_KEY: ${PAGESPEED_API_KEY:-}
       RESUME_OCR: ${RESUME_OCR:-true}
+      # Call Analytics: encrypts the JustCall / Aircall keys companies enter.
+      TELEPHONY_CREDENTIALS_KEY: ${TELEPHONY_CREDENTIALS_KEY:-}
       # Empty values keep official social providers in Setup Required.
       SOCIAL_PUBLIC_BASE_URL: ${SOCIAL_PUBLIC_BASE_URL:-}
       SOCIAL_TOKEN_ENCRYPTION_KEY: ${SOCIAL_TOKEN_ENCRYPTION_KEY:-}

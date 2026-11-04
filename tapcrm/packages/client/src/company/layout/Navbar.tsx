@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { NotificationBell } from '../../notifications/NotificationBell.js';
-import { BrandLogo } from '../../ui/BrandLogo.js';
-import { Icon } from '../../ui/Icon.js';
+import { ThemeToggle } from '../../theme/ThemeToggle.js';
+import { BrandLogo } from '../../ui/index.js';
+import { Icon } from '../../ui/index.js';
 import { AiPetButton } from './AiPet.js';
 import { GlobalFeatureSearch } from './GlobalFeatureSearch.js';
 import type { CompanySearchDestination } from './navigation.js';

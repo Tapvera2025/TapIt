@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Field, Select } from '../../../ui/components.js';
+import { Button, Card, Field, Select } from '../../../ui/index.js';
 import { markLeadLost, updateLeadStatus, type Lead } from './api.js';
 import {
   isClosedLeadStatus,

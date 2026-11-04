@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Page } from '../../../ui/components.js';
+import { Button, Card, Page } from '../../../ui/index.js';
 import { getStalledLeads, type Lead } from './api.js';
 
 export function StalledLeadsPage({ onBack, onNavigate }: { onBack: () => void; onNavigate: (path: string) => void }): React.JSX.Element {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { calendarMonth } from '../../ui/calendar-model.js';
-import { Icon } from '../../ui/Icon.js';
+import { calendarMonth } from '../../ui/index.js';
+import { Icon } from '../../ui/index.js';
 import type { EmployeeWiseDay, MonthlyAttendanceRow } from './attendanceApi.js';
 import { formatMinutes } from '../../ui/format-duration.js';
 

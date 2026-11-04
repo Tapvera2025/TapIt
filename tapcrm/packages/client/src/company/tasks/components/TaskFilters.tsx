@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '../../../ui/Icon.js';
-import { Button } from '../../../ui/components.js';
+import { Icon } from '../../../ui/index.js';
+import { Button } from '../../../ui/index.js';
 import type { TaskFiltersProps, TaskListQuery } from '../types/index.js';
 
 type PresetGroup1 = 'all' | 'pending' | 'in_progress' | 'high' | 'completed';

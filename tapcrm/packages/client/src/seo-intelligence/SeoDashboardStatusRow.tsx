@@ -12,7 +12,7 @@
  * showing a stale or made-up zero.
  */
 import { useEffect, useState } from 'react';
-import { Icon } from '../ui/Icon.js';
+import { Icon } from '../ui/index.js';
 import {
   listGscMetrics,
   listSeoCwvObservations,

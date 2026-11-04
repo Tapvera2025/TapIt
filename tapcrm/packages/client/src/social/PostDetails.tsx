@@ -1,7 +1,7 @@
 import { getIdentitySessionSnapshot } from '../identity/api/authApi.js';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Field, Modal, Notice } from '../ui/components.js';
+import { Button, Field, Modal, Notice } from '../ui/index.js';
 import { actOnSocialPost } from './api.js';
 import { PlatformMark, PostStatus, socialDate } from './presentation.js';
 import { scheduleInZone, scheduleToUtc } from './time.js';

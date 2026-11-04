@@ -127,6 +127,11 @@
 | `callbacks:view` | callbacks | callback | business | no | no | — | yes | yes | no |
 | `callbacks:create` | callbacks | callback | business | no | no | — | yes | yes | no |
 | `callbacks:edit` | callbacks | callback | business | no | no | — | yes | yes | no |
+| `telephony:view` | telephony | telephonyCall | business | no | no | — | yes | yes | no |
+| `telephony:listen` | telephony | telephonyCall | business | yes | no | — | yes | no | no |
+| `telephony:manage` | telephony | — | business | yes | no | — | yes | no | yes |
+| `lead-imports:view` | lead-imports | — | business | no | no | — | yes | yes | no |
+| `lead-imports:manage` | lead-imports | — | business | yes | no | — | yes | no | no |
 | `handovers:initiate` | handovers | handover | business | no | no | — | yes | yes | no |
 | `handovers:receive` | handovers | handover | business | no | no | — | yes | yes | no |
 | `handovers:record-disposition` | handovers | handover | business | no | no | — | yes | yes | no |
@@ -554,6 +559,35 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/callbacks | `callbacks:create` | — |
 | PATCH | /api/callbacks/:id | `callbacks:edit` | id |
 | POST | /api/callbacks/:id/outcome | `callbacks:edit` | id |
+| GET | /api/telephony/overview | `telephony:view` | — |
+| GET | /api/telephony/calls | `telephony:view` | — |
+| GET | /api/telephony/calls/:id | `telephony:view` | id |
+| GET | /api/telephony/calls/:id/recording | `telephony:listen` | id |
+| GET | /api/telephony/employees | `telephony:view` | — |
+| GET | /api/telephony/connections | `telephony:manage` | — |
+| POST | /api/telephony/connections | `telephony:manage` | — |
+| PATCH | /api/telephony/connections/:id | `telephony:manage` | id |
+| POST | /api/telephony/connections/:id/test | `telephony:manage` | id |
+| POST | /api/telephony/connections/:id/sync | `telephony:manage` | id |
+| POST | /api/telephony/connections/:id/disconnect | `telephony:manage` | id |
+| GET | /api/telephony/connections/:id/runs | `telephony:manage` | id |
+| GET | /api/telephony/agents | `telephony:manage` | — |
+| PUT | /api/telephony/agents/:id/employee | `telephony:manage` | id |
+| POST | /api/telephony/agents/rematch | `telephony:manage` | — |
+| GET | /api/telephony/employee-options | `telephony:manage` | — |
+| GET | /api/lead-imports | `lead-imports:view` | — |
+| POST | /api/lead-imports | `lead-imports:manage` | — |
+| GET | /api/lead-imports/leads | `lead-imports:view` | — |
+| POST | /api/lead-imports/assign | `lead-imports:manage` | — |
+| GET | /api/lead-imports/assignees | `lead-imports:manage` | — |
+| GET | /api/lead-imports/call-tracking | `lead-imports:view` | — |
+| GET | /api/lead-imports/call-tracking/leads/:id | `lead-imports:view` | id |
+| GET | /api/lead-imports/:id | `lead-imports:view` | id |
+| POST | /api/lead-imports/:id/preview | `lead-imports:manage` | id |
+| POST | /api/lead-imports/:id/start | `lead-imports:manage` | id |
+| POST | /api/lead-imports/:id/resume | `lead-imports:manage` | id |
+| POST | /api/lead-imports/:id/discard | `lead-imports:manage` | id |
+| GET | /api/lead-imports/:id/rows | `lead-imports:view` | id |
 | POST | /api/handovers | `handovers:initiate` | — |
 | GET | /api/handovers/targets | `handovers:initiate` | — |
 | POST | /api/handovers/:id/accept | `handovers:receive` | id |

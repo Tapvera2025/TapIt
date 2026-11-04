@@ -1,4 +1,4 @@
-import { Button, Modal } from '../../../ui/components.js';
+import { Button, Modal } from '../../../ui/index.js';
 import type { MyNotepadHistoryItem } from '../types/index.js';
 import { formatHistoryTimestamp } from './NoteHistoryModal.js';
 

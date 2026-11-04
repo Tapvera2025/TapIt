@@ -1,4 +1,4 @@
-import { BrandLogo } from '../ui/BrandLogo.js';
+import { BrandLogo } from '../ui/index.js';
 import { useState } from 'react';
 
 export function AcceptInvitation() {

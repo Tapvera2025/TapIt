@@ -11,7 +11,7 @@ import {
   type Action,
   type ActionDefinition,
 } from '@tapcrm/contracts';
-import { Button } from '../../ui/components.js';
+import { Button } from '../../ui/index.js';
 import type { PolicyImpactPreview, PositionPolicy } from '../types/index.js';
 
 /**

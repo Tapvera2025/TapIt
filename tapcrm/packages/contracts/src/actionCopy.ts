@@ -287,6 +287,34 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   },
   'callbacks:view': { title: 'See callbacks', description: 'See scheduled callbacks.' },
 
+  // Sales — Call Analytics (JustCall / Aircall)
+  'telephony:view': {
+    title: 'See calls and call analytics',
+    description:
+      'See synced JustCall and Aircall calls, call logs and calling analytics for the people in reach.',
+  },
+  'telephony:listen': {
+    title: 'Play call recordings',
+    description: 'Play call recordings and voicemails for calls in reach. Every play is recorded.',
+  },
+  'telephony:manage': {
+    title: 'Manage calling integrations',
+    description:
+      'Connect JustCall or Aircall with API keys, match platform users to employees and run syncs.',
+  },
+
+  // Sales — Lead Imports
+  'lead-imports:view': {
+    title: 'See lead imports',
+    description:
+      'See imported lead lists, who their leads were assigned to and whether the assignees called them.',
+  },
+  'lead-imports:manage': {
+    title: 'Import and assign lead lists',
+    description:
+      'Import leads from CSV, Excel or Google Sheets and assign them to people in the Sales department.',
+  },
+
   // Delivery (change requests)
   'changes:assign': {
     title: 'Assign change requests',

@@ -14,7 +14,7 @@ import {
   type PayrollInputState,
   type StructureSummary,
 } from '../api/payrollApi.js';
-import { Button, Card, Modal, Notice, Page, SearchableSelect, SkeletonTable } from '../../ui/components.js';
+import { Button, Card, Modal, Notice, Page, SearchableSelect, SkeletonTable } from '../../ui/index.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;

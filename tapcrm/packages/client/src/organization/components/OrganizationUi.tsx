@@ -12,7 +12,7 @@ export {
   Empty,
   Modal,
   ErrorMessage,
-} from '../../ui/components.js';
+} from '../../ui/index.js';
 
 interface TreePosition {
   id: string;

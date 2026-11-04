@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Page, Select } from '../../../ui/components.js';
+import { Button, Card, Field, Page, Select } from '../../../ui/index.js';
 import { createCallback, getAllCallbacks, getLeads, type Lead, type LeadCallback } from './api.js';
 import { callbackOwnerOptions, callbackStatusLabel, filterCallbacks, formatCallbackDate, organizationLocalToIso, organizationNowLocal, sentenceLabel } from './callback-ui.js';
 
@@ -13,7 +13,7 @@ export function CallbacksPage({ view, organizationTimezone, onNavigate }: { view
   const shown = filterCallbacks(callbacks, ownerId, leadSearch);
   const nav = (next: CallbackView) => onNavigate(`/company/sales/callbacks${next === 'list' ? '' : `/${next}`}`);
   if (view === 'schedule') return <ScheduleCallbackPage organizationTimezone={organizationTimezone} onBack={() => nav('list')} onCreated={(id) => onNavigate(`/company/sales/callbacks/${id}`)} />;
-  return <Page eyebrow="Sales" title="Callbacks" description={`Operational callback work in ${organizationTimezone}.`} action={<div className="flex flex-wrap gap-2"><Button kind="secondary" onClick={() => nav('list')}>List</Button><Button kind="secondary" onClick={() => nav('calendar')}>Calendar</Button><Button kind="secondary" onClick={() => nav('board')}>Board</Button><Button onClick={() => nav('schedule')}>Schedule callback</Button></div>}>
+  return <Page eyebrow="Sales" title="Callbacks" description={`A callback is a follow-up you schedule for a lead. It is different from a missed phone call in JustCall or Aircall; phone calls do not create callbacks automatically. Times use ${organizationTimezone}.`} action={<div className="flex flex-wrap gap-2"><Button kind="secondary" onClick={() => nav('list')}>List</Button><Button kind="secondary" onClick={() => nav('calendar')}>Calendar</Button><Button kind="secondary" onClick={() => nav('board')}>Board</Button><Button onClick={() => nav('schedule')}>Schedule callback</Button></div>}>
     {error && <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger">{error}</p>}
     <div className="mb-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5"><Select label="Status" value={status} onChange={setStatus} options={[{ value: '', label: 'All statuses' }, ...statuses.map((value) => ({ value, label: callbackStatusLabel(value) }))]} /><Select label="Owner" value={ownerId} onChange={setOwnerId} options={[{ value: '', label: 'All owners' }, ...owners]} /><Field label="Lead" value={leadSearch} onChange={setLeadSearch} placeholder="Name or lead number" /><Field label="From" value={from} onChange={setFrom} type="datetime-local" /><Field label="To" value={to} onChange={setTo} type="datetime-local" /></div>
     {view === 'list' ? <CallbackList callbacks={shown} timezone={organizationTimezone} onNavigate={onNavigate} /> : view === 'calendar' ? <CallbackCalendar callbacks={shown} timezone={organizationTimezone} onNavigate={onNavigate} /> : <CallbackBoard callbacks={shown} timezone={organizationTimezone} onNavigate={onNavigate} />}

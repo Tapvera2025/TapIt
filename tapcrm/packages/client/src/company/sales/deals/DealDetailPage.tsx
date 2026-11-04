@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Page, Select } from '../../../ui/components.js';
+import { Button, Card, Field, Page, Select } from '../../../ui/index.js';
 import {
   cancelDealAfterWin,
   confirmPayment,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Notice, SkeletonNotepadPage, WorkspacePageContainer } from '../../../ui/components.js';
+import { Card, Notice, SkeletonNotepadPage, WorkspacePageContainer } from '../../../ui/index.js';
 import {
   clearNote,
   getCurrentNote,

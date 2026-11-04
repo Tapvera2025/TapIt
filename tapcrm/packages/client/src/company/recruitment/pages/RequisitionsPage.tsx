@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Modal, Notice, Page, SkeletonTable } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Card, Empty, Modal, Notice, Page, SkeletonTable } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import { listRequisitions, updateRequisitionStatus } from '../api/recruitmentApi.js';
 import { RequisitionFormModal } from '../components/RequisitionFormModal.js';
 import { ApplicationLinkModal } from '../components/ApplicationLinkModal.js';

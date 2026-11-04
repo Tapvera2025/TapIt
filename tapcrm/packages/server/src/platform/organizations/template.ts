@@ -27,6 +27,8 @@ const SALES_MODULES = [
   'handovers',
   'deals',
   'approvals',
+  'telephony',
+  'lead-imports',
 ] as const;
 const DEVELOPMENT_MODULES = [
   'handoff',

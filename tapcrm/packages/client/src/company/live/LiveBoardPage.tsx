@@ -7,8 +7,8 @@ import {
   subscribeConnectionState,
   type RealtimeConnectionState,
 } from './realtimeClient.js';
-import { Icon } from '../../ui/Icon.js';
-import { WorkspacePageContainer } from '../../ui/components.js';
+import { Icon } from '../../ui/index.js';
+import { WorkspacePageContainer } from '../../ui/index.js';
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);

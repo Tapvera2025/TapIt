@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Card, Modal, Notice, SkeletonTable } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button, Card, Modal, Notice, SkeletonTable } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import {
   assignCompanyLocation,
   completeCompanyConnection,
