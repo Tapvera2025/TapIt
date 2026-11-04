@@ -487,6 +487,7 @@ export function Field({
   type = 'text',
   required = false,
   placeholder,
+  maxLength,
   disabled = false,
   error,
   hint,
@@ -497,6 +498,7 @@ export function Field({
   type?: string;
   required?: boolean;
   placeholder?: string;
+  maxLength?: number;
   disabled?: boolean;
   error?: string | undefined;
   /** A line under the input, e.g. where an automatically filled value came from. */
@@ -509,6 +511,7 @@ export function Field({
       type={type}
       value={value}
       placeholder={placeholder}
+      maxLength={maxLength}
       onChange={(event) => onChange(event.target.value)}
       className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
     />

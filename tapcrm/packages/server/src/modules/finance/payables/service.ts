@@ -5,6 +5,7 @@ import { sql } from '../../../platform/dal/sql.js';
 import { postSourceJournalTx } from '../accounting/facade.js';
 import { PayablesError } from './errors.js';
 import { storeBillArtifact, readBillArtifact, removeBillArtifact } from './file-store.js';
+import { paginate, type PaginationInput } from '../pagination.js';
 import type {
   BankChangeInput,
   BillDecisionInput,
@@ -39,36 +40,24 @@ async function audit(
   );
 }
 
-export const listVendors = (ctx: RequestContext) =>
-  db.query(
-    ctx,
-    sql`SELECT id,legal_name AS "legalName",display_name AS "displayName",email::text,phone,gstin,pan,currency,payment_terms_days AS "paymentTermsDays",status,created_at AS "createdAt" FROM finance_vendor WHERE organization_id=${ctx.organizationId} ORDER BY display_name`,
-  );
-export const listBankChanges = (ctx: RequestContext) =>
-  db.query(
-    ctx,
-    sql`SELECT b.id,b.vendor_id AS "vendorId",v.display_name AS "vendorName",b.bank_name AS "bankName",CASE WHEN length(b.account_reference) > 4 THEN repeat('•', length(b.account_reference) - 4) || right(b.account_reference, 4) ELSE b.account_reference END AS "accountReference",b.ifsc,b.status,b.proposed_by AS "proposedBy",b.approved_by AS "approvedBy",b.reason,b.created_at AS "createdAt" FROM finance_vendor_bank_account b JOIN finance_vendor v ON v.organization_id=b.organization_id AND v.id=b.vendor_id WHERE b.organization_id=${ctx.organizationId} ORDER BY b.created_at DESC`,
-  );
-export const listBills = (ctx: RequestContext) =>
-  db.query(
-    ctx,
-    sql`SELECT b.id,b.vendor_id AS "vendorId",v.display_name AS "vendorName",b.source_type AS "sourceType",b.source_id AS "sourceId",b.invoice_number AS "invoiceNumber",b.issue_date AS "issueDate",b.due_date AS "dueDate",b.currency,b.subtotal::text,b.tax_total::text AS "taxTotal",b.total::text,b.tds_section AS "tdsSection",b.tds_rate::text AS "tdsRate",b.rcm,b.extraction_status AS "extractionStatus",b.status,b.artifact_filename AS "artifactFilename",b.journal_id AS "journalId",b.created_at AS "createdAt" FROM finance_payable_bill b LEFT JOIN finance_vendor v ON v.organization_id=b.organization_id AND v.id=b.vendor_id WHERE b.organization_id=${ctx.organizationId} ORDER BY b.created_at DESC`,
-  );
-export const listRuns = (ctx: RequestContext) =>
-  db.query(
-    ctx,
-    sql`SELECT id,manifest_sha256 AS "manifestSha256",currency,total::text,status,created_by AS "createdBy",approved_by AS "approvedBy",executed_by AS "executedBy",journal_id AS "journalId",created_at AS "createdAt" FROM finance_payment_run WHERE organization_id=${ctx.organizationId} ORDER BY created_at DESC`,
-  );
-export const listSubscriptions = (ctx: RequestContext) =>
-  db.query(
-    ctx,
-    sql`SELECT s.id,s.vendor_id AS "vendorId",v.display_name AS "vendorName",s.name,s.amount::text,s.currency,s.recurrence,s.next_due_date AS "nextDueDate",s.status,s.reason FROM finance_payable_subscription s JOIN finance_vendor v ON v.organization_id=s.organization_id AND v.id=s.vendor_id WHERE s.organization_id=${ctx.organizationId} ORDER BY s.next_due_date`,
-  );
-export const listPurchaseRequests = (ctx: RequestContext) =>
-  db.query(
-    ctx,
-    sql`SELECT p.id,p.vendor_id AS "vendorId",p.description,p.amount::text,p.currency,p.status,p.reason,p.requester_id AS "requesterId",p.approved_by AS "approvedBy",p.matched_bill_id AS "matchedBillId",p.created_at AS "createdAt" FROM finance_purchase_request p WHERE p.organization_id=${ctx.organizationId} ORDER BY p.created_at DESC`,
-  );
+export const listVendors = (ctx: RequestContext, page: PaginationInput) => paginate(ctx,
+  sql`SELECT id,legal_name AS "legalName",display_name AS "displayName",email::text,phone,gstin,pan,currency,payment_terms_days AS "paymentTermsDays",status,created_at AS "createdAt" FROM finance_vendor WHERE organization_id=${ctx.organizationId} ORDER BY display_name LIMIT ${page.pageSize} OFFSET ${page.offset}`,
+  sql`SELECT count(*)::text AS total FROM finance_vendor WHERE organization_id=${ctx.organizationId}`, page);
+export const listBankChanges = (ctx: RequestContext, page: PaginationInput) => paginate(ctx,
+  sql`SELECT b.id,b.vendor_id AS "vendorId",v.display_name AS "vendorName",b.bank_name AS "bankName",CASE WHEN length(b.account_reference) > 4 THEN repeat('•', length(b.account_reference) - 4) || right(b.account_reference, 4) ELSE b.account_reference END AS "accountReference",b.ifsc,b.status,b.proposed_by AS "proposedBy",b.approved_by AS "approvedBy",b.reason,b.created_at AS "createdAt" FROM finance_vendor_bank_account b JOIN finance_vendor v ON v.organization_id=b.organization_id AND v.id=b.vendor_id WHERE b.organization_id=${ctx.organizationId} ORDER BY b.created_at DESC LIMIT ${page.pageSize} OFFSET ${page.offset}`,
+  sql`SELECT count(*)::text AS total FROM finance_vendor_bank_account WHERE organization_id=${ctx.organizationId}`, page);
+export const listBills = (ctx: RequestContext, page: PaginationInput) => paginate(ctx,
+  sql`SELECT b.id,b.vendor_id AS "vendorId",v.display_name AS "vendorName",b.source_type AS "sourceType",b.source_id AS "sourceId",b.invoice_number AS "invoiceNumber",b.issue_date AS "issueDate",b.due_date AS "dueDate",b.currency,b.subtotal::text,b.tax_total::text AS "taxTotal",b.total::text,b.tds_section AS "tdsSection",b.tds_rate::text AS "tdsRate",b.rcm,b.extraction_status AS "extractionStatus",b.status,b.artifact_filename AS "artifactFilename",b.journal_id AS "journalId",b.created_at AS "createdAt" FROM finance_payable_bill b LEFT JOIN finance_vendor v ON v.organization_id=b.organization_id AND v.id=b.vendor_id WHERE b.organization_id=${ctx.organizationId} ORDER BY b.created_at DESC LIMIT ${page.pageSize} OFFSET ${page.offset}`,
+  sql`SELECT count(*)::text AS total FROM finance_payable_bill WHERE organization_id=${ctx.organizationId}`, page);
+export const listRuns = (ctx: RequestContext, page: PaginationInput) => paginate(ctx,
+  sql`SELECT id,manifest_sha256 AS "manifestSha256",currency,total::text,status,created_by AS "createdBy",approved_by AS "approvedBy",executed_by AS "executedBy",journal_id AS "journalId",created_at AS "createdAt" FROM finance_payment_run WHERE organization_id=${ctx.organizationId} ORDER BY created_at DESC LIMIT ${page.pageSize} OFFSET ${page.offset}`,
+  sql`SELECT count(*)::text AS total FROM finance_payment_run WHERE organization_id=${ctx.organizationId}`, page);
+export const listSubscriptions = (ctx: RequestContext, page: PaginationInput) => paginate(ctx,
+  sql`SELECT s.id,s.vendor_id AS "vendorId",v.display_name AS "vendorName",s.name,s.amount::text,s.currency,s.recurrence,s.next_due_date AS "nextDueDate",s.status,s.reason FROM finance_payable_subscription s JOIN finance_vendor v ON v.organization_id=s.organization_id AND v.id=s.vendor_id WHERE s.organization_id=${ctx.organizationId} ORDER BY s.next_due_date LIMIT ${page.pageSize} OFFSET ${page.offset}`,
+  sql`SELECT count(*)::text AS total FROM finance_payable_subscription WHERE organization_id=${ctx.organizationId}`, page);
+export const listPurchaseRequests = (ctx: RequestContext, page: PaginationInput) => paginate(ctx,
+  sql`SELECT p.id,p.vendor_id AS "vendorId",p.description,p.amount::text,p.currency,p.status,p.reason,p.requester_id AS "requesterId",p.approved_by AS "approvedBy",p.matched_bill_id AS "matchedBillId",p.created_at AS "createdAt" FROM finance_purchase_request p WHERE p.organization_id=${ctx.organizationId} ORDER BY p.created_at DESC LIMIT ${page.pageSize} OFFSET ${page.offset}`,
+  sql`SELECT count(*)::text AS total FROM finance_purchase_request WHERE organization_id=${ctx.organizationId}`, page);
 
 export async function createVendor(ctx: RequestContext, input: VendorInput) {
   return db.transaction(ctx, async (tx) => {

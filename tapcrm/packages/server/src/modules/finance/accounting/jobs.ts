@@ -12,7 +12,7 @@ interface IntegrityReport {
 
 export async function runAccountingIntegrityCheck(ctx: RequestContext): Promise<IntegrityReport> {
   const totals = await db.one<{ debit: string; credit: string }>(ctx, sql`
-    SELECT COALESCE(sum(debit), 0)::text AS debit, COALESCE(sum(credit), 0)::text AS credit
+    SELECT COALESCE(sum(base_debit), 0)::text AS debit, COALESCE(sum(base_credit), 0)::text AS credit
     FROM journal_line WHERE organization_id = ${ctx.organizationId}
   `);
   const mismatch = await db.one<{ count: string }>(ctx, sql`
@@ -20,8 +20,8 @@ export async function runAccountingIntegrityCheck(ctx: RequestContext): Promise<
     FROM (
       SELECT ab.ledger_account_id, ab.period_id,
              ab.debit_total, ab.credit_total,
-             COALESCE(sum(jl.debit), 0)::numeric(20,2) AS expected_debit,
-             COALESCE(sum(jl.credit), 0)::numeric(20,2) AS expected_credit
+             COALESCE(sum(jl.base_debit), 0)::numeric(20,2) AS expected_debit,
+             COALESCE(sum(jl.base_credit), 0)::numeric(20,2) AS expected_credit
       FROM account_balance ab
       LEFT JOIN journal_entry je ON je.organization_id = ab.organization_id AND je.period_id = ab.period_id
       LEFT JOIN journal_line jl ON jl.organization_id = ab.organization_id AND jl.journal_entry_id = je.id AND jl.ledger_account_id = ab.ledger_account_id

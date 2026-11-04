@@ -121,6 +121,10 @@ import { registerPayablesJobs } from './finance/payables/index.js';
 import { registerPayablesPolicies } from './finance/payables/index.js';
 import { registerProfitabilityRoutes } from './finance/profitability/index.js';
 import { registerProfitabilityJobs } from './finance/profitability/index.js';
+import { registerCashFlowRoutes } from './finance/cash-flow/index.js';
+import { registerCashFlowJobs } from './finance/cash-flow/index.js';
+import { registerAccountingCompletionRoutes } from './finance/accounting/completion/index.js';
+import { registerAccountingCompletionJobs } from './finance/accounting/completion/index.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -221,6 +225,7 @@ export function registerAllRoutes(): void {
   registerOnboardingRoutes();
   registerVerificationRoutes();
   registerAccountingRoutes();
+  registerAccountingCompletionRoutes();
   registerFinanceFoundationRoutes();
   registerBillingTermsRoutes();
   registerPaymentRoutes();
@@ -228,6 +233,7 @@ export function registerAllRoutes(): void {
   registerReceivablesRoutes();
   registerPayablesRoutes();
   registerProfitabilityRoutes();
+  registerCashFlowRoutes();
 }
 
 let jobsRegistered = false;
@@ -250,8 +256,10 @@ export function registerAllJobs(): void {
   registerSalesIntakeJobs();
   registerProjectReportJobs();
   registerAccountingJobs();
+  registerAccountingCompletionJobs();
   registerBillingTermsJobs();
   registerReceivablesJobs();
   registerPayablesJobs();
   registerProfitabilityJobs();
+  registerCashFlowJobs();
 }

@@ -39,6 +39,7 @@ export interface JournalLineInput {
   readonly debit: Decimal;
   readonly credit: Decimal;
   readonly description?: string | null | undefined;
+  readonly dimensions?: Readonly<Record<string, string>> | undefined;
 }
 
 export interface CreateJournalInput {
@@ -48,6 +49,11 @@ export interface CreateJournalInput {
   readonly sourceId?: string | null | undefined;
   readonly reason?: string | null | undefined;
   readonly reversalOfId?: string | null | undefined;
+  readonly legalEntityId?: string | null | undefined;
+  readonly transactionCurrency?: string | undefined;
+  readonly baseCurrency?: string | undefined;
+  readonly exchangeRate?: string | undefined;
+  readonly exchangeRateSource?: string | null | undefined;
   readonly lines: readonly JournalLineInput[];
 }
 

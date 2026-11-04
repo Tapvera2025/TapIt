@@ -4,6 +4,7 @@ import { db, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import type { AccountingCloseChecklistInput, AccountingPeriod, AccountingPeriodQuery, CreateAccountingPeriodInput, CreateLedgerAccountInput, CreateJournalInput, JournalEntryResult, JournalQuery, LedgerAccount, UpdateLedgerAccountInput } from './types.js';
 import type { Decimal } from '@tapcrm/contracts';
+import { baseMinorToDecimal, decimalToBaseMinor } from './amounts.js';
 
 export async function findLedgerAccount(ctx: RequestContext, id: string): Promise<LedgerAccount | null> {
   return db.maybeOne<LedgerAccount>(ctx, sql`
@@ -163,6 +164,11 @@ interface JournalHeaderRow {
   reversalOfId: string | null;
   debitTotal: string;
   creditTotal: string;
+  legalEntityId?: string | null;
+  transactionCurrency?: string;
+  baseCurrency?: string;
+  exchangeRate?: string;
+  exchangeRateSource?: string | null;
 }
 
 interface JournalLineRow {
@@ -171,6 +177,7 @@ interface JournalLineRow {
   debit: string;
   credit: string;
   description: string | null;
+  dimensions?: Record<string, string>;
 }
 
 function hydrateJournal(header: JournalHeaderRow, lines: JournalLineRow[]): JournalEntryResult {
@@ -190,7 +197,9 @@ const JOURNAL_HEADER_COLUMNS = sql.raw(`
   je.id, je.organization_id AS "organizationId", je.period_id AS "periodId",
   je.entry_date::text AS "entryDate", je.description, je.source_type AS "sourceType",
   je.source_id AS "sourceId", je.reason, je.posted_by AS "postedBy",
-  je.posted_at AS "postedAt", je.reversal_of_id AS "reversalOfId",
+  je.posted_at AS "postedAt", je.reversal_of_id AS "reversalOfId", je.legal_entity_id AS "legalEntityId",
+  je.transaction_currency AS "transactionCurrency", je.base_currency AS "baseCurrency",
+  je.exchange_rate::text AS "exchangeRate", je.exchange_rate_source AS "exchangeRateSource",
   COALESCE(SUM(jl.debit), 0)::text AS "debitTotal",
   COALESCE(SUM(jl.credit), 0)::text AS "creditTotal"
 `);
@@ -208,7 +217,8 @@ async function findJournalHeaders(ctx: RequestContext, where: ReturnType<typeof 
 
 async function findJournalLines(ctx: RequestContext, journalId: string): Promise<JournalLineRow[]> {
   return db.query<JournalLineRow>(ctx, sql`
-    SELECT id, ledger_account_id AS "accountId", debit::text AS debit, credit::text AS credit, description
+    SELECT id, ledger_account_id AS "accountId", debit::text AS debit, credit::text AS credit,
+           base_debit::text AS "baseDebit", base_credit::text AS "baseCredit", dimensions, description
     FROM journal_line
     WHERE organization_id = ${ctx.organizationId} AND journal_entry_id = ${journalId}
     ORDER BY id
@@ -241,11 +251,11 @@ export async function insertJournalHeader(tx: Tx, organizationId: string, posted
   `);
 }
 
-export async function insertJournalLines(tx: Tx, organizationId: string, journalId: string, lines: CreateJournalInput['lines']): Promise<void> {
+export async function insertJournalLines(tx: Tx, organizationId: string, journalId: string, lines: CreateJournalInput['lines'], exchangeRate = '1'): Promise<void> {
   for (const line of lines) {
     await tx.query(sql`
-      INSERT INTO journal_line (organization_id, journal_entry_id, ledger_account_id, debit, credit, description)
-      VALUES (${organizationId}, ${journalId}, ${line.accountId}, ${line.debit}, ${line.credit}, ${line.description ?? null})
+      INSERT INTO journal_line (organization_id, journal_entry_id, ledger_account_id, debit, credit, base_debit, base_credit, dimensions, description)
+      VALUES (${organizationId}, ${journalId}, ${line.accountId}, ${line.debit}, ${line.credit}, ${baseMinorToDecimal(decimalToBaseMinor(String(line.debit), exchangeRate))}, ${baseMinorToDecimal(decimalToBaseMinor(String(line.credit), exchangeRate))}, ${JSON.stringify(line.dimensions ?? {})}::jsonb, ${line.description ?? null})
     `);
   }
 }
@@ -287,7 +297,9 @@ export async function findJournalForUpdate(tx: Tx, organizationId: string, id: s
     SELECT id, organization_id AS "organizationId", period_id AS "periodId",
            entry_date::text AS "entryDate", description, source_type AS "sourceType",
            source_id AS "sourceId", reason, posted_by AS "postedBy",
-           posted_at AS "postedAt", reversal_of_id AS "reversalOfId",
+           posted_at AS "postedAt", reversal_of_id AS "reversalOfId", legal_entity_id AS "legalEntityId",
+           transaction_currency AS "transactionCurrency", base_currency AS "baseCurrency",
+           exchange_rate::text AS "exchangeRate", exchange_rate_source AS "exchangeRateSource",
            '0'::text AS "debitTotal", '0'::text AS "creditTotal"
     FROM journal_entry
     WHERE organization_id = ${organizationId} AND id = ${id}
@@ -299,7 +311,7 @@ export async function findJournalForUpdate(tx: Tx, organizationId: string, id: s
     WHERE organization_id = ${organizationId} AND journal_entry_id = ${id}
   `);
   const lines = await tx.query<JournalLineRow>(sql`
-    SELECT id, ledger_account_id AS "accountId", debit::text AS debit, credit::text AS credit, description
+    SELECT id, ledger_account_id AS "accountId", debit::text AS debit, credit::text AS credit, dimensions, description
     FROM journal_line
     WHERE organization_id = ${organizationId} AND journal_entry_id = ${id}
     ORDER BY id

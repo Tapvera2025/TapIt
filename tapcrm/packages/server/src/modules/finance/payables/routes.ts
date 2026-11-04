@@ -3,6 +3,7 @@ import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { route } from '../../../platform/http/route.js';
+import { parsePagination } from '../pagination.js';
 import * as service from './service.js';
 import {
   bankChangeSchema,
@@ -64,7 +65,7 @@ export function registerPayablesRoutes(): void {
     path: '/api/payables/vendors',
     action: 'payables:view',
     module: 'payables',
-    handler: async ({ ctx }) => service.listVendors(ctx),
+    handler: async ({ ctx, query }) => service.listVendors(ctx, parsePagination(query)),
   });
   route({
     method: 'POST',
@@ -99,14 +100,14 @@ export function registerPayablesRoutes(): void {
   });
   route({
     method: 'GET', path: '/api/payables/vendor-bank-changes', action: 'payables:view', module: 'payables',
-    handler: async ({ ctx }) => service.listBankChanges(ctx),
+    handler: async ({ ctx, query }) => service.listBankChanges(ctx, parsePagination(query)),
   });
   route({
     method: 'GET',
     path: '/api/payables/bills',
     action: 'payables:view',
     module: 'payables',
-    handler: async ({ ctx }) => service.listBills(ctx),
+    handler: async ({ ctx, query }) => service.listBills(ctx, parsePagination(query)),
   });
   route({
     method: 'POST',
@@ -172,7 +173,7 @@ export function registerPayablesRoutes(): void {
     path: '/api/payables/subscriptions',
     action: 'payables:view',
     module: 'payables',
-    handler: async ({ ctx }) => service.listSubscriptions(ctx),
+    handler: async ({ ctx, query }) => service.listSubscriptions(ctx, parsePagination(query)),
   });
   route({
     method: 'POST',
@@ -188,7 +189,7 @@ export function registerPayablesRoutes(): void {
     path: '/api/payables/purchase-requests',
     action: 'payables:view',
     module: 'payables',
-    handler: async ({ ctx }) => service.listPurchaseRequests(ctx),
+    handler: async ({ ctx, query }) => service.listPurchaseRequests(ctx, parsePagination(query)),
   });
   route({
     method: 'POST',
@@ -212,7 +213,7 @@ export function registerPayablesRoutes(): void {
     path: '/api/payables/runs',
     action: 'payables:view',
     module: 'payables',
-    handler: async ({ ctx }) => service.listRuns(ctx),
+    handler: async ({ ctx, query }) => service.listRuns(ctx, parsePagination(query)),
   });
   route({
     method: 'POST',

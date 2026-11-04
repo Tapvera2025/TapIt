@@ -2,11 +2,11 @@ import type { Tx } from '../../../platform/dal/db.js';
 import { AccountingNotFoundError, AccountingValidationError, ACCOUNTING_ERROR_CODES } from './errors.js';
 import { assertActiveAccounts, findJournalForUpdate, hasReversal, insertJournalHeader, insertJournalLines, lockPostingPeriod, markPeriodPosted } from './repository.js';
 import type { CreateJournalInput, JournalLineInput, ReverseJournalInput } from './types.js';
+import { decimalToBaseMinor, decimalToMinor } from './amounts.js';
 
 function cents(value: string): bigint {
   if (!/^\d+(\.\d{1,2})?$/.test(value)) throw new AccountingValidationError('Journal amounts must be non-negative decimals with at most 2 fractional digits.', ACCOUNTING_ERROR_CODES.JOURNAL_UNBALANCED);
-  const [whole = '0', fraction = ''] = value.split('.');
-  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0') || '0');
+  return decimalToMinor(value);
 }
 
 function validateLines(lines: readonly JournalLineInput[]): void {
@@ -40,8 +40,21 @@ export async function postJournalTx(tx: Tx, input: {
   if (!['open', 'reopened'].includes(period.status)) {
     throw new AccountingValidationError('The accounting period is closed and cannot accept postings.', ACCOUNTING_ERROR_CODES.PERIOD_CLOSED);
   }
+  if (input.journal.transactionCurrency === input.journal.baseCurrency && input.journal.exchangeRate !== '1') {
+    throw new AccountingValidationError('Exchange rate must be 1 when transaction and base currencies match.', ACCOUNTING_ERROR_CODES.JOURNAL_UNBALANCED);
+  }
+  if (input.journal.transactionCurrency !== input.journal.baseCurrency && input.journal.exchangeRate === '1') {
+    throw new AccountingValidationError('A non-base currency journal requires an exchange rate.', ACCOUNTING_ERROR_CODES.JOURNAL_UNBALANCED);
+  }
+  const baseTotals = input.journal.lines.reduce((totals, line) => ({
+    debit: totals.debit + decimalToBaseMinor(String(line.debit), input.journal.exchangeRate ?? '1'),
+    credit: totals.credit + decimalToBaseMinor(String(line.credit), input.journal.exchangeRate ?? '1'),
+  }), { debit: 0n, credit: 0n });
+  if (baseTotals.debit !== baseTotals.credit) {
+    throw new AccountingValidationError('Journal debits and credits must balance after base-currency conversion.', ACCOUNTING_ERROR_CODES.JOURNAL_UNBALANCED);
+  }
   const header = await insertJournalHeader(tx, input.organizationId, input.postedBy, input.journal, period.id);
-  await insertJournalLines(tx, input.organizationId, header.id, input.journal.lines);
+  await insertJournalLines(tx, input.organizationId, header.id, input.journal.lines, input.journal.exchangeRate ?? '1');
   await markPeriodPosted(tx, input.organizationId, period.id, input.postedBy);
   return header;
 }
@@ -66,11 +79,17 @@ export async function reverseJournalTx(tx: Tx, input: {
     sourceId: original.id,
     reason: input.reversal.reason,
     reversalOfId: original.id,
+    legalEntityId: original.legalEntityId,
+    transactionCurrency: original.transactionCurrency,
+    baseCurrency: original.baseCurrency,
+    exchangeRate: original.exchangeRate,
+    exchangeRateSource: original.exchangeRateSource,
     lines: original.lines.map((line) => ({
       accountId: line.accountId,
       debit: line.credit as JournalLineInput['debit'],
       credit: line.debit as JournalLineInput['credit'],
       description: line.description,
+      dimensions: line.dimensions,
     })),
   };
   const result = await postJournalTx(tx, { organizationId: input.organizationId, postedBy: input.postedBy, journal });

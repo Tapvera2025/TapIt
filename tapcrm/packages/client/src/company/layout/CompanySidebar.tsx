@@ -125,6 +125,7 @@ export function CompanySidebar({
   canViewReceivables = false,
   canViewPayables = false,
   canViewProfitability = false,
+  canViewCashFlow = false,
   canViewTa = false,
   canManageTa = false,
   canManageBiometric = false,
@@ -191,6 +192,7 @@ export function CompanySidebar({
   canViewReceivables?: boolean;
   canViewPayables?: boolean;
   canViewProfitability?: boolean;
+  canViewCashFlow?: boolean;
   canViewTa?: boolean;
   canManageTa?: boolean;
   canManageBiometric?: boolean;
@@ -996,6 +998,9 @@ export function CompanySidebar({
               ...(canViewProfitability
                 ? [{ label: 'Profitability', path: '/company/finance/profitability', icon: 'chart' }]
                 : []),
+              ...(canViewCashFlow
+                ? [{ label: 'Cash Flow', path: '/company/finance/cash-flow', icon: 'trending-up' }]
+                : []),
               ...(canViewAccounting
                 ? [
                     {
@@ -1056,6 +1061,9 @@ export function CompanySidebar({
                   : []),
                 ...(canViewProfitability
                   ? [{ label: 'Profitability', path: '/company/finance/profitability', icon: 'chart' }]
+                  : []),
+                ...(canViewCashFlow
+                  ? [{ label: 'Cash Flow', path: '/company/finance/cash-flow', icon: 'trending-up' }]
                   : []),
                 ...(canViewPayables
                   ? [

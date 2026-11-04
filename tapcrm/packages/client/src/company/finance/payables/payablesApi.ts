@@ -1,4 +1,5 @@
 import { identityRequest } from '../../../identity/api/authApi.js';
+export interface Paginated<T> { items: T[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } }
 export interface Vendor {
   id: string;
   legalName: string;
@@ -60,12 +61,13 @@ export interface Subscription {
   nextDueDate: string;
   status: string;
 }
-export const listVendors = () => identityRequest<Vendor[]>('/api/payables/vendors');
-export const listBills = () => identityRequest<Bill[]>('/api/payables/bills');
-export const listRuns = () => identityRequest<PaymentRun[]>('/api/payables/runs');
-export const listBankChanges = () => identityRequest<BankChange[]>('/api/payables/vendor-bank-changes');
-export const listPurchaseRequests = () => identityRequest<PurchaseRequest[]>('/api/payables/purchase-requests');
-export const listSubscriptions = () => identityRequest<Subscription[]>('/api/payables/subscriptions');
+const pageQuery = (page: number, pageSize: number) => `page=${page}&pageSize=${pageSize}`;
+export const listVendors = (page = 1, pageSize = 6) => identityRequest<Paginated<Vendor>>(`/api/payables/vendors?${pageQuery(page, pageSize)}`);
+export const listBills = (page = 1, pageSize = 6) => identityRequest<Paginated<Bill>>(`/api/payables/bills?${pageQuery(page, pageSize)}`);
+export const listRuns = (page = 1, pageSize = 6) => identityRequest<Paginated<PaymentRun>>(`/api/payables/runs?${pageQuery(page, pageSize)}`);
+export const listBankChanges = (page = 1, pageSize = 6) => identityRequest<Paginated<BankChange>>(`/api/payables/vendor-bank-changes?${pageQuery(page, pageSize)}`);
+export const listPurchaseRequests = (page = 1, pageSize = 6) => identityRequest<Paginated<PurchaseRequest>>(`/api/payables/purchase-requests?${pageQuery(page, pageSize)}`);
+export const listSubscriptions = (page = 1, pageSize = 6) => identityRequest<Paginated<Subscription>>(`/api/payables/subscriptions?${pageQuery(page, pageSize)}`);
 export const createVendor = (body: Record<string, unknown>) =>
   identityRequest('/api/payables/vendors', {
     method: 'POST',

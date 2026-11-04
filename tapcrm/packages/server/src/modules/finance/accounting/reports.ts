@@ -140,7 +140,7 @@ async function ledgerRows(
            je.source_type AS "sourceType", je.source_id AS "sourceId",
            la.id AS "accountId", la.code AS "accountCode", la.name AS "accountName",
            la.account_type AS "accountType", la.system_key AS "systemKey",
-           jl.debit::text AS debit, jl.credit::text AS credit
+           jl.base_debit::text AS debit, jl.base_credit::text AS credit
     FROM journal_entry je
     JOIN journal_line jl ON jl.organization_id = je.organization_id AND jl.journal_entry_id = je.id
     JOIN ledger_account la ON la.organization_id = jl.organization_id AND la.id = jl.ledger_account_id
@@ -167,8 +167,8 @@ async function accountTotals(
     sql`
     SELECT la.id AS "accountId", la.code AS "accountCode", la.name AS "accountName",
            la.account_type AS "accountType", la.system_key AS "systemKey",
-           COALESCE(SUM(CASE WHEN je.id IS NOT NULL THEN jl.debit ELSE 0 END), 0)::text AS debit,
-           COALESCE(SUM(CASE WHEN je.id IS NOT NULL THEN jl.credit ELSE 0 END), 0)::text AS credit
+           COALESCE(SUM(CASE WHEN je.id IS NOT NULL THEN jl.base_debit ELSE 0 END), 0)::text AS debit,
+           COALESCE(SUM(CASE WHEN je.id IS NOT NULL THEN jl.base_credit ELSE 0 END), 0)::text AS credit
     FROM ledger_account la
     LEFT JOIN journal_line jl ON jl.organization_id = la.organization_id AND jl.ledger_account_id = la.id
     LEFT JOIN journal_entry je ON je.organization_id = jl.organization_id AND je.id = jl.journal_entry_id

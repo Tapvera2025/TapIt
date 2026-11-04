@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 198   Bindings: 695
+ * Actions: 198   Bindings: 711
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3871,6 +3871,13 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/profitability/advertising/accounts/:id/credentials', action: 'projects:manage', resourceParam: null },
   { method: 'POST', path: '/api/profitability/advertising/accounts/:id/sync', action: 'projects:manage', resourceParam: null },
   { method: 'POST', path: '/api/profitability/advertising/accounts/:id/manual-spend', action: 'projects:manage', resourceParam: null },
+  { method: 'GET', path: '/api/cash-flow/command-centre', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'GET', path: '/api/cash-flow/snapshots', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'GET', path: '/api/cash-flow/snapshots/:id/forecast', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'POST', path: '/api/cash-flow/forecast', action: 'accounting:manage-periods', resourceParam: null },
+  { method: 'GET', path: '/api/cash-flow/scenarios', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'GET', path: '/api/cash-flow/scenarios/:id/forecast', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'POST', path: '/api/cash-flow/scenarios', action: 'accounting:manage-periods', resourceParam: null },
   { method: 'GET', path: '/api/accounting/ledger', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'GET', path: '/api/accounting/trial-balance', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'GET', path: '/api/accounting/general-ledger', action: 'accounting:view-ledger', resourceParam: null },
@@ -3878,6 +3885,15 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/accounting/reports/pnl', action: 'accounting:view-statements', resourceParam: null },
   { method: 'GET', path: '/api/accounting/reports/balance-sheet', action: 'accounting:view-statements', resourceParam: null },
   { method: 'GET', path: '/api/accounting/reports/cash-flow', action: 'accounting:view-statements', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/completion/overview', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/completion/entities', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/completion/entities', action: 'accounting:manage-accounts', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/completion/schedules', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/completion/schedules', action: 'accounting:manage-periods', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/completion/schedules/:id/recognize', action: 'accounting:post-journal', resourceParam: 'id' },
+  { method: 'POST', path: '/api/accounting/completion/fx-revaluations', action: 'accounting:post-journal', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/completion/sync-queue', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'POST', path: '/api/accounting/completion/sync-queue', action: 'accounting:manage-periods', resourceParam: null },
   { method: 'GET', path: '/api/accounting/accounts/:id/drill-through', action: 'accounting:view-ledger', resourceParam: 'id' },
   { method: 'GET', path: '/api/accounting/general-ledger/export', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'GET', path: '/api/accounting/trial-balance/export', action: 'accounting:view-ledger', resourceParam: null },

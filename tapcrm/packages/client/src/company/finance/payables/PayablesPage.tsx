@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
 import * as api from './payablesApi.js';
+import { PayablesFormModal, PayablesReasonModal, type PayablesFormKind, type PayablesFormValues } from './PayablesFormModal.js';
+
+interface PendingAction {
+  title: string;
+  description: string;
+  execute: (reason: string) => Promise<void>;
+}
 
 export function PayablesPage(): React.JSX.Element {
   const [vendors, setVendors] = useState<api.Vendor[]>([]);
@@ -12,172 +19,101 @@ export function PayablesPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const load = async () => {
+  const [formKind, setFormKind] = useState<PayablesFormKind | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<api.PurchaseRequest | undefined>();
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [pages, setPages] = useState<Record<string, number>>({});
+  const [totals, setTotals] = useState<Record<string, number>>({});
+  const pageSize = 6;
+  const load = useCallback(async (requestedPages = pages) => {
     setLoading(true);
     try {
       const [nextVendors, nextBills, nextRuns, nextBankChanges, nextPurchaseRequests, nextSubscriptions] = await Promise.all([
-        api.listVendors(),
-        api.listBills(),
-        api.listRuns(),
-        api.listBankChanges(),
-        api.listPurchaseRequests(),
-        api.listSubscriptions(),
+        api.listVendors(requestedPages['vendors'] ?? 1, pageSize),
+        api.listBills(requestedPages['bills'] ?? 1, pageSize),
+        api.listRuns(requestedPages['runs'] ?? 1, pageSize),
+        api.listBankChanges(requestedPages['bankChanges'] ?? 1, pageSize),
+        api.listPurchaseRequests(requestedPages['purchaseRequests'] ?? 1, pageSize),
+        api.listSubscriptions(requestedPages['subscriptions'] ?? 1, pageSize),
       ]);
-      setVendors(nextVendors);
-      setBills(nextBills);
-      setRuns(nextRuns);
-      setBankChanges(nextBankChanges);
-      setPurchaseRequests(nextPurchaseRequests);
-      setSubscriptions(nextSubscriptions);
+      setVendors(nextVendors.items);
+      setBills(nextBills.items);
+      setRuns(nextRuns.items);
+      setBankChanges(nextBankChanges.items);
+      setPurchaseRequests(nextPurchaseRequests.items);
+      setSubscriptions(nextSubscriptions.items);
+      setTotals({ vendors: nextVendors.pagination.total, bills: nextBills.pagination.total, runs: nextRuns.pagination.total, bankChanges: nextBankChanges.pagination.total, purchaseRequests: nextPurchaseRequests.pagination.total, subscriptions: nextSubscriptions.pagination.total });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load payables.');
     } finally {
       setLoading(false);
     }
+  }, [pages]);
+  useEffect(() => { void load(pages); }, [load, pages]);
+  const openForm = (kind: PayablesFormKind, request?: api.PurchaseRequest) => { setSelectedRequest(request); setFormKind(kind); setError(''); };
+  const submitForm = async (values: PayablesFormValues) => {
+    if (!formKind) return;
+    const reason = values.reason.trim();
+    if (formKind === 'vendor') await api.createVendor({ legalName: values.legalName, displayName: values.displayName, ...(values.email ? { email: values.email } : {}), ...(values.phone ? { phone: values.phone } : {}), ...(values.gstin ? { gstin: values.gstin } : {}), ...(values.pan ? { pan: values.pan } : {}), currency: values.currency, paymentTermsDays: Number(values.paymentTermsDays) });
+    if (formKind === 'bill') await api.createBill({ ...(values.vendorId ? { vendorId: values.vendorId } : {}), invoiceNumber: values.invoiceNumber, issueDate: values.issueDate, dueDate: values.dueDate, currency: values.currency, subtotal: values.subtotal, taxTotal: values.taxTotal, total: values.total, ...(values.tdsSection ? { tdsSection: values.tdsSection } : {}), tdsRate: Number(values.tdsRate || 0), rcm: values.rcm === 'true', extractionStatus: values.artifactData ? 'needs_review' : 'manual', reason, ...(values.artifactData ? { artifact: { originalFilename: values.artifactFilename, mimeType: values.artifactMimeType, data: values.artifactData } } : {}) });
+    if (formKind === 'subscription') await api.createSubscription({ vendorId: values.vendorId, name: values.name, amount: values.amount, currency: values.currency, recurrence: values.recurrence, nextDueDate: values.nextDueDate, reason });
+    if (formKind === 'purchase') await api.createPurchaseRequest({ ...(values.vendorId ? { vendorId: values.vendorId } : {}), description: values.description, amount: values.amount, currency: values.currency, reason });
+    if (formKind === 'reimbursement') await api.createReimbursement(values.claimId, reason);
+    if (formKind === 'match' && selectedRequest) await api.matchPurchaseRequest(selectedRequest.id, values.billId, reason);
+    setFormKind(null); setSelectedRequest(undefined); setNotice('Payables record saved successfully.'); await load();
   };
-  useEffect(() => {
-    void load();
-  }, []);
-  const addVendor = async () => {
-    const legalName = window.prompt('Vendor legal name:');
-    const displayName = window.prompt('Vendor display name:', legalName ?? '');
-    if (!legalName || !displayName) return;
-    try {
-      await api.createVendor({
-        legalName,
-        displayName,
-        currency: 'INR',
-        paymentTermsDays: 30,
-      });
-      setNotice('Vendor created.');
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to create vendor.');
-    }
+  const requestAction = (title: string, description: string, execute: (reason: string) => Promise<void>) => {
+    setError('');
+    setPendingAction({ title, description, execute });
   };
-  const reimburse = async () => {
-    const claimId = window.prompt('Approved expense claim ID:');
-    if (!claimId) return;
-    try {
-      await api.createReimbursement(claimId, 'Imported from approved expense claims.');
-      setNotice('Reimbursement payable created and marked needs review.');
-      await load();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'Unable to create reimbursement.',
-      );
-    }
-  };
-  const addBill = async () => {
-    const vendorId = window.prompt('Active vendor ID (leave blank for employee reimbursement):');
-    const invoiceNumber = window.prompt('Vendor invoice number:');
-    const total = window.prompt('Total amount:');
-    if (!invoiceNumber || !total) return;
-    const today = new Date().toISOString().slice(0, 10);
-    try {
-      await api.createBill({ vendorId: vendorId || undefined, invoiceNumber, issueDate: today, dueDate: today, currency: 'INR', subtotal: total, taxTotal: '0', total, extractionStatus: 'manual', reason: 'Manual bill entered by Finance.' });
-      setNotice('Bill created in the review inbox.');
-      await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to create bill.'); }
-  };
-  const addSubscription = async () => {
-    const vendorId = window.prompt('Active vendor ID:');
-    const name = window.prompt('Subscription name:');
-    const amount = window.prompt('Recurring amount:');
-    if (!vendorId || !name || !amount) return;
-    try {
-      await api.createSubscription({ vendorId, name, amount, currency: 'INR', recurrence: 'monthly', nextDueDate: new Date().toISOString().slice(0, 10), reason: 'Subscription created by Finance.' });
-      setNotice('Subscription saved; its bill will be generated by the scheduled job.');
-      await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to create subscription.'); }
-  };
-  const addPurchaseRequest = async () => {
-    const description = window.prompt('Purchase description:');
-    const amount = window.prompt('Requested amount:');
-    if (!description || !amount) return;
-    try {
-      await api.createPurchaseRequest({ description, amount, currency: 'INR', reason: 'Purchase request created by Finance.' });
-      setNotice('Purchase request submitted for approval.');
-      await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to create purchase request.'); }
-  };
-  const approve = async (bill: api.Bill) => {
-    try {
-      await api.approveBill(bill.id, 'Reviewed by Finance.');
-      setNotice(`Bill ${bill.invoiceNumber} approved and posted.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to approve bill.');
-    }
-  };
-  const confirmExtraction = async (bill: api.Bill) => {
-    try {
-      await api.confirmExtraction(bill.id, 'Human review completed in Payables inbox.');
-      setNotice(`Extraction confirmed for ${bill.invoiceNumber}.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to confirm extraction.');
-    }
-  };
-  const proposeRun = async () => {
+  const proposeRun = () => {
     const eligible = bills.filter((bill) => bill.status === 'approved');
     if (!eligible.length) {
       setError('No approved bills are available for a payment run.');
       return;
     }
-    try {
+    requestAction('Propose payment run', 'This creates an immutable payment-run manifest from all currently approved bills. Confirm the reason before continuing.', async (reason) => {
       await api.createRun(
         eligible.map((bill) => bill.id),
         eligible[0]!.currency,
-        'Payment run proposed from approved bills.',
+        reason,
       );
       setNotice('Immutable payment-run manifest created.');
       await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to propose payment run.');
-    }
+    });
   };
-  const approveRun = async (run: api.PaymentRun) => {
-    try {
-      await api.approveRun(run.id, 'Payment run approved by Finance.');
+  const approve = (bill: api.Bill) => requestAction('Approve bill', `Approve and post invoice ${bill.invoiceNumber}? Review the invoice and provide the approval reason.`, async (reason) => {
+    await api.approveBill(bill.id, reason);
+    setNotice(`Bill ${bill.invoiceNumber} approved and posted.`);
+    await load();
+  });
+  const confirmExtraction = (bill: api.Bill) => requestAction('Confirm bill extraction', `Confirm that the extracted values for ${bill.invoiceNumber} have been reviewed by a human.`, async (reason) => {
+    await api.confirmExtraction(bill.id, reason);
+    setNotice(`Extraction confirmed for ${bill.invoiceNumber}.`);
+    await load();
+  });
+  const approveRun = (run: api.PaymentRun) => requestAction('Approve payment run', 'This approves the immutable payment-run manifest for execution. Confirm the review reason.', async (reason) => {
+      await api.approveRun(run.id, reason);
       setNotice('Payment run approved.');
       await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to approve payment run.');
-    }
-  };
-  const executeRun = async (run: api.PaymentRun) => {
-    try {
-      await api.executeRun(run.id, 'Payment run executed by Finance.');
+  });
+  const executeRun = (run: api.PaymentRun) => requestAction('Execute payment run', 'This executes the approved payment-run manifest and posts the related accounting entries. Confirm the execution reason.', async (reason) => {
+      await api.executeRun(run.id, reason);
       setNotice('Payment run executed and ledger posted.');
       await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to execute payment run.');
-    }
-  };
-  const approvePurchaseRequest = async (request: api.PurchaseRequest) => {
-    try {
-      await api.approvePurchaseRequest(request.id, 'Purchase request reviewed by Finance.');
+  });
+  const approvePurchaseRequest = (request: api.PurchaseRequest) => requestAction('Approve purchase request', `Approve the purchase request “${request.description}”? Provide the review reason.`, async (reason) => {
+      await api.approvePurchaseRequest(request.id, reason);
       setNotice('Purchase request approved.');
       await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to approve purchase request.'); }
-  };
-  const matchPurchaseRequest = async (request: api.PurchaseRequest) => {
-    const billId = window.prompt('Approved bill ID to match:');
-    if (!billId) return;
-    try {
-      await api.matchPurchaseRequest(request.id, billId, 'Purchase request matched by Finance.');
-      setNotice('Purchase request matched to the bill.');
-      await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to match purchase request.'); }
-  };
-  const approveBankChange = async (change: api.BankChange) => {
-    try {
-      await api.approveBankChange(change.id, 'Vendor bank change reviewed by Finance.');
+  });
+  const matchPurchaseRequest = (request: api.PurchaseRequest) => openForm('match', request);
+  const pager = (key: string) => { const total = totals[key] ?? 0; const totalPages = Math.ceil(total / pageSize); if (totalPages <= 1) return null; const page = Math.min(pages[key] ?? 1, totalPages); return <div className="mt-4 flex items-center justify-between border-t border-app-border pt-3 text-xs text-app-muted"><span>Page {page} of {totalPages} · {total} records</span><span className="flex gap-2"><Button kind="secondary" disabled={page <= 1} onClick={() => setPages((current) => ({ ...current, [key]: page - 1 }))}>Previous</Button><Button kind="secondary" disabled={page >= totalPages} onClick={() => setPages((current) => ({ ...current, [key]: page + 1 }))}>Next</Button></span></div>; };
+  const approveBankChange = (change: api.BankChange) => requestAction('Approve vendor bank change', `Approve the proposed bank change for ${change.vendorName}? Provide the review reason.`, async (reason) => {
+      await api.approveBankChange(change.id, reason);
       setNotice('Vendor bank change approved.');
       await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to approve bank change.'); }
-  };
+  });
   return (
     <Page
       eyebrow="Finance · Payables"
@@ -195,21 +131,21 @@ export function PayablesPage(): React.JSX.Element {
       ) : (
         <>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Button onClick={() => void addVendor()}>Add vendor</Button>
-            <Button kind="secondary" onClick={() => void addBill()}>Add bill</Button>
-            <Button kind="secondary" onClick={() => void addSubscription()}>Add subscription</Button>
-            <Button kind="secondary" onClick={() => void addPurchaseRequest()}>New purchase request</Button>
-            <Button kind="secondary" onClick={() => void reimburse()}>
+            <Button onClick={() => openForm('vendor')}>Add vendor</Button>
+            <Button kind="secondary" onClick={() => openForm('bill')}>Add bill</Button>
+            <Button kind="secondary" onClick={() => openForm('subscription')}>Add subscription</Button>
+            <Button kind="secondary" onClick={() => openForm('purchase')}>New purchase request</Button>
+            <Button kind="secondary" onClick={() => openForm('reimbursement')}>
               Import approved expense
             </Button>
-            <Button kind="secondary" onClick={() => void proposeRun()}>
+            <Button kind="secondary" onClick={proposeRun}>
               Propose payment run
             </Button>
           </div>
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <Card>
               <h2 className="text-lg font-semibold">Vendor master</h2>
-              {vendors.length ? (
+              {vendors.length ? <>
                 <div className="mt-3 space-y-2 text-sm">
                   {vendors.map((vendor) => (
                     <div
@@ -224,13 +160,14 @@ export function PayablesPage(): React.JSX.Element {
                     </div>
                   ))}
                 </div>
-              ) : (
+                {pager('vendors')}
+              </> : (
                 <Empty>No vendors.</Empty>
               )}
             </Card>
             <Card>
               <h2 className="text-lg font-semibold">Bill inbox</h2>
-              {bills.length ? (
+              {bills.length ? <>
                 <div className="mt-3 space-y-2 text-sm">
                   {bills.map((bill) => (
                     <div
@@ -249,27 +186,28 @@ export function PayablesPage(): React.JSX.Element {
                         {bill.extractionStatus === 'needs_review' ? (
                           <Button
                             kind="secondary"
-                            onClick={() => void confirmExtraction(bill)}
+                            onClick={() => confirmExtraction(bill)}
                           >
                             Confirm extraction
                           </Button>
                         ) : null}
                         {bill.status === 'needs_review' &&
                         bill.extractionStatus !== 'needs_review' ? (
-                          <Button onClick={() => void approve(bill)}>Approve</Button>
+                          <Button onClick={() => approve(bill)}>Approve</Button>
                         ) : null}
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : (
+                {pager('bills')}
+              </> : (
                 <Empty>No bills.</Empty>
               )}
             </Card>
           </div>
           <Card className="mt-5">
             <h2 className="text-lg font-semibold">Payment-run proposals</h2>
-            {runs.length ? (
+            {runs.length ? <>
               <div className="mt-3 space-y-2 text-sm">
                 {runs.map((run) => (
                   <div
@@ -287,55 +225,58 @@ export function PayablesPage(): React.JSX.Element {
                     </div>
                     <div className="flex gap-2">
                       {run.status === 'proposed' ? (
-                        <Button onClick={() => void approveRun(run)}>Approve</Button>
+                        <Button onClick={() => approveRun(run)}>Approve</Button>
                       ) : null}
                       {run.status === 'approved' ? (
-                        <Button onClick={() => void executeRun(run)}>Execute</Button>
+                        <Button onClick={() => executeRun(run)}>Execute</Button>
                       ) : null}
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (
+              {pager('runs')}
+            </> : (
               <Empty>No payment runs.</Empty>
             )}
           </Card>
           <div className="mt-5 grid gap-5 lg:grid-cols-3">
             <Card>
               <h2 className="text-lg font-semibold">Purchase requests</h2>
-              {purchaseRequests.length ? purchaseRequests.map((request) => (
+              {purchaseRequests.length ? <>{purchaseRequests.map((request) => (
                 <div className="mt-3 rounded-xl border border-app-border p-3 text-sm" key={request.id}>
                   <div className="font-semibold">{request.description}</div>
                   <div className="text-app-muted">{request.amount} {request.currency} · {request.status}</div>
                   <div className="mt-2 flex gap-2">
-                    {request.status === 'pending' ? <Button onClick={() => void approvePurchaseRequest(request)}>Approve</Button> : null}
+                    {request.status === 'pending' ? <Button onClick={() => approvePurchaseRequest(request)}>Approve</Button> : null}
                     {request.status === 'approved' ? <Button kind="secondary" onClick={() => void matchPurchaseRequest(request)}>Match bill</Button> : null}
                   </div>
                 </div>
-              )) : <Empty>No purchase requests.</Empty>}
+              ))}{pager('purchaseRequests')}</> : <Empty>No purchase requests.</Empty>}
             </Card>
             <Card>
               <h2 className="text-lg font-semibold">Vendor bank changes</h2>
-              {bankChanges.length ? bankChanges.map((change) => (
+              {bankChanges.length ? <>{bankChanges.map((change) => (
                 <div className="mt-3 rounded-xl border border-app-border p-3 text-sm" key={change.id}>
                   <div className="font-semibold">{change.vendorName} · {change.bankName}</div>
                   <div className="text-app-muted">{change.accountReference} · {change.status}</div>
-                  {change.status === 'pending' ? <Button className="mt-2" onClick={() => void approveBankChange(change)}>Approve change</Button> : null}
+                  {change.status === 'pending' ? <Button className="mt-2" onClick={() => approveBankChange(change)}>Approve change</Button> : null}
                 </div>
-              )) : <Empty>No bank changes.</Empty>}
+              ))}{pager('bankChanges')}</> : <Empty>No bank changes.</Empty>}
             </Card>
             <Card>
               <h2 className="text-lg font-semibold">Subscriptions</h2>
-              {subscriptions.length ? subscriptions.map((subscription) => (
+              {subscriptions.length ? <>{subscriptions.map((subscription) => (
                 <div className="mt-3 rounded-xl border border-app-border p-3 text-sm" key={subscription.id}>
                   <div className="font-semibold">{subscription.name} · {subscription.vendorName}</div>
                   <div className="text-app-muted">{subscription.amount} {subscription.currency} · {subscription.recurrence} · next {subscription.nextDueDate}</div>
                 </div>
-              )) : <Empty>No subscriptions.</Empty>}
+              ))}{pager('subscriptions')}</> : <Empty>No subscriptions.</Empty>}
             </Card>
           </div>
         </>
       )}
+      {formKind && <PayablesFormModal kind={formKind} vendors={vendors} bills={bills} request={selectedRequest} onClose={() => { setFormKind(null); setSelectedRequest(undefined); }} onSubmit={submitForm} />}
+      {pendingAction && <PayablesReasonModal title={pendingAction.title} description={pendingAction.description} onClose={() => setPendingAction(null)} onSubmit={async (reason) => { await pendingAction.execute(reason); setPendingAction(null); }} />}
     </Page>
   );
 }

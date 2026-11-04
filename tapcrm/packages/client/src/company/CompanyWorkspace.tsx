@@ -79,6 +79,7 @@ import { PaymentOperationsPage } from './finance/payments/PaymentOperationsPage.
 import { ReceivablesPage } from './finance/receivables/ReceivablesPage.js';
 import { PayablesPage } from './finance/payables/PayablesPage.js';
 import { ProfitabilityPage } from './finance/profitability/ProfitabilityPage.js';
+import { CashFlowPage } from './finance/cash-flow/CashFlowPage.js';
 import { companySearchDestinations } from './layout/navigation.js';
 
 export function CompanyWorkspace({
@@ -191,6 +192,7 @@ export function CompanyWorkspace({
   const canViewReceivables = isSuperAdmin || can('receivables:view');
   const canViewPayables = isSuperAdmin || can('payables:view');
   const canViewProfitability = isSuperAdmin || can('projects:view-financials');
+  const canViewCashFlow = canViewAccounting;
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
   const canViewProjects = isSuperAdmin || can('projects:view');
@@ -236,6 +238,7 @@ export function CompanyWorkspace({
     '/company/finance/receivables': 'Receivables & Collections',
     '/company/finance/payables': 'Payables',
     '/company/finance/profitability': 'Profitability',
+    '/company/finance/cash-flow': 'Cash Flow Planning',
     '/company/todo': 'My Todo',
     '/company/my-todo': 'My Todo',
     '/company/messages': 'Messages',
@@ -332,6 +335,9 @@ export function CompanyWorkspace({
     }
     if (pathname === '/company/finance/profitability' && canViewProfitability) {
       return <ProfitabilityPage canManage={isSuperAdmin || can('projects:manage')} />;
+    }
+    if (pathname === '/company/finance/cash-flow' && canViewCashFlow) {
+      return <CashFlowPage canManage={isSuperAdmin || can('accounting:manage-periods')} />;
     }
     if (pathname === '/company/finance/accounting' && canViewAccounting) {
       const queryTab = new URLSearchParams(rawPathname.split('?')[1] ?? '').get('tab');
@@ -764,6 +770,7 @@ export function CompanyWorkspace({
       canViewReceivables={canViewReceivables}
       canViewPayables={canViewPayables}
       canViewProfitability={canViewProfitability}
+      canViewCashFlow={canViewCashFlow}
       canViewTa={isSuperAdmin || can('ta:view') || can('ta:view-own')}
       canManageTa={isSuperAdmin || can('ta:manage')}
       canManageBiometric={can('biometric:manage')}

@@ -10,6 +10,7 @@ import {
 } from '../../../ui/components.js';
 import { Icon } from '../../../ui/Icon.js';
 import { LiquidGlassTabs } from '../../recruitment/components/RecruitmentTabs.js';
+import { AccountingCompletionPanel } from './AccountingCompletionPanel.js';
 import { APP_NAVIGATE_EVENT, type AppNavigateEvent } from '../../../navigationEvent.js';
 import {
   closePeriod,
@@ -49,7 +50,8 @@ type Tab =
   | 'ledger'
   | 'reports'
   | 'tax'
-  | 'artifacts';
+  | 'artifacts'
+  | 'completion';
 const tabs: Array<{
   id: Tab;
   label: string;
@@ -64,6 +66,7 @@ const tabs: Array<{
   { id: 'reports', label: 'Reports', icon: 'chart', capability: 'view' },
   { id: 'tax', label: 'Tax & compliance', icon: 'shield', capability: 'tax' },
   { id: 'artifacts', label: 'Export artifacts', icon: 'download', capability: 'tax' },
+  { id: 'completion', label: 'Completion', icon: 'layers', capability: 'view' },
 ];
 const today = () => new Date().toISOString().slice(0, 10);
 const messageOf = (error: unknown) =>
@@ -231,6 +234,7 @@ function AccountingTab({
         onError={onError}
       />
     );
+  if (tab === 'completion') return <AccountingCompletionPanel />;
   if (tab === 'accounts') return <AccountsTab onError={onError} />;
   if (tab === 'journals')
     return (
