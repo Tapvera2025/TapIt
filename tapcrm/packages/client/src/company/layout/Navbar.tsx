@@ -105,7 +105,7 @@ export function Navbar({
             onNavigate={onNavigate}
           />
           <NotificationBell onNavigate={onNavigate} />
-          <ThemeToggle compact className="global-navbar-theme-toggle md:hidden" />
+          <ThemeToggle compact className="global-navbar-theme-toggle" />
           <div ref={accountRef} className="relative">
             <button
               type="button"
