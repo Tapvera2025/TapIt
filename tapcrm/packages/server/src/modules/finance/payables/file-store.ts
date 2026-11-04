@@ -6,6 +6,17 @@ import { loadConfig } from '../../../config.js';
 import { PayablesError } from './errors.js';
 
 const MAX_BYTES = 10 * 1024 * 1024;
+const PDF_SIGNATURE = Buffer.from('%PDF-');
+const IMAGE_SIGNATURES = [
+  Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+  Buffer.from([0xff, 0xd8, 0xff]),
+  Buffer.from('RIFF'),
+];
+
+function hasSignature(body: Buffer, extension: string): boolean {
+  if (extension === 'pdf') return body.subarray(0, PDF_SIGNATURE.length).equals(PDF_SIGNATURE);
+  return IMAGE_SIGNATURES.some((signature) => body.subarray(0, signature.length).equals(signature));
+}
 export async function storeBillArtifact(
   organizationId: string,
   billId: string,
@@ -19,6 +30,8 @@ export async function storeBillArtifact(
   const extension = filename.toLowerCase().split('.').pop() || 'bin';
   if (!['pdf', 'png', 'jpg', 'jpeg', 'webp'].includes(extension))
     throw new PayablesError('Bill artifact must be PDF or an image.');
+  if (!hasSignature(body, extension))
+    throw new PayablesError('Bill artifact content does not match its file type.');
   const base = resolve(loadConfig().TAPCRM_UPLOAD_DIR);
   const relativePath = join(
     'finance-payables',

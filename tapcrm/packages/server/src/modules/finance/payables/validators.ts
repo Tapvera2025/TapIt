@@ -50,6 +50,9 @@ export const billSchema = z.object({
 export const billDecisionSchema = z.object({ reason });
 export const extractionConfirmationSchema = z.object({ reason });
 export const reimbursementSchema = z.object({ claimId: uuid, reason });
+export const purchaseRequestDecisionSchema = z.object({ reason });
+export const purchaseRequestMatchSchema = z.object({ billId: uuid, reason });
+export const billFromPurchaseRequestSchema = z.object({ requestId: uuid, reason });
 export const subscriptionSchema = z.object({
   vendorId: uuid,
   name: z.string().trim().min(2).max(200),
@@ -78,6 +81,8 @@ export type BankChangeInput = z.infer<typeof bankChangeSchema>;
 export type BillInput = z.infer<typeof billSchema>;
 export type BillDecisionInput = z.infer<typeof billDecisionSchema>;
 export type ReimbursementInput = z.infer<typeof reimbursementSchema>;
+export type PurchaseRequestDecisionInput = z.infer<typeof purchaseRequestDecisionSchema>;
+export type PurchaseRequestMatchInput = z.infer<typeof purchaseRequestMatchSchema>;
 export type SubscriptionInput = z.infer<typeof subscriptionSchema>;
 export type PurchaseRequestInput = z.infer<typeof purchaseRequestSchema>;
 export type PaymentRunInput = z.infer<typeof paymentRunSchema>;

@@ -12,6 +12,8 @@ import type {
   PaymentRunDecisionInput,
   PaymentRunInput,
   PurchaseRequestInput,
+  PurchaseRequestDecisionInput,
+  PurchaseRequestMatchInput,
   ReimbursementInput,
   SubscriptionInput,
   VendorInput,
@@ -42,6 +44,11 @@ export const listVendors = (ctx: RequestContext) =>
     ctx,
     sql`SELECT id,legal_name AS "legalName",display_name AS "displayName",email::text,phone,gstin,pan,currency,payment_terms_days AS "paymentTermsDays",status,created_at AS "createdAt" FROM finance_vendor WHERE organization_id=${ctx.organizationId} ORDER BY display_name`,
   );
+export const listBankChanges = (ctx: RequestContext) =>
+  db.query(
+    ctx,
+    sql`SELECT b.id,b.vendor_id AS "vendorId",v.display_name AS "vendorName",b.bank_name AS "bankName",CASE WHEN length(b.account_reference) > 4 THEN repeat('•', length(b.account_reference) - 4) || right(b.account_reference, 4) ELSE b.account_reference END AS "accountReference",b.ifsc,b.status,b.proposed_by AS "proposedBy",b.approved_by AS "approvedBy",b.reason,b.created_at AS "createdAt" FROM finance_vendor_bank_account b JOIN finance_vendor v ON v.organization_id=b.organization_id AND v.id=b.vendor_id WHERE b.organization_id=${ctx.organizationId} ORDER BY b.created_at DESC`,
+  );
 export const listBills = (ctx: RequestContext) =>
   db.query(
     ctx,
@@ -60,7 +67,7 @@ export const listSubscriptions = (ctx: RequestContext) =>
 export const listPurchaseRequests = (ctx: RequestContext) =>
   db.query(
     ctx,
-    sql`SELECT p.id,p.vendor_id AS "vendorId",p.description,p.amount::text,p.currency,p.status,p.reason,p.requester_id AS "requesterId",p.approved_by AS "approvedBy",p.created_at AS "createdAt" FROM finance_purchase_request p WHERE p.organization_id=${ctx.organizationId} ORDER BY p.created_at DESC`,
+    sql`SELECT p.id,p.vendor_id AS "vendorId",p.description,p.amount::text,p.currency,p.status,p.reason,p.requester_id AS "requesterId",p.approved_by AS "approvedBy",p.matched_bill_id AS "matchedBillId",p.created_at AS "createdAt" FROM finance_purchase_request p WHERE p.organization_id=${ctx.organizationId} ORDER BY p.created_at DESC`,
   );
 
 export async function createVendor(ctx: RequestContext, input: VendorInput) {
@@ -137,6 +144,20 @@ export async function createBill(ctx: RequestContext, input: BillInput) {
     return await db.transaction(ctx, async (tx) => {
       if (cents(input.subtotal) + cents(input.taxTotal) !== cents(input.total))
         throw new PayablesError('Bill total must equal subtotal plus tax.');
+      if (input.rcm && cents(input.taxTotal) === 0n)
+        throw new PayablesError('RCM bills must include a tax amount for self-assessment.');
+      if (input.tdsRate > 0 && !input.tdsSection)
+        throw new PayablesError('A TDS section is required when a TDS rate is supplied.');
+      if (input.dueDate < input.issueDate)
+        throw new PayablesError('Bill due date cannot be before its issue date.');
+      if (input.vendorId) {
+        const vendor = await tx.maybeOne<{ currency: string }>(
+          sql`SELECT currency FROM finance_vendor WHERE organization_id=${ctx.organizationId} AND id=${input.vendorId} AND status='active'`,
+        );
+        if (!vendor) throw new PayablesError('Active vendor not found.', 404);
+        if (vendor.currency !== input.currency)
+          throw new PayablesError('Bill currency must match the vendor currency.');
+      }
       const duplicate = await tx.maybeOne<{ id: string }>(
         sql`SELECT id FROM finance_payable_bill WHERE organization_id=${ctx.organizationId} AND vendor_id IS NOT DISTINCT FROM ${input.vendorId ?? null} AND invoice_number=${input.invoiceNumber}`,
       );
@@ -242,11 +263,12 @@ export async function approveBill(
       taxTotal: string;
       total: string;
       tdsRate: string;
+      rcm: boolean;
       status: string;
       extractionStatus: string;
       sourceType: string;
     }>(
-      sql`SELECT vendor_id AS "vendorId",subtotal::text,tax_total::text AS "taxTotal",total::text,tds_rate::text AS "tdsRate",status,extraction_status AS "extractionStatus",source_type AS "sourceType" FROM finance_payable_bill WHERE organization_id=${ctx.organizationId} AND id=${billId} FOR UPDATE`,
+      sql`SELECT vendor_id AS "vendorId",subtotal::text,tax_total::text AS "taxTotal",total::text,tds_rate::text AS "tdsRate",rcm,status,extraction_status AS "extractionStatus",source_type AS "sourceType" FROM finance_payable_bill WHERE organization_id=${ctx.organizationId} AND id=${billId} FOR UPDATE`,
     );
     if (bill.status !== 'needs_review' && bill.status !== 'draft')
       throw new PayablesError('Only bills needing review can be approved.');
@@ -254,7 +276,9 @@ export async function approveBill(
       throw new PayablesError('Bill extraction needs human review before approval.');
     const total = cents(bill.total);
     const tds = (total * BigInt(Math.round(Number(bill.tdsRate) * 100))) / 10000n;
+    const tax = cents(bill.taxTotal);
     const net = total - tds;
+    const payableAmount = bill.rcm ? total - tax - tds : net;
     const lines: Array<{
       accountKey: string;
       amountPaise: bigint;
@@ -262,7 +286,7 @@ export async function approveBill(
     }> = [
       {
         accountKey: 'general-expense',
-        amountPaise: cents(bill.subtotal),
+      amountPaise: cents(bill.subtotal),
         side: 'debit' as const,
       },
     ];
@@ -272,11 +296,9 @@ export async function approveBill(
         amountPaise: cents(bill.taxTotal),
         side: 'debit' as const,
       });
-    lines.push({
-      accountKey: 'accounts-payable',
-      amountPaise: net,
-      side: 'credit' as const,
-    });
+    lines.push({ accountKey: 'accounts-payable', amountPaise: payableAmount, side: 'credit' as const });
+    if (bill.rcm)
+      lines.push({ accountKey: 'gst-payable', amountPaise: tax, side: 'credit' as const });
     if (tds > 0n)
       lines.push({
         accountKey: 'tds-payable',
@@ -304,19 +326,69 @@ export async function approveBill(
 }
 
 export async function createSubscription(ctx: RequestContext, input: SubscriptionInput) {
-  return db.query(
-    ctx,
-    sql`INSERT INTO finance_payable_subscription (organization_id,vendor_id,name,amount,currency,recurrence,next_due_date,owner_id,reason,created_by) VALUES (${ctx.organizationId},${input.vendorId},${input.name},${input.amount},${input.currency},${input.recurrence},${input.nextDueDate},${input.ownerId ?? null},${input.reason},${ctx.principal.id}) RETURNING id`,
-  );
+  return db.transaction(ctx, async (tx) => {
+    const vendor = await tx.maybeOne<{ currency: string }>(sql`SELECT currency FROM finance_vendor WHERE organization_id=${ctx.organizationId} AND id=${input.vendorId} AND status='active'`);
+    if (!vendor) throw new PayablesError('Active vendor not found.', 404);
+    if (vendor.currency !== input.currency) throw new PayablesError('Subscription currency must match the vendor currency.');
+    const row = await tx.one<{ id: string }>(sql`INSERT INTO finance_payable_subscription (organization_id,vendor_id,name,amount,currency,recurrence,next_due_date,owner_id,reason,created_by) VALUES (${ctx.organizationId},${input.vendorId},${input.name},${input.amount},${input.currency},${input.recurrence},${input.nextDueDate},${input.ownerId ?? null},${input.reason},${ctx.principal.id}) RETURNING id`);
+    await audit(ctx, tx, 'payables.subscription.created', row.id, input.reason, input);
+    return row;
+  });
 }
 export async function createPurchaseRequest(
   ctx: RequestContext,
   input: PurchaseRequestInput,
 ) {
-  return db.query(
-    ctx,
-    sql`INSERT INTO finance_purchase_request (organization_id,vendor_id,requester_id,description,amount,currency,reason) VALUES (${ctx.organizationId},${input.vendorId ?? null},${ctx.principal.id},${input.description},${input.amount},${input.currency},${input.reason}) RETURNING id`,
-  );
+  return db.transaction(ctx, async (tx) => {
+    if (input.vendorId) {
+      const vendor = await tx.maybeOne<{ currency: string }>(sql`SELECT currency FROM finance_vendor WHERE organization_id=${ctx.organizationId} AND id=${input.vendorId} AND status='active'`);
+      if (!vendor) throw new PayablesError('Active vendor not found.', 404);
+      if (vendor.currency !== input.currency) throw new PayablesError('Purchase-request currency must match the vendor currency.');
+    }
+    const row = await tx.one<{ id: string }>(sql`INSERT INTO finance_purchase_request (organization_id,vendor_id,requester_id,description,amount,currency,reason) VALUES (${ctx.organizationId},${input.vendorId ?? null},${ctx.principal.id},${input.description},${input.amount},${input.currency},${input.reason}) RETURNING id`);
+    await audit(ctx, tx, 'payables.purchase_request.created', row.id, input.reason, input);
+    return row;
+  });
+}
+
+export async function approvePurchaseRequest(
+  ctx: RequestContext,
+  requestId: string,
+  input: PurchaseRequestDecisionInput,
+) {
+  return db.transaction(ctx, async (tx) => {
+    const row = await tx.one<{ status: string; requesterId: string }>(
+      sql`SELECT status,requester_id AS "requesterId" FROM finance_purchase_request WHERE organization_id=${ctx.organizationId} AND id=${requestId} FOR UPDATE`,
+    );
+    if (row.status !== 'pending') throw new PayablesError('Only pending purchase requests can be approved.');
+    if (row.requesterId === ctx.principal.id)
+      throw new PayablesError('The purchase-request requester cannot approve the same request.');
+    await tx.query(sql`UPDATE finance_purchase_request SET status='approved',approved_by=${ctx.principal.id},updated_at=now() WHERE organization_id=${ctx.organizationId} AND id=${requestId}`);
+    await audit(ctx, tx, 'payables.purchase_request.approved', requestId, input.reason, { status: 'approved' });
+    return { id: requestId, status: 'approved' };
+  });
+}
+
+export async function matchPurchaseRequest(
+  ctx: RequestContext,
+  requestId: string,
+  input: PurchaseRequestMatchInput,
+) {
+  return db.transaction(ctx, async (tx) => {
+    const request = await tx.one<{ status: string; vendorId: string | null; amount: string; currency: string }>(
+      sql`SELECT status,vendor_id AS "vendorId",amount::text,currency FROM finance_purchase_request WHERE organization_id=${ctx.organizationId} AND id=${requestId} FOR UPDATE`,
+    );
+    const bill = await tx.one<{ status: string; vendorId: string | null; total: string; currency: string }>(
+      sql`SELECT status,vendor_id AS "vendorId",total::text,currency FROM finance_payable_bill WHERE organization_id=${ctx.organizationId} AND id=${input.billId} FOR SHARE`,
+    );
+    if (request.status !== 'approved') throw new PayablesError('Only approved purchase requests can be matched.');
+    if (bill.status === 'rejected' || bill.status === 'paid') throw new PayablesError('The bill is not eligible for purchase matching.');
+    if (request.vendorId !== bill.vendorId || request.currency !== bill.currency || cents(bill.total) < cents(request.amount))
+      throw new PayablesError('Bill vendor, currency, and value must satisfy the purchase request.');
+    await tx.query(sql`UPDATE finance_purchase_request SET status='matched',matched_bill_id=${input.billId},updated_at=now() WHERE organization_id=${ctx.organizationId} AND id=${requestId}`);
+    await audit(ctx, tx, 'payables.purchase_request.matched', requestId, input.reason, { billId: input.billId });
+    return { id: requestId, status: 'matched', billId: input.billId };
+  });
 }
 
 export async function createPaymentRun(
@@ -381,6 +453,11 @@ export async function executePaymentRun(
     );
     if (run.status !== 'approved')
       throw new PayablesError('Only approved payment runs can be executed.');
+    const billStates = await tx.query<{ status: string }>(
+      sql`SELECT b.status FROM finance_payment_run_item i JOIN finance_payable_bill b ON b.organization_id=i.organization_id AND b.id=i.bill_id WHERE i.organization_id=${ctx.organizationId} AND i.run_id=${runId} FOR UPDATE`,
+    );
+    if (billStates.length === 0 || billStates.some((bill) => bill.status !== 'approved'))
+      throw new PayablesError('Every bill in the payment run must still be approved and unpaid.');
     const total = cents(run.total);
     const journal = await postSourceJournalTx(tx, {
       organizationId: ctx.organizationId,

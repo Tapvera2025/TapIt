@@ -8,6 +8,8 @@ import {
   bankChangeSchema,
   billDecisionSchema,
   billSchema,
+  purchaseRequestDecisionSchema,
+  purchaseRequestMatchSchema,
   extractionConfirmationSchema,
   paymentRunDecisionSchema,
   paymentRunSchema,
@@ -41,6 +43,20 @@ async function runResource(ctx: RequestContext, id: string): Promise<Resource | 
   );
   return row ? { type: 'paymentRun', ...row } : null;
 }
+async function bankChangeResource(ctx: RequestContext, id: string): Promise<Resource | null> {
+  const row = await db.maybeOne<{ id: string; organizationId: string; proposedBy: string; approvedBy: string | null }>(
+    ctx,
+    sql`SELECT id,organization_id AS "organizationId",proposed_by AS "proposedBy",approved_by AS "approvedBy" FROM finance_vendor_bank_account WHERE organization_id=${ctx.organizationId} AND id=${id}`,
+  );
+  return row ? { type: 'vendorBankChange', ...row } : null;
+}
+async function purchaseRequestResource(ctx: RequestContext, id: string): Promise<Resource | null> {
+  const row = await db.maybeOne<{ id: string; organizationId: string; requesterId: string; approvedBy: string | null }>(
+    ctx,
+    sql`SELECT id,organization_id AS "organizationId",requester_id AS "requesterId",approved_by AS "approvedBy" FROM finance_purchase_request WHERE organization_id=${ctx.organizationId} AND id=${id}`,
+  );
+  return row ? { type: 'purchaseRequest', ...row } : null;
+}
 
 export function registerPayablesRoutes(): void {
   route({
@@ -64,11 +80,10 @@ export function registerPayablesRoutes(): void {
     action: 'payables:create-bill',
     module: 'payables',
     resourceParam: 'id',
-    loadResource: async (ctx, id) => ({
-      type: 'vendorBill',
-      id,
-      organizationId: ctx.organizationId,
-    }),
+    loadResource: async (ctx, id) => {
+      const row = await db.maybeOne<{ id: string; organizationId: string }>(ctx, sql`SELECT id,organization_id AS "organizationId" FROM finance_vendor WHERE organization_id=${ctx.organizationId} AND id=${id}`);
+      return row ? { type: 'vendor', ...row } : null;
+    },
     handler: async ({ ctx, params, body }) =>
       service.proposeBankChange(ctx, params['id']!, bankChangeSchema.parse(body)),
   });
@@ -78,13 +93,13 @@ export function registerPayablesRoutes(): void {
     action: 'payables:approve-bill',
     module: 'payables',
     resourceParam: 'id',
-    loadResource: async (ctx, id) => ({
-      type: 'vendorBill',
-      id,
-      organizationId: ctx.organizationId,
-    }),
+    loadResource: bankChangeResource,
     handler: async ({ ctx, params, body }) =>
       service.approveBankChange(ctx, params['id']!, billDecisionSchema.parse(body)),
+  });
+  route({
+    method: 'GET', path: '/api/payables/vendor-bank-changes', action: 'payables:view', module: 'payables',
+    handler: async ({ ctx }) => service.listBankChanges(ctx),
   });
   route({
     method: 'GET',
@@ -183,6 +198,14 @@ export function registerPayablesRoutes(): void {
     status: 201,
     handler: async ({ ctx, body }) =>
       service.createPurchaseRequest(ctx, purchaseRequestSchema.parse(body)),
+  });
+  route({
+    method: 'POST', path: '/api/payables/purchase-requests/:id/approve', action: 'payables:approve-bill', module: 'payables', resourceParam: 'id', loadResource: purchaseRequestResource,
+    handler: async ({ ctx, params, body }) => service.approvePurchaseRequest(ctx, params['id']!, purchaseRequestDecisionSchema.parse(body)),
+  });
+  route({
+    method: 'POST', path: '/api/payables/purchase-requests/:id/match-bill', action: 'payables:approve-bill', module: 'payables', resourceParam: 'id', loadResource: purchaseRequestResource,
+    handler: async ({ ctx, params, body }) => service.matchPurchaseRequest(ctx, params['id']!, purchaseRequestMatchSchema.parse(body)),
   });
   route({
     method: 'GET',

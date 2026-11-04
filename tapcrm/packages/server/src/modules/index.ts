@@ -117,6 +117,10 @@ import {
 import { registerReceivablesRoutes } from './finance/receivables/index.js';
 import { registerReceivablesJobs } from './finance/receivables/index.js';
 import { registerPayablesRoutes } from './finance/payables/index.js';
+import { registerPayablesJobs } from './finance/payables/index.js';
+import { registerPayablesPolicies } from './finance/payables/index.js';
+import { registerProfitabilityRoutes } from './finance/profitability/index.js';
+import { registerProfitabilityJobs } from './finance/profitability/index.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -167,6 +171,7 @@ export function registerAllPolicies(): void {
   registerBillingTermsPolicies();
   registerInvoicingPolicies();
   registerPaymentPolicies();
+  registerPayablesPolicies();
 }
 
 /** Realtime wiring that has no route/policy shape of its own (the typing relay). */
@@ -222,6 +227,7 @@ export function registerAllRoutes(): void {
   registerInvoicingRoutes();
   registerReceivablesRoutes();
   registerPayablesRoutes();
+  registerProfitabilityRoutes();
 }
 
 let jobsRegistered = false;
@@ -246,4 +252,6 @@ export function registerAllJobs(): void {
   registerAccountingJobs();
   registerBillingTermsJobs();
   registerReceivablesJobs();
+  registerPayablesJobs();
+  registerProfitabilityJobs();
 }

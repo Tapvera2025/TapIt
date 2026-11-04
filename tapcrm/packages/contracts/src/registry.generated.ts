@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 198   Bindings: 669
+ * Actions: 198   Bindings: 695
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3825,6 +3825,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/payables/vendors', action: 'payables:view', resourceParam: null },
   { method: 'POST', path: '/api/payables/vendors', action: 'payables:create-bill', resourceParam: null },
   { method: 'POST', path: '/api/payables/vendors/:id/bank-changes', action: 'payables:create-bill', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payables/vendor-bank-changes', action: 'payables:view', resourceParam: null },
   { method: 'POST', path: '/api/payables/vendor-bank-changes/:id/approve', action: 'payables:approve-bill', resourceParam: 'id' },
   { method: 'POST', path: '/api/payables/bills/from-expense', action: 'payables:create-bill', resourceParam: null },
   { method: 'GET', path: '/api/payables/bills/:id/artifact', action: 'payables:view', resourceParam: 'id' },
@@ -3832,6 +3833,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/payables/subscriptions', action: 'payables:create-bill', resourceParam: null },
   { method: 'GET', path: '/api/payables/purchase-requests', action: 'payables:view', resourceParam: null },
   { method: 'POST', path: '/api/payables/purchase-requests', action: 'payables:create-bill', resourceParam: null },
+  { method: 'POST', path: '/api/payables/purchase-requests/:id/approve', action: 'payables:approve-bill', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payables/purchase-requests/:id/match-bill', action: 'payables:approve-bill', resourceParam: 'id' },
   { method: 'GET', path: '/api/payables/claims/mine', action: 'payables:claim', resourceParam: null },
   { method: 'POST', path: '/api/payables/claims', action: 'payables:claim', resourceParam: null },
   { method: 'POST', path: '/api/payables/claims/:id/approve', action: 'payables:approve-claim', resourceParam: 'id' },
@@ -3845,6 +3848,29 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/payables/runs', action: 'payables:create-bill', resourceParam: null },
   { method: 'POST', path: '/api/payables/runs/:id/approve', action: 'payables:execute-run', resourceParam: 'id' },
   { method: 'POST', path: '/api/payables/runs/:id/execute', action: 'payables:execute-run', resourceParam: 'id' },
+  { method: 'GET', path: '/api/profitability/budgets', action: 'projects:view-financials', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/budgets', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/budgets/:id/approve', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/cost-rates', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/time-costs', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/direct-costs', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/payroll-costs/import', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/revenue', action: 'projects:manage', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/allocation-runs', action: 'projects:view-financials', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/allocations', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/allocations/:id/approve', action: 'projects:manage', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/margins', action: 'projects:view-financials', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/margins/refresh', action: 'projects:manage', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/metrics', action: 'projects:view-financials', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/metrics/refresh', action: 'projects:manage', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/leakage', action: 'projects:view-financials', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/leakage/scan', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/leakage/:id/decision', action: 'projects:manage', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/advertising/accounts', action: 'projects:view-financials', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/advertising/accounts', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/advertising/accounts/:id/credentials', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/advertising/accounts/:id/sync', action: 'projects:manage', resourceParam: null },
+  { method: 'POST', path: '/api/profitability/advertising/accounts/:id/manual-spend', action: 'projects:manage', resourceParam: null },
   { method: 'GET', path: '/api/accounting/ledger', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'GET', path: '/api/accounting/trial-balance', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'GET', path: '/api/accounting/general-ledger', action: 'accounting:view-ledger', resourceParam: null },

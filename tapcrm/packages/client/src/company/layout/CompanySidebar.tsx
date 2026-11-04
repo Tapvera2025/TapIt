@@ -124,6 +124,7 @@ export function CompanySidebar({
   canViewInvoicing = false,
   canViewReceivables = false,
   canViewPayables = false,
+  canViewProfitability = false,
   canViewTa = false,
   canManageTa = false,
   canManageBiometric = false,
@@ -189,6 +190,7 @@ export function CompanySidebar({
   canViewInvoicing?: boolean;
   canViewReceivables?: boolean;
   canViewPayables?: boolean;
+  canViewProfitability?: boolean;
   canViewTa?: boolean;
   canManageTa?: boolean;
   canManageBiometric?: boolean;
@@ -991,6 +993,9 @@ export function CompanySidebar({
                     },
                   ]
                 : []),
+              ...(canViewProfitability
+                ? [{ label: 'Profitability', path: '/company/finance/profitability', icon: 'chart' }]
+                : []),
               ...(canViewAccounting
                 ? [
                     {
@@ -1007,7 +1012,8 @@ export function CompanySidebar({
           canViewBillingTerms ||
           canViewInvoicing ||
           canViewReceivables ||
-          canViewPayables
+          canViewPayables ||
+          canViewProfitability
         ? [
             {
               label: 'Finance',
@@ -1047,6 +1053,9 @@ export function CompanySidebar({
                         icon: 'wallet',
                       },
                     ]
+                  : []),
+                ...(canViewProfitability
+                  ? [{ label: 'Profitability', path: '/company/finance/profitability', icon: 'chart' }]
                   : []),
                 ...(canViewPayables
                   ? [
