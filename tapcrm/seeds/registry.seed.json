@@ -2853,7 +2853,7 @@
     {
       "action": "seo:read-finding",
       "module": "seo-intelligence",
-      "resource": null,
+      "resource": "seo_finding",
       "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
@@ -2988,7 +2988,7 @@
     {
       "action": "seo:update-finding",
       "module": "seo-intelligence",
-      "resource": null,
+      "resource": "seo_finding",
       "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
@@ -3618,6 +3618,18 @@
       "method": "GET",
       "path": "/api/org/departments",
       "action": "org:view-structure",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/currency-settings",
+      "action": "advance:view-own",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/org/currency-settings",
+      "action": "system:manage-settings",
       "resourceParam": null
     },
     {
@@ -4481,6 +4493,12 @@
     {
       "method": "POST",
       "path": "/api/holidays",
+      "action": "holidays:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/holidays/bulk",
       "action": "holidays:manage",
       "resourceParam": null
     },
@@ -7626,13 +7644,13 @@
       "method": "GET",
       "path": "/api/seo/findings/:findingId",
       "action": "seo:read-finding",
-      "resourceParam": null
+      "resourceParam": "findingId"
     },
     {
       "method": "PATCH",
       "path": "/api/seo/findings/:findingId",
       "action": "seo:update-finding",
-      "resourceParam": null
+      "resourceParam": "findingId"
     },
     {
       "method": "GET",

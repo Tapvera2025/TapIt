@@ -6,7 +6,7 @@ import { createRequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { loadConfig } from '../../config.js';
-import { resolvePrincipalFromToken } from '../identity/authentication/authenticate.js';
+import { resolvePrincipalFromToken } from '../identity/facade.js';
 import { contentCollaborationAccess } from './content-service.js';
 import { plainTextToContentJson } from '@tapcrm/contracts';
 
@@ -97,7 +97,7 @@ export async function startContentCollaboration() {
     async onLoadDocument({ context, documentName }) {
       const authenticated = parseContext(context);
       if (authenticated.documentId !== documentName) throw new Error('CONTENT_NOT_FOUND');
-      const { ctx, access } = await authorize(authenticated.token, documentName);
+      const { ctx } = await authorize(authenticated.token, documentName);
       if (ctx.organizationId !== authenticated.organizationId)
         throw new Error('CONTENT_NOT_FOUND');
       const stored = await db.maybeOne<{ state: Buffer }>(

@@ -1,6 +1,6 @@
 import type { Action } from '@tapcrm/contracts';
 import { route } from '../../platform/http/route.js';
-import { loadSiteResource } from './policy.js';
+import { loadFindingResource, loadSiteResource } from './policy.js';
 import * as service from './service.js';
 import { generateSeoReport } from './report.js';
 import { registerContentRoutes } from './content-routes.js';
@@ -177,6 +177,8 @@ export function registerSeoRoutes(): void {
     path: '/api/seo/findings/:findingId',
     action: 'seo:read-finding' as Action,
     module: MODULE,
+    resourceParam: 'findingId',
+    loadResource: (ctx, findingId) => loadFindingResource(ctx, findingId),
     handler: async ({ ctx, params }) => {
       const { findingId } = findingIdParam.parse(params);
       return service.getFindingDetail(ctx, findingId);
@@ -188,6 +190,8 @@ export function registerSeoRoutes(): void {
     path: '/api/seo/findings/:findingId',
     action: 'seo:update-finding' as Action,
     module: MODULE,
+    resourceParam: 'findingId',
+    loadResource: (ctx, findingId) => loadFindingResource(ctx, findingId),
     handler: async ({ ctx, params, body }) => {
       const { findingId } = findingIdParam.parse(params);
       const patch = updateFindingSchema.parse(body);

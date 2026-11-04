@@ -10,15 +10,32 @@ function normalize(value: string): string {
 function score(destination: CompanySearchDestination, query: string): number {
   const label = normalize(destination.label);
   const category = normalize(destination.category);
-  const keywords = destination.keywords.map(normalize);
-  if (label === query) return 100;
-  if (label.startsWith(query)) return 80;
-  if (label.includes(query)) return 65;
-  if (category === query) return 58;
-  if (category.includes(query)) return 45;
-  if (keywords.some((keyword) => keyword.startsWith(query))) return 40;
-  if (keywords.some((keyword) => keyword.includes(query))) return 25;
-  return 0;
+  const keywords = destination.keywords.map(normalize).filter((keyword) => keyword !== category);
+  const fields = [label, ...keywords];
+  const queryTokens = query.split(' ').filter(Boolean);
+  const matchesField = (field: string, token: string): boolean => {
+    const words = field.split(/[\s/_-]+/).filter(Boolean);
+    return token.length === 1
+      ? words.some((word) => word.startsWith(token))
+      : field.includes(token) || words.some((word) => word.startsWith(token));
+  };
+  if (!queryTokens.every((token) => token.length === 1
+    ? label.split(/[\s/_-]+/).some((word) => word.startsWith(token))
+    : fields.some((field) => matchesField(field, token)) || category.includes(token))) return 0;
+
+  let rank = 20;
+  if (label === query) rank += 100;
+  else if (label.startsWith(query)) rank += 80;
+  else if (label.includes(query)) rank += 60;
+  if (category === query) rank += 45;
+  else if (query.length > 1 && category.includes(query)) rank += 30;
+
+  for (const token of queryTokens) {
+    if (label.split(' ').some((word) => word === token)) rank += 24;
+    else if (label.split(' ').some((word) => word.startsWith(token))) rank += 18;
+    else if (token.length > 1 && keywords.some((keyword) => matchesField(keyword, token))) rank += 10;
+  }
+  return rank;
 }
 
 export function searchCompanyDestinations(
@@ -33,7 +50,6 @@ export function searchCompanyDestinations(
     .sort(
       (a, b) => b.rank - a.rank || a.destination.label.localeCompare(b.destination.label),
     )
-    .slice(0, 12)
     .map((entry) => entry.destination);
 }
 

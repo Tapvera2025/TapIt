@@ -20,11 +20,12 @@ import {
   type Advance,
 } from './api/advanceApi.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../api/companyApi.js';
+import { organizationApi } from '../../organization/api/organizationApi.js';
 
-const money = (paise: string | null): string =>
+const money = (paise: string | null, currency = 'INR'): string =>
   paise === null
     ? '—'
-    : `₹${(Number(paise) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    : new Intl.NumberFormat(undefined, { style: 'currency', currency, minimumFractionDigits: 2 }).format(Number(paise) / 100);
 const periodLabel = (period: string): string =>
   new Date(`${period.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-IN', {
     month: 'short',
@@ -135,6 +136,8 @@ export function MyAdvancesPage(): React.JSX.Element {
   const [amount, setAmount] = useState('');
   const [period, setPeriod] = useState(month());
   const [reason, setReason] = useState('');
+  const [currencies, setCurrencies] = useState<string[]>(['INR']);
+  const [currency, setCurrency] = useState('INR');
   const load = () => {
     setLoading(true);
     void listMyAdvances({ page, pageSize: ADVANCE_PAGE_SIZE })
@@ -146,11 +149,13 @@ export function MyAdvancesPage(): React.JSX.Element {
       .finally(() => setLoading(false));
   };
   useEffect(load, [page]);
+  useEffect(() => { void organizationApi.currencySettings().then((s) => { setCurrencies(s.supportedCurrencies); setCurrency(s.defaultCurrency); }).catch(() => undefined); }, []);
   async function submit(): Promise<void> {
     setError('');
     try {
       await requestAdvance({
         amountPaise: String(amountInPaise(amount)),
+        currency,
         requestedForPeriod: requirePeriod(period, 'Advance month'),
         reason: requireText(reason, 'Reason'),
       });
@@ -194,7 +199,7 @@ export function MyAdvancesPage(): React.JSX.Element {
         </Card>
         <Card>
           <p className="text-sm text-app-muted">Outstanding</p>
-          <p className="mt-1 text-2xl font-bold">{money(String(totals.outstanding))}</p>
+          <p className="mt-1 text-2xl font-bold">{money(String(totals.outstanding), currency)}</p>
         </Card>
       </div>
       <Form
@@ -203,7 +208,7 @@ export function MyAdvancesPage(): React.JSX.Element {
         submitLabel="Request advance"
       >
         <label className="text-sm font-semibold">
-          Amount (₹)
+          Amount ({currency})
           <input
             className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
             type="number"
@@ -211,6 +216,12 @@ export function MyAdvancesPage(): React.JSX.Element {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
+        </label>
+        <label className="text-sm font-semibold">
+          Currency
+          <select className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            {currencies.map((code) => <option key={code} value={code}>{code}</option>)}
+          </select>
         </label>
         <label className="text-sm font-semibold">
           Advance month
@@ -261,8 +272,8 @@ export function MyAdvancesPage(): React.JSX.Element {
               rows.map((r) => (
                 <tr className="border-b border-app-border last:border-0" key={r.id}>
                   <td className="px-4 py-3">{periodLabel(r.requestedForPeriod)}</td>
-                  <td className="px-4 py-3">{money(r.requestedAmountPaise)}</td>
-                  <td className="px-4 py-3">{money(r.approvedAmountPaise)}</td>
+                  <td className="px-4 py-3">{money(r.requestedAmountPaise, r.currency)}</td>
+                  <td className="px-4 py-3">{money(r.approvedAmountPaise, r.currency)}</td>
                   <td className="px-4 py-3">
                     {new Date(r.requestedAt).toLocaleDateString('en-IN')}
                   </td>
@@ -270,7 +281,7 @@ export function MyAdvancesPage(): React.JSX.Element {
                     <StatusBadge status={r.status} />
                   </td>
                   <td className="px-4 py-3">
-                    {r.status === 'approved' ? money(r.outstandingAmountPaise) : '—'}
+                    {r.status === 'approved' ? money(r.outstandingAmountPaise, r.currency) : '—'}
                   </td>
                   <td className="px-4 py-3">{r.rejectionReason ?? r.reason}</td>
                 </tr>
@@ -313,6 +324,8 @@ function AdminAdvances(): React.JSX.Element {
   const [manualAmount, setManualAmount] = useState('');
   const [manualPeriod, setManualPeriod] = useState(month());
   const [manualReason, setManualReason] = useState('');
+  const [currencies, setCurrencies] = useState<string[]>(['INR']);
+  const [manualCurrency, setManualCurrency] = useState('INR');
   const loadApproved = () => {
     setApprovedLoading(true);
     void listAdvances({
@@ -346,6 +359,7 @@ function AdminAdvances(): React.JSX.Element {
       .then(setEmployees)
       .catch(() => undefined);
   }, []);
+  useEffect(() => { void organizationApi.currencySettings().then((s) => { setCurrencies(s.supportedCurrencies); setManualCurrency(s.defaultCurrency); }).catch(() => undefined); }, []);
   async function approve(): Promise<void> {
     if (!selected) return;
     setError('');
@@ -354,7 +368,7 @@ function AdminAdvances(): React.JSX.Element {
       const approvedAmountPaise = amountInPaise(value, 'Approved amount');
       if (approvedAmountPaise > Number(selected.requestedAmountPaise)) {
         throw new Error(
-          `Approved amount cannot exceed the requested amount of ${money(selected.requestedAmountPaise)}.`,
+          `Approved amount cannot exceed the requested amount of ${money(selected.requestedAmountPaise, selected.currency)}.`,
         );
       }
       await approveAdvance(selected.id, {
@@ -388,6 +402,7 @@ function AdminAdvances(): React.JSX.Element {
       await createManualAdvance({
         employeeId: requireText(manualEmployee, 'Employee'),
         amountPaise: String(amountInPaise(manualAmount)),
+        currency: manualCurrency,
         requestedForPeriod: requirePeriod(manualPeriod, 'Advance month'),
         reason: requireText(manualReason, 'Reason'),
       });
@@ -441,7 +456,7 @@ function AdminAdvances(): React.JSX.Element {
           </select>
         </label>
         <label className="text-sm font-semibold">
-          Amount (₹)
+          Amount ({manualCurrency})
           <input
             className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
             type="number"
@@ -449,6 +464,12 @@ function AdminAdvances(): React.JSX.Element {
             value={manualAmount}
             onChange={(e) => setManualAmount(e.target.value)}
           />
+        </label>
+        <label className="text-sm font-semibold">
+          Currency
+          <select className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5" value={manualCurrency} onChange={(e) => setManualCurrency(e.target.value)}>
+            {currencies.map((code) => <option key={code} value={code}>{code}</option>)}
+          </select>
         </label>
         <label className="text-sm font-semibold">
           Advance month
@@ -520,8 +541,8 @@ function AdminAdvances(): React.JSX.Element {
                     <p className="text-xs text-app-muted">{r.employeeCode ?? '—'}</p>
                   </td>
                   <td className="px-4 py-3">{r.departmentName ?? '—'}</td>
-                  <td className="px-4 py-3">{money(r.requestedAmountPaise)}</td>
-                  <td className="px-4 py-3">{money(r.approvedAmountPaise)}</td>
+                  <td className="px-4 py-3">{money(r.requestedAmountPaise, r.currency)}</td>
+                  <td className="px-4 py-3">{money(r.approvedAmountPaise, r.currency)}</td>
                   <td className="px-4 py-3">{periodLabel(r.requestedForPeriod)}</td>
                   <td className="px-4 py-3">
                     {new Date(r.requestedAt).toLocaleDateString('en-IN')}
@@ -571,18 +592,18 @@ function AdminAdvances(): React.JSX.Element {
               <Button kind="danger" onClick={() => void reject()}>
                 Reject request
               </Button>
-              <Button onClick={() => void approve()}>Approve ₹{value || '0'}</Button>
+              <Button onClick={() => void approve()}>Approve {selected.currency} {value || '0'}</Button>
             </div>
           }
         >
           <p className="text-sm text-app-muted">
-            Requested {money(selected.requestedAmountPaise)} ·{' '}
+            Requested {money(selected.requestedAmountPaise, selected.currency)} ·{' '}
             {periodLabel(selected.requestedForPeriod)}
           </p>
           {reviewError && <Notice error>{reviewError}</Notice>}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-semibold">
-              Approved amount (₹)
+              Approved amount ({selected.currency})
               <input
                 className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
                 type="number"
@@ -664,9 +685,9 @@ function AdminAdvances(): React.JSX.Element {
                     <p className="text-xs text-app-muted">{r.employeeCode ?? '—'}</p>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">{r.id}</td>
-                  <td className="px-4 py-3">{money(r.approvedAmountPaise)}</td>
-                  <td className="px-4 py-3">{money(r.recoveredAmountPaise)}</td>
-                  <td className="px-4 py-3">{money(r.outstandingAmountPaise)}</td>
+                  <td className="px-4 py-3">{money(r.approvedAmountPaise, r.currency)}</td>
+                  <td className="px-4 py-3">{money(r.recoveredAmountPaise, r.currency)}</td>
+                  <td className="px-4 py-3">{money(r.outstandingAmountPaise, r.currency)}</td>
                   <td className="px-4 py-3">{periodLabel(r.requestedForPeriod)}</td>
                   <td className="px-4 py-3">
                     {r.approvedAt

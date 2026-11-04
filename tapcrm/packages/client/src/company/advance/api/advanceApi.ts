@@ -10,6 +10,7 @@ export interface Advance {
   teamName: string | null;
   positionName: string | null;
   requestedAmountPaise: string;
+  currency: string;
   approvedAmountPaise: string | null;
   requestedForPeriod: string;
   requestedAt: string;
@@ -33,6 +34,7 @@ export interface Deduction {
   teamName: string | null;
   positionName: string | null;
   requestedAmountPaise: string;
+  currency: string;
   approvedAmountPaise: string;
   approvedAt: string | null;
   requestedForPeriod: string;
@@ -63,6 +65,7 @@ export const listDeductions = (
 ) => peopleRead<Page<Deduction>>(`/api/advances/deductions?${query(params)}`);
 export const requestAdvance = (body: {
   amountPaise: string;
+  currency: string;
   requestedForPeriod: string;
   reason: string;
 }) =>
@@ -98,6 +101,7 @@ export const rejectAdvance = (id: string, rejectionReason: string) =>
 export const createManualAdvance = (body: {
   employeeId: string;
   amountPaise: string;
+  currency: string;
   requestedForPeriod: string;
   reason: string;
 }) =>

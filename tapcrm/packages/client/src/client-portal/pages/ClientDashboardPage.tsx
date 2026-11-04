@@ -4,6 +4,7 @@ import { Card, Empty, ErrorMessage, Loading, WorkspacePageContainer } from '../.
 import { Icon } from '../../ui/index.js';
 import { getPortalDashboard, PORTAL_STATUS_LABELS, type PortalDashboard, type PortalWorkStatus } from '../api/portalApi.js';
 import { PortalLink, ProgressBar, StatusBadge } from '../components.js';
+import { useClientMessages } from '../useClientMessages.js';
 
 const STATUS_ORDER: PortalWorkStatus[] = ['ongoing', 'new', 'ended', 'expired'];
 
@@ -17,6 +18,7 @@ const STATUS_PRESENTATION: Record<PortalWorkStatus, { icon: string; color: strin
 export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path: string) => void; onError: (cause: unknown) => void }): React.JSX.Element {
   const [data, setData] = useState<PortalDashboard | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const clientMessages = useClientMessages();
 
   useEffect(() => {
     let live = true;
@@ -26,6 +28,14 @@ export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path
 
   if (error) return <WorkspacePageContainer><div className="pt-5"><ErrorMessage cause={error} /></div></WorkspacePageContainer>;
   if (!data) return <WorkspacePageContainer><div className="pt-5"><Loading /></div></WorkspacePageContainer>;
+
+  const recentMessages = [...clientMessages.conversations]
+    .sort((left, right) => {
+      const leftTime = left.lastMessage ? new Date(left.lastMessage.createdAt).getTime() : 0;
+      const rightTime = right.lastMessage ? new Date(right.lastMessage.createdAt).getTime() : 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, 7);
 
   return (
     <WorkspacePageContainer className="pb-6 pt-4 sm:pt-5">
@@ -61,7 +71,7 @@ export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path
         </section>
 
         <div className="grid min-w-0 gap-4 xl:grid-cols-12">
-          <Card className="min-w-0 xl:col-span-8">
+          <Card className="min-w-0 xl:col-span-7">
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="flex min-w-0 items-start gap-3">
                 <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
@@ -107,30 +117,54 @@ export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path
             )}
           </Card>
 
-          <Card className="min-w-0 xl:col-span-4">
-            <div className="flex items-start gap-3">
+          <Card className="min-w-0 xl:col-span-5">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
-                <Icon name="chart" className="size-5" />
+                  <Icon name="message" className="size-5" />
               </span>
-              <div>
-                <h2 className="font-display text-lg font-bold">Project status overview</h2>
-                <p className="mt-0.5 text-sm text-app-muted">A summary of your project pipeline.</p>
+                <div className="min-w-0">
+                  <h2 className="font-display text-lg font-bold">Recent messages</h2>
+                  <p className="mt-0.5 text-sm text-app-muted">Latest updates from your project discussions.</p>
+                </div>
               </div>
+              <PortalLink href="/client/messages" onNavigate={onNavigate} className="inline-flex shrink-0 items-center gap-1 pt-1 text-sm font-semibold text-app-accent hover:underline">
+                View all <Icon name="arrow" className="size-4" />
+              </PortalLink>
             </div>
-            <dl className="mt-5 divide-y divide-app-border">
-              {STATUS_ORDER.map((status) => {
-                const presentation = STATUS_PRESENTATION[status];
-                return (
-                  <div key={status} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-                    <dt className="flex min-w-0 items-center gap-2.5 text-sm text-app-muted">
-                      <span className={`size-2 shrink-0 rounded-full ${presentation.dot}`} />
-                      <span className="truncate">{PORTAL_STATUS_LABELS[status]}</span>
-                    </dt>
-                    <dd className="font-display text-lg font-bold tabular-nums text-app-foreground">{data.counts[status]}</dd>
-                  </div>
-                );
-              })}
-            </dl>
+            {!clientMessages.loaded ? (
+              <div className="mt-5 space-y-2" aria-label="Loading recent messages" aria-busy="true">
+                {[1, 2, 3].map((item) => <div key={item} className="h-14 animate-pulse rounded-xl bg-app-surface-raised" />)}
+              </div>
+            ) : recentMessages.length === 0 ? (
+              <div className="mt-5 rounded-xl border border-dashed border-app-border px-4 py-8 text-center">
+                <Icon name="message" className="mx-auto size-6 text-app-muted/60" />
+                <p className="mt-2 text-sm font-semibold">No project messages yet</p>
+                <p className="mt-1 text-xs text-app-muted">Updates from your project teams will appear here.</p>
+              </div>
+            ) : (
+              <div className="mt-5 max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+                {recentMessages.map((conversation) => {
+                  const preview = conversation.lastMessage;
+                  const sender = preview ? conversation.members.find((member) => member.userId === preview.senderId)?.fullName ?? 'Project team' : 'Project team';
+                  const previewText = !preview ? 'No messages yet' : preview.deletedAt ? 'Message unsent' : (preview.body?.trim() || 'Attachment');
+                  return (
+                    <button key={conversation.id} type="button" onClick={() => onNavigate('/client/messages')} className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-app-border bg-app-background/30 p-3 text-left transition hover:border-app-accent/40 hover:bg-app-accent/5">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent"><Icon name="message" className="size-4" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center justify-between gap-2">
+                          <span className="truncate text-xs font-bold text-app-foreground">{conversation.name}</span>
+                          {preview && <span className="shrink-0 text-[10px] text-app-muted">{new Date(preview.createdAt).toLocaleDateString()}</span>}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-app-muted"><span className="font-semibold text-app-foreground/80">{preview ? `${sender}:` : ''}</span>{preview ? ` ${previewText}` : previewText}</span>
+                      </span>
+                      {conversation.unreadCount > 0 && <span className="grid size-5 shrink-0 place-items-center rounded-full bg-app-accent text-[10px] font-bold text-app-on-accent">{conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}</span>}
+                      <Icon name="chevron-right" className="size-4 shrink-0 text-app-muted transition group-hover:translate-x-0.5 group-hover:text-app-accent" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </Card>
         </div>
       </div>

@@ -13,6 +13,7 @@ import type { ShiftTemplate, WeekdaySchedule } from '../api/shiftsApi.js';
 import { missingScheduleNotice } from './schedule-notice.js';
 import { createEmployee, getNextEmployeeId, type CreateEmployeeInput } from '../api/employeesApi.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
+import { ConfirmDiscardModal, ConfirmCancelButton } from '../../ui/ConfirmDiscardModal.js';
 
 interface AddEmployeeWizardModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ type WizardFieldErrors = {
   state?: string;
   postalCode?: string;
   emergencyContactName?: string;
+  emergencyContactCountryCode?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
 
@@ -72,6 +74,7 @@ interface EmployeeWizardDraftData {
   designationId?: string;
   specialization?: string;
   reportsTo?: string;
+  phoneCountryCode?: string;
   phone?: string;
   dateOfBirth?: string;
   gender?: string;
@@ -81,6 +84,7 @@ interface EmployeeWizardDraftData {
   state?: string;
   postalCode?: string;
   emergencyContactName?: string;
+  emergencyContactCountryCode?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
   shiftId?: string;
@@ -95,6 +99,73 @@ const DRAFT_KEY = 'tapcrm.employee_wizard_draft';
 
 function sanitizeNameInput(value: string): string {
   return value.replace(/[^a-zA-Z\s'.-]/g, '');
+}
+
+export const PHONE_COUNTRY_OPTIONS = [
+  { code: '+91', country: 'IN', label: '+91 (India)' },
+  { code: '+1', country: 'US', label: '+1 (US)' },
+  { code: '+44', country: 'UK', label: '+44 (UK)' },
+  { code: '+971', country: 'UAE', label: '+971 (UAE)' },
+  { code: '+65', country: 'SG', label: '+65 (Singapore)' },
+  { code: '+61', country: 'AU', label: '+61 (Australia)' },
+  { code: '+1', country: 'CA', label: '+1 (Canada)' },
+  { code: '+49', country: 'DE', label: '+49 (Germany)' },
+  { code: '+33', country: 'FR', label: '+33 (France)' },
+  { code: '+966', country: 'SA', label: '+966 (Saudi Arabia)' },
+  { code: '+974', country: 'QA', label: '+974 (Qatar)' },
+  { code: '+968', country: 'OM', label: '+968 (Oman)' },
+  { code: '+965', country: 'KW', label: '+965 (Kuwait)' },
+  { code: '+973', country: 'BH', label: '+973 (Bahrain)' },
+  { code: '+81', country: 'JP', label: '+81 (Japan)' },
+  { code: '+86', country: 'CN', label: '+86 (China)' },
+  { code: '+82', country: 'KR', label: '+82 (South Korea)' },
+  { code: '+880', country: 'BD', label: '+880 (Bangladesh)' },
+  { code: '+92', country: 'PK', label: '+92 (Pakistan)' },
+  { code: '+94', country: 'LK', label: '+94 (Sri Lanka)' },
+  { code: '+977', country: 'NP', label: '+977 (Nepal)' },
+  { code: '+60', country: 'MY', label: '+60 (Malaysia)' },
+  { code: '+62', country: 'ID', label: '+62 (Indonesia)' },
+  { code: '+63', country: 'PH', label: '+63 (Philippines)' },
+  { code: '+27', country: 'ZA', label: '+27 (South Africa)' },
+  { code: '+234', country: 'NG', label: '+234 (Nigeria)' },
+  { code: '+254', country: 'KE', label: '+254 (Kenya)' },
+  { code: '+55', country: 'BR', label: '+55 (Brazil)' },
+  { code: '+52', country: 'MX', label: '+52 (Mexico)' },
+  { code: '+34', country: 'ES', label: '+34 (Spain)' },
+  { code: '+39', country: 'IT', label: '+39 (Italy)' },
+  { code: '+31', country: 'NL', label: '+31 (Netherlands)' },
+  { code: '+41', country: 'CH', label: '+41 (Switzerland)' },
+  { code: '+46', country: 'SE', label: '+46 (Sweden)' },
+  { code: '+47', country: 'NO', label: '+47 (Norway)' },
+  { code: '+64', country: 'NZ', label: '+64 (New Zealand)' },
+  { code: '+353', country: 'IE', label: '+353 (Ireland)' },
+] as const;
+
+function splitPhoneAndCountryCode(
+  input: string,
+  defaultCode = '+91'
+): { countryCode: string; nationalNumber: string } {
+  const trimmed = input.trim();
+  if (trimmed.startsWith('+')) {
+    const sorted = [...PHONE_COUNTRY_OPTIONS].map((o) => o.code).sort((a, b) => b.length - a.length);
+    for (const code of sorted) {
+      if (trimmed.startsWith(code)) {
+        return { countryCode: code, nationalNumber: trimmed.slice(code.length).trim() };
+      }
+    }
+    const match = trimmed.match(/^(\+\d{1,4})\s*(.*)$/);
+    if (match) {
+      return { countryCode: match[1] ?? defaultCode, nationalNumber: match[2] ?? '' };
+    }
+  }
+  return { countryCode: defaultCode, nationalNumber: trimmed };
+}
+
+function formatFullPhone(countryCode: string, nationalNumber: string): string {
+  const trimmed = nationalNumber.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('+')) return trimmed;
+  return `${countryCode} ${trimmed}`;
 }
 
 function sanitizePhoneInput(value: string): string {
@@ -144,6 +215,7 @@ export function AddEmployeeWizardModal({
   const [error, setError] = useState('');
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<WizardFieldErrors>({});
 
   // Dynamic positions and managers
@@ -226,7 +298,12 @@ export function AddEmployeeWizardModal({
           if (typeof data.designationId === 'string') setDesignationId(data.designationId);
           if (typeof data.specialization === 'string') setSpecialization(data.specialization);
           if (typeof data.reportsTo === 'string') setReportsTo(data.reportsTo);
-          if (typeof data.phone === 'string') setPhone(data.phone);
+          if (typeof data.phoneCountryCode === 'string') setPhoneCountryCode(data.phoneCountryCode);
+          if (typeof data.phone === 'string') {
+            const parsed = splitPhoneAndCountryCode(data.phone, data.phoneCountryCode || '+91');
+            setPhoneCountryCode(parsed.countryCode);
+            setPhone(parsed.nationalNumber);
+          }
           if (typeof data.dateOfBirth === 'string') setDateOfBirth(data.dateOfBirth);
           if (typeof data.gender === 'string') setGender(data.gender);
           if (typeof data.addressLine1 === 'string') setAddressLine1(data.addressLine1);
@@ -235,15 +312,20 @@ export function AddEmployeeWizardModal({
           if (typeof data.state === 'string') setState(data.state);
           if (typeof data.postalCode === 'string') setPostalCode(data.postalCode);
           if (typeof data.emergencyContactName === 'string') setEmergencyContactName(data.emergencyContactName);
-          if (typeof data.emergencyContactPhone === 'string') setEmergencyContactPhone(data.emergencyContactPhone);
+          if (typeof data.emergencyContactCountryCode === 'string') setEmergencyContactCountryCode(data.emergencyContactCountryCode);
+          if (typeof data.emergencyContactPhone === 'string') {
+            const parsed = splitPhoneAndCountryCode(data.emergencyContactPhone, data.emergencyContactCountryCode || '+91');
+            setEmergencyContactCountryCode(parsed.countryCode);
+            setEmergencyContactPhone(parsed.nationalNumber);
+          }
           if (typeof data.emergencyContactRelation === 'string') setEmergencyContactRelation(data.emergencyContactRelation);
           if (typeof data.shiftId === 'string') setShiftId(data.shiftId);
           if (typeof data.weekdayScheduleId === 'string') setWeekdayScheduleId(data.weekdayScheduleId);
           if (Array.isArray(data.skillsList)) {
-            setSkillsList(data.skillsList as Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>);
+            setSkillsList(data.skillsList);
           }
           if (Array.isArray(data.qualificationsList)) {
-            setQualificationsList(data.qualificationsList as Array<{ institution: string; degree: string; fieldOfStudy: string; passingYear: string; grade: string }>);
+            setQualificationsList(data.qualificationsList);
           }
           if (typeof data.step === 'number' && [1, 2, 3, 4, 5].includes(data.step)) {
             setStep(data.step as 1 | 2 | 3 | 4 | 5);
@@ -302,6 +384,7 @@ export function AddEmployeeWizardModal({
   }, [departmentId, positionId, teamId, isRootPosition]);
 
   // Stage 2: Personal Information
+  const [phoneCountryCode, setPhoneCountryCode] = useState('+91');
   const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('');
@@ -311,6 +394,7 @@ export function AddEmployeeWizardModal({
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [emergencyContactName, setEmergencyContactName] = useState('');
+  const [emergencyContactCountryCode, setEmergencyContactCountryCode] = useState('+91');
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
   const [emergencyContactRelation, setEmergencyContactRelation] = useState('');
 
@@ -410,8 +494,9 @@ export function AddEmployeeWizardModal({
         errs.joiningDate = 'Please enter a valid joining date.';
       }
     } else if (s === 2) {
-      const trimmedPhone = phone.trim();
-      const phoneDigits = trimmedPhone.replace(/\D/g, '');
+      const trimmedPhone = formatFullPhone(phoneCountryCode, phone);
+      const fullPhone = formatFullPhone(phoneCountryCode, trimmedPhone);
+      const phoneDigits = fullPhone.replace(/\D/g, '');
       if (!trimmedPhone) {
         errs.phone = 'Contact phone is required.';
       } else if (!/^\+?[0-9\s-]+$/.test(trimmedPhone) || phoneDigits.length < 7 || phoneDigits.length > 15) {
@@ -481,7 +566,8 @@ export function AddEmployeeWizardModal({
       }
 
       const trimmedEmgPhone = emergencyContactPhone.trim();
-      const emgPhoneDigits = trimmedEmgPhone.replace(/\D/g, '');
+      const fullEmgPhone = formatFullPhone(emergencyContactCountryCode, trimmedEmgPhone);
+      const emgPhoneDigits = fullEmgPhone.replace(/\D/g, '');
       if (!trimmedEmgPhone) {
         errs.emergencyContactPhone = 'Emergency contact phone is required.';
       } else if (!/^\+?[0-9\s-]+$/.test(trimmedEmgPhone) || emgPhoneDigits.length < 7 || emgPhoneDigits.length > 15) {
@@ -585,6 +671,7 @@ export function AddEmployeeWizardModal({
       designationId: designationId.trim(),
       specialization: specialization.trim(),
       reportsTo: reportsTo.trim(),
+      phoneCountryCode,
       phone: phone.trim(),
       dateOfBirth: dateOfBirth.trim(),
       gender: gender.trim(),
@@ -594,6 +681,7 @@ export function AddEmployeeWizardModal({
       state: state.trim(),
       postalCode: postalCode.trim(),
       emergencyContactName: emergencyContactName.trim(),
+      emergencyContactCountryCode,
       emergencyContactPhone: emergencyContactPhone.trim(),
       emergencyContactRelation: emergencyContactRelation.trim(),
       shiftId: shiftId.trim(),
@@ -765,7 +853,8 @@ export function AddEmployeeWizardModal({
     if (state.trim()) personalInfo.state = state.trim();
     if (postalCode.trim()) personalInfo.postalCode = postalCode.trim();
     if (emergencyContactName.trim()) personalInfo.emergencyContactName = emergencyContactName.trim();
-    if (emergencyContactPhone.trim()) personalInfo.emergencyContactPhone = emergencyContactPhone.trim();
+    const trimmedEmgPhone = formatFullPhone(emergencyContactCountryCode, emergencyContactPhone);
+    if (trimmedEmgPhone) personalInfo.emergencyContactPhone = trimmedEmgPhone;
     if (emergencyContactRelation.trim()) personalInfo.emergencyContactRelation = emergencyContactRelation.trim();
 
     const qualifications: NonNullable<CreateEmployeeInput['qualifications']> = qualificationsList.map((q) => {
@@ -831,7 +920,7 @@ export function AddEmployeeWizardModal({
       aria-modal="true"
       className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
     >
-      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={() => setShowDiscardConfirm(true)} />
 
       <dialog
         open
@@ -843,14 +932,17 @@ export function AddEmployeeWizardModal({
             <h2 className="font-display text-xl font-bold">New Employee Onboarding</h2>
             <p className="text-xs text-app-muted mt-0.5">Multi-stage employee creation & onboarding setup</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
+          <ConfirmCancelButton
+            onDiscard={onClose}
+            title="Discard employee onboarding?"
+            description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+            discardText="Discard"
+            continueText="Continue"
             aria-label="Close modal"
-            className="grid size-8 place-items-center rounded-lg text-xl text-app-muted hover:bg-app-background"
+            className="grid size-8 place-items-center rounded-lg text-xl text-app-muted hover:bg-app-background transition-colors"
           >
             ×
-          </button>
+          </ConfirmCancelButton>
         </div>
 
         {/* Stepper Wizard Bar */}
@@ -1146,21 +1238,48 @@ export function AddEmployeeWizardModal({
               <div className="grid gap-3.5 sm:grid-cols-3">
                 <div>
                   <label htmlFor="wizard-phone" className="mb-1 block text-xs font-semibold text-app-muted">Contact Phone *</label>
-                  <input
-                    id="wizard-phone"
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => {
-                      setPhone(sanitizePhoneInput(e.target.value));
-                      clearFieldError('phone');
-                    }}
-                    onBlur={() => setPhone((v) => v.trim())}
-                    placeholder="+91 9876543210"
-                    className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
+                  <div
+                    className={`flex rounded-lg border bg-app-background transition-colors focus-within:border-app-accent focus-within:ring-1 focus-within:ring-app-accent/20 ${
                       fieldErrors.phone ? 'border-red-500' : 'border-app-border'
                     }`}
-                  />
+                  >
+                    <select
+                      id="wizard-phoneCountryCode"
+                      value={phoneCountryCode}
+                      onChange={(e) => {
+                        setPhoneCountryCode(e.target.value);
+                        clearFieldError('phone');
+                      }}
+                      aria-label="Contact phone country code"
+                      className="w-[74px] sm:w-[78px] shrink-0 rounded-l-lg border-r border-app-border bg-app-surface-raised/60 px-1.5 py-2 text-xs font-semibold text-app-foreground outline-none cursor-pointer hover:bg-app-surface focus:bg-app-surface transition"
+                    >
+                      {PHONE_COUNTRY_OPTIONS.map((item) => (
+                        <option key={`phone-${item.country}-${item.code}`} value={item.code}>
+                          {item.country} {item.code}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="wizard-phone"
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.startsWith('+')) {
+                          const parsed = splitPhoneAndCountryCode(val, phoneCountryCode);
+                          setPhoneCountryCode(parsed.countryCode);
+                          setPhone(sanitizePhoneInput(parsed.nationalNumber));
+                        } else {
+                          setPhone(sanitizePhoneInput(val));
+                        }
+                        clearFieldError('phone');
+                      }}
+                      onBlur={() => setPhone((v) => v.trim())}
+                      placeholder="8240998467"
+                      className="min-w-0 flex-1 rounded-r-lg bg-transparent px-3 py-2 text-sm outline-none placeholder:text-app-muted"
+                    />
+                  </div>
                   {fieldErrors.phone && <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>}
                 </div>
                 <div>
@@ -1325,21 +1444,48 @@ export function AddEmployeeWizardModal({
                   </div>
                   <div>
                     <label htmlFor="wizard-emergencyContactPhone" className="mb-1 block text-xs font-semibold text-app-muted">Contact Phone *</label>
-                    <input
-                      id="wizard-emergencyContactPhone"
-                      type="tel"
-                      required
-                      value={emergencyContactPhone}
-                      onChange={(e) => {
-                        setEmergencyContactPhone(sanitizePhoneInput(e.target.value));
-                        clearFieldError('emergencyContactPhone');
-                      }}
-                      onBlur={() => setEmergencyContactPhone((v) => v.trim())}
-                      placeholder="Contact Phone"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
+                    <div
+                      className={`flex rounded-lg border bg-app-background transition-colors focus-within:border-app-accent focus-within:ring-1 focus-within:ring-app-accent/20 ${
                         fieldErrors.emergencyContactPhone ? 'border-red-500' : 'border-app-border'
                       }`}
-                    />
+                    >
+                      <select
+                        id="wizard-emergencyContactCountryCode"
+                        value={emergencyContactCountryCode}
+                        onChange={(e) => {
+                          setEmergencyContactCountryCode(e.target.value);
+                          clearFieldError('emergencyContactPhone');
+                        }}
+                        aria-label="Emergency contact phone country code"
+                        className="w-24 shrink-0 rounded-l-lg border-r border-app-border bg-app-surface-raised/60 px-2 py-2 text-xs font-semibold text-app-foreground outline-none cursor-pointer hover:bg-app-surface focus:bg-app-surface transition"
+                      >
+                        {PHONE_COUNTRY_OPTIONS.map((item) => (
+                          <option key={`emg-${item.country}-${item.code}`} value={item.code}>
+                            {item.code} {item.country}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        id="wizard-emergencyContactPhone"
+                        type="tel"
+                        required
+                        value={emergencyContactPhone}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.startsWith('+')) {
+                            const parsed = splitPhoneAndCountryCode(val, emergencyContactCountryCode);
+                            setEmergencyContactCountryCode(parsed.countryCode);
+                            setEmergencyContactPhone(sanitizePhoneInput(parsed.nationalNumber));
+                          } else {
+                            setEmergencyContactPhone(sanitizePhoneInput(val));
+                          }
+                          clearFieldError('emergencyContactPhone');
+                        }}
+                        onBlur={() => setEmergencyContactPhone((v) => v.trim())}
+                        placeholder="9876543210"
+                        className="min-w-0 flex-1 rounded-r-lg bg-transparent px-3 py-2 text-sm outline-none placeholder:text-app-muted"
+                      />
+                    </div>
                     {fieldErrors.emergencyContactPhone && (
                       <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyContactPhone}</p>
                     )}
@@ -1689,13 +1835,27 @@ export function AddEmployeeWizardModal({
 
         {/* Modal Footer Controls */}
         <div className="shrink-0 mt-4 flex items-center justify-between pt-4">
-          <button
-            type="button"
-            onClick={step === 1 ? onClose : handleBack}
-            className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent"
-          >
-            {step === 1 ? 'Cancel' : 'Back'}
-          </button>
+          <div className="flex items-center gap-2">
+            <ConfirmCancelButton
+              onDiscard={onClose}
+              title="Discard employee onboarding?"
+              description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+              discardText="Discard"
+              continueText="Continue"
+              className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent hover:text-red-500 transition-colors"
+            >
+              Cancel
+            </ConfirmCancelButton>
+            {step > 1 && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent"
+              >
+                Back
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <button
@@ -1726,6 +1886,19 @@ export function AddEmployeeWizardModal({
           </div>
         </div>
       </dialog>
+
+      <ConfirmDiscardModal
+        isOpen={showDiscardConfirm}
+        onDiscard={() => {
+          setShowDiscardConfirm(false);
+          onClose();
+        }}
+        onContinue={() => setShowDiscardConfirm(false)}
+        title="Discard employee onboarding?"
+        description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+        discardText="Discard"
+        continueText="Continue"
+      />
     </div>
     ),
     document.body,

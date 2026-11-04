@@ -8,6 +8,7 @@
  * Auth:           HTTP Basic (access_id : secret_key)
  */
 import { safeFetch } from '../crawler/http.js';
+import { decimal } from '@tapcrm/contracts';
 import type { SeoProviderResult, SeoProvenance, BacklinkPage } from './types.js';
 
 const MOZ_ENDPOINT = 'https://lsapi.seomoz.com/v2/links';
@@ -111,7 +112,7 @@ export async function mozFetchBacklinks(
       unitType: 'queries',
       // Moz prices per row, roughly $0.001 per link row at the lowest tier.
       // Approximate for cost tracking; actual billing is on their dashboard.
-      costCents: Math.ceil(links.length / 10),
+      costCents: decimal(String(Math.ceil(links.length / 10))),
       elapsedMs: Date.now() - start,
     },
   };

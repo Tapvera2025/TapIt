@@ -5,6 +5,7 @@
  * calling job code can treat all providers uniformly.
  */
 import { safeFetch } from '../crawler/http.js';
+import { decimal } from '@tapcrm/contracts';
 import type { SeoProviderResult, SeoProvenance, LighthouseReport } from './types.js';
 
 const PSI_ENDPOINT = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
@@ -98,7 +99,7 @@ export async function pagespeedFetch(
       operation: 'runPagespeed',
       units: 1,
       unitType: 'audits',
-      costCents: 0,
+      costCents: decimal('0'),
       elapsedMs: Date.now() - start,
     },
   };

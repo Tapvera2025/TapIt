@@ -875,3 +875,11 @@ export function ErrorMessage({ cause }: { cause: unknown }): React.JSX.Element {
     </Notice>
   );
 }
+
+export {
+  ConfirmDiscardModal,
+  ConfirmCancelButton,
+  CancelButton,
+  type ConfirmDiscardModalProps,
+  type ConfirmCancelButtonProps,
+} from './ConfirmDiscardModal.js';

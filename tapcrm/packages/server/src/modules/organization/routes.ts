@@ -48,9 +48,16 @@ import {
   confirmManagerReassignmentSchema,
   managerReassignmentSchema,
 } from './validators.js';
+import { getCurrencySettings, updateCurrencySettings } from './currency.js';
 
 /** Organization route bindings. Authorization is performed by the shared router. */
 export function registerOrganizationRoutes(): void {
+  route({ method: 'GET', path: '/api/org/currency-settings', action: 'advance:view-own', module: 'organization', handler: async ({ ctx }) => getCurrencySettings(ctx) });
+  route({ method: 'PUT', path: '/api/org/currency-settings', action: 'system:manage-settings', module: 'organization', handler: async ({ ctx, body }) => {
+    const input = body as { supportedCurrencies?: unknown; defaultCurrency?: unknown };
+    if (!Array.isArray(input.supportedCurrencies) || typeof input.defaultCurrency !== 'string') throw new Error('Invalid currency settings.');
+    return updateCurrencySettings(ctx, { supportedCurrencies: input.supportedCurrencies.filter((x): x is string => typeof x === 'string'), defaultCurrency: input.defaultCurrency });
+  } });
   route({
     method: 'POST',
     path: '/api/users/:id/manager-reassignment',

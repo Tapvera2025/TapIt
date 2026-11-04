@@ -24,9 +24,12 @@ function timeLabel(iso: string): string {
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const CHAT_LIST_MIN_WIDTH = 220;
-const CHAT_LIST_MAX_WIDTH = 320;
+const CHAT_LIST_MAX_WIDTH = 520;
 const clampChatListWidth = (width: number): number =>
   Math.max(CHAT_LIST_MIN_WIDTH, Math.min(CHAT_LIST_MAX_WIDTH, width));
+const CHAT_LIST_DEFAULT_WIDTH = typeof window === 'undefined'
+  ? 320
+  : Math.min(380, Math.max(CHAT_LIST_MIN_WIDTH, Math.round(window.innerWidth * 0.18)));
 
 /** Highlights `@FullName` tokens the message actually recorded as mentions — not a live guess from the body text. */
 function renderMessageBody(body: string, mentions: readonly { userId: string; fullName: string }[]): ReactNode {
@@ -99,13 +102,14 @@ export function ConversationWorkspace({
   const [reactionDetail, setReactionDetail] = useState<{ messageId: string; emoji: string } | null>(null);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const [actionMenuPosition, setActionMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const [chatListWidth, setChatListWidth] = useState(320);
+  const [chatListWidth, setChatListWidth] = useState(CHAT_LIST_DEFAULT_WIDTH);
   const chatListResizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizingChatList, setIsResizingChatList] = useState(false);
   const [seenDetailFor, setSeenDetailFor] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState('');
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [swipeReply, setSwipeReply] = useState<{ id: string; offset: number } | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [pendingMentions, setPendingMentions] = useState<Map<string, string>>(new Map());
   const threadEndRef = useRef<HTMLDivElement>(null);
@@ -113,6 +117,7 @@ export function ConversationWorkspace({
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messageSwipeRef = useRef<{ id: string; x: number; y: number; mine: boolean } | null>(null);
   const highlightTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastOpenedInitialIdRef = useRef<string | null>(null);
   const lastScrolledMessageIdRef = useRef<string | null>(null);
@@ -334,14 +339,55 @@ export function ConversationWorkspace({
     longPressTimerRef.current = null;
   };
 
+  const clearMessageSwipe = (): void => {
+    messageSwipeRef.current = null;
+    setSwipeReply(null);
+  };
+
   const startMessageLongPress = (event: React.PointerEvent<HTMLDivElement>, message: ChatMessage, mine: boolean): void => {
     if (event.pointerType !== 'touch' || !window.matchMedia('(max-width: 767px)').matches || (event.target as HTMLElement).closest('button')) return;
     clearLongPress();
-    const anchor = event.currentTarget.getBoundingClientRect();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    messageSwipeRef.current = { id: message.id, x: event.clientX, y: event.clientY, mine };
+    const bubble = event.currentTarget;
     longPressTimerRef.current = setTimeout(() => {
       longPressTimerRef.current = null;
-      setMessageActionsPosition(message, mine, anchor);
+      const thread = threadScrollRef.current;
+      const bubbleBounds = bubble.getBoundingClientRect();
+      const threadBounds = thread?.getBoundingClientRect();
+      if (thread && threadBounds && bubbleBounds.top < threadBounds.top + 16) {
+        thread.scrollBy({ top: bubbleBounds.top - threadBounds.top - 16, behavior: 'auto' });
+      }
+      requestAnimationFrame(() => setMessageActionsPosition(message, mine, bubble.getBoundingClientRect()));
     }, 520);
+  };
+
+  const moveMessageSwipe = (event: React.PointerEvent<HTMLDivElement>, message: ChatMessage): void => {
+    const gesture = messageSwipeRef.current;
+    if (!gesture || gesture.id !== message.id) return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(dy)) return;
+    clearLongPress();
+    setSwipeReply({ id: message.id, offset: Math.max(-72, Math.min(72, dx)) });
+  };
+
+  const finishMessageSwipe = (event: React.PointerEvent<HTMLDivElement>, message: ChatMessage): void => {
+    const gesture = messageSwipeRef.current;
+    clearLongPress();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!gesture || gesture.id !== message.id) {
+      clearMessageSwipe();
+      return;
+    }
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (Math.abs(dx) >= 56 && Math.abs(dx) > Math.abs(dy)) {
+      setReplyTo(message);
+      setOpenActionsFor(null);
+      setActionMenuPosition(null);
+    }
+    clearMessageSwipe();
   };
 
   const toggleReaction = async (message: ChatMessage, emoji: ReactionEmoji): Promise<void> => {
@@ -490,7 +536,7 @@ export function ConversationWorkspace({
                 }
               }}
               data-lenis-prevent
-              className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}
+              className={`min-h-0 flex-1 overscroll-contain ${chat.messages.length > 0 || chat.hasMore ? 'overflow-y-auto' : 'overflow-y-hidden'} ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}
             >
               {chat.loadingMessages && chat.messages.length === 0 ? (
                 <SkeletonMessageThread />
@@ -523,13 +569,18 @@ export function ConversationWorkspace({
                           <div className={`${clientMode ? 'max-w-[88%] sm:max-w-[76%]' : 'max-w-[80%]'} relative w-fit min-w-0`}>
                             <div
                               onPointerDown={(event) => startMessageLongPress(event, message, mine)}
-                              onPointerUp={clearLongPress}
-                              onPointerCancel={clearLongPress}
-                              onPointerMove={clearLongPress}
+                              onPointerUp={(event) => finishMessageSwipe(event, message)}
+                              onPointerCancel={(event) => {
+                                clearLongPress();
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                                clearMessageSwipe();
+                              }}
+                              onPointerMove={(event) => moveMessageSwipe(event, message)}
                               onContextMenu={(event) => {
                                 if (window.matchMedia('(max-width: 767px)').matches) event.preventDefault();
                               }}
-                              className={`${clientMode ? 'rounded-[18px] px-4 pb-2.5 pt-3 text-sm leading-6 shadow-sm sm:px-5' : 'rounded-[18px] px-3 pb-2 pt-2 text-sm'} ${mine ? 'rounded-br-[5px]' : 'rounded-bl-[5px]'} ${openActionsFor === message.id ? 'z-50' : ''} group relative w-fit max-w-full min-w-0 overflow-visible border break-words transition-colors duration-500 ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
+                              className={`${clientMode ? 'rounded-[18px] px-4 pb-2.5 pt-3 text-sm leading-6 shadow-sm sm:px-5' : 'rounded-[18px] px-3 pb-2 pt-2 text-sm'} ${mine ? 'rounded-br-none' : 'rounded-bl-none'} ${openActionsFor === message.id ? 'z-50' : ''} group relative w-fit max-w-full min-w-0 touch-pan-y select-none overflow-visible border break-words transition-[transform,background-color,border-color,color] duration-150 [-webkit-touch-callout:none] ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
+                              style={swipeReply?.id === message.id ? { transform: `translateX(${swipeReply.offset}px)` } : undefined}
                             >
                             {message.forwarded && <p className="mb-1 text-[11px] italic text-app-muted">Forwarded</p>}
                             {message.replyPreview && !unsent && (
@@ -588,10 +639,6 @@ export function ConversationWorkspace({
                                 </button>
                               </span>
                             )}
-                            <span
-                              aria-hidden="true"
-                              className={`pointer-events-none absolute bottom-[-1px] h-3.5 w-3.5 ${mine ? '-right-2 bg-app-accent/10 [clip-path:polygon(0_0,100%_100%,0_100%)]' : '-left-2 bg-app-surface-raised [clip-path:polygon(100%_0,0_100%,100%_100%)]'}`}
-                            />
                             </div>
                             {message.reactions.length > 0 && (
                               <div className={`absolute -bottom-3 left-2 flex flex-wrap gap-1 text-xs ${openActionsFor === message.id ? 'z-50' : 'z-10'}`}>
@@ -712,7 +759,7 @@ export function ConversationWorkspace({
               </div>
             )}
 
-            <div className={`flex shrink-0 items-stretch gap-2 border-t border-app-border bg-app-surface ${clientMode ? 'p-3 sm:gap-3 sm:p-4' : 'p-3'}`}>
+            <div className={`flex shrink-0 items-end gap-2 border-t border-app-border bg-app-surface ${clientMode ? 'p-3 sm:gap-3 sm:p-4' : 'p-3'}`}>
               <div className="relative min-w-0 flex-1">
                 {mentionQuery !== null && (
                   <div data-chat-popover className="absolute bottom-full left-0 z-20 mb-1 w-56 rounded-lg border border-app-border bg-app-surface py-1 text-sm shadow-lg">
@@ -750,7 +797,7 @@ export function ConversationWorkspace({
                   className={`block min-h-10 w-full resize-none overflow-y-auto whitespace-pre-wrap border border-app-border px-3 py-2.5 text-sm leading-5 outline-none focus:border-app-accent ${clientMode ? 'rounded-xl bg-app-surface-raised sm:px-4' : 'rounded-lg bg-app-background'}`}
                 />
               </div>
-              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0} className={`min-w-[4.25rem] shrink-0 self-stretch !py-0 ${clientMode ? '!rounded-xl !px-4' : ''}`}>Send</Button>
+              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0} className={`h-10 min-w-[4.25rem] shrink-0 !py-0 ${clientMode ? '!rounded-xl !px-4' : ''}`}>Send</Button>
             </div>
           </>
         )}

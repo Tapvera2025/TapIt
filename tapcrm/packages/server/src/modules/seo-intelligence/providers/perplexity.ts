@@ -13,6 +13,7 @@
  * (defaults to 'sonar').
  */
 import { safeFetch } from '../crawler/http.js';
+import { decimal } from '@tapcrm/contracts';
 import type { SeoProviderResult, SeoProvenance, AIAnswerSnapshot, AISearchProvider } from './types.js';
 
 const PPLX_ENDPOINT = 'https://api.perplexity.ai/chat/completions';
@@ -107,7 +108,7 @@ export function createPerplexityProvider(_config: PerplexityConfig = {}): AISear
           unitType: 'queries',
           // Approximation — Perplexity charges per 1k requests at list price.
           // Round-up assumes a Sonar query. Pro would be ~5x.
-          costCents: 1,
+          costCents: decimal('1'),
           elapsedMs: Date.now() - start,
         },
       };

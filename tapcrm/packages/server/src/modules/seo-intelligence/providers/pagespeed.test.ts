@@ -52,7 +52,7 @@ describe('pagespeedFetch — happy path', () => {
       si: 1800,
       runnerVersion: '11.5.0',
     });
-    expect(result.usage).toMatchObject({ provider: 'pagespeed', units: 1, costCents: 0 });
+    expect(result.usage).toMatchObject({ provider: 'pagespeed', units: 1, costCents: '0' });
   });
 
   it('rounds the Lighthouse score to an integer 0..100', async () => {

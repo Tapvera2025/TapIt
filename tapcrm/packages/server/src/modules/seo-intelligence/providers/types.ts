@@ -1,5 +1,7 @@
 // Internal provider types — separate from the client-facing contracts types.
 
+import type { Decimal } from '@tapcrm/contracts';
+
 export type SeoProviderState = 'ok' | 'not_configured' | 'provider_error';
 
 export interface SeoProvenance {
@@ -21,7 +23,7 @@ export interface SeoProviderResult<T> {
     operation: string;
     units: number;
     unitType: string;
-    costCents: number;
+    costCents: Decimal;
     elapsedMs: number;
   } | null;
 }

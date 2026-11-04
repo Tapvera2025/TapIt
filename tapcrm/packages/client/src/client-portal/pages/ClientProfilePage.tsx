@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Card, ErrorMessage, Loading, Page } from '../../ui/index.js';
+import { ErrorMessage, Loading, Page, WorkspacePageContainer } from '../../ui/index.js';
 import { getPortalProfile, type PortalProfile } from '../api/portalApi.js';
+import { ProfileCard } from '../../ui/profile/ProfileComponents.js';
 
 export function ClientProfilePage({ onError }: { onError: (cause: unknown) => void }): React.JSX.Element {
   const [profile, setProfile] = useState<PortalProfile | null>(null);
@@ -15,31 +16,22 @@ export function ClientProfilePage({ onError }: { onError: (cause: unknown) => vo
   if (error) return <Page title="My profile"><ErrorMessage cause={error} /></Page>;
   if (!profile) return <Page title="My profile"><Loading /></Page>;
 
-  const rows: Array<[string, string]> = [
-    ['Contact name', profile.clientName],
-    ['Business', profile.businessName],
-    ['Sign-in email', profile.email],
-    ['Region', profile.region.toUpperCase()],
-    ['Time zone', profile.timezone],
-    ['Managed by', profile.organizationName],
+  const details = [
+    { label: 'Contact name', value: profile.clientName },
+    { label: 'Business', value: profile.businessName },
+    { label: 'Sign-in email', value: profile.email },
+    { label: 'Region', value: profile.region.toUpperCase() },
+    { label: 'Time zone', value: profile.timezone },
+    { label: 'Managed by', value: profile.organizationName },
   ];
 
   return (
-    <Page eyebrow="Account" title="My profile" description="To change these details or reset your password, contact your account manager.">
-      <Card className="p-4 sm:p-6">
-        <h2 className="font-display text-lg font-bold">Account details</h2>
-        <dl className="mt-3 grid min-w-0 grid-cols-1 sm:grid-cols-2">
-          {rows.map(([label, value], index) => (
-            <div
-              key={label}
-              className={`min-w-0 py-4 ${index < rows.length - 1 ? 'border-b border-app-border/70' : ''} ${index < rows.length - 2 ? 'sm:border-b sm:border-app-border/70' : 'sm:border-b-0'} ${index % 2 === 1 ? 'sm:border-l sm:border-app-border/70 sm:pl-5' : 'sm:pr-5'}`}
-            >
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-muted">{label}</dt>
-              <dd className="mt-1.5 break-words text-sm font-medium text-app-foreground sm:text-base">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </Card>
-    </Page>
+    <WorkspacePageContainer>
+      <ProfileCard
+        name={profile.clientName}
+        role="Client account"
+        details={details}
+      />
+    </WorkspacePageContainer>
   );
 }

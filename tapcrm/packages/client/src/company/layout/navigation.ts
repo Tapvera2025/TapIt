@@ -31,6 +31,20 @@ export interface CompanySearchDestination {
   keywords: readonly string[];
 }
 
+const SEARCH_ALIASES_BY_PATH: Readonly<Record<string, readonly string[]>> = {
+  '/company/holidays': ['holiday calendar', 'public holidays', 'festivals', 'weekend', 'weekends', 'week off', 'week-off', 'days off'],
+  '/company/attendance/my': ['attendance calendar', 'work calendar', 'work day', 'work days', 'punch history'],
+  '/company/attendance/live': ['workforce', 'workforce board', 'live workforce', 'employee live board', 'presence', 'live attendance'],
+  '/company/audit': ['audit', 'audit trail', 'activity log', 'activity records', 'security log', 'history', 'records'],
+  '/company/sessions': ['login', 'logins', 'logged in devices', 'active devices', 'security sessions'],
+  '/company/sales/deals': ['sales pipeline', 'opportunities', 'business deals'],
+  '/company/sales/wins': ['record', 'records', 'record win', 'won deals', 'successful deals'],
+  '/company/sales/reports': ['sales forecast', 'forecast', 'sales analytics'],
+  '/company/weekday-schedules': ['weekday', 'working days', 'weekends', 'schedule', 'work schedule'],
+  '/company/payroll/cycle': ['payroll period', 'pay run', 'salary cycle'],
+  '/company/finance/accounting': ['accounts', 'ledger', 'finance', 'financial records'],
+};
+
 /**
  * Single universal navigation item for My Todo.
  * Universally available to all authenticated company users without action or role gating.
@@ -297,7 +311,7 @@ export const companyNavigation: CompanyNavGroup[] = [
       {
         label: 'Audit Log',
         path: '/company/audit',
-        icon: 'clipboard',
+        icon: 'clipboard-list',
         requiredAction: 'audit:view',
       },
     ],
@@ -543,18 +557,40 @@ export function companySearchDestinations({
   isSuperAdmin = false,
   isHr = false,
   hasRecruitment = false,
+  hasInterviews = false,
+  accountType = 'employee',
 }: {
   actions: ReadonlySet<Action>;
   isSuperAdmin?: boolean;
   isHr?: boolean;
   hasRecruitment?: boolean;
+  hasInterviews?: boolean;
+  accountType?: string;
 }): CompanySearchDestination[] {
   const destinations: CompanySearchDestination[] = [];
   const seen = new Set<string>();
 
+  const addDestination = (destination: CompanySearchDestination): void => {
+    if (seen.has(destination.path)) return;
+    seen.add(destination.path);
+    const pathKeywords = destination.path
+      .split('/')
+      .filter(Boolean)
+      .flatMap((segment) => segment.split(/[-_]/g));
+    destinations.push({
+      ...destination,
+      keywords: [
+        ...destination.keywords,
+        ...pathKeywords,
+        ...(SEARCH_ALIASES_BY_PATH[destination.path] ?? []),
+      ],
+    });
+  };
+
   for (const group of companyNavigation) {
     for (const item of group.items) {
       if (item.label === 'Recruitment' && (!isHr || !hasRecruitment)) continue;
+      if ((item.label === 'Access Explorer' || item.label === 'Geofencing') && !isSuperAdmin) continue;
       if (item.requiredAction && !isSuperAdmin && !actions.has(item.requiredAction))
         continue;
       if (
@@ -569,17 +605,45 @@ export function companySearchDestinations({
         ? item.children
         : [{ label: item.label, path: item.path }];
       for (const child of children) {
-        if (seen.has(child.path)) continue;
-        seen.add(child.path);
-        destinations.push({
+        addDestination({
           label: child.label,
           path: child.path,
           icon: item.icon,
           category: group.label,
-          keywords: [item.label, group.label, child.label],
+          keywords: [
+            item.label,
+            group.label,
+            child.label,
+            ...(SEARCH_ALIASES_BY_PATH[child.path] ?? SEARCH_ALIASES_BY_PATH[item.path] ?? []),
+          ],
         });
       }
     }
+  }
+
+  const addIfAllowed = (
+    destination: Omit<CompanySearchDestination, 'keywords'> & { keywords?: readonly string[] },
+    requiredActions: readonly Action[] = [],
+  ): void => {
+    if (!isSuperAdmin && requiredActions.length > 0 && !requiredActions.some((action) => actions.has(action))) return;
+    addDestination({
+      ...destination,
+      keywords: [destination.label, destination.category, ...(destination.keywords ?? [])],
+    });
+  };
+
+  if (hasInterviews) {
+    addIfAllowed({ label: 'My Interviews', path: '/company/my-interviews', icon: 'calendar', category: 'Overview', keywords: ['interview schedule'] });
+  }
+  addIfAllowed({ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase', category: 'Sales', keywords: ['sales pipeline', 'opportunities'] }, ['deals:view']);
+  addIfAllowed({ label: 'Approvals', path: '/company/sales/approvals', icon: 'check', category: 'Sales', keywords: ['approval requests'] }, ['approvals:decide']);
+  addIfAllowed({ label: 'Wins to record', path: '/company/sales/wins', icon: 'check', category: 'Sales', keywords: ['record win', 'won deals'] }, ['deals:record-win']);
+  addIfAllowed({ label: 'Reports', path: '/company/sales/reports', icon: 'chart', category: 'Sales', keywords: ['sales forecast', 'forecast'] }, ['deals:forecast']);
+  addIfAllowed({ label: 'Weekday Schedules', path: '/company/weekday-schedules', icon: 'calendar', category: 'Shifts & Leave', keywords: ['weekday', 'working days', 'weekends'] }, ['shifts:manage']);
+  addIfAllowed({ label: 'Payroll Cycle', path: '/company/payroll/cycle', icon: 'calendar', category: 'Payroll', keywords: ['payroll period', 'pay run'] }, ['payroll:manage']);
+  addIfAllowed({ label: 'Accounting', path: '/company/finance/accounting', icon: 'wallet', category: 'Finance', keywords: ['accounts', 'ledger', 'finance'] }, ['accounting:view-ledger', 'accounting:view-statements', 'accounting:tax-export']);
+  if (accountType === 'employee' && !isSuperAdmin) {
+    addIfAllowed({ label: 'Request Role Change', path: '/company/role-change-request', icon: 'briefcase', category: 'Identity & Access', keywords: ['change role', 'designation'] }, ['access:request-role-change']);
   }
 
   if (!seen.has('/company/settings')) {

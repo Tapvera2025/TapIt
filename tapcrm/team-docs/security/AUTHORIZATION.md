@@ -263,8 +263,8 @@
 | `seo:trigger-scan` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
 | `seo:read-scan` | seo-intelligence | — | business | no | no | — | yes | yes | no |
 | `seo:list-findings` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
-| `seo:read-finding` | seo-intelligence | — | business | no | no | — | yes | yes | no |
-| `seo:update-finding` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:read-finding` | seo-intelligence | seo_finding | business | no | no | — | yes | yes | no |
+| `seo:update-finding` | seo-intelligence | seo_finding | business | no | no | — | yes | yes | no |
 | `seo:read-search-performance` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
 | `seo:sync-search-performance` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
 | `seo:list-keywords` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
@@ -311,6 +311,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/identity/geofence-appeals/:id/decide | `identity:manage-geofence` | — |
 | POST | /api/identity/users/:id/unlock | `identity:unlock-account` | id |
 | GET | /api/org/departments | `org:view-structure` | — |
+| GET | /api/org/currency-settings | `advance:view-own` | — |
+| PUT | /api/org/currency-settings | `system:manage-settings` | — |
 | GET | /api/org/teams | `org:view-structure` | — |
 | GET | /api/org/ladder/:departmentCode | `org:view-structure` | — |
 | GET | /api/org/chart | `org:view-structure` | — |
@@ -455,6 +457,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/leaves/types/:id | `leave:manage-types` | id |
 | GET | /api/holidays | `holidays:view` | — |
 | POST | /api/holidays | `holidays:manage` | — |
+| POST | /api/holidays/bulk | `holidays:manage` | — |
 | PATCH | /api/holidays/:id | `holidays:manage` | id |
 | GET | /api/payroll/payslips/mine | `payroll:view` | — |
 | GET | /api/payroll/payslips/:id | `payroll:view` | id |
@@ -978,8 +981,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/seo/sites/:siteId/scans | `seo:trigger-scan` | siteId |
 | GET | /api/seo/scans/:scanRunId | `seo:read-scan` | — |
 | GET | /api/seo/sites/:siteId/findings | `seo:list-findings` | siteId |
-| GET | /api/seo/findings/:findingId | `seo:read-finding` | — |
-| PATCH | /api/seo/findings/:findingId | `seo:update-finding` | — |
+| GET | /api/seo/findings/:findingId | `seo:read-finding` | findingId |
+| PATCH | /api/seo/findings/:findingId | `seo:update-finding` | findingId |
 | GET | /api/seo/sites/:siteId/gsc-metrics | `seo:read-search-performance` | siteId |
 | POST | /api/seo/sites/:siteId/gsc-sync | `seo:sync-search-performance` | siteId |
 | GET | /api/seo/sites/:siteId/keywords | `seo:list-keywords` | siteId |

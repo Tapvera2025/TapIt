@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 238   Bindings: 697
+ * Actions: 238   Bindings: 700
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3354,7 +3354,7 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
   'seo:read-finding': {
     action: 'seo:read-finding',
     module: 'seo-intelligence',
-    resource: null,
+    resource: 'seo_finding',
     domain: 'business',
     sensitive: false,
     approvalBearing: false,
@@ -3489,7 +3489,7 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
   'seo:update-finding': {
     action: 'seo:update-finding',
     module: 'seo-intelligence',
-    resource: null,
+    resource: 'seo_finding',
     domain: 'business',
     sensitive: false,
     approvalBearing: false,
@@ -4082,6 +4082,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/identity/geofence-appeals/:id/decide', action: 'identity:manage-geofence', resourceParam: null },
   { method: 'POST', path: '/api/identity/users/:id/unlock', action: 'identity:unlock-account', resourceParam: 'id' },
   { method: 'GET', path: '/api/org/departments', action: 'org:view-structure', resourceParam: null },
+  { method: 'GET', path: '/api/org/currency-settings', action: 'advance:view-own', resourceParam: null },
+  { method: 'PUT', path: '/api/org/currency-settings', action: 'system:manage-settings', resourceParam: null },
   { method: 'GET', path: '/api/org/teams', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/ladder/:departmentCode', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/chart', action: 'org:view-structure', resourceParam: null },
@@ -4226,6 +4228,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PUT', path: '/api/leaves/types/:id', action: 'leave:manage-types', resourceParam: 'id' },
   { method: 'GET', path: '/api/holidays', action: 'holidays:view', resourceParam: null },
   { method: 'POST', path: '/api/holidays', action: 'holidays:manage', resourceParam: null },
+  { method: 'POST', path: '/api/holidays/bulk', action: 'holidays:manage', resourceParam: null },
   { method: 'PATCH', path: '/api/holidays/:id', action: 'holidays:manage', resourceParam: 'id' },
   { method: 'GET', path: '/api/payroll/payslips/mine', action: 'payroll:view', resourceParam: null },
   { method: 'GET', path: '/api/payroll/payslips/:id', action: 'payroll:view', resourceParam: 'id' },
@@ -4749,8 +4752,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/seo/sites/:siteId/scans', action: 'seo:trigger-scan', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/scans/:scanRunId', action: 'seo:read-scan', resourceParam: null },
   { method: 'GET', path: '/api/seo/sites/:siteId/findings', action: 'seo:list-findings', resourceParam: 'siteId' },
-  { method: 'GET', path: '/api/seo/findings/:findingId', action: 'seo:read-finding', resourceParam: null },
-  { method: 'PATCH', path: '/api/seo/findings/:findingId', action: 'seo:update-finding', resourceParam: null },
+  { method: 'GET', path: '/api/seo/findings/:findingId', action: 'seo:read-finding', resourceParam: 'findingId' },
+  { method: 'PATCH', path: '/api/seo/findings/:findingId', action: 'seo:update-finding', resourceParam: 'findingId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/gsc-metrics', action: 'seo:read-search-performance', resourceParam: 'siteId' },
   { method: 'POST', path: '/api/seo/sites/:siteId/gsc-sync', action: 'seo:sync-search-performance', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/keywords', action: 'seo:list-keywords', resourceParam: 'siteId' },

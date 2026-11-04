@@ -15,5 +15,9 @@ export { hashIdentityPassword } from './password/service.js';
 export { sendEmployeeCredentials, sendEmployeeInvitation } from './notifications/invitation-email.js';
 export { userResource } from './security/unlock.js';
 export { sendBiometricDeviceAlert } from './notifications/biometric-email.js';
-export { resolvePrincipal, loadActivePrincipal } from './authentication/authenticate.js';
+export {
+  resolvePrincipal,
+  resolvePrincipalFromToken,
+  loadActivePrincipal,
+} from './authentication/authenticate.js';
 export { escapeHtml, sendEmail } from '../../platform/email/index.js';
