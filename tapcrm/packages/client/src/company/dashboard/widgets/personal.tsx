@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../../../ui/Icon.js';
 import { getMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../../../identity/api/sessionsApi.js';
-import { loadTodayStatus, type TodayStatus } from '../../live/liveApi.js';
+import { loadTodayStatus, punch, type PunchKind, type TodayStatus } from '../../live/liveApi.js';
 import { getMyShiftAssignment, type ShiftAssignment } from '../../api/shiftsApi.js';
 import { listTasks, transitionTask } from '../../tasks/api/tasksApi.js';
 import type { Task, TaskStatus } from '../../tasks/types/index.js';
@@ -9,8 +9,14 @@ import { listLeaves, getLeaveBalances, type LeaveBalanceDto, type LeaveRequestSu
 import { listHolidays, type Holiday } from '../../api/holidaysApi.js';
 import type { WidgetContext } from '../widget-types.js';
 
-function Panel({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <div className="dashboard-widget-shell flex h-full min-h-0 w-full flex-col gap-3 overflow-x-hidden overflow-y-auto">{children}</div>;
+const ATTENDANCE_UPDATED_EVENT = 'tapcrm:attendance-updated';
+
+function notifyAttendanceUpdated(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ATTENDANCE_UPDATED_EVENT));
+}
+
+function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }): React.JSX.Element {
+  return <div className={`dashboard-widget-shell flex h-full min-h-0 w-full flex-col gap-3 overflow-x-hidden overflow-y-auto ${className}`}>{children}</div>;
 }
 
 function Empty({ icon, text }: { icon?: string; text: string }): React.JSX.Element {
@@ -39,45 +45,8 @@ function holidayDateParts(value: string): { day: string; month: string; weekday:
   };
 }
 
-function minutesLabel(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return hours > 0 ? `${hours}h ${remainder}m` : `${remainder}m`;
-}
-
 function taskStatusForUser(task: Task, userId: string): TaskStatus {
   return task.assignees.find((assignee) => assignee.id === userId)?.status ?? task.status;
-}
-
-function WorkBreakGraph({ workedMinutes, breakMinutes }: { workedMinutes: number; breakMinutes: number }): React.JSX.Element {
-  const totalMinutes = Math.max(workedMinutes + breakMinutes, 1);
-  const workRatio = workedMinutes / totalMinutes;
-  const circumference = 2 * Math.PI * 42;
-  const workArc = circumference * workRatio;
-  const breakArc = circumference - workArc;
-
-  return (
-    <div className="dashboard-work-break-graph min-w-0 rounded-2xl border border-app-border bg-app-background/35 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-app-muted">Work rhythm</p>
-        <span className="text-[11px] tabular-nums text-app-muted">{minutesLabel(totalMinutes)} tracked</span>
-      </div>
-      <div className="dashboard-work-break-content mt-3 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4" role="img" aria-label={`Worked ${minutesLabel(workedMinutes)}, break ${minutesLabel(breakMinutes)}`}>
-        <div className="dashboard-work-break-ring relative size-28 shrink-0 sm:size-32">
-          <svg viewBox="0 0 100 100" className="size-full -rotate-90">
-            <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-app-border/60" />
-            <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${workArc} ${circumference - workArc}`} className="text-app-accent transition-all duration-500" />
-            {breakMinutes > 0 && <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${breakArc} ${circumference - breakArc}`} strokeDashoffset={-workArc} className="text-app-accent/25 transition-all duration-500" />}
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center"><span className="text-xl font-bold tabular-nums">{Math.floor(totalMinutes / 60)}h</span><span className="text-[10px] text-app-muted">tracked</span></div>
-        </div>
-        <div className="dashboard-work-break-details min-w-0 space-y-2">
-          <div className="rounded-xl border border-app-accent/15 bg-app-accent/5 px-3 py-2"><div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 text-[11px] text-app-muted"><span className="size-2 shrink-0 rounded-full bg-app-accent" />Working</span><span className="truncate text-sm font-semibold tabular-nums">{minutesLabel(workedMinutes)}</span></div></div>
-          <div className="rounded-xl border border-app-border bg-app-surface/50 px-3 py-2"><div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 text-[11px] text-app-muted"><span className="size-2 shrink-0 rounded-full bg-app-accent/30" />Break taken</span><span className="truncate text-sm font-semibold tabular-nums">{minutesLabel(breakMinutes)}</span></div></div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 type TaskFilter = 'all' | 'pending' | 'in_progress';
@@ -142,8 +111,11 @@ export function PunchStateWidget(): React.JSX.Element {
   const [status, setStatus] = useState<TodayStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [punchBusy, setPunchBusy] = useState<PunchKind | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
+    setLoading(true);
     const controller = new AbortController();
     loadTodayStatus(controller.signal)
       .then((s) => setStatus(s))
@@ -158,7 +130,27 @@ export function PunchStateWidget(): React.JSX.Element {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
+  }, [refreshVersion]);
+
+  useEffect(() => {
+    const refresh = () => setRefreshVersion((version) => version + 1);
+    window.addEventListener(ATTENDANCE_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(ATTENDANCE_UPDATED_EVENT, refresh);
   }, []);
+
+  const handlePunch = async (kind: PunchKind): Promise<void> => {
+    setPunchBusy(kind);
+    setError('');
+    try {
+      await punch(kind);
+      notifyAttendanceUpdated();
+      setRefreshVersion((version) => version + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to update attendance.');
+    } finally {
+      setPunchBusy(null);
+    }
+  };
 
   if (loading) return <Panel><Loading /></Panel>;
   if (error) {
@@ -189,9 +181,14 @@ export function PunchStateWidget(): React.JSX.Element {
     FINISHED: 'Finished',
     NOT_IN: 'Not punched in',
   };
+  const allowedMoves = status?.allowedMoves ?? [];
+  const canPunchIn = allowedMoves.includes('in');
+  const canPunchOut = allowedMoves.includes('out');
+  const breakKind: PunchKind = state === 'ON_BREAK' ? 'break-end' : 'break-start';
+  const canBreak = allowedMoves.includes(breakKind);
 
   return (
-    <Panel>
+    <Panel className="dashboard-punch-panel">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-app-muted">Today</p>
         <span className="rounded-lg bg-app-accent/10 p-2 text-app-accent">
@@ -200,7 +197,124 @@ export function PunchStateWidget(): React.JSX.Element {
       </div>
       <p className="dashboard-punch-time mt-1 text-3xl font-semibold tabular-nums">{hours}h {minutes}m</p>
       <p className="dashboard-punch-state mt-2 text-xs text-app-muted">{stateLabel[state] ?? state}</p>
-      <div className="dashboard-punch-graph mt-4"><WorkBreakGraph workedMinutes={worked} breakMinutes={row?.breakMinutes ?? 0} /></div>
+      <div className="dashboard-punch-actions mt-3" aria-label="Attendance actions">
+        <button type="button" disabled={!canPunchIn || punchBusy !== null} onClick={() => void handlePunch('in')} className="dashboard-punch-action dashboard-punch-action-primary">
+          {punchBusy === 'in' ? 'Punching in…' : 'Punch In'}
+        </button>
+        <button type="button" disabled={!canPunchOut || punchBusy !== null} onClick={() => void handlePunch('out')} className="dashboard-punch-action">
+          {punchBusy === 'out' ? 'Punching out…' : 'Punch Out'}
+        </button>
+        <button type="button" disabled={!canBreak || punchBusy !== null} onClick={() => void handlePunch(breakKind)} className="dashboard-punch-action">
+          {punchBusy === breakKind ? (breakKind === 'break-start' ? 'Starting…' : 'Ending…') : breakKind === 'break-start' ? 'Start Break' : 'End Break'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-app-danger" role="alert">{error}</p>}
+    </Panel>
+  );
+}
+
+/* ------------------------------------------------------------------ Break management */
+
+type BreakPreset = {
+  label: string;
+  description: string;
+  icon: string;
+};
+
+const BREAK_PRESETS: readonly BreakPreset[] = [
+  { label: 'Lunch', description: 'Meal break', icon: 'coffee' },
+  { label: 'Coffee', description: 'Quick reset', icon: 'coffee' },
+  { label: 'Personal', description: 'Personal time', icon: 'user' },
+];
+
+export function BreakManagementWidget(): React.JSX.Element {
+  const [status, setStatus] = useState<TodayStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [refreshVersion, setRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    setLoading(true);
+    const controller = new AbortController();
+    loadTodayStatus(controller.signal)
+      .then(setStatus)
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted || (cause instanceof DOMException && cause.name === 'AbortError')) return;
+        setError(cause instanceof Error ? cause.message : 'Unable to load break status.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [refreshVersion]);
+
+  useEffect(() => {
+    const refresh = () => setRefreshVersion((version) => version + 1);
+    window.addEventListener(ATTENDANCE_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(ATTENDANCE_UPDATED_EVENT, refresh);
+  }, []);
+
+  const row = status?.row ?? null;
+  const onBreak = row?.state === 'ON_BREAK';
+  const canStartBreak = status?.allowedMoves.includes('break-start') ?? false;
+  const canEndBreak = status?.allowedMoves.includes('break-end') ?? false;
+
+  const handleBreak = async (kind: PunchKind): Promise<void> => {
+    setBusy(true);
+    setError('');
+    try {
+      await punch(kind);
+      notifyAttendanceUpdated();
+      setRefreshVersion((version) => version + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to update break status.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <Panel><Loading /></Panel>;
+
+  return (
+    <Panel className="dashboard-break-panel">
+      <div className="dashboard-break-heading min-w-0">
+        <span className="dashboard-break-icon rounded-xl bg-amber-500/10 p-3 text-amber-600 dark:text-amber-300">
+          <Icon name="coffee" className="size-6" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold">Break management</p>
+          <p className="truncate text-xs text-app-muted">{onBreak ? 'Break in progress' : 'Choose a break type when you need to reset.'}</p>
+        </div>
+      </div>
+
+      {onBreak ? (
+        <div className="dashboard-break-active min-w-0">
+          <span className="dashboard-break-status"><span className="size-2 shrink-0 rounded-full bg-amber-500" /> Active break</span>
+          <button type="button" disabled={!canEndBreak || busy} onClick={() => void handleBreak('break-end')} className="dashboard-break-resume">
+            {busy ? 'Resuming…' : 'Resume work'}
+          </button>
+        </div>
+      ) : (
+        <div className="dashboard-break-presets" aria-label="Preset breaks">
+          {BREAK_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              disabled={!canStartBreak || busy}
+              onClick={() => void handleBreak('break-start')}
+              className="dashboard-break-preset"
+            >
+              <Icon name={preset.icon} className="size-5 shrink-0" />
+              <span className="min-w-0 text-left">
+                <span className="block truncate text-sm font-semibold">{preset.label}</span>
+                <span className="block truncate text-[11px] text-app-muted">{preset.description}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <p className="text-xs text-app-danger" role="alert">{error}</p>}
     </Panel>
   );
 }

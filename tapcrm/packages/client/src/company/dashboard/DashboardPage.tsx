@@ -20,6 +20,9 @@ interface RGLLayoutItem {
   h: number;
   minW?: number;
   minH?: number;
+  maxW?: number;
+  maxH?: number;
+  isResizable?: boolean;
   static?: boolean;
 }
 type Layout = RGLLayoutItem;
@@ -74,23 +77,41 @@ function buildLayout(
     if (!def) continue;
     const savedItem = savedById.get(id);
     if (savedItem) {
+      const minW = def.defaultLayout.minW;
+      const minH = def.defaultLayout.minH;
+      const maxW = def.defaultLayout.maxW;
+      const maxH = def.defaultLayout.maxH;
       layout.push({
         i: id,
         x: savedItem.x,
         y: savedItem.y,
-        w: savedItem.w,
-        h: savedItem.h,
-        minW: def.defaultLayout.minW,
-        minH: def.defaultLayout.minH,
+        w: Math.min(maxW ?? savedItem.w, Math.max(savedItem.w, minW)),
+        h: Math.min(maxH ?? savedItem.h, Math.max(savedItem.h, minH)),
+        minW,
+        minH,
+        ...(maxW ? { maxW } : {}),
+        ...(maxH ? { maxH } : {}),
+        isResizable: def.defaultLayout.resizable !== false,
       });
       continue;
     }
-    const { w, h, minW, minH } = def.defaultLayout;
+    const { w, h, minW, minH, maxW, maxH } = def.defaultLayout;
     if (cursorX + w > COLS) {
       cursorX = 0;
       cursorY += h;
     }
-    layout.push({ i: id, x: cursorX, y: cursorY, w, h, minW, minH });
+    layout.push({
+      i: id,
+      x: cursorX,
+      y: cursorY,
+      w,
+      h,
+      minW,
+      minH,
+      ...(maxW ? { maxW } : {}),
+      ...(maxH ? { maxH } : {}),
+      isResizable: def.defaultLayout.resizable !== false,
+    });
     cursorX += w;
   }
   return layout;
@@ -148,7 +169,15 @@ export function DashboardPage({
   const hasSavedPrefs = prefs?.updatedAt != null;
   const hidden = useMemo<readonly DashboardWidgetId[]>(() => {
     if (!prefs) return [];
-    if (hasSavedPrefs) return prefs.hidden;
+    if (hasSavedPrefs) {
+      // Break management was added after existing dashboard preferences were
+      // created. Keep it optional for those users so it appears in Add widget.
+      const savedIds = new Set(prefs.layout.map((item) => item.i));
+      return [...new Set([
+        ...prefs.hidden,
+        ...availableIds.filter((id) => id === 'break-management' && !savedIds.has(id)),
+      ])];
+    }
     return availableIds.filter((id) => !DEFAULT_WIDGETS.includes(id));
   }, [prefs, hasSavedPrefs, availableIds]);
 
@@ -243,9 +272,12 @@ export function DashboardPage({
 
   const resizeMobileWidget = useCallback(
     (id: DashboardWidgetId, delta: number) => {
+      const definition = getWidget(id);
+      const minH = definition?.defaultLayout.minH ?? 2;
+      const maxH = definition?.defaultLayout.maxH ?? 10;
       const nextLayout = layout.map((item) =>
         item.i === id
-          ? { ...item, h: Math.min(10, Math.max(2, item.h + delta)) }
+          ? { ...item, h: Math.min(maxH, Math.max(minH, item.h + delta)) }
           : item,
       );
       commitPrefs(
@@ -258,8 +290,11 @@ export function DashboardPage({
 
   const setMobileWidgetHeight = useCallback(
     (id: DashboardWidgetId, height: number) => {
+      const definition = getWidget(id);
+      const minH = definition?.defaultLayout.minH ?? 2;
+      const maxH = definition?.defaultLayout.maxH ?? 10;
       const nextLayout = layout.map((item) =>
-        item.i === id ? { ...item, h: Math.min(10, Math.max(2, height)) } : item,
+        item.i === id ? { ...item, h: Math.min(maxH, Math.max(minH, height)) } : item,
       );
       commitPrefs(
         nextLayout.map(({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h })),
@@ -447,7 +482,7 @@ export function DashboardPage({
                 key={id}
                 data-mobile-widget-id={id}
                 className={`mobile-dashboard-widget ${editing ? 'mobile-dashboard-widget-editing' : ''} ${mobileDragId === id ? 'mobile-dashboard-widget-dragging' : ''} ${mobileDropId === id && mobileDragId !== id ? 'mobile-dashboard-widget-drop-target' : ''}`}
-                style={{ height: editing ? `${widgetHeight}px` : undefined }}
+                style={{ height: editing && def.defaultLayout.resizable !== false ? `${widgetHeight}px` : undefined }}
               >
                 {editing && (
                   <div className="mobile-dashboard-widget-controls mb-3 flex items-center justify-between gap-2 border-b border-app-border pb-2">
@@ -465,8 +500,12 @@ export function DashboardPage({
                       <button type="button" onClick={() => moveMobileBy(id, -1)} disabled={mobileOrderedIds[0] === id} className="mobile-dashboard-control-button" aria-label={`Move ${def.title} up`} title="Move up">↑</button>
                       <button type="button" onClick={() => moveMobileBy(id, 1)} disabled={mobileOrderedIds[mobileOrderedIds.length - 1] === id} className="mobile-dashboard-control-button" aria-label={`Move ${def.title} down`} title="Move down">↓</button>
                       <span className="mx-1 h-5 w-px bg-app-border" />
-                      <button type="button" onClick={() => resizeMobileWidget(id, -1)} disabled={(layoutItem?.h ?? 3) <= 2} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} shorter`} title="Shorter">−</button>
-                      <button type="button" onClick={() => resizeMobileWidget(id, 1)} disabled={(layoutItem?.h ?? 3) >= 10} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} taller`} title="Taller">+</button>
+                      {def.defaultLayout.resizable !== false && (
+                        <>
+                          <button type="button" onClick={() => resizeMobileWidget(id, -1)} disabled={(layoutItem?.h ?? 3) <= def.defaultLayout.minH} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} shorter`} title="Shorter">−</button>
+                          <button type="button" onClick={() => resizeMobileWidget(id, 1)} disabled={(layoutItem?.h ?? 3) >= (def.defaultLayout.maxH ?? 10)} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} taller`} title="Taller">+</button>
+                        </>
+                      )}
                       <button type="button" onClick={() => hide(id)} className="mobile-dashboard-control-button mobile-dashboard-remove" aria-label={`Remove ${def.title}`} title="Remove widget">
                         <Icon name="close" className="size-3.5" />
                       </button>
@@ -476,15 +515,17 @@ export function DashboardPage({
                 {editing && (
                   <label className="mobile-dashboard-size-control mb-3 flex items-center gap-3 text-xs font-semibold text-app-muted">
                     <span>Card height</span>
-                    <input
-                      type="range"
-                      min={2}
-                      max={10}
-                      step={1}
-                      value={layoutItem?.h ?? 3}
-                      onChange={(event) => setMobileWidgetHeight(id, Number(event.currentTarget.value))}
-                      aria-label={`Card height for ${def.title}`}
-                    />
+                    {def.defaultLayout.resizable !== false && (
+                      <input
+                        type="range"
+                        min={def.defaultLayout.minH}
+                        max={def.defaultLayout.maxH ?? 10}
+                        step={1}
+                        value={layoutItem?.h ?? 3}
+                        onChange={(event) => setMobileWidgetHeight(id, Number(event.currentTarget.value))}
+                        aria-label={`Card height for ${def.title}`}
+                      />
+                    )}
                   </label>
                 )}
                 <div className={editing ? 'mobile-dashboard-widget-content' : ''}>
