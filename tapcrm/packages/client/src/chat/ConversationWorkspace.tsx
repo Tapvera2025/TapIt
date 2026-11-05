@@ -784,10 +784,6 @@ export function ConversationWorkspace({
                   value={composer}
                   onChange={(event) => onComposerChange(event.target.value, event.target.selectionStart)}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      void send();
-                    }
                     if (event.key === 'Escape' && mentionQuery !== null) setMentionQuery(null);
                   }}
                   placeholder="Type a message..."

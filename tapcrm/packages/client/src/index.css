@@ -533,8 +533,7 @@
     transition: opacity 140ms ease, transform 140ms ease;
     white-space: nowrap;
   }
-  .theme-toggle-navbar[data-tooltip]:hover::after,
-  .theme-toggle-navbar[data-tooltip]:focus-visible::after {
+  .theme-toggle-navbar[data-tooltip-visible='true']::after {
     opacity: 1;
     transform: translateY(0);
   }

@@ -257,7 +257,7 @@ export function TaskList({
             title={`Status updated by ${statusUpdatedByName}`}
           >
             {availableTransitions.length === 0 ? (
-              <TaskStatusBadge status={displayedStatus} />
+              <TaskStatusBadge status={displayedStatus} className="!border-0 !bg-transparent" />
             ) : (
               <>
                 <button
@@ -276,7 +276,7 @@ export function TaskList({
                 >
                   <TaskStatusBadge
                     status={displayedStatus}
-                    className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
+                    className="cursor-pointer !border-0 !bg-transparent"
                   />
                 </button>
               </>
@@ -301,7 +301,7 @@ export function TaskList({
                     )}
                   </div>
                   <div className="shrink-0 lg:hidden">
-                    {renderOverallStatusControl()}
+                    {renderOverallStatusControl(`flex h-9 items-center justify-center rounded-lg border px-3 py-1 ${statusCellColor}`)}
                   </div>
                 </div>
                 {task.projectId && (

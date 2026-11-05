@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTheme } from './ThemeContext.js';
 import { Icon } from '../ui/Icon.js';
 
@@ -17,8 +17,17 @@ export function ThemeToggle({
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [isChanging, setIsChanging] = useState(false);
+  const [showLongPressTooltip, setShowLongPressTooltip] = useState(false);
+  const longPressTimer = useRef<number | null>(null);
   const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
   const isDark = resolvedTheme === 'dark';
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   return (
     <button
@@ -34,10 +43,27 @@ export function ThemeToggle({
         onActivate?.();
         window.setTimeout(() => setIsChanging(false), 420);
       }}
+      onPointerDown={(event) => {
+        if (event.pointerType !== 'touch') return;
+        clearLongPress();
+        longPressTimer.current = window.setTimeout(() => setShowLongPressTooltip(true), 600);
+      }}
+      onPointerUp={() => {
+        clearLongPress();
+        setShowLongPressTooltip(false);
+      }}
+      onPointerCancel={() => {
+        clearLongPress();
+        setShowLongPressTooltip(false);
+      }}
+      onPointerLeave={() => {
+        clearLongPress();
+        setShowLongPressTooltip(false);
+      }}
       aria-label={`Switch to ${nextTheme} mode`}
-      title={`Switch to ${nextTheme} mode`}
-      data-tooltip={compact ? `Switch to ${nextTheme} mode` : undefined}
       aria-pressed={isDark}
+      data-tooltip={`Switch to ${nextTheme} mode`}
+      data-tooltip-visible={showLongPressTooltip ? 'true' : undefined}
     >
       <span className="theme-toggle-liquid-sheen" aria-hidden="true" />
       <span className="grid size-7 place-items-center rounded-full bg-app-accent/12 text-app-accent ring-1 ring-inset ring-app-accent/15 transition group-hover:bg-app-accent group-hover:text-app-background">

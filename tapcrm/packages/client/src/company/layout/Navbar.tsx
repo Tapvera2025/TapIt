@@ -110,12 +110,12 @@ export function Navbar({
             <button
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
-              className="flex h-9 items-center gap-2 rounded-xl border border-app-border bg-app-surface-raised px-1.5 pr-2 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 sm:pr-2.5"
+              className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 lg:h-9 lg:w-auto lg:justify-start lg:gap-2 lg:rounded-xl lg:px-1.5 lg:pr-2.5"
               aria-label="Open account menu"
               aria-haspopup="menu"
               aria-expanded={accountOpen}
             >
-              <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-app-accent/15 text-[10px] font-bold text-app-accent ring-1 ring-inset ring-app-accent/20">
+              <span className="text-[10px] font-bold text-app-accent lg:grid lg:size-6 lg:shrink-0 lg:place-items-center lg:rounded-lg lg:bg-app-accent/15 lg:ring-1 lg:ring-inset lg:ring-app-accent/20">
                 {initials(identity.fullName)}
               </span>
               <span className="hidden min-w-0 lg:block">
