@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { NotificationBell } from '../../notifications/NotificationBell.js';
-import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { AiPetButton } from './AiPet.js';
@@ -73,7 +72,7 @@ export function Navbar({
 
   return (
     <header className="global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl xl:top-4 xl:mx-5 xl:mt-4 xl:rounded-2xl xl:border">
-      <div className="flex h-full min-w-0 items-center gap-2 px-2 sm:gap-3 sm:px-5">
+      <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:gap-3 sm:px-5">
         <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2 lg:gap-1">
           <button
             type="button"
@@ -99,13 +98,12 @@ export function Navbar({
           </span>
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2.5 max-[420px]:gap-2">
           <GlobalFeatureSearch
             destinations={searchDestinations}
             onNavigate={onNavigate}
           />
           <NotificationBell onNavigate={onNavigate} />
-          <ThemeToggle compact className="global-navbar-theme-toggle md:hidden" />
           <div ref={accountRef} className="relative">
             <button
               type="button"

@@ -321,7 +321,7 @@ export function TaskList({
                   </span>
                 )}
                 {(task.createdAt || task.createdByName) && (
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-3 py-1.5 text-app-muted">
+                  <span className="inline-flex min-h-7 w-[calc(100%_-_1.75rem)] min-w-0 max-w-[calc(100%_-_1.75rem)] flex-wrap items-center gap-1.5 overflow-hidden rounded-lg border border-app-border/80 bg-app-surface-raised px-2 py-1.5 text-app-muted sm:h-7 sm:w-auto sm:max-w-full sm:flex-nowrap sm:whitespace-nowrap sm:px-3">
                     <Icon name="calendar" className="size-3.5 shrink-0" />
                     <span>Created</span>
                     {task.createdAt && (
@@ -330,7 +330,7 @@ export function TaskList({
                       </time>
                     )}
                     {task.createdByName && (
-                      <span className="inline-flex items-center gap-1 border-l border-app-border/80 pl-1.5">
+                      <span className="inline-flex min-w-0 max-w-full items-center gap-1 border-l border-app-border/80 pl-1.5">
                         <span className="text-app-muted">Created by</span>
                         <span
                           className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border"
@@ -338,7 +338,7 @@ export function TaskList({
                         >
                           {getInitials(task.createdByName)}
                         </span>
-                        <span className="font-medium text-app-foreground">{task.createdByName}</span>
+                        <span className="min-w-0 max-w-[10rem] truncate font-medium text-app-foreground">{task.createdByName}</span>
                       </span>
                     )}
                   </span>
@@ -389,9 +389,9 @@ export function TaskList({
                 </div>
 
                 {(task.createdAt || task.dueDate || task.createdByName) && (
-                  <div className="flex items-center gap-2 text-[11px] text-app-muted">
+                  <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 text-[11px] text-app-muted">
                     {(task.createdAt || task.createdByName) && (
-                      <span className="flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-2.5 py-1 text-app-muted">
+                      <span className="flex min-h-7 w-[calc(100%_-_1.75rem)] min-w-0 max-w-[calc(100%_-_1.75rem)] flex-wrap items-center gap-1.5 overflow-hidden rounded-lg border border-app-border/80 bg-app-surface-raised px-2 py-1 text-app-muted sm:h-7 sm:w-auto sm:max-w-full sm:flex-nowrap sm:whitespace-nowrap sm:px-2.5">
                         <Icon name="calendar" className="size-3 shrink-0" />
                         <span>Created</span>
                         {task.createdAt && (
@@ -400,7 +400,7 @@ export function TaskList({
                           </time>
                         )}
                         {task.createdByName && (
-                          <span className="inline-flex items-center gap-1 border-l border-app-border/80 pl-1.5">
+                          <span className="inline-flex min-w-0 max-w-full items-center gap-1 border-l border-app-border/80 pl-1.5">
                             <span className="text-app-muted">Created by</span>
                             <span
                               className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border"
@@ -408,13 +408,13 @@ export function TaskList({
                             >
                               {getInitials(task.createdByName)}
                             </span>
-                            <span className="font-medium text-app-foreground">{task.createdByName}</span>
+                            <span className="min-w-0 max-w-[10rem] truncate font-medium text-app-foreground">{task.createdByName}</span>
                           </span>
                         )}
                       </span>
                     )}
                     {task.dueDate && (
-                      <span className="flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-2.5 py-1 text-app-muted">
+                      <span className="flex h-7 max-w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-2.5 py-1 text-app-muted">
                         <Icon name="clock" className="size-3 shrink-0" />
                         <span>Due</span>
                         <time className="font-medium text-app-foreground" dateTime={task.dueDate}>
@@ -438,7 +438,7 @@ export function TaskList({
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    className="task-assignee-toggle group inline-flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2 text-left transition-none hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent"
+                    className="task-assignee-toggle group inline-flex min-h-9 w-full min-w-0 items-center justify-between gap-3 overflow-hidden rounded-lg px-2 text-left transition-none hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent"
                     aria-expanded={openAssigneeTaskId === task.id}
                     aria-controls={`task-assignees-${task.id}`}
                     onClick={() =>
@@ -473,17 +473,17 @@ export function TaskList({
 
                       return (
                         <>
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <div className="flex min-w-0 max-w-full flex-1 flex-wrap items-center gap-2 overflow-hidden">
                             <span className="text-[11px] font-medium uppercase tracking-wide text-app-muted group-hover:text-app-foreground">
                               Assigned to:
                             </span>
-                            <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
                               {displayedAssignees.map((assignee) => {
                                 const isSelf = currentUserId === assignee.id;
                                 return (
                                   <span
                                     key={assignee.id}
-                                    className="inline-flex items-center gap-1.5 rounded-full border border-app-border/80 bg-app-surface-raised px-2 py-0.5 text-xs font-medium text-app-foreground"
+                                    className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-app-border/80 bg-app-surface-raised px-2 py-0.5 text-xs font-medium text-app-foreground"
                                   >
                                     <span
                                       className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border/60"
@@ -491,7 +491,7 @@ export function TaskList({
                                     >
                                       {getInitials(assignee.fullName)}
                                     </span>
-                                    <span className="truncate max-w-[120px] sm:max-w-[180px]">
+                                    <span className="min-w-0 max-w-[120px] truncate sm:max-w-[180px]">
                                       {assignee.fullName}{isSelf && ' (You)'}
                                     </span>
                                   </span>

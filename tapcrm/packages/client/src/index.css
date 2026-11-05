@@ -1004,6 +1004,16 @@
     height: 100% !important;
     object-fit: contain;
   }
+  @media (max-width: 640px) {
+    .global-navbar .crm-brand {
+      width: 7.25rem;
+    }
+  }
+  @media (max-width: 420px) {
+    .global-navbar .crm-brand {
+      width: 6.25rem;
+    }
+  }
   .global-navbar .navbar-action-button,
   .global-navbar .theme-toggle-navbar {
     display: inline-grid;
