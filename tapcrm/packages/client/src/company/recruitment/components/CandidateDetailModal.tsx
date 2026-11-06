@@ -25,6 +25,7 @@ import type {
   Interview,
   JobOffer,
 } from '../types/index.js';
+import { formatMinutes } from '../../../ui/format-duration.js';
 
 export function CandidateDetailModal({
   candidate: initialCandidate,
@@ -440,7 +441,7 @@ export function CandidateDetailModal({
                           Round {int.round} · {int.stage}
                         </span>
                         <h4 className="font-semibold capitalize">
-                          {int.interviewType.replace('_', ' ')} Interview ({int.durationMinutes} mins)
+                          {int.interviewType.replace('_', ' ')} Interview ({formatMinutes(int.durationMinutes)})
                         </h4>
                         <p className="text-xs text-app-muted">
                           Scheduled for {new Date(int.scheduledAt).toLocaleString()}
