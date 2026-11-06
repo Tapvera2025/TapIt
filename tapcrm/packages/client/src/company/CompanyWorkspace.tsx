@@ -136,6 +136,10 @@ export function CompanyWorkspace({
   }
 
   const isSuperAdmin = identity.user.accountType === 'super-admin';
+  const isTeamLead = identity.user.accountType === 'employee' && (
+    identity.user.positionCode?.toLowerCase().includes('team-lead') === true ||
+    identity.user.positionName?.toLowerCase().includes('team lead') === true
+  );
   const isHr =
     isSuperAdmin ||
     (identity.user.accountType === 'employee' &&
@@ -412,6 +416,7 @@ export function CompanyWorkspace({
       return (
         <ProjectsPage
           canManageProjects={isSuperAdmin || can('projects:manage')}
+            canManageProjectAssignments={isSuperAdmin || isTeamLead}
           onOpenProject={(projectId) => onNavigate(`/company/projects/${projectId}`)}
         />
       );
@@ -422,6 +427,7 @@ export function CompanyWorkspace({
           projectId={projectDetail[1]!}
           currentUserId={userId}
           isSuperAdmin={isSuperAdmin}
+          canManageProjectAssignments={isSuperAdmin || isTeamLead}
           onBack={() => onNavigate('/company/projects')}
         />
       );

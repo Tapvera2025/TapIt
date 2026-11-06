@@ -3,6 +3,7 @@ import { Button, Card, Notice, Page, SkeletonTable } from '../ui/components.js';
 import { getProjects, type Project } from './api/projectsApi.js';
 import { CreateDiscussionGroupModal } from './CreateDiscussionGroupModal.js';
 import { CreateProjectModal } from './CreateProjectModal.js';
+import { BulkProjectAssignmentModal } from './BulkProjectAssignmentModal.js';
 import { formatProjectDate } from './formatDate.js';
 
 const PRIORITY_LABEL: Record<Project['priority'], string> = { low: 'Low', medium: 'Medium', high: 'High' };
@@ -14,11 +15,12 @@ const STATUS_LABEL: Record<Project['workStatus'], string> = { new: 'New', ongoin
  * (CreateDiscussionGroupModal) opens automatically but can be skipped —
  * the Discussions tab on the project's own page offers it again later.
  */
-export function ProjectsPage({ onOpenProject, canManageProjects }: { onOpenProject: (projectId: string) => void; canManageProjects: boolean }): React.JSX.Element {
+export function ProjectsPage({ onOpenProject, canManageProjects, canManageProjectAssignments }: { onOpenProject: (projectId: string) => void; canManageProjects: boolean; canManageProjectAssignments: boolean }): React.JSX.Element {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [pendingGroupFor, setPendingGroupFor] = useState<Project | null>(null);
 
   async function load(): Promise<void> {
@@ -41,7 +43,12 @@ export function ProjectsPage({ onOpenProject, canManageProjects }: { onOpenProje
       eyebrow="Projects"
       title="Projects"
       description="Every active client engagement."
-      action={canManageProjects ? <Button onClick={() => setShowCreate(true)}>New project</Button> : undefined}
+      action={canManageProjects ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          {canManageProjectAssignments && <Button kind="secondary" onClick={() => setShowBulkAssign(true)}>Project Assign</Button>}
+          <Button onClick={() => setShowCreate(true)}>New project</Button>
+        </div>
+      ) : undefined}
     >
       {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
       {loading ? (
@@ -90,6 +97,13 @@ export function ProjectsPage({ onOpenProject, canManageProjects }: { onOpenProje
           project={pendingGroupFor}
           onClose={() => { setPendingGroupFor(null); onOpenProject(pendingGroupFor.id); }}
           onCreated={() => { setPendingGroupFor(null); void load(); onOpenProject(pendingGroupFor.id); }}
+        />
+      )}
+
+      {showBulkAssign && (
+        <BulkProjectAssignmentModal
+          onClose={() => setShowBulkAssign(false)}
+          onCompleted={() => { void load(); }}
         />
       )}
     </Page>

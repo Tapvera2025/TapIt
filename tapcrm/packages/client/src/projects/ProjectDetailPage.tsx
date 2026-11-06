@@ -25,11 +25,13 @@ export function ProjectDetailPage({
   projectId,
   currentUserId,
   isSuperAdmin,
+  canManageProjectAssignments,
   onBack,
 }: {
   projectId: string;
   currentUserId: string;
   isSuperAdmin: boolean;
+  canManageProjectAssignments: boolean;
   onBack: () => void;
 }): React.JSX.Element {
   const [project, setProject] = useState<Project | null>(null);
@@ -89,7 +91,7 @@ export function ProjectDetailPage({
             <Card className="mt-4">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">Assigned employees</p>
-                {!editingTeam && (
+                {!editingTeam && canManageProjectAssignments && (
                   <button
                     type="button"
                     onClick={() => {

@@ -33,7 +33,9 @@ export function ProjectDetailNavigation({
           <h1 className="truncate font-display text-base font-bold">{projectName}</h1>
           <p className="shrink-0 text-xs text-app-muted">{businessName}</p>
         </div>
-        {onAction && <Button kind="secondary" onClick={onAction} className="!shrink-0 !px-3 !py-1.5 !text-xs">{actionLabel}</Button>}
+        <div className="flex shrink-0 gap-2">
+          {onAction && <Button kind="secondary" onClick={onAction} className="!px-3 !py-1.5 !text-xs">{actionLabel}</Button>}
+        </div>
       </div>
       <div className="project-detail-navigation-tabs flex shrink-0 gap-1 overflow-x-auto border-b border-app-border px-4 py-1.5 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((tab) => (

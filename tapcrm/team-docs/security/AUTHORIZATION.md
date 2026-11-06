@@ -577,6 +577,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/handoff/:id | `handoff:view` | id |
 | GET | /api/projects | `projects:view` | — |
 | GET | /api/projects/:id | `projects:view` | id |
+| POST | /api/projects/bulk-assign | `projects:manage` | — |
 | POST | /api/projects | `projects:manage` | — |
 | PATCH | /api/projects/:id | `projects:manage` | id |
 | POST | /api/projects/:id/team | `projects:manage` | id |

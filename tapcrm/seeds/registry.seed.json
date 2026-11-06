@@ -4822,6 +4822,12 @@
     },
     {
       "method": "POST",
+      "path": "/api/projects/bulk-assign",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
       "path": "/api/projects",
       "action": "projects:manage",
       "resourceParam": null
