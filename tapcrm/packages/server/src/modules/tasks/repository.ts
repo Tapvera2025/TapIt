@@ -643,16 +643,25 @@ export async function findAssignableUsers(
     sql`u.account_type IN ('employee', 'super-admin')`,
   ];
 
-  whereClauses.push(assignableScopeCondition(scope));
-
-  // Creating a task from inside a project restricts candidates to that
-  // project's own team — narrower than whatever the caller's broader
-  // department/team scope would otherwise allow, never wider.
+  // Once a project is selected, the picker is project-scoped: a project
+  // member may assign to every other active member of that same project.
+  // Requiring actor membership prevents this endpoint from exposing a
+  // project's employee list to unrelated employees.
   if (query.projectId) {
     whereClauses.push(sql`EXISTS (
-      SELECT 1 FROM project_assignee pa
-      WHERE pa.organization_id = u.organization_id AND pa.project_id = ${query.projectId} AND pa.user_id = u.id
+      SELECT 1 FROM project_assignee actor_pa
+      WHERE actor_pa.organization_id = u.organization_id
+        AND actor_pa.project_id = ${query.projectId}
+        AND actor_pa.user_id = ${ctx.principal.id}
     )`);
+    whereClauses.push(sql`EXISTS (
+      SELECT 1 FROM project_assignee project_pa
+      WHERE project_pa.organization_id = u.organization_id
+        AND project_pa.project_id = ${query.projectId}
+        AND project_pa.user_id = u.id
+    )`);
+  } else {
+    whereClauses.push(assignableScopeCondition(scope));
   }
 
   if (query.search?.trim()) {
@@ -691,4 +700,41 @@ export async function findAssignableUsers(
     departmentName: r.departmentName ?? null,
     positionName: r.positionName ?? null,
   }));
+}
+
+/** Returns the active membership set used by task assignment validation. */
+export async function findProjectAssigneeIds(
+  tx: Tx,
+  organizationId: string,
+  projectId: string,
+): Promise<readonly string[]> {
+  const rows = await tx.query<{ userId: string }>(sql`
+    SELECT pa.user_id AS "userId"
+    FROM project_assignee pa
+    INNER JOIN app_user u
+      ON u.organization_id = pa.organization_id
+     AND u.id = pa.user_id
+     AND u.status = 'active'
+    WHERE pa.organization_id = ${organizationId}
+      AND pa.project_id = ${projectId}
+  `);
+  return rows.map((row) => row.userId);
+}
+
+/** Context-bound variant used by route-level task authorization. */
+export async function findProjectAssigneeIdsForContext(
+  ctx: RequestContext,
+  projectId: string,
+): Promise<readonly string[]> {
+  const rows = await db.query<{ userId: string }>(ctx, sql`
+    SELECT pa.user_id AS "userId"
+    FROM project_assignee pa
+    INNER JOIN app_user u
+      ON u.organization_id = pa.organization_id
+     AND u.id = pa.user_id
+     AND u.status = 'active'
+    WHERE pa.organization_id = ${ctx.organizationId}
+      AND pa.project_id = ${projectId}
+  `);
+  return rows.map((row) => row.userId);
 }

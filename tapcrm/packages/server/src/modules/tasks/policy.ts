@@ -38,6 +38,14 @@ export const taskPolicy: ResourcePolicy = {
       resource['assignedTo'] === ctx.principal.id ||
       (Array.isArray(resource['assigneeIds']) &&
         resource['assigneeIds'].includes(ctx.principal.id));
+    const isProjectMember =
+      Array.isArray(resource['projectAssigneeIds']) &&
+      resource['projectAssigneeIds'].includes(ctx.principal.id);
+
+    // Project participants may manage task assignees for tasks belonging to
+    // their project. The service still validates every selected assignee
+    // against the same project membership set.
+    if (_action === 'tasks:assign' && isProjectMember) return true;
 
     // Conceptual access model: user is creator OR user is eligible assignee/participant OR user has authorized scope
     if (_action === 'tasks:view' && (isCreator || isAssigned)) {

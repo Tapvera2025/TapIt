@@ -983,9 +983,6 @@
     overscroll-behavior-y: contain;
     padding: 20px 24px 24px;
   }
-  .ui-dialog-body:has(.task-assignee-options) {
-    overflow: visible;
-  }
   .task-assignee-options {
     max-height: min(30rem, 70dvh);
     overscroll-behavior-y: contain;

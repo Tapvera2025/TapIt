@@ -31,6 +31,8 @@ import {
   validateAssigneeIds,
   findLedTeamIds,
   findUsersInAssignableScope,
+  findProjectAssigneeIds,
+  findProjectAssigneeIdsForContext,
   type AssignableUsersScope,
 } from './repository.js';
 import type { Tx } from '../../platform/dal/db.js';
@@ -86,6 +88,9 @@ export async function loadTaskResource(
 ): Promise<Resource | null> {
   const task = await findTaskById(ctx, id);
   if (!task) return null;
+  const projectAssigneeIds = task.projectId
+    ? await findProjectAssigneeIdsForContext(ctx, task.projectId)
+    : [];
   const assigneeTeamIds = task.assignees
     .map((a) => a.teamId)
     .filter((tid): tid is string => typeof tid === 'string' && tid.length > 0);
@@ -124,6 +129,8 @@ export async function loadTaskResource(
     poolId: task.creatorTeamId ?? assigneeTeamIds[0] ?? null,
     poolIds: teamIds,
     assignees: task.assignees,
+    projectId: task.projectId,
+    projectAssigneeIds,
   };
 }
 
@@ -149,7 +156,7 @@ export async function createTask(
         );
       }
 
-      await assertAssigneesInScope(tx, ctx, uniqueAssigneeIds);
+      await assertAssigneesInScope(tx, ctx, uniqueAssigneeIds, input.projectId);
     }
 
     const { id } = await insertTaskRow(tx, {
@@ -456,7 +463,7 @@ export async function assignTask(
         );
       }
 
-      await assertAssigneesInScope(tx, ctx, uniqueAssigneeIds);
+      await assertAssigneesInScope(tx, ctx, uniqueAssigneeIds, existing.projectId);
     }
 
     await replaceTaskAssignees(
@@ -566,6 +573,7 @@ async function assertAssigneesInScope(
   tx: Tx,
   ctx: RequestContext,
   assigneeIds: readonly string[],
+  projectId?: string | null,
 ): Promise<void> {
   if (assigneeIds.length === 0) return;
   const scope = await resolveAssignableScope(ctx);
@@ -573,7 +581,13 @@ async function assertAssigneesInScope(
   const inScope = new Set(
     await findUsersInAssignableScope(tx, ctx.organizationId, assigneeIds, scope),
   );
-  const outOfScope = assigneeIds.filter((id) => !inScope.has(id));
+  const projectMembers = projectId
+    ? new Set(await findProjectAssigneeIds(tx, ctx.organizationId, projectId))
+    : new Set<string>();
+  const canAssignProjectMembers = projectMembers.has(ctx.principal.id);
+  const outOfScope = assigneeIds.filter(
+    (id) => !inScope.has(id) && !(canAssignProjectMembers && projectMembers.has(id)),
+  );
   if (outOfScope.length === 0) return;
   const policy = await effectivePolicy(ctx, 'tasks:assign');
   const key = policy?.scope === 'participant' ? 'own' : (policy?.scope ?? 'own');

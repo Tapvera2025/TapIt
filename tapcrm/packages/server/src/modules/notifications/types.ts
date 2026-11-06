@@ -52,6 +52,7 @@ export const NOTIFICATION_TYPES = {
   EXPENSE_CLAIM_REJECTED: 'expense.claim_rejected',
   // projects (see modules/projects/notifications.ts)
   PROJECT_ASSIGNED: 'project.assigned',
+  PROJECT_CLIENT_FEEDBACK: 'project.client_feedback',
 
   // chat (see modules/chat/notifications.ts)
   CHAT_MESSAGE: 'chat.message',
