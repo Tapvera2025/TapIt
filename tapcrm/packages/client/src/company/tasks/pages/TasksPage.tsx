@@ -245,8 +245,6 @@ export function TasksPage({
   const page = data?.page ?? 1;
   const pageSize = data?.pageSize ?? 20;
   const totalPages = data?.totalPages ?? 1;
-  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const endItem = Math.min(page * pageSize, total);
   const visibleTasks = data?.items ?? [];
   const summary = [
     { label: 'All tasks', value: total, tone: 'text-app-foreground' },
@@ -338,39 +336,30 @@ export function TasksPage({
 
         {/* Pagination Footer */}
         {data && total > 0 && (
-          <div className="flex flex-col items-center justify-between gap-3 pt-4 sm:flex-row">
-            <p className="text-xs text-app-muted">
-              Showing{' '}
-              <span className="font-semibold text-app-foreground">{startItem}</span> to{' '}
-              <span className="font-semibold text-app-foreground">{endItem}</span> of{' '}
-              <span className="font-semibold text-app-foreground">{total}</span> tasks
-            </p>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                kind="secondary"
-                disabled={page <= 1 || loading}
-                onClick={() => setQuery({ ...query, page: page - 1 })}
-                className="py-1 px-3 text-xs"
-                aria-label="Previous page"
-              >
-                Previous
-              </Button>
-              <span className="text-xs font-medium text-app-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                type="button"
-                kind="secondary"
-                disabled={page >= totalPages || loading}
-                onClick={() => setQuery({ ...query, page: page + 1 })}
-                className="py-1 px-3 text-xs"
-                aria-label="Next page"
-              >
-                Next
-              </Button>
-            </div>
+          <div className="flex items-center justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              kind="secondary"
+              disabled={page <= 1 || loading}
+              onClick={() => setQuery({ ...query, page: page - 1 })}
+              className="py-1 px-3 text-xs"
+              aria-label="Previous page"
+            >
+              Previous
+            </Button>
+            <span className="text-xs font-medium text-app-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              type="button"
+              kind="secondary"
+              disabled={page >= totalPages || loading}
+              onClick={() => setQuery({ ...query, page: page + 1 })}
+              className="py-1 px-3 text-xs"
+              aria-label="Next page"
+            >
+              Next
+            </Button>
           </div>
         )}
 

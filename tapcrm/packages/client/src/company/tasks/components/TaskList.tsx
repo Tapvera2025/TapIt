@@ -320,27 +320,25 @@ export function TaskList({
                     {task.projectName ?? 'Unknown project'}
                   </span>
                 )}
-                {(task.createdAt || task.createdByName) && (
+                {task.createdAt && (
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-3 py-1.5 text-app-muted">
                     <Icon name="calendar" className="size-3.5 shrink-0" />
                     <span>Created</span>
-                    {task.createdAt && (
-                      <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
-                        {formatDate(task.createdAt)}
-                      </time>
-                    )}
-                    {task.createdByName && (
-                      <span className="inline-flex items-center gap-1 border-l border-app-border/80 pl-1.5">
-                        <span className="text-app-muted">Created by</span>
-                        <span
-                          className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border"
-                          aria-hidden="true"
-                        >
-                          {getInitials(task.createdByName)}
-                        </span>
-                        <span className="font-medium text-app-foreground">{task.createdByName}</span>
-                      </span>
-                    )}
+                    <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
+                      {formatDate(task.createdAt)}
+                    </time>
+                  </span>
+                )}
+                {task.createdByName && (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface-raised px-3 py-1.5 text-app-muted">
+                    <span className="shrink-0 text-app-muted">Created by</span>
+                    <span
+                      className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border"
+                      aria-hidden="true"
+                    >
+                      {getInitials(task.createdByName)}
+                    </span>
+                    <span className="truncate font-medium text-app-foreground">{task.createdByName}</span>
                   </span>
                 )}
                 {task.dueDate && (
@@ -408,7 +406,7 @@ export function TaskList({
                             >
                               {getInitials(task.createdByName)}
                             </span>
-                            <span className="font-medium text-app-foreground">{task.createdByName}</span>
+                            <span className="max-w-40 truncate font-medium text-app-foreground">{task.createdByName}</span>
                           </span>
                         )}
                       </span>
