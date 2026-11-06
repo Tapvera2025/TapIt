@@ -47,6 +47,10 @@ export function useChat(kind: ConversationKind): {
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [error, setError] = useState('');
   const activeIdRef = useRef<string | null>(null);
+  // Conversation whose messages were requested most recently. Set synchronously
+  // (activeIdRef only updates on render) so slow responses for a chat the user
+  // already left can be discarded instead of overwriting the current thread.
+  const latestLoadRef = useRef<string | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
   const socketRef = useRef<Socket | null>(null);
   const typingTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -67,9 +71,11 @@ export function useChat(kind: ConversationKind): {
   }, [kind]);
 
   const loadMessages = useCallback(async (conversationId: string): Promise<void> => {
+    latestLoadRef.current = conversationId;
     setLoadingMessages(true);
     try {
       const page = await getMessages(conversationId, { limit: 30 });
+      if (latestLoadRef.current !== conversationId) return;
       // API returns newest-first; the thread renders oldest-first.
       setMessages([...page.messages].reverse());
       setNextCursor(page.nextCursor);
@@ -77,15 +83,22 @@ export function useChat(kind: ConversationKind): {
         .then(() => window.dispatchEvent(new Event(CHAT_UNREAD_CHANGED_EVENT)))
         .catch(() => window.dispatchEvent(new Event(CHAT_UNREAD_CHANGED_EVENT)));
     } catch (cause) {
+      if (latestLoadRef.current !== conversationId) return;
       setError(cause instanceof Error ? cause.message : 'Unable to load messages.');
       window.dispatchEvent(new Event(CHAT_UNREAD_CHANGED_EVENT));
     } finally {
-      setLoadingMessages(false);
+      if (latestLoadRef.current === conversationId) setLoadingMessages(false);
     }
   }, []);
 
   const openConversation = useCallback(async (id: string): Promise<void> => {
     setActiveIdState(id);
+    // Drop the previous chat's messages right away so they never show under the
+    // new chat's header while its messages load (the skeleton renders instead).
+    if (id !== activeIdRef.current) {
+      setMessages([]);
+      setNextCursor(null);
+    }
     setTypingUsers([]);
     const unreadCount = conversationsRef.current.find((conversation) => conversation.id === id)?.unreadCount ?? 0;
     setConversations((current) => current.map((conversation) =>
@@ -104,12 +117,13 @@ export function useChat(kind: ConversationKind): {
     setLoadingMessages(true);
     try {
       const page = await getMessages(activeId, { limit: 30, cursor: nextCursor });
+      if (activeIdRef.current !== activeId) return;
       setMessages((current) => [...[...page.messages].reverse(), ...current]);
       setNextCursor(page.nextCursor);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load more messages.');
     } finally {
-      setLoadingMessages(false);
+      if (activeIdRef.current === activeId) setLoadingMessages(false);
     }
   }, [activeId, nextCursor, loadingMessages]);
 

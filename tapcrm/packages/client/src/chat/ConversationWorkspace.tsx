@@ -21,7 +21,11 @@ function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function dateTimeLabel(iso: string): string {
+  return new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+const escapeRegExp =(text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const CHAT_LIST_MIN_WIDTH = 220;
 const CHAT_LIST_MAX_WIDTH = 520;
@@ -106,6 +110,7 @@ export function ConversationWorkspace({
   const chatListResizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizingChatList, setIsResizingChatList] = useState(false);
   const [seenDetailFor, setSeenDetailFor] = useState<string | null>(null);
+  const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState('');
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -720,6 +725,15 @@ export function ConversationWorkspace({
                               >
                                 <Icon name="smile" className="size-4" /> React
                               </button>
+                              {mine && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setInfoMessageId(message.id); setOpenActionsFor(null); setActionMenuPosition(null); }}
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
+                                >
+                                  <Icon name="eye" className="size-4" /> Info
+                                </button>
+                              )}
                               {!clientMode && mine && (
                                 <button
                                   type="button"
@@ -731,6 +745,57 @@ export function ConversationWorkspace({
                               )}
                               </div>
                             </>,
+                            document.body,
+                          )}
+
+                          {infoMessageId === message.id && createPortal(
+                            <div className="fixed inset-0 z-[1100] grid place-items-center p-4" role="dialog" aria-modal="true" aria-label="Message info">
+                              <div className="absolute inset-0 bg-app-background/50 backdrop-blur-[2px]" onClick={() => setInfoMessageId(null)} aria-hidden="true" />
+                              <div className="relative w-full max-w-sm rounded-xl border border-app-border bg-app-surface p-4 shadow-xl">
+                                <div className="mb-3 flex items-center justify-between">
+                                  <h3 className="text-sm font-semibold">Message info</h3>
+                                  <button type="button" onClick={() => setInfoMessageId(null)} aria-label="Close" className="grid size-7 place-items-center rounded-md text-app-muted hover:bg-app-surface-raised hover:text-app-accent">
+                                    <Icon name="close" className="size-4" />
+                                  </button>
+                                </div>
+                                <p className="mb-3 line-clamp-3 break-words rounded-lg bg-app-accent/10 px-3 py-2 text-xs">{message.body ?? ''}</p>
+                                <p className="mb-3 text-xs text-app-muted">Sent {dateTimeLabel(message.createdAt)}</p>
+                                {(() => {
+                                  const recipients = (activeConversation?.members ?? []).filter((m) => m.userId !== message.senderId);
+                                  const seen = recipients.filter((m) => m.lastReadAt !== null && m.lastReadAt >= message.createdAt);
+                                  const pending = recipients.filter((m) => !seen.includes(m));
+                                  return (
+                                    <div className="space-y-3 text-xs">
+                                      <div>
+                                        <p className="mb-1 font-semibold text-app-accent">Seen by</p>
+                                        {seen.length === 0 ? (
+                                          <p className="text-app-muted">No one yet</p>
+                                        ) : (
+                                          <ul className="space-y-1">
+                                            {seen.map((m) => (
+                                              <li key={m.userId} className="flex justify-between gap-3">
+                                                <span className="truncate">{m.fullName}</span>
+                                                <span className="shrink-0 text-app-muted">{dateTimeLabel(m.lastReadAt!)}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
+                                      {pending.length > 0 && (
+                                        <div>
+                                          <p className="mb-1 font-semibold text-app-muted">Not seen yet</p>
+                                          <ul className="space-y-1">
+                                            {pending.map((m) => (
+                                              <li key={m.userId} className="truncate">{m.fullName}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>,
                             document.body,
                           )}
 

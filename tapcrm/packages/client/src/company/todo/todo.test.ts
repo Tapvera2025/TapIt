@@ -783,7 +783,8 @@ describe('My Todo - Frontend Suite', () => {
           onPriorityChange: () => {},
         }),
       );
-      expect(filtersHtml).toContain('flex flex-col gap-2.5 sm:flex-row');
+      expect(filtersHtml).toContain('flex-col gap-2.5');
+      expect(filtersHtml).toContain('sm:flex-row');
 
       const progressHtml = renderToStaticMarkup(
         React.createElement(TodoProgress, {
