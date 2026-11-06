@@ -211,6 +211,24 @@ export async function replaceProjectAssignees(tx: Tx, organizationId: string, pr
   `);
 }
 
+export async function insertProjectAssigneesBulk(
+  tx: Tx,
+  organizationId: string,
+  projectIds: readonly string[],
+  userIds: readonly string[],
+  assignedBy: string,
+): Promise<Array<{ projectId: string; userId: string }>> {
+  if (projectIds.length === 0 || userIds.length === 0) return [];
+  return tx.query<{ projectId: string; userId: string }>(sql`
+    INSERT INTO project_assignee (organization_id, project_id, user_id, assigned_by)
+    SELECT ${organizationId}, project_id, user_id, ${assignedBy}
+    FROM unnest(${[...projectIds]}::uuid[]) AS project_id
+    CROSS JOIN unnest(${[...userIds]}::uuid[]) AS user_id
+    ON CONFLICT (project_id, user_id) DO NOTHING
+    RETURNING project_id AS "projectId", user_id AS "userId"
+  `);
+}
+
 /** Every id, active-status or not, is checked at the call site — a departed employee cannot be assigned. */
 export async function validateAssigneeIds(tx: Tx, organizationId: string, userIds: readonly string[]): Promise<string[]> {
   if (userIds.length === 0) return [];

@@ -569,9 +569,7 @@
     transition: opacity 140ms ease, transform 140ms ease;
     white-space: nowrap;
   }
-
-  .theme-toggle-navbar[data-tooltip]:hover::after,
-  .theme-toggle-navbar[data-tooltip]:focus-visible::after {
+  .theme-toggle-navbar[data-tooltip-visible='true']::after {
     opacity: 1;
     transform: translateY(0);
   }
@@ -1116,7 +1114,16 @@
     height: 100% !important;
     object-fit: contain;
   }
-
+  @media (max-width: 640px) {
+    .global-navbar .crm-brand {
+      width: 7.25rem;
+    }
+  }
+  @media (max-width: 420px) {
+    .global-navbar .crm-brand {
+      width: 6.25rem;
+    }
+  }
   .global-navbar .navbar-action-button,
   .global-navbar .theme-toggle-navbar {
     display: inline-grid;
@@ -2983,6 +2990,48 @@ summary:active {
 .access-explorer-liquid-tabs {
   width: 100%;
   max-width: none;
+}
+
+.project-detail-navigation-tabs {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.project-detail-navigation-tabs::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.project-detail-navigation-tab {
+  border-color: transparent;
+  color: var(--app-muted);
+  background: transparent;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.project-detail-navigation-tab:hover {
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 5%, transparent);
+}
+
+.project-detail-navigation-tab[aria-selected='true'] {
+  border-color: color-mix(in srgb, var(--app-accent) 30%, var(--app-border));
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 8%, var(--app-surface));
+}
+
+/* The tab track may scroll internally while the pill is dragged, but its
+   native scrollbar must never become part of the navbar layout. */
+.messages-tab-list {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.messages-tab-list::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 @media (min-width: 768px) {

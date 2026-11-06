@@ -57,6 +57,18 @@ export const projectTeamSchema = z.object({
   assigneeIds: z.array(z.string().uuid()).default([]),
 });
 
+export const bulkProjectAssignmentSchema = z.object({
+  employeeIds: z.array(z.string().uuid()).min(1).max(200),
+  projectIds: z.array(z.string().uuid()).min(1).max(200),
+}).superRefine((value, ctx) => {
+  if (new Set(value.employeeIds).size !== value.employeeIds.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['employeeIds'], message: 'Duplicate employee IDs are not allowed' });
+  }
+  if (new Set(value.projectIds).size !== value.projectIds.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['projectIds'], message: 'Duplicate project IDs are not allowed' });
+  }
+});
+
 export const projectListQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
   clientId: z.string().uuid().optional(),
@@ -84,6 +96,7 @@ export const discussionGroupMembersSchema = z.object({
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
 export type ProjectTeamInput = z.infer<typeof projectTeamSchema>;
+export type BulkProjectAssignmentInput = z.infer<typeof bulkProjectAssignmentSchema>;
 export type ProjectListQueryInput = z.infer<typeof projectListQuerySchema>;
 export type CreateDiscussionGroupInput = z.infer<typeof createDiscussionGroupSchema>;
 export type UpdateDiscussionGroupInput = z.infer<typeof updateDiscussionGroupSchema>;

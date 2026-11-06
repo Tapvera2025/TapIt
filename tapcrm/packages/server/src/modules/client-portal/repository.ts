@@ -1,11 +1,14 @@
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
-import type { PortalProfile, PortalProject, PortalService, PortalWorkStatus } from './types.js';
+import type { PortalAssignee, PortalProfile, PortalProject, PortalService, PortalWorkStatus } from './types.js';
 
 interface ProjectRow {
   id: string;
   name: string;
+  clientName: string;
+  businessName: string;
+  assignedEmployees: PortalAssignee[];
   description: string | null;
   workStatus: PortalWorkStatus;
   startDate: Date;
@@ -22,7 +25,13 @@ interface ProjectRow {
  * client sees nothing even if a token were somehow still live.
  */
 const SELECT_PROJECT = sql`
-  SELECT p.id, p.name, p.description, p.work_status, p.start_date, p.expected_end_date,
+  SELECT p.id, p.name, c.client_name AS "clientName", c.business_name AS "businessName", p.description, p.work_status, p.start_date, p.expected_end_date,
+         COALESCE((
+           SELECT json_agg(json_build_object('fullName', u.full_name) ORDER BY u.full_name)
+           FROM project_assignee pa
+           JOIN app_user u ON u.organization_id = pa.organization_id AND u.id = pa.user_id AND u.status = 'active'
+           WHERE pa.organization_id = p.organization_id AND pa.project_id = p.id
+         ), '[]'::json) AS "assignedEmployees",
          COALESCE((
            SELECT json_agg(json_build_object('service', s.service, 'otherLabel', s.other_label) ORDER BY s.service)
            FROM project_service s
@@ -37,6 +46,9 @@ const SELECT_PROJECT = sql`
 const toProject = (row: ProjectRow): PortalProject => ({
   id: row.id,
   name: row.name,
+  clientName: row.clientName,
+  businessName: row.businessName,
+  assignedEmployees: row.assignedEmployees,
   description: row.description,
   workStatus: row.workStatus,
   startDate: row.startDate,
