@@ -13,6 +13,7 @@ import {
   removeDiscussionGroupMember,
   updateDiscussionGroup,
   updateProject,
+  bulkAssignProjects,
 } from './service.js';
 import {
   createDiscussionGroupSchema,
@@ -20,6 +21,7 @@ import {
   createProjectSchema,
   projectListQuerySchema,
   projectTeamSchema,
+  bulkProjectAssignmentSchema,
   updateDiscussionGroupSchema,
   updateProjectSchema,
 } from './validators.js';
@@ -52,6 +54,15 @@ export function registerProjectRoutes(): void {
     resourceParam: 'id',
     loadResource: loadProjectResource,
     handler: async ({ ctx, params }) => getProject(ctx, idParam.parse(params).id),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/projects/bulk-assign',
+    action: 'projects:manage',
+    module: 'projects',
+    status: 200,
+    handler: async ({ ctx, body }) => bulkAssignProjects(ctx, bulkProjectAssignmentSchema.parse(body)),
   });
 
   route({
