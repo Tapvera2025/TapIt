@@ -72,13 +72,14 @@ export interface CreateProjectInput {
   remarks?: string | null;
 }
 
-export function getProjects(query: { search?: string; clientId?: string; priority?: ProjectPriority | 'all'; workStatus?: ProjectWorkStatus | 'all'; page?: number } = {}): Promise<PaginatedProjects> {
+export function getProjects(query: { search?: string; clientId?: string; priority?: ProjectPriority | 'all'; workStatus?: ProjectWorkStatus | 'all'; page?: number; pageSize?: number } = {}): Promise<PaginatedProjects> {
   const params = new URLSearchParams();
   if (query.search?.trim()) params.set('search', query.search.trim());
   if (query.clientId) params.set('clientId', query.clientId);
   if (query.priority) params.set('priority', query.priority);
   if (query.workStatus) params.set('workStatus', query.workStatus);
   if (query.page) params.set('page', String(query.page));
+  if (query.pageSize) params.set('pageSize', String(query.pageSize));
   const suffix = params.toString();
   return identityRequest(`/api/projects${suffix ? `?${suffix}` : ''}`);
 }
@@ -97,6 +98,21 @@ export function updateProject(id: string, input: Partial<CreateProjectInput>): P
 
 export function setProjectTeam(id: string, assigneeIds: string[]): Promise<Project> {
   return identityRequest(`/api/projects/${encodeURIComponent(id)}/team`, { method: 'POST', body: JSON.stringify({ assigneeIds }) });
+}
+
+export interface BulkProjectAssignmentResult {
+  employeesCount: number;
+  projectsCount: number;
+  requestedCount: number;
+  createdCount: number;
+  skippedCount: number;
+}
+
+export function bulkAssignProjects(employeeIds: string[], projectIds: string[]): Promise<BulkProjectAssignmentResult> {
+  return identityRequest('/api/projects/bulk-assign', {
+    method: 'POST',
+    body: JSON.stringify({ employeeIds, projectIds }),
+  });
 }
 
 export function archiveProject(id: string): Promise<{ archived: true }> {

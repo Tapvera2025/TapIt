@@ -1,6 +1,7 @@
-import { visibilityFilter, type Resource } from '@tapcrm/authz';
+import { authorize, AuthorizationError, visibilityFilter, type Resource } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
+import { sql } from '../../platform/dal/sql.js';
 import { getClientSummary } from '../clients/facade.js';
 import { addProjectConversationMembers, archiveProjectConversation, createProjectConversation, removeProjectConversationMember, renameProjectConversation } from '../chat/facade.js';
 import { ProjectClientNotFoundError, ProjectDiscussionGroupExistsError, ProjectNotFoundError, ProjectValidationError } from './errors.js';
@@ -14,12 +15,14 @@ import {
   insertProjectServices,
   listProjects as repoListProjects,
   replaceProjectAssignees,
+  insertProjectAssigneesBulk,
   replaceProjectServices,
   updateProjectRow,
   validateAssigneeIds,
 } from './repository.js';
 import type { PaginatedProjects, Project, ProjectListQuery } from './types.js';
-import type { CreateDiscussionGroupInput, CreateProjectInput, ProjectTeamInput, UpdateProjectInput } from './validators.js';
+import type { BulkProjectAssignmentInput, CreateDiscussionGroupInput, CreateProjectInput, ProjectTeamInput, UpdateProjectInput } from './validators.js';
+import { userResource } from '../identity/facade.js';
 
 export async function loadProjectResource(ctx: RequestContext, id: string): Promise<Resource | null> {
   const project = await findProjectById(ctx, id);
@@ -107,6 +110,7 @@ export async function updateProject(ctx: RequestContext, id: string, input: Upda
 
 /** `POST /api/projects/:id/team` — replaces the assignee set; only the DIFFERENCE (newly added people) is notified. */
 export async function setProjectTeam(ctx: RequestContext, id: string, input: ProjectTeamInput): Promise<Project> {
+  await assertProjectAssignmentManager(ctx);
   const existing = await findProjectById(ctx, id);
   if (!existing) throw new ProjectNotFoundError();
   const before = new Set(existing.assignees.map((a) => a.userId));
@@ -130,6 +134,82 @@ export async function setProjectTeam(ctx: RequestContext, id: string, input: Pro
   const updated = await findProjectById(ctx, id);
   if (!updated) throw new ProjectNotFoundError();
   return updated;
+}
+
+export async function bulkAssignProjects(ctx: RequestContext, input: BulkProjectAssignmentInput): Promise<{
+  employeesCount: number;
+  projectsCount: number;
+  requestedCount: number;
+  createdCount: number;
+  skippedCount: number;
+}> {
+  await assertProjectAssignmentManager(ctx);
+  const projects = await Promise.all(input.projectIds.map((id) => findProjectById(ctx, id)));
+  if (projects.some((project) => project === null)) throw new ProjectValidationError('One or more selected projects are unavailable.');
+
+  for (const project of projects) {
+    if (!project) continue;
+    await authorize(ctx, 'projects:manage', {
+      type: 'project',
+      id: project.id,
+      organizationId: project.organizationId,
+      createdBy: project.createdBy,
+      assigneeIds: project.assignees.map((assignee) => assignee.userId),
+    });
+  }
+
+  const employees = await Promise.all(input.employeeIds.map((id) => userResource(ctx, id)));
+  if (employees.some((employee) => employee === null)) throw new ProjectValidationError('One or more selected employees are unavailable.');
+  for (const employee of employees) {
+    if (employee) await authorize(ctx, 'users:view', employee);
+  }
+
+  const created = await db.transaction(ctx, async (tx) => {
+    const active = await tx.query<{ id: string }>(sql`
+      SELECT id FROM app_user
+      WHERE organization_id = ${ctx.organizationId}
+        AND id = ANY(${input.employeeIds}::uuid[])
+        AND status = 'active' AND account_type = 'employee'
+    `);
+    if (active.length !== input.employeeIds.length) throw new ProjectValidationError('Only active employees can receive project assignments.');
+
+    const rows = await insertProjectAssigneesBulk(tx, ctx.organizationId, input.projectIds, input.employeeIds, ctx.principal.id);
+    const projectById = new Map(projects.filter((project): project is Project => project !== null).map((project) => [project.id, project]));
+    for (const projectId of input.projectIds) {
+      const assignedUserIds = rows.filter((row) => row.projectId === projectId).map((row) => row.userId);
+      const project = projectById.get(projectId);
+      if (project && assignedUserIds.length > 0) await notifyProjectAssigned(tx, ctx, project, assignedUserIds);
+    }
+    return rows;
+  });
+
+  const requestedCount = input.employeeIds.length * input.projectIds.length;
+  return {
+    employeesCount: input.employeeIds.length,
+    projectsCount: input.projectIds.length,
+    requestedCount,
+    createdCount: created.length,
+    skippedCount: requestedCount - created.length,
+  };
+}
+
+async function assertProjectAssignmentManager(ctx: RequestContext): Promise<void> {
+  if (ctx.principal.accountType === 'super-admin') return;
+  if (ctx.principal.accountType !== 'employee') {
+    throw new AuthorizationError('projects:manage', 'not_allowed', 'Only Super Admins and Team Leads can manage project assignments.');
+  }
+
+  const position = await db.maybeOne<{ code: string | null; name: string | null }>(ctx, sql`
+    SELECT p.code, p.name
+    FROM app_user u
+    LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
+    WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${ctx.principal.id}
+  `);
+  const code = position?.code?.toLowerCase() ?? '';
+  const name = position?.name?.toLowerCase() ?? '';
+  if (!code.includes('team-lead') && !name.includes('team lead')) {
+    throw new AuthorizationError('projects:manage', 'not_allowed', 'Only Super Admins and Team Leads can manage project assignments.');
+  }
 }
 
 export async function archiveProject(ctx: RequestContext, id: string): Promise<{ archived: true }> {

@@ -60,9 +60,16 @@ export function ModuleToggleModal({
             <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">{eyebrow}</p>
             <h2 id="module-toggle-title" className="font-display text-2xl tracking-[-0.04em]">{title}</h2>
           </div>
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-app-accent/10 text-app-accent" aria-hidden="true">
-            {variant === 'danger' ? '!' : action === 'Enable' ? '+' : '−'}
-          </span>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            aria-label="Close confirmation dialog"
+            title="Close"
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-app-accent/10 text-app-accent transition hover:bg-app-accent/20 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {action === 'Enable' ? '+' : '×'}
+          </button>
         </div>
         <p id="module-toggle-description" className="text-sm leading-6 text-app-muted">
           {message ?? <>Are you sure you want to {action.toLowerCase()} <strong className="text-app-foreground">{moduleName}</strong> for <strong className="text-app-foreground">{companyName}</strong>?</>}

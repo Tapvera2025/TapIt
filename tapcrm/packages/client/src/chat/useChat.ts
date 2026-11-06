@@ -13,7 +13,7 @@ import {
 import { CHAT_UNREAD_CHANGED_EVENT } from './ChatUnreadContext.js';
 
 /** RT-6 fallback: only matters while the socket is down. */
-const POLL_FALLBACK_MS = 60_000;
+const POLL_FALLBACK_MS = 15_000;
 const RECONNECT_MS = 5_000;
 const TYPING_STOP_MS = 3_000;
 
@@ -131,7 +131,17 @@ export function useChat(kind: ConversationKind): {
       void refreshConversations();
       if (payload.conversationId && payload.conversationId === activeIdRef.current) void loadMessages(payload.conversationId);
     };
+    const refreshAfterReconnect = (): void => {
+      void refreshConversations();
+      if (activeIdRef.current) void loadMessages(activeIdRef.current);
+    };
+    const recoverWhenVisible = (): void => {
+      if (document.visibilityState === 'hidden') return;
+      if (!socket?.connected) socket?.connect();
+      refreshAfterReconnect();
+    };
 
+    socket.on('connect', refreshAfterReconnect);
     socket.on('chat:conversation:new', () => void refreshConversations());
     socket.on('chat:conversation:updated', (payload: { id?: string; removed?: boolean }) => {
       void refreshConversations();
@@ -169,6 +179,9 @@ export function useChat(kind: ConversationKind): {
     });
     socketRef.current = socket;
 
+    document.addEventListener('visibilitychange', recoverWhenVisible);
+    window.addEventListener('pageshow', recoverWhenVisible);
+
     const poll = setInterval(() => {
       if (!socket?.connected) {
         void refreshConversations();
@@ -178,6 +191,8 @@ export function useChat(kind: ConversationKind): {
 
     return () => {
       clearInterval(poll);
+      document.removeEventListener('visibilitychange', recoverWhenVisible);
+      window.removeEventListener('pageshow', recoverWhenVisible);
       if (retry) clearTimeout(retry);
       const timers = typingTimers.current;
       timers.forEach((t) => clearTimeout(t));

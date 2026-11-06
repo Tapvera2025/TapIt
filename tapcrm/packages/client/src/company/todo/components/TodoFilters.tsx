@@ -29,6 +29,7 @@ export function TodoFilters({
   disabled = false,
 }: TodoFiltersProps): React.JSX.Element {
   const [isSearchOpen, setIsSearchOpen] = useState(Boolean(search));
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const tabs: { key: TodoSectionTab; label: string; count?: number | undefined }[] = [
     { key: 'all', label: 'All', count: tabCounts?.all },
     { key: 'today', label: 'Today', count: tabCounts?.today },
@@ -37,13 +38,14 @@ export function TodoFilters({
   ];
   const hasActiveFilters =
     Boolean(search.trim()) || priority !== 'all' || activeTab !== 'all';
+  const activeFilterCount = [Boolean(search.trim()), priority !== 'all', activeTab !== 'all'].filter(Boolean).length;
 
   useEffect(() => {
     if (search.trim()) setIsSearchOpen(true);
   }, [search]);
 
   return (
-    <div className="flex flex-col gap-2.5 sm:flex-row min-w-0 max-w-full rounded-2xl border border-app-border/80 bg-app-surface/70 p-2 sm:px-3.5 sm:py-2.5 sm:items-center sm:justify-between lg:flex-row">
+    <div className="flex min-w-0 max-w-full flex-col gap-2.5 rounded-2xl border border-app-border/80 bg-app-surface/70 p-2 sm:px-3.5 sm:py-2.5">
       <style>{`
         .todo-tab-scroller::-webkit-scrollbar {
           display: none !important;
@@ -52,48 +54,64 @@ export function TodoFilters({
         }
       `}</style>
 
-      {/* Tab / Chip filters */}
-      <div
-        className="todo-tab-scroller flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-0.5 lg:flex-1"
-        style={{
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          WebkitOverflowScrolling: 'touch',
-        }}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsMobileFiltersOpen((open) => !open)}
+        className="inline-flex min-h-9 items-center justify-between rounded-xl border border-app-border bg-app-background/60 px-3 text-xs font-semibold text-app-foreground sm:hidden"
+        aria-expanded={isMobileFiltersOpen}
+        aria-controls="todo-filters-panel"
       >
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              disabled={disabled}
-              onClick={() => onTabChange?.(tab.key)}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                isActive
-                  ? 'bg-app-accent text-white shadow-xs'
-                  : 'border border-app-border bg-app-background/60 text-app-muted hover:border-app-accent/40 hover:text-app-foreground'
-              } disabled:opacity-50`}
-            >
-              <span>{tab.label}</span>
-              {typeof tab.count === 'number' && (
-                <span
-                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                    isActive
-                      ? 'bg-white/20 text-white'
-                      : 'bg-app-border/70 text-app-muted'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+        <span className="inline-flex items-center gap-2">
+          <Icon name="filter" className="size-4 text-app-accent" />
+          Filters{activeFilterCount > 0 ? ` · ${activeFilterCount} active` : ''}
+        </span>
+        <Icon name={isMobileFiltersOpen ? 'chevron-up' : 'chevron-down'} className="size-4 text-app-muted" />
+      </button>
 
-      {/* Search & Priority Controls */}
-      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto lg:justify-end">
+      <div id="todo-filters-panel" className={`${isMobileFiltersOpen ? 'flex' : 'hidden'} min-w-0 flex-col gap-2.5 sm:flex sm:flex-row sm:items-center sm:justify-between`}>
+        {/* Tab / Chip filters */}
+        <div
+          className="todo-tab-scroller flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-0.5 lg:flex-1"
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                disabled={disabled}
+                onClick={() => onTabChange?.(tab.key)}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  isActive
+                    ? 'bg-app-accent text-white shadow-xs'
+                    : 'border border-app-border bg-app-background/60 text-app-muted hover:border-app-accent/40 hover:text-app-foreground'
+                } disabled:opacity-50`}
+              >
+                <span>{tab.label}</span>
+                {typeof tab.count === 'number' && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-app-border/70 text-app-muted'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search & Priority Controls */}
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto lg:justify-end">
         <div
           className={`min-w-0 ${
             isSearchOpen
@@ -168,6 +186,7 @@ export function TodoFilters({
             Clear
           </button>
         )}
+        </div>
       </div>
     </div>
   );

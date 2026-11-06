@@ -91,6 +91,16 @@ export function useClientMessages() {
   useEffect(() => {
     const socket = io({ path: `${identityApiBasePath()}/socket.io`, auth: (send) => send({ token: getIdentityAccessToken() ?? '' }), reconnectionDelayMax: 30_000 });
     socketRef.current = socket;
+    const refreshAfterReconnect = (): void => {
+      void refreshConversations();
+      if (activeRef.current) void loadMessages(activeRef.current);
+    };
+    const recoverWhenVisible = (): void => {
+      if (document.visibilityState === 'hidden') return;
+      if (!socket.connected) socket.connect();
+      refreshAfterReconnect();
+    };
+    socket.on('connect', refreshAfterReconnect);
     const onMessageChange = (payload: { conversationId?: string }) => {
       void refreshConversations();
       if (payload.conversationId && payload.conversationId === activeRef.current) void loadMessages(payload.conversationId);
@@ -110,8 +120,16 @@ export function useClientMessages() {
         ? (current.includes(payload.userId!) ? current : [...current, payload.userId!])
         : current.filter((id) => id !== payload.userId));
     });
-    const poll = window.setInterval(() => { if (!socket.connected) { void refreshConversations(); if (activeRef.current) void loadMessages(activeRef.current); } }, 60_000);
-    return () => { window.clearInterval(poll); socket.close(); socketRef.current = null; };
+    const poll = window.setInterval(() => { if (!socket.connected) refreshAfterReconnect(); }, 15_000);
+    document.addEventListener('visibilitychange', recoverWhenVisible);
+    window.addEventListener('pageshow', recoverWhenVisible);
+    return () => {
+      window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', recoverWhenVisible);
+      window.removeEventListener('pageshow', recoverWhenVisible);
+      socket.close();
+      socketRef.current = null;
+    };
   }, [currentUserId, loadMessages, refreshConversations, setActiveId]);
 
   const conversations = discussions.map(({ conversation, projectName }) => ({ ...conversation, name: conversation.name || projectName }));

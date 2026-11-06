@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { Card } from '../../../ui/components.js';
+import { useEffect, useState } from 'react';
+import { Card, Loading, Notice } from '../../../ui/components.js';
+import { getClientFeedback, type ClientFeedback } from '../api/projectReportsApi.js';
 
-export function ClientFeedbackPlaceholder({ area, description }: { area: string; description: string }): React.JSX.Element {
-  const [open, setOpen] = useState(false);
-  return <Card><button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setOpen((current) => !current)}><span><span className="block font-display font-bold">Client feedback · {area}</span><span className="mt-1 block text-xs text-app-muted">{description}</span></span><span className="text-app-muted" aria-hidden="true">{open ? '−' : '+'}</span></button>{open && <div className="mt-4 rounded-lg border border-dashed border-app-border p-4 text-sm text-app-muted">No feedback messages yet. Client comments and replies for {area.toLowerCase()} will appear here when the client portal is available.</div>}</Card>;
+const AREA_BY_LABEL = { 'Keyword Tracker': 'keyword-tracker', 'Blog Updates': 'blog-updates', 'Off-page SEO': 'off-page-seo', Screenshots: 'screenshots' } as const;
+export function ClientFeedbackPlaceholder({ projectId, area, description }: { projectId: string; area: keyof typeof AREA_BY_LABEL; description: string }): React.JSX.Element {
+  const [open, setOpen] = useState(false); const [items, setItems] = useState<ClientFeedback[] | null>(null); const [error, setError] = useState('');
+  useEffect(() => { if (!open) return; let live = true; void getClientFeedback(projectId, AREA_BY_LABEL[area]).then((next) => { if (live) { setItems(next); setError(''); } }).catch((cause: unknown) => { if (live) setError(cause instanceof Error ? cause.message : 'Unable to load client feedback.'); }); return () => { live = false; }; }, [area, open, projectId]);
+  return <Card><button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setOpen((current) => !current)}><span><span className="block font-display font-bold">Client feedback · {area}</span><span className="mt-1 block text-xs text-app-muted">{description}</span></span><span className="text-app-muted" aria-hidden="true">{open ? '−' : '+'}</span></button>{open && <div className="mt-4">{error ? <Notice error>{error}</Notice> : items === null ? <Loading /> : items.length === 0 ? <p className="rounded-lg border border-dashed border-app-border p-4 text-sm text-app-muted">No client feedback yet.</p> : <ul className="space-y-2">{items.map((item) => <li key={item.id} className="rounded-lg border border-app-border p-3"><span className="block whitespace-pre-wrap text-sm">{item.note}</span><span className="mt-1 block text-xs text-app-muted">{item.createdByName} · {new Date(item.createdAt).toLocaleString()}</span></li>)}</ul>}</div>}</Card>;
 }

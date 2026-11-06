@@ -2,6 +2,7 @@ import type { CompanyIdentity } from '../api/companyApi.js';
 import type { WidgetDef } from './widget-types.js';
 import {
   PunchStateWidget,
+  BreakManagementWidget,
   TodaysShiftWidget,
   MyTasksWidget,
   MyLeaveWidget,
@@ -35,8 +36,16 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Today',
     description: 'Your punch state and hours worked today.',
     available: has('attendance:view-live'),
-    defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 5, h: 4, minW: 5, minH: 4, maxW: 5, maxH: 4, resizable: false },
     component: PunchStateWidget,
+  },
+  {
+    id: 'break-management',
+    title: 'Break management',
+    description: 'Start a preset lunch, coffee, or personal break.',
+    available: has('attendance:view-live'),
+    defaultLayout: { w: 12, h: 2, minW: 12, minH: 2, maxW: 12, maxH: 2, resizable: false },
+    component: BreakManagementWidget,
   },
   {
     id: 'todays-shift',
