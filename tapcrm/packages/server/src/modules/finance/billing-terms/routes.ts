@@ -2,6 +2,7 @@ import type { Resource } from '@tapcrm/authz'; import type { RequestContext } fr
 async function loadBillingTermsResource(ctx: RequestContext, id: string): Promise<Resource | null> { const row = await db.maybeOne<{ id:string; organizationId:string }>(ctx, sql`SELECT id, organization_id AS "organizationId" FROM finance_contract WHERE organization_id=${ctx.organizationId} AND id=${id}`); return row ? { type:'billingTerms', id:row.id, organizationId:row.organizationId } : null; }
 async function loadRateCardResource(ctx: RequestContext, id: string): Promise<Resource | null> { const row = await db.maybeOne<{ id:string; organizationId:string }>(ctx, sql`SELECT id, organization_id AS "organizationId" FROM finance_rate_card WHERE organization_id=${ctx.organizationId} AND id=${id}`); return row ? { type:'billingTerms', id:row.id, organizationId:row.organizationId } : null; }
 export function registerBillingTermsRoutes():void{
+ route({method:'GET',path:'/api/billing/form-options',action:'billing:view-terms',module:'billing-terms',handler:async({ctx})=>service.getFormOptions(ctx)});
  route({method:'GET',path:'/api/billing/profiles',action:'billing:view-terms',module:'billing-terms',handler:async({ctx})=>service.getProfiles(ctx)});
  route({method:'PUT',path:'/api/billing/profiles',action:'billing:set-terms',module:'billing-terms',handler:async({ctx,body})=>service.saveProfile(ctx,profileSchema.parse(body))});
  route({method:'GET',path:'/api/billing/rate-cards',action:'billing:view-terms',module:'billing-terms',handler:async({ctx})=>service.getRateCards(ctx)});

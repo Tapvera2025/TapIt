@@ -758,10 +758,14 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/accounting/completion/entities | `accounting:view-ledger` | — |
 | POST | /api/accounting/completion/entities | `accounting:manage-accounts` | — |
 | GET | /api/accounting/completion/schedules | `accounting:view-ledger` | — |
+| GET | /api/accounting/completion/schedules/page | `accounting:view-ledger` | — |
 | POST | /api/accounting/completion/schedules | `accounting:manage-periods` | — |
 | POST | /api/accounting/completion/schedules/:id/recognize | `accounting:post-journal` | `id` |
 | POST | /api/accounting/completion/fx-revaluations | `accounting:post-journal` | — |
+| GET | /api/accounting/completion/fx-revaluations | `accounting:view-ledger` | — |
 | GET | /api/accounting/completion/sync-queue | `accounting:view-ledger` | — |
+| GET | /api/accounting/completion/sync-queue/page | `accounting:view-ledger` | — |
+| GET | /api/accounting/completion/sync-sources | `accounting:view-ledger` | — |
 | POST | /api/accounting/completion/sync-queue | `accounting:manage-periods` | — |
 | GET | /api/accounting/accounts/:id/drill-through | `accounting:view-ledger` | id |
 | GET | /api/accounting/general-ledger/export | `accounting:view-ledger` | — |
@@ -791,11 +795,14 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/accounting/tax/artifacts/:id/download | `accounting:tax-export` | — |
 | GET | /api/finance/foundation | `accounting:view-finance-settings` | — |
 | PATCH | /api/finance/foundation | `accounting:manage-finance-settings` | — |
+| GET | /api/finance/reconciliation-settings | `accounting:view-finance-settings` | — |
+| PUT | /api/finance/reconciliation-settings | `accounting:manage-finance-settings` | — |
 | GET | /api/finance/payment-gateways | `finance:manage-payment-gateways` | — |
 | POST | /api/finance/payment-gateways | `finance:manage-payment-gateways` | — |
 | DELETE | /api/finance/payment-gateways/:id | `finance:manage-payment-gateways` | — |
 | POST | /api/finance/payments/create-link | `finance:manage-payment-gateways` | — |
 | GET | /api/invoicing/drafts | `invoicing:view` | — |
+| GET | /api/invoicing/form-options | `invoicing:view` | — |
 | POST | /api/invoicing/drafts | `invoicing:create` | — |
 | GET | /api/invoicing/drafts/:id | `invoicing:view` | id |
 | GET | /api/invoicing/drafts/:id/preview | `invoicing:view` | id |
@@ -822,6 +829,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/payments/exceptions | `payments:view` | — |
 | POST | /api/payments/exceptions/:id/resolve | `payments:reconcile` | id |
 | GET | /api/billing/profiles | `billing:view-terms` | — |
+| GET | /api/billing/form-options | `billing:view-terms` | — |
 | PUT | /api/billing/profiles | `billing:set-terms` | — |
 | POST | /api/billing/rate-cards/:id/versions | `billing:set-terms` | — |
 | GET | /api/billing/rate-cards/:id | `billing:view-terms` | id |

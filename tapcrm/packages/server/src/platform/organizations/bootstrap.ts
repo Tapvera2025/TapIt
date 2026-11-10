@@ -2,6 +2,7 @@ import type { Tx } from '../dal/db.js';
 import { sql } from '../dal/sql.js';
 import {
   INTERN_POSITION_CODES,
+  FINANCE_MODULES,
   templateForModules,
   type OrganizationTemplate,
 } from './template.js';
@@ -17,8 +18,12 @@ export async function bootstrapOrganization(
   const departmentIds = new Map<string, string>();
   const createdTeamIds = new Set<string>();
   const createdPositionIds = new Set<string>();
+  const financeEnabled = FINANCE_MODULES.some((key) => moduleKeys.includes(key));
 
   for (const definition of template.departments) {
+    const desiredStatus = definition.code === 'finance' && financeEnabled
+      ? 'active'
+      : definition.status;
     const existing = await tx.maybeOne<{ id: string; isSeeded: boolean }>(sql`
       SELECT id, is_seeded FROM department
       WHERE organization_id = ${organizationId} AND code = ${definition.code}
@@ -32,9 +37,15 @@ export async function bootstrapOrganization(
       ? existing
       : await tx.one<{ id: string }>(sql`
           INSERT INTO department (organization_id, code, name, kind, status, is_seeded)
-          VALUES (${organizationId}, ${definition.code}, ${definition.name}, ${definition.kind}, ${definition.status}, true)
+          VALUES (${organizationId}, ${definition.code}, ${definition.name}, ${definition.kind}, ${desiredStatus}, true)
           RETURNING id
         `);
+    if (existing && existing.isSeeded && definition.code === 'finance' && financeEnabled) {
+      await tx.query(sql`
+        UPDATE department SET status = 'active'
+        WHERE organization_id = ${organizationId} AND id = ${existing.id} AND status <> 'active'
+      `);
+    }
     departmentIds.set(definition.code, row.id);
   }
 
@@ -84,6 +95,9 @@ export async function bootstrapOrganization(
   for (const definition of template.positions) {
     const departmentId = departmentIds.get(definition.department);
     if (!departmentId) continue;
+    const desiredStatus = definition.department === 'finance' && financeEnabled
+      ? 'active'
+      : definition.status;
     const existing = await tx.maybeOne<{ id: string; isSeeded: boolean }>(sql`
       SELECT id, is_seeded FROM position
       WHERE organization_id = ${organizationId} AND code = ${definition.code}
@@ -100,9 +114,15 @@ export async function bootstrapOrganization(
             organization_id, department_id, code, name, organizational_level,
             parent_position_id, is_seeded, status
           )
-          VALUES (${organizationId}, ${departmentId}, ${definition.code}, ${definition.name}, ${definition.level}, NULL, true, ${definition.status})
+          VALUES (${organizationId}, ${departmentId}, ${definition.code}, ${definition.name}, ${definition.level}, NULL, true, ${desiredStatus})
           RETURNING id
         `);
+    if (existing && existing.isSeeded && definition.department === 'finance' && financeEnabled) {
+      await tx.query(sql`
+        UPDATE position SET status = 'active'
+        WHERE organization_id = ${organizationId} AND id = ${existing.id} AND status <> 'active'
+      `);
+    }
     if (!existing) createdPositionIds.add(row.id);
     positionIds.set(definition.code, row.id);
   }

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
 import * as api from './receivablesApi.js';
+import {
+  ReceivablesActionModal,
+  type ReceivablesAction,
+} from './ReceivablesActionModal.js';
 
 export function ReceivablesPage(): React.JSX.Element {
   const [aging, setAging] = useState<api.ReceivableAging[]>([]);
@@ -16,6 +20,12 @@ export function ReceivablesPage(): React.JSX.Element {
   );
   const [reminders, setReminders] = useState<api.Reminder[]>([]);
   const [writeOffs, setWriteOffs] = useState<api.WriteOff[]>([]);
+  const [modal, setModal] = useState<{
+    action: ReceivablesAction;
+    invoice?: api.ReceivableAging;
+    client?: api.StatementClient;
+    item?: api.Dispute | api.PromiseToPay;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -68,133 +78,80 @@ export function ReceivablesPage(): React.JSX.Element {
       );
     }
   };
-  const configureSchedule = async (client: api.StatementClient) => {
-    const cadence = window.prompt('Reminder cadence in days:', '7');
-    const nextRunAt = window.prompt(
-      'Next reminder time (ISO):',
-      new Date().toISOString(),
-    );
-    const reason = window.prompt('Reason for this reminder schedule:');
-    if (!cadence || !nextRunAt || !reason?.trim()) return;
-    try {
+  const submitModal = async (values: Record<string, string>) => {
+    if (!modal) return;
+    const valueOf = (key: string) => values[key] ?? '';
+    const iso = (value: string) => new Date(value).toISOString();
+    if (modal.action === 'schedule' && modal.client) {
       await api.setDunningSchedule({
-        clientId: client.id,
+        clientId: modal.client.id,
         enabled: true,
-        cadenceDays: Number(cadence),
-        nextRunAt,
-        reason,
+        cadenceDays: Number(valueOf('cadenceDays')),
+        nextRunAt: iso(valueOf('nextRunAt')),
+        reason: valueOf('reason'),
       });
-      setNotice(`Reminder schedule saved for ${client.businessName}.`);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'Unable to save reminder schedule.',
-      );
-    }
-  };
-  const createTask = async (invoice: api.ReceivableAging) => {
-    const title = window.prompt(
-      'Collection task title:',
-      `Follow up ${invoice.invoiceNumber}`,
-    );
-    const dueAt = window.prompt('Task due time (ISO):', new Date().toISOString());
-    const reason = window.prompt('Task reason:');
-    if (!title?.trim() || !dueAt || !reason?.trim()) return;
-    try {
+      setNotice(`Reminder schedule saved for ${modal.client.businessName}.`);
+    } else if (modal.action === 'follow-up' && modal.invoice) {
+      await api.dunInvoice(modal.invoice.id, valueOf('reason'));
+      setNotice(`Collection activity created for ${modal.invoice.invoiceNumber}.`);
+    } else if (modal.action === 'dispute' && modal.invoice) {
+      await api.createDispute(modal.invoice.id, {
+        holdCollections: valueOf('holdCollections') === 'true',
+        reason: valueOf('reason'),
+      });
+      setNotice(`Dispute hold created for ${modal.invoice.invoiceNumber}.`);
+    } else if (modal.action === 'promise' && modal.invoice) {
+      await api.createPromise(modal.invoice.id, {
+        promisedAmount: valueOf('amount'),
+        promisedFor: iso(valueOf('promisedFor')),
+        reason: valueOf('reason'),
+      });
+      setNotice(`Promise-to-pay recorded for ${modal.invoice.invoiceNumber}.`);
+    } else if (modal.action === 'write-off' && modal.invoice) {
+      await api.proposeWriteOff(modal.invoice.id, {
+        amount: valueOf('amount'),
+        reason: valueOf('reason'),
+      });
+      setNotice(`Write-off proposed for ${modal.invoice.invoiceNumber}.`);
+    } else if (modal.action === 'task' && modal.invoice) {
       await api.createTask({
-        clientId: invoice.clientId,
-        invoiceId: invoice.id,
-        taskType: 'call',
-        dueAt,
-        title,
-        reason,
+        clientId: modal.invoice.clientId,
+        invoiceId: modal.invoice.id,
+        taskType: valueOf('taskType'),
+        dueAt: iso(valueOf('dueAt')),
+        title: valueOf('title'),
+        reason: valueOf('reason'),
       });
-      setNotice(`Collection task created for ${invoice.invoiceNumber}.`);
-      await load();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'Unable to create collection task.',
-      );
-    }
-  };
-  const proposeWriteOff = async (invoice: api.ReceivableAging) => {
-    const amount = window.prompt('Write-off amount:');
-    const reason = window.prompt('Write-off reason:');
-    if (!amount || !reason?.trim()) return;
-    try {
-      await api.proposeWriteOff(invoice.id, { amount, reason });
-      setNotice(`Write-off proposed for ${invoice.invoiceNumber}.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to propose write-off.');
-    }
-  };
-  const resolveDispute = async (item: api.Dispute) => {
-    const resolution = window.prompt('Resolution:');
-    if (!resolution?.trim()) return;
-    try {
-      await api.resolveDispute(item.id, { status: 'resolved', resolution });
-      setNotice(`Dispute resolved for ${item.invoiceNumber}.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to resolve dispute.');
-    }
-  };
-  const resolvePromise = async (item: api.PromiseToPay) => {
-    const status = window.prompt('Promise status: kept, broken, or cancelled', 'kept');
-    if (!status || !['kept', 'broken', 'cancelled'].includes(status)) return;
-    const reason = window.prompt('Resolution reason:');
-    if (!reason?.trim()) return;
-    try {
-      await api.resolvePromise(item.id, { status, reason });
-      setNotice(`Promise updated for ${item.invoiceNumber}.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to update promise.');
-    }
-  };
-  const dispute = async (invoice: api.ReceivableAging) => {
-    const reason = window.prompt('Dispute reason:');
-    if (!reason?.trim()) return;
-    try {
-      await api.createDispute(invoice.id, { holdCollections: true, reason });
-      setNotice(`Dispute hold created for ${invoice.invoiceNumber}.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to create dispute.');
-    }
-  };
-  const promise = async (invoice: api.ReceivableAging) => {
-    const amount = window.prompt('Promised amount:');
-    const promisedFor = window.prompt('Promise date/time (ISO):');
-    const reason = window.prompt('Reason:');
-    if (!amount || !promisedFor || !reason?.trim()) return;
-    try {
-      await api.createPromise(invoice.id, {
-        promisedAmount: amount,
-        promisedFor,
-        reason,
+      setNotice(`Collection task created for ${modal.invoice.invoiceNumber}.`);
+    } else if (
+      modal.action === 'resolve-dispute' &&
+      modal.item &&
+      'invoiceId' in modal.item
+    ) {
+      await api.resolveDispute(modal.item.id, {
+        status: valueOf('status'),
+        resolution: valueOf('resolution'),
       });
-      setNotice(`Promise-to-pay recorded for ${invoice.invoiceNumber}.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to record promise.');
+      setNotice(`Dispute resolved for ${modal.item.invoiceNumber}.`);
+    } else if (
+      modal.action === 'resolve-promise' &&
+      modal.item &&
+      'promisedAmount' in modal.item
+    ) {
+      await api.resolvePromise(modal.item.id, {
+        status: valueOf('status'),
+        reason: valueOf('reason'),
+      });
+      setNotice(`Promise updated for ${modal.item.invoiceNumber}.`);
     }
+    setModal(null);
+    await load();
   };
   useEffect(() => {
     void load();
   }, []);
   const dun = async (invoice: api.ReceivableAging) => {
-    const reason = window.prompt('Reason for collection follow-up:');
-    if (!reason?.trim()) return;
-    try {
-      await api.dunInvoice(invoice.id, reason.trim());
-      setNotice(`Collection activity created for ${invoice.invoiceNumber}.`);
-      await load();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'Unable to create collection activity.',
-      );
-    }
+    setModal({ action: 'follow-up', invoice });
   };
   return (
     <Page
@@ -254,7 +211,7 @@ export function ReceivablesPage(): React.JSX.Element {
                             <Button
                               type="button"
                               kind="secondary"
-                              onClick={() => void dispute(invoice)}
+                              onClick={() => setModal({ action: 'dispute', invoice })}
                               disabled={invoice.outstandingMinor === '0'}
                             >
                               Dispute
@@ -262,7 +219,7 @@ export function ReceivablesPage(): React.JSX.Element {
                             <Button
                               type="button"
                               kind="secondary"
-                              onClick={() => void promise(invoice)}
+                              onClick={() => setModal({ action: 'promise', invoice })}
                               disabled={invoice.outstandingMinor === '0'}
                             >
                               Promise
@@ -270,7 +227,7 @@ export function ReceivablesPage(): React.JSX.Element {
                             <Button
                               type="button"
                               kind="secondary"
-                              onClick={() => void proposeWriteOff(invoice)}
+                              onClick={() => setModal({ action: 'write-off', invoice })}
                               disabled={invoice.outstandingMinor === '0'}
                             >
                               Propose write-off
@@ -278,7 +235,7 @@ export function ReceivablesPage(): React.JSX.Element {
                             <Button
                               type="button"
                               kind="secondary"
-                              onClick={() => void createTask(invoice)}
+                              onClick={() => setModal({ action: 'task', invoice })}
                               disabled={invoice.outstandingMinor === '0'}
                             >
                               Create task
@@ -336,7 +293,7 @@ export function ReceivablesPage(): React.JSX.Element {
                         <Button
                           className="mt-2"
                           type="button"
-                          onClick={() => void resolveDispute(item)}
+                          onClick={() => setModal({ action: 'resolve-dispute', item })}
                         >
                           Resolve
                         </Button>
@@ -366,7 +323,7 @@ export function ReceivablesPage(): React.JSX.Element {
                         <Button
                           className="mt-2"
                           type="button"
-                          onClick={() => void resolvePromise(item)}
+                          onClick={() => setModal({ action: 'resolve-promise', item })}
                         >
                           Update status
                         </Button>
@@ -469,7 +426,7 @@ export function ReceivablesPage(): React.JSX.Element {
                       <Button
                         type="button"
                         kind="secondary"
-                        onClick={() => void configureSchedule(client)}
+                        onClick={() => setModal({ action: 'schedule', client })}
                       >
                         Schedule
                       </Button>
@@ -542,6 +499,16 @@ export function ReceivablesPage(): React.JSX.Element {
             </Card>
           </div>
         </>
+      )}
+      {modal && (
+        <ReceivablesActionModal
+          action={modal.action}
+          {...(modal.invoice ? { invoice: modal.invoice } : {})}
+          {...(modal.client ? { client: modal.client } : {})}
+          {...(modal.item ? { item: modal.item } : {})}
+          onClose={() => setModal(null)}
+          onSubmit={submitModal}
+        />
       )}
     </Page>
   );

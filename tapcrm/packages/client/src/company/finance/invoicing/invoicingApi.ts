@@ -1,4 +1,4 @@
-import { identityRequest } from '../../../identity/api/authApi.js';
+import { identityDownload, identityRequest } from '../../../identity/api/authApi.js';
 export interface InvoiceDraft {
   id: string;
   clientId: string;
@@ -25,9 +25,33 @@ export interface IssuedInvoice extends InvoiceDraft {
   issuedAt: string;
   deliveryStatus: string | null;
 }
+export interface DraftSourceOption {
+  id: string;
+  sourceType: string;
+  sourceId: string;
+  clientId: string;
+  contractId: string | null;
+  serviceKey: string;
+  eventDate: string;
+  currency: string;
+  quantity: string;
+  amount: string;
+  state: string;
+}
+export interface InvoiceFormOptions {
+  clients: Array<Record<string, unknown>>;
+  entities: Array<Record<string, unknown>>;
+  contracts: Array<Record<string, unknown>>;
+  events: DraftSourceOption[];
+  foundation: { legalEntityId: string; functionalCurrency: string; supportedCurrencies: string[] } | null;
+}
+export const listFormOptions = () =>
+  identityRequest<InvoiceFormOptions>('/api/invoicing/form-options');
 export const listDrafts = () => identityRequest<InvoiceDraft[]>('/api/invoicing/drafts');
 export const listInvoices = () =>
   identityRequest<IssuedInvoice[]>('/api/invoicing/invoices');
+export const listDraftSources = () =>
+  identityRequest<DraftSourceOption[]>('/api/billing/billable-events');
 export const createDraft = (body: Record<string, unknown>) =>
   identityRequest<InvoiceDraft>('/api/invoicing/drafts', {
     method: 'POST',
@@ -39,6 +63,8 @@ export const preview = (id: string) =>
     contract: Record<string, unknown> | null;
     html: string;
   }>(`/api/invoicing/drafts/${id}/preview`);
+export const previewPdf = (id: string) =>
+  identityDownload(`/api/invoicing/drafts/${id}/preview.pdf`);
 export const review = (id: string, reason: string) =>
   identityRequest<{ draftId: string; reviewToken: string; manifestFingerprint: string }>(
     `/api/invoicing/drafts/${id}/review`,

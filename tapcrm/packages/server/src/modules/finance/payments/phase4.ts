@@ -87,7 +87,7 @@ function headerIndex(headers: string[], names: string[]): number {
 export async function recordReceipt(ctx: RequestContext, input: RecordReceiptInput) {
   return db.transaction(ctx, async (tx) => {
     const row = await tx.one<{ id: string }>(
-      sql`INSERT INTO payment_receipt (organization_id,provider,provider_event_id,provider_payment_id,bank_reference,payer_label,amount_minor,currency,received_at,reported_by,fee_minor,exchange_rate_bps,cash_classification,state,idempotency_key,note) VALUES (${ctx.organizationId},${input.provider},${input.providerEventId ?? null},${input.providerPaymentId ?? null},${input.bankReference ?? null},${input.payerLabel ?? null},${input.amountMinor},${input.currency},${input.receivedAt ? new Date(input.receivedAt) : new Date()},${ctx.principal.id},${input.feeMinor},${input.exchangeRateBps ?? null},${input.cashClassification},'reported',${input.idempotencyKey},${input.note ?? null}) ON CONFLICT (organization_id,idempotency_key) DO UPDATE SET updated_at=now() RETURNING id`,
+      sql`INSERT INTO payment_receipt (organization_id,provider,provider_event_id,provider_payment_id,bank_reference,payer_label,amount_minor,currency,received_at,reported_by,fee_minor,exchange_rate_bps,cash_classification,state,idempotency_key,note) VALUES (${ctx.organizationId},${input.provider},${input.providerEventId ?? null},${input.providerPaymentId ?? null},${input.bankReference ?? null},${input.payerLabel ?? null},${input.amountMinor},${input.currency},${input.receivedAt ? new Date(input.receivedAt) : new Date()},${ctx.principal.id},${input.feeMinor},${input.exchangeRateBps ?? null},${input.cashClassification},'reported',${input.idempotencyKey},${input.note ?? null}) ON CONFLICT (organization_id,idempotency_key) WHERE idempotency_key IS NOT NULL DO UPDATE SET updated_at=now() RETURNING id`,
     );
     await audit(
       ctx,
@@ -382,10 +382,24 @@ export async function matchBankLine(
     if (BigInt(line.credit) <= 0n) throw new Error('PAYMENT_BANK_LINE_NOT_INCOMING');
     let receiptId = input.receiptId;
     if (!receiptId && input.createReceipt) {
-      const receipt = await tx.one<{ id: string }>(
-        sql`INSERT INTO payment_receipt (organization_id,provider,bank_reference,amount_minor,currency,received_at,reported_by,cash_classification,state,idempotency_key,note) VALUES (${ctx.organizationId},'bank_transfer',${line.reference},${line.credit},${line.currency},now(),${ctx.principal.id},'unapplied','reported',${`bank-line:${lineId}`},'Imported from bank statement') RETURNING id`,
-      );
-      receiptId = receipt.id;
+      const existing = line.reference
+        ? await tx.maybeOne<{ id: string; amount: string; currency: string }>(
+            sql`SELECT id,amount_minor::text AS amount,currency FROM payment_receipt WHERE organization_id=${ctx.organizationId} AND provider='bank_transfer' AND bank_reference=${line.reference} FOR UPDATE`,
+          )
+        : null;
+      if (existing) {
+        if (
+          existing.currency !== line.currency ||
+          BigInt(existing.amount) !== BigInt(line.credit)
+        )
+          throw new Error('PAYMENT_BANK_RECEIPT_MISMATCH');
+        receiptId = existing.id;
+      } else {
+        const receipt = await tx.one<{ id: string }>(
+          sql`INSERT INTO payment_receipt (organization_id,provider,bank_reference,amount_minor,currency,received_at,reported_by,cash_classification,state,idempotency_key,note) VALUES (${ctx.organizationId},'bank_transfer',${line.reference},${line.credit},${line.currency},now(),${ctx.principal.id},'unapplied','reported',${`bank-line:${lineId}`},'Imported from bank statement') RETURNING id`,
+        );
+        receiptId = receipt.id;
+      }
     }
     if (!receiptId) throw new Error('PAYMENT_RECEIPT_REQUIRED');
     await tx.query(
@@ -434,6 +448,10 @@ export async function createSettlement(ctx: RequestContext, input: SettlementInp
         !['verified', 'reconciled'].includes(receipt.state)
       )
         throw new Error('PAYMENT_SETTLEMENT_RECEIPT_INVALID');
+      const alreadySettled = await tx.maybeOne<{ id: string }>(
+        sql`SELECT id FROM finance_payment_settlement_receipt WHERE organization_id=${ctx.organizationId} AND receipt_id=${receiptId} LIMIT 1`,
+      );
+      if (alreadySettled) throw new Error('PAYMENT_SETTLEMENT_RECEIPT_ALREADY_SETTLED');
       const amount = BigInt(receipt.amount);
       const receiptRate = BigInt(receipt.rate ?? 10000);
       await tx.query(

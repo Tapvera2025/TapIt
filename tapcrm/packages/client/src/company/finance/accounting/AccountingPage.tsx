@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -11,6 +11,8 @@ import {
 import { Icon } from '../../../ui/Icon.js';
 import { LiquidGlassTabs } from '../../recruitment/components/RecruitmentTabs.js';
 import { AccountingCompletionPanel } from './AccountingCompletionPanel.js';
+import { AccountingReasonModal, JournalModal } from './AccountingWorkflowModals.js';
+import { getOverview } from './completionApi.js';
 import { APP_NAVIGATE_EVENT, type AppNavigateEvent } from '../../../navigationEvent.js';
 import {
   closePeriod,
@@ -31,6 +33,7 @@ import {
   listJournals,
   listPeriods,
   reconcileGstr2b,
+  reopenPeriod,
   reverseJournal,
   updateAccount,
   updateChecklist,
@@ -69,6 +72,8 @@ const tabs: Array<{
   { id: 'completion', label: 'Completion', icon: 'layers', capability: 'view' },
 ];
 const today = () => new Date().toISOString().slice(0, 10);
+const containsDate = (period: AccountingPeriod, date: string) =>
+  period.periodStart <= date && period.periodEnd >= date;
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : 'Unable to complete the accounting request.';
 const amount = (value: string | undefined | null) => value ?? '0.00';
@@ -126,6 +131,7 @@ export function AccountingPage({
   }));
   const [periods, setPeriods] = useState<AccountingPeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState('');
+  const [entities, setEntities] = useState<Array<{ id: string; code: string; legalName: string; baseCurrency: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -135,6 +141,7 @@ export function AccountingPage({
         setSelectedPeriod(
           (current) =>
             current ||
+            result.periods.find((period) => containsDate(period, today()))?.id ||
             result.periods.find((period) => period.status !== 'closed')?.id ||
             result.periods[0]?.id ||
             '',
@@ -143,6 +150,7 @@ export function AccountingPage({
       .catch((cause) => setError(messageOf(cause)))
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => { void getOverview().then((result) => setEntities(result.entities)).catch(() => undefined); }, []);
   const period = periods.find((item) => item.id === selectedPeriod);
   const refreshPeriods = () => {
     void listPeriods()
@@ -194,6 +202,7 @@ export function AccountingPage({
             canTax={canTax}
             onError={setError}
             onRefreshPeriods={refreshPeriods}
+            entities={entities}
           />
         </>
       )}
@@ -213,6 +222,7 @@ function AccountingTab({
   canTax,
   onError,
   onRefreshPeriods,
+  entities,
 }: {
   tab: Tab;
   period?: AccountingPeriod | undefined;
@@ -225,6 +235,7 @@ function AccountingTab({
   canTax: boolean;
   onError: (value: string) => void;
   onRefreshPeriods: () => void;
+  entities: Array<{ id: string; code: string; legalName: string; baseCurrency: string }>;
 }): React.JSX.Element {
   if (tab === 'dashboard')
     return (
@@ -238,7 +249,7 @@ function AccountingTab({
   if (tab === 'accounts') return <AccountsTab onError={onError} />;
   if (tab === 'journals')
     return (
-      <JournalsTab periodId={selectedPeriod} canManage={canPost} onError={onError} />
+      <JournalsTab period={period} canManage={canPost} onError={onError} entities={entities} />
     );
   if (tab === 'periods')
     return (
@@ -261,7 +272,7 @@ function AccountingTab({
       />
     );
   if (tab === 'tax')
-    return <TaxTab periodId={selectedPeriod} canTax={canTax} onError={onError} />;
+    return <TaxTab periodId={selectedPeriod} period={period} canTax={canTax} onError={onError} />;
   return <ArtifactsTab onError={onError} />;
 }
 
@@ -279,23 +290,44 @@ function DashboardTab({
     pnl?: Awaited<ReturnType<typeof getProfitAndLoss>>;
     balance?: Awaited<ReturnType<typeof getBalanceSheet>>;
   }>();
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!period) return;
+    let active = true;
+    setData(undefined);
+    setLoading(true);
+    setFailed(false);
+    onError('');
     void Promise.all([
       getTrialBalance({ periodId: period.id }),
       canViewStatements ? getProfitAndLoss({ periodId: period.id }) : Promise.resolve(undefined),
       canViewStatements ? getBalanceSheet({ periodId: period.id }) : Promise.resolve(undefined),
     ])
-      .then(([trial, pnl, balance]) =>
+      .then(([trial, pnl, balance]) => {
+        if (!active) return;
         setData({
           trial,
           ...(pnl ? { pnl } : {}),
           ...(balance ? { balance } : {}),
-        }),
-      )
-      .catch((cause) => onError(messageOf(cause)));
+        });
+      })
+      .catch((cause) => {
+        if (active) {
+          setFailed(true);
+          onError(messageOf(cause));
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [period, canViewStatements, onError]);
   if (!period) return <Empty>No accounting periods are available.</Empty>;
+  if (failed) return <Empty>Dashboard reports could not be loaded for this period.</Empty>;
+  if (loading || !data) return <Loading />;
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -430,13 +462,25 @@ function AccountsTab({
               setForm({
                 ...form,
                 accountType: value as typeof form.accountType,
-                normalBalance:
-                  value === 'asset' || value === 'expense' ? 'debit' : 'credit',
               })
             }
             options={['asset', 'liability', 'equity', 'income', 'expense'].map(
               (value) => ({ value, label: value }),
             )}
+          />
+          <Select
+            label="Normal balance"
+            value={form.normalBalance}
+            onChange={(value) =>
+              setForm({
+                ...form,
+                normalBalance: value as typeof form.normalBalance,
+              })
+            }
+            options={[
+              { value: 'debit', label: 'Debit' },
+              { value: 'credit', label: 'Credit' },
+            ]}
           />
           <Button
             disabled={saving || !form.code || !form.name}
@@ -512,17 +556,21 @@ function AccountTable({
 }
 
 function JournalsTab({
-  periodId,
+  period,
   canManage,
   onError,
+  entities,
 }: {
-  periodId: string;
+  period?: AccountingPeriod | undefined;
   canManage: boolean;
   onError: (value: string) => void;
+  entities: Array<{ id: string; code: string; legalName: string; baseCurrency: string }>;
 }): React.JSX.Element {
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [accounts, setAccounts] = useState<LedgerAccount[]>([]);
   const [open, setOpen] = useState(false);
+  const [journalModalOpen, setJournalModalOpen] = useState(false);
+  const [reversalJournal, setReversalJournal] = useState<JournalEntry | null>(null);
   const [busy, setBusy] = useState(false);
   const [date, setDate] = useState(today());
   const [description, setDescription] = useState('');
@@ -530,13 +578,16 @@ function JournalsTab({
     { accountId: '', debit: '', credit: '' },
     { accountId: '', debit: '', credit: '' },
   ]);
-  const load = () => {
-    if (periodId)
-      void listJournals({ periodId })
-        .then((result) => setJournals(result.journals))
-        .catch((cause) => onError(messageOf(cause)));
-  };
-  useEffect(load, [periodId, onError]);
+  const load = useCallback(async (): Promise<void> => {
+    if (!period?.id) return;
+    try {
+      const result = await listJournals({ periodId: period.id });
+      setJournals(result.journals);
+    } catch (cause) {
+      onError(messageOf(cause));
+    }
+  }, [period?.id, onError]);
+  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (canManage)
       void listAccounts()
@@ -560,7 +611,7 @@ function JournalsTab({
       });
       setOpen(false);
       setDescription('');
-      load();
+      await load();
     } catch (cause) {
       onError(messageOf(cause));
     } finally {
@@ -578,8 +629,8 @@ function JournalsTab({
             </p>
           </div>
           {canManage && (
-            <Button onClick={() => setOpen((value) => !value)}>
-              {open ? 'Close form' : 'Create journal'}
+            <Button onClick={() => setJournalModalOpen(true)}>
+              Create journal
             </Button>
           )}
         </div>
@@ -706,11 +757,7 @@ function JournalsTab({
                     <Button
                       kind="secondary"
                       onClick={() => {
-                        const reason = window.prompt('Reason for reversal');
-                        if (reason)
-                          void reverseJournal(journal.id, today(), reason)
-                            .then(load)
-                            .catch((cause) => onError(messageOf(cause)));
+                        setReversalJournal(journal);
                       }}
                     >
                       Reverse
@@ -723,6 +770,8 @@ function JournalsTab({
         </table>
         {journals.length === 0 && <Empty>No journals posted in this period.</Empty>}
       </Card>
+      {journalModalOpen && <JournalModal accounts={accounts} entities={entities} defaultDate={today()} periodStart={period?.periodStart} periodEnd={period?.periodEnd} onClose={() => setJournalModalOpen(false)} onSubmit={async (body) => { await createJournal(body); setJournalModalOpen(false); await load(); }} />}
+      {reversalJournal && <AccountingReasonModal title="Reverse journal" description={`This creates an immutable reversing journal for “${reversalJournal.description}”.`} submitLabel="Post reversal" onClose={() => setReversalJournal(null)} onSubmit={async (reason) => { await reverseJournal(reversalJournal.id, today(), reason); setReversalJournal(null); await load(); }} />}
     </div>
   );
 }
@@ -742,6 +791,7 @@ function PeriodsTab({
 }): React.JSX.Element {
   const [form, setForm] = useState({ financialYear: '', periodStart: '', periodEnd: '' });
   const [selected, setSelected] = useState<AccountingPeriod | null>(null);
+  const [reopenTarget, setReopenTarget] = useState<AccountingPeriod | null>(null);
   const [busy, setBusy] = useState(false);
   async function save(): Promise<void> {
     setBusy(true);
@@ -841,6 +891,7 @@ function PeriodsTab({
                         Review / close
                       </Button>
                     )}
+                    {canManagePeriods && item.status === 'closed' && <Button kind="secondary" onClick={() => setReopenTarget(item)}>Reopen</Button>}
                   </td>
                 </tr>
               );
@@ -857,6 +908,7 @@ function PeriodsTab({
           onClosePeriod={() => void close()}
         />
       )}
+      {reopenTarget && <AccountingReasonModal title="Reopen accounting period" description={`Reopening ${reopenTarget.periodStart} → ${reopenTarget.periodEnd} is a protected Super Admin action. New postings remain blocked until the period is reopened.`} submitLabel="Reopen period" onClose={() => setReopenTarget(null)} onSubmit={async (reason) => { await reopenPeriod(reopenTarget.id, reason); setReopenTarget(null); onRefresh(); }} />}
     </div>
   );
 }
@@ -946,8 +998,11 @@ function LedgerTab({
     setExporting(true);
     try {
       await saveBlob(
-        await downloadAccountingReport('general-ledger', { periodId }),
-        `general-ledger-${periodId}.csv`,
+        await downloadAccountingReport('general-ledger', {
+          periodId,
+          ...(accountId ? { accountId } : {}),
+        }),
+        `general-ledger-${periodId}${accountId ? `-${accountId}` : ''}.csv`,
       );
     } catch (cause) {
       onError(messageOf(cause));
@@ -1034,6 +1089,7 @@ function LedgerTab({
                 <td className="px-4 py-3">{row.entryDate}</td>
                 <td className="px-4 py-3 font-semibold">
                   {row.accountCode} · {row.accountName}
+                  <button type="button" className="ml-2 text-xs font-normal text-app-accent underline" onClick={() => setAccountId(row.accountId)}>Drill through</button>
                 </td>
                 <td className="px-4 py-3">{row.description}</td>
                 <td className="px-4 py-3">{row.sourceType}</td>
@@ -1064,6 +1120,8 @@ function ReportsTab({
   const [kind, setKind] = useState<'trial' | 'pnl' | 'balance' | 'cash'>('trial');
   const [comparePeriodId, setComparePeriodId] = useState('');
   const [data, setData] = useState<unknown>(null);
+  const [loading, setLoading] = useState(false);
+  const [reportError, setReportError] = useState('');
   const [exporting, setExporting] = useState(false);
   async function exportReport(): Promise<void> {
     setExporting(true);
@@ -1088,6 +1146,10 @@ function ReportsTab({
   }
   useEffect(() => {
     if (!periodId) return;
+    let active = true;
+    setData(null);
+    setLoading(true);
+    setReportError('');
     const load =
       kind === 'trial'
         ? getTrialBalance({ periodId, comparePeriodId: comparePeriodId || undefined })
@@ -1096,8 +1158,36 @@ function ReportsTab({
           : kind === 'balance'
             ? getBalanceSheet({ periodId, comparePeriodId: comparePeriodId || undefined })
             : getCashFlow({ periodId, comparePeriodId: comparePeriodId || undefined });
-    void load.then(setData).catch((cause) => onError(messageOf(cause)));
+    void load
+      .then((result) => {
+        if (active) setData(result);
+      })
+      .catch((cause) => {
+        if (!active) return;
+        const message = messageOf(cause);
+        setReportError(message);
+        onError(message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [periodId, kind, comparePeriodId, onError]);
+  const trialData = kind === 'trial' && data && Array.isArray((data as { rows?: unknown }).rows)
+    ? data as Awaited<ReturnType<typeof getTrialBalance>>
+    : null;
+  const pnlData = kind === 'pnl' && data && Array.isArray((data as { revenue?: unknown }).revenue) && Array.isArray((data as { expenses?: unknown }).expenses)
+    ? data as Awaited<ReturnType<typeof getProfitAndLoss>>
+    : null;
+  const balanceData = kind === 'balance' && data && Array.isArray((data as { assets?: unknown }).assets) && Array.isArray((data as { liabilities?: unknown }).liabilities) && Array.isArray((data as { equity?: unknown }).equity)
+    ? data as Awaited<ReturnType<typeof getBalanceSheet>>
+    : null;
+  const cashData = kind === 'cash' && data && typeof (data as { sections?: unknown }).sections === 'object' && (data as { sections?: unknown }).sections !== null
+    ? data as Awaited<ReturnType<typeof getCashFlow>>
+    : null;
+  const invalidData = !loading && !reportError && data !== null && !trialData && !pnlData && !balanceData && !cashData;
   return (
     <div className="space-y-5">
       <Card>
@@ -1140,57 +1230,59 @@ function ReportsTab({
           </Button>
         </div>
       </Card>
-      {kind === 'trial' && data !== null && (
+      {loading && <Loading />}
+      {!loading && reportError && <Notice error>{reportError}</Notice>}
+      {!loading && !reportError && data === null && <Empty>No report data is available for this period.</Empty>}
+      {invalidData && <Notice error>The report returned an invalid response. Refresh the page and try again.</Notice>}
+      {trialData && (
         <ReportRows
           title="Trial balance"
-          rows={(data as Awaited<ReturnType<typeof getTrialBalance>>).rows}
-          footer={`Balanced: ${(data as Awaited<ReturnType<typeof getTrialBalance>>).balanced ? 'Yes' : 'No'} · Debit ${(data as Awaited<ReturnType<typeof getTrialBalance>>).totals.debit} · Credit ${(data as Awaited<ReturnType<typeof getTrialBalance>>).totals.credit}`}
+          rows={trialData.rows}
+          footer={`Balanced: ${trialData.balanced ? 'Yes' : 'No'} · Debit ${trialData.totals?.debit ?? '0.00'} · Credit ${trialData.totals?.credit ?? '0.00'}`}
         />
       )}
-      {kind === 'pnl' && data !== null && (
+      {pnlData && (
         <>
           <ReportRows
             title="Revenue"
-            rows={(data as Awaited<ReturnType<typeof getProfitAndLoss>>).revenue}
+            rows={pnlData.revenue}
           />
           <ReportRows
             title="Expenses"
-            rows={(data as Awaited<ReturnType<typeof getProfitAndLoss>>).expenses}
-            footer={`Net profit: ${(data as Awaited<ReturnType<typeof getProfitAndLoss>>).netProfit}`}
+            rows={pnlData.expenses}
+            footer={`Net profit: ${pnlData.netProfit ?? '0.00'}`}
           />
         </>
       )}
-      {kind === 'balance' && data !== null && (
+      {balanceData && (
         <>
           <ReportRows
             title="Assets"
-            rows={(data as Awaited<ReturnType<typeof getBalanceSheet>>).assets}
+            rows={balanceData.assets}
           />
           <ReportRows
             title="Liabilities & equity"
-            rows={[
-              ...(data as Awaited<ReturnType<typeof getBalanceSheet>>).liabilities,
-              ...(data as Awaited<ReturnType<typeof getBalanceSheet>>).equity,
-            ]}
-            footer={`Balanced: ${(data as Awaited<ReturnType<typeof getBalanceSheet>>).balanced ? 'Yes' : 'No'}`}
+            rows={[...balanceData.liabilities, ...balanceData.equity]}
+            footer={`Balanced: ${balanceData.balanced ? 'Yes' : 'No'}`}
           />
         </>
       )}
-      {kind === 'cash' && data !== null && (
+      {cashData && (
         <Card>
           <h2 className="font-display text-lg font-bold">Cash flow</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
             {Object.entries(
-              (data as Awaited<ReturnType<typeof getCashFlow>>).sections,
+              cashData.sections,
             ).map(([key, value]) => (
               <Metric key={key} label={key} value={String(value)} icon="chart" />
             ))}
             <Metric
               label="Closing cash"
-              value={(data as Awaited<ReturnType<typeof getCashFlow>>).closingCash}
+              value={cashData.closingCash ?? '0.00'}
               icon="wallet"
             />
           </div>
+          {cashData.comparative && <p className="mt-4 border-t border-app-border pt-3 text-sm text-app-muted">Comparative closing cash: {cashData.comparative.closingCash} · comparative net change: {cashData.comparative.netChange}</p>}
         </Card>
       )}
     </div>
@@ -1255,32 +1347,48 @@ function ReportRows({
 
 function TaxTab({
   periodId,
+  period,
   canTax,
   onError,
 }: {
   periodId: string;
+  period?: AccountingPeriod | undefined;
   canTax: boolean;
   onError: (value: string) => void;
 }): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Artifact | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importDates, setImportDates] = useState({ periodStart: '', periodEnd: '' });
+  const [importDates, setImportDates] = useState({ periodStart: period?.periodStart ?? '', periodEnd: period?.periodEnd ?? '' });
+  const [taxError, setTaxError] = useState('');
+  const selectedPeriodStart = period?.periodStart;
+  const selectedPeriodEnd = period?.periodEnd;
+  useEffect(() => {
+    if (selectedPeriodStart && selectedPeriodEnd) setImportDates({ periodStart: selectedPeriodStart, periodEnd: selectedPeriodEnd });
+  }, [selectedPeriodStart, selectedPeriodEnd]);
   const run = async (
     kind: 'gstr1' | 'gstr3b' | 'tds' | 'tds-receivable/reconciliation',
   ) => {
     setBusy(true);
+    setTaxError('');
     try {
       setResult(await exportTax(kind, { periodId }));
     } catch (cause) {
-      onError(messageOf(cause));
+      const message = messageOf(cause);
+      setTaxError(message);
+      onError(message);
     } finally {
       setBusy(false);
     }
   };
   async function importFileNow(): Promise<void> {
-    if (!importFile) return;
+    if (!importFile) { setTaxError('Select a CSV file first.'); return; }
+    if (!importDates.periodStart || !importDates.periodEnd) { setTaxError('Enter both import period dates.'); return; }
+    if (importDates.periodStart > importDates.periodEnd) { setTaxError('Period start cannot be after period end.'); return; }
+    if (importFile.size === 0) { setTaxError('The selected CSV file is empty.'); return; }
+    if (importFile.size > 10 * 1024 * 1024) { setTaxError('The CSV file must not exceed 10 MB.'); return; }
     setBusy(true);
+    setTaxError('');
     try {
       const contentBase64 = await readFileBase64(importFile);
       const imported = await importGstr2b({
@@ -1291,13 +1399,16 @@ function TaxTab({
       });
       setResult(imported.artifact);
     } catch (cause) {
-      onError(messageOf(cause));
+      const message = messageOf(cause);
+      setTaxError(message);
+      onError(message);
     } finally {
       setBusy(false);
     }
   }
   return (
     <div className="space-y-5">
+      {taxError && <Notice error>{taxError}</Notice>}
       <Card>
         <div className="flex flex-wrap gap-2">
           <Button disabled={busy || !canTax} onClick={() => void run('gstr1')}>
@@ -1371,6 +1482,7 @@ function ArtifactsTab({
   onError: (value: string) => void;
 }): React.JSX.Element {
   const [items, setItems] = useState<Artifact[]>([]);
+  const [notice, setNotice] = useState('');
   const load = () => {
     void listArtifacts()
       .then((result) => setItems(result.artifacts))
@@ -1390,7 +1502,7 @@ function ArtifactsTab({
     }
   }
   return (
-    <Card className="overflow-x-auto p-0">
+    <div className="space-y-3">{notice && <Notice>{notice}</Notice>}<Card className="overflow-x-auto p-0">
       <table className="w-full min-w-[850px] text-sm">
         <thead>
           <tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted">
@@ -1424,9 +1536,7 @@ function ArtifactsTab({
                     onClick={() =>
                       void reconcileGstr2b(item.importId!)
                         .then((result) =>
-                          window.alert(
-                            `GSTR-2B ${result.status}; variance ${result.variance}`,
-                          ),
+                          setNotice(`GSTR-2B ${result.status}; variance ${result.variance}`),
                         )
                         .catch((cause) => onError(messageOf(cause)))
                     }
@@ -1440,7 +1550,7 @@ function ArtifactsTab({
         </tbody>
       </table>
       {items.length === 0 && <Empty>No export artifacts yet.</Empty>}
-    </Card>
+    </Card></div>
   );
 }
 

@@ -19,3 +19,22 @@ export const updateFinanceFoundationSchema = z.object({
 });
 
 export type UpdateFinanceFoundationInput = z.infer<typeof updateFinanceFoundationSchema>;
+
+export const updateReconciliationSettingsSchema = z.object({
+  bankMode: z.enum(['manual_csv', 'api']),
+  bankProvider: z.string().trim().max(100).nullable(),
+  bankAccountName: z.string().trim().max(160).nullable(),
+  bankCurrency: currency,
+  bankLedgerAccountId: z.string().uuid().nullable(),
+  csvDateColumn: z.string().trim().min(1).max(80),
+  csvReferenceColumn: z.string().trim().min(1).max(80),
+  csvDescriptionColumn: z.string().trim().min(1).max(80),
+  csvDebitColumn: z.string().trim().min(1).max(80),
+  csvCreditColumn: z.string().trim().min(1).max(80),
+  reason: z.string().trim().min(3).max(1000),
+}).superRefine((value, context) => {
+  const columns = [value.csvDateColumn, value.csvReferenceColumn, value.csvDescriptionColumn, value.csvDebitColumn, value.csvCreditColumn];
+  if (new Set(columns.map((column) => column.toLowerCase())).size !== columns.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['csvDateColumn'], message: 'CSV mapping columns must be unique.' });
+  }
+});

@@ -4,11 +4,12 @@ import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { route } from '../../../platform/http/route.js';
 import { batchConfirmSchema,batchReviewSchema,confirmSchema,draftSchema,reviewSchema } from './validators.js';
-import { confirmBatch,confirmDraft,createDraft,downloadInvoicePdf,getDraft,getPreview,listDrafts,listInvoices,reviewBatch,reviewDraft } from './service.js';
+import { confirmBatch,confirmDraft,createDraft,downloadInvoicePdf,getDraft,getPreview,listDrafts,listFormOptions,listInvoices,reviewBatch,reviewDraft } from './service.js';
 import { renderInvoicePdf } from './pdf.js';
 async function loadInvoiceResource(ctx:RequestContext,id:string):Promise<Resource|null>{ const row=await db.maybeOne<{id:string;organizationId:string;createdBy:string}>(ctx,sql`SELECT id,organization_id AS "organizationId",created_by AS "createdBy" FROM finance_invoice_draft WHERE organization_id=${ctx.organizationId} AND id=${id}`); return row?{type:'invoice',...row}:null; }
 export function registerInvoicingRoutes(){
   route({method:'GET',path:'/api/invoicing/drafts',action:'invoicing:view',module:'invoicing',handler:async({ctx})=>listDrafts(ctx)});
+  route({method:'GET',path:'/api/invoicing/form-options',action:'invoicing:view',module:'invoicing',handler:async({ctx})=>listFormOptions(ctx)});
   route({method:'POST',path:'/api/invoicing/drafts',action:'invoicing:create',module:'invoicing',status:201,handler:async({ctx,body})=>createDraft(ctx,draftSchema.parse(body))});
   route({method:'GET',path:'/api/invoicing/drafts/:id',action:'invoicing:view',module:'invoicing',resourceParam:'id',loadResource:loadInvoiceResource,handler:async({ctx,params})=>getDraft(ctx,params['id']!)});
   route({method:'GET',path:'/api/invoicing/drafts/:id/preview',action:'invoicing:view',module:'invoicing',resourceParam:'id',loadResource:loadInvoiceResource,handler:async({ctx,params})=>getPreview(ctx,params['id']!)});

@@ -59,7 +59,9 @@ async function taxRows(ctx: RequestContext, window: TaxWindow): Promise<JournalT
     JOIN ledger_account la ON la.organization_id = jl.organization_id AND la.id = jl.ledger_account_id
     WHERE je.organization_id = ${ctx.organizationId}
       AND je.entry_date BETWEEN ${window.from}::date AND ${window.to}::date
-    ORDER BY je.entry_date, je.id, jl.line_number
+    -- journal_line has no line_number column; its UUID is the persisted
+    -- insertion/order key used by the ledger schema.
+    ORDER BY je.entry_date, je.id, jl.id
   `);
 }
 
@@ -165,17 +167,21 @@ function parseCsv(text: string): string[][] {
 }
 function requiredColumn(headers: string[], aliases: string[]): number { const index = headers.findIndex((header) => aliases.includes(canonicalHeader(header))); if (index < 0) throw new Error(`GSTR-2B is missing required column: ${aliases[0]}.`); return index; }
 function decimalInput(value: string, label: string): string { if (!/^\d+(\.\d{1,2})?$/.test(value)) throw new Error(`Invalid ${label} in GSTR-2B import.`); return value; }
+function validGstin(value: string): boolean { return /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]$/.test(value.toUpperCase()); }
+function validIsoDate(value: string): boolean { const date = new Date(`${value}T00:00:00Z`); return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value; }
 
 export async function importGstr2b(ctx: RequestContext, input: unknown) {
   const parsed = gstr2bImportSchema.parse(input); const comma = parsed.contentBase64.indexOf(','); const encoded = (comma >= 0 ? parsed.contentBase64.slice(comma + 1) : parsed.contentBase64).replace(/\s/g, '');
   if (!/^[A-Za-z0-9+/=]+$/.test(encoded)) throw new Error('Invalid GSTR-2B file content.');
   const body = Buffer.from(encoded, 'base64'); if (body.length === 0 || body.length > MAX_IMPORT_BYTES) throw new Error('GSTR-2B file must be between 1 byte and 10 MB.');
   const rows = parseCsv(body.toString('utf8')); if (rows.length < 1) throw new Error('GSTR-2B file has no header.');
+  if (parsed.periodStart > parsed.periodEnd) throw new Error('GSTR-2B period start cannot be after period end.');
   const headers = rows[0]!; const columns = {
     supplier: requiredColumn(headers, ['suppliergstin', 'gstin']), invoice: requiredColumn(headers, ['invoicenumber', 'invoiceno']), date: requiredColumn(headers, ['invoicedate', 'date']), taxable: requiredColumn(headers, ['taxablevalue', 'taxableamount']), igst: requiredColumn(headers, ['igst']), cgst: requiredColumn(headers, ['cgst']), sgst: requiredColumn(headers, ['sgst']), cess: requiredColumn(headers, ['cess']),
   };
-  const lines = rows.slice(1).map((row) => ({ supplierGstin: row[columns.supplier] ?? '', invoiceNumber: row[columns.invoice] ?? '', invoiceDate: row[columns.date] ?? '', taxableValue: decimalInput(row[columns.taxable] ?? '', 'taxable value'), igst: decimalInput(row[columns.igst] ?? '0', 'IGST'), cgst: decimalInput(row[columns.cgst] ?? '0', 'CGST'), sgst: decimalInput(row[columns.sgst] ?? '0', 'SGST'), cess: decimalInput(row[columns.cess] ?? '0', 'cess') }));
-  if (lines.some((line) => !line.supplierGstin || !line.invoiceNumber || !/^\d{4}-\d{2}-\d{2}$/.test(line.invoiceDate))) throw new Error('GSTR-2B contains an invalid supplier GSTIN, invoice number, or ISO invoice date.');
+  const lines = rows.slice(1).map((row) => ({ supplierGstin: (row[columns.supplier] ?? '').toUpperCase(), invoiceNumber: row[columns.invoice] ?? '', invoiceDate: row[columns.date] ?? '', taxableValue: decimalInput(row[columns.taxable] ?? '', 'taxable value'), igst: decimalInput(row[columns.igst] ?? '0', 'IGST'), cgst: decimalInput(row[columns.cgst] ?? '0', 'CGST'), sgst: decimalInput(row[columns.sgst] ?? '0', 'SGST'), cess: decimalInput(row[columns.cess] ?? '0', 'cess') }));
+  if (lines.length === 0) throw new Error('GSTR-2B file contains a header but no data rows.');
+  if (lines.some((line) => !validGstin(line.supplierGstin) || !line.invoiceNumber || !validIsoDate(line.invoiceDate))) throw new Error('GSTR-2B contains an invalid supplier GSTIN, invoice number, or invoice date.');
   const artifactId = randomUUID(); const stored = await storeTaxFile(ctx.organizationId, artifactId, 'csv', body);
   try {
     return await db.transaction(ctx, async (tx) => {

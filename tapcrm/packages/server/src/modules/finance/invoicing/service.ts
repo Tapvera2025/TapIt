@@ -20,6 +20,32 @@ import type {
   ReviewInput,
 } from './validators.js';
 
+export async function listFormOptions(ctx: RequestContext) {
+  const [clients, entities, contracts, events, foundation] = await Promise.all([
+    db.query(
+      ctx,
+      sql`SELECT c.id, c.organization_id AS "organizationId", c.client_name AS "clientName", c.business_name AS "businessName", c.email, c.region, c.currency, c.timezone, c.status, c.created_by AS "createdBy", c.created_at AS "createdAt", c.updated_at AS "updatedAt", (login.id IS NOT NULL) AS "hasActiveLogin", login.id AS "loginUserId" FROM client c LEFT JOIN app_user login ON login.organization_id = c.organization_id AND login.client_id = c.id AND login.status = 'active' WHERE c.organization_id=${ctx.organizationId} AND c.status='active' ORDER BY c.created_at DESC`,
+    ),
+    db.query(
+      ctx,
+      sql`SELECT id, code, legal_name AS "legalName", functional_currency AS "baseCurrency", timezone, tax_registration AS "taxRegistration", (status='active') AS "isActive" FROM finance_legal_entity WHERE organization_id=${ctx.organizationId} ORDER BY code`,
+    ),
+    db.query(
+      ctx,
+      sql`SELECT id, client_id AS "clientId", legal_entity_id AS "legalEntityId", contract_number AS "contractNumber", title, currency, billing_model AS "billingModel", start_date AS "startDate", end_date AS "endDate", status, version, renewal_term_months AS "renewalTermMonths", auto_renew AS "autoRenew", renewal_notice_days AS "renewalNoticeDays", retainer_quantity::text AS "retainerQuantity", retainer_unit AS "retainerUnit", overage_rate::text AS "overageRate", signed_status AS "signedStatus" FROM finance_contract WHERE organization_id=${ctx.organizationId} ORDER BY updated_at DESC`,
+    ),
+    db.query(
+      ctx,
+      sql`SELECT id, source_type AS "sourceType", source_id AS "sourceId", client_id AS "clientId", contract_id AS "contractId", service_key AS "serviceKey", event_date AS "eventDate", currency, quantity::text, amount::text, state FROM finance_billable_event WHERE organization_id=${ctx.organizationId} AND state='approved' ORDER BY event_date DESC`,
+    ),
+    db.maybeOne(
+      ctx,
+      sql`SELECT e.id AS "legalEntityId", e.functional_currency AS "functionalCurrency", c.supported_currencies AS "supportedCurrencies" FROM finance_configuration c JOIN finance_legal_entity e ON e.organization_id=c.organization_id AND e.id=c.default_legal_entity_id WHERE c.organization_id=${ctx.organizationId}`,
+    ),
+  ]);
+  return { clients, entities, contracts, events, foundation };
+}
+
 const DRAFT = sql`SELECT id, client_id AS "clientId", legal_entity_id AS "legalEntityId", contract_id AS "contractId", period_start AS "periodStart", period_end AS "periodEnd", currency, status, subtotal::text, tax_total::text AS "taxTotal", discount_total::text AS "discountTotal", total::text, manifest_fingerprint AS "manifestFingerprint", version, reviewed_at AS "reviewedAt", created_at AS "createdAt" FROM finance_invoice_draft`;
 const INVOICE = sql`SELECT i.id, i.client_id AS "clientId", i.legal_entity_id AS "legalEntityId", i.contract_id AS "contractId", i.invoice_number AS "invoiceNumber", i.invoice_date AS "invoiceDate", i.due_date AS "dueDate", i.currency, 'issued' AS status, i.receivable_status AS "receivableStatus", i.subtotal::text, i.tax_total::text AS "taxTotal", i.discount_total::text AS "discountTotal", i.total::text, i.manifest_fingerprint AS "manifestFingerprint", i.journal_id AS "journalId", i.issued_at AS "issuedAt", d.status AS "deliveryStatus" FROM finance_invoice i LEFT JOIN finance_invoice_delivery d ON d.organization_id=i.organization_id AND d.invoice_id=i.id`;
 function paise(value: string): bigint {
@@ -324,6 +350,34 @@ async function issueDraftTx(
   const dueDate = await tx.one<{ date: string }>(
     sql`SELECT (${invoiceDate}::date + ${terms?.days ?? 0}::int)::text AS date`,
   );
+  const legalEntity = await tx.maybeOne<{ baseCurrency: string }>(
+    sql`SELECT functional_currency AS "baseCurrency" FROM finance_legal_entity WHERE organization_id=${ctx.organizationId} AND id=${draft.legalEntityId}`,
+  );
+  if (!legalEntity)
+    throw new InvoicingValidationError('The invoice legal entity could not be found.');
+  if (draft.currency !== legalEntity.baseCurrency)
+    throw new InvoicingValidationError(
+      'A foreign-currency invoice requires a configured exchange rate before it can be issued.',
+    );
+  const sources = Array.isArray((draft.manifest as { lines?: unknown }).lines)
+    ? (draft.manifest as { lines: unknown[] }).lines
+    : [];
+  for (const source of sources) {
+    const line = source as { sourceType?: unknown; sourceId?: unknown };
+    if (line.sourceType !== 'billable_event' || typeof line.sourceId !== 'string')
+      continue;
+    const billed = await tx.maybeOne<{ id: string }>(sql`
+      UPDATE finance_billable_event
+      SET state='billed', billed_quantity=quantity
+      WHERE organization_id=${ctx.organizationId} AND id=${line.sourceId} AND state='approved'
+      RETURNING id
+    `);
+    if (!billed)
+      throw new InvoicingConflictError(
+        'This billable event has already been billed or is no longer approved.',
+        'INVOICING_SOURCE_NOT_BILLABLE',
+      );
+  }
   const journalLines = [
     {
       accountKey: 'accounts-receivable',
@@ -362,6 +416,9 @@ async function issueDraftTx(
     sourceId: invoiceId,
     description: `Invoice ${number}`,
     reason,
+    transactionCurrency: draft.currency,
+    baseCurrency: legalEntity.baseCurrency,
+    exchangeRate: '1',
     lines: journalLines,
   });
   await tx.query(

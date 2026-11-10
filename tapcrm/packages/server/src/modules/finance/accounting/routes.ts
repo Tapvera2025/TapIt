@@ -83,8 +83,10 @@ export function registerAccountingRoutes(): void {
     path: '/api/accounting/general-ledger',
     action: 'accounting:view-ledger',
     module: 'accounting',
-    handler: async ({ ctx, query }) =>
-      getGeneralLedger(ctx, reportWindowQuerySchema.parse(query)),
+    handler: async ({ ctx, query }) => {
+      const parsed = reportWindowQuerySchema.parse(query);
+      return getGeneralLedger(ctx, parsed, parsed.accountId);
+    },
   });
   route({
     method: 'GET',

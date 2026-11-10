@@ -59,8 +59,12 @@ export const syncSchema = z.object({
   sourceType: z.string().trim().min(1).max(100),
   sourceId: uuid,
   idempotencyKey: z.string().trim().min(8).max(240),
-  payload: z.record(z.string(), z.unknown()),
+  payload: z.record(z.string(), z.unknown()).optional(),
   reason,
+});
+
+export const syncSourceQuerySchema = z.object({
+  sourceType: z.enum(['journal', 'accounting-schedule']).default('journal'),
 });
 
 export const idSchema = z.object({ id: uuid });
@@ -69,3 +73,4 @@ export type ScheduleInput = z.infer<typeof scheduleSchema>;
 export type RecognizeInput = z.infer<typeof recognizeScheduleSchema>;
 export type RevaluationInput = z.infer<typeof revaluationSchema>;
 export type SyncInput = z.infer<typeof syncSchema>;
+export type SyncSourceQuery = z.infer<typeof syncSourceQuerySchema>;

@@ -5943,6 +5943,12 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/accounting/completion/schedules/page",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/accounting/completion/schedules",
       "action": "accounting:manage-periods",
@@ -5962,7 +5968,25 @@
     },
     {
       "method": "GET",
+      "path": "/api/accounting/completion/fx-revaluations",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/accounting/completion/sync-queue",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/sync-queue/page",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/sync-sources",
       "action": "accounting:view-ledger",
       "resourceParam": null
     },
@@ -6142,6 +6166,18 @@
     },
     {
       "method": "GET",
+      "path": "/api/finance/reconciliation-settings",
+      "action": "accounting:view-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/finance/reconciliation-settings",
+      "action": "accounting:manage-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/finance/payment-gateways",
       "action": "finance:manage-payment-gateways",
       "resourceParam": null
@@ -6167,6 +6203,12 @@
     {
       "method": "GET",
       "path": "/api/invoicing/drafts",
+      "action": "invoicing:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoicing/form-options",
       "action": "invoicing:view",
       "resourceParam": null
     },

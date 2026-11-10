@@ -25,6 +25,9 @@ export interface AccountingPostingInput {
   readonly sourceId: string;
   readonly description: string;
   readonly reason?: string | null;
+  readonly transactionCurrency?: string;
+  readonly baseCurrency?: string;
+  readonly exchangeRate?: string;
   readonly lines: readonly AccountingPostingLine[];
 }
 
@@ -102,6 +105,9 @@ export async function postSourceJournalTx(
       sourceType: input.sourceType,
       sourceId: input.sourceId,
       reason: input.reason,
+      transactionCurrency: input.transactionCurrency ?? 'INR',
+      baseCurrency: input.baseCurrency ?? 'INR',
+      exchangeRate: input.exchangeRate ?? '1',
       lines: input.lines.map((line) => ({
         accountId: accountIds.get(line.accountKey)!,
         debit:

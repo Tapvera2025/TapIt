@@ -86,17 +86,24 @@ export const settlementSchema = z
     receiptIds: z.array(z.string().uuid()).max(500).default([]),
     reason: z.string().trim().min(3).max(1000),
   })
+  .refine((value) => new Set(value.receiptIds).size === value.receiptIds.length, {
+    message: 'A receipt may only be selected once per settlement.',
+  })
   .refine((value) => value.netMinor === value.grossMinor - value.feeMinor, {
     message: 'Settlement net must equal gross less fees.',
   });
-export const fxRateSchema = z.object({
-  baseCurrency: z.string().regex(/^[A-Z]{3}$/),
-  quoteCurrency: z.string().regex(/^[A-Z]{3}$/),
-  rateBps: z.number().int().positive(),
-  effectiveAt: z.string().datetime(),
-  source: z.enum(['manual', 'provider', 'rbi']).default('manual'),
-  reason: z.string().trim().min(3).max(1000),
-});
+export const fxRateSchema = z
+  .object({
+    baseCurrency: z.string().regex(/^[A-Z]{3}$/),
+    quoteCurrency: z.string().regex(/^[A-Z]{3}$/),
+    rateBps: z.number().int().positive(),
+    effectiveAt: z.string().datetime(),
+    source: z.enum(['manual', 'provider', 'rbi']).default('manual'),
+    reason: z.string().trim().min(3).max(1000),
+  })
+  .refine((value) => value.baseCurrency !== value.quoteCurrency, {
+    message: 'Base and quote currencies must be different.',
+  });
 export const exceptionResolutionSchema = z.object({
   status: z.enum(['in_review', 'resolved', 'ignored']),
   resolution: z.string().trim().min(3).max(1000),

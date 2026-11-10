@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 198   Bindings: 711
+ * Actions: 198   Bindings: 718
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3889,10 +3889,14 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/accounting/completion/entities', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'POST', path: '/api/accounting/completion/entities', action: 'accounting:manage-accounts', resourceParam: null },
   { method: 'GET', path: '/api/accounting/completion/schedules', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/completion/schedules/page', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'POST', path: '/api/accounting/completion/schedules', action: 'accounting:manage-periods', resourceParam: null },
   { method: 'POST', path: '/api/accounting/completion/schedules/:id/recognize', action: 'accounting:post-journal', resourceParam: 'id' },
   { method: 'POST', path: '/api/accounting/completion/fx-revaluations', action: 'accounting:post-journal', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/completion/fx-revaluations', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'GET', path: '/api/accounting/completion/sync-queue', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/completion/sync-queue/page', action: 'accounting:view-ledger', resourceParam: null },
+  { method: 'GET', path: '/api/accounting/completion/sync-sources', action: 'accounting:view-ledger', resourceParam: null },
   { method: 'POST', path: '/api/accounting/completion/sync-queue', action: 'accounting:manage-periods', resourceParam: null },
   { method: 'GET', path: '/api/accounting/accounts/:id/drill-through', action: 'accounting:view-ledger', resourceParam: 'id' },
   { method: 'GET', path: '/api/accounting/general-ledger/export', action: 'accounting:view-ledger', resourceParam: null },
@@ -3922,11 +3926,14 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/accounting/tax/artifacts/:id/download', action: 'accounting:tax-export', resourceParam: null },
   { method: 'GET', path: '/api/finance/foundation', action: 'accounting:view-finance-settings', resourceParam: null },
   { method: 'PATCH', path: '/api/finance/foundation', action: 'accounting:manage-finance-settings', resourceParam: null },
+  { method: 'GET', path: '/api/finance/reconciliation-settings', action: 'accounting:view-finance-settings', resourceParam: null },
+  { method: 'PUT', path: '/api/finance/reconciliation-settings', action: 'accounting:manage-finance-settings', resourceParam: null },
   { method: 'GET', path: '/api/finance/payment-gateways', action: 'finance:manage-payment-gateways', resourceParam: null },
   { method: 'POST', path: '/api/finance/payment-gateways', action: 'finance:manage-payment-gateways', resourceParam: null },
   { method: 'DELETE', path: '/api/finance/payment-gateways/:id', action: 'finance:manage-payment-gateways', resourceParam: null },
   { method: 'POST', path: '/api/finance/payments/create-link', action: 'finance:manage-payment-gateways', resourceParam: null },
   { method: 'GET', path: '/api/invoicing/drafts', action: 'invoicing:view', resourceParam: null },
+  { method: 'GET', path: '/api/invoicing/form-options', action: 'invoicing:view', resourceParam: null },
   { method: 'POST', path: '/api/invoicing/drafts', action: 'invoicing:create', resourceParam: null },
   { method: 'GET', path: '/api/invoicing/drafts/:id', action: 'invoicing:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/invoicing/drafts/:id/preview', action: 'invoicing:view', resourceParam: 'id' },
@@ -3953,6 +3960,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/payments/exceptions', action: 'payments:view', resourceParam: null },
   { method: 'POST', path: '/api/payments/exceptions/:id/resolve', action: 'payments:reconcile', resourceParam: 'id' },
   { method: 'GET', path: '/api/billing/profiles', action: 'billing:view-terms', resourceParam: null },
+  { method: 'GET', path: '/api/billing/form-options', action: 'billing:view-terms', resourceParam: null },
   { method: 'PUT', path: '/api/billing/profiles', action: 'billing:set-terms', resourceParam: null },
   { method: 'POST', path: '/api/billing/rate-cards/:id/versions', action: 'billing:set-terms', resourceParam: null },
   { method: 'GET', path: '/api/billing/rate-cards/:id', action: 'billing:view-terms', resourceParam: 'id' },

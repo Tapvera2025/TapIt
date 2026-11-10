@@ -1,6 +1,7 @@
 import { identityRequest } from '../../../identity/api/authApi.js';
 
-export interface BillingProfile { id:string; clientId:string; legalEntityId:string; currency:string; timezone:string; paymentTermsDays:number; creditLimit:string; creditControl:string; poRequired:boolean; billingContactName:string|null; billingContactEmail:string|null; status:string; version:number; }
+export interface BillingProfile { id:string; clientId:string; legalEntityId:string; currency:string; timezone:string; paymentTermsDays:number; creditLimit:string; creditControl:string; poRequired:boolean; billingContactName:string|null; billingContactEmail:string|null; billingContactPhone:string|null; status:string; version:number; }
+export interface FormOptions { clients:Array<{id:string;clientName:string;businessName:string|null;currency:string}>; legalEntities:Array<{id:string;code:string;legalName:string;baseCurrency:string;timezone:string}>; supportedCurrencies:string[]; }
 export interface RateCard { id:string; name:string; description:string|null; status:string; versions?: Array<{ id:string; versionNumber:number; effectiveFrom:string; effectiveTo:string|null; lines?: Array<{ serviceKey:string; pricingModel:string; roleCode:string|null; projectType:string|null; unitRate:string; currency:string }> }>; }
 export interface Contract { id:string; clientId:string; legalEntityId:string; contractNumber:string; title:string; currency:string; billingModel:string; startDate:string; endDate:string|null; status:string; version:number; renewalTermMonths:number|null; autoRenew:boolean; renewalNoticeDays:number; retainerQuantity:string|null; retainerUnit:string|null; overageRate:string|null; signedStatus:string; }
 export interface Schedule { id:string; contractId:string; recurrence:string; localTimezone:string; billingDay:number|null; nextBillDate:string; status:string; generationKey:string; }
@@ -8,6 +9,7 @@ export interface BillableEvent { id:string; clientId:string; contractId:string|n
 export interface ContractDocument { id:string; contractId:string; originalFilename:string; mimeType:string; sizeBytes:number; sha256:string; createdAt:string; }
 const request = <T>(path:string, init?:RequestInit) => identityRequest<T>(path, init);
 export const listBillingProfiles = () => request<BillingProfile[]>('/api/billing/profiles');
+export const getFormOptions = () => request<FormOptions>('/api/billing/form-options');
 export const saveBillingProfile = (body:Record<string,unknown>) => request<BillingProfile>('/api/billing/profiles', { method:'PUT', body:JSON.stringify(body) });
 export const listRateCards = () => request<RateCard[]>('/api/billing/rate-cards');
 export const getRateCard = (id:string) => request<RateCard>(`/api/billing/rate-cards/${id}`);
