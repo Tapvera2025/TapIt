@@ -2,7 +2,8 @@ import type { RequestContext } from '../../platform/dal/context.js';
 type NotifyCtx = Pick<RequestContext, 'organizationId' | 'principal'>;
 import type { Tx } from '../../platform/dal/db.js';
 import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
-import type { ConversationKind, ReactionEmoji } from './types.js';
+import { previewText } from './plain-text.js';
+import type { AttachmentKind, ConversationKind, ReactionEmoji } from './types.js';
 
 /**
  * Chat notifications. Same pattern as tasks/notifications.ts and
@@ -15,7 +16,19 @@ import type { ConversationKind, ReactionEmoji } from './types.js';
  * actor is never notified about their own action.
  */
 const MESSAGES_LINK = '/company/messages';
-const clip = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+/**
+ * What a notification says about a message: its text without formatting
+ * markers, or — for a files-only message — what was shared.
+ */
+export function messageSummary(body: string, attachments: readonly { kind: AttachmentKind; fileName: string }[] = []): string {
+  const text = previewText(body, 500);
+  if (text) return attachments.length > 0 ? `📎 ${text}` : text;
+  if (attachments.length === 0) return '';
+  if (attachments.length > 1) return `📎 ${attachments.length} files`;
+  const [only] = attachments;
+  return only!.kind === 'image' ? '📷 Photo' : `📎 ${only!.fileName}`;
+}
 
 /**
  * Every chat notification's link points at a specific conversation (and,
@@ -36,7 +49,7 @@ export async function notifyNewMessage(
   ctx: NotifyCtx,
   conversation: { id: string; kind: ConversationKind; name: string | null },
   senderName: string,
-  body: string,
+  summary: string,
   messageId: string,
   recipientIds: readonly string[],
 ): Promise<void> {
@@ -50,7 +63,7 @@ export async function notifyNewMessage(
     type: NOTIFICATION_TYPES.CHAT_MESSAGE,
     audience: { users: audience },
     title,
-    body: clip(body, 500),
+    body: summary,
     link: conversationLink(conversation.id, messageId),
     metadata: { conversationId: conversation.id, kind: conversation.kind },
   });
@@ -116,6 +129,23 @@ export async function notifyGroupMembersAdded(
     title: `You were added to ${conversation.name ?? 'a group'}`,
     link: conversationLink(conversation.id),
     metadata: { conversationId: conversation.id },
+  });
+}
+
+/** A scheduled message could not be sent when it fell due (the sender left, the group was archived…). */
+export async function notifyScheduledFailed(
+  tx: Tx,
+  ctx: NotifyCtx,
+  input: { senderId: string; conversationId: string; conversationName: string | null; reason: string },
+): Promise<void> {
+  await notify(tx, ctx, {
+    type: NOTIFICATION_TYPES.CHAT_SCHEDULED_FAILED,
+    priority: 'operational',
+    audience: { users: [input.senderId] },
+    title: 'A scheduled message was not sent',
+    body: input.reason,
+    link: conversationLink(input.conversationId),
+    metadata: { conversationId: input.conversationId },
   });
 }
 

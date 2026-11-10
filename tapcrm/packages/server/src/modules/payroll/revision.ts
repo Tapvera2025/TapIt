@@ -1,4 +1,5 @@
 import type { RequestContext } from '../../platform/dal/context.js';
+import { settlePaidSources } from './source-settlers.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { DateOnly } from '@tapcrm/contracts';
@@ -198,6 +199,8 @@ export async function reviseSlip(
           revision_number = ${newRevisionNumber}, previous_slip_id = ${input.slipId}::uuid
       WHERE id = ${draftSlipId}::uuid AND organization_id = ${ctx.organizationId}
     `);
+    // A revision can pay a recovery or penalty the first payslip missed.
+    await settlePaidSources(tx, ctx.organizationId, [draftSlipId]);
 
     const components = (slip: {
       grossPaise: string;

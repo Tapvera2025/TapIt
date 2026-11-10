@@ -287,6 +287,20 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   },
   'callbacks:view': { title: 'See callbacks', description: 'See scheduled callbacks.' },
 
+  // Client meetings
+  'meetings:host': {
+    title: 'Meet clients',
+    description: 'Clients of their projects can ask them for a meeting; they answer requests and book Google Meet calls. A wider reach also lets them answer, move or cancel the meetings of the people in it.',
+  },
+  'meetings:view': {
+    title: 'See client meetings',
+    description: 'See who is meeting which client, and which requests were declined, moved or cancelled.',
+  },
+  'meetings:join': {
+    title: 'Join client meetings',
+    description: 'Join a client meeting they were not invited to. Every join is recorded.',
+  },
+
   // Sales — Call Analytics (JustCall / Aircall)
   'telephony:view': {
     title: 'See calls and call analytics',

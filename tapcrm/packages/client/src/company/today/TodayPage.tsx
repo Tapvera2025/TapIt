@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { loadTodayStatus, punch, type PunchKind, type LiveRow, type PunchDisabledReason } from '../live/liveApi.js';
 import { getBreakAllowance, getBreakPrompts, submitBreachExplanation, type BreakAllowance, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
-import { Button, GlassSurface, SkeletonTodayPage, WorkspacePageContainer } from '../../ui/index.js';
+import { Button, GlassSurface, Modal, SkeletonTodayPage, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
@@ -151,6 +151,47 @@ function IconPlay({ className = 'h-4 w-4' }: { className?: string }): React.JSX.
   );
 }
 
+// ── Punch-out confirmation ──────────────────────────────────────────────────
+
+/**
+ * A punch-out finishes the day (LS-6): there is no punching in again without a
+ * correction. Before the shift ends, the dialog says so and offers a break.
+ */
+function PunchOutConfirm({
+  shiftEndAt,
+  now,
+  canStartBreak,
+  onCancel,
+  onBreak,
+  onConfirm,
+}: {
+  shiftEndAt: string | null;
+  now: Date;
+  canStartBreak: boolean;
+  onCancel: () => void;
+  onBreak: () => void;
+  onConfirm: () => void;
+}): React.JSX.Element {
+  const early = shiftEndAt !== null && now.getTime() < Date.parse(shiftEndAt);
+  return (
+    <Modal title="Punch out for the day?" onClose={onCancel}>
+      <p className="text-sm text-app-muted">
+        {early
+          ? `Your shift ends at ${fmtTime12(shiftEndAt)}. Punching out now ends your working day, and you can't punch in again today without asking HR for a correction.`
+          : 'This ends your working day.'}
+      </p>
+      {early && canStartBreak && (
+        <p className="mt-2 text-sm text-app-muted">Stepping out for a while? Start a break instead.</p>
+      )}
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <Button kind="secondary" onClick={onCancel}>Cancel</Button>
+        {early && canStartBreak && <Button kind="secondary" onClick={onBreak}>Start break instead</Button>}
+        <Button kind={early ? 'danger' : 'primary'} onClick={onConfirm}>Punch out</Button>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Greeting Card ────────────────────────────────────────────────────────────
 
 const DISABLED_REASON_COPY: Record<PunchDisabledReason, string> = {
@@ -201,7 +242,7 @@ function GreetingCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <StatusPill state={state} isWfh={row?.isWfh ?? false} />
+        <StatusPill state={state} isWfh={row?.isWfh ?? false} isRemote={row?.isRemote ?? false} />
         {(row?.shiftStartAt || row?.shiftEndAt) && (
           <span className="text-xs text-app-muted">
             Shift: {fmtTime12(row?.shiftStartAt ?? null)} – {fmtTime12(row?.shiftEndAt ?? null)}
@@ -252,12 +293,12 @@ function GreetingCard({
 
 // ── Status Pill ──────────────────────────────────────────────────────────────
 
-function StatusPill({ state, isWfh }: { state: string; isWfh?: boolean }): React.JSX.Element {
+function StatusPill({ state, isWfh, isRemote }: { state: string; isWfh?: boolean; isRemote?: boolean }): React.JSX.Element {
   if (state === 'WORKING') {
     return (
       <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-        {isWfh ? 'Working from Home' : 'Currently In Office'}
+        {isWfh ? 'Working from Home' : isRemote ? 'Working remotely (no WFH approval)' : 'Currently In Office'}
       </span>
     );
   }
@@ -586,7 +627,7 @@ function buildActivityItems(
     let sub = '';
     if (kind === 'in') {
       lastInTime = atMs;
-      sub = row?.isWfh ? 'WFH' : 'Office';
+      sub = row?.isWfh ? 'WFH' : row?.isRemote ? 'Remote, no WFH approval' : 'Office';
     } else if (kind === 'break-start' && lastInTime && atMs) {
       workedBeforeBreak = Math.round((atMs - lastInTime) / 60000);
       sub = workedBeforeBreak > 0 ? `After ${fmtShortDuration(workedBeforeBreak)} of work` : '';
@@ -652,6 +693,8 @@ export function TodayPage({
   const [now, setNow] = useState(() => new Date());
   const [punchBusy, setPunchBusy] = useState<PunchKind | null>(null);
   const [punchMessage, setPunchMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  // Punching out ends the day for good (LS-6), so it is confirmed first.
+  const [confirmingOut, setConfirmingOut] = useState(false);
   const [isTabletOrLarger, setIsTabletOrLarger] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const abort = useRef<AbortController | null>(null);
   const [version, setVersion] = useState(0);
@@ -769,7 +812,7 @@ export function TodayPage({
                 now={now}
                 busy={punchBusy}
                 msg={punchMessage}
-                onPunch={(kind, label) => void handlePunch(kind, label)}
+                onPunch={(kind, label) => (kind === 'out' ? setConfirmingOut(true) : void handlePunch(kind, label))}
                 breakActionButton={isTabletOrLarger ? null : breakActionButton}
               />
             </div>
@@ -785,6 +828,16 @@ export function TodayPage({
         {/* Break prompts (if any) */}
         {prompts.length > 0 && <BreakPromptsPanel prompts={prompts} />}
       </WorkspacePageContainer>
+      {confirmingOut && (
+        <PunchOutConfirm
+          shiftEndAt={row?.shiftEndAt ?? null}
+          now={now}
+          canStartBreak={row?.state === 'WORKING' && allowedMoves.includes('break-start')}
+          onCancel={() => setConfirmingOut(false)}
+          onBreak={() => { setConfirmingOut(false); void handlePunch('break-start', 'Break Start'); }}
+          onConfirm={() => { setConfirmingOut(false); void handlePunch('out', 'Punch Out'); }}
+        />
+      )}
     </>
   );
 }

@@ -374,6 +374,32 @@ describe.skipIf(!enabled)('correction workflow (PostgreSQL)', () => {
     expect(row!.status).toBe('pending');
   });
 
+  it('missed both punches: the check-out is accepted once the check-in is requested, and both approve in either order', async () => {
+    const subjectCtx = ctxAs(SUBJECT, POS_EMP);
+    const day = d('2026-08-31'); // nothing punched on this day
+    const ask = (kind: 'in' | 'out', at: string) => requestCorrection(subjectCtx, {
+      kind: 'add-event', workDate: day,
+      reason: 'Device was down all day, I was in office from morning to evening',
+      payload: { kind, at: ist(at).toISOString() },
+    }, CLOCK_NOW);
+
+    // A check-out alone has nothing before it: refused, with a message that says why.
+    await expect(ask('out', '2026-08-31T18:30:00')).rejects.toThrow(/has no check-in before it/);
+    const first = await ask('in', '2026-08-31T09:30:00');
+    const second = await ask('out', '2026-08-31T18:30:00');
+
+    const hr2 = ctxAs(HR2, POS_HR2);
+    await approveCorrection(hr2, second.correctionId, {}, CLOCK_NOW); // out first
+    await approveCorrection(hr2, first.correctionId, {}, CLOCK_NOW);
+
+    const events = await asOwner('read paired events', sql`
+      SELECT e.kind FROM attendance_event e
+      WHERE e.correction_id IN (${first.correctionId}, ${second.correctionId}) AND e.is_void = false
+      ORDER BY e.occurred_at
+    `) as { kind: string }[];
+    expect(events.map((e) => e.kind)).toEqual(['in', 'out']);
+  });
+
   // ── Case 7: void increments input_version and writes outbox ─────────────
 
   it('void-only approval bumps input_version and writes recalc-requested outbox', async () => {

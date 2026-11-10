@@ -208,17 +208,22 @@ export function formatCurrencyLabel(currency: string): string {
   return `${code} `;
 }
 
+/**
+ * The chance of winning the forecast uses for this deal. Matches
+ * DEFAULT_STAGE_PROBABILITY in server/src/modules/sales/deals/probability.ts,
+ * so the deal page shows the same number the reports use.
+ */
 export function formatProbability(deal: Deal): string {
   if (deal.probabilityOverride !== null) return `${deal.probabilityOverride}%`;
   switch (deal.dealStage) {
     case 'discovery':
-      return '10%';
+      return '20%';
     case 'proposal':
-      return '25%';
+      return '40%';
     case 'negotiation':
-      return '50%';
+      return '60%';
     case 'closing':
-      return '75%';
+      return '85%';
     case 'closed':
       return deal.lifecycleStatus === 'won' ? '100%' : '0%';
   }

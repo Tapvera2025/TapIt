@@ -14,7 +14,10 @@ import { ApplicationError } from '../../errors.js';
 import { SearchConsoleConfigurationError, SearchConsoleUnavailableError } from '../../platform/integrations/google/search-console.js';
 import { SeoSiteValidationError } from './errors.js';
 import { crawlDiscoverHandle, serpObserveHandle, cruxFetchHandle, lighthouseAuditHandle } from './jobs.js';
-import { getRankTrackingStatus } from './rank-tracking.js';
+import { getRankTrackingStatus, RANK_BATCH_LIMIT } from './rank-tracking.js';
+import { ensureScanConfig, getScanConfig, updateScanConfig, SCAN_LIMITS, type ScanConfig } from './scan-config.js';
+import { getSiteAllowances, setSiteAllowances } from './provider-allowance.js';
+import { renderingAvailable } from './crawler/render.js';
 import { getPerformanceStatus, setPerformanceStatus } from './performance.js';
 import { provisionSeoRules } from './provisioning.js';
 
@@ -111,15 +114,8 @@ export async function triggerScan(
       ORDER BY queued_at DESC LIMIT 1
     `);
     if (active) return { scanRunId: active.id, reused: true };
-    const config = await tx.maybeOne<{ id: string }>(sql`
-      SELECT id FROM seo_scan_configs WHERE organization_id = ${ctx.organizationId} AND site_id = ${site.id}
-      ORDER BY created_at DESC LIMIT 1
-    `);
-    const configId = config?.id ?? randomUUID();
-    if (!config) await tx.query(sql`
-      INSERT INTO seo_scan_configs (id, organization_id, site_id, max_pages, concurrency, render_policy, max_render_pages)
-      VALUES (${configId}, ${ctx.organizationId}, ${site.id}, 100, 1, 'never', 0)
-    `);
+    // Manual and scheduled checkups share one set of per-site settings.
+    const configId = (await ensureScanConfig(tx, ctx.organizationId, site.id)).id;
     const scanRunId = randomUUID();
     await createScanRun(tx, { id: scanRunId, organizationId: ctx.organizationId, siteId: site.id,
       configId, ruleReleaseId: 'v1', triggeredBy });
@@ -222,7 +218,7 @@ export async function getFindingGroups(ctx: RequestContext, siteId: string) {
     FROM seo_findings
     WHERE organization_id = ${ctx.organizationId}
       AND site_id = ${siteId}
-      AND status = 'open'
+      AND status IN ('open', 'assigned', 'in_progress', 'reopened')
     GROUP BY rule_id, severity
     ORDER BY MAX(priority_score) DESC NULLS LAST, COUNT(*) DESC
   `);
@@ -261,9 +257,61 @@ export async function getKeywords(ctx: RequestContext, siteId: string) {
   return db.query(ctx, sql`
     SELECT * FROM seo_keywords
     WHERE organization_id = ${ctx.organizationId} AND site_id = ${siteId}
-    ORDER BY search_volume DESC NULLS LAST, keyword ASC
+    ORDER BY tracked DESC, search_volume DESC NULLS LAST, keyword ASC
     LIMIT 500
   `);
+}
+
+/** Track or stop tracking a search term's Google position. */
+export async function setKeywordTracked(ctx: RequestContext, siteId: string, keywordId: string, tracked: boolean) {
+  await getSite(ctx, siteId);
+  const row = await db.maybeOne(ctx, sql`
+    UPDATE seo_keywords SET tracked = ${tracked}
+    WHERE organization_id = ${ctx.organizationId} AND site_id = ${siteId} AND id = ${keywordId}
+    RETURNING *
+  `);
+  if (!row) throw new ApplicationError('Search term not found.', 404, 'SEO_KEYWORD_NOT_FOUND');
+  return row;
+}
+
+// ─── Site settings ────────────────────────────────────────────────────────────
+
+export interface SiteSettings {
+  crawl: Omit<ScanConfig, 'id' | 'maxBytesPerPage'>;
+  renderingAvailable: boolean;
+  limits: typeof SCAN_LIMITS;
+  allowances: Awaited<ReturnType<typeof getSiteAllowances>>;
+}
+
+function settingsView(config: ScanConfig, allowances: SiteSettings['allowances']): SiteSettings {
+  const { id: _id, maxBytesPerPage: _bytes, ...crawl } = config;
+  return { crawl, renderingAvailable: renderingAvailable(), limits: SCAN_LIMITS, allowances };
+}
+
+export async function getSiteSettings(ctx: RequestContext, siteId: string): Promise<SiteSettings> {
+  await getSite(ctx, siteId);
+  return settingsView(await getScanConfig(ctx, siteId), await getSiteAllowances(ctx, siteId));
+}
+
+export async function patchSiteSettings(
+  ctx: RequestContext,
+  siteId: string,
+  patch: {
+    crawl?: { [K in keyof Omit<ScanConfig, 'id' | 'maxBytesPerPage'>]?: ScanConfig[K] | undefined } | undefined;
+    allowances?: { serpSearches?: number | undefined; perplexity?: number | undefined; moz?: number | undefined } | undefined;
+  },
+): Promise<SiteSettings> {
+  await getSite(ctx, siteId);
+  const crawl = Object.fromEntries(Object.entries(patch.crawl ?? {}).filter(([, v]) => v !== undefined));
+  if (crawl['renderPolicy'] !== undefined && crawl['renderPolicy'] !== 'never' && !renderingAvailable()) {
+    throw new SeoSiteValidationError('JavaScript rendering is not available on this server.');
+  }
+  const config = await updateScanConfig(ctx, siteId, crawl);
+  const allowancePatch = Object.fromEntries(Object.entries(patch.allowances ?? {}).filter(([, v]) => v !== undefined));
+  const allowances = Object.keys(allowancePatch).length > 0
+    ? await setSiteAllowances(ctx, siteId, allowancePatch)
+    : await getSiteAllowances(ctx, siteId);
+  return settingsView(config, allowances);
 }
 
 // ─── SERP Observations ────────────────────────────────────────────────────────
@@ -280,7 +328,7 @@ export async function queueRankCheck(ctx: RequestContext, siteId: string) {
   await serpObserveHandle.enqueue({ organizationId: ctx.organizationId,
     key: `rank-${siteId}-${Math.floor(Date.now() / 60000)}`,
     payload: { organizationId: ctx.organizationId, siteId } });
-  return { state: 'queued', batchLimit: 10 };
+  return { state: 'queued', batchLimit: RANK_BATCH_LIMIT };
 }
 
 export async function getSerpObservations(

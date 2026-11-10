@@ -198,11 +198,14 @@ export function Page({
 export function Card({
   children,
   className = '',
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  /** Lets a page point at the card (e.g. the sales guide scrolling to it). */
+  id?: string | undefined;
 }): React.JSX.Element {
-  return <section className={`ui-card p-5 ${className}`}>{children}</section>;
+  return <section id={id} className={`ui-card p-5 ${className}`}>{children}</section>;
 }
 
 export function Skeleton({ className = '' }: { className?: string }): React.JSX.Element {

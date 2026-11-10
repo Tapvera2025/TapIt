@@ -139,7 +139,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
     setFormError(null);
     try {
       const kind = mode === 'wfh' ? 'attendance-mode' : 'absence';
-      setLeaveTypes((await listAvailableLeaveTypes()).filter((type) => type.isActive && type.kind === kind));
+      setLeaveTypes((await listAvailableLeaveTypes(kind)).filter((type) => type.isActive && type.kind === kind));
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'Unable to load leave types.');
     } finally {
@@ -402,7 +402,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
                     <p className="font-semibold">{leave.leaveTypeName}</p>
                     <p className="text-xs text-app-muted">
                       {fmtDate(leave.fromDate)} — {fmtDate(leave.toDate)}
-                      {' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}
+                      {leave.kind === 'attendance-mode' ? ' · work from home' : <>{' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}</>}
                     </p>
                     {leave.reason && <p className="mt-1 text-xs text-app-muted">{leave.reason}</p>}
                   </div>

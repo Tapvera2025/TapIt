@@ -19,7 +19,12 @@ import { addDays, instantAt } from '../../platform/time.js';
  * board use, so they cannot disagree about when a day began or ended.
  */
 
-export const RULES_VERSION = 'attendance-rules/2';
+/**
+ * 3: on a half-day leave, lateness counts from the middle of the shift after a
+ * first-half leave, and an early exit to the middle of the shift before a
+ * second-half leave — the person is due only for the half they work.
+ */
+export const RULES_VERSION = 'attendance-rules/3';
 
 /** SH-4: flexible days use fixed thresholds, not settings. */
 const FLEXIBLE_HALF_DAY = 300;
@@ -263,7 +268,12 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
     flags.add('remote-without-approval'); // WFH-6
   }
 
-  // 7. Shift facts, fixed shifts on working days only.
+  // 7. Shift facts, fixed shifts on working days only. On an approved half-day
+  //    leave the person is due only for the other half (§8.3), split at the
+  //    middle of the shift exactly as the half-day judgement below splits it.
+  const halfLeaveKind =
+    input.overlays.find((o) => o.kind === 'leave-first-half' || o.kind === 'leave-second-half')
+      ?.kind ?? null;
   let lateMinutes = 0;
   let earlyExitMinutes = 0;
   let overtimeMinutes = 0;
@@ -274,16 +284,19 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
     departure !== null &&
     input.dayType === 'working'
   ) {
+    const split = shiftStart + (shiftEnd - shiftStart) / 2;
+    const dueFrom = halfLeaveKind === 'leave-first-half' ? split : shiftStart;
+    const dueUntil = halfLeaveKind === 'leave-second-half' ? split : shiftEnd;
     lateMinutes = Math.max(
       0,
       toMinutes(
-        Date.parse(arrival.at) - (shiftStart + input.shift.graceMinutes * 60_000),
+        Date.parse(arrival.at) - (dueFrom + input.shift.graceMinutes * 60_000),
       ),
     );
     earlyExitMinutes = Math.max(
       0,
       toMinutes(
-        shiftEnd - input.shift.earlyExitGraceMinutes * 60_000 - Date.parse(departure.at),
+        dueUntil - input.shift.earlyExitGraceMinutes * 60_000 - Date.parse(departure.at),
       ),
     );
     const extra = workedMinutes - toMinutes(shiftEnd - shiftStart);

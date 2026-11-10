@@ -104,8 +104,11 @@ export async function createLead(ctx: RequestContext, input: CreateLeadInput): P
   const ownerId = decision.type === 'SKIPPED' ? decision.ownerId : decision.type === 'ASSIGNED' ? decision.agentId : null;
   const routingStatus = ownerId ? 'assigned' as const : 'unrouted' as const;
   const status = ownerId && input.status === 'new' ? 'assigned' as const : input.status;
-  const resource = { type: 'lead' as const, id: 'new', organizationId: ctx.organizationId, ownerId, currentHolderId: ownerId, salesTeamId: decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.salesTeamId : null, salesPoolId: null, departmentId: null };
-  if (ownerId && !outbound) await assertManageScope(ctx, resource);
+  // The router, not the person typing, picks the owner of an inbound enquiry,
+  // so recording one needs only `leads:create` (checked by the route). Asking
+  // whether the creator could edit a lead owned by whoever routing picked made
+  // the Add lead form fail for everyone but Super Admin whenever an agent was
+  // free.
   return db.transaction(ctx, async (tx) => {
     const visibility = await visibilityFilter(ctx, 'leads:view', 'lead');
     const phone = normalizeLeadPhone(input.phone);
@@ -130,12 +133,15 @@ export async function createLead(ctx: RequestContext, input: CreateLeadInput): P
     // a later "queue for sales team" handover has a team to route into. The
     // pool is the agent's immediate team; the parent team (if any) is the
     // Sales Team.
-    if (ownerId) {
+    // An unrouted enquiry (nobody free to take it) stays with the creator's
+    // pool and team, so their supervisor and team lead see it waiting.
+    const homeUserId = ownerId ?? (salesTeamId === null ? ctx.principal.id : null);
+    if (homeUserId) {
       const owner = await tx.maybeOne<{ teamId: string | null; parentTeamId: string | null }>(sql`
         SELECT u.team_id AS "teamId", t.parent_team_id AS "parentTeamId"
           FROM app_user u
           LEFT JOIN team t ON t.organization_id = u.organization_id AND t.id = u.team_id
-         WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${ownerId}
+         WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${homeUserId}
       `);
       if (owner?.teamId) {
         salesPoolId = owner.teamId;

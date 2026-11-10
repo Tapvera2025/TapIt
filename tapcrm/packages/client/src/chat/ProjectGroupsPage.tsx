@@ -21,11 +21,13 @@ export function ProjectGroupsPage({
   canManageProjects,
   initialConversationId,
   initialMessageId,
+  initialNonce,
 }: {
   currentUserId: string;
   canManageProjects: boolean;
   initialConversationId?: string | undefined;
   initialMessageId?: string | undefined;
+  initialNonce?: number | undefined;
 }): React.JSX.Element {
   const chat = useChat('project');
   const [managingId, setManagingId] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export function ProjectGroupsPage({
         conversationLabel={label}
         initialConversationId={initialConversationId}
         initialMessageId={initialMessageId}
+        initialNonce={initialNonce ?? 0}
         {...(canManageProjects ? { headerExtra: (conversation: Conversation) => <Button kind="secondary" onClick={() => openManage(conversation.id)} className="px-3 py-1.5 text-xs">Manage</Button> } : {})}
       />
       {managingConversation && (

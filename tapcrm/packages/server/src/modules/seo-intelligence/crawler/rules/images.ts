@@ -37,7 +37,7 @@ export const IMAGES_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'A003', ruleVersion: 'v1', group: 'images', severity: 'low', active: true, tested: true,
+  ruleId: 'A003', ruleVersion: 'v1', group: 'images', severity: 'low', active: true, tested: false,
   evaluate(obs: PageObservation): RuleResult {
     const oversized = obs.images.filter((img) => img.fileSizeBytes !== null && img.fileSizeBytes > 500_000);
     if (oversized.length > 0) {

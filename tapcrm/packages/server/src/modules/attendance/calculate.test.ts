@@ -118,6 +118,22 @@ describe('§8.3 worked examples — status and units (present / paid leave / unp
     expect([r.status, ...units(r)]).toEqual(['half-day-leave', 1, 1, 0, 0, 0]);
   });
 
+  it('first-half leave, in at 13:30 for the afternoon → not late: the day is due from 13:30', () => {
+    // DAY is 09:00–18:00, so the halves split at 13:30; grace is 10 minutes.
+    const onTime = day({ events: workday('13:30:00', '18:00:00'), overlays: [overlay('leave-first-half')] });
+    expect([onTime.lateMinutes, onTime.earlyExitMinutes, onTime.flags.includes('late')]).toEqual([0, 0, false]);
+    const late = day({ events: workday('14:00:00', '18:00:00'), overlays: [overlay('leave-first-half')] });
+    expect(late.lateMinutes).toBe(20);
+  });
+
+  it('second-half leave, out at 13:30 after the morning → no early exit: the day is due until 13:30', () => {
+    const r = day({ events: workday('09:00:00', '13:30:00'), overlays: [overlay('leave-second-half')] });
+    expect([r.status, r.lateMinutes, r.earlyExitMinutes, r.flags.includes('early-exit')])
+      .toEqual(['half-day-leave', 0, 0, false]);
+    const early = day({ events: workday('09:00:00', '12:30:00'), overlays: [overlay('leave-second-half')] });
+    expect(early.earlyExitMinutes).toBe(60);
+  });
+
   it('first-half unpaid leave, no punch → half-day-leave, absent for the other half', () => {
     const r = day({ overlays: [overlay('leave-first-half', { paid: false })] });
     expect([r.status, ...units(r)]).toEqual(['half-day-leave', 0, 0, 1, 1, 0]);

@@ -27,7 +27,7 @@ function ManagerOverview({ isManager, canViewLeads, canViewTerritories, canViewC
     <Page
       eyebrow="Sales"
       title="Sales Overview"
-      description="See where leads are waiting, how coverage is set up, and what needs attention today."
+      description="Where leads are waiting and what needs attention today."
       action={<Button onClick={() => onNavigate('/company/sales/my-work')}>Open My Work</Button>}
     >
       <div className="grid gap-5 xl:grid-cols-2">
@@ -40,7 +40,7 @@ function ManagerOverview({ isManager, canViewLeads, canViewTerritories, canViewC
         <h2 className="font-display text-lg font-bold">Go to a Sales workspace</h2>
         <div className="mt-4 flex flex-wrap gap-2">
           {canViewLeads && <Button kind="secondary" onClick={() => onNavigate('/company/sales/leads')}>Leads</Button>}
-          {isManager && <Button kind="secondary" onClick={() => onNavigate('/company/sales/triage')}>Review unclaimed leads</Button>}
+          {isManager && <Button kind="secondary" onClick={() => onNavigate('/company/sales/triage')}>Triage: leads with no owner</Button>}
           {canViewCallbacks && <Button kind="secondary" onClick={() => onNavigate('/company/sales/callbacks')}>Callbacks</Button>}
           {canForecast && <Button kind="secondary" onClick={() => onNavigate('/company/sales/reports')}>Performance reports</Button>}
           <Button kind="secondary" onClick={() => onNavigate('/company/sales/setup')}>Setup checklist</Button>
@@ -90,7 +90,7 @@ function CoverageAndRoutingCard({ onNavigate }: { onNavigate: (path: string) => 
           <div className="mt-4 grid grid-cols-3 gap-3">
             <MiniMetric label="Active territories" value={active.length} />
             <MiniMetric label="Sales teams" value={new Set(active.map((item) => item.salesTeamId)).size} />
-            <MiniMetric label="Child pools" value={poolCount} />
+            <MiniMetric label="Bid Pools" value={poolCount} />
           </div>
           <p className="mt-4 rounded-lg bg-app-background p-3 text-sm">
             Routing is <strong>{routing ? (routing.enabled ? 'on' : 'off') : 'unknown'}</strong>

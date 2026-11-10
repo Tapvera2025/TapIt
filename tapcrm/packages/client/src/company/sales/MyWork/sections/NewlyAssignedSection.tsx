@@ -3,6 +3,7 @@ import { Card } from '../../../../ui/index.js';
 import { getLeads, type Lead } from '../../leads/api.js';
 import { assignedTime, partitionLeads, relativeTime } from '../myWork-helpers.js';
 import { MyWorkSection } from './Shell.js';
+import { MY_WORK_ANCHORS } from '../../guide/page-guidance.js';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -46,11 +47,12 @@ export function NewlyAssignedSection({
 
   return (
     <MyWorkSection
-      title="Newly assigned"
+      id={MY_WORK_ANCHORS.newlyAssigned}
+      title="New leads to call"
       count={newlyAssigned.length}
       urgent={newlyAssigned.length > 0}
       error={error}
-      empty="No leads waiting on their first contact."
+      empty="No new leads waiting for a first call."
     >
       <Card className="p-0">
         <ul className="divide-y divide-app-border">

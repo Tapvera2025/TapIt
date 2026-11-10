@@ -36,6 +36,18 @@ export class SsrfBlockedError extends Error {
   }
 }
 
+/**
+ * The host does not resolve. Still a guard refusal (nothing was sent), but the
+ * crawler reports it as "address not found" rather than as a safety block.
+ */
+export class HostNotFoundError extends SsrfBlockedError {
+  readonly hostname: string;
+  constructor(hostname: string) {
+    super(`DNS resolution failed for "${hostname}"`);
+    this.hostname = hostname;
+  }
+}
+
 export function validateScheme(url: URL): void {
   if (!ALLOWED_SCHEMES.has(url.protocol)) {
     throw new SsrfBlockedError(`scheme "${url.protocol}" is not permitted`);
@@ -96,7 +108,7 @@ export async function guardUrl(rawUrl: string): Promise<void> {
     const result = await lookup(url.hostname, { all: true });
     addresses = result.map((r) => r.address);
   } catch {
-    throw new SsrfBlockedError(`DNS resolution failed for "${url.hostname}"`);
+    throw new HostNotFoundError(url.hostname);
   }
 
   if (addresses.length === 0) {

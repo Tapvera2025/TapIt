@@ -32,7 +32,12 @@ export function ClientProjectPage({ id, onNavigate, onError }: { id: string; onN
   if (!project) return <Page title="Project" action={back}><Loading /></Page>;
 
   return (
-    <Page eyebrow="Project" title={project.name} action={back}>
+    <Page eyebrow="Project" title={project.name} action={(
+      <div className="flex flex-wrap items-center gap-3">
+        <PortalLink href={`/client/meetings?project=${encodeURIComponent(project.id)}`} onNavigate={onNavigate} className="ui-button ui-primary rounded-xl px-4 py-2.5 text-sm font-bold">Request a meeting</PortalLink>
+        {back}
+      </div>
+    )}>
       <Card className="p-4 sm:p-6">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-lg font-bold">Overview</h2>

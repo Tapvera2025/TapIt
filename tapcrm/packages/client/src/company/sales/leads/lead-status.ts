@@ -42,6 +42,24 @@ const LOSS_REASON_LABELS: Readonly<Record<string, string>> = {
   unspecified: 'Not specified',
 };
 
+const STATUS_MEANINGS: Readonly<Record<string, string>> = {
+  new: 'Just came in. Nobody owns it yet.',
+  assigned: 'Has an owner, waiting for the first call.',
+  contacted: 'Someone has spoken to them.',
+  discovery: 'Working out exactly what they need.',
+  proposal_sent: 'An offer or quote has gone out.',
+  follow_up: 'Waiting on their decision. Keep following up.',
+  callback_scheduled: 'A callback is booked.',
+  nurture: 'Not ready yet. Keep in touch.',
+  converted: 'Turned into a deal.',
+  closed_lost: 'Closed. They are not going ahead.',
+};
+
+/** What a status means, in a sentence. */
+export function leadStatusMeaning(status: string): string {
+  return STATUS_MEANINGS[status] ?? '';
+}
+
 export function leadStatusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status.replaceAll('_', ' ');
 }

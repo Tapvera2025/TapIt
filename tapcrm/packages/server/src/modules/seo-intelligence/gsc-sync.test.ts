@@ -25,7 +25,10 @@ describe('GSC performance import', () => {
     expect(resolveGscProperty('https://tapvera.io', [owner('sc-domain:tapvera.io'), owner('https://tapvera.io/')])).toBe('https://tapvera.io/');
     expect(resolveGscProperty('https://blog.tapvera.io/', [owner('sc-domain:tapvera.io')])).toBe('sc-domain:tapvera.io');
     expect(() => resolveGscProperty('https://eviltapvera.io', [owner('sc-domain:tapvera.io')])).toThrow(SearchConsoleConfigurationError);
-    expect(() => resolveGscProperty('https://tapvera.io', [owner('https://www.tapvera.io/')])).toThrow(SearchConsoleConfigurationError);
+    // www. and the bare host are one website; an exact prefix still wins.
+    expect(resolveGscProperty('https://tapvera.io', [owner('https://www.tapvera.io/')])).toBe('https://www.tapvera.io/');
+    expect(resolveGscProperty('https://tapvera.io', [owner('https://www.tapvera.io/'), owner('https://tapvera.io/')])).toBe('https://tapvera.io/');
+    expect(() => resolveGscProperty('https://tapvera.io', [owner('http://www.tapvera.io/')])).toThrow(SearchConsoleConfigurationError);
   });
 
   it('requests daily dimensions and stores the date separately from the device', async () => {

@@ -132,8 +132,10 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
 
   useEffect(() => { loadMyCorrections(); }, []);
   const [correctionKind, setCorrectionKind] = useState<'add-event' | 'replace-event' | 'void-event'>('add-event');
-  const [correctionEventKind, setCorrectionEventKind] = useState<'in' | 'out' | 'break-start' | 'break-end'>('in');
+  const [correctionEventKind, setCorrectionEventKind] = useState<'in' | 'out' | 'break-start' | 'break-end' | 'in-out'>('in');
   const [correctionAt, setCorrectionAt] = useState('');
+  // Second time for the 'Check-in and check-out' choice: both punches were missed.
+  const [correctionOutAt, setCorrectionOutAt] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
   const [correctionTargetId, setCorrectionTargetId] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -273,6 +275,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
       } else if (correctionKind === 'replace-event') {
         if (!correctionTargetId) { setCorrectionError('Select event to change.'); setSubmitting(false); return; }
         if (!correctionAt) { setCorrectionError('Select the new date/time.'); setSubmitting(false); return; }
+        if (correctionEventKind === 'in-out') { setCorrectionError('Choose which event the change is for.'); setSubmitting(false); return; }
         body = { workDate: selectedDate, reason: correctionReason, kind: 'replace-event', payload: { targetEventId: correctionTargetId, kind: correctionEventKind, at: organizationLocalToIso(correctionAt, organizationTimezone) } };
       } else {
         if (!correctionAt) { setCorrectionError('Select date/time for the event.'); setSubmitting(false); return; }
@@ -280,7 +283,16 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
         // browser interprets in the user's local tz. Convert it to the ORG's
         // local wall-clock so an operator in a different browser tz still
         // records the event at the time they typed.
-        body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: correctionEventKind, at: organizationLocalToIso(correctionAt, organizationTimezone) } };
+        if (correctionEventKind === 'in-out') {
+          if (!correctionOutAt) { setCorrectionError('Select the check-out time too.'); setSubmitting(false); return; }
+          if (correctionOutAt <= correctionAt) { setCorrectionError('The check-out must be after the check-in.'); setSubmitting(false); return; }
+          // Two requests, check-in first: the server reads the pending check-in
+          // with the check-out, so HR can approve them in either order.
+          await requestAttendanceCorrection({ workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: 'in', at: organizationLocalToIso(correctionAt, organizationTimezone) } });
+          body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: 'out', at: organizationLocalToIso(correctionOutAt, organizationTimezone) } };
+        } else {
+          body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: correctionEventKind, at: organizationLocalToIso(correctionAt, organizationTimezone) } };
+        }
       }
       await requestAttendanceCorrection(body);
       setCorrectionNotice('Correction requested. HR will review it; you can follow it below.');
@@ -288,6 +300,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
       setShowCorrectionForm(false);
       setCorrectionReason('');
       setCorrectionAt('');
+      setCorrectionOutAt('');
       setDetail(null);
       setDetailLoading(true);
       void (async () => {
@@ -441,12 +454,13 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
                   >
                     <option value="in">Check-in</option>
                     <option value="out">Check-out</option>
+                    <option value="in-out">Check-in and check-out</option>
                     <option value="break-start">Break start</option>
                     <option value="break-end">Break end</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-app-muted">Date & time</label>
+                  <label className="block text-xs font-semibold text-app-muted">{correctionEventKind === 'in-out' ? 'Check-in date & time' : 'Date & time'}</label>
                   <input
                     type="datetime-local"
                     value={correctionAt}
@@ -454,6 +468,17 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
                     className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
                   />
                 </div>
+                {correctionEventKind === 'in-out' && (
+                  <div className="sm:col-start-2">
+                    <label className="block text-xs font-semibold text-app-muted">Check-out date & time</label>
+                    <input
+                      type="datetime-local"
+                      value={correctionOutAt}
+                      onChange={(e) => setCorrectionOutAt(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                )}
               </div>
             )}
 

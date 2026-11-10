@@ -9,10 +9,10 @@ function pass(ruleId: string): RuleResult {
 
 export const CONTENT_RULES: RuleDefinition[] = [
 {
-  ruleId: 'T001', ruleVersion: 'v1', group: 'content', severity: 'high', active: true, tested: true,
+  ruleId: 'T001', ruleVersion: 'v1', group: 'content', severity: 'moderate', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
     if (obs.wordCount !== null && obs.wordCount < 50) {
-      return { ruleId: 'T001', ruleVersion: 'v1', result: 'fail', severity: 'high', confidence: 'direct',
+      return { ruleId: 'T001', ruleVersion: 'v1', result: 'review', severity: 'moderate', confidence: 'direct',
         affectedTarget: obs.url,
         evidence: { url: obs.url, word_count: obs.wordCount },
         proposedFix: 'This page has very little visible text content. Add meaningful body copy or mark the page as noindex if it is intentionally thin.' };
@@ -48,16 +48,16 @@ export const CONTENT_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'T004', ruleVersion: 'v1', group: 'content', severity: 'high', active: true, tested: true,
+  ruleId: 'T004', ruleVersion: 'v1', group: 'content', severity: 'informational', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
     const { title, h1Text } = obs;
     if (!title || !h1Text) return pass('T004');
     const norm = (s: string) => s.toLowerCase().trim();
     if (norm(title) === norm(h1Text)) {
-      return { ruleId: 'T004', ruleVersion: 'v1', result: 'review', severity: 'high', confidence: 'direct',
+      return { ruleId: 'T004', ruleVersion: 'v1', result: 'review', severity: 'informational', confidence: 'direct',
         affectedTarget: obs.url,
         evidence: { url: obs.url, title, h1: h1Text },
-        proposedFix: 'The <title> and <h1> are identical. Consider differentiating them: the title can be more keyword-rich while the <h1> focuses on the reader.' };
+        proposedFix: 'The <title> and <h1> are identical. That is fine for search engines; differentiate them only if a longer, more descriptive title would serve searchers better.' };
     }
     return pass('T004');
   },
@@ -93,10 +93,10 @@ export const CONTENT_RULES: RuleDefinition[] = [
   ruleId: 'T009', ruleVersion: 'v1', group: 'content', severity: 'moderate', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
     if (obs.contentHash && obs.duplicateOfUrl) {
-      return { ruleId: 'T009', ruleVersion: 'v1', result: 'fail', severity: 'moderate', confidence: 'inferred',
+      return { ruleId: 'T009', ruleVersion: 'v1', result: 'fail', severity: 'moderate', confidence: 'direct',
         affectedTarget: obs.url,
         evidence: { url: obs.url, duplicate_of: obs.duplicateOfUrl, content_hash: obs.contentHash },
-        proposedFix: `Near-duplicate content detected. Canonicalize to ${obs.duplicateOfUrl} or differentiate the content meaningfully.` };
+        proposedFix: `This page shows the same text as ${obs.duplicateOfUrl} and neither names the other as canonical. Point a rel="canonical" at the version you want in search, redirect the copy, or make the content distinct.` };
     }
     return pass('T009');
   },

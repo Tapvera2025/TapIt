@@ -17,6 +17,8 @@ const HR_MODULES = [
   'holidays',
   'ta',
   'payroll',
+  'advance',
+  'penalties',
   'performance',
   'recruitment',
 ] as const;

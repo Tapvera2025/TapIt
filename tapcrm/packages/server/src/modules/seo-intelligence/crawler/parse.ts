@@ -1,75 +1,119 @@
 import { createHash } from 'node:crypto';
 import type { PageObservation, OutboundLink, PageImage, HreflangTag } from './rules/index.js';
 import type { FetchResult } from './http.js';
+import { hostKey, normalizeUrl } from '../url.js';
 
 export interface ParseInput {
-  siteOrigin: string;
+  /** The site's address. Used for internal-link detection when `siteHosts` is not given. */
+  siteOrigin?: string;
+  /** Host keys (lower case, no `www.`) that belong to this website. */
+  siteHosts?: ReadonlySet<string>;
   fetch: FetchResult;
+  /** The URL this page is recorded under. Defaults to the normalized final URL. */
+  url?: string;
 }
 
+/** Links stored per page. Pages with more are rare and the counts stay meaningful. */
+const MAX_LINKS = 2000;
+const MAX_IMAGES = 500;
+
+/** An attribute list that may contain `>` inside quoted values. */
+const ATTRS = String.raw`((?:[^>"']|"[^"]*"|'[^']*')*)`;
+
 /**
- * Extracts the signals rules evaluate from a raw HTML response.
- * Intentionally uses targeted regex over a full DOM parser: SEO rules need head tags,
- * link tags, headings, img/a elements — all of which have reliable string shapes in
- * well-formed HTML. For malformed inputs the parser degrades to nulls rather than throwing.
+ * Extracts the signals rules evaluate from an HTML document.
+ *
+ * Deliberately dependency-free: a tolerant tag/attribute tokenizer rather than
+ * a DOM. It handles the cases that broke the earlier regex version — quotes
+ * inside attribute values (`content="We're…"`), `>` inside attributes,
+ * commented-out markup, headings inside scripts or templates, `<base href>`,
+ * empty tags — and degrades to nulls rather than throwing on malformed input.
  */
 export function parseHtml(input: ParseInput): PageObservation {
-  const { fetch, siteOrigin } = input;
-  const html = fetch.body;
-  const siteHost = safeHost(siteOrigin);
-  const finalHost = safeHost(fetch.finalUrl);
+  const { fetch } = input;
+  const pageUrl = input.url ?? normalizeUrl(fetch.finalUrl) ?? fetch.finalUrl;
+  const siteHosts =
+    input.siteHosts ?? new Set(input.siteOrigin ? [safeHostKey(input.siteOrigin)].filter(isString) : []);
 
-  const headRaw = extractHead(html);
-  const bodyRaw = stripScriptStyle(extractBody(html));
+  const html = fetch.body.replace(/<!--[\s\S]*?-->/g, ' ');
+  const head = extractHead(html);
+  const base = baseHref(head, pageUrl);
+  const body = extractBody(html);
+  const visible = stripBlocks(body, ['script', 'style', 'noscript', 'template', 'svg']);
+  const linkable = stripBlocks(body, ['script', 'style', 'template']);
 
-  const title = firstMatch(headRaw, /<title[^>]*>([\s\S]*?)<\/title>/i);
-  const metaDescription = firstMetaContent(headRaw, 'description');
-  const metaRobots = firstMetaContent(headRaw, 'robots');
-  const canonicalLink = firstLinkHref(headRaw, 'canonical');
-  const lang = firstMatch(html, /<html\b[^>]*\blang=["']([^"']+)["']/i);
-  const canonicalHeader = fetch.headers['link'] ? parseCanonicalHeader(fetch.headers['link']) : null;
-  const xRobotsTag = fetch.headers['x-robots-tag'] ?? null;
+  const titleMatch = head.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i);
+  const title = titleMatch ? clean(collapse(decodeEntities(stripTags(titleMatch[1] ?? '')))) : null;
 
-  const h1Matches = Array.from(html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi));
-  const h1Texts = h1Matches.map((m) => textContent(m[1] ?? ''));
-  const h1Count = h1Matches.length;
-  const h1Text = h1Texts[0] ?? null;
+  let metaDescription: string | null = null;
+  let metaRobots: string | null = null;
+  for (const attrs of tags(head, 'meta')) {
+    const name = attrs.get('name')?.toLowerCase();
+    const content = clean((attrs.get('content') ?? '').trim());
+    if (name === 'description' && metaDescription === null) metaDescription = content;
+    else if (name === 'robots' && metaRobots === null) metaRobots = content;
+  }
 
-  const words = textContent(bodyRaw).split(/\s+/).filter(Boolean);
-  const wordCount = words.length;
+  let canonicalLink: string | null = null;
+  const hreflangTags: HreflangTag[] = [];
+  for (const attrs of tags(head, 'link')) {
+    const rel = relTokens(attrs.get('rel'));
+    const href = attrs.get('href');
+    if (href === undefined) continue;
+    if (rel.includes('canonical') && canonicalLink === null) {
+      canonicalLink = normalizeUrl(href, base) ?? clean(href.trim());
+    }
+    const hreflang = attrs.get('hreflang');
+    if (rel.includes('alternate') && hreflang !== undefined) {
+      hreflangTags.push({
+        hreflang: clean(hreflang.trim()),
+        href: normalizeUrl(href, base) ?? clean(href.trim()),
+        hrefIsAbsolute: /^https?:\/\//i.test(href.trim()),
+        langIsValid: /^(x-default|[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?)$/i.test(hreflang.trim()),
+      });
+    }
+  }
 
-  const outboundLinks = extractLinks(html, fetch.finalUrl, siteHost);
-  const outboundInternalLinkCount = outboundLinks.filter((l) => l.isInternal).length;
+  const htmlTag = [...tags(html, 'html')][0];
+  const lang = htmlTag?.get('lang')?.trim() || null;
+  const linkHeader = fetch.headers['link'];
+  const canonicalHeaderRaw = linkHeader ? parseCanonicalHeader(linkHeader) : null;
+  const canonicalHeader = canonicalHeaderRaw === null ? null : normalizeUrl(canonicalHeaderRaw, pageUrl) ?? canonicalHeaderRaw;
 
-  const images = extractImages(html);
-  const hreflangTags = extractHreflang(headRaw);
-  const structured = extractJsonLd(html);
+  const h1Texts = Array.from(visible.matchAll(new RegExp(`<h1\\b${ATTRS}>([\\s\\S]*?)<\\/h1\\s*>`, 'gi')))
+    .map((m) => clean(collapse(decodeEntities(stripTags(m[2] ?? '')))).slice(0, 500));
+  const text = collapse(decodeEntities(stripTags(visible)));
+  const words = text.split(/\s+/).filter(Boolean);
+  const textHash = createHash('sha256').update(text.toLowerCase()).digest('hex');
 
-  const contentHash = createHash('sha256').update(fetch.body).digest('hex');
+  const outboundLinks = extractLinks(linkable, base, siteHosts);
+  const images = extractImages(stripBlocks(body, ['script', 'style', 'noscript', 'template']), base);
+  const structured = extractJsonLd(fetch.body);
 
-  const observation: PageObservation = {
-    url: fetch.finalUrl,
+  return {
+    url: pageUrl,
     httpStatus: fetch.status,
-    finalUrl: fetch.finalUrl,
+    finalUrl: pageUrl,
     redirectChain: fetch.redirectChain.map((hop) => ({ url: hop.url, status: hop.status })),
     contentType: fetch.headers['content-type'] ?? null,
 
-    title: title ? decodeEntities(title.trim()) : null,
-    metaDescription: metaDescription ? decodeEntities(metaDescription) : null,
+    title,
+    metaDescription,
     metaRobots,
-    canonicalLink: canonicalLink ? absoluteUrl(canonicalLink, fetch.finalUrl) : null,
+    canonicalLink,
     canonicalHeader,
-    xRobotsTag,
-    lang,
+    xRobotsTag: fetch.headers['x-robots-tag'] ?? null,
+    lang: lang ? clean(lang) : null,
 
-    h1Count,
-    h1Text,
-    wordCount,
-    contentHash,
+    h1Count: h1Texts.length,
+    h1Text: h1Texts[0] ?? null,
+    h1Texts,
+    wordCount: words.length,
+    contentHash: textHash,
     duplicateOfUrl: null,
 
     outboundLinks,
-    outboundInternalLinkCount,
+    outboundInternalLinkCount: outboundLinks.filter((l) => l.isInternal).length,
     inboundInternalLinkCount: null,
 
     images,
@@ -79,8 +123,8 @@ export function parseHtml(input: ParseInput): PageObservation {
 
     schemaErrors: structured.errors.length ? structured.errors : null,
     schemaTypes: structured.types.length ? structured.types : null,
-    hasProductPriceSchema: structured.types.includes('Product') || structured.types.includes('Offer'),
-    hasArticleDateSchema: structured.types.includes('Article') || structured.types.includes('NewsArticle'),
+    hasProductPriceSchema: !structured.productWithoutPrice,
+    hasArticleDateSchema: !structured.articleWithoutDate,
     schemaMismatch: null,
 
     hreflangTags,
@@ -96,199 +140,263 @@ export function parseHtml(input: ParseInput): PageObservation {
 
     isPriority: false,
     renderMode: 'raw',
-    rawContentHash: contentHash,
+    rawContentHash: textHash,
     renderedContentHash: null,
+    rawSignals: null,
     contentLength: fetch.byteLength,
     responseTimeMs: fetch.elapsedMs,
   };
-
-  void finalHost;
-  return observation;
 }
 
-// ─── Section extractors ──────────────────────────────────────────────────────
+/** The signals a JavaScript render can change that matter for indexing. */
+export function rawSignalsOf(obs: PageObservation) {
+  return {
+    title: obs.title,
+    metaRobots: obs.metaRobots,
+    canonicalLink: obs.canonicalLink,
+    h1Count: obs.h1Count,
+    wordCount: obs.wordCount,
+  };
+}
+
+// ─── Document sections ───────────────────────────────────────────────────────
 
 function extractHead(html: string): string {
-  const m = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i);
-  return m?.[1] ?? html.slice(0, 32_768);
+  const m = html.match(/<head\b[^>]*>([\s\S]*?)<\/head\s*>/i);
+  if (m) return m[1] ?? '';
+  const bodyStart = html.search(/<body\b/i);
+  return bodyStart >= 0 ? html.slice(0, bodyStart) : html.slice(0, 32_768);
 }
 
 function extractBody(html: string): string {
-  const m = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+  const m = html.match(/<body\b[^>]*>([\s\S]*?)(?:<\/body\s*>|$)/i);
   return m?.[1] ?? html;
 }
 
-function stripScriptStyle(fragment: string): string {
-  return fragment
-    .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, ' ');
+function stripBlocks(fragment: string, names: readonly string[]): string {
+  let out = fragment;
+  for (const name of names) {
+    out = out.replace(new RegExp(`<${name}\\b[\\s\\S]*?<\\/${name}\\s*>`, 'gi'), ' ');
+  }
+  return out;
 }
 
-// ─── Tag-level extractors ────────────────────────────────────────────────────
-
-function firstMatch(src: string, re: RegExp): string | null {
-  const m = src.match(re);
-  return m?.[1] ?? null;
+function baseHref(head: string, pageUrl: string): string {
+  for (const attrs of tags(head, 'base')) {
+    const href = attrs.get('href');
+    if (href) return normalizeUrl(href, pageUrl) ?? pageUrl;
+  }
+  return pageUrl;
 }
 
-function firstMetaContent(head: string, name: string): string | null {
-  const re = new RegExp(
-    `<meta\\b[^>]*\\bname=["']${name}["'][^>]*\\bcontent=["']([^"']*)["']`,
-    'i',
-  );
-  const alt = new RegExp(
-    `<meta\\b[^>]*\\bcontent=["']([^"']*)["'][^>]*\\bname=["']${name}["']`,
-    'i',
-  );
-  return firstMatch(head, re) ?? firstMatch(head, alt);
+// ─── Tags and attributes ─────────────────────────────────────────────────────
+
+function* tags(src: string, name: string): Generator<Map<string, string>> {
+  const re = new RegExp(`<${name}\\b${ATTRS}\\/?>`, 'gi');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) yield parseAttributes(m[1] ?? '');
 }
 
-function firstLinkHref(head: string, rel: string): string | null {
-  const re = new RegExp(
-    `<link\\b[^>]*\\brel=["']${rel}["'][^>]*\\bhref=["']([^"']*)["']`,
-    'i',
-  );
-  const alt = new RegExp(
-    `<link\\b[^>]*\\bhref=["']([^"']*)["'][^>]*\\brel=["']${rel}["']`,
-    'i',
-  );
-  return firstMatch(head, re) ?? firstMatch(head, alt);
+/** Attribute names are lower-cased; values are entity-decoded. The first occurrence wins. */
+export function parseAttributes(src: string): Map<string, string> {
+  const attrs = new Map<string, string>();
+  const re = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    const name = m[1]!.toLowerCase();
+    if (!attrs.has(name)) attrs.set(name, decodeEntities(m[2] ?? m[3] ?? m[4] ?? ''));
+  }
+  return attrs;
+}
+
+function relTokens(rel: string | undefined): string[] {
+  return (rel ?? '').toLowerCase().split(/\s+/).filter(Boolean);
 }
 
 function parseCanonicalHeader(header: string): string | null {
-  // Link: <https://example.com/>; rel="canonical"
-  const m = header.match(/<([^>]+)>\s*;\s*rel=["']?canonical["']?/i);
-  return m?.[1] ?? null;
+  // Link: <https://example.com/>; rel="canonical", <…>; rel="alternate"
+  for (const part of header.split(/,(?=\s*<)/)) {
+    const m = part.match(/<([^>]+)>\s*;(.*)$/);
+    if (m && /\brel\s*=\s*"?[^";]*\bcanonical\b/i.test(m[2] ?? '')) return m[1]!.trim();
+  }
+  return null;
 }
 
-function extractLinks(html: string, pageUrl: string, siteHost: string | null): OutboundLink[] {
+function extractLinks(html: string, base: string, siteHosts: ReadonlySet<string>): OutboundLink[] {
   const links: OutboundLink[] = [];
-  const re = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  const re = new RegExp(`<a\\b${ATTRS}>([\\s\\S]*?)<\\/a\\s*>`, 'gi');
   let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    const attrs = m[1] ?? '';
+  while ((m = re.exec(html)) !== null && links.length < MAX_LINKS) {
+    const attrs = parseAttributes(m[1] ?? '');
+    const raw = attrs.get('href')?.trim();
+    if (!raw || raw.startsWith('#') || /^(mailto|tel|javascript|data|sms|ftp):/i.test(raw)) continue;
+    const href = normalizeUrl(raw, base);
+    if (!href) continue;
     const inner = m[2] ?? '';
-    const hrefMatch = attrs.match(/\bhref=["']([^"']+)["']/i);
-    if (!hrefMatch) continue;
-    const href = hrefMatch[1]!;
-    if (href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) continue;
-    const absolute = absoluteUrl(href, pageUrl);
-    if (!absolute) continue;
-    const targetHost = safeHost(absolute);
-    const relMatch = attrs.match(/\brel=["']([^"']+)["']/i);
-    const relValues = relMatch ? relMatch[1]!.split(/\s+/).filter(Boolean) : [];
+    const imageAlt = [...tags(inner, 'img')][0]?.get('alt');
+    const anchor =
+      clean(collapse(decodeEntities(stripTags(inner)))) ||
+      clean((imageAlt ?? attrs.get('aria-label') ?? attrs.get('title') ?? '').trim());
+    const key = safeHostKey(href);
     links.push({
-      href: absolute,
-      anchor: decodeEntities(textContent(inner).trim()) || null,
-      isInternal: siteHost !== null && targetHost === siteHost,
-      relValues,
+      href,
+      anchor: anchor ? anchor.slice(0, 500) : null,
+      isInternal: key !== null && siteHosts.has(key),
+      relValues: relTokens(attrs.get('rel')),
       statusCode: null,
     });
   }
   return links;
 }
 
-function extractImages(html: string): PageImage[] {
+function extractImages(html: string, base: string): PageImage[] {
   const images: PageImage[] = [];
-  const re = /<img\b([^>]*)>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    const attrs = m[1] ?? '';
-    const srcMatch = attrs.match(/\bsrc=["']([^"']+)["']/i);
-    if (!srcMatch) continue;
-    const altMatch = attrs.match(/\balt=["']([^"']*)["']/i);
-    const roleMatch = attrs.match(/\brole=["']([^"']+)["']/i);
-    const loadingMatch = attrs.match(/\bloading=["']([^"']+)["']/i);
+  let likelyLcpChosen = false;
+  for (const attrs of tags(html, 'img')) {
+    if (images.length >= MAX_IMAGES) break;
+    let src = attrs.get('src')?.trim() ?? '';
+    const lazySrc = attrs.get('data-src') ?? attrs.get('data-lazy-src') ?? attrs.get('data-original');
+    if ((!src || src.startsWith('data:')) && lazySrc) src = lazySrc.trim();
+    if (!src) continue;
+    const alt = attrs.has('alt') ? clean(attrs.get('alt') ?? '') : null;
+    const role = attrs.get('role')?.toLowerCase();
+    const isDecorative =
+      alt === '' || role === 'presentation' || role === 'none' || attrs.get('aria-hidden') === 'true';
+    const loading = attrs.get('loading')?.toLowerCase() ?? null;
+    const width = Number.parseInt(attrs.get('width') ?? '', 10);
+    const height = Number.parseInt(attrs.get('height') ?? '', 10);
+    const tiny = Number.isFinite(width) && Number.isFinite(height) && width <= 100 && height <= 100;
+    const iconish = /logo|icon|avatar|sprite|pixel|spacer|badge|emoji/i.test(
+      `${src} ${alt ?? ''} ${attrs.get('class') ?? ''}`,
+    );
+    // The likely main image: the first meaningful raster image in the page body.
+    // Lighthouse knows the real LCP element; this is the cheap, inferred stand-in.
+    const isLikelyLCP =
+      !likelyLcpChosen && !isDecorative && !tiny && !iconish && !src.startsWith('data:') && !/\.svg(\?|$)/i.test(src);
+    if (isLikelyLCP) likelyLcpChosen = true;
     images.push({
-      src: srcMatch[1]!,
-      alt: altMatch ? altMatch[1]! : null,
-      isDecorative: (altMatch && altMatch[1] === '') || roleMatch?.[1]?.toLowerCase() === 'presentation',
+      src: normalizeUrl(src, base) ?? clean(src).slice(0, 2048),
+      alt,
+      isDecorative,
       fileSizeBytes: null,
-      loading: loadingMatch?.[1] ?? null,
-      isLikelyLCP: false,
+      loading,
+      isLikelyLCP,
     });
   }
   return images;
 }
 
-function extractHreflang(head: string): HreflangTag[] {
-  const tags: HreflangTag[] = [];
-  const re = /<link\b([^>]*)>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(head)) !== null) {
-    const attrs = m[1] ?? '';
-    if (!/\brel=["']alternate["']/i.test(attrs)) continue;
-    const hreflangMatch = attrs.match(/\bhreflang=["']([^"']+)["']/i);
-    if (!hreflangMatch) continue;
-    const hrefMatch = attrs.match(/\bhref=["']([^"']+)["']/i);
-    const href = hrefMatch?.[1] ?? '';
-    const hreflang = hreflangMatch[1]!;
-    tags.push({
-      hreflang,
-      href,
-      hrefIsAbsolute: /^https?:\/\//i.test(href),
-      langIsValid: /^(x-default|[a-z]{2}(-[A-Z]{2})?)$/i.test(hreflang),
-    });
-  }
-  return tags;
-}
+const ARTICLE_TYPES = new Set(['Article', 'NewsArticle', 'BlogPosting', 'TechArticle', 'ScholarlyArticle', 'Report']);
 
-function extractJsonLd(html: string): { types: string[]; errors: string[] } {
+function extractJsonLd(html: string): {
+  types: string[];
+  errors: string[];
+  productWithoutPrice: boolean;
+  articleWithoutDate: boolean;
+} {
   const types: string[] = [];
   const errors: string[] = [];
-  const re = /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  const state = { productWithoutPrice: false, articleWithoutDate: false };
+  const re = new RegExp(`<script\\b${ATTRS}>([\\s\\S]*?)<\\/script\\s*>`, 'gi');
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
-    const raw = (m[1] ?? '').trim();
+    const attrs = parseAttributes(m[1] ?? '');
+    if ((attrs.get('type') ?? '').trim().toLowerCase() !== 'application/ld+json') continue;
+    const raw = (m[2] ?? '')
+      .replace(/^\s*(<!--|\/\/\s*<!\[CDATA\[|<!\[CDATA\[)/, '')
+      .replace(/(-->|\/\/\s*\]\]>|\]\]>)\s*$/, '')
+      .trim();
     if (!raw) continue;
     try {
-      const parsed = JSON.parse(raw);
-      collectTypes(parsed, types);
+      collect(JSON.parse(raw), types, state);
     } catch {
       errors.push('invalid JSON-LD block');
     }
   }
-  return { types: Array.from(new Set(types)), errors };
+  return { types: Array.from(new Set(types)), errors, ...state };
 }
 
-function collectTypes(node: unknown, out: string[]): void {
-  if (!node) return;
+function collect(
+  node: unknown,
+  out: string[],
+  state: { productWithoutPrice: boolean; articleWithoutDate: boolean },
+  depth = 0,
+): void {
+  if (!node || depth > 12) return;
   if (Array.isArray(node)) {
-    node.forEach((n) => collectTypes(n, out));
+    for (const n of node) collect(n, out, state, depth + 1);
     return;
   }
   if (typeof node !== 'object') return;
   const obj = node as Record<string, unknown>;
   const t = obj['@type'];
-  if (typeof t === 'string') out.push(t);
-  else if (Array.isArray(t)) t.forEach((x) => { if (typeof x === 'string') out.push(x); });
-  const graph = obj['@graph'];
-  if (Array.isArray(graph)) graph.forEach((g) => collectTypes(g, out));
+  const nodeTypes = typeof t === 'string' ? [t] : Array.isArray(t) ? t.filter(isString) : [];
+  out.push(...nodeTypes);
+  if (nodeTypes.includes('Product') && !hasPrice(obj['offers'])) state.productWithoutPrice = true;
+  if (nodeTypes.some((type) => ARTICLE_TYPES.has(type)) && !obj['datePublished']) state.articleWithoutDate = true;
+  for (const key of ['@graph', 'mainEntity', 'itemListElement', 'hasPart']) {
+    if (obj[key]) collect(obj[key], out, state, depth + 1);
+  }
 }
 
-// ─── Utilities ───────────────────────────────────────────────────────────────
-
-function textContent(fragment: string): string {
-  return fragment.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+function hasPrice(offers: unknown): boolean {
+  if (!offers) return false;
+  if (Array.isArray(offers)) return offers.some(hasPrice);
+  if (typeof offers !== 'object') return false;
+  const o = offers as Record<string, unknown>;
+  return (
+    o['price'] !== undefined ||
+    o['lowPrice'] !== undefined ||
+    o['priceSpecification'] !== undefined ||
+    hasPrice(o['offers'])
+  );
 }
 
-function decodeEntities(src: string): string {
-  return src
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(parseInt(code as string, 10)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code as string, 16)));
+// ─── Text utilities ──────────────────────────────────────────────────────────
+
+function stripTags(fragment: string): string {
+  return fragment.replace(/<[^>]*>/g, ' ');
 }
 
-function absoluteUrl(href: string, base: string): string | null {
-  try { return new URL(href, base).toString(); } catch { return null; }
+function collapse(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
-function safeHost(url: string): string | null {
-  try { return new URL(url).hostname.toLowerCase(); } catch { return null; }
+/** Postgres text cannot hold NUL. */
+function clean(text: string): string {
+  return text.replaceAll('\u0000', '');
+}
+
+const NAMED: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', copy: '©', reg: '®',
+  trade: '™', hellip: '…', mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“',
+  rdquo: '”', laquo: '«', raquo: '»', bull: '•', middot: '·', deg: '°', euro: '€',
+  pound: '£', yen: '¥', rupee: '₹', times: '×', divide: '÷', eacute: 'é', egrave: 'è',
+  aacute: 'á', agrave: 'à', oacute: 'ó', uacute: 'ú', iacute: 'í', ntilde: 'ñ',
+  ccedil: 'ç', auml: 'ä', ouml: 'ö', uuml: 'ü', szlig: 'ß',
+};
+
+export function decodeEntities(src: string): string {
+  return src.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, (whole, entity: string) => {
+    if (entity[0] === '#') {
+      const code = entity[1] === 'x' || entity[1] === 'X'
+        ? Number.parseInt(entity.slice(2), 16)
+        : Number.parseInt(entity.slice(1), 10);
+      if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return '';
+      return String.fromCodePoint(code);
+    }
+    return NAMED[entity] ?? NAMED[entity.toLowerCase()] ?? whole;
+  });
+}
+
+function safeHostKey(url: string): string | null {
+  try {
+    return hostKey(new URL(url).hostname);
+  } catch {
+    return null;
+  }
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
 }

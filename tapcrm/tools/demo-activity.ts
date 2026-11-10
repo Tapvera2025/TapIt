@@ -65,14 +65,8 @@ export async function seedDemoActivity(tx: Tx, organization: { id: string; timez
       VALUES (${organization.id}, ${userId}, 'template', ${shift.id}, ${firstDay}::date, ${marker}, ${admin.id})
     `);
 
-    const opening = await tx.maybeOne<{ id: string }>(sql`
-      SELECT id FROM leave_balance_entry WHERE organization_id = ${organization.id} AND user_id = ${userId}
-        AND leave_type_id = ${leaveType.id} AND kind = 'opening' AND period_year = ${Number(today.today.slice(0, 4))}
-    `);
-    if (!opening) await tx.query(sql`
-      INSERT INTO leave_balance_entry (organization_id, user_id, leave_type_id, kind, units, period_year)
-      VALUES (${organization.id}, ${userId}, ${leaveType.id}, 'opening', 12, ${Number(today.today.slice(0, 4))})
-    `);
+    // No opening balance: DEMO-ANNUAL grants 12 days a year through its
+    // accrual (accrual_days), so an opening entry of 12 showed 24 days.
 
     const approvedLeaveDay = index % 5 === 0 ? dates.workdays[2]! : null;
     if (approvedLeaveDay) {

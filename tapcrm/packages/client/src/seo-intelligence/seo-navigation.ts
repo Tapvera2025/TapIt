@@ -42,6 +42,7 @@ export const SEO_TABS = [
     icon: 'settings',
     sections: [
       { id: 'sites', label: 'Your websites' },
+      { id: 'crawl', label: 'Crawl & data sources' },
       { id: 'rules', label: 'Checkup settings' },
     ],
   },

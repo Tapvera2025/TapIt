@@ -22,6 +22,7 @@ const LEAD_SELECT = sql`
          l.territory_id AS "territoryId", territory.name AS "territoryName",
          l.sales_team_id AS "salesTeamId", team.name AS "salesTeamName",
          l.sales_pool_id AS "salesPoolId", pool.name AS "salesPoolName",
+         l.bid_state AS "bidState", l.bid_pool_expires_at AS "bidPoolExpiresAt",
          l.source_id AS "sourceId", source.name AS "sourceName", source.direction AS "sourceDirection",
          l.campaign_id AS "campaignId", campaign.name AS "campaignName",
          l.status, l.routing_status AS "routingStatus", l.contact_id AS "contactId", l.contact_name AS "contactName",

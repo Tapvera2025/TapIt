@@ -9,7 +9,7 @@ function pass(ruleId: string): RuleResult {
 
 export const HTTP_RULES: RuleDefinition[] = [
 {
-  ruleId: 'H001', ruleVersion: 'v1', group: 'http', severity: 'critical', active: true, tested: true,
+  ruleId: 'H001', ruleVersion: 'v1', group: 'http', severity: 'critical', active: true, tested: true, appliesTo: 'any',
   evaluate(obs: PageObservation): RuleResult {
     if (obs.httpStatus === 404) {
       return { ruleId: 'H001', ruleVersion: 'v1', result: 'fail', severity: 'critical', confidence: 'direct',
@@ -21,7 +21,7 @@ export const HTTP_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'H002', ruleVersion: 'v1', group: 'http', severity: 'high', active: true, tested: true,
+  ruleId: 'H002', ruleVersion: 'v1', group: 'http', severity: 'high', active: true, tested: true, appliesTo: 'any',
   evaluate(obs: PageObservation): RuleResult {
     if (obs.httpStatus === 410) {
       return { ruleId: 'H002', ruleVersion: 'v1', result: 'fail', severity: 'high', confidence: 'direct',
@@ -33,7 +33,7 @@ export const HTTP_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'H003', ruleVersion: 'v1', group: 'http', severity: 'critical', active: true, tested: true,
+  ruleId: 'H003', ruleVersion: 'v1', group: 'http', severity: 'critical', active: true, tested: true, appliesTo: 'any',
   evaluate(obs: PageObservation): RuleResult {
     if (obs.httpStatus !== null && obs.httpStatus >= 500 && obs.httpStatus < 600) {
       return { ruleId: 'H003', ruleVersion: 'v1', result: 'fail', severity: 'critical', confidence: 'direct',
@@ -45,12 +45,16 @@ export const HTTP_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'H009', ruleVersion: 'v1', group: 'http', severity: 'high', active: true, tested: true,
+  ruleId: 'H009', ruleVersion: 'v1', group: 'http', severity: 'high', active: true, tested: true, appliesTo: 'any',
   evaluate(obs: PageObservation): RuleResult {
-    const chain = obs.redirectChain;
-    if (chain.length >= 2) {
-      const urls = chain.map((h) => h.url);
-      if (urls.includes(obs.url) || (obs.finalUrl && urls.includes(obs.finalUrl))) {
+    // A loop is a URL the chain visits twice, or a chain that never reached a
+    // final response (the crawler gave up after too many hops).
+    const urls = obs.redirectChain.map((h) => h.url);
+    if (urls.length > 0) {
+      const revisits = new Set(urls).size !== urls.length;
+      const endsInChain = obs.finalUrl !== null && obs.finalUrl !== obs.url && urls.includes(obs.finalUrl);
+      const unfinished = obs.finalUrl === null;
+      if (revisits || endsInChain || unfinished) {
         return { ruleId: 'H009', ruleVersion: 'v1', result: 'fail', severity: 'high', confidence: 'direct',
           affectedTarget: obs.url, evidence: { chain: urls },
           proposedFix: 'Remove the redirect loop by updating the destination URL in the redirect configuration.' };
@@ -61,7 +65,7 @@ export const HTTP_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'H010', ruleVersion: 'v1', group: 'http', severity: 'moderate', active: true, tested: true,
+  ruleId: 'H010', ruleVersion: 'v1', group: 'http', severity: 'moderate', active: true, tested: true, appliesTo: 'any',
   evaluate(obs: PageObservation): RuleResult {
     // More than 3 hops in a redirect chain is a review candidate
     if (obs.redirectChain.length > 3) {

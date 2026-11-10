@@ -73,8 +73,9 @@ describe('SEO dashboard meaning', () => {
     expect(SEO_TABS).toHaveLength(6);
     expect(
       new Set(SEO_TABS.flatMap((tab) => tab.sections.map((section) => section.id))).size,
-    ).toBe(15);
+    ).toBe(16);
     expect(seoTabForSection('performance').id).toBe('website');
+    expect(seoTabForSection('crawl').id).toBe('settings');
     expect(seoTabForSection('backlinks').id).toBe('visibility');
     expect(moveTabIndex(4, 'ArrowRight', 5)).toBe(0);
     expect(moveTabIndex(0, 'ArrowLeft', 5)).toBe(4);

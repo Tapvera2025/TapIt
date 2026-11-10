@@ -5,18 +5,19 @@ import { DueActivitiesSection } from './sections/DueActivitiesSection.js';
 import { HandoverOffersSection } from './sections/HandoverOffersSection.js';
 import { NewlyAssignedSection } from './sections/NewlyAssignedSection.js';
 import { summarize } from './myWork-helpers.js';
+import { myWorkGuidance } from '../guide/page-guidance.js';
+import { SalesCoach, useSalesGuide } from '../guide/SalesGuide.js';
 
 /**
  * My Work (R1 plan step 1.14). Priority order:
- *   1. Live offers (bid pool)
- *   2. Overdue commitments (callbacks past due)
- *   3. Handover offers waiting on my decision
- *   4. Newly assigned leads (first-contact SLA)
- *   5. Upcoming actions (callbacks due in next 24h)
+ *   1. Live calls handed to me (a customer is on the line)
+ *   2. Overdue callbacks
+ *   3. Newly assigned leads (first-contact SLA)
+ *   4. The Bid Pool (new enquiries to claim)
+ *   5. Callbacks due in the next 24 hours
  *
- * Each section polls independently and reports its count up; the page
- * header shows the summary strip so the operator sees the shape of
- * their day at a glance.
+ * Each section polls independently and reports its count up; the summary
+ * strip and the sales guide use the counts to say what to do first.
  */
 export function MyWorkPage({ userId, onNavigate }: { userId: string; onNavigate: (path: string) => void }): React.JSX.Element {
   const [bidPoolCount, setBidPoolCount] = useState(0);
@@ -26,6 +27,11 @@ export function MyWorkPage({ userId, onNavigate }: { userId: string; onNavigate:
   const [upcomingCount, setUpcomingCount] = useState(0);
 
   const summary = summarize(bidPoolCount, overdueCount, handoverCount, newlyAssignedCount, upcomingCount);
+  const viewer = useSalesGuide()?.viewer ?? { isManager: false, canAddLeads: false, canRecordWin: false, canDecideApprovals: false };
+  const guidance = myWorkGuidance(
+    { handovers: handoverCount, overdue: overdueCount, newlyAssigned: newlyAssignedCount, bidPool: bidPoolCount, upcoming: upcomingCount },
+    viewer,
+  );
 
   const bidPoolCallback = useCallback((count: number) => setBidPoolCount(count), []);
   const handoverCallback = useCallback((count: number) => setHandoverCount(count), []);
@@ -39,8 +45,9 @@ export function MyWorkPage({ userId, onNavigate }: { userId: string; onNavigate:
     <Page
       eyebrow="Sales"
       title="My Work"
-      description="Your day, prioritised: live offers first, overdue commitments next, then upcoming actions."
+      description="What needs you today, most urgent first."
     >
+      <SalesCoach guidance={guidance} onNavigate={onNavigate} />
       <div className="mb-6 flex flex-wrap gap-2">
         {summary.map((entry) => (
           <span
@@ -54,10 +61,13 @@ export function MyWorkPage({ userId, onNavigate }: { userId: string; onNavigate:
         ))}
       </div>
 
-      <BidPoolSection onCountChange={bidPoolCallback} onNavigate={onNavigate} />
-      <DueActivitiesSection userId={userId} onCountChange={dueCallbacks} onNavigate={onNavigate} />
-      <HandoverOffersSection userId={userId} onCountChange={handoverCallback} onNavigate={onNavigate} />
-      <NewlyAssignedSection userId={userId} onCountChange={newlyAssignedCallback} onNavigate={onNavigate} />
+      {/* A column so "Callbacks in the next 24 hours" (order-last) ends the page. */}
+      <div className="flex flex-col">
+        <HandoverOffersSection userId={userId} onCountChange={handoverCallback} onNavigate={onNavigate} />
+        <DueActivitiesSection userId={userId} onCountChange={dueCallbacks} onNavigate={onNavigate} />
+        <NewlyAssignedSection userId={userId} onCountChange={newlyAssignedCallback} onNavigate={onNavigate} />
+        <BidPoolSection onCountChange={bidPoolCallback} onNavigate={onNavigate} />
+      </div>
     </Page>
   );
 }

@@ -1,19 +1,50 @@
+import { useEffect, useMemo } from 'react';
 import { ConversationWorkspace } from '../../chat/ConversationWorkspace.js';
+import type { ChatTransport } from '../../chat/transport.js';
 import { Loading, Notice } from '../../ui/index.js';
-import { reactToProjectDiscussionMessage, removeProjectDiscussionReaction, sendProjectDiscussionMessage } from '../api/projectDiscussionApi.js';
+import {
+  deleteProjectDiscussionAttachment,
+  editProjectDiscussionMessage,
+  getProjectDiscussionMessageEdits,
+  getProjectDiscussionPins,
+  reactToProjectDiscussionMessage,
+  removeProjectDiscussionReaction,
+  sendProjectDiscussionMessage,
+  uploadProjectDiscussionAttachment,
+} from '../api/projectDiscussionApi.js';
 import { useClientMessages } from '../useClientMessages.js';
-import { useEffect } from 'react';
 
 export function ClientMessagesPage(): React.JSX.Element {
   const chat = useClientMessages();
   const activeId = chat.activeId;
-  const projectId = activeId ? chat.projectIdForConversation(activeId) : null;
   const loaded = chat.loaded;
   const openConversation = chat.openConversation;
+  const projectIdForConversation = chat.projectIdForConversation;
   const firstConversationId = chat.conversations[0]?.id;
   useEffect(() => {
     if (loaded && !activeId && firstConversationId) void openConversation(firstConversationId);
   }, [activeId, firstConversationId, loaded, openConversation]);
+
+  // The client "core set": files, any-emoji reactions, editing their own
+  // messages and reading pins — every call scoped to the client's own project.
+  const transport = useMemo<ChatTransport>(() => {
+    const project = (conversationId: string): string => {
+      const projectId = projectIdForConversation(conversationId);
+      if (!projectId) throw new Error('This project discussion is no longer available.');
+      return projectId;
+    };
+    return {
+      sendMessage: async (conversationId, input) => sendProjectDiscussionMessage(project(conversationId), conversationId, input),
+      editMessage: async (conversationId, messageId, body, mentionedUserIds) => editProjectDiscussionMessage(project(conversationId), conversationId, messageId, body, mentionedUserIds),
+      getMessageEdits: async (conversationId, messageId) => getProjectDiscussionMessageEdits(project(conversationId), conversationId, messageId),
+      reactToMessage: async (conversationId, messageId, emoji) => reactToProjectDiscussionMessage(project(conversationId), conversationId, messageId, emoji),
+      removeReaction: async (conversationId, messageId, emoji) => removeProjectDiscussionReaction(project(conversationId), conversationId, messageId, emoji),
+      uploadAttachment: async (conversationId, file, onProgress, signal) => uploadProjectDiscussionAttachment(project(conversationId), conversationId, file, onProgress, signal),
+      deletePendingAttachment: async (conversationId, attachmentId) => deleteProjectDiscussionAttachment(project(conversationId), conversationId, attachmentId),
+      getPins: async (conversationId) => getProjectDiscussionPins(project(conversationId), conversationId),
+      presence: false,
+    };
+  }, [projectIdForConversation]);
 
   return (
     <div className="workspace-page-container flex h-full min-h-0 w-full flex-col">
@@ -38,17 +69,7 @@ export function ClientMessagesPage(): React.JSX.Element {
               emptyHint="No client project groups have been shared with you yet."
               conversationLabel={(conversation) => conversation.name || 'Client project group'}
               clientMode
-              messageActions={{
-                sendMessage: (_conversationId, body, replyToMessageId, mentionedUserIds) => projectId && activeId
-                  ? sendProjectDiscussionMessage(projectId, activeId, body, replyToMessageId, mentionedUserIds)
-                  : Promise.reject(new Error('This project discussion is no longer available.')),
-                reactToMessage: (messageId, emoji) => projectId && activeId
-                  ? reactToProjectDiscussionMessage(projectId, activeId, messageId, emoji)
-                  : Promise.reject(new Error('This project discussion is no longer available.')),
-                removeReaction: (messageId, emoji) => projectId && activeId
-                  ? removeProjectDiscussionReaction(projectId, activeId, messageId, emoji)
-                  : Promise.reject(new Error('This project discussion is no longer available.')),
-              }}
+              transport={transport}
             />
           )}
         </div>

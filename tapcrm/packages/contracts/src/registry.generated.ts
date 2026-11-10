@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 238   Bindings: 700
+ * Actions: 241   Bindings: 739
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -124,6 +124,9 @@ export type Action =
   | 'leave:request'
   | 'leave:request-wfh'
   | 'leave:view'
+  | 'meetings:host'
+  | 'meetings:join'
+  | 'meetings:view'
   | 'notepad:view-all'
   | 'notices:manage'
   | 'onboarding:manage'
@@ -364,6 +367,9 @@ export const ACTIONS: readonly Action[] = [
   'leave:request',
   'leave:request-wfh',
   'leave:view',
+  'meetings:host',
+  'meetings:join',
+  'meetings:view',
   'notepad:view-all',
   'notices:manage',
   'onboarding:manage',
@@ -2051,6 +2057,51 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     module: 'leave',
     resource: 'leaveRequest',
     domain: 'people',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'meetings:host': {
+    action: 'meetings:host',
+    module: 'meetings',
+    resource: 'meeting',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'meetings:join': {
+    action: 'meetings:join',
+    module: 'meetings',
+    resource: 'meeting',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'meetings:view': {
+    action: 'meetings:view',
+    module: 'meetings',
+    resource: 'meeting',
+    domain: 'business',
     sensitive: false,
     approvalBearing: false,
     initiatorField: null,
@@ -4306,6 +4357,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/leads/import', action: 'leads:create', resourceParam: null },
   { method: 'PATCH', path: '/api/leads/:id', action: 'leads:edit', resourceParam: 'id' },
   { method: 'POST', path: '/api/leads/:id/close-lost', action: 'leads:edit', resourceParam: 'id' },
+  { method: 'GET', path: '/api/leads/:id/assignees', action: 'leads:reassign', resourceParam: 'id' },
   { method: 'POST', path: '/api/leads/:id/reassign', action: 'leads:reassign', resourceParam: 'id' },
   { method: 'POST', path: '/api/leads/bulk-reassign', action: 'leads:reassign', resourceParam: null },
   { method: 'POST', path: '/api/leads/:id/reassign-with-credit', action: 'leads:reassign-with-credit', resourceParam: 'id' },
@@ -4330,6 +4382,23 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/callbacks', action: 'callbacks:create', resourceParam: null },
   { method: 'PATCH', path: '/api/callbacks/:id', action: 'callbacks:edit', resourceParam: 'id' },
   { method: 'POST', path: '/api/callbacks/:id/outcome', action: 'callbacks:edit', resourceParam: 'id' },
+  { method: 'GET', path: '/api/meetings', action: 'meetings:view', resourceParam: null },
+  { method: 'GET', path: '/api/meetings/mine', action: 'meetings:host', resourceParam: null },
+  { method: 'GET', path: '/api/meetings/people', action: 'meetings:host', resourceParam: null },
+  { method: 'GET', path: '/api/meetings/clients', action: 'meetings:host', resourceParam: null },
+  { method: 'GET', path: '/api/meetings/availability', action: 'meetings:host', resourceParam: null },
+  { method: 'POST', path: '/api/meetings', action: 'meetings:host', resourceParam: null },
+  { method: 'POST', path: '/api/meetings/:id/accept', action: 'meetings:host', resourceParam: 'id' },
+  { method: 'POST', path: '/api/meetings/:id/propose', action: 'meetings:host', resourceParam: 'id' },
+  { method: 'POST', path: '/api/meetings/:id/decline', action: 'meetings:host', resourceParam: 'id' },
+  { method: 'POST', path: '/api/meetings/:id/cancel', action: 'meetings:host', resourceParam: 'id' },
+  { method: 'POST', path: '/api/meetings/:id/outcome', action: 'meetings:host', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/meetings/:id/link', action: 'meetings:host', resourceParam: 'id' },
+  { method: 'POST', path: '/api/meetings/:id/join', action: 'meetings:join', resourceParam: 'id' },
+  { method: 'GET', path: '/api/meetings/calendar', action: 'meetings:host', resourceParam: null },
+  { method: 'POST', path: '/api/meetings/calendar/connect', action: 'meetings:host', resourceParam: null },
+  { method: 'POST', path: '/api/meetings/calendar/complete', action: 'meetings:host', resourceParam: null },
+  { method: 'DELETE', path: '/api/meetings/calendar', action: 'meetings:host', resourceParam: null },
   { method: 'GET', path: '/api/telephony/overview', action: 'telephony:view', resourceParam: null },
   { method: 'GET', path: '/api/telephony/calls', action: 'telephony:view', resourceParam: null },
   { method: 'GET', path: '/api/telephony/calls/:id', action: 'telephony:view', resourceParam: 'id' },
@@ -4625,6 +4694,24 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/chat/messages/:id/react', action: 'chat:send', resourceParam: 'id' },
   { method: 'DELETE', path: '/api/chat/messages/:id/react', action: 'chat:send', resourceParam: 'id' },
   { method: 'POST', path: '/api/chat/messages/:id/unsend', action: 'chat:send', resourceParam: 'id' },
+  { method: 'GET', path: '/api/chat/presence', action: 'chat:view', resourceParam: null },
+  { method: 'GET', path: '/api/chat/search', action: 'chat:view', resourceParam: null },
+  { method: 'GET', path: '/api/chat/saved', action: 'chat:view', resourceParam: null },
+  { method: 'GET', path: '/api/chat/scheduled', action: 'chat:view', resourceParam: null },
+  { method: 'GET', path: '/api/chat/conversations/:id/pins', action: 'chat:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/conversations/:id/attachments', action: 'chat:send', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/chat/attachments/:id', action: 'chat:send', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/conversations/:id/scheduled', action: 'chat:send', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/chat/scheduled/:id', action: 'chat:send', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/chat/scheduled/:id', action: 'chat:send', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/scheduled/:id/send-now', action: 'chat:send', resourceParam: 'id' },
+  { method: 'GET', path: '/api/chat/messages/:id', action: 'chat:view', resourceParam: 'id' },
+  { method: 'PATCH', path: '/api/chat/messages/:id', action: 'chat:send', resourceParam: 'id' },
+  { method: 'GET', path: '/api/chat/messages/:id/edits', action: 'chat:view', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/messages/:id/pin', action: 'chat:send', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/chat/messages/:id/pin', action: 'chat:send', resourceParam: 'id' },
+  { method: 'POST', path: '/api/chat/messages/:id/save', action: 'chat:view', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/chat/messages/:id/save', action: 'chat:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/documents', action: 'documents:view', resourceParam: null },
   { method: 'GET', path: '/api/documents/:id', action: 'documents:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/documents', action: 'documents:upload', resourceParam: null },
@@ -4748,6 +4835,9 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/seo/sites', action: 'seo:create-site', resourceParam: null },
   { method: 'GET', path: '/api/seo/sites/:siteId', action: 'seo:read-site', resourceParam: 'siteId' },
   { method: 'PATCH', path: '/api/seo/sites/:siteId', action: 'seo:update-site', resourceParam: 'siteId' },
+  { method: 'GET', path: '/api/seo/sites/:siteId/settings', action: 'seo:read-site', resourceParam: 'siteId' },
+  { method: 'PATCH', path: '/api/seo/sites/:siteId/settings', action: 'seo:update-site', resourceParam: 'siteId' },
+  { method: 'PATCH', path: '/api/seo/sites/:siteId/keywords/:keywordId', action: 'seo:update-site', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/scans', action: 'seo:list-scans', resourceParam: 'siteId' },
   { method: 'POST', path: '/api/seo/sites/:siteId/scans', action: 'seo:trigger-scan', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/scans/:scanRunId', action: 'seo:read-scan', resourceParam: null },

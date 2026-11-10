@@ -38,6 +38,11 @@ export interface DerivedRow {
   readonly lastScanDevice: string | null;
   readonly likelyFinishedAt: Date | null;
   readonly isWfh: boolean;
+  /**
+   * The day's arrival came from the web or the app without WFH approval —
+   * the calculator's `remote-without-approval` rule, shown while it happens.
+   */
+  readonly isRemote: boolean;
   readonly dayGroup: 'leave' | 'holiday' | null;
   readonly shiftStartAt: Date | null;
   readonly shiftEndAt: Date | null;
@@ -189,6 +194,13 @@ export function deriveRow(inputs: DeriveInputs): DerivedRow {
     lastScanDevice: inputs.lastScanDevice ?? null,
     likelyFinishedAt,
     isWfh: inputs.isWfh,
+    isRemote:
+      !inputs.isWfh &&
+      reading.arrival !== null &&
+      events.some(
+        (e) =>
+          reading.arrival!.eventIds.includes(e.id) && (e.source === 'web' || e.source === 'mobile'),
+      ),
     dayGroup: inputs.dayGroup,
     shiftStartAt: shift.startAt,
     shiftEndAt: shift.endAt,

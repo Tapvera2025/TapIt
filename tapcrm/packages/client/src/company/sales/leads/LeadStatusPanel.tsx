@@ -4,6 +4,7 @@ import { markLeadLost, updateLeadStatus, type Lead } from './api.js';
 import {
   isClosedLeadStatus,
   leadStatusLabel,
+  leadStatusMeaning,
   LOSS_REASON_OPTIONS,
   lossReasonLabel,
   statusMoveOptions,
@@ -58,6 +59,9 @@ export function LeadStatusPanel({
           ? ` · ${lossReasonLabel(lead.lossReason)}`
           : ''}
       </p>
+      {leadStatusMeaning(lead.status) && (
+        <p className="mt-1 text-xs text-app-muted">{leadStatusMeaning(lead.status)}</p>
+      )}
       {error && (
         <p className="mt-2 text-xs text-app-danger" role="alert">
           {error}
@@ -73,7 +77,8 @@ export function LeadStatusPanel({
           {moves.length > 0 && (
             <div className="space-y-2">
               <Select
-                label="New status"
+                label="Move the lead to"
+                placeholder="Choose a status"
                 value={nextStatus}
                 onChange={setNextStatus}
                 options={moves}
@@ -88,14 +93,15 @@ export function LeadStatusPanel({
                   )
                 }
               >
-                Update status
+                Move it
               </Button>
             </div>
           )}
           {markingLost ? (
             <div className="space-y-2 border-t border-app-border pt-4">
               <Select
-                label="Loss reason"
+                label="Why was it lost?"
+                placeholder="Choose a reason"
                 value={lossReason}
                 onChange={setLossReason}
                 options={[...LOSS_REASON_OPTIONS]}

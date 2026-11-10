@@ -10,7 +10,7 @@ function pass(ruleId: string): RuleResult {
 
 export const PERFORMANCE_RULES: RuleDefinition[] = [
 {
-  ruleId: 'P001', ruleVersion: 'v1', group: 'performance', severity: 'high', active: true, tested: true,
+  ruleId: 'P001', ruleVersion: 'v1', group: 'performance', severity: 'high', active: true, tested: true, scope: 'site',
   evaluate(obs: PageObservation): RuleResult {
     if (!obs.cruxLcp) return pass('P001');
     if (obs.cruxLcp.rating === 'poor') {
@@ -30,7 +30,7 @@ export const PERFORMANCE_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'P002', ruleVersion: 'v1', group: 'performance', severity: 'high', active: true, tested: true,
+  ruleId: 'P002', ruleVersion: 'v1', group: 'performance', severity: 'high', active: true, tested: true, scope: 'site',
   evaluate(obs: PageObservation): RuleResult {
     if (!obs.cruxInp) return pass('P002');
     if (obs.cruxInp.rating === 'poor') {
@@ -50,7 +50,7 @@ export const PERFORMANCE_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'P003', ruleVersion: 'v1', group: 'performance', severity: 'high', active: true, tested: true,
+  ruleId: 'P003', ruleVersion: 'v1', group: 'performance', severity: 'high', active: true, tested: true, scope: 'site',
   evaluate(obs: PageObservation): RuleResult {
     if (!obs.cruxCls) return pass('P003');
     if (obs.cruxCls.rating === 'poor') {
@@ -83,7 +83,7 @@ export const PERFORMANCE_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'P010', ruleVersion: 'v1', group: 'performance', severity: 'low', active: true, tested: true,
+  ruleId: 'P010', ruleVersion: 'v1', group: 'performance', severity: 'low', active: true, tested: true, scope: 'site',
   evaluate(obs: PageObservation): RuleResult {
     if (!obs.cruxLcp && !obs.cruxInp && !obs.cruxCls) {
       return { ruleId: 'P010', ruleVersion: 'v1', result: 'review', severity: 'low', confidence: 'direct',

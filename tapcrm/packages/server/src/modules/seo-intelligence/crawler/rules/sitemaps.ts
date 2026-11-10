@@ -12,6 +12,11 @@ export const SITEMAPS_RULES: RuleDefinition[] = [
   ruleId: 'S001', ruleVersion: 'v1', group: 'sitemaps', severity: 'high', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
     if (!obs.isPriority) return { ...pass('S001'), result: 'skipped' };
+    // A page that asks not to be indexed, or names another URL as canonical,
+    // should not be in the sitemap — its absence is correct.
+    const noindex = /noindex/i.test(`${obs.metaRobots ?? ''} ${obs.xRobotsTag ?? ''}`);
+    const canonical = obs.canonicalLink ?? obs.canonicalHeader;
+    if (noindex || (canonical !== null && canonical !== obs.url)) return { ...pass('S001'), result: 'skipped' };
     if (obs.inSitemap === false) {
       return { ruleId: 'S001', ruleVersion: 'v1', result: 'fail', severity: 'high', confidence: 'direct',
         affectedTarget: obs.url,
@@ -37,7 +42,7 @@ export const SITEMAPS_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'S003', ruleVersion: 'v1', group: 'sitemaps', severity: 'moderate', active: true, tested: true,
+  ruleId: 'S003', ruleVersion: 'v1', group: 'sitemaps', severity: 'moderate', active: true, tested: true, appliesTo: 'any',
   evaluate(obs: PageObservation): RuleResult {
     if (obs.inSitemap && obs.httpStatus !== null && obs.httpStatus >= 300) {
       return { ruleId: 'S003', ruleVersion: 'v1', result: 'fail', severity: 'moderate', confidence: 'direct',

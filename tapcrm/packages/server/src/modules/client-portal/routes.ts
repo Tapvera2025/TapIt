@@ -2,9 +2,11 @@ import { route } from '../../platform/http/route.js';
 import {
   getDashboard, getProfile, getProject, getProjects, getProjectDiscussion, getClientProjectDiscussions,
   getProjectDiscussionMessages, markProjectDiscussionRead, reactToProjectDiscussionMessage,
-  removeProjectDiscussionReaction, sendProjectDiscussionMessage,
+  removeProjectDiscussionReaction, sendProjectDiscussionMessage, uploadProjectDiscussionAttachment,
+  deleteProjectDiscussionAttachment, getProjectDiscussionMessage, editProjectDiscussionMessage,
+  getProjectDiscussionMessageEdits, getProjectDiscussionPins,
 } from './service.js';
-import { listMessagesQuerySchema, reactionSchema, sendMessageSchema } from '../chat/facade.js';
+import { editMessageSchema, listMessagesQuerySchema, reactionSchema, sendMessageSchema, uploadedBody, uploadedFileName } from '../chat/facade.js';
 
 /**
  * Client portal read API and project-scoped discussion API (PRD §12.3).
@@ -42,6 +44,34 @@ export function registerClientPortalRoutes(): void {
   route({
     ...common, method: 'POST', path: '/api/client-portal/projects/:projectId/discussion/:conversationId/messages', status: 201,
     handler: async ({ ctx, params, body }) => sendProjectDiscussionMessage(ctx, params['projectId']!, params['conversationId']!, sendMessageSchema.parse(body)),
+  });
+  // Files: raw upload (express.raw in app.ts), then send with `attachmentIds`.
+  route({
+    ...common, method: 'POST', path: '/api/client-portal/projects/:projectId/discussion/:conversationId/attachments', status: 201,
+    handler: async ({ ctx, params, body, req }) => uploadProjectDiscussionAttachment(ctx, params['projectId']!, params['conversationId']!, {
+      fileName: uploadedFileName(req.headers['x-file-name']),
+      body: uploadedBody(body),
+    }),
+  });
+  route({
+    ...common, method: 'DELETE', path: '/api/client-portal/projects/:projectId/discussion/:conversationId/attachments/:attachmentId',
+    handler: async ({ ctx, params }) => deleteProjectDiscussionAttachment(ctx, params['projectId']!, params['conversationId']!, params['attachmentId']!),
+  });
+  route({
+    ...common, method: 'GET', path: '/api/client-portal/projects/:projectId/discussion/:conversationId/pins',
+    handler: async ({ ctx, params }) => getProjectDiscussionPins(ctx, params['projectId']!, params['conversationId']!),
+  });
+  route({
+    ...common, method: 'GET', path: '/api/client-portal/projects/:projectId/discussion/:conversationId/messages/:messageId',
+    handler: async ({ ctx, params }) => getProjectDiscussionMessage(ctx, params['projectId']!, params['conversationId']!, params['messageId']!),
+  });
+  route({
+    ...common, method: 'PATCH', path: '/api/client-portal/projects/:projectId/discussion/:conversationId/messages/:messageId',
+    handler: async ({ ctx, params, body }) => editProjectDiscussionMessage(ctx, params['projectId']!, params['conversationId']!, params['messageId']!, editMessageSchema.parse(body)),
+  });
+  route({
+    ...common, method: 'GET', path: '/api/client-portal/projects/:projectId/discussion/:conversationId/messages/:messageId/edits',
+    handler: async ({ ctx, params }) => getProjectDiscussionMessageEdits(ctx, params['projectId']!, params['conversationId']!, params['messageId']!),
   });
   route({
     ...common, method: 'POST', path: '/api/client-portal/projects/:projectId/discussion/:conversationId/read',

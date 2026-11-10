@@ -11,7 +11,10 @@ import { loadConfig } from '../../../config.js';
  * already refuses to boot in that state).
  */
 
-const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
+/** Google's token endpoint; only a test or staging stand-in changes it (GOOGLE_TOKEN_URL). */
+function tokenEndpoint(): string {
+  return loadConfig().GOOGLE_TOKEN_URL;
+}
 const JWT_BEARER_GRANT = 'urn:ietf:params:oauth:grant-type:jwt-bearer';
 
 /** Read-only is all the rank provider needs, and all it should be able to do. */
@@ -50,7 +53,7 @@ function normalisePrivateKey(pem: string): string {
 async function requestToken(body: Record<string, string>): Promise<CachedToken> {
   let response: Response;
   try {
-    response = await fetch(TOKEN_ENDPOINT, {
+    response = await fetch(tokenEndpoint(), {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams(body).toString(),
@@ -72,7 +75,7 @@ async function requestToken(body: Record<string, string>): Promise<CachedToken> 
   return { token: payload.access_token, expiresAt: Date.now() + lifetime };
 }
 
-async function mintServiceAccountToken(scope: string): Promise<CachedToken> {
+async function mintServiceAccountToken(scope: string, subject?: string): Promise<CachedToken> {
   const config = loadConfig();
   const email = config.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const pem = config.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
@@ -89,13 +92,15 @@ async function mintServiceAccountToken(scope: string): Promise<CachedToken> {
     );
   }
 
-  const assertion = await new SignJWT({ scope })
+  const jwt = new SignJWT({ scope })
     .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
     .setIssuer(email)
-    .setAudience(TOKEN_ENDPOINT)
+    .setAudience(tokenEndpoint())
     .setIssuedAt()
-    .setExpirationTime(`${ASSERTION_TTL_SECONDS}s`)
-    .sign(key);
+    .setExpirationTime(`${ASSERTION_TTL_SECONDS}s`);
+  // Domain-wide delegation: act as this Workspace user.
+  if (subject !== undefined) jwt.setSubject(subject);
+  const assertion = await jwt.sign(key);
 
   return requestToken({ grant_type: JWT_BEARER_GRANT, assertion });
 }
@@ -145,4 +150,106 @@ export async function googleAccessToken(scope: string = SEARCH_CONSOLE_SCOPE): P
 /** Tests, and an operator forcing a re-mint after rotating a credential. */
 export function __clearGoogleTokenCache(): void {
   cache.clear();
+}
+
+/* ------------------------------------------------------------------ *
+ * Calendar access for client meetings (MEETINGS_GOOGLE_AUTH).
+ * ------------------------------------------------------------------ */
+
+/**
+ * Workspace domain-wide delegation: a token that acts as `subject` (their
+ * Workspace email). The admin must have authorized the service account's
+ * client id for exactly these scopes.
+ */
+export async function googleDelegatedAccessToken(
+  scopes: readonly string[],
+  subject: string,
+): Promise<string> {
+  const scope = [...scopes].sort().join(' ');
+  const key = `delegated ${subject.toLowerCase()} ${scope}`;
+  const cached = cache.get(key);
+  if (cached !== undefined && cached.expiresAt - RENEW_MARGIN_MS > Date.now()) return cached.token;
+  const minted = await mintServiceAccountToken(scope, subject);
+  cache.set(key, minted);
+  return minted.token;
+}
+
+function oauthClient(): { clientId: string; clientSecret: string } {
+  const config = loadConfig();
+  if (config.GOOGLE_OAUTH_CLIENT_ID === undefined || config.GOOGLE_OAUTH_CLIENT_SECRET === undefined) {
+    throw new GoogleAuthUnavailableError('GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are not configured');
+  }
+  return { clientId: config.GOOGLE_OAUTH_CLIENT_ID, clientSecret: config.GOOGLE_OAUTH_CLIENT_SECRET };
+}
+
+/**
+ * A fresh access token from one person's stored refresh token. Throws
+ * GoogleAuthUnavailableError when Google refuses it (revoked, expired), which
+ * means that person has to connect again.
+ */
+export async function googleRefreshedAccessToken(refreshToken: string): Promise<{ token: string; expiresAt: number }> {
+  const { clientId, clientSecret } = oauthClient();
+  return requestToken({
+    grant_type: 'refresh_token',
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+  });
+}
+
+export interface GoogleCodeExchange {
+  readonly accessToken: string;
+  readonly refreshToken: string | null;
+  readonly idToken: string | null;
+  readonly scope: string;
+  readonly expiresInSeconds: number;
+}
+
+/** Trades the code from Google's consent screen for tokens. */
+export async function exchangeGoogleAuthorizationCode(code: string, redirectUri: string): Promise<GoogleCodeExchange> {
+  const { clientId, clientSecret } = oauthClient();
+  let response: Response;
+  try {
+    response = await fetch(tokenEndpoint(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }).toString(),
+    });
+  } catch (cause) {
+    throw new Error(`Google token endpoint unreachable: ${cause instanceof Error ? cause.message : String(cause)}`);
+  }
+  const payload = (await response.json().catch(() => ({}))) as TokenResponse & {
+    readonly refresh_token?: string;
+    readonly id_token?: string;
+    readonly scope?: string;
+  };
+  if (!response.ok || payload.access_token === undefined) {
+    throw new GoogleAuthUnavailableError(`Google refused the sign-in: ${payload.error_description ?? payload.error ?? `HTTP ${response.status}`}`);
+  }
+  return {
+    accessToken: payload.access_token,
+    refreshToken: payload.refresh_token ?? null,
+    idToken: payload.id_token ?? null,
+    scope: payload.scope ?? '',
+    expiresInSeconds: payload.expires_in ?? 3600,
+  };
+}
+
+/** Best effort: tells Google to forget a token when someone disconnects. */
+export async function revokeGoogleToken(token: string): Promise<void> {
+  try {
+    await fetch(new URL('/revoke', tokenEndpoint()), {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token }).toString(),
+    });
+  } catch {
+    // Disconnecting still deletes the stored token; Google expires unused ones.
+  }
 }

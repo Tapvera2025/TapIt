@@ -68,6 +68,7 @@ const MODULES = new Set([
   'social',
   'post-closure',
   'client-portal',
+  'meetings',
   'seo-intelligence',
   'billing-terms',
   'invoicing',

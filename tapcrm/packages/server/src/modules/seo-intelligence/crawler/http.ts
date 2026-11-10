@@ -14,6 +14,8 @@ export interface FetchResult {
   truncated: boolean;
   elapsedMs: number;
   redirectChain: FetchHop[];
+  /** True when `htmlOnly` skipped a non-HTML body. */
+  bodySkipped?: boolean;
 }
 
 export interface FetchOptions {
@@ -28,12 +30,29 @@ export interface FetchOptions {
   headers?: Record<string, string>;
   /** Request body for POST/PUT/PATCH. */
   body?: string | Uint8Array;
+  /**
+   * Skip downloading bodies that are not web pages (PDFs, images, archives):
+   * the response's status and headers are still returned, with an empty body.
+   */
+  htmlOnly?: boolean;
 }
 
 const DEFAULT_TIMEOUT = 15_000;
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MiB
 const DEFAULT_MAX_REDIRECTS = 5;
-const DEFAULT_UA = 'TapcrmSeoBot/1.0 (+https://tapcrm.local/bots)';
+/**
+ * The crawler identifies itself as a bot. SEO_CRAWLER_INFO_URL can point site
+ * owners at a page describing it; without one no made-up address is sent.
+ */
+export function crawlerUserAgent(identity: 'tapcrm' | 'browser' = 'tapcrm'): string {
+  if (identity === 'browser') {
+    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+  }
+  const info = process.env['SEO_CRAWLER_INFO_URL'];
+  return `Mozilla/5.0 (compatible; TapcrmSeoBot/1.0${info ? `; +${info}` : ''})`;
+}
+
+const DEFAULT_UA = crawlerUserAgent();
 
 export class FetchError extends Error {
   readonly reason?: unknown;
@@ -50,8 +69,11 @@ export class FetchTimeoutError extends FetchError {
 }
 
 export class RedirectLoopError extends FetchError {
-  constructor(hops: number) {
+  /** The hops followed before giving up. */
+  readonly chain: FetchHop[];
+  constructor(hops: number, chain: FetchHop[] = []) {
     super(`exceeded redirect limit (${hops})`);
+    this.chain = chain;
   }
 }
 
@@ -126,6 +148,23 @@ export async function safeFetch(url: string, opts: FetchOptions = {}): Promise<F
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => { responseHeaders[key] = value; });
 
+    const contentType = responseHeaders['content-type'];
+    if (opts.htmlOnly && contentType && !/\b(text\/html|application\/xhtml\+xml)\b/i.test(contentType)) {
+      try { await response.body?.cancel(); } catch { /* ignore */ }
+      const declared = Number.parseInt(responseHeaders['content-length'] ?? '', 10);
+      return {
+        finalUrl: current,
+        status,
+        headers: responseHeaders,
+        body: '',
+        byteLength: Number.isFinite(declared) ? declared : 0,
+        truncated: false,
+        elapsedMs: Date.now() - started,
+        redirectChain,
+        bodySkipped: true,
+      };
+    }
+
     const { body, byteLength, truncated } = await readCapped(response, maxBytes, timeoutMs - (Date.now() - started));
 
     return {
@@ -140,7 +179,7 @@ export async function safeFetch(url: string, opts: FetchOptions = {}): Promise<F
     };
   }
 
-  throw new RedirectLoopError(maxRedirects);
+  throw new RedirectLoopError(maxRedirects, redirectChain);
 }
 
 async function readCapped(

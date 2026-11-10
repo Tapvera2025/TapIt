@@ -67,7 +67,8 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   biometric: [G, all, _, _, _, _, _, _, _, _, _],
   leave: [G, all, all, own, own, own, own, own, own, own, _],
   holidays: [G, all, allV, allV, allV, allV, allV, allV, allV, allV, _],
-  ta: [G, all, all, _, _, _, _, _, _, own, _],
+  // Everyone with TA sees their own statements, managers included; HR manages it.
+  ta: [G, all, all, own, own, own, own, own, own, own, _],
   payroll: [G, all, _, own, own, own, own, own, own, own, _],
   advance: [G, all, all, own, own, own, own, own, own, own, _],
   // Every employee position can see penalties recorded against itself. HR and
@@ -99,6 +100,10 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   'seo-intelligence': [G, _, _, _, _, _, _, _, _, _, _],
   'post-closure': [G, _, _, dept, own, _, team, _, pool, own, _],
   'client-portal': [G, _, _, dept, own, _, _, _, _, _, A],
+  // Managers meet clients and oversee their people's meetings. Anyone else
+  // who meets clients is granted `meetings:host` by a Super Admin. Clients
+  // reach meetings through the portal, not through position policy.
+  meetings: [G, _, _, dept, own, dept, team, team, pool, _, _],
   'billing-terms': [G, _, _, _, _, _, _, _, _, _, _],
   invoicing: [G, _, _, _, ownV, _, _, _, _, _, A],
   payments: [G, _, _, _, ownV, _, _, _, _, _, A],

@@ -26,6 +26,7 @@ import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { enterBidPool, getBidCard, announceBidPoolAdded } from '../bidding/service.js';
 import { dedupeAndIdentify } from './dedupe.js';
+import { normalizeLeadPhone } from '../leads/normalization.js';
 import {
   findConnector,
   findOrInsertCompanyByName,
@@ -133,7 +134,9 @@ export async function ingest(ctx: RequestContext, payload: IntakePayload): Promi
     }
 
     const { contact } = validation;
-    const phoneNormalized = digitsOnlyPhone(contact.phoneE164 ?? contact.phoneRaw);
+    // Same matching key as a lead typed in by hand, so the duplicate check
+    // finds a website or imported lead from the number an agent types.
+    const phoneNormalized = contact.phoneE164 ? digitsOnlyPhone(contact.phoneE164) : normalizeLeadPhone(contact.phoneRaw);
     const emailNormalized = legacyEmailNormalized(contact.email);
 
     // Step 5 (company): resolve or create a company when the payload names one.

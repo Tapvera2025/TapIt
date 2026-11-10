@@ -1,4 +1,5 @@
 import type { SeoSeverity, SeoConfidence } from '../../types.js';
+import { isHtmlContentType } from '../../url.js';
 
 export interface OutboundLink {
   href: string;
@@ -22,6 +23,15 @@ export interface HreflangTag {
   href: string;
   hrefIsAbsolute: boolean;
   langIsValid: boolean;
+}
+
+/** What the raw HTML said before JavaScript ran, kept when a page is rendered. */
+export interface RawSignals {
+  title: string | null;
+  metaRobots: string | null;
+  canonicalLink: string | null;
+  h1Count: number | null;
+  wordCount: number | null;
 }
 
 export interface CwvRating {
@@ -49,6 +59,7 @@ export interface PageObservation {
   // Content
   h1Count: number | null;
   h1Text: string | null;
+  h1Texts?: string[];
   wordCount: number | null;
   contentHash: string | null;
   duplicateOfUrl: string | null;
@@ -91,6 +102,8 @@ export interface PageObservation {
   renderMode: 'raw' | 'rendered' | 'both';
   rawContentHash: string | null;
   renderedContentHash: string | null;
+  /** Set when the page was rendered: the raw-HTML values, for C008. */
+  rawSignals: RawSignals | null;
   contentLength: number | null;
   responseTimeMs: number | null;
 }
@@ -115,6 +128,13 @@ export interface RuleDefinition {
   severity: SeoSeverity;
   active: boolean;
   tested: boolean;
+  /**
+   * 'html' (default): only for pages that loaded (2xx) as HTML — an error page,
+   * a redirect or a PDF has no title or headings to judge. 'any': every URL.
+   */
+  appliesTo?: 'html' | 'any';
+  /** 'site' rules run once per scan on the site's own observation, not per page. */
+  scope?: 'page' | 'site';
   evaluate: RuleEvaluator;
 }
 
@@ -140,8 +160,27 @@ export function getActiveRuleCount(): number {
   return getActiveRules().length;
 }
 
+/** True for a page that loaded as HTML — the pages content rules can judge. */
+export function isEvaluablePage(obs: Pick<PageObservation, 'httpStatus' | 'contentType'>): boolean {
+  return obs.httpStatus !== null && obs.httpStatus >= 200 && obs.httpStatus < 300 && isHtmlContentType(obs.contentType);
+}
+
+/** Page-scope rules that apply to this observation. */
 export function evaluateAll(obs: PageObservation): RuleResult[] {
-  return getActiveRules().map((rule) => {
+  const page = isEvaluablePage(obs);
+  return runRules(
+    getActiveRules().filter((rule) => (rule.scope ?? 'page') === 'page' && (page || rule.appliesTo === 'any')),
+    obs,
+  );
+}
+
+/** Site-scope rules, run once per scan against the site's observation (origin field data). */
+export function evaluateSiteRules(obs: PageObservation): RuleResult[] {
+  return runRules(getActiveRules().filter((rule) => rule.scope === 'site'), obs);
+}
+
+function runRules(rules: RuleDefinition[], obs: PageObservation): RuleResult[] {
+  return rules.map((rule) => {
     try {
       return rule.evaluate(obs);
     } catch {

@@ -21,6 +21,10 @@ export interface Lead {
   phone: string | null; email: string | null; lossReason: LeadLossReason | null; lostAt: Date | null; previousLeadId: string | null; stalledAt: Date | null; stalledReason: string | null; createdBy: string; createdAt: Date; updatedAt: Date; activities: LeadActivity[];
   /** When the current owner got the lead; null while it has no owner. */
   assignedAt: Date | null;
+  /** Where an inbound lead is in the Bid Pool: open for claims, claimed, waiting in Triage, or auto-assigned. */
+  bidState: 'none' | 'pool_open' | 'claimed' | 'triage' | 'fallback_assigned';
+  /** When an open Bid Pool offer lapses to auto-assignment; null once it leaves the pool. */
+  bidPoolExpiresAt: Date | null;
   /** What the enquiry is about, from the Add Lead form or the website/ad form. */
   requirement: string | null;
   location: string | null;

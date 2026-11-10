@@ -66,7 +66,7 @@ export async function harvestKeywordsFromGsc(
          language, tracked, check_cadence, notes)
       VALUES
         (${randomUUID()}, ${setId}, ${siteId}, ${ctx.organizationId},
-         ${row.query}, ${country}, ${device}, 'en', true, 'weekly',
+         ${row.query}, ${country}, ${device}, 'en', false, 'weekly',
          ${`Harvested from GSC on ${today} (clicks=${row.totalClicks}, impressions=${row.totalImpressions})`})
       ON CONFLICT (site_id, keyword, country, device) DO NOTHING
       RETURNING id
@@ -74,5 +74,25 @@ export async function harvestKeywordsFromGsc(
     inserted += rows.length;
   }
 
+  // Harvested terms are suggestions. Only when a site tracks nothing yet are
+  // its strongest few tracked, so position checks have a sensible start; each
+  // check spends from the site's search allowance.
+  await db.query(ctx, sql`
+    UPDATE seo_keywords SET tracked = true
+    WHERE organization_id = ${ctx.organizationId} AND site_id = ${siteId} AND id IN (
+      SELECT k.id FROM seo_keywords k
+      JOIN unnest(${queries.map((q) => q.query)}::text[]) WITH ORDINALITY AS q(query, rank) ON q.query = k.keyword
+      WHERE k.organization_id = ${ctx.organizationId} AND k.site_id = ${siteId} AND k.set_id = ${setId}
+      ORDER BY q.rank LIMIT ${AUTO_TRACKED_TERMS}
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM seo_keywords t
+      WHERE t.organization_id = ${ctx.organizationId} AND t.site_id = ${siteId} AND t.tracked = true
+    )
+  `);
+
   return inserted;
 }
+
+/** How many harvested terms are tracked automatically for a site that tracks none. */
+export const AUTO_TRACKED_TERMS = 10;

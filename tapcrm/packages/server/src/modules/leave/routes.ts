@@ -5,7 +5,7 @@ import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
 import { makeLeaveTypeResource, makeLeaveRequestResource } from './policy.js';
 import { createLeaveType, listAvailableLeaveTypes, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getBalanceOverview, adjustBalance, getLeaveCalendar, getLeaveRequest, listLeaveRequests, listLeaveAcknowledgements, listLeaveDecisions, submitLeave, submitWfh, submitStandingWfh, acknowledgeLeave, decideLeave } from './service.js';
-import { createLeaveTypeSchema, updateLeaveTypeSchema, adjustBalanceSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, queueListQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
+import { availableTypesQuerySchema, createLeaveTypeSchema, updateLeaveTypeSchema, adjustBalanceSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, queueListQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
 
 async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource | null> {
   const row = await db.maybeOne<{ id: string; organizationId: string }>(
@@ -16,7 +16,7 @@ async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource 
 
 export function registerLeaveRoutes(): void {
   route({ method: 'GET', path: '/api/leaves/types/available', action: 'leave:request', module: 'leave',
-    handler: async ({ ctx }) => listAvailableLeaveTypes(ctx) });
+    handler: async ({ ctx, query }) => listAvailableLeaveTypes(ctx, availableTypesQuerySchema.parse(query).kind) });
   route({ method: 'GET',  path: '/api/leaves/types', action: 'leave:manage-types', module: 'leave',
     handler: async ({ ctx }) => listLeaveTypes(ctx) });
   route({ method: 'POST', path: '/api/leaves/types', action: 'leave:manage-types', module: 'leave',

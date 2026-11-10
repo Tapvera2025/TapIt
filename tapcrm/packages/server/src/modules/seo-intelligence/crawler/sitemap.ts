@@ -59,18 +59,46 @@ export async function fetchSitemap(url: string, depth = 0): Promise<SitemapFetch
 
 /** Discovers the sitemap for a site. Tries robots.txt first, then falls back to /sitemap.xml. */
 export async function discoverSitemapUrl(siteOrigin: string): Promise<string | null> {
+  return (await discoverSitemapUrls(siteOrigin))[0] ?? null;
+}
+
+/**
+ * Every sitemap robots.txt lists (sites often list several — pages, posts,
+ * products), or /sitemap.xml when it lists none.
+ */
+export async function discoverSitemapUrls(siteOrigin: string, limit = 10): Promise<string[]> {
+  const found: string[] = [];
   try {
     const robotsUrl = new URL('/robots.txt', siteOrigin).toString();
-    const result = await safeFetch(robotsUrl, { maxBytes: 100 * 1024 });
+    const result = await safeFetch(robotsUrl, { maxBytes: 512 * 1024 });
     if (result.status === 200) {
-      const match = result.body.match(/^\s*sitemap\s*:\s*(\S+)/im);
-      if (match) return match[1]!;
+      for (const match of result.body.matchAll(/^\s*sitemap\s*:\s*(\S+)/gim)) {
+        try {
+          const url = new URL(match[1]!, siteOrigin).toString();
+          if (!found.includes(url)) found.push(url);
+        } catch { /* skip malformed */ }
+        if (found.length >= limit) break;
+      }
     }
   } catch { /* fall through */ }
-
+  if (found.length > 0) return found;
   try {
-    return new URL('/sitemap.xml', siteOrigin).toString();
-  } catch { return null; }
+    return [new URL('/sitemap.xml', siteOrigin).toString()];
+  } catch { return []; }
+}
+
+/** Sitemap lastmod as an ISO timestamp, or null when absent or not a date. */
+export function parseLastmod(raw: string | null): string | null {
+  if (!raw) return null;
+  const time = Date.parse(raw.trim());
+  if (!Number.isFinite(time)) return null;
+  const year = new Date(time).getUTCFullYear();
+  return year >= 1990 && year <= 2200 ? new Date(time).toISOString() : null;
+}
+
+/** Sitemap priority, kept only inside the protocol's 0.0–1.0 range. */
+export function parsePriority(value: number | null): number | null {
+  return value !== null && Number.isFinite(value) && value >= 0 && value <= 1 ? Math.round(value * 100) / 100 : null;
 }
 
 function extractLocs(xml: string): string[] {
@@ -111,5 +139,6 @@ function decodeEntities(src: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
 }

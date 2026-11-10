@@ -165,6 +165,61 @@ export const syncGscData = (
 export const listSeoKeywords = (siteId: string) =>
   identityRequest<SeoKeyword[]>(`/api/seo/sites/${encodeURIComponent(siteId)}/keywords`);
 
+export const updateSeoKeyword = (siteId: string, keywordId: string, patch: { tracked: boolean }) =>
+  identityRequest<SeoKeyword>(
+    `/api/seo/sites/${encodeURIComponent(siteId)}/keywords/${encodeURIComponent(keywordId)}`,
+    { method: 'PATCH', body: JSON.stringify(patch) },
+  );
+
+// ─── Site settings ────────────────────────────────────────────────────────────
+
+export type SeoRenderPolicy = 'never' | 'heuristic' | 'always';
+export type SeoCrawlerIdentity = 'tapcrm' | 'browser';
+
+export interface SeoCrawlSettings {
+  maxPages: number;
+  renderPolicy: SeoRenderPolicy;
+  maxRenderPages: number;
+  respectRobots: boolean;
+  followSitemaps: boolean;
+  crawlDelayMs: number;
+  exclusionPatterns: string[];
+  crawlerIdentity: SeoCrawlerIdentity;
+}
+
+export interface SeoAllowanceStatus {
+  configured: boolean;
+  monthlyLimit: number;
+  used: number;
+  remaining: number;
+}
+
+export interface SeoSiteSettings {
+  crawl: SeoCrawlSettings;
+  renderingAvailable: boolean;
+  limits: {
+    maxPages: { min: number; max: number };
+    maxRenderPages: { min: number; max: number };
+    crawlDelayMs: { min: number; max: number };
+    exclusionPatterns: { max: number; length: number };
+  };
+  allowances: { serpSearches: SeoAllowanceStatus; perplexity: SeoAllowanceStatus; moz: SeoAllowanceStatus };
+}
+
+export interface SeoSiteSettingsPatch {
+  crawl?: Partial<SeoCrawlSettings>;
+  allowances?: { serpSearches?: number; perplexity?: number; moz?: number };
+}
+
+export const getSeoSiteSettings = (siteId: string) =>
+  identityRequest<SeoSiteSettings>(`/api/seo/sites/${encodeURIComponent(siteId)}/settings`);
+
+export const updateSeoSiteSettings = (siteId: string, patch: SeoSiteSettingsPatch) =>
+  identityRequest<SeoSiteSettings>(`/api/seo/sites/${encodeURIComponent(siteId)}/settings`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+
 // ─── Rank Tracking ────────────────────────────────────────────────────────────
 
 export const listSeoSerpObservations = (siteId: string, opts: { limit?: number } = {}) => {

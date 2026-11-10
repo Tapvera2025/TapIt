@@ -67,6 +67,12 @@ function TextInput({
   );
 }
 
+/** Today in the user's own calendar — the UTC date is still yesterday before 05:30 in India. */
+function localToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 function Choice({
   label,
   value,
@@ -120,6 +126,8 @@ export function EditEmployeeModal({
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [tab, setTab] = useState<Tab>('profile');
   const [error, setError] = useState<string | null>(null);
+  // The Shift tab holds two forms; each shows only its own error.
+  const [weekdayError, setWeekdayError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -147,9 +155,9 @@ export function EditEmployeeModal({
   const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
   const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
   const [selectedShiftId, setSelectedShiftId] = useState('');
-  const [shiftEffectiveFrom, setShiftEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [shiftEffectiveFrom, setShiftEffectiveFrom] = useState(localToday());
   const [weekdayScheduleId, setWeekdayScheduleId] = useState('');
-  const [weekdayScheduleEffectiveFrom, setWeekdayScheduleEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [weekdayScheduleEffectiveFrom, setWeekdayScheduleEffectiveFrom] = useState(localToday());
 
   // Account
   const [statusReason, setStatusReason] = useState('');
@@ -186,7 +194,7 @@ export function EditEmployeeModal({
     getEmployeeWeekdaySchedule(userId)
       .then((assignment) => {
         setWeekdayScheduleId(assignment?.scheduleId ?? '');
-        setWeekdayScheduleEffectiveFrom(assignment?.effectiveFrom ?? new Date().toISOString().slice(0, 10));
+        setWeekdayScheduleEffectiveFrom(assignment?.effectiveFrom ?? localToday());
       })
       .catch(() => undefined);
   }, [userId]);
@@ -324,7 +332,7 @@ export function EditEmployeeModal({
     event.preventDefault();
     if (!weekdayScheduleId || !weekdayScheduleEffectiveFrom) return;
     setBusy(true);
-    setError(null);
+    setWeekdayError(null);
     setNotice(null);
     try {
       await updateEmployee(userId, {
@@ -334,7 +342,7 @@ export function EditEmployeeModal({
       const schedule = weekdaySchedules.find((item) => item.id === weekdayScheduleId);
       onSaved(`Weekday schedule changed to ${schedule?.name ?? 'selected schedule'} effective ${weekdayScheduleEffectiveFrom}.`);
     } catch (err) {
-      setError(errorText(err, 'Unable to save the weekday schedule.'));
+      setWeekdayError(errorText(err, 'Unable to save the weekday schedule.'));
     } finally {
       setBusy(false);
     }
@@ -359,7 +367,7 @@ export function EditEmployeeModal({
                 type="button"
                 role="tab"
                 aria-selected={tab === item.key}
-                onClick={() => { setTab(item.key); setError(null); setNotice(null); }}
+                onClick={() => { setTab(item.key); setError(null); setWeekdayError(null); setNotice(null); }}
                 className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold ${tab === item.key ? 'bg-app-accent text-app-on-accent' : 'text-app-muted hover:text-app-foreground'}`}
               >
                 {item.label}
@@ -535,7 +543,7 @@ export function EditEmployeeModal({
                   required
                 />
               </div>
-              {error && <div className="md:col-span-2"><Notice error>{error}</Notice></div>}
+              {weekdayError && <div className="md:col-span-2"><Notice error>{weekdayError}</Notice></div>}
               <div className="flex justify-end gap-2 md:col-span-2">
                 <Button kind="secondary" onClick={onClose}>Close</Button>
                 <Button type="submit" disabled={busy || !weekdayScheduleId}>{busy ? 'Saving…' : 'Save weekday schedule'}</Button>

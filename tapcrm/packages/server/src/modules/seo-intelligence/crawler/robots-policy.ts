@@ -50,11 +50,23 @@ export function parseRobotsPolicy(body: string): RobotsPolicy {
   };
 }
 
-export async function loadRobotsPolicy(origin: string): Promise<RobotsPolicy> {
+/**
+ * Mirrors how Google reads robots.txt: a 4xx (other than 429) means "no
+ * robots.txt", so everything may be crawled; a 5xx, a 429 or an unreachable
+ * file means "stay away for now". A file over the size cap is read up to the
+ * cap, as Google does at 500 KiB.
+ */
+export async function loadRobotsPolicy(origin: string, userAgent?: string): Promise<RobotsPolicy> {
   try {
-    const response = await safeFetch(new URL('/robots.txt', origin).toString(), { maxBytes: 512_000, timeoutMs: 10_000 });
-    if (response.status >= 200 && response.status < 300 && !response.truncated) return parseRobotsPolicy(response.body);
-    if (response.status === 404 || response.status === 410) return parseRobotsPolicy('');
-    return { allows: () => false, delayMs: 0, reason: `Robots access could not be established (HTTP ${response.status})` };
-  } catch { return { allows: () => false, delayMs: 0, reason: 'Robots access could not be established' }; }
+    const response = await safeFetch(new URL('/robots.txt', origin).toString(), {
+      maxBytes: 512_000,
+      timeoutMs: 10_000,
+      ...(userAgent ? { userAgent } : {}),
+    });
+    if (response.status >= 200 && response.status < 300) return parseRobotsPolicy(response.body);
+    if (response.status >= 400 && response.status < 500 && response.status !== 429) return parseRobotsPolicy('');
+    return { allows: () => false, delayMs: 0, reason: `robots.txt could not be read (HTTP ${response.status}), so the site was not crawled` };
+  } catch {
+    return { allows: () => false, delayMs: 0, reason: 'robots.txt could not be reached, so the site was not crawled' };
+  }
 }

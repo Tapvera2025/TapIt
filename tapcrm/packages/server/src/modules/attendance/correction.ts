@@ -199,7 +199,6 @@ async function checkReadability(
       evidence: e.evidence,
       assignmentReason: (e.reason ?? 'midpoint'),
     }));
-
   const proposed: AttendanceEventInput = {
     id: 'proposed',
     kind,
@@ -208,13 +207,29 @@ async function checkReadability(
     evidence: 'confirmed',
     assignmentReason: 'correction',
   };
-  provisional.push(proposed);
+  if (!readDay([...provisional, proposed], eligibility).notApplied.has('proposed')) return;
 
-  const reading = readDay(provisional, eligibility);
+  // Not readable against the day's punches alone. Punches already requested
+  // for the day may complete it — someone who missed both punches asks for the
+  // check-in and then the check-out. They can only make a request acceptable,
+  // never refuse one that stands on its own.
+  const pending = (await repo.pendingAddedEvents(tx, userId, workDate)).map(
+    (row): AttendanceEventInput => ({
+      id: `pending-${row.id}`,
+      kind: row.kind,
+      at: new Date(row.at).toISOString(),
+      source: 'correction',
+      evidence: 'confirmed',
+      assignmentReason: 'correction',
+    }),
+  );
+  const reading = readDay([...provisional, ...pending, proposed], eligibility);
   if (reading.notApplied.has('proposed'))
     throw new AttendanceUnprocessableError(
       ATTENDANCE_ERROR_CODES.CORRECTION_NOT_READABLE,
-      'The proposed correction event is not readable in the day\'s context.',
+      kind === 'out' || kind === 'break-end'
+        ? `This ${kind === 'out' ? 'check-out' : 'break end'} has no ${kind === 'out' ? 'check-in' : 'break start'} before it on this day. Request the missing ${kind === 'out' ? 'check-in' : 'break start'} as well.`
+        : 'This punch does not fit the punches already on this day. Check its time against the day\'s other punches.',
     );
 }
 

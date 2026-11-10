@@ -301,7 +301,7 @@ export function LeaveQueuePage({
                     </div>
                     <p className="text-xs text-app-muted">
                       {leave.leaveTypeName} · {fmtDate(leave.fromDate)} — {fmtDate(leave.toDate)}
-                      {' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}
+                      {leave.kind === 'attendance-mode' ? ' · work from home' : <>{' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}</>}
                     </p>
                     {leave.reason && (
                       <p className="mt-1 text-xs text-app-muted">{leave.reason}</p>

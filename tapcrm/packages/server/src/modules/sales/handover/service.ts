@@ -161,7 +161,13 @@ export async function recordLeadHandoverDisposition(ctx: RequestContext, id: str
     if (!await recordHandoverDisposition(tx, ctx.organizationId, id, input.disposition, input.reason ?? null, input.annotations ?? {})) throw new HandoverConflictError(HANDOVER_ERROR_CODES.FINALIZED, 'This handover has already received a final disposition');
     if (input.disposition === 'rejected' && !await closeLeadAsLostInTransaction(tx, ctx.organizationId, existing.leadId, input.lossReason!)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'The Lead cannot be closed as lost in its current lifecycle state');
     if (input.disposition === 'rejected') await cancelOpenCallbacksInTransaction(tx, ctx, existing.leadId, 'lead_closed_lost');
-    if (input.disposition === 'callback') { await tx.query(sql`UPDATE lead SET status = 'callback_scheduled' WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId}`); await scheduleCallbackInTransaction(tx, ctx, existing.leadId, input.scheduledAt!, input.reason ?? null, ctx.principal.id); }
+    if (input.disposition === 'callback') {
+      await tx.query(sql`UPDATE lead SET status = 'callback_scheduled' WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId}`);
+      await scheduleCallbackInTransaction(tx, ctx, existing.leadId, input.scheduledAt!, input.reason ?? null, ctx.principal.id);
+      // The live call is over and the follow-up is the owner's, so the lead goes
+      // back to them: they can book the next callback or hand over again.
+      await tx.query(sql`UPDATE lead SET current_holder_id = owner_id WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId} AND owner_id IS NOT NULL`);
+    }
     const event = input.disposition === 'rejected' ? 'lead.closed_lost' : input.disposition === 'callback' ? 'callback.requested' : 'deal.creation_requested';
     await insertActivity(tx, ctx.organizationId, existing.leadId, event, ctx.principal.id, { handoverId: id, disposition: input.disposition, reason: input.reason ?? null, lossReason: input.lossReason ?? null });
     await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.disposition_recorded', ctx.principal.id, { handoverId: id, disposition: input.disposition });
