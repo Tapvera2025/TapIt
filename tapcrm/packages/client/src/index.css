@@ -669,6 +669,26 @@
     background: linear-gradient(105deg, rgba(255, 255, 255, 0.06), transparent 42%);
   }
 
+  /* Keep the platform drawer in the same translucent workspace style. */
+  .platform-sidebar {
+    isolation: isolate;
+    background: color-mix(in srgb, var(--sidebar-background) 76%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sidebar-border) 78%, white 22%) !important;
+    backdrop-filter: blur(24px) saturate(135%);
+    -webkit-backdrop-filter: blur(24px) saturate(135%);
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+
+  .dark .platform-sidebar {
+    background: rgba(27, 30, 36, 0.72) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
   @media (max-width: 430px) {
 
     .company-header-actions .navbar-action-button,
@@ -1408,6 +1428,98 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.14),
       inset 0 -12px 26px color-mix(in srgb, var(--theme-primary) 10%, transparent),
       0 16px 32px -25px color-mix(in srgb, var(--theme-primary) 72%, transparent);
+  }
+
+  .break-overlay {
+    overscroll-behavior: contain;
+  }
+
+  .break-overlay-backdrop {
+    background: rgba(15, 23, 42, 0.38);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .break-overlay-card {
+    background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+    backdrop-filter: blur(16px) saturate(110%);
+    -webkit-backdrop-filter: blur(16px) saturate(110%);
+    box-shadow: 0 20px 60px -30px rgba(15, 23, 42, 0.55);
+  }
+
+  .break-overlay-timer {
+    background: color-mix(in srgb, var(--app-surface-raised) 72%, transparent);
+  }
+
+  .break-overlay-resume {
+    background: var(--theme-primary);
+    color: var(--app-on-accent);
+  }
+
+  .dark .break-overlay-card {
+    background: rgba(27, 30, 36, 0.94);
+    box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+
+  .dark .break-overlay-timer {
+    background: color-mix(in srgb, var(--app-surface-raised) 72%, transparent);
+  }
+
+  .break-overlay[data-break-state='near-limit'] .break-overlay-card {
+    border-color: color-mix(in srgb, #d97706 48%, var(--app-border));
+    background: color-mix(in srgb, #fef3c7 42%, var(--app-surface) 58%);
+  }
+
+  .break-overlay[data-break-state='near-limit'] .break-overlay-timer {
+    border-color: color-mix(in srgb, #d97706 38%, var(--app-border));
+  }
+
+  .break-overlay[data-break-state='near-limit'] .break-overlay-timer p:last-child,
+  .break-overlay[data-break-state='near-limit'] .break-overlay-remaining span:last-child {
+    color: #b45309;
+  }
+
+  .break-overlay[data-break-state='near-limit'] .break-overlay-resume {
+    background: #b45309;
+    color: white;
+  }
+
+  .break-overlay[data-break-state='over-limit'] .break-overlay-card {
+    border-color: color-mix(in srgb, #dc2626 55%, var(--app-border));
+    background: color-mix(in srgb, #fee2e2 42%, var(--app-surface) 58%);
+  }
+
+  .break-overlay[data-break-state='over-limit'] .break-overlay-timer,
+  .break-overlay[data-break-state='over-limit'] .break-overlay-remaining {
+    border-color: color-mix(in srgb, #dc2626 42%, var(--app-border));
+  }
+
+  .break-overlay[data-break-state='over-limit'] .break-overlay-timer p:last-child,
+  .break-overlay[data-break-state='over-limit'] .break-overlay-remaining span:last-child {
+    color: #b91c1c;
+  }
+
+  .break-overlay[data-break-state='over-limit'] .break-overlay-resume {
+    background: #b91c1c;
+    color: white;
+  }
+
+  .dark .break-overlay[data-break-state='near-limit'] .break-overlay-card {
+    background: color-mix(in srgb, #78350f 30%, var(--app-surface) 70%);
+  }
+
+  .dark .break-overlay[data-break-state='near-limit'] .break-overlay-timer p:last-child,
+  .dark .break-overlay[data-break-state='near-limit'] .break-overlay-remaining span:last-child {
+    color: #fbbf24;
+  }
+
+  .dark .break-overlay[data-break-state='over-limit'] .break-overlay-card {
+    background: color-mix(in srgb, #7f1d1d 34%, var(--app-surface) 66%);
+  }
+
+  .dark .break-overlay[data-break-state='over-limit'] .break-overlay-timer p:last-child,
+  .dark .break-overlay[data-break-state='over-limit'] .break-overlay-remaining span:last-child {
+    color: #fca5a5;
   }
 
   .today-activity-scroll {
