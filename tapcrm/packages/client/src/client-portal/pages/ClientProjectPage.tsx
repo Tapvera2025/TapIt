@@ -1,18 +1,29 @@
 import { useEffect, useState } from 'react';
-import { Card, ErrorMessage, Loading, Notice, Page } from '../../ui/index.js';
+import { Button, Card, ErrorMessage, Loading, Notice, Page } from '../../ui/components.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 import { formatProjectDate } from '../../projects/formatDate.js';
-import { getPortalProject, PORTAL_SERVICE_LABELS, type PortalProject } from '../api/portalApi.js';
-import { PortalLink, ProgressBar, StatusBadge } from '../components.js';
+import { ProjectDetailNavigation } from '../../projects/ProjectDetailNavigation.js';
+import { downloadPortalProjectReport, getPortalProject, PORTAL_SERVICE_LABELS, PORTAL_STATUS_LABELS, type PortalProject } from '../api/portalApi.js';
+import { PortalLink, ProgressBar } from '../components.js';
+import { ClientProjectReportSections } from '../components/ClientProjectReportSections.js';
+
+type ClientProjectTab = 'details' | 'reports';
+const CLIENT_PROJECT_TABS = [
+  { value: 'details', label: 'Project Details', shortLabel: 'Details' },
+  { value: 'reports', label: 'Reports', shortLabel: 'Reports' },
+] as const;
 
 export function ClientProjectPage({ id, onNavigate, onError }: { id: string; onNavigate: (path: string) => void; onError: (cause: unknown) => void }): React.JSX.Element {
   const [project, setProject] = useState<PortalProject | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [tab, setTab] = useState<ClientProjectTab>('details');
 
   useEffect(() => {
     let live = true;
     setProject(null);
     setError(null);
+    setTab('details');
     getPortalProject(id).then((result) => { if (live) setProject(result); }, (cause: unknown) => { if (live) { setError(cause); onError(cause); } });
     return () => { live = false; };
   }, [id, onError]);
@@ -30,41 +41,85 @@ export function ClientProjectPage({ id, onNavigate, onError }: { id: string; onN
     );
   }
   if (!project) return <Page title="Project" action={back}><Loading /></Page>;
+  const projectId = project.id;
+  const projectName = project.name;
+
+  async function downloadReport(): Promise<void> {
+    setDownloading(true);
+    try {
+      const blob = await downloadPortalProjectReport(projectId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${projectName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'project'}-report.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (cause) {
+      setError(cause);
+      onError(cause);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
-    <Page eyebrow="Project" title={project.name} action={(
-      <div className="flex flex-wrap items-center gap-3">
-        <PortalLink href={`/client/meetings?project=${encodeURIComponent(project.id)}`} onNavigate={onNavigate} className="ui-button ui-primary rounded-xl px-4 py-2.5 text-sm font-bold">Request a meeting</PortalLink>
-        {back}
-      </div>
-    )}>
-      <Card className="p-4 sm:p-6">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-lg font-bold">Overview</h2>
-          <StatusBadge status={project.workStatus} />
-        </div>
-        <p className="mt-3 whitespace-pre-line break-words text-sm leading-6 text-app-muted">{project.description || 'No description has been added yet.'}</p>
-        <div className="mt-5">
-          <ProgressBar progress={project.progress} />
-        </div>
+    <div className="client-project-page flex h-full min-h-0 flex-col">
+      <ProjectDetailNavigation
+        projectName={project.name}
+        businessName={project.businessName}
+        onBack={() => onNavigate('/client/projects')}
+        tabs={CLIENT_PROJECT_TABS}
+        value={tab}
+        onChange={(next) => setTab(next as ClientProjectTab)}
+      />
 
-        <div className="mt-6 grid gap-4 border-t border-app-border pt-5 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="min-w-0">
-            <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-app-muted">Start date</dt>
-            <dd className="mt-1 break-words text-sm font-medium text-app-foreground">{formatProjectDate(project.startDate)}</dd>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+      {tab === 'details' && <>
+        <Card className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2 sm:p-6">
+          <Field label="Client" value={project.clientName} />
+          <Field label="Business" value={project.businessName} />
+          <Field label="Work status" value={PORTAL_STATUS_LABELS[project.workStatus]} />
+          <Field label="Start date" value={formatProjectDate(project.startDate)} />
+          <Field label="Expected end date" value={formatProjectDate(project.expectedEndDate)} />
+          <Field label="Services" value={project.services.length === 0 ? '—' : project.services.map((s) => (s.service === 'other' ? s.otherLabel : PORTAL_SERVICE_LABELS[s.service] ?? s.service)).join(', ')} />
+        </Card>
+        <Card className="mt-4">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-app-muted">Description</p>
+          <p className="whitespace-pre-line break-words text-sm">{project.description || '—'}</p>
+          <div className="mt-5 border-t border-app-border pt-5">
+            <ProgressBar progress={project.progress} />
           </div>
-          <div className="min-w-0">
-            <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-app-muted">Expected end</dt>
-            <dd className="mt-1 break-words text-sm font-medium text-app-foreground">{formatProjectDate(project.expectedEndDate)}</dd>
+        </Card>
+        <Card className="mt-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-app-muted">Assigned team</p>
+          {project.assignedEmployees.length === 0 ? (
+            <p className="text-sm text-app-muted">No team members have been assigned yet.</p>
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {project.assignedEmployees.map((employee) => (
+                <li key={employee.fullName} className="rounded-full border border-app-border px-3 py-1 text-sm">
+                  {employee.fullName}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </>}
+
+      {tab === 'reports' && <div className="space-y-4"><Card className="p-4 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-lg font-bold">Project reports</h2>
+            <p className="mt-1 max-w-2xl text-sm text-app-muted">Read-only project performance and content updates.</p>
           </div>
-          <div className="min-w-0 sm:col-span-2 xl:col-span-1">
-            <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-app-muted">Services</dt>
-            <dd className="mt-1 break-words text-sm font-medium text-app-foreground">
-              {project.services.length === 0 ? '—' : project.services.map((s) => (s.service === 'other' ? s.otherLabel : PORTAL_SERVICE_LABELS[s.service] ?? s.service)).join(', ')}
-            </dd>
-          </div>
+          <Button kind="secondary" onClick={() => void downloadReport()} disabled={downloading}>{downloading ? 'Preparing…' : 'Download report'}</Button>
         </div>
-      </Card>
-    </Page>
+      </Card><ClientProjectReportSections projectId={project.id} /></div>}
+      </div>
+    </div>
   );
+}
+
+function Field({ label, value }: { label: string; value: string | null }): React.JSX.Element {
+  return <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-app-muted">{label}</p><p className="mt-1 break-words text-sm">{value || '—'}</p></div>;
 }

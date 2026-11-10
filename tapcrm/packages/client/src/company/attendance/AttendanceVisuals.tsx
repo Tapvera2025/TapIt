@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { calendarMonth } from '../../ui/index.js';
 import { Icon } from '../../ui/index.js';
 import type { EmployeeWiseDay, MonthlyAttendanceRow } from './attendanceApi.js';
+import { formatMinutes } from '../../ui/format-duration.js';
 
 export type AttendanceCalendarEntry = { status: EmployeeWiseDay['status']; dayType?: EmployeeWiseDay['dayType']; isWfh: boolean; date?: string; lateMinutes?: number };
 
@@ -187,7 +188,7 @@ export function AttendanceMonthlyHighlights({
 
 export function AttendanceCalendar({ month, records, onSelect }: { month: string; records: ReadonlyMap<string, AttendanceCalendarEntry>; onSelect?: (date: string) => void }): React.JSX.Element {
   const dates = calendarMonth(month);
-  return <div className="overflow-x-auto"><div className="min-w-[620px]"><div className="grid grid-cols-7 gap-2 text-center text-[10px] font-bold uppercase tracking-wider text-app-muted">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <span key={day}>{day}</span>)}</div><div className="mt-2 grid grid-cols-7 gap-2">{dates.map((date) => { const entry = records.get(date); const status = attendanceStatus(entry); return <button key={date} type="button" onClick={() => onSelect?.(date)} className={`min-h-[68px] rounded-xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow-md ${status.className}`}><span className="flex items-center justify-between text-xs font-bold"><span>{Number(date.slice(8))}</span>{entry?.lateMinutes ? <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:text-amber-200">Late +{entry.lateMinutes}m</span> : null}</span><span className="mt-3 block truncate text-[10px] font-semibold">{status.label}</span></button>; })}</div></div></div>;
+  return <div className="overflow-x-auto"><div className="min-w-[620px]"><div className="grid grid-cols-7 gap-2 text-center text-[10px] font-bold uppercase tracking-wider text-app-muted">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <span key={day}>{day}</span>)}</div><div className="mt-2 grid grid-cols-7 gap-2">{dates.map((date) => { const entry = records.get(date); const status = attendanceStatus(entry); return <button key={date} type="button" onClick={() => onSelect?.(date)} className={`min-h-[68px] rounded-xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow-md ${status.className}`}><span className="flex items-center justify-between text-xs font-bold"><span>{Number(date.slice(8))}</span>{entry?.lateMinutes ? <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:text-amber-200">Late +{formatMinutes(entry.lateMinutes)}</span> : null}</span><span className="mt-3 block truncate text-[10px] font-semibold">{status.label}</span></button>; })}</div></div></div>;
 }
 
 export function monthlyRowToCalendar(row: MonthlyAttendanceRow): Map<string, AttendanceCalendarEntry> {

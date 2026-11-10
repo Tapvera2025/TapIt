@@ -20,6 +20,7 @@ import { organizationLocalToIso } from '../sales/leads/callback-ui.js';
 import { attendanceStatus, MonthlyAttendanceKpis } from './AttendanceVisuals.js';
 import { Card, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
+import { formatMinutes } from '../../ui/format-duration.js';
 
 function currentMonth(timezone: string): string {
   return organizationToday(timezone).slice(0, 7);
@@ -55,7 +56,7 @@ function dayLabel(day: AttendanceDayView): string {
   if (day.dayType === 'leave') return 'On leave';
   if (day.state === 'open' && !day.status && day.arrivalAt !== null) return 'In progress — punch out pending';
   if (day.status) return attendanceStatus({ status: day.status, dayType: day.dayType, isWfh: day.isWfh }).label;
-  if (day.minutes.worked > 0) return `${Math.floor(day.minutes.worked / 60)}h ${day.minutes.worked % 60}m`;
+  if (day.minutes.worked > 0) return formatMinutes(day.minutes.worked);
   return 'No record';
 }
 
@@ -66,11 +67,7 @@ function recentStatusClass(day: AttendanceDayView): string {
   return attendanceStatus({ status: day.status, dayType: day.dayType, isWfh: day.isWfh }).className;
 }
 
-function fmt(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
+const fmt = formatMinutes;
 
 function fmtTime(value: string | null, timezone: string): string {
   if (!value) return '—';

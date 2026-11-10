@@ -61,7 +61,11 @@ const CHAT_LIST_DEFAULT_WIDTH = typeof window === 'undefined'
   ? 320
   : Math.min(380, Math.max(CHAT_LIST_MIN_WIDTH, Math.round(window.innerWidth * 0.18)));
 
-type MenuAction = 'reply' | 'react' | 'edit' | 'copy' | 'forward' | 'pin' | 'save' | 'unsend';
+function dateTimeLabel(iso: string): string {
+  return new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+type MenuAction = 'reply' | 'react' | 'edit' | 'copy' | 'forward' | 'pin' | 'save' | 'info' | 'unsend';
 
 /**
  * The conversation list + thread, shared by every tab (Direct Messages,
@@ -126,6 +130,7 @@ export function ConversationWorkspace({
   const chatListResizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizingChatList, setIsResizingChatList] = useState(false);
   const [seenDetailFor, setSeenDetailFor] = useState<string | null>(null);
+  const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
@@ -346,6 +351,7 @@ export function ConversationWorkspace({
     if (!clientMode && transport.forwardMessage) actions.push('forward');
     if (!clientMode && transport.pinMessage) actions.push('pin');
     if (!clientMode && transport.saveMessage) actions.push('save');
+    if (mine) actions.push('info');
     if (!clientMode && mine && transport.unsendMessage) actions.push('unsend');
     return actions;
   };
@@ -416,6 +422,9 @@ export function ConversationWorkspace({
         break;
       case 'save':
         void runMessageAction(() => (message.saved ? transport.unsaveMessage?.(message.id) : transport.saveMessage?.(message.id)) ?? Promise.resolve(undefined), 'Unable to save the message.');
+        break;
+      case 'info':
+        setInfoMessageId(message.id);
         break;
       case 'unsend':
         void runMessageAction(async () => {
@@ -925,6 +934,7 @@ export function ConversationWorkspace({
                                         forward: { icon: 'forward', label: 'Forward' },
                                         pin: { icon: message.pinnedAt ? 'pushpin-off' : 'pushpin', label: message.pinnedAt ? 'Unpin' : 'Pin to conversation' },
                                         save: { icon: 'bookmark', label: message.saved ? 'Remove from saved' : 'Save for later' },
+                                        info: { icon: 'eye', label: 'Info' },
                                         unsend: { icon: 'trash', label: 'Unsend' },
                                       }[action];
                                       return (
@@ -941,6 +951,57 @@ export function ConversationWorkspace({
                                     })}
                                   </div>
                                 </>,
+                                document.body,
+                              )}
+
+                              {infoMessageId === message.id && createPortal(
+                                <div className="fixed inset-0 z-[1100] grid place-items-center p-4" role="dialog" aria-modal="true" aria-label="Message info">
+                                  <div className="absolute inset-0 bg-app-background/50 backdrop-blur-[2px]" onClick={() => setInfoMessageId(null)} aria-hidden="true" />
+                                  <div className="relative w-full max-w-sm rounded-xl border border-app-border bg-app-surface p-4 shadow-xl">
+                                    <div className="mb-3 flex items-center justify-between">
+                                      <h3 className="text-sm font-semibold">Message info</h3>
+                                      <button type="button" onClick={() => setInfoMessageId(null)} aria-label="Close" className="grid size-7 place-items-center rounded-md text-app-muted hover:bg-app-surface-raised hover:text-app-accent">
+                                        <Icon name="close" className="size-4" />
+                                      </button>
+                                    </div>
+                                    <p className="mb-3 line-clamp-3 break-words rounded-lg bg-app-accent/10 px-3 py-2 text-xs">{message.body ?? ''}</p>
+                                    <p className="mb-3 text-xs text-app-muted">Sent {dateTimeLabel(message.createdAt)}</p>
+                                    {(() => {
+                                      const recipients = (activeConversation?.members ?? []).filter((m) => m.userId !== message.senderId);
+                                      const seen = recipients.filter((m) => m.lastReadAt !== null && m.lastReadAt >= message.createdAt);
+                                      const pending = recipients.filter((m) => !seen.includes(m));
+                                      return (
+                                        <div className="space-y-3 text-xs">
+                                          <div>
+                                            <p className="mb-1 font-semibold text-app-accent">Seen by</p>
+                                            {seen.length === 0 ? (
+                                              <p className="text-app-muted">No one yet</p>
+                                            ) : (
+                                              <ul className="space-y-1">
+                                                {seen.map((m) => (
+                                                  <li key={m.userId} className="flex justify-between gap-3">
+                                                    <span className="truncate">{m.fullName}</span>
+                                                    <span className="shrink-0 text-app-muted">{dateTimeLabel(m.lastReadAt!)}</span>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            )}
+                                          </div>
+                                          {pending.length > 0 && (
+                                            <div>
+                                              <p className="mb-1 font-semibold text-app-muted">Not seen yet</p>
+                                              <ul className="space-y-1">
+                                                {pending.map((m) => (
+                                                  <li key={m.userId} className="truncate">{m.fullName}</li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>,
                                 document.body,
                               )}
 

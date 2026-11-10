@@ -6,10 +6,18 @@ import {
   deletePendingAttachment, editMessage, findMessageById, getConversation, getMessageEdits, listMessages, listPins, markRead,
   reactToMessage, removeReactionFromMessage, sendMessage, uploadAttachment,
 } from '../chat/facade.js';
+import { listBlogs, overview } from '../projects/reports/repository.js';
+import { getSeoReport } from '../projects/reports/service.js';
+import type { ReportQuery } from '../projects/reports/validators.js';
+import { listBacklinks } from '../projects/reports/off-page.js';
+import { downloadScreenshot, listScreenshots } from '../projects/reports/screenshots.js';
+import { createClientFeedback, listClientFeedback, type CreateClientFeedbackInput, type FeedbackArea } from '../projects/reports/clientFeedback.js';
 import type { Conversation, ListMessagesQuery, Message, MessageEdit, PinnedMessage, ReactionEmoji } from '../chat/facade.js';
-import type { PortalDashboard, PortalProfile, PortalProject } from './types.js';
+import type { PortalBacklinkPage, PortalBlogReport, PortalDashboard, PortalKeywordReport, PortalProfile, PortalProject, PortalScreenshotPage } from './types.js';
 
 const projectIdSchema = z.string().uuid();
+type PortalBacklinkQuery = { page: number; pageSize: number; search?: string | undefined; category: 'all' | 'social_media' | 'others'; period: 7 | 30 | 90 };
+type PortalScreenshotQuery = { page: number; pageSize: number; period: 7 | 30 | 90 };
 
 /**
  * The only way a handler obtains a client id. Employees and service accounts
@@ -57,6 +65,94 @@ export async function getProject(ctx: RequestContext, id: string): Promise<Porta
   const project = await findProject(ctx, clientId, parsed.data);
   if (!project) throw notFound();
   return project;
+}
+
+/** Client-safe blog preview. Project ownership is checked before report data is read. */
+export async function getProjectBlogReport(ctx: RequestContext, id: string, query: ReportQuery): Promise<PortalBlogReport> {
+  const project = await getProject(ctx, id);
+  const scoped = { ...ctx, projectId: project.id };
+  const [blogs, summary] = await Promise.all([listBlogs(scoped, query), overview(scoped, query.period)]);
+  const items = blogs.items.map((blog) => ({
+    id: blog.id,
+    title: blog.title,
+    url: blog.url,
+    description: blog.description,
+    category: blog.category,
+    status: blog.status,
+    publishDate: blog.publishDate,
+    wordCount: blog.wordCount,
+    targetKeywords: blog.targetKeywords,
+    createdAt: blog.createdAt,
+    updatedAt: blog.updatedAt,
+  }));
+  return {
+    period: query.period,
+    overview: {
+      totalBlogs: summary.totalBlogs,
+      publishedBlogs: summary.publishedBlogs,
+      draftBlogs: summary.draftBlogs,
+      archivedBlogs: summary.archivedBlogs,
+      lastUpdatedAt: summary.lastUpdatedAt,
+    },
+    blogs: { items, total: blogs.total, page: blogs.page, pageSize: blogs.pageSize, totalPages: Math.max(1, Math.ceil(blogs.total / blogs.pageSize)) },
+  };
+}
+
+/** Client-safe keyword tracker. Notes, rank history, automation controls, and Search Console data are excluded. */
+export async function getProjectKeywordReport(ctx: RequestContext, id: string, query: ReportQuery): Promise<PortalKeywordReport> {
+  const project = await getProject(ctx, id);
+  const scoped = { ...ctx, projectId: project.id };
+  const [report, summary] = await Promise.all([getSeoReport(scoped, project.id, query), overview(scoped, query.period)]);
+  const items = report.keywords.items.map((keyword) => ({
+    id: keyword.id,
+    keyword: keyword.keyword,
+    pastRank: keyword.pastRank,
+    previousRank: keyword.previousRank,
+    currentRank: keyword.currentRank,
+    targetUrl: keyword.targetUrl,
+    searchEngine: keyword.searchEngine,
+    country: keyword.country,
+    city: keyword.city,
+    device: keyword.device,
+    priority: keyword.priority,
+    category: keyword.category,
+    lastCheckedAt: keyword.lastCheckedAt,
+    trend: keyword.trend,
+    rankChange: keyword.rankChange,
+  }));
+  return {
+    period: query.period,
+    overview: { totalKeywords: summary.totalKeywords, improving: summary.improving, declining: summary.declining, stagnant: summary.stagnant, unclassified: summary.unclassified, averageCurrentRank: summary.averageCurrentRank },
+    keywords: { items, total: report.keywords.total, page: report.keywords.page, pageSize: report.keywords.pageSize, totalPages: report.keywords.totalPages },
+  };
+}
+
+export async function getProjectBacklinks(ctx: RequestContext, id: string, query: PortalBacklinkQuery): Promise<PortalBacklinkPage> {
+  const project = await getProject(ctx, id);
+  const result = await listBacklinks(ctx, project.id, query);
+  return { ...result, items: result.items.map(({ id: backlinkId, url, category, createdAt, updatedAt }) => ({ id: backlinkId, url, category, createdAt, updatedAt })) };
+}
+
+export async function getProjectScreenshots(ctx: RequestContext, id: string, query: PortalScreenshotQuery): Promise<PortalScreenshotPage> {
+  const project = await getProject(ctx, id);
+  const result = await listScreenshots(ctx, project.id, query);
+  return { ...result, items: result.items.map(({ id: screenshotId, title, description, originalFilename, mimeType, sizeBytes, createdAt, updatedAt }) => ({ id: screenshotId, title, description, originalFilename, mimeType, sizeBytes, createdAt, updatedAt })) };
+}
+
+export async function getProjectFeedback(ctx: RequestContext, id: string, area?: FeedbackArea) {
+  const project = await getProject(ctx, id);
+  return (await listClientFeedback(ctx, project.id, area)).map(({ id: feedbackId, projectId, area: feedbackArea, note, createdAt }) => ({ id: feedbackId, projectId, area: feedbackArea, note, createdAt }));
+}
+
+export async function createProjectFeedback(ctx: RequestContext, id: string, input: CreateClientFeedbackInput) {
+  const project = await getProject(ctx, id);
+  const feedback = await createClientFeedback(ctx, project.id, input);
+  return { id: feedback.id, projectId: feedback.projectId, area: feedback.area, note: feedback.note, createdAt: feedback.createdAt };
+}
+
+export async function getProjectScreenshotContent(ctx: RequestContext, id: string, screenshotId: string) {
+  const project = await getProject(ctx, id);
+  return downloadScreenshot(ctx, project.id, screenshotId);
 }
 
 async function requireProjectDiscussion(ctx: RequestContext, projectId: string, conversationId: string): Promise<void> {

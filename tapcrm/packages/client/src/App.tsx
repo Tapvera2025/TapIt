@@ -24,7 +24,15 @@ import { PublicProposalPage } from './company/sales/proposals/PublicProposalPage
 import type { DevPasswordReset, IdentityLoginResult } from './identity/api/authApi.js';
 
 export function App(): React.JSX.Element {
-  const [pathname, setPathname] = useState(window.location.pathname);
+  const [pathname, setPathname] = useState(() => {
+    // The bare domain (app.tapvera.io) lands everyone on the login page. The
+    // /login route itself forwards signed-in users to their workspace.
+    if (window.location.pathname === '/') {
+      window.history.replaceState({}, '', `/login${window.location.search}${window.location.hash}`);
+      return '/login';
+    }
+    return window.location.pathname;
+  });
   const [authenticated, setAuthenticated] = useState(Boolean(getAccessToken()));
   const [companyAuthenticated, setCompanyAuthenticated] = useState(
     Boolean(getIdentityAccessToken()),

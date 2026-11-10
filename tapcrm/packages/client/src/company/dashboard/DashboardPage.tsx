@@ -401,7 +401,7 @@ export function DashboardPage({
           <h1>Today at a glance</h1>
           <p>{identity.user.fullName}&rsquo;s operational workboard</p>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+        <div className="ml-auto flex w-auto flex-wrap items-center justify-end gap-2">
             {editing && (
               <>
                 <button
@@ -426,9 +426,11 @@ export function DashboardPage({
                 setEditing((flag) => !flag);
                 setPickerOpen(false);
               }}
-              className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+              aria-label={editing ? 'Finish dashboard customization' : 'Customize dashboard'}
+              className="ui-primary inline-flex size-9 items-center justify-center rounded-lg px-0 py-0 text-xs font-semibold sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2"
             >
-              {editing ? 'Done' : 'Customize'}
+              <Icon name={editing ? 'close' : 'edit'} className="size-4 sm:hidden" />
+              <span className="hidden sm:inline">{editing ? 'Done' : 'Customize'}</span>
             </button>
         </div>
       </section>

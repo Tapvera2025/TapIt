@@ -15,6 +15,7 @@ export function TaskFilters({
   onViewScopeChange,
 }: TaskFiltersProps): React.JSX.Element {
   const [searchInput, setSearchInput] = useState(query.search ?? '');
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   // Sync internal search input when query prop resets externally
   useEffect(() => {
@@ -97,8 +98,24 @@ export function TaskFilters({
         }
       `}</style>
 
-      {/* Row 1: Scope, Filter status presets, and Due date */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 min-w-0 w-full">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsMobileFiltersOpen((open) => !open)}
+        className="inline-flex min-h-9 items-center justify-between rounded-xl border border-app-border bg-app-background/60 px-3 text-xs font-semibold text-app-foreground sm:hidden"
+        aria-expanded={isMobileFiltersOpen}
+        aria-controls="task-filters-panel"
+      >
+        <span className="inline-flex items-center gap-2">
+          <Icon name="filter" className="size-4 text-app-accent" />
+          Filters
+        </span>
+        <Icon name={isMobileFiltersOpen ? 'chevron-up' : 'chevron-down'} className="size-4 text-app-muted" />
+      </button>
+
+      <div id="task-filters-panel" className={`${isMobileFiltersOpen ? 'flex' : 'hidden'} flex-col gap-2 sm:flex`}>
+        {/* Row 1: Scope, Filter status presets, and Due date */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 min-w-0 w-full">
         {isSuperAdmin && (
           <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
@@ -213,10 +230,10 @@ export function TaskFilters({
             <option value="overdue">Overdue</option>
           </select>
         </label>
-      </div>
+        </div>
 
-      {/* Row 2: Sort on the left, Search Bar & Create Task aligned with Sort on the right */}
-      <div className="flex flex-col gap-2 pt-2 border-t border-app-border/40 sm:flex-row sm:items-center sm:justify-between w-full">
+        {/* Row 2: Sort on the left, Search Bar & Create Task aligned with Sort on the right */}
+        <div className="flex flex-col gap-2 pt-2 border-t border-app-border/40 sm:flex-row sm:items-center sm:justify-between w-full">
         {/* Sort controls */}
         <div className="flex flex-wrap items-center gap-1.5 text-xs shrink-0">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
@@ -294,6 +311,7 @@ export function TaskFilters({
               <span aria-hidden="true" className="mr-1 text-sm leading-none">+</span> Create Task
             </Button>
           )}
+        </div>
         </div>
       </div>
     </div>

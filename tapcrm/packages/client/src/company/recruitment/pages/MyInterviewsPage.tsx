@@ -16,6 +16,7 @@ import type {
   RoundRecommendation,
   SubmitRoundFeedbackInput,
 } from '../types/index.js';
+import { formatMinutes } from '../../../ui/format-duration.js';
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
@@ -332,7 +333,7 @@ function PanelInterviewCard({
             {interview.requisitionTitle} ({interview.requisitionNumber})
           </p>
           <p className="mt-1 text-xs text-app-muted">
-            {TYPE_LABEL[interview.interviewType] ?? interview.interviewType} · {interview.durationMinutes} min
+            {TYPE_LABEL[interview.interviewType] ?? interview.interviewType} · {formatMinutes(interview.durationMinutes)}
             {when ? ` · ${when}` : ''}
           </p>
           {place && (

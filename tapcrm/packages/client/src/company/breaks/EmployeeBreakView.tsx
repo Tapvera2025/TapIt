@@ -7,6 +7,7 @@ import {
   type BreakPrompt,
 } from '../api/breaksApi.js';
 import { SkeletonCard } from '../../ui/index.js';
+import { formatMinutes } from '../../ui/format-duration.js';
 
 export function EmployeeBreakView(): React.JSX.Element {
   const [allowance, setAllowance] = useState<BreakAllowance | null>(null);
@@ -50,11 +51,11 @@ export function EmployeeBreakView(): React.JSX.Element {
             <div className="rounded border border-app-border p-4">
               <p className="text-xs text-app-muted uppercase tracking-wide mb-1">Total Break Used</p>
               <p className={`text-2xl font-bold ${warningColor(allowance.warning.totalState)}`}>
-                {allowance.usage.totalMinutes} min
+                {formatMinutes(allowance.usage.totalMinutes)}
               </p>
               {allowance.policy?.upperTotalMinutes != null && (
                 <p className="text-xs text-app-muted mt-1">
-                  Limit: {allowance.policy.upperTotalMinutes} min
+                  Limit: {formatMinutes(allowance.policy.upperTotalMinutes)}
                   {allowance.warning.totalState === 'warning' && ' — approaching limit'}
                   {allowance.warning.totalState === 'breach' && ' — exceeded'}
                 </p>
@@ -76,7 +77,7 @@ export function EmployeeBreakView(): React.JSX.Element {
               <div key={prompt.breachId} className="rounded border border-yellow-300 bg-yellow-50 p-4">
                 <p className="text-sm font-medium">{prompt.workDate} — {prompt.ruleCondition}</p>
                 <p className="text-xs text-app-muted mt-1">
-                  Break used: {prompt.measuredTotalMinutes} min total, {prompt.measuredSingleMinutes} min longest
+                  Break used: {formatMinutes(prompt.measuredTotalMinutes)} total, {formatMinutes(prompt.measuredSingleMinutes)} longest
                 </p>
                 <textarea
                   className="mt-2 w-full rounded border border-app-border p-2 text-sm"

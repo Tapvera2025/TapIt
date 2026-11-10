@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
 import { useTheme } from '../theme/ThemeContext.js';
 import type { LiquidGlassLens } from 'liquid-gl';
@@ -16,14 +16,18 @@ export function LiquidMessagesTabBar({
   value,
   onChange,
   className = '',
+  liquidEffect = true,
 }: {
   tabs: readonly LiquidTabOption[];
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  liquidEffect?: boolean;
 }): React.JSX.Element {
   const listRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
+  const indicatorId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const indicatorClassName = `messages-tab-glass-indicator-${indicatorId}`;
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
   const pointerId = useRef<number | null>(null);
   const dragOrigin = useRef<{ x: number; y: number; offsetX: number; moved: boolean } | null>(null);
@@ -41,11 +45,13 @@ export function LiquidMessagesTabBar({
     const syncGlassEffect = () => {
       lens?.destroy();
       lens = undefined;
-      if (!desktop.matches || resolvedTheme === 'dark') return;
+      if (!liquidEffect || !desktop.matches || resolvedTheme === 'dark') return;
       void import('liquid-gl').then(({ default: liquidGL }) => {
         if (disposed || !desktop.matches) return;
         const instance = liquidGL({
-          target: '.messages-tab-glass-indicator',
+          // Each tab bar owns one lens. A global selector lets an old lens
+          // continue painting over a newly mounted tab bar during navigation.
+          target: `.${indicatorClassName}`,
           snapshot: 'body',
           resolution: 3,
           refraction: 0.002,
@@ -70,7 +76,7 @@ export function LiquidMessagesTabBar({
       desktop.removeEventListener('change', syncGlassEffect);
       lens?.destroy();
     };
-  }, [resolvedTheme]);
+  }, [indicatorClassName, liquidEffect, resolvedTheme]);
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -82,7 +88,9 @@ export function LiquidMessagesTabBar({
       const buttonRect = selected.getBoundingClientRect();
       indicator.style.setProperty('--pill-left', `${buttonRect.left - listRect.left - list.clientLeft + list.scrollLeft}px`);
       indicator.style.setProperty('--pill-width', `${buttonRect.width}px`);
-      selected.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      // Keep tab changes synchronous. Smooth scrolling here can briefly create
+      // a native horizontal scrollbar while the selected tab is repositioned.
+      selected.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
     };
     sync();
     const observer = new ResizeObserver(sync);
@@ -220,6 +228,7 @@ export function LiquidMessagesTabBar({
       ref={listRef}
       role="tablist"
       data-dragging={dragging}
+      data-liquid-effect={liquidEffect}
       data-edge-hit={edgeHit ?? undefined}
       onPointerMove={onPointerMove}
       onPointerUp={finishDrag}
@@ -227,7 +236,7 @@ export function LiquidMessagesTabBar({
       onLostPointerCapture={finishDrag}
       className={`messages-tab-list flex shrink-0 gap-1 overflow-x-auto px-1 pt-3 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:relative ${className}`}
     >
-      <div ref={indicatorRef} className="messages-tab-glass-indicator" aria-hidden="true" />
+      <div ref={indicatorRef} className={`messages-tab-glass-indicator ${indicatorClassName}`} aria-hidden="true" />
       {tabs.map((tab) => (
         <button
           key={tab.value}

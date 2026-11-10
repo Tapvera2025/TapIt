@@ -5,8 +5,14 @@ import {
   removeProjectDiscussionReaction, sendProjectDiscussionMessage, uploadProjectDiscussionAttachment,
   deleteProjectDiscussionAttachment, getProjectDiscussionMessage, editProjectDiscussionMessage,
   getProjectDiscussionMessageEdits, getProjectDiscussionPins,
+  getProjectBacklinks, getProjectBlogReport, getProjectKeywordReport, getProjectScreenshotContent, getProjectScreenshots, getProjectFeedback, createProjectFeedback,
 } from './service.js';
 import { editMessageSchema, listMessagesQuerySchema, reactionSchema, sendMessageSchema, uploadedBody, uploadedFileName } from '../chat/facade.js';
+import { createProjectReportPdf } from '../projects/reports/pdf.js';
+import { reportQuerySchema } from '../projects/reports/validators.js';
+import { backlinkListSchema } from '../projects/reports/off-page.js';
+import { screenshotIdSchema, screenshotListSchema } from '../projects/reports/screenshots.js';
+import { createClientFeedbackSchema, feedbackListQuerySchema } from '../projects/reports/clientFeedback.js';
 
 /**
  * Client portal read API and project-scoped discussion API (PRD §12.3).
@@ -32,6 +38,33 @@ export function registerClientPortalRoutes(): void {
     method: 'GET',
     path: '/api/client-portal/projects/:id',
     handler: async ({ ctx, params }) => getProject(ctx, params['id']!),
+  });
+  route({ ...common, method: 'GET', path: '/api/client-portal/projects/:id/reports/keywords', handler: async ({ ctx, params, query }) => getProjectKeywordReport(ctx, params['id']!, reportQuerySchema.parse(query)) });
+  route({ ...common, method: 'GET', path: '/api/client-portal/projects/:id/reports/backlinks', handler: async ({ ctx, params, query }) => getProjectBacklinks(ctx, params['id']!, backlinkListSchema.parse(query)) });
+  route({ ...common, method: 'GET', path: '/api/client-portal/projects/:id/reports/screenshots', handler: async ({ ctx, params, query }) => getProjectScreenshots(ctx, params['id']!, screenshotListSchema.parse(query)) });
+  route({ ...common, method: 'GET', path: '/api/client-portal/projects/:id/feedback', handler: async ({ ctx, params, query }) => getProjectFeedback(ctx, params['id']!, feedbackListQuerySchema.parse(query).area) });
+  route({ ...common, method: 'POST', path: '/api/client-portal/projects/:id/feedback', status: 201, handler: async ({ ctx, params, body }) => createProjectFeedback(ctx, params['id']!, createClientFeedbackSchema.parse(body)) });
+  route({ ...common, method: 'GET', path: '/api/client-portal/projects/:id/reports/screenshots/:screenshotId/content', handler: async ({ ctx, params, res }) => { const parsed = screenshotIdSchema.parse({ id: params['id']!, screenshotId: params['screenshotId']! }); const file = await getProjectScreenshotContent(ctx, parsed.id, parsed.screenshotId); res.setHeader('Content-Type', file.mimeType); res.setHeader('Content-Disposition', `inline; filename="${file.originalFilename}"`); res.send(file.body); return null; } });
+  route({
+    ...common,
+    method: 'GET',
+    path: '/api/client-portal/projects/:id/reports/blogs',
+    handler: async ({ ctx, params, query }) => getProjectBlogReport(ctx, params['id']!, reportQuerySchema.parse(query)),
+  });
+  route({
+    ...common,
+    method: 'GET',
+    path: '/api/client-portal/projects/:id/reports/download',
+    handler: async ({ ctx, params, res }) => {
+      // getProject performs the client/project ownership check before the PDF
+      // generator reads any project report data.
+      const project = await getProject(ctx, params['id']!);
+      const pdf = await createProjectReportPdf(ctx, project.id);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="tapvera-project-report-${project.id}.pdf"`);
+      res.send(pdf);
+      return null;
+    },
   });
   route({
     ...common, method: 'GET', path: '/api/client-portal/projects/:id/discussion',
