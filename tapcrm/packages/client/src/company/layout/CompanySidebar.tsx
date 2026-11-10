@@ -115,6 +115,7 @@ export function CompanySidebar({
   clientMessagesUnread = 0,
   canViewClients = false,
   canViewSocial = false,
+  canViewMeetings = false,
   canViewSeo = false,
   canViewProjects = false,
   canViewLiveBoard = false,
@@ -183,6 +184,8 @@ export function CompanySidebar({
   clientMessagesUnread?: number;
   canViewClients?: boolean;
   canViewSocial?: boolean;
+  /** Client meetings: hosts and the people who track them. */
+  canViewMeetings?: boolean;
   canViewSeo?: boolean;
   canViewProjects?: boolean;
   canViewLiveBoard?: boolean;
@@ -627,7 +630,7 @@ export function CompanySidebar({
           },
         ]
       : []),
-    ...(canViewClients || canViewProjects || canViewSocial
+    ...(canViewClients || canViewProjects || canViewSocial || canViewMeetings
       ? [
           {
             label: 'Delivery',
@@ -637,6 +640,9 @@ export function CompanySidebar({
                 : []),
               ...(canViewProjects
                 ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }]
+                : []),
+              ...(canViewMeetings
+                ? [{ label: 'Client meetings', path: '/company/meetings', icon: 'calendar' }]
                 : []),
               ...(canViewSocial
                 ? [{ label: 'Manage Social Media', path: '/company/social', icon: 'share' }]
@@ -1017,6 +1023,7 @@ export function CompanySidebar({
             { label: 'Dashboard', path: '/client', icon: 'grid' },
             { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
             { label: 'Messages', path: '/client/messages', icon: 'message' },
+            { label: 'Meetings', path: '/client/meetings', icon: 'calendar' },
           ],
         },
         {

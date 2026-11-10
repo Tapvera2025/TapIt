@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
-import type { PageObservation, OutboundLink, PageImage, HreflangTag, CwvRating } from './crawler/rules/index.js';
+import type { PageObservation, OutboundLink, PageImage, HreflangTag, CwvRating, RawSignals } from './crawler/rules/index.js';
+import { hashUrl } from './url.js';
 
 /**
  * The shape the DAL hands back after camelizing. These must stay in camelCase —
@@ -30,6 +30,7 @@ export interface ObservationRow {
   schemaErrors: string[];
   renderMode: 'raw' | 'rendered' | 'both';
   domHash: string | null;
+  rawSignals?: unknown;
 }
 
 /** Pre-built cross-reference maps for one scan. Each map is populated by one SQL query. */
@@ -49,9 +50,34 @@ export interface HydrationMaps {
   nowMs: number;
 }
 
-/** sha256 of a URL — the hash scheme used by crawl_fetch when writing link_edges. */
-function hashUrl(url: string): string {
-  return createHash('sha256').update(url).digest('hex');
+/**
+ * structured_data holds `{ types, productPrice, articleDate }`. Scans before the
+ * parser fix stored a bare type array; those cannot say whether a price or date
+ * was present, so they read as "present" and the D002/D003 checks stay quiet.
+ */
+function readStructuredData(value: unknown): { types: string[]; productPrice: boolean; articleDate: boolean } {
+  if (Array.isArray(value)) return { types: value.filter((t): t is string => typeof t === 'string'), productPrice: true, articleDate: true };
+  if (value && typeof value === 'object') {
+    const v = value as { types?: unknown; productPrice?: unknown; articleDate?: unknown };
+    return {
+      types: Array.isArray(v.types) ? v.types.filter((t): t is string => typeof t === 'string') : [],
+      productPrice: v.productPrice !== false,
+      articleDate: v.articleDate !== false,
+    };
+  }
+  return { types: [], productPrice: true, articleDate: true };
+}
+
+function readRawSignals(value: unknown): RawSignals | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Partial<RawSignals>;
+  return {
+    title: typeof v.title === 'string' ? v.title : null,
+    metaRobots: typeof v.metaRobots === 'string' ? v.metaRobots : null,
+    canonicalLink: typeof v.canonicalLink === 'string' ? v.canonicalLink : null,
+    h1Count: typeof v.h1Count === 'number' ? v.h1Count : null,
+    wordCount: typeof v.wordCount === 'number' ? v.wordCount : null,
+  };
 }
 
 /**
@@ -60,7 +86,8 @@ function hashUrl(url: string): string {
  * evaluate job AND by tests that guard against the snake_case/camelCase bug class.
  */
 export function hydrateObservation(row: ObservationRow, maps: HydrationMaps): PageObservation {
-  const schemaTypes = Array.isArray(row.structuredData) ? (row.structuredData as string[]) : [];
+  const structured = readStructuredData(row.structuredData);
+  const schemaTypes = structured.types;
   const hreflangEntries = Array.isArray(row.hreflangEntries)
     ? (row.hreflangEntries as HreflangTag[]) : [];
   const redirectChain = Array.isArray(row.redirectChain)
@@ -90,6 +117,7 @@ export function hydrateObservation(row: ObservationRow, maps: HydrationMaps): Pa
 
     h1Count: row.h1Texts.length,
     h1Text: row.h1Texts[0] ?? null,
+    h1Texts: row.h1Texts,
     wordCount: row.wordCount,
     contentHash: row.contentHash,
     duplicateOfUrl: maps.duplicateOfByUrl.get(row.url) ?? null,
@@ -107,8 +135,8 @@ export function hydrateObservation(row: ObservationRow, maps: HydrationMaps): Pa
 
     schemaErrors: row.schemaErrors.length > 0 ? row.schemaErrors : null,
     schemaTypes,
-    hasProductPriceSchema: schemaTypes.includes('Product') || schemaTypes.includes('Offer'),
-    hasArticleDateSchema: schemaTypes.includes('Article') || schemaTypes.includes('NewsArticle'),
+    hasProductPriceSchema: structured.productPrice,
+    hasArticleDateSchema: structured.articleDate,
     schemaMismatch: null,
 
     hreflangTags: hreflangEntries,
@@ -126,6 +154,7 @@ export function hydrateObservation(row: ObservationRow, maps: HydrationMaps): Pa
     renderMode: row.renderMode,
     rawContentHash: row.contentHash,
     renderedContentHash: row.domHash,
+    rawSignals: readRawSignals(row.rawSignals),
     contentLength: row.contentLength,
     responseTimeMs: row.responseTimeMs,
   };

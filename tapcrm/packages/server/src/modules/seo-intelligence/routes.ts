@@ -22,6 +22,9 @@ import {
   findingIdParam,
   fixProposalIdParam,
   ruleIdParam,
+  siteSettingsSchema,
+  keywordParams,
+  updateKeywordSchema,
 } from './validators.js';
 
 const MODULE = 'seo-intelligence';
@@ -84,6 +87,48 @@ export function registerSeoRoutes(): void {
         ...(patch.stackNotes !== undefined ? { stack_notes: patch.stackNotes } : {}),
         ...(patch.active !== undefined ? { active: patch.active } : {}),
       });
+    },
+  });
+
+  // ─── Site settings ───────────────────────────────────────────────────────
+
+  route({
+    method: 'GET',
+    path: '/api/seo/sites/:siteId/settings',
+    action: 'seo:read-site' as Action,
+    module: MODULE,
+    resourceParam: 'siteId',
+    loadResource: (ctx, siteId) => loadSiteResource(ctx, siteId),
+    handler: async ({ ctx, params }) => {
+      const { siteId } = siteIdParam.parse(params);
+      return service.getSiteSettings(ctx, siteId);
+    },
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/seo/sites/:siteId/settings',
+    action: 'seo:update-site' as Action,
+    module: MODULE,
+    resourceParam: 'siteId',
+    loadResource: (ctx, siteId) => loadSiteResource(ctx, siteId),
+    handler: async ({ ctx, params, body }) => {
+      const { siteId } = siteIdParam.parse(params);
+      return service.patchSiteSettings(ctx, siteId, siteSettingsSchema.parse(body));
+    },
+  });
+
+  route({
+    method: 'PATCH',
+    path: '/api/seo/sites/:siteId/keywords/:keywordId',
+    action: 'seo:update-site' as Action,
+    module: MODULE,
+    resourceParam: 'siteId',
+    loadResource: (ctx, siteId) => loadSiteResource(ctx, siteId),
+    handler: async ({ ctx, params, body }) => {
+      const { siteId, keywordId } = keywordParams.parse(params);
+      const { tracked } = updateKeywordSchema.parse(body);
+      return service.setKeywordTracked(ctx, siteId, keywordId, tracked);
     },
   });
 

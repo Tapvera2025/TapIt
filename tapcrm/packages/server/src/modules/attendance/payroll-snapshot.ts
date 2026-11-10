@@ -86,7 +86,9 @@ export async function snapshotPeriod(
            worked_minutes AS "workedMinutes",
            break_minutes AS "breakMinutes",
            COALESCE(night_minutes, 0) AS "nightMinutes",
-           COALESCE(overtime_minutes, 0) AS "overtimeMinutes",
+           -- Overtime resting on an assumed departure is recorded but never credited (§8.2 step 7).
+           CASE WHEN 'overtime-unconfirmed' = ANY(flags) THEN 0 ELSE COALESCE(overtime_minutes, 0) END
+             AS "overtimeMinutes",
            input_version AS "inputVersion",
            calculated_input_version AS "calculatedInputVersion",
            calculation_version AS "calculationVersion",

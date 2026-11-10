@@ -7,6 +7,9 @@ import { getSerpAllowance } from './serp-allowance.js';
 import { createSerpApiProvider } from './providers/serpapi.js';
 import { harvestKeywordsFromGsc } from './gsc-keywords.js';
 
+/** Position checks per site per run; every check still spends from the monthly allowance. */
+export const RANK_BATCH_LIMIT = 25;
+
 const COUNTRY_CODES: Record<string, string> = { ind: 'in', usa: 'us', gbr: 'uk', can: 'ca', aus: 'au', are: 'ae', sgp: 'sg', deu: 'de', fra: 'fr', nld: 'nl', nzl: 'nz', zaf: 'za', sau: 'sa', qat: 'qa', pak: 'pk', bgd: 'bd', npl: 'np', lka: 'lk', mys: 'my', idn: 'id', phl: 'ph', jpn: 'jp', kor: 'kr', chn: 'cn', esp: 'es', ita: 'it', bra: 'br', mex: 'mx', irl: 'ie', swe: 'se', che: 'ch', pol: 'pl' };
 export function serpCountry(country: string): string | null {
   const key = country.toLowerCase();
@@ -36,7 +39,7 @@ export async function checkSiteRanks(ctx: RequestContext, siteId: string): Promi
       AND NOT EXISTS (SELECT 1 FROM seo_serp_observations o WHERE o.keyword_id = k.id
         AND o.organization_id = ${ctx.organizationId} AND o.observed_at > now() -
           CASE k.check_cadence WHEN 'daily' THEN interval '1 day' WHEN 'weekly' THEN interval '7 days' ELSE interval '30 days' END)
-    ORDER BY k.created_at, k.keyword, k.country, k.device LIMIT 10
+    ORDER BY k.created_at, k.keyword, k.country, k.device LIMIT ${RANK_BATCH_LIMIT}
   `);
   let observed = 0;
   for (const keyword of keywords) {

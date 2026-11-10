@@ -83,7 +83,13 @@ function rfc3986(value: string): string {
  * browsers reach — S3_PUBLIC_ENDPOINT when set, else S3_ENDPOINT — because
  * the host is part of what is signed.
  */
-function presign(bucket: StorageBucket, key: string, expiresInSeconds: number, now: Date): string {
+function presign(
+  bucket: StorageBucket,
+  key: string,
+  expiresInSeconds: number,
+  now: Date,
+  overrides: { responseContentDisposition?: string | undefined; responseContentType?: string | undefined } = {},
+): string {
   const config = loadConfig();
   if (!config.S3_ACCESS_KEY_ID || !config.S3_SECRET_ACCESS_KEY) throw new Error('S3 credentials are required for centralized storage.');
   const endpoint = config.S3_PUBLIC_ENDPOINT ?? config.S3_ENDPOINT;
@@ -100,6 +106,10 @@ function presign(bucket: StorageBucket, key: string, expiresInSeconds: number, n
     ['X-Amz-Expires', String(expiresInSeconds)],
     ['X-Amz-SignedHeaders', 'host'],
   ];
+  // Response overrides are part of the signed query, so a holder of the link
+  // cannot change how the object is served (e.g. turn a download inline).
+  if (overrides.responseContentDisposition) query.push(['response-content-disposition', overrides.responseContentDisposition]);
+  if (overrides.responseContentType) query.push(['response-content-type', overrides.responseContentType]);
   const canonicalQuery = query.map(([name, value]) => `${rfc3986(name)}=${rfc3986(value)}`).sort().join('&');
   const canonicalRequest = ['GET', url.pathname, canonicalQuery, `host:${url.host}\n`, 'host', 'UNSIGNED-PAYLOAD'].join('\n');
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256(canonicalRequest)].join('\n');
@@ -130,7 +140,17 @@ export class MinioStorageProvider implements StorageService {
     await signedRequest('DELETE', input.bucket, input.key, null);
   }
 
-  presignedGetUrl(input: { bucket: StorageBucket; key: string; expiresInSeconds: number; now?: Date }): string {
-    return presign(input.bucket, input.key, input.expiresInSeconds, input.now ?? new Date());
+  presignedGetUrl(input: {
+    bucket: StorageBucket;
+    key: string;
+    expiresInSeconds: number;
+    now?: Date;
+    responseContentDisposition?: string;
+    responseContentType?: string;
+  }): string {
+    return presign(input.bucket, input.key, input.expiresInSeconds, input.now ?? new Date(), {
+      responseContentDisposition: input.responseContentDisposition,
+      responseContentType: input.responseContentType,
+    });
   }
 }

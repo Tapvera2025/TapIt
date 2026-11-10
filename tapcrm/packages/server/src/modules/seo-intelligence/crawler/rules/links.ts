@@ -11,12 +11,12 @@ export const LINKS_RULES: RuleDefinition[] = [
 {
   ruleId: 'L001', ruleVersion: 'v1', group: 'links', severity: 'high', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
-    const broken = obs.outboundLinks.filter((l) => l.statusCode === 404);
+    const broken = obs.outboundLinks.filter((l) => l.statusCode === 404 || l.statusCode === 410);
     if (broken.length > 0) {
       return { ruleId: 'L001', ruleVersion: 'v1', result: 'fail', severity: 'high', confidence: 'direct',
         affectedTarget: obs.url,
         evidence: { url: obs.url, broken_links: broken.map((l) => l.href) },
-        proposedFix: 'Fix or remove internal links that return 404. Update each href to a live destination or delete the anchor.' };
+        proposedFix: 'Fix or remove internal links whose destinations return 404 or 410. Update each href to a live destination or delete the anchor.' };
     }
     return pass('L001');
   },

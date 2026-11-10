@@ -3,6 +3,8 @@ import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
 import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
+import { SalesGuideFrame, SalesGuideToggle } from '../sales/guide/SalesGuide.js';
+import { salesGuideKey } from '../sales/guide/page-guidance.js';
 import type { CompanySearchDestination } from './navigation.js';
 
 export function CompanyLayout({
@@ -33,6 +35,7 @@ export function CompanyLayout({
   canViewChat,
   canViewClients,
   canViewSocial,
+  canViewMeetings = false,
   canViewSeo,
   canViewProjects,
   canViewLiveBoard,
@@ -97,6 +100,7 @@ export function CompanyLayout({
   canViewChat: boolean;
   canViewClients: boolean;
   canViewSocial: boolean;
+  canViewMeetings?: boolean;
   canViewSeo: boolean;
   canViewProjects: boolean;
   canViewLiveBoard: boolean;
@@ -260,6 +264,7 @@ export function CompanyLayout({
           onNavigate={onNavigate}
           onLogout={onLogout}
           searchDestinations={searchDestinations}
+          extraActions={salesGuideKey(pathname) !== null ? <SalesGuideToggle /> : null}
         />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <CompanySidebar
@@ -289,6 +294,7 @@ export function CompanyLayout({
             canViewChat={canViewChat}
             canViewClients={canViewClients}
             canViewSocial={canViewSocial}
+            canViewMeetings={canViewMeetings}
             canViewSeo={canViewSeo}
             canViewProjects={canViewProjects}
             canViewLiveBoard={canViewLiveBoard}
@@ -348,7 +354,9 @@ export function CompanyLayout({
                   contentNeedsViewportHeight ? 'h-full min-h-full' : 'min-h-full'
                 }
               >
-                {children}
+                <SalesGuideFrame pathname={pathname} onNavigate={onNavigate}>
+                  {children}
+                </SalesGuideFrame>
               </div>
             </main>
           </div>

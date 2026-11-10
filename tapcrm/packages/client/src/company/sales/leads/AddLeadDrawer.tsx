@@ -184,7 +184,7 @@ export function AddLeadDrawer({
 
         <section className="grid gap-4">
           <Field label="Contact name" value={contactName} onChange={setContactName} required />
-          <Field label="Phone (E.164)" value={phone} onChange={setPhone} placeholder="+91 98765 43210" />
+          <Field label="Phone" value={phone} onChange={setPhone} placeholder="+91 98765 43210" hint="Include the country code. A phone or an email is needed." />
           <Field label="Email" value={email} onChange={setEmail} type="email" />
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Source</span>
@@ -203,6 +203,9 @@ export function AddLeadDrawer({
                   </option>
                 ))}
             </select>
+            <span className="mt-1.5 block font-normal leading-5" aria-live="polite">
+              {sourceHint(sources.find((source) => source.id === sourceId)?.direction)}
+            </span>
           </label>
           <Field label="Requirement" value={requirement} onChange={setRequirement} placeholder="What do they need?" />
         </section>
@@ -243,12 +246,20 @@ export function AddLeadDrawer({
             Cancel
           </Button>
           <Button disabled={!canSubmit} onClick={() => void submit()}>
-            {submitting ? 'Creating…' : 'Create lead'}
+            {submitting ? 'Adding…' : 'Add lead'}
           </Button>
         </footer>
+        <p className="mt-3 text-right text-xs text-app-muted">Next, the lead’s page tells you what to do.</p>
       </aside>
     </div>
   );
+}
+
+/** What happens to the new lead, given where it came from. */
+function sourceHint(direction: LeadSource['direction'] | undefined): string {
+  if (direction === 'outbound') return 'You found this customer, so the lead stays with you.';
+  if (direction === 'inbound') return 'They contacted us, so TapIt routes the lead to an available agent on the right team. If nobody fits, a manager assigns it.';
+  return 'Where did this lead come from?';
 }
 
 function DuplicateCard({

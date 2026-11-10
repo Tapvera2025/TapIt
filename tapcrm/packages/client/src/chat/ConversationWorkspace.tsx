@@ -1,21 +1,32 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, Empty, SkeletonMessageThread } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import {
-  REACTION_EMOJI,
-  forwardMessage,
-  reactToMessage,
-  removeReaction,
-  sendMessage,
-  unsendMessage,
+  QUICK_REACTIONS,
   type ChatMessage,
   type Conversation,
   type ConversationKind,
-  type ConversationMember,
+  type MessageAttachment,
+  type MessagePreview,
   type ReactionEmoji,
 } from './api/chatApi.js';
-import type { useChat } from './useChat.js';
+import { AttachmentGallery, Lightbox } from './attachments.js';
+import { Avatar, GroupAvatar, PresenceLabel } from './Avatar.js';
+import { Composer } from './Composer.js';
+import { EditHistory } from './EditHistory.js';
+import { EmojiPopover } from './emoji/EmojiPicker.js';
+import { LinkPreviewCard } from './LinkPreviewCard.js';
+import { toPlainText } from './markdown.js';
+import { MessageMarkdown } from './MessageMarkdown.js';
+import { PinnedBar } from './PinnedBar.js';
+import { usePresenceMap } from './presence.js';
+import { ScheduledPanel } from './ScheduledPanel.js';
+import { companyChatTransport, type ChatTransport } from './transport.js';
+import type { ChatController } from './useChat.js';
+
+/** Mirrors the server's edit window (modules/chat/service.ts EDIT_WINDOW_MINUTES). */
+export const EDIT_WINDOW_MS = 15 * 60_000;
 
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -27,6 +38,27 @@ function dateTimeLabel(iso: string): string {
 
 const escapeRegExp =(text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+function dayLabel(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', ...(date.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+}
+
+/** One line for a conversation list or reply preview: formatting stripped, files described. */
+export function previewLine(preview: Pick<MessagePreview, 'body' | 'deletedAt' | 'attachmentCount' | 'firstAttachment'>): string {
+  if (preview.deletedAt) return 'Message unsent';
+  const text = toPlainText(preview.body ?? '');
+  if (text) return (preview.attachmentCount ?? 0) > 0 ? `📎 ${text}` : text;
+  const count = preview.attachmentCount ?? 0;
+  if (count > 1) return `📎 ${count} files`;
+  if (count === 1 && preview.firstAttachment) return preview.firstAttachment.kind === 'image' ? '📷 Photo' : `📎 ${preview.firstAttachment.fileName}`;
+  return '';
+}
+
 const CHAT_LIST_MIN_WIDTH = 220;
 const CHAT_LIST_MAX_WIDTH = 520;
 const clampChatListWidth = (width: number): number =>
@@ -35,28 +67,17 @@ const CHAT_LIST_DEFAULT_WIDTH = typeof window === 'undefined'
   ? 320
   : Math.min(380, Math.max(CHAT_LIST_MIN_WIDTH, Math.round(window.innerWidth * 0.18)));
 
-/** Highlights `@FullName` tokens the message actually recorded as mentions — not a live guess from the body text. */
-function renderMessageBody(body: string, mentions: readonly { userId: string; fullName: string }[]): ReactNode {
-  if (mentions.length === 0) return body;
-  const names = [...new Set(mentions.map((m) => m.fullName))].sort((a, b) => b.length - a.length);
-  const mentionTokens = new Set(names.map((n) => `@${n}`));
-  const pattern = new RegExp(`(@(?:${names.map(escapeRegExp).join('|')}))`, 'g');
-  return body.split(pattern).map((part, index) =>
-    mentionTokens.has(part) ? (
-      <span key={index} className="rounded bg-app-accent/20 px-0.5 font-semibold text-app-accent">{part}</span>
-    ) : (
-      <span key={index}>{part}</span>
-    ),
-  );
-}
+type MenuAction = 'reply' | 'react' | 'edit' | 'copy' | 'forward' | 'pin' | 'save' | 'unsend';
 
 /**
- * The conversation list + thread, shared by every tab (Direct Messages now;
- * Internal Groups, Phase 3 — Project Groups, Phase 4). What differs between
- * tabs — how a conversation is labelled, what "New" does, whether there is a
- * management panel — is passed in by the page that owns this component; the
- * messaging mechanics (send, reply, forward, react, unsend, typing, seen,
- * pagination) live here exactly once.
+ * The conversation list + thread, shared by every tab (Direct Messages,
+ * Internal Groups, Project Groups) and the client portal. What differs
+ * between tabs — how a conversation is labelled, what "New" does, whether
+ * there is a management panel — is passed in by the page that owns this
+ * component; what differs between company and client is the transport.
+ * The messaging mechanics (send with files, format, reply, edit, forward,
+ * react, pin, save, schedule, unsend, typing, seen, pagination, jumping to
+ * a message) live here exactly once.
  */
 export function ConversationWorkspace({
   chat,
@@ -71,11 +92,12 @@ export function ConversationWorkspace({
   hideList = false,
   initialConversationId,
   initialMessageId,
-  messageActions,
+  initialNonce = 0,
+  transport = companyChatTransport,
   clientMode = false,
 }: {
   /** Owned by the page (not this component), so the page's own "New" flow can drive the same instance. */
-  chat: ReturnType<typeof useChat>;
+  chat: ChatController;
   kind: ConversationKind;
   currentUserId: string;
   title: string;
@@ -87,23 +109,23 @@ export function ConversationWorkspace({
   headerExtra?: (conversation: Conversation) => ReactNode;
   /** A project's Discussions tab has exactly one conversation to show — no list needed. */
   hideList?: boolean;
-  /** A notification deep link (e.g. a mention): open this conversation on mount, once. */
+  /** A deep link (notification, search result, saved message): open this conversation. */
   initialConversationId?: string | undefined;
-  /** Scroll to and highlight this message once it's loaded, once. */
+  /** …and scroll to and highlight this message (loading the history around it if needed). */
   initialMessageId?: string | undefined;
-  messageActions?: {
-    sendMessage: typeof sendMessage;
-    reactToMessage: typeof reactToMessage;
-    removeReaction: typeof removeReaction;
-  };
+  /** Changes when the same link is followed again. */
+  initialNonce?: number;
+  transport?: ChatTransport;
   /** Client portal discussions share the thread UI but omit company-only actions. */
   clientMode?: boolean;
 }): React.JSX.Element {
-  const [composer, setComposer] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const [reactingMessageId, setReactingMessageId] = useState<string | null>(null);
+  const [pickerFor, setPickerFor] = useState<{ messageId: string; anchor: DOMRect } | null>(null);
   const [reactionDetail, setReactionDetail] = useState<{ messageId: string; emoji: string } | null>(null);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const [actionMenuPosition, setActionMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [chatListWidth, setChatListWidth] = useState(CHAT_LIST_DEFAULT_WIDTH);
@@ -114,19 +136,30 @@ export function ConversationWorkspace({
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState('');
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
   const [swipeReply, setSwipeReply] = useState<{ id: string; offset: number } | null>(null);
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [pendingMentions, setPendingMentions] = useState<Map<string, string>>(new Map());
-  const threadEndRef = useRef<HTMLDivElement>(null);
+  const [lightbox, setLightbox] = useState<{ images: MessageAttachment[]; index: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [nearBottom, setNearBottom] = useState(true);
+  const [localPinsVersion, setLocalPinsVersion] = useState(0);
+  const [localScheduledVersion, setLocalScheduledVersion] = useState(0);
   const threadScrollRef = useRef<HTMLDivElement>(null);
-  const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const composerRef = useRef<HTMLTextAreaElement>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messageSwipeRef = useRef<{ id: string; x: number; y: number; mine: boolean } | null>(null);
   const highlightTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastOpenedInitialIdRef = useRef<string | null>(null);
-  const lastScrolledMessageIdRef = useRef<string | null>(null);
+  const lastDeepLinkRef = useRef<string | null>(null);
+  const fileDropRef = useRef<((files: File[]) => void) | null>(null);
+  const dragDepth = useRef(0);
+  const scrollMemo = useRef<{ conversationId: string | null; first: string | null; last: string | null; height: number }>({ conversationId: null, first: null, last: null, height: 0 });
   const openConversation = chat.openConversation;
+  const presence = usePresenceMap(transport.presence && !clientMode);
+
+  const fail = useCallback((message: string) => setActionError(message), []);
+  useEffect(() => {
+    if (!actionError) return undefined;
+    const timer = setTimeout(() => setActionError(''), 6000);
+    return () => clearTimeout(timer);
+  }, [actionError]);
 
   const startChatListResize = (event: React.PointerEvent<HTMLButtonElement>): void => {
     if (!window.matchMedia('(min-width: 768px)').matches || event.button !== 0 || event.pointerType === 'touch') return;
@@ -160,42 +193,71 @@ export function ConversationWorkspace({
     setChatListWidth((width) => clampChatListWidth(width + (event.key === 'ArrowRight' ? 16 : -16)));
   };
 
-  useEffect(() => {
-    const thread = threadScrollRef.current;
-    if (thread) thread.scrollTop = thread.scrollHeight;
-  }, [chat.messages.length, chat.activeId]);
+  /* ------------------------------------------------------------ scrolling */
 
-  const MAX_COMPOSER_HEIGHT = 160;
+  // Opening a conversation lands at the bottom; a message arriving keeps you
+  // at the bottom if you were there (or sent it); older pages loading above
+  // keep what you were reading in place. While you are at the bottom, late
+  // layout (images, link-preview cards) keeps you there too.
+  const stickToBottom = useRef(true);
+  const listRef = useRef<HTMLUListElement>(null);
+  useLayoutEffect(() => {
+    const thread = threadScrollRef.current;
+    const memo = scrollMemo.current;
+    const first = chat.messages[0]?.id ?? null;
+    const last = chat.messages[chat.messages.length - 1] ?? null;
+    if (!thread) return;
+    const opened = memo.conversationId !== chat.activeId || (memo.last === null && last !== null);
+    if (opened) {
+      stickToBottom.current = !pendingScrollId;
+      if (!pendingScrollId) thread.scrollTop = thread.scrollHeight;
+    } else if (first !== memo.first && last?.id === memo.last && memo.height > 0) {
+      thread.scrollTop += thread.scrollHeight - memo.height;
+    } else if (last && last.id !== memo.last && !pendingScrollId) {
+      const distance = memo.height - thread.scrollTop - thread.clientHeight;
+      if (distance < 160 || last.senderId === currentUserId) {
+        thread.scrollTop = thread.scrollHeight;
+        stickToBottom.current = true;
+      }
+    }
+    scrollMemo.current = { conversationId: chat.activeId, first, last: last?.id ?? null, height: thread.scrollHeight };
+  }, [chat.messages, chat.activeId, currentUserId, pendingScrollId]);
+
   useEffect(() => {
-    const el = composerRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT)}px`;
-  }, [composer]);
+    const list = listRef.current;
+    const thread = threadScrollRef.current;
+    if (!list || !thread || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottom.current) thread.scrollTop = thread.scrollHeight;
+      scrollMemo.current = { ...scrollMemo.current, height: thread.scrollHeight };
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [chat.activeId, chat.loadingMessages]);
 
   useEffect(() => () => {
     if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
   }, []);
 
-  // Clicking anywhere that isn't one of the popovers themselves (reaction
-  // detail, seen detail, the message-actions menu, the emoji picker, the
-  // mention dropdown) closes whichever of them is open — including clicking
-  // empty space in the thread, not just another message.
+  // Clicking anywhere that isn't one of the popovers themselves closes
+  // whichever of them is open — including clicking empty space in the thread.
   useEffect(() => {
     const closeOpenPopovers = (event: MouseEvent): void => {
       if ((event.target as HTMLElement).closest('[data-chat-popover]')) return;
       setReactionDetail(null);
       setSeenDetailFor(null);
+      setHistoryFor(null);
       setOpenActionsFor(null);
       setActionMenuPosition(null);
       setReactingMessageId(null);
-      setMentionQuery(null);
     };
     const closeActionsOnEscape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         setOpenActionsFor(null);
         setActionMenuPosition(null);
+        setReactingMessageId(null);
+        setHistoryFor(null);
       }
     };
     document.addEventListener('mousedown', closeOpenPopovers);
@@ -206,99 +268,73 @@ export function ConversationWorkspace({
     };
   }, []);
 
-  const scrollToMessage = (messageId: string): void => {
+  const highlight = (messageId: string): void => {
     const el = document.getElementById(`chat-message-${messageId}`);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
     setHighlightedMessageId(messageId);
-    highlightTimeout.current = setTimeout(() => setHighlightedMessageId(null), 1200);
+    highlightTimeout.current = setTimeout(() => setHighlightedMessageId(null), 1600);
   };
 
-  useEffect(() => {
-    // Keyed on the id itself, not "has any deep link ever been consumed" — a
-    // second notification for a different conversation, arriving while this
-    // same tab/component is still mounted, must still be honored.
-    if (!initialConversationId || lastOpenedInitialIdRef.current === initialConversationId) return;
-    lastOpenedInitialIdRef.current = initialConversationId;
-    void openConversation(initialConversationId);
-  }, [initialConversationId, openConversation]);
+  /** Scroll to a message, loading the history around it first when it is not on screen. */
+  const jumpTo = useCallback(async (messageId: string): Promise<void> => {
+    const found = await chat.jumpToMessage(messageId);
+    if (!found) {
+      setActionError('That message is no longer available.');
+      return;
+    }
+    setPendingScrollId(messageId);
+  }, [chat]);
 
   useEffect(() => {
-    if (!initialMessageId || lastScrolledMessageIdRef.current === initialMessageId) return;
-    if (!chat.messages.some((m) => m.id === initialMessageId)) return;
-    lastScrolledMessageIdRef.current = initialMessageId;
-    scrollToMessage(initialMessageId);
-  }, [initialMessageId, chat.messages]);
+    if (!pendingScrollId) return;
+    stickToBottom.current = false;
+    if (!chat.messages.some((m) => m.id === pendingScrollId)) return;
+    const id = pendingScrollId;
+    requestAnimationFrame(() => {
+      highlight(id);
+      setPendingScrollId(null);
+    });
+  }, [pendingScrollId, chat.messages]);
+
+  useEffect(() => {
+    // Keyed on the link itself (and its nonce), so following a second link —
+    // or the same one again — while this component stays mounted still works.
+    if (!initialConversationId) return;
+    const key = `${initialConversationId}|${initialMessageId ?? ''}|${initialNonce}`;
+    if (lastDeepLinkRef.current === key) return;
+    lastDeepLinkRef.current = key;
+    if (initialMessageId) setPendingScrollId(initialMessageId);
+    if (chat.activeId === initialConversationId && initialMessageId) {
+      void chat.jumpToMessage(initialMessageId);
+    } else {
+      void openConversation(initialConversationId, { aroundMessageId: initialMessageId });
+    }
+    // chat.activeId/jumpToMessage are read at the moment the link arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialConversationId, initialMessageId, initialNonce, openConversation]);
 
   const activeConversation = useMemo(
     () => chat.conversations.find((c) => c.id === chat.activeId) ?? null,
     [chat.conversations, chat.activeId],
   );
 
-  const onComposerChange = (value: string, cursor: number): void => {
-    setComposer(value);
-    chat.notifyTyping('start');
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(() => chat.notifyTyping('stop'), 2000);
+  // A different conversation: drop reply/edit state that belonged to the last one.
+  useEffect(() => {
+    setReplyTo(null);
+    setEditing(null);
+    setLightbox(null);
+  }, [chat.activeId]);
 
-    if (kind === 'direct') return;
-    const upToCursor = value.slice(0, cursor);
-    const at = upToCursor.lastIndexOf('@');
-    const fragment = at === -1 ? null : upToCursor.slice(at + 1);
-    setMentionQuery(fragment !== null && !/\s/.test(fragment) ? fragment : null);
-  };
+  const memberName = useCallback((userId: string): string => {
+    if (userId === currentUserId) return 'You';
+    return activeConversation?.members.find((m) => m.userId === userId)?.fullName ?? 'Someone';
+  }, [activeConversation, currentUserId]);
 
-  const mentionCandidates = useMemo(() => {
-    if (mentionQuery === null || !activeConversation) return [];
-    const query = mentionQuery.toLowerCase();
-    return activeConversation.members
-      .filter((m) => m.userId !== currentUserId && m.fullName.toLowerCase().includes(query))
-      .slice(0, 6);
-  }, [mentionQuery, activeConversation, currentUserId]);
+  const otherMember = (conversation: Conversation) => conversation.members.find((m) => m.userId !== currentUserId) ?? null;
 
-  const selectMention = (member: ConversationMember): void => {
-    const el = composerRef.current;
-    const cursor = el?.selectionStart ?? composer.length;
-    const upToCursor = composer.slice(0, cursor);
-    const at = upToCursor.lastIndexOf('@');
-    if (at === -1) return;
-    const insertion = `@${member.fullName} `;
-    const next = composer.slice(0, at) + insertion + composer.slice(cursor);
-    setComposer(next);
-    setPendingMentions((current) => new Map(current).set(member.userId, member.fullName));
-    setMentionQuery(null);
-    const pos = at + insertion.length;
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(pos, pos);
-    });
-  };
-
-  const send = async (): Promise<void> => {
-    const body = composer.trim();
-    if (!body || !chat.activeId || sending) return;
-    setSending(true);
-    chat.notifyTyping('stop');
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
-    try {
-      // Only mentions whose "@Name" text is still actually present survive an edit after picking them.
-      const mentionedUserIds = [...pendingMentions.entries()]
-        .filter(([, fullName]) => body.includes(`@${fullName}`))
-        .map(([userId]) => userId);
-      const message = await (messageActions?.sendMessage ?? sendMessage)(chat.activeId, body, replyTo?.id ?? null, mentionedUserIds);
-      chat.applyOptimisticMessage(message);
-      setComposer('');
-      setReplyTo(null);
-      setPendingMentions(new Map());
-      setMentionQuery(null);
-      void chat.refreshConversations();
-    } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : 'Unable to send message.');
-    } finally {
-      setSending(false);
-    }
-  };
+  /* -------------------------------------------------------------- actions */
 
   const copyText = async (text: string): Promise<void> => {
     try {
@@ -308,17 +344,23 @@ export function ConversationWorkspace({
     }
   };
 
-  const onUnsend = async (message: ChatMessage): Promise<void> => {
-    try {
-      chat.replaceMessage(await unsendMessage(message.id));
-    } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : 'Unable to unsend message.');
-    }
+  const canEdit = (message: ChatMessage): boolean =>
+    message.senderId === currentUserId && !message.deletedAt && !message.forwarded && Date.now() - new Date(message.createdAt).getTime() < EDIT_WINDOW_MS;
+
+  const menuActions = (message: ChatMessage, mine: boolean): MenuAction[] => {
+    const actions: MenuAction[] = ['reply', 'react'];
+    if (canEdit(message)) actions.push('edit');
+    if (message.body) actions.push('copy');
+    if (!clientMode && transport.forwardMessage) actions.push('forward');
+    if (!clientMode && transport.pinMessage) actions.push('pin');
+    if (!clientMode && transport.saveMessage) actions.push('save');
+    if (!clientMode && mine && transport.unsendMessage) actions.push('unsend');
+    return actions;
   };
 
   const setMessageActionsPosition = (message: ChatMessage, mine: boolean, anchor: DOMRect): void => {
-    const menuWidth = 144;
-    const menuHeight = clientMode ? 160 : mine ? 196 : 160;
+    const menuWidth = 176;
+    const menuHeight = menuActions(message, mine).length * 32 + 10;
     const belowTop = anchor.bottom + 4 + (message.reactions.length > 0 ? 20 : 0);
     const top = belowTop + menuHeight <= window.innerHeight - 8
       ? belowTop
@@ -339,6 +381,62 @@ export function ConversationWorkspace({
     setMessageActionsPosition(message, mine, event.currentTarget.getBoundingClientRect());
   };
 
+  const closeMenu = (): void => {
+    setOpenActionsFor(null);
+    setActionMenuPosition(null);
+  };
+
+  const runMessageAction = async (action: () => Promise<ChatMessage | undefined>, failure: string): Promise<void> => {
+    try {
+      const updated = await action();
+      if (updated) chat.replaceMessage(updated);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : failure);
+    }
+  };
+
+  const onMenuAction = (action: MenuAction, message: ChatMessage): void => {
+    closeMenu();
+    switch (action) {
+      case 'reply':
+        setEditing(null);
+        setReplyTo(message);
+        break;
+      case 'react':
+        setReactingMessageId(message.id);
+        break;
+      case 'edit':
+        setReplyTo(null);
+        setEditing(message);
+        break;
+      case 'copy':
+        void copyText(message.body ?? '');
+        break;
+      case 'forward':
+        setForwardingMessage(message);
+        break;
+      case 'pin':
+        void runMessageAction(async () => {
+          const updated = message.pinnedAt ? await transport.unpinMessage?.(message.id) : await transport.pinMessage?.(message.id);
+          setLocalPinsVersion((version) => version + 1);
+          return updated;
+        }, 'Unable to change the pin.');
+        break;
+      case 'save':
+        void runMessageAction(() => (message.saved ? transport.unsaveMessage?.(message.id) : transport.saveMessage?.(message.id)) ?? Promise.resolve(undefined), 'Unable to save the message.');
+        break;
+      case 'unsend':
+        void runMessageAction(async () => {
+          const updated = await transport.unsendMessage?.(message.id);
+          setLocalPinsVersion((version) => version + 1);
+          return updated;
+        }, 'Unable to unsend message.');
+        break;
+      default:
+        break;
+    }
+  };
+
   const clearLongPress = (): void => {
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = null;
@@ -350,7 +448,7 @@ export function ConversationWorkspace({
   };
 
   const startMessageLongPress = (event: React.PointerEvent<HTMLDivElement>, message: ChatMessage, mine: boolean): void => {
-    if (event.pointerType !== 'touch' || !window.matchMedia('(max-width: 767px)').matches || (event.target as HTMLElement).closest('button')) return;
+    if (event.pointerType !== 'touch' || !window.matchMedia('(max-width: 767px)').matches || (event.target as HTMLElement).closest('button, a')) return;
     clearLongPress();
     event.currentTarget.setPointerCapture(event.pointerId);
     messageSwipeRef.current = { id: message.id, x: event.clientX, y: event.clientY, mine };
@@ -388,41 +486,116 @@ export function ConversationWorkspace({
     const dx = event.clientX - gesture.x;
     const dy = event.clientY - gesture.y;
     if (Math.abs(dx) >= 56 && Math.abs(dx) > Math.abs(dy)) {
+      setEditing(null);
       setReplyTo(message);
-      setOpenActionsFor(null);
-      setActionMenuPosition(null);
+      closeMenu();
     }
     clearMessageSwipe();
   };
 
+  /** Several reactions per person (product decision): each emoji toggles independently. */
   const toggleReaction = async (message: ChatMessage, emoji: ReactionEmoji): Promise<void> => {
     setReactingMessageId(null);
     setReactionDetail(null);
-    const existingReaction = message.reactions.find((r) => r.userId === currentUserId);
-    try {
-      const remove = messageActions?.removeReaction ?? removeReaction;
-      const add = messageActions?.reactToMessage ?? reactToMessage;
-      if (existingReaction?.emoji === emoji) {
-        chat.replaceMessage(await remove(message.id, emoji));
-      } else {
-        if (existingReaction) await remove(message.id, existingReaction.emoji);
-        chat.replaceMessage(await add(message.id, emoji));
-      }
-    } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : 'Unable to react.');
-    }
+    setPickerFor(null);
+    const mineAlready = message.reactions.some((r) => r.userId === currentUserId && r.emoji === emoji);
+    await runMessageAction(
+      () => (mineAlready
+        ? transport.removeReaction(message.conversationId, message.id, emoji)
+        : transport.reactToMessage(message.conversationId, message.id, emoji)),
+      'Unable to react.',
+    );
   };
 
   const onForward = async (targetConversationId: string): Promise<void> => {
-    if (!forwardingMessage) return;
+    if (!forwardingMessage || !transport.forwardMessage) return;
     try {
-      await forwardMessage(forwardingMessage.id, targetConversationId);
+      await transport.forwardMessage(forwardingMessage.id, targetConversationId);
       setForwardingMessage(null);
-      if (targetConversationId === chat.activeId) await chat.openConversation(targetConversationId);
+      if (targetConversationId === chat.activeId) await chat.jumpToLatest();
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'Unable to forward message.');
     }
   };
+
+  const editLast = (): void => {
+    const last = [...chat.messages].reverse().find((message) => canEdit(message));
+    if (last) {
+      setReplyTo(null);
+      setEditing(last);
+    }
+  };
+
+  /* --------------------------------------------------------- drag & drop */
+
+  const hasFiles = (event: React.DragEvent): boolean => [...event.dataTransfer.types].includes('Files');
+  const onDragEnter = (event: React.DragEvent<HTMLDivElement>): void => {
+    if (!hasFiles(event) || editing) return;
+    event.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  };
+  const onDragLeave = (event: React.DragEvent<HTMLDivElement>): void => {
+    if (!hasFiles(event)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  };
+  const onDrop = (event: React.DragEvent<HTMLDivElement>): void => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    fileDropRef.current?.([...event.dataTransfer.files]);
+  };
+
+  /* -------------------------------------------------------------- render */
+
+  const renderMeta = (message: ChatMessage, mine: boolean, invisible: boolean): ReactNode => (
+    <>
+      {message.pinnedAt && <Icon name="pushpin" className="size-3 text-app-accent" />}
+      {message.saved && <Icon name="bookmark" filled className="size-3 text-[#f59e0b]" />}
+      {message.editedAt && (invisible ? <span>edited</span> : (
+        <span data-chat-popover className="relative">
+          <button type="button" onClick={() => setHistoryFor(historyFor === message.id ? null : message.id)} className="hover:text-app-accent hover:underline" aria-label="View edit history">
+            edited
+          </button>
+          {historyFor === message.id && <EditHistory message={message} transport={transport} align={mine ? 'right' : 'left'} />}
+        </span>
+      ))}
+      {invisible ? timeLabel(message.createdAt) : <time dateTime={message.createdAt}>{timeLabel(message.createdAt)}</time>}
+      {mine && message.seenBy.length > 0 && (invisible ? ' ✓✓' : (
+        <span data-chat-popover className="relative">
+          <button
+            type="button"
+            onClick={() => setSeenDetailFor(seenDetailFor === message.id ? null : message.id)}
+            aria-label="View message read receipts"
+            className="flex items-center text-app-accent hover:text-app-accent"
+          >
+            <Icon name="check" className="size-3.5" />
+            <Icon name="check" className="-ml-2 size-3.5" />
+          </button>
+          {seenDetailFor === message.id && (
+            <div className="absolute bottom-full right-0 z-10 mb-1 min-w-max rounded-lg border border-app-border bg-app-surface px-2 py-1 text-[11px] text-app-muted shadow-lg">
+              {message.seenBy.map((userId) => {
+                const member = activeConversation?.members.find((m) => m.userId === userId);
+                return (
+                  <p key={userId} className="whitespace-nowrap">
+                    {member?.fullName ?? 'Someone'}
+                    {member?.lastReadAt ? ` — ${timeLabel(member.lastReadAt)}` : ''}
+                  </p>
+                );
+              })}
+            </div>
+          )}
+        </span>
+      ))}
+    </>
+  );
+
+  const messageList = chat.messages;
+  const scheduledVersion = chat.scheduledVersion + localScheduledVersion;
+  const pinsVersion = chat.pinsVersion + localPinsVersion;
+  const directOther = activeConversation && kind === 'direct' ? otherMember(activeConversation) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col md:flex-row">
@@ -464,16 +637,21 @@ export function ConversationWorkspace({
             <ul className="px-3">
               {chat.conversations.map((conversation) => {
                 const active = conversation.id === chat.activeId;
+                const other = kind === 'direct' ? otherMember(conversation) : null;
+                const label = conversationLabel(conversation);
                 return (
                   <li key={conversation.id} className="border-b border-app-border/70 last:border-b-0">
                     <button
                       type="button"
                       onClick={() => void chat.openConversation(conversation.id)}
-                      className={`my-1 flex w-full items-start gap-3 rounded-lg px-2 py-3 text-left hover:bg-app-surface-raised ${active ? 'bg-app-accent/10 text-app-accent' : ''}`}
+                      className={`my-1 flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-app-surface-raised ${active ? 'bg-app-accent/10 text-app-accent' : ''}`}
                     >
+                      {other
+                        ? <Avatar name={other.fullName} seed={other.userId} presence={presence[other.userId]} size="md" />
+                        : <GroupAvatar name={label} seed={conversation.id} size="md" />}
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-semibold">{conversationLabel(conversation)}</span>
+                          <span className="truncate text-sm font-semibold">{label}</span>
                           {conversation.unreadCount > 0 && (
                             <span className="shrink-0 rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold text-app-on-accent">
                               {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
@@ -482,7 +660,10 @@ export function ConversationWorkspace({
                         </span>
                         {conversation.lastMessage && (
                           <span className="mt-0.5 block truncate text-xs text-app-muted">
-                            {conversation.lastMessage.deletedAt ? 'Message unsent' : (conversation.lastMessage.body ?? '')}
+                            {kind !== 'direct' && !conversation.lastMessage.deletedAt && conversation.lastMessage.senderId !== currentUserId
+                              ? `${conversation.members.find((m) => m.userId === conversation.lastMessage?.senderId)?.fullName.split(' ')[0] ?? 'Someone'}: `
+                              : conversation.lastMessage.senderId === currentUserId && !conversation.lastMessage.deletedAt ? 'You: ' : ''}
+                            {previewLine(conversation.lastMessage)}
                           </span>
                         )}
                       </span>
@@ -496,13 +677,19 @@ export function ConversationWorkspace({
       )}
 
       {/* Thread */}
-      <div className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${!hideList ? 'md:before:absolute md:before:inset-y-5 md:before:left-0 md:before:w-px md:before:bg-app-border' : ''} ${!hideList && !chat.activeId ? 'hidden md:flex' : 'flex'}`}>
+      <div
+        className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${!hideList ? 'md:before:absolute md:before:inset-y-5 md:before:left-0 md:before:w-px md:before:bg-app-border' : ''} ${!hideList && !chat.activeId ? 'hidden md:flex' : 'flex'}`}
+        onDragEnter={onDragEnter}
+        onDragOver={(event) => { if (hasFiles(event)) event.preventDefault(); }}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
         {!chat.activeId ? (
           <div className="grid flex-1 place-items-center text-sm text-app-muted">Select a conversation, or start a new one.</div>
         ) : (
           <>
             <div className={`relative flex shrink-0 items-center justify-between gap-3 px-4 py-3 after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:bg-app-border sm:px-5 ${clientMode ? 'bg-app-surface' : ''}`}>
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2.5">
                 {!hideList && (
                   <button
                     type="button"
@@ -513,356 +700,368 @@ export function ConversationWorkspace({
                     <Icon name="chevron-left" className="size-4" />
                   </button>
                 )}
-                {clientMode && (
+                {clientMode ? (
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent ring-1 ring-inset ring-app-accent/15">
                     <Icon name="users" className="size-5" />
                   </span>
-                )}
+                ) : directOther ? (
+                  <Avatar name={directOther.fullName} seed={directOther.userId} presence={presence[directOther.userId]} size="md" />
+                ) : activeConversation ? (
+                  <GroupAvatar name={conversationLabel(activeConversation)} seed={activeConversation.id} size="md" />
+                ) : null}
                 <div className="min-w-0">
                   <p className={`${clientMode ? 'text-sm sm:text-base' : 'text-sm'} truncate font-semibold`}>{activeConversation ? conversationLabel(activeConversation) : ''}</p>
-                  {clientMode && activeConversation && (
+                  {chat.typingUsers.length > 0 ? (
+                    <p className="text-xs text-app-accent">
+                      {kind === 'direct' ? 'typing…' : `${chat.typingUsers.map((id) => memberName(id).split(' ')[0]).join(', ')} typing…`}
+                    </p>
+                  ) : clientMode && activeConversation ? (
                     <p className="mt-0.5 truncate text-xs text-app-muted">Project group · {activeConversation.members.length} members</p>
-                  )}
-                  {!clientMode && activeConversation?.description && kind !== 'direct' && (
-                    <p className="truncate text-xs text-app-muted">{activeConversation.description}</p>
-                  )}
-                  {chat.typingUsers.length > 0 && <p className="text-xs text-app-accent">typing…</p>}
+                  ) : directOther && presence[directOther.userId] ? (
+                    <PresenceLabel presence={presence[directOther.userId]!} />
+                  ) : activeConversation && kind !== 'direct' ? (
+                    <p className="truncate text-xs text-app-muted">
+                      {activeConversation.description ? `${activeConversation.description} · ` : ''}{activeConversation.members.length} members
+                    </p>
+                  ) : null}
                 </div>
               </div>
               {activeConversation && headerExtra?.(activeConversation)}
             </div>
 
+            <PinnedBar
+              conversationId={chat.activeId}
+              transport={transport}
+              version={pinsVersion}
+              memberName={memberName}
+              onJump={(messageId) => void jumpTo(messageId)}
+              onError={fail}
+            />
+
             <div
               ref={threadScrollRef}
-              onScroll={() => {
-                if (openActionsFor) {
-                  setOpenActionsFor(null);
-                  setActionMenuPosition(null);
-                }
+              data-chat-thread
+              onScroll={(event) => {
+                if (openActionsFor) closeMenu();
+                const el = event.currentTarget;
+                const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+                stickToBottom.current = distance < 80;
+                setNearBottom(distance < 200);
               }}
               data-lenis-prevent
-              className={`min-h-0 flex-1 overscroll-contain ${chat.messages.length > 0 || chat.hasMore ? 'overflow-y-auto' : 'overflow-y-hidden'} ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}
+              className={`relative min-h-0 flex-1 overscroll-contain ${messageList.length > 0 || chat.hasMore ? 'overflow-y-auto' : 'overflow-y-hidden'} ${clientMode ? 'bg-app-background/35 p-3 sm:p-5 md:p-6' : 'p-4'}`}
             >
-              {chat.loadingMessages && chat.messages.length === 0 ? (
+              {chat.loadingMessages && messageList.length === 0 ? (
                 <SkeletonMessageThread />
               ) : (
                 <>
                   {chat.hasMore && (
                     <div className="mb-3 text-center">
-                      <Button kind="secondary" onClick={() => void chat.loadMoreMessages()} className="!px-3 !py-1.5 !text-xs">
-                        Load older
+                      <Button kind="secondary" onClick={() => void chat.loadMoreMessages()} disabled={chat.loadingMessages} className="!px-3 !py-1.5 !text-xs">
+                        {chat.loadingMessages ? 'Loading…' : 'Load older'}
                       </Button>
                     </div>
                   )}
-                  <ul className={`flex min-w-0 flex-col ${clientMode ? 'gap-5 sm:gap-6' : 'gap-3'}`}>
-                    {chat.messages.map((message) => {
+                  <ul ref={listRef} className={`flex min-w-0 flex-col ${clientMode ? 'gap-5 sm:gap-6' : 'gap-3'}`}>
+                    {messageList.map((message, index) => {
                       const mine = message.senderId === currentUserId;
                       const unsent = message.deletedAt !== null;
                       const sender = activeConversation?.members.find((m) => m.userId === message.senderId);
+                      const previous = messageList[index - 1];
+                      const newDay = !previous || new Date(previous.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
+                      const runStart = newDay || !previous || previous.senderId !== message.senderId
+                        || new Date(message.createdAt).getTime() - new Date(previous.createdAt).getTime() > 5 * 60_000;
+                      const showSender = !mine && kind !== 'direct';
+                      const files = unsent ? [] : (message.attachments ?? []);
+                      const previews = unsent ? [] : (message.linkPreviews ?? []);
+                      const hasText = !unsent && (message.body ?? '').length > 0;
+                      const actions = menuActions(message, mine);
                       return (
-                        <li key={message.id} id={`chat-message-${message.id}`} className={`min-w-0 flex flex-col ${mine ? 'items-end' : 'items-start'} ${message.reactions.length > 0 ? 'mb-3' : ''}`}>
-                          {!mine && kind !== 'direct' && sender && (clientMode ? (
-                            <span className="mb-1 flex max-w-[86%] items-center gap-2 text-xs font-semibold text-app-muted">
-                              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-app-surface-raised text-[10px] font-bold text-app-accent ring-1 ring-inset ring-app-border">
-                                {sender.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+                        <Fragment key={message.id}>
+                          {newDay && (
+                            <li className="my-1 flex justify-center" aria-hidden="true">
+                              <span className="rounded-full bg-app-surface-raised px-3 py-0.5 text-[11px] font-medium text-app-muted">{dayLabel(message.createdAt)}</span>
+                            </li>
+                          )}
+                          <li id={`chat-message-${message.id}`} className={`flex min-w-0 gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'} ${message.reactions.length > 0 ? 'mb-3' : ''}`}>
+                            {showSender && !clientMode && (
+                              <span className="mt-auto w-8 shrink-0">
+                                {runStart && sender && <Avatar name={sender.fullName} seed={sender.userId} presence={presence[sender.userId]} size="sm" />}
                               </span>
-                              <span className="truncate">{sender.fullName}</span>
-                            </span>
-                          ) : (
-                            <span className="mb-0.5 max-w-[80%] truncate text-[11px] font-semibold text-app-muted">{sender.fullName}</span>
-                          ))}
-                          <div className={`${clientMode ? 'max-w-[88%] sm:max-w-[76%]' : 'max-w-[80%]'} relative w-fit min-w-0`}>
-                            <div
-                              onPointerDown={(event) => startMessageLongPress(event, message, mine)}
-                              onPointerUp={(event) => finishMessageSwipe(event, message)}
-                              onPointerCancel={(event) => {
-                                clearLongPress();
-                                if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-                                clearMessageSwipe();
-                              }}
-                              onPointerMove={(event) => moveMessageSwipe(event, message)}
-                              onContextMenu={(event) => {
-                                if (window.matchMedia('(max-width: 767px)').matches) event.preventDefault();
-                              }}
-                              className={`${clientMode ? 'rounded-[18px] px-4 pb-2.5 pt-3 text-sm leading-6 shadow-sm sm:px-5' : 'rounded-[18px] px-3 pb-2 pt-2 text-sm'} ${mine ? 'rounded-br-none' : 'rounded-bl-none'} ${openActionsFor === message.id ? 'z-50' : ''} group relative w-fit max-w-full min-w-0 touch-pan-y select-none overflow-visible border break-words transition-[transform,background-color,border-color,color] duration-150 [-webkit-touch-callout:none] ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
-                              style={swipeReply?.id === message.id ? { transform: `translateX(${swipeReply.offset}px)` } : undefined}
-                            >
-                            {message.forwarded && <p className="mb-1 text-[11px] italic text-app-muted">Forwarded</p>}
-                            {message.replyPreview && !unsent && (
-                              <button
-                                type="button"
-                                onClick={() => scrollToMessage(message.replyPreview!.id)}
-                                className="mb-1 block w-full truncate border-l-2 border-app-accent/50 pl-2 text-left text-xs text-app-muted hover:text-app-accent"
-                              >
-                                {message.replyPreview.deletedAt ? 'Message unsent' : (message.replyPreview.body ?? '')}
-                              </button>
                             )}
-                            <p className={`inline whitespace-pre-wrap break-words ${unsent ? 'italic text-app-muted' : ''}`}>{unsent ? 'This message was unsent' : renderMessageBody(message.body ?? '', message.mentions)}</p>
-                            <span aria-hidden="true" className="ml-2 inline-flex invisible items-center gap-1 whitespace-nowrap text-[10px]">
-                              {timeLabel(message.createdAt)}
-                              {mine && message.seenBy.length > 0 && ' ✓✓'}
-                            </span>
-                            <span className="absolute bottom-1.5 right-2 inline-flex items-center gap-1 whitespace-nowrap text-[10px] text-app-muted">
-                              <time dateTime={message.createdAt}>{timeLabel(message.createdAt)}</time>
-                            {mine && message.seenBy.length > 0 && (
-                              <span data-chat-popover className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => setSeenDetailFor(seenDetailFor === message.id ? null : message.id)}
-                                  aria-label="View message read receipts"
-                                  className="flex items-center text-app-accent hover:text-app-accent"
+                            <div className={`flex min-w-0 flex-1 flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                              {showSender && runStart && sender && (clientMode ? (
+                                <span className="mb-1 flex max-w-[86%] items-center gap-2 text-xs font-semibold text-app-muted">
+                                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-app-surface-raised text-[10px] font-bold text-app-accent ring-1 ring-inset ring-app-border">
+                                    {sender.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+                                  </span>
+                                  <span className="truncate">{sender.fullName}</span>
+                                </span>
+                              ) : (
+                                <span className="mb-0.5 max-w-[80%] truncate text-[11px] font-semibold text-app-muted">{sender.fullName}</span>
+                              ))}
+                              <div className={`${clientMode ? 'max-w-[88%] sm:max-w-[76%]' : 'max-w-[80%]'} relative w-fit min-w-0`}>
+                                <div
+                                  onPointerDown={(event) => startMessageLongPress(event, message, mine)}
+                                  onPointerUp={(event) => finishMessageSwipe(event, message)}
+                                  onPointerCancel={(event) => {
+                                    clearLongPress();
+                                    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                                    clearMessageSwipe();
+                                  }}
+                                  onPointerMove={(event) => moveMessageSwipe(event, message)}
+                                  onContextMenu={(event) => {
+                                    if (window.matchMedia('(max-width: 767px)').matches) event.preventDefault();
+                                  }}
+                                  className={`${clientMode ? 'rounded-[18px] px-4 pb-2.5 pt-3 text-sm leading-6 shadow-sm sm:px-5' : 'rounded-[18px] px-3 pb-2 pt-2 text-sm'} ${mine ? 'rounded-br-none' : 'rounded-bl-none'} ${openActionsFor === message.id || historyFor === message.id || seenDetailFor === message.id ? 'z-50' : ''} group relative w-fit max-w-full min-w-0 touch-pan-y select-none overflow-visible border break-words transition-[transform,background-color,border-color,color] duration-150 [-webkit-touch-callout:none] ${mine ? 'border-app-accent/25 bg-app-accent/10' : 'border-app-border bg-app-surface-raised'} ${highlightedMessageId === message.id ? '!bg-app-accent/40' : ''}`}
+                                  style={swipeReply?.id === message.id ? { transform: `translateX(${swipeReply.offset}px)` } : undefined}
                                 >
-                                  <Icon name="check" className="size-3.5" />
-                                  <Icon name="check" className="-ml-2 size-3.5" />
-                                </button>
-                                {seenDetailFor === message.id && (
-                                  <div className="absolute bottom-full right-0 z-10 mb-1 min-w-max rounded-lg border border-app-border bg-app-surface px-2 py-1 text-[11px] text-app-muted shadow-lg">
-                                    {message.seenBy.map((userId) => {
-                                      const member = activeConversation?.members.find((m) => m.userId === userId);
+                                  {message.forwarded && <p className="mb-1 flex items-center gap-1 text-[11px] italic text-app-muted"><Icon name="forward" className="size-3" /> Forwarded</p>}
+                                  {message.replyPreview && !unsent && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void jumpTo(message.replyPreview!.id)}
+                                      className="mb-1 block w-full truncate rounded-md border-l-2 border-app-accent/50 bg-app-background/40 px-2 py-0.5 text-left text-xs text-app-muted hover:text-app-accent"
+                                    >
+                                      <span className="font-semibold">{memberName(message.replyPreview.senderId)}</span>{' '}
+                                      {previewLine(message.replyPreview)}
+                                    </button>
+                                  )}
+                                  {files.length > 0 && (
+                                    <div className="pt-1">
+                                      <AttachmentGallery attachments={files} onOpenImage={(images, imageIndex) => setLightbox({ images, index: imageIndex })} />
+                                    </div>
+                                  )}
+                                  {unsent ? (
+                                    <p className="inline whitespace-pre-wrap break-words italic text-app-muted">
+                                      This message was unsent
+                                      <span aria-hidden="true" className="invisible ml-2 inline-flex items-center gap-1 whitespace-nowrap text-[10px]">{timeLabel(message.createdAt)}</span>
+                                    </p>
+                                  ) : hasText ? (
+                                    <div className="select-text">
+                                      <MessageMarkdown
+                                        body={message.body ?? ''}
+                                        mentions={message.mentions}
+                                        trailing={(
+                                          <span aria-hidden="true" className="invisible ml-2 inline-flex items-center gap-1 whitespace-nowrap text-[10px]">
+                                            {renderMeta(message, mine, true)}
+                                          </span>
+                                        )}
+                                      />
+                                    </div>
+                                  ) : null}
+                                  {previews.map((preview) => <LinkPreviewCard key={preview.url} preview={preview} />)}
+                                  {hasText || unsent ? (
+                                    <span className="absolute bottom-1.5 right-2 inline-flex items-center gap-1 whitespace-nowrap text-[10px] text-app-muted">
+                                      {renderMeta(message, mine, false)}
+                                    </span>
+                                  ) : (
+                                    <span className="mt-0.5 flex items-center justify-end gap-1 whitespace-nowrap text-[10px] text-app-muted">
+                                      {renderMeta(message, mine, false)}
+                                    </span>
+                                  )}
+                                  {!unsent && (
+                                    <span data-chat-popover className="absolute right-1.5 top-1.5 hidden items-center md:flex">
+                                      <button
+                                        type="button"
+                                        onClick={(event) => toggleMessageActions(message, mine, event)}
+                                        aria-label={openActionsFor === message.id ? 'Hide message actions' : 'Show message actions'}
+                                        aria-expanded={openActionsFor === message.id}
+                                        className={`pointer-events-none grid size-6 place-items-center rounded-md text-app-muted opacity-0 transition-[background-color,opacity,color] duration-150 group-hover:pointer-events-auto group-hover:bg-app-surface-raised group-hover:opacity-100 group-hover:text-app-accent focus-visible:pointer-events-auto focus-visible:bg-app-surface-raised focus-visible:opacity-100 focus-visible:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1 ${openActionsFor === message.id ? 'pointer-events-auto bg-app-surface-raised opacity-100 text-app-accent' : ''}`}
+                                      >
+                                        <Icon name={openActionsFor === message.id ? 'chevron-up' : 'chevron-down'} className="size-3.5" />
+                                      </button>
+                                    </span>
+                                  )}
+                                </div>
+                                {message.reactions.length > 0 && (
+                                  <div className={`absolute -bottom-3 ${mine ? 'right-2' : 'left-2'} flex flex-wrap gap-1 text-xs ${openActionsFor === message.id ? 'z-50' : 'z-10'}`}>
+                                    {[...new Set(message.reactions.map((r) => r.emoji))].map((emoji) => {
+                                      const reactors = message.reactions.filter((r) => r.emoji === emoji);
+                                      const reactedByMe = reactors.some((r) => r.userId === currentUserId);
+                                      const open = reactionDetail?.messageId === message.id && reactionDetail.emoji === emoji;
+                                      const names = reactors.map((r) => memberName(r.userId)).join(', ');
                                       return (
-                                        <p key={userId} className="whitespace-nowrap">
-                                          {member?.fullName ?? 'Someone'}
-                                          {member?.lastReadAt ? ` — ${timeLabel(member.lastReadAt)}` : ''}
-                                        </p>
+                                        <span key={emoji} data-chat-popover className="relative">
+                                          <button
+                                            type="button"
+                                            onClick={() => void toggleReaction(message, emoji)}
+                                            onContextMenu={(event) => {
+                                              event.preventDefault();
+                                              setReactionDetail(open ? null : { messageId: message.id, emoji });
+                                            }}
+                                            title={`${names} — click to ${reactedByMe ? 'remove your' : 'add your'} ${emoji}`}
+                                            aria-label={`${emoji} ${reactors.length}, ${reactedByMe ? 'remove your reaction' : 'add your reaction'}`}
+                                            aria-pressed={reactedByMe}
+                                            className={`rounded-full border px-1.5 py-0.5 shadow-sm ${reactedByMe ? 'border-app-accent bg-app-accent/15' : 'border-app-border bg-app-surface hover:border-app-accent'}`}
+                                          >
+                                            {emoji}{reactors.length > 1 ? <span className="ml-0.5 text-[10px] font-semibold">{reactors.length}</span> : ''}
+                                          </button>
+                                          {open && (
+                                            <div className="absolute bottom-full left-0 z-10 mb-1 min-w-max rounded-lg border border-app-border bg-app-surface px-2 py-1 text-[11px] text-app-muted shadow-lg">
+                                              {reactors.map((r) => (
+                                                <p key={r.userId} className="whitespace-nowrap">{memberName(r.userId)}</p>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </span>
                                       );
                                     })}
                                   </div>
                                 )}
-                              </span>
-                            )}
-                            </span>
-                            {!unsent && (
-                              <span data-chat-popover className="absolute right-1.5 top-1.5 hidden items-center md:flex">
-                                <button
-                                  type="button"
-                                  onClick={(event) => toggleMessageActions(message, mine, event)}
-                                  aria-label={openActionsFor === message.id ? 'Hide message actions' : 'Show message actions'}
-                                  aria-expanded={openActionsFor === message.id}
-                                  className={`pointer-events-none grid size-6 place-items-center rounded-md text-app-muted opacity-0 transition-[background-color,opacity,color] duration-150 group-hover:pointer-events-auto group-hover:bg-app-surface-raised group-hover:opacity-100 group-hover:text-app-accent focus-visible:pointer-events-auto focus-visible:bg-app-surface-raised focus-visible:opacity-100 focus-visible:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-1 ${openActionsFor === message.id ? 'pointer-events-auto bg-app-surface-raised opacity-100 text-app-accent' : ''}`}
-                                >
-                                  <Icon name={openActionsFor === message.id ? 'chevron-up' : 'chevron-down'} className="size-3.5" />
-                                </button>
-                              </span>
-                            )}
-                            </div>
-                            {message.reactions.length > 0 && (
-                              <div className={`absolute -bottom-3 left-2 flex flex-wrap gap-1 text-xs ${openActionsFor === message.id ? 'z-50' : 'z-10'}`}>
-                                {[...new Set(message.reactions.map((r) => r.emoji))].map((emoji) => {
-                                  const reactors = message.reactions.filter((r) => r.emoji === emoji);
-                                  const open = reactionDetail?.messageId === message.id && reactionDetail.emoji === emoji;
-                                  return (
-                                    <span key={emoji} data-chat-popover className="relative">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (reactors.some((r) => r.userId === currentUserId)) {
-                                            void toggleReaction(message, emoji);
-                                          } else {
-                                            setReactionDetail(open ? null : { messageId: message.id, emoji });
-                                          }
-                                        }}
-                                        aria-label={reactors.some((r) => r.userId === currentUserId) ? 'Remove your reaction' : 'View reactions'}
-                                        className="rounded-full border border-app-border bg-app-surface px-1.5 py-0.5 shadow-sm hover:border-app-accent"
-                                      >
-                                        {emoji}{reactors.length > 1 ? reactors.length : ''}
-                                      </button>
-                                      {open && (
-                                        <div className="absolute bottom-full left-0 z-10 mb-1 min-w-max rounded-lg border border-app-border bg-app-surface px-2 py-1 text-[11px] text-app-muted shadow-lg">
-                                          {reactors.map((r) => (
-                                            <p key={r.userId} className="whitespace-nowrap">
-                                              {r.userId === currentUserId
-                                                ? 'You'
-                                                : activeConversation?.members.find((m) => m.userId === r.userId)?.fullName ?? 'Someone'}
-                                            </p>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </span>
-                                  );
-                                })}
                               </div>
-                            )}
 
                           </div>
 
-                          {openActionsFor === message.id && actionMenuPosition && createPortal(
-                            <>
-                              <div
-                                className="fixed inset-0 z-40 bg-app-background/25 backdrop-blur-[2px] md:hidden"
-                                aria-hidden="true"
-                                onClick={() => { setOpenActionsFor(null); setActionMenuPosition(null); }}
-                              />
-                              <div
-                                data-chat-popover
-                                className="fixed z-50 min-w-36 max-w-[calc(100vw-2rem)] rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg"
-                                style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
-                              >
-                              <button
-                                type="button"
-                                onClick={() => { setReplyTo(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
-                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                              >
-                                <Icon name="reply" className="size-4" /> Reply
-                              </button>
-                              {!clientMode && <button
-                                type="button"
-                                onClick={() => { setForwardingMessage(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
-                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                              >
-                                <Icon name="forward" className="size-4" /> Forward
-                              </button>}
-                              <button
-                                type="button"
-                                onClick={() => { void copyText(message.body ?? ''); setOpenActionsFor(null); setActionMenuPosition(null); }}
-                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                              >
-                                <Icon name="copy" className="size-4" /> Copy
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => { setReactingMessageId(message.id); setOpenActionsFor(null); setActionMenuPosition(null); }}
-                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                              >
-                                <Icon name="smile" className="size-4" /> React
-                              </button>
-                              {mine && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setInfoMessageId(message.id); setOpenActionsFor(null); setActionMenuPosition(null); }}
-                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                                >
-                                  <Icon name="eye" className="size-4" /> Info
-                                </button>
+                              {openActionsFor === message.id && actionMenuPosition && createPortal(
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40 bg-app-background/25 backdrop-blur-[2px] md:hidden"
+                                    aria-hidden="true"
+                                    onClick={closeMenu}
+                                  />
+                                  <div
+                                    data-chat-popover
+                                    role="menu"
+                                    className="fixed z-50 min-w-44 max-w-[calc(100vw-2rem)] rounded-lg border border-app-border bg-app-surface py-1 text-xs shadow-lg"
+                                    style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
+                                  >
+                                    {actions.map((action) => {
+                                      const item = {
+                                        reply: { icon: 'reply', label: 'Reply' },
+                                        react: { icon: 'smile', label: 'React' },
+                                        edit: { icon: 'pencil', label: 'Edit' },
+                                        copy: { icon: 'copy', label: 'Copy text' },
+                                        forward: { icon: 'forward', label: 'Forward' },
+                                        pin: { icon: message.pinnedAt ? 'pushpin-off' : 'pushpin', label: message.pinnedAt ? 'Unpin' : 'Pin to conversation' },
+                                        save: { icon: 'bookmark', label: message.saved ? 'Remove from saved' : 'Save for later' },
+                                        unsend: { icon: 'trash', label: 'Unsend' },
+                                      }[action];
+                                      return (
+                                        <button
+                                          key={action}
+                                          type="button"
+                                          role="menuitem"
+                                          onClick={() => onMenuAction(action, message)}
+                                          className={`flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-app-surface-raised ${action === 'unsend' ? 'text-app-danger' : ''}`}
+                                        >
+                                          <Icon name={item.icon} className="size-4" filled={action === 'save' && message.saved === true} /> {item.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </>,
+                                document.body,
                               )}
-                              {!clientMode && mine && (
-                                <button
-                                  type="button"
-                                  onClick={() => { void onUnsend(message); setOpenActionsFor(null); setActionMenuPosition(null); }}
-                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-app-danger hover:bg-app-surface-raised"
-                                >
-                                  <Icon name="trash" className="size-4" /> Unsend
-                                </button>
-                              )}
-                              </div>
-                            </>,
-                            document.body,
-                          )}
 
-                          {infoMessageId === message.id && createPortal(
-                            <div className="fixed inset-0 z-[1100] grid place-items-center p-4" role="dialog" aria-modal="true" aria-label="Message info">
-                              <div className="absolute inset-0 bg-app-background/50 backdrop-blur-[2px]" onClick={() => setInfoMessageId(null)} aria-hidden="true" />
-                              <div className="relative w-full max-w-sm rounded-xl border border-app-border bg-app-surface p-4 shadow-xl">
-                                <div className="mb-3 flex items-center justify-between">
-                                  <h3 className="text-sm font-semibold">Message info</h3>
-                                  <button type="button" onClick={() => setInfoMessageId(null)} aria-label="Close" className="grid size-7 place-items-center rounded-md text-app-muted hover:bg-app-surface-raised hover:text-app-accent">
-                                    <Icon name="close" className="size-4" />
+                              {reactingMessageId === message.id && (
+                                <div data-chat-popover className={`mt-1 flex items-center gap-0.5 rounded-full border border-app-border bg-app-surface p-1 shadow-md ${message.reactions.length > 0 ? 'mt-4' : ''}`}>
+                                  {QUICK_REACTIONS.map((emoji) => (
+                                    <button key={emoji} type="button" onClick={() => void toggleReaction(message, emoji)} className="grid size-8 place-items-center rounded-full text-lg transition-transform hover:scale-110 hover:bg-app-surface-raised" aria-label={`React ${emoji}`}>
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={(event) => setPickerFor({ messageId: message.id, anchor: event.currentTarget.getBoundingClientRect() })}
+                                    className="grid size-8 place-items-center rounded-full text-app-muted hover:bg-app-surface-raised hover:text-app-accent"
+                                    aria-label="More emoji"
+                                    title="More emoji"
+                                  >
+                                    <Icon name="smile-plus" className="size-[18px]" />
                                   </button>
                                 </div>
-                                <p className="mb-3 line-clamp-3 break-words rounded-lg bg-app-accent/10 px-3 py-2 text-xs">{message.body ?? ''}</p>
-                                <p className="mb-3 text-xs text-app-muted">Sent {dateTimeLabel(message.createdAt)}</p>
-                                {(() => {
-                                  const recipients = (activeConversation?.members ?? []).filter((m) => m.userId !== message.senderId);
-                                  const seen = recipients.filter((m) => m.lastReadAt !== null && m.lastReadAt >= message.createdAt);
-                                  const pending = recipients.filter((m) => !seen.includes(m));
-                                  return (
-                                    <div className="space-y-3 text-xs">
-                                      <div>
-                                        <p className="mb-1 font-semibold text-app-accent">Seen by</p>
-                                        {seen.length === 0 ? (
-                                          <p className="text-app-muted">No one yet</p>
-                                        ) : (
-                                          <ul className="space-y-1">
-                                            {seen.map((m) => (
-                                              <li key={m.userId} className="flex justify-between gap-3">
-                                                <span className="truncate">{m.fullName}</span>
-                                                <span className="shrink-0 text-app-muted">{dateTimeLabel(m.lastReadAt!)}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        )}
-                                      </div>
-                                      {pending.length > 0 && (
-                                        <div>
-                                          <p className="mb-1 font-semibold text-app-muted">Not seen yet</p>
-                                          <ul className="space-y-1">
-                                            {pending.map((m) => (
-                                              <li key={m.userId} className="truncate">{m.fullName}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
-                              </div>
-                            </div>,
-                            document.body,
-                          )}
-
-                          {reactingMessageId === message.id && (
-                            <div data-chat-popover className="mt-1 flex gap-1 rounded-lg border border-app-border bg-app-surface p-1">
-                              {REACTION_EMOJI.map((emoji) => (
-                                <button key={emoji} type="button" onClick={() => void toggleReaction(message, emoji)} className="rounded p-1 text-base hover:bg-app-surface-raised">
-                                  {emoji}
-                                </button>
-                              ))}
+                              )}
                             </div>
-                          )}
-                        </li>
+                          </li>
+                        </Fragment>
                       );
                     })}
                   </ul>
-                  <div ref={threadEndRef} />
+                  {chat.hasNewer && (
+                    <div className="mt-3 text-center">
+                      <Button kind="secondary" onClick={() => void chat.loadNewerMessages()} disabled={chat.loadingMessages} className="!px-3 !py-1.5 !text-xs">
+                        {chat.loadingMessages ? 'Loading…' : 'Load newer'}
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
 
-            {replyTo && (
-              <div className="flex shrink-0 items-center justify-between gap-2 border-t border-app-border bg-app-surface-raised px-4 py-2 text-xs text-app-muted">
-                <span className="truncate">Replying to: {replyTo.deletedAt ? 'Message unsent' : replyTo.body}</span>
-                <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply">✕</button>
+            {(chat.hasNewer || (!nearBottom && messageList.length > 0)) && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (chat.hasNewer) void chat.jumpToLatest();
+                  else threadScrollRef.current?.scrollTo({ top: threadScrollRef.current.scrollHeight, behavior: 'smooth' });
+                }}
+                className="absolute bottom-24 right-5 z-30 flex items-center gap-1.5 rounded-full border border-app-border bg-app-surface px-3 py-1.5 text-xs font-semibold text-app-accent shadow-lg hover:border-app-accent"
+              >
+                <Icon name="arrow-down" className="size-3.5" />
+                {chat.newMessagesBelow > 0 ? `${chat.newMessagesBelow} new` : 'Latest'}
+              </button>
+            )}
+
+            {dragging && (
+              <div className="pointer-events-none absolute inset-2 z-40 grid place-items-center rounded-2xl border-2 border-dashed border-app-accent bg-app-accent/10 backdrop-blur-[1px]">
+                <p className="flex items-center gap-2 rounded-full bg-app-surface px-4 py-2 text-sm font-semibold text-app-accent shadow"><Icon name="upload" className="size-4" /> Drop files to share</p>
               </div>
             )}
 
-            <div className={`flex shrink-0 items-end gap-2 border-t border-app-border bg-app-surface ${clientMode ? 'p-3 sm:gap-3 sm:p-4' : 'p-3'}`}>
-              <div className="relative min-w-0 flex-1">
-                {mentionQuery !== null && (
-                  <div data-chat-popover className="absolute bottom-full left-0 z-20 mb-1 w-56 rounded-lg border border-app-border bg-app-surface py-1 text-sm shadow-lg">
-                    {mentionCandidates.length === 0 ? (
-                      <p className="px-3 py-1.5 text-xs text-app-muted">No matching members</p>
-                    ) : (
-                      mentionCandidates.map((member) => (
-                        <button
-                          key={member.userId}
-                          type="button"
-                          onClick={() => selectMention(member)}
-                          className="block w-full truncate px-3 py-1.5 text-left hover:bg-app-surface-raised"
-                        >
-                          {member.fullName}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-                <textarea
-                  ref={composerRef}
-                  value={composer}
-                  onChange={(event) => onComposerChange(event.target.value, event.target.selectionStart)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape' && mentionQuery !== null) setMentionQuery(null);
-                  }}
-                  placeholder="Type a message..."
-                  rows={1}
-                  style={{ maxHeight: MAX_COMPOSER_HEIGHT }}
-                  data-lenis-prevent
-                  className={`block min-h-10 w-full resize-none overflow-y-auto whitespace-pre-wrap border border-app-border px-3 py-2.5 text-sm leading-5 outline-none focus:border-app-accent ${clientMode ? 'rounded-xl bg-app-surface-raised sm:px-4' : 'rounded-lg bg-app-background'}`}
-                />
-              </div>
-              <Button onClick={() => void send()} disabled={sending || composer.trim().length === 0} className={`h-10 min-w-[4.25rem] shrink-0 !py-0 ${clientMode ? '!rounded-xl !px-4' : ''}`}>Send</Button>
-            </div>
+            {activeConversation && (
+              <ScheduledPanel
+                conversationId={activeConversation.id}
+                transport={transport}
+                version={scheduledVersion}
+                onError={fail}
+                onSentNow={() => void chat.jumpToLatest()}
+              />
+            )}
+
+            {activeConversation && (
+              <Composer
+                conversation={activeConversation}
+                kind={kind}
+                currentUserId={currentUserId}
+                transport={transport}
+                replyTo={replyTo}
+                onCancelReply={() => setReplyTo(null)}
+                editing={editing}
+                onCancelEdit={() => setEditing(null)}
+                onSent={(message) => {
+                  chat.applyOptimisticMessage(message);
+                  void chat.refreshConversations();
+                }}
+                onEdited={(message) => {
+                  chat.replaceMessage(message);
+                  void chat.refreshConversations();
+                }}
+                onScheduled={() => setLocalScheduledVersion((version) => version + 1)}
+                onTyping={chat.notifyTyping}
+                onError={fail}
+                onEditLast={editLast}
+                fileDropRef={fileDropRef}
+                clientMode={clientMode}
+              />
+            )}
           </>
         )}
       </div>
+
+      {pickerFor && (
+        <EmojiPopover
+          anchor={pickerFor.anchor}
+          onSelect={(emoji) => {
+            const target = chat.messages.find((m) => m.id === pickerFor.messageId);
+            if (target) void toggleReaction(target, emoji);
+            setPickerFor(null);
+          }}
+          onClose={() => setPickerFor(null)}
+        />
+      )}
+
+      {lightbox && <Lightbox images={lightbox.images} startIndex={lightbox.index} onClose={() => setLightbox(null)} />}
 
       {forwardingMessage && (
         createPortal(
@@ -885,7 +1084,7 @@ export function ConversationWorkspace({
       )}
 
       {(actionError || chat.error) && (
-        <p role="alert" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-[#d86b6b]/30 bg-app-surface px-4 py-2 text-sm text-app-danger shadow-lg">
+        <p role="alert" className="fixed bottom-4 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border border-[#d86b6b]/30 bg-app-surface px-4 py-2 text-sm text-app-danger shadow-lg">
           {actionError || chat.error}
         </p>
       )}

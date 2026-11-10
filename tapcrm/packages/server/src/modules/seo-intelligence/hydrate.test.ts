@@ -97,10 +97,20 @@ describe('hydrateObservation — field passthrough from camelized rows', () => {
     expect(withErrors.schemaErrors).toEqual(['invalid JSON-LD block']);
   });
 
-  it('schemaTypes come from structuredData jsonb array', () => {
-    const obs = hydrateObservation(baseRow({ structuredData: ['Product', 'Offer'] }), emptyMaps());
-    expect(obs.schemaTypes).toEqual(['Product', 'Offer']);
+  it('schemaTypes come from the legacy structuredData array, which cannot say what is missing', () => {
+    const obs = hydrateObservation(baseRow({ structuredData: ['Product', 'Article'] }), emptyMaps());
+    expect(obs.schemaTypes).toEqual(['Product', 'Article']);
     expect(obs.hasProductPriceSchema).toBe(true);
+    expect(obs.hasArticleDateSchema).toBe(true);
+  });
+
+  it('structuredData objects carry whether a product price and an article date were present', () => {
+    const obs = hydrateObservation(
+      baseRow({ structuredData: { types: ['Product', 'BlogPosting'], productPrice: false, articleDate: false } }),
+      emptyMaps(),
+    );
+    expect(obs.schemaTypes).toEqual(['Product', 'BlogPosting']);
+    expect(obs.hasProductPriceSchema).toBe(false);
     expect(obs.hasArticleDateSchema).toBe(false);
   });
 

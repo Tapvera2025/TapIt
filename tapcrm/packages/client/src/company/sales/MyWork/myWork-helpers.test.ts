@@ -104,12 +104,13 @@ describe('summarize', () => {
   it('returns five section counts in priority order with urgency flags', () => {
     const summary = summarize(2, 0, 1, 3, 5);
     expect(summary.map((s) => s.label)).toEqual([
-      'Live offers',
-      'Overdue',
-      'Handovers',
-      'Newly assigned',
-      'Upcoming',
+      'Live calls',
+      'Overdue callbacks',
+      'New leads to call',
+      'Bid Pool',
+      'Coming up',
     ]);
+    expect(summary.map((s) => s.count)).toEqual([1, 0, 3, 2, 5]);
     expect(summary.map((s) => s.urgent)).toEqual([true, false, true, true, false]);
   });
 });

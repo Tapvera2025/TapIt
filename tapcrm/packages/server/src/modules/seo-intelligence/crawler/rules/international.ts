@@ -23,10 +23,10 @@ export const INTERNATIONAL_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'G002', ruleVersion: 'v1', group: 'international', severity: 'high', active: true, tested: true,
+  ruleId: 'G002', ruleVersion: 'v1', group: 'international', severity: 'low', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
     if (obs.hreflangTags.length > 0 && !obs.hreflangHasXDefault) {
-      return { ruleId: 'G002', ruleVersion: 'v1', result: 'review', severity: 'high', confidence: 'direct',
+      return { ruleId: 'G002', ruleVersion: 'v1', result: 'review', severity: 'low', confidence: 'direct',
         affectedTarget: obs.url,
         evidence: { url: obs.url, hreflang_count: obs.hreflangTags.length },
         proposedFix: 'hreflang set is missing an x-default tag. Add <link rel="alternate" hreflang="x-default" href="..."> to indicate the fallback locale page.' };

@@ -73,9 +73,12 @@ export async function listLeaveTypes(ctx: RequestContext): Promise<LeaveTypeDto[
   return db.transaction(ctx, async (tx) => (await repo.listLeaveTypes(tx)).map(toLeaveTypeDto));
 }
 
-export async function listAvailableLeaveTypes(ctx: RequestContext): Promise<LeaveTypeDto[]> {
+export async function listAvailableLeaveTypes(
+  ctx: RequestContext,
+  kind: 'absence' | 'attendance-mode' = 'absence',
+): Promise<LeaveTypeDto[]> {
   return db.transaction(ctx, async (tx) =>
-    (await repo.listAvailableAbsenceTypes(tx)).map(toLeaveTypeDto));
+    (await repo.listAvailableTypes(tx, kind)).map(toLeaveTypeDto));
 }
 
 export async function createLeaveType(ctx: RequestContext, body: CreateLeaveTypeBody): Promise<LeaveTypeDto> {

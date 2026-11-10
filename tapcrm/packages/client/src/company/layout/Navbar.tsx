@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NotificationBell } from '../../notifications/NotificationBell.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { BrandLogo } from '../../ui/index.js';
@@ -30,6 +30,7 @@ export function Navbar({
   onLogout,
   searchDestinations,
   settingsPath = '/company/settings',
+  extraActions = null,
 }: {
   identity: { fullName: string; email: string; accountType?: string };
   organizationName: string | null;
@@ -41,6 +42,8 @@ export function Navbar({
   onLogout: () => void;
   searchDestinations: readonly CompanySearchDestination[];
   settingsPath?: string;
+  /** Page-specific buttons shown before the notification bell (e.g. the sales guide toggle). */
+  extraActions?: ReactNode;
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -104,6 +107,7 @@ export function Navbar({
             destinations={searchDestinations}
             onNavigate={onNavigate}
           />
+          {extraActions}
           <NotificationBell onNavigate={onNavigate} />
           <div ref={accountRef} className="relative">
             <button

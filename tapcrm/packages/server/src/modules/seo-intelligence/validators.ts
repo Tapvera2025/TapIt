@@ -86,3 +86,27 @@ export const findingIdParam = z.object({ findingId: uuid });
 export const fixProposalIdParam = z.object({ proposalId: uuid });
 export const ruleIdParam = z.object({ ruleId: z.string().min(1).max(64) });
 export const alertIdParam = z.object({ alertId: uuid });
+
+const allowance = z.number().int().min(0).max(100_000);
+
+/** Checkup settings and paid-source allowances for one website. */
+export const siteSettingsSchema = z.object({
+  crawl: z.object({
+    maxPages: z.number().int().min(1).max(5000).optional(),
+    renderPolicy: z.enum(['never', 'heuristic', 'always']).optional(),
+    maxRenderPages: z.number().int().min(0).max(500).optional(),
+    respectRobots: z.boolean().optional(),
+    followSitemaps: z.boolean().optional(),
+    crawlDelayMs: z.number().int().min(0).max(10_000).optional(),
+    exclusionPatterns: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    crawlerIdentity: z.enum(['tapcrm', 'browser']).optional(),
+  }).strict().optional(),
+  allowances: z.object({
+    serpSearches: allowance.optional(),
+    perplexity: allowance.optional(),
+    moz: allowance.optional(),
+  }).strict().optional(),
+}).strict();
+
+export const keywordParams = z.object({ siteId: uuid, keywordId: uuid });
+export const updateKeywordSchema = z.object({ tracked: z.boolean() }).strict();

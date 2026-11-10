@@ -17,7 +17,7 @@
 
 ## 6.4 Action Registry
 
-222 actions. Column meanings are as given in the source document:
+225 actions. Column meanings are as given in the source document:
 
 | Column | Meaning |
 | --- | --- |
@@ -127,6 +127,9 @@
 | `callbacks:view` | callbacks | callback | business | no | no | — | yes | yes | no |
 | `callbacks:create` | callbacks | callback | business | no | no | — | yes | yes | no |
 | `callbacks:edit` | callbacks | callback | business | no | no | — | yes | yes | no |
+| `meetings:host` | meetings | meeting | business | no | no | — | yes | yes | no |
+| `meetings:view` | meetings | meeting | business | no | no | — | yes | yes | no |
+| `meetings:join` | meetings | meeting | business | yes | no | — | yes | no | no |
 | `telephony:view` | telephony | telephonyCall | business | no | no | — | yes | yes | no |
 | `telephony:listen` | telephony | telephonyCall | business | yes | no | — | yes | no | no |
 | `telephony:manage` | telephony | — | business | yes | no | — | yes | no | yes |
@@ -535,6 +538,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/leads/import | `leads:create` | — |
 | PATCH | /api/leads/:id | `leads:edit` | id |
 | POST | /api/leads/:id/close-lost | `leads:edit` | id |
+| GET | /api/leads/:id/assignees | `leads:reassign` | id |
 | POST | /api/leads/:id/reassign | `leads:reassign` | id |
 | POST | /api/leads/bulk-reassign | `leads:reassign` | — |
 | POST | /api/leads/:id/reassign-with-credit | `leads:reassign-with-credit` | id |
@@ -559,6 +563,23 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/callbacks | `callbacks:create` | — |
 | PATCH | /api/callbacks/:id | `callbacks:edit` | id |
 | POST | /api/callbacks/:id/outcome | `callbacks:edit` | id |
+| GET | /api/meetings | `meetings:view` | — |
+| GET | /api/meetings/mine | `meetings:host` | — |
+| GET | /api/meetings/people | `meetings:host` | — |
+| GET | /api/meetings/clients | `meetings:host` | — |
+| GET | /api/meetings/availability | `meetings:host` | — |
+| POST | /api/meetings | `meetings:host` | — |
+| POST | /api/meetings/:id/accept | `meetings:host` | id |
+| POST | /api/meetings/:id/propose | `meetings:host` | id |
+| POST | /api/meetings/:id/decline | `meetings:host` | id |
+| POST | /api/meetings/:id/cancel | `meetings:host` | id |
+| POST | /api/meetings/:id/outcome | `meetings:host` | id |
+| PATCH | /api/meetings/:id/link | `meetings:host` | id |
+| POST | /api/meetings/:id/join | `meetings:join` | id |
+| GET | /api/meetings/calendar | `meetings:host` | — |
+| POST | /api/meetings/calendar/connect | `meetings:host` | — |
+| POST | /api/meetings/calendar/complete | `meetings:host` | — |
+| DELETE | /api/meetings/calendar | `meetings:host` | — |
 | GET | /api/telephony/overview | `telephony:view` | — |
 | GET | /api/telephony/calls | `telephony:view` | — |
 | GET | /api/telephony/calls/:id | `telephony:view` | id |
@@ -856,6 +877,24 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/chat/messages/:id/react | `chat:send` | id |
 | DELETE | /api/chat/messages/:id/react | `chat:send` | id |
 | POST | /api/chat/messages/:id/unsend | `chat:send` | id |
+| GET | /api/chat/presence | `chat:view` | — |
+| GET | /api/chat/search | `chat:view` | — |
+| GET | /api/chat/saved | `chat:view` | — |
+| GET | /api/chat/scheduled | `chat:view` | — |
+| GET | /api/chat/conversations/:id/pins | `chat:view` | id |
+| POST | /api/chat/conversations/:id/attachments | `chat:send` | id |
+| DELETE | /api/chat/attachments/:id | `chat:send` | id |
+| POST | /api/chat/conversations/:id/scheduled | `chat:send` | id |
+| PATCH | /api/chat/scheduled/:id | `chat:send` | id |
+| DELETE | /api/chat/scheduled/:id | `chat:send` | id |
+| POST | /api/chat/scheduled/:id/send-now | `chat:send` | id |
+| GET | /api/chat/messages/:id | `chat:view` | id |
+| PATCH | /api/chat/messages/:id | `chat:send` | id |
+| GET | /api/chat/messages/:id/edits | `chat:view` | id |
+| POST | /api/chat/messages/:id/pin | `chat:send` | id |
+| DELETE | /api/chat/messages/:id/pin | `chat:send` | id |
+| POST | /api/chat/messages/:id/save | `chat:view` | id |
+| DELETE | /api/chat/messages/:id/save | `chat:view` | id |
 | GET | /api/documents | `documents:view` | — |
 | GET | /api/documents/:id | `documents:view` | id |
 | POST | /api/documents | `documents:upload` | — |
@@ -979,6 +1018,9 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/seo/sites | `seo:create-site` | — |
 | GET | /api/seo/sites/:siteId | `seo:read-site` | siteId |
 | PATCH | /api/seo/sites/:siteId | `seo:update-site` | siteId |
+| GET | /api/seo/sites/:siteId/settings | `seo:read-site` | siteId |
+| PATCH | /api/seo/sites/:siteId/settings | `seo:update-site` | siteId |
+| PATCH | /api/seo/sites/:siteId/keywords/:keywordId | `seo:update-site` | siteId |
 | GET | /api/seo/sites/:siteId/scans | `seo:list-scans` | siteId |
 | POST | /api/seo/sites/:siteId/scans | `seo:trigger-scan` | siteId |
 | GET | /api/seo/scans/:scanRunId | `seo:read-scan` | — |

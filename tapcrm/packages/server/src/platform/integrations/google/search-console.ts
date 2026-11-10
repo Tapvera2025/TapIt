@@ -28,7 +28,7 @@ export type SearchConsoleDimension = 'query' | 'page' | 'country' | 'device' | '
 
 export interface SearchAnalyticsFilter {
   readonly dimension: 'query' | 'page' | 'country' | 'device';
-  readonly operator: 'equals' | 'contains' | 'notContains';
+  readonly operator: 'equals' | 'contains' | 'notContains' | 'includingRegex' | 'excludingRegex';
   readonly expression: string;
 }
 

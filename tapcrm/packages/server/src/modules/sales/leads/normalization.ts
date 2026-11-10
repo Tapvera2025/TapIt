@@ -3,9 +3,17 @@ export function normalizeLeadEmail(value: string | null | undefined): string | n
   return normalized || null;
 }
 
+/**
+ * The duplicate-matching key for a lead's phone: the digits of its E.164 form,
+ * the same key website, ad and imported leads store ("+91 98765 43210",
+ * "098765 43210" and "9876543210" are all "919876543210"). A number that has
+ * no E.164 form keeps its bare digits.
+ */
 export function normalizeLeadPhone(value: string | null | undefined): string | null {
-  const normalized = value?.replace(/\D/g, '');
-  return normalized || null;
+  const e164 = toContactE164(value);
+  if (e164) return e164.slice(1);
+  const digits = value?.replace(/\D/g, '');
+  return digits || null;
 }
 
 /**
@@ -24,8 +32,11 @@ export function toContactE164(value: string | null | undefined): string | null {
   const hadPlus = trimmed.startsWith('+');
   // 10-digit domestic → assume Indian country code; the tenant default
   // timezone is Asia/Kolkata so this matches the dominant intake pattern.
+  // "00" is the international dialling prefix ("0091 98765 43210").
   const candidate = hadPlus
     ? `+${digits}`
+    : digits.startsWith('00')
+      ? `+${digits.slice(2)}`
     : digits.length === 10
       ? `+91${digits}`
       : digits.startsWith('0') && digits.length === 11

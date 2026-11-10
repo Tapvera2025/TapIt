@@ -17,6 +17,9 @@ import { resolveConfig, acceptConfig } from './config.js';
 import { createStructure } from './structure.js';
 import { insertManualInput, listActiveInputsForPeriod } from './input.js';
 import { registerPayrollPolicies } from './policy.js';
+import { planDefaultRecovery, registerAdvancePayrollPorts } from '../advance/facade.js';
+import { chargePenalty, registerPenaltyPayrollPorts } from '../penalties/facade.js';
+import { settlePaidSources } from './source-settlers.js';
 import type { Action, Decimal } from '@tapcrm/contracts';
 
 /**
@@ -387,5 +390,63 @@ describe.skipIf(!enabled)('published payslip immutability (PostgreSQL)', () => {
         tx.query(sql`UPDATE payslip SET gross_paise = 999 WHERE id = ${slipId}::uuid`),
       ),
     ).rejects.toThrow();
+  });
+});
+
+describe.skipIf(!enabled)('advance recoveries and penalties settle when their payslip is published (PostgreSQL)', () => {
+  it('a published payslip that froze them completes the deduction and recovers the penalty', async () => {
+    registerAdvancePayrollPorts();
+    registerPenaltyPayrollPorts();
+    const ctx = makeCtx();
+    const [advance] = await platformDb.query<{ id: string }>('seed', 'advance', sql`
+      INSERT INTO employee_advance (organization_id, employee_id, requested_amount_paise, approved_amount_paise,
+        currency, requested_for_period, reason, status, source, approved_at, approved_by, created_by)
+      VALUES (${ORG}, ${EMP}, 300000, 300000, 'INR', '2025-06-01', 'Rent deposit', 'approved', 'manual', now(), ${EMP}, ${EMP})
+      RETURNING id`);
+    const [penalty] = await platformDb.query<{ id: string }>('seed', 'penalty', sql`
+      INSERT INTO employee_penalty (organization_id, employee_id, penalty_type, amount_paise, penalty_date,
+        payroll_period, remarks, created_by)
+      VALUES (${ORG}, ${EMP}, 'misconduct', 20000, '2025-06-10', '2025-06-01', 'Damaged a monitor', ${EMP})
+      RETURNING id`);
+    await db.transaction(ctx, async (tx) => {
+      await planDefaultRecovery(tx, ctx, {
+        id: advance!.id, employeeId: EMP, approvedAmountPaise: '300000', requestedForPeriod: '2025-06-01',
+      });
+      await chargePenalty(tx, {
+        id: penalty!.id, employeeId: EMP, payrollPeriod: '2025-06-01', amountPaise: '20000',
+        penaltyType: 'misconduct', remarks: 'Damaged a monitor',
+      }, EMP);
+    });
+    const live = await db.transaction(ctx, (tx) => listActiveInputsForPeriod(tx, ORG, [EMP], '2025-06-01'));
+    expect(live.map((row) => [row.kind, row.amount, row.label])).toEqual([
+      ['advance-recovery', '3000.0000', 'Salary advance recovery'],
+      ['penalty', '200.0000', 'Penalty: misconduct'],
+    ]);
+
+    const runId = randomUUID();
+    const slipId = randomUUID();
+    await db.transaction(ctx, async (tx) => {
+      await tx.query(sql`
+        INSERT INTO payroll_run (id, organization_id, period_start, period_end, config_id, created_by)
+        SELECT ${runId}::uuid, ${ORG}, '2025-06-01'::date, '2025-06-30'::date, pc.id, ${EMP}::uuid
+        FROM payroll_config pc WHERE pc.organization_id = ${ORG} LIMIT 1
+      `);
+      await tx.query(sql`
+        INSERT INTO payslip (id, organization_id, run_id, user_id, period_start, period_end,
+          gross_paise, deductions_paise, net_paise, employer_contribution_paise,
+          status, immutable, revision_number, inputs)
+        VALUES (${slipId}::uuid, ${ORG}, ${runId}::uuid, ${EMP}::uuid, '2025-06-01'::date, '2025-06-30'::date,
+          3000000, 320000, 2680000, 0, 'published', true, 0,
+          ${JSON.stringify({ payrollInputs: live })}::jsonb)
+      `);
+      await settlePaidSources(tx, ORG, [slipId]);
+    });
+    const [deduction] = await platformDb.query<{ status: string; deductedAmountPaise: string }>('seed', 'deduction', sql`
+      SELECT status, deducted_amount_paise::text AS deducted_amount_paise
+      FROM employee_advance_deduction WHERE advance_id = ${advance!.id}`);
+    expect(deduction).toEqual({ status: 'completed', deductedAmountPaise: '300000' });
+    const [settled] = await platformDb.query<{ payrollStatus: string }>('seed', 'penalty status', sql`
+      SELECT payroll_status FROM employee_penalty WHERE id = ${penalty!.id}`);
+    expect(settled!.payrollStatus).toBe('recovered');
   });
 });

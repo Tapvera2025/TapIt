@@ -20,9 +20,9 @@ function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-type ManualKind = Exclude<PayrollInputKind, 'break-deduction'>;
+type ManualKind = Exclude<PayrollInputKind, 'break-deduction' | 'penalty'>;
 const MANUAL_KINDS: ManualKind[] = ['bonus', 'arrear', 'adjustment', 'advance-recovery', 'tds'];
-const DEDUCTION_KINDS = new Set<PayrollInputKind>(['advance-recovery', 'tds', 'break-deduction']);
+const DEDUCTION_KINDS = new Set<PayrollInputKind>(['advance-recovery', 'tds', 'break-deduction', 'penalty']);
 
 const STATE_LABELS: Record<PayrollInputState, { label: string; className: string }> = {
   pending: { label: 'Waiting for the run', className: 'bg-app-background text-app-muted' },
@@ -187,7 +187,7 @@ export function PayrollInputsPage(): React.JSX.Element {
     <Page
       eyebrow="Payroll"
       title="Bonuses & deductions"
-      description="One-off amounts for a month: bonuses, arrears and additions are paid; advance recoveries and TDS are deducted. Break deductions arrive here from the break queue."
+      description="One-off amounts for a month: bonuses, arrears and additions are paid; advance recoveries and TDS are deducted. Break deductions arrive here from the break queue, advance recoveries from approved advances, and penalties from the Penalties page; change those where they come from."
       action={<Button onClick={() => { setNotice(null); setAdding(true); }}>Add entry</Button>}
     >
       <div className="mt-6 flex flex-wrap items-end gap-4">
@@ -252,7 +252,8 @@ export function PayrollInputsPage(): React.JSX.Element {
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state.className}`}>{state.label}</span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {input.kind !== 'break-deduction' && input.state !== 'revoked' && input.state !== 'published' && (
+                      {/* Break deductions, advance recoveries and penalties are changed where they come from. */}
+                      {input.kind !== 'break-deduction' && !input.advanceDeductionId && !input.penaltyId && input.state !== 'revoked' && input.state !== 'published' && (
                         <Button kind="secondary" onClick={() => { setRevokeReason(''); setRevoking(input); }}>Withdraw</Button>
                       )}
                     </td>

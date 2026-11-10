@@ -12,7 +12,7 @@ export const META_RULES: RuleDefinition[] = [
 {
   ruleId: 'M001', ruleVersion: 'v1', group: 'meta', severity: 'high', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
-    if (!obs.title) {
+    if (obs.title === null) {
       return { ruleId: 'M001', ruleVersion: 'v1', result: 'fail', severity: 'high', confidence: 'direct',
         affectedTarget: obs.url, evidence: { url: obs.url, observed: 'no title element' },
         proposedFix: 'Add a descriptive <title> element to the page <head>.' };

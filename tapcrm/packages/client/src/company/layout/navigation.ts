@@ -105,6 +105,12 @@ export const companyNavigation: CompanyNavGroup[] = [
         icon: 'grid',
         requiredAction: 'projects:view',
       },
+      {
+        label: 'Client meetings',
+        path: '/company/meetings',
+        icon: 'calendar',
+        requiredAnyAction: ['meetings:host', 'meetings:view'],
+      },
     ],
   },
   {

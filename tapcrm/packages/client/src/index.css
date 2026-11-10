@@ -3049,8 +3049,10 @@ summary:active {
     position: relative !important;
   }
 
-  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]),
-  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]) {
+  /* Only static surfaces need this to anchor the sheen; popovers, menus and
+     sticky headers are already positioned and must keep their own placement. */
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]):not(.absolute):not(.fixed):not(.sticky),
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]):not(.absolute):not(.fixed):not(.sticky) {
     position: relative;
   }
 
@@ -3191,4 +3193,23 @@ summary:active {
   height: 0 !important;
   width: 0 !important;
   background: transparent !important;
+}
+
+/* Sales guide: the panel a guide button points at gets a brief outline. */
+@keyframes guide-flash {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--app-accent) 55%, transparent); }
+  35% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 45%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--app-accent) 0%, transparent); }
+}
+
+.guide-flash {
+  animation: guide-flash 1.8s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-flash {
+    animation: none;
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
 }

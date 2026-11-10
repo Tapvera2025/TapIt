@@ -35,6 +35,11 @@ const HOD = randomUUID();
 const SUPER_ADMIN = randomUUID();
 const AGENT_A = randomUUID();
 const AGENT_B = randomUUID();
+const POOL_B = randomUUID();
+const AGENT_C = randomUUID();
+const OTHER_DEPARTMENT = randomUUID();
+const OTHER_POSITION = randomUUID();
+const OUTSIDER = randomUUID();
 const SOURCE = randomUUID();
 
 const asOwner = (reason: string, fragment: ReturnType<typeof sql>) =>
@@ -163,7 +168,7 @@ describe.skipIf(!enabled)('sales reassignment service (PostgreSQL)', () => {
     );
     await asOwner(
       'create department',
-      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${DEPARTMENT}, ${ORG}, 'SALES', 'Sales', 'sales')`,
+      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${DEPARTMENT}, ${ORG}, 'sales', 'Sales', 'sales')`,
     );
     await asOwner(
       'create position',
@@ -199,6 +204,33 @@ describe.skipIf(!enabled)('sales reassignment service (PostgreSQL)', () => {
       sql`
         INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, employee_id)
         VALUES (${AGENT_B}, ${ORG}, 'employee', 'Agent B', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, 'E-' || upper(left(replace(${AGENT_B}::text, '-', ''), 12)))
+      `,
+    );
+    // Agent C sits in another pool and has not punched in today.
+    await asOwner(
+      'create second pool',
+      sql`INSERT INTO team (id, organization_id, department_id, kind, name) VALUES (${POOL_B}, ${ORG}, ${DEPARTMENT}, 'sales-pool', 'Pool B')`,
+    );
+    await asOwner(
+      'create agent C',
+      sql`
+        INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, employee_id)
+        VALUES (${AGENT_C}, ${ORG}, 'employee', 'Agent C', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_B}, 'E-' || upper(left(replace(${AGENT_C}::text, '-', ''), 12)))
+      `,
+    );
+    await asOwner(
+      'create another department',
+      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${OTHER_DEPARTMENT}, ${ORG}, 'finance', 'Finance', 'support')`,
+    );
+    await asOwner(
+      'create another position',
+      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level) VALUES (${OTHER_POSITION}, ${ORG}, ${OTHER_DEPARTMENT}, 'finance-executive', 'Finance Executive', 1)`,
+    );
+    await asOwner(
+      'create someone outside Sales',
+      sql`
+        INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, employee_id)
+        VALUES (${OUTSIDER}, ${ORG}, 'employee', 'Finance Person', 'active', ${OTHER_POSITION}, ${OTHER_DEPARTMENT}, 'E-' || upper(left(replace(${OUTSIDER}::text, '-', ''), 12)))
       `,
     );
     await asOwner(
@@ -376,6 +408,38 @@ describe.skipIf(!enabled)('sales reassignment service (PostgreSQL)', () => {
     // Untouched since the hand-over: My Work lists it until the new owner acts.
     expect(row.updatedAt.getTime()).toBe(row.assignedAt.getTime());
     expect(updated.assignedAt?.getTime()).toBe(row.assignedAt.getTime());
+  });
+
+  it('hands a lead to someone who has not punched in yet, and moves it into their pool', async () => {
+    const leadId = await insertAssignedLead(AGENT_A, AGENT_A);
+    const updated = await reassign(ctxSuperAdmin(), leadId, {
+      newOwnerId: AGENT_C,
+      reason: 'covering for agent A before the shift starts',
+      transferPendingCallbacks: true,
+      transferScheduledActivities: true,
+      transferSourcingCredit: false,
+    });
+    expect(updated.ownerId).toBe(AGENT_C);
+    const rows = await asOwner(
+      'read lead pool',
+      sql`SELECT owner_id, sales_pool_id, sales_team_id FROM lead WHERE id = ${leadId}`,
+    );
+    expect(rows[0]).toMatchObject({ ownerId: AGENT_C, salesPoolId: POOL_B, salesTeamId: POOL_B });
+  });
+
+  it('refuses to hand a lead to someone outside Sales', async () => {
+    const leadId = await insertAssignedLead(AGENT_A, AGENT_A);
+    await expect(
+      reassign(ctxSuperAdmin(), leadId, {
+        newOwnerId: OUTSIDER,
+        reason: 'wrong person picked by mistake',
+        transferPendingCallbacks: true,
+        transferScheduledActivities: true,
+        transferSourcingCredit: false,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_ELIGIBLE' });
+    const rows = await asOwner('read owner', sql`SELECT owner_id FROM lead WHERE id = ${leadId}`);
+    expect(rows[0]).toMatchObject({ ownerId: AGENT_A });
   });
 
   it('HOD employee without leads:reassign-with-credit cannot transfer sourcing credit', async () => {

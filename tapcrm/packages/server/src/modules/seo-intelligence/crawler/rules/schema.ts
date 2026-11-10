@@ -24,7 +24,7 @@ export const SCHEMA_RULES: RuleDefinition[] = [
 {
   ruleId: 'D002', ruleVersion: 'v1', group: 'schema', severity: 'moderate', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
-    if (obs.schemaTypes && obs.schemaTypes.includes('Product') && !obs.hasProductPriceSchema) {
+    if (!obs.hasProductPriceSchema) {
       return { ruleId: 'D002', ruleVersion: 'v1', result: 'review', severity: 'moderate', confidence: 'direct',
         affectedTarget: obs.url,
         evidence: { url: obs.url, schema_types: obs.schemaTypes },
@@ -37,7 +37,7 @@ export const SCHEMA_RULES: RuleDefinition[] = [
 {
   ruleId: 'D003', ruleVersion: 'v1', group: 'schema', severity: 'moderate', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
-    if (obs.schemaTypes && obs.schemaTypes.includes('Article') && !obs.hasArticleDateSchema) {
+    if (!obs.hasArticleDateSchema) {
       return { ruleId: 'D003', ruleVersion: 'v1', result: 'review', severity: 'moderate', confidence: 'direct',
         affectedTarget: obs.url,
         evidence: { url: obs.url, schema_types: obs.schemaTypes },
@@ -61,7 +61,7 @@ export const SCHEMA_RULES: RuleDefinition[] = [
 },
 
 {
-  ruleId: 'D009', ruleVersion: 'v1', group: 'schema', severity: 'high', active: true, tested: true,
+  ruleId: 'D009', ruleVersion: 'v1', group: 'schema', severity: 'high', active: true, tested: false,
   evaluate(obs: PageObservation): RuleResult {
     if (obs.schemaMismatch) {
       return { ruleId: 'D009', ruleVersion: 'v1', result: 'fail', severity: 'high', confidence: 'inferred',

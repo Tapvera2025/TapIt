@@ -80,6 +80,25 @@ const schema = z.object({
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_FORCE_PATH_STYLE: envBoolean(true),
+  // Where chat attachments (and cached link-preview images) are kept:
+  //   s3     the S3-compatible store above — AWS S3, Cloudflare R2 or MinIO.
+  //          Downloads are short-lived signed links straight to the store.
+  //   local  files under TAPCRM_UPLOAD_DIR/chat, streamed by the API. For a
+  //          laptop without an object store; refused in production.
+  // Unset: `s3` in production, `local` everywhere else.
+  CHAT_STORAGE_DRIVER: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.enum(['s3', 'local']).optional(),
+  ),
+  // Largest single chat attachment, in MiB. Keep it under the reverse proxy's
+  // request limit (client nginx allows 50 MiB).
+  CHAT_ATTACHMENT_MAX_MB: z.coerce.number().int().min(1).max(45).default(25),
+  // Link previews fetch the pages people paste into chat. Set false on servers
+  // that must not make outbound requests; links then show without a card.
+  CHAT_LINK_PREVIEWS: envBoolean(true),
+  // Development/testing only: let link previews fetch private-network and
+  // loopback addresses (normally refused as SSRF). Refused in production.
+  CHAT_LINK_PREVIEW_ALLOW_PRIVATE_NETWORKS: envBoolean(false),
   AUDIT_ARCHIVE_ENCRYPTION_KEY: z.string().optional(),
   AUDIT_ARCHIVE_KEY_ID: optionalEnvString(z.string().trim().min(1).optional()),
   // JSON object of historical archive key IDs to base64-encoded 32-byte keys.
@@ -158,6 +177,25 @@ const schema = z.object({
   // impressions goes missing — so the default averages a week, which is how
   // the Search Console UI is normally read.
   GOOGLE_SEARCH_CONSOLE_WINDOW_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+  // Client meetings: how TapCRM reaches people's Google Calendars to read
+  // their busy times and create events with Meet links.
+  //   off              meetings still work; hosts paste a meeting link
+  //   oauth            each person connects their own Google Calendar
+  //                    (personal Gmail or Workspace). Uses GOOGLE_OAUTH_CLIENT_*
+  //                    and MEETINGS_TOKEN_ENCRYPTION_KEY; the consent screen
+  //                    must be published (and verified for outside accounts)
+  //                    or Google expires connections every 7 days
+  //   service-account  Google Workspace domain-wide delegation: an admin
+  //                    authorizes the service account once for the calendar
+  //                    scopes, and nobody connects anything. People's TapCRM
+  //                    email must be their Workspace address.
+  MEETINGS_GOOGLE_AUTH: z.enum(['off', 'oauth', 'service-account']).default('off'),
+  // 32 random bytes, hex or base64, sealing stored Google refresh tokens.
+  MEETINGS_TOKEN_ENCRYPTION_KEY: optionalEnvString(z.string().trim().min(1).optional()),
+  // Google endpoints. Only a test or staging stand-in changes these.
+  GOOGLE_API_BASE_URL: z.string().url().default('https://www.googleapis.com'),
+  GOOGLE_TOKEN_URL: z.string().url().default('https://oauth2.googleapis.com/token'),
+  GOOGLE_AUTHORIZE_URL: z.string().url().default('https://accounts.google.com/o/oauth2/v2/auth'),
 });
 
 export type Config = z.infer<typeof schema>;
@@ -186,6 +224,25 @@ function configurationProblems(config: Config): string[] {
       problems.push(
         `GOOGLE_SEARCH_CONSOLE_AUTH=service-account requires ${absent.join(' and ')}`,
       );
+    }
+  }
+  if (config.MEETINGS_GOOGLE_AUTH === 'oauth') {
+    const absent = missing([
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+      'MEETINGS_TOKEN_ENCRYPTION_KEY',
+    ]);
+    if (absent.length > 0) {
+      problems.push(`MEETINGS_GOOGLE_AUTH=oauth requires ${absent.join(', ')}`);
+    }
+  }
+  if (config.MEETINGS_GOOGLE_AUTH === 'service-account') {
+    const absent = missing([
+      'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+      'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
+    ]);
+    if (absent.length > 0) {
+      problems.push(`MEETINGS_GOOGLE_AUTH=service-account requires ${absent.join(' and ')}`);
     }
   }
   if (config.GOOGLE_SEARCH_CONSOLE_AUTH === 'oauth') {
@@ -227,6 +284,16 @@ function productionProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
   if (config.SECURITY_COUNTER_STORE === 'memory') {
     problems.push(
       'SECURITY_COUNTER_STORE=memory is single-process; use redis (ID-9, SE-5)',
+    );
+  }
+  if (config.CHAT_STORAGE_DRIVER === 'local') {
+    problems.push(
+      'CHAT_STORAGE_DRIVER=local keeps chat files on one server\'s disk; use s3 (S3, Cloudflare R2 or MinIO) in production',
+    );
+  }
+  if (config.CHAT_LINK_PREVIEW_ALLOW_PRIVATE_NETWORKS) {
+    problems.push(
+      'CHAT_LINK_PREVIEW_ALLOW_PRIVATE_NETWORKS lets chat links reach internal addresses (SSRF); it is for local testing only',
     );
   }
   if (!config.AUDIT_ARCHIVE_ENCRYPTION_KEY || !config.AUDIT_ARCHIVE_KEY_ID) {
@@ -295,6 +362,11 @@ export function resumeOcrEnabled(env: NodeJS.ProcessEnv = process.env): boolean 
 /** Test-only. */
 export function __resetConfig(): void {
   cached = null;
+}
+
+/** Where chat files are stored: explicit setting, else `s3` in production and `local` elsewhere. */
+export function chatStorageDriver(config: Config = loadConfig()): 's3' | 'local' {
+  return config.CHAT_STORAGE_DRIVER ?? (config.NODE_ENV === 'production' ? 's3' : 'local');
 }
 
 /**

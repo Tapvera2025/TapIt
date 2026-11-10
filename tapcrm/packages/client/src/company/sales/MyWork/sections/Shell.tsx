@@ -6,6 +6,8 @@ import { Button, Card } from '../../../../ui/index.js';
  * body (the caller's list), and optional secondary action.
  */
 export function MyWorkSection({
+  id,
+  className = '',
   title,
   count,
   urgent,
@@ -15,6 +17,9 @@ export function MyWorkSection({
   onAction,
   children,
 }: {
+  /** Lets the sales guide point at this section. */
+  id?: string | undefined;
+  className?: string;
   title: string;
   count: number;
   urgent?: boolean;
@@ -25,7 +30,7 @@ export function MyWorkSection({
   children: ReactNode;
 }): React.JSX.Element {
   return (
-    <section className="mb-8" aria-labelledby={`my-work-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+    <section id={id} className={`mb-8 scroll-mt-6 rounded-2xl ${className}`} aria-labelledby={`my-work-${title.toLowerCase().replace(/\s+/g, '-')}`}>
       <header className="mb-3 flex items-center justify-between gap-3">
         <h2
           id={`my-work-${title.toLowerCase().replace(/\s+/g, '-')}`}

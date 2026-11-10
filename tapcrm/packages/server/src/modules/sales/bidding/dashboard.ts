@@ -52,6 +52,18 @@ export async function claimsDistribution(ctx: RequestContext): Promise<ClaimsDis
        WHERE u.organization_id = ${ctx.organizationId}
          AND u.account_type    = 'employee'
          AND u.status          = 'active'
+         -- Sales staff only: people on a sales team or pool, plus anyone
+         -- who claimed or holds leads (so nobody's work drops out of view).
+         AND (
+           EXISTS (
+             SELECT 1 FROM team t
+              WHERE t.organization_id = u.organization_id
+                AND t.id              = u.team_id
+                AND t.kind IN ('sales-team', 'sales-pool')
+           )
+           OR COALESCE(c.claims_today, 0) > 0
+           OR COALESCE(l.active_count, 0) > 0
+         )
        ORDER BY COALESCE(c.claims_today, 0) DESC, u.full_name ASC
        LIMIT 100
     `,

@@ -9,7 +9,7 @@ import { closePools } from '../dal/pool.js';
 import { sql } from '../dal/sql.js';
 import { AUTHORIZATION_EVENTS } from '../events.js';
 import { startOutboxDrainer, stopOutboxDrainer } from '../outbox/drainer.js';
-import { installSocketPrincipalResolver, startRealtime, stopRealtime } from './server.js';
+import { connectedUserIds, installConnectionListener, installSocketPrincipalResolver, startRealtime, stopRealtime } from './server.js';
 
 /**
  * Design §5.5, done when: an outbox row reaches a connected socket in under a
@@ -57,7 +57,7 @@ describe.skipIf(!enabled)('realtime and the domain outbox (PostgreSQL and Redis)
     http = createServer();
     await new Promise<void>((resolve) => http.listen(0, resolve));
     url = `http://localhost:${(http.address() as AddressInfo).port}`;
-    await startRealtime(http);
+    await startRealtime(http, { offlineGraceMs: 600 });
     await startOutboxDrainer();
   });
 
@@ -109,5 +109,40 @@ describe.skipIf(!enabled)('realtime and the domain outbox (PostgreSQL and Redis)
       if (processedAt === null) await new Promise((resolve) => setTimeout(resolve, 50));
     }
     expect(processedAt).toBeInstanceOf(Date);
+  });
+
+  it('presence: knows who has TapIt open, and says once when they arrive and once when they leave', async () => {
+    const notices: string[] = [];
+    installConnectionListener((organizationId, userId) => notices.push(`${organizationId}:${userId}`));
+    const connected = (socket: Socket) => new Promise<void>((resolve, reject) => {
+      socket.on('connect', () => resolve());
+      socket.on('connect_error', reject);
+    });
+    const closed = (socket: Socket) => new Promise<void>((resolve) => {
+      socket.on('disconnect', () => resolve());
+      socket.close();
+    });
+    const someoneElse = randomUUID();
+    expect(await connectedUserIds(ORG, [USER, someoneElse])).toEqual(new Set());
+
+    // A page opens several sockets: one notice.
+    const first = open(GOOD_TOKEN);
+    const second = open(GOOD_TOKEN);
+    await Promise.all([connected(first), connected(second)]);
+    expect(await connectedUserIds(ORG, [USER, someoneElse])).toEqual(new Set([USER]));
+    expect(notices).toEqual([`${ORG}:${USER}`]);
+
+    // A reload: gone and back within the grace period — no news either way.
+    await Promise.all([closed(first), closed(second)]);
+    const reloaded = open(GOOD_TOKEN);
+    await connected(reloaded);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(notices).toHaveLength(1);
+
+    // Closing the last tab: one notice after the grace period.
+    await closed(reloaded);
+    for (let i = 0; i < 40 && notices.length < 2; i += 1) await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(notices).toEqual([`${ORG}:${USER}`, `${ORG}:${USER}`]);
+    expect(await connectedUserIds(ORG, [USER])).toEqual(new Set());
   });
 });

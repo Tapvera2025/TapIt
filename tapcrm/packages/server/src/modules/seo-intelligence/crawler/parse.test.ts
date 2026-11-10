@@ -123,9 +123,72 @@ describe('parseHtml', () => {
     expect(obs.schemaTypes).toContain('Product');
     expect(obs.schemaTypes).toContain('Article');
     expect(obs.schemaTypes).toContain('NewsArticle');
+    // The Product has no offer price and the Article no datePublished.
+    expect(obs.hasProductPriceSchema).toBe(false);
+    expect(obs.hasArticleDateSchema).toBe(false);
+    expect(obs.schemaErrors).toEqual(['invalid JSON-LD block']);
+  });
+
+  it('sees a product price and an article date when they are present, including in @graph', () => {
+    const html = `<script type="application/ld+json">{ "@graph": [
+        { "@type": "Product", "offers": { "@type": "Offer", "price": "10.00" } },
+        { "@type": "BlogPosting", "datePublished": "2026-01-01" } ] }</script>`;
+    const obs = parseHtml({ siteOrigin: 'https://example.com', fetch: fakeFetch(html) });
     expect(obs.hasProductPriceSchema).toBe(true);
     expect(obs.hasArticleDateSchema).toBe(true);
-    expect(obs.schemaErrors).toEqual(['invalid JSON-LD block']);
+  });
+
+  it('keeps apostrophes inside quoted attribute values', () => {
+    const html = `<head><meta name="description" content="We're India's best widget maker."></head>`;
+    const obs = parseHtml({ siteOrigin: 'https://example.com', fetch: fakeFetch(html) });
+    expect(obs.metaDescription).toBe("We're India's best widget maker.");
+  });
+
+  it('treats www and the bare host as the same website, including relative links', () => {
+    const html = `<body><a href="/pricing#plans">Pricing</a><a href="https://acme.com/about">About</a>
+      <a href="https://other.com/">Other</a></body>`;
+    const obs = parseHtml({ siteOrigin: 'https://acme.com', fetch: fakeFetch(html, { finalUrl: 'https://www.acme.com/' }) });
+    expect(obs.outboundLinks.map((l) => [l.href, l.isInternal])).toEqual([
+      ['https://www.acme.com/pricing', true],
+      ['https://acme.com/about', true],
+      ['https://other.com/', false],
+    ]);
+  });
+
+  it('records an empty title and description as empty, not missing', () => {
+    const html = `<head><title> </title><meta name="description" content=""></head>`;
+    const obs = parseHtml({ siteOrigin: 'https://example.com', fetch: fakeFetch(html) });
+    expect(obs.title).toBe('');
+    expect(obs.metaDescription).toBe('');
+  });
+
+  it('ignores headings and links in comments, scripts and templates', () => {
+    const html = `<body><!-- <h1>Old</h1> <a href="/old">x</a> -->
+      <script>document.write('<h1>Js</h1>')</script><template><h1>T</h1></template>
+      <h1>Real</h1><a href="/new">New</a></body>`;
+    const obs = parseHtml({ siteOrigin: 'https://example.com', fetch: fakeFetch(html) });
+    expect(obs.h1Texts).toEqual(['Real']);
+    expect(obs.outboundLinks.map((l) => l.href)).toEqual(['https://example.com/new']);
+  });
+
+  it('resolves links against <base href> and keeps > inside attribute values', () => {
+    const html = `<head><base href="https://example.com/docs/"></head>
+      <body><a href="intro" title="a > b">Intro</a></body>`;
+    const obs = parseHtml({ siteOrigin: 'https://example.com', fetch: fakeFetch(html) });
+    expect(obs.outboundLinks[0]).toMatchObject({ href: 'https://example.com/docs/intro', anchor: 'Intro' });
+  });
+
+  it('marks the first meaningful image as the likely main image', () => {
+    const html = `<body><img src="/logo.svg" alt="Acme"><img src="/icon.png" width="32" height="32" alt="i">
+      <img src="/hero.jpg" alt="Hero" loading="lazy"><img src="/second.jpg" alt="Second"></body>`;
+    const obs = parseHtml({ siteOrigin: 'https://example.com', fetch: fakeFetch(html) });
+    expect(obs.images.filter((img) => img.isLikelyLCP).map((img) => img.src)).toEqual(['https://example.com/hero.jpg']);
+  });
+
+  it('hashes visible text, so per-request tokens do not hide duplicates', () => {
+    const a = parseHtml({ siteOrigin: 'https://example.com', fetch: fakeFetch('<body><p>Same words</p><script>var nonce="1"</script></body>') });
+    const b = parseHtml({ siteOrigin: 'https://example.com', fetch: fakeFetch('<body><p>Same  words</p><script>var nonce="2"</script></body>') });
+    expect(a.contentHash).toBe(b.contentHash);
   });
 
   it('reads canonical from Link header', () => {

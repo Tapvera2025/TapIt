@@ -30,6 +30,8 @@ export interface LiveRow {
   lastScanAt: string | null;
   likelyFinishedAt: string | null;
   isWfh: boolean;
+  /** Punched in from the web or the app without approved WFH. */
+  isRemote?: boolean;
   dayGroup: 'leave' | 'holiday' | null;
   shiftStartAt: string | null;
   shiftEndAt: string | null;

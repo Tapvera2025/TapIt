@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { PAYROLL_ENGINE_VERSION } from './calculate.js';
 import type { DateOnly } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -111,6 +112,11 @@ export async function freezeEmployees(
       holidayUnits: day.holidayUnits,
       nightMinutes: day.nightMinutes,
       overtimeMinutes: day.overtimeMinutes,
+      // Only on days worked as a holiday or weekly off, so every other day's
+      // frozen shape — and its fingerprint — is unchanged.
+      ...(day.status === 'holiday' && day.workedMinutes > 0
+        ? { holidayWorkedMinutes: day.workedMinutes }
+        : {}),
     });
     daysByUser.set(day.userId, list);
   }
@@ -133,6 +139,7 @@ export async function freezeEmployees(
       structureSegments: segmentsByUser.get(employee.userId) ?? [],
       payrollInputs: inputsByUser.get(employee.userId) ?? [],
       configSnapshot,
+      engineVersion: PAYROLL_ENGINE_VERSION,
     };
     return {
       userId: employee.userId,

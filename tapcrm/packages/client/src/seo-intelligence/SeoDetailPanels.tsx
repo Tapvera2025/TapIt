@@ -236,8 +236,30 @@ export function SeoSearchPanel({
   );
 }
 
-export function SeoKeywordsPanel({ keywords }: { keywords: SeoKeyword[] }) {
+export function SeoKeywordsPanel({
+  keywords,
+  canManage = false,
+  onToggleTracked,
+}: {
+  keywords: SeoKeyword[];
+  canManage?: boolean;
+  onToggleTracked?: (keywordId: string, tracked: boolean) => Promise<void>;
+}) {
   const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState('');
+  async function toggle(row: SeoKeyword) {
+    if (!onToggleTracked) return;
+    setSaving(row.id);
+    setToggleError('');
+    try {
+      await onToggleTracked(row.id, !row.tracked);
+    } catch (cause) {
+      setToggleError(cause instanceof Error ? cause.message : 'The search term could not be updated.');
+    } finally {
+      setSaving(null);
+    }
+  }
   const filtered = keywords.filter((row) =>
     row.keyword.toLowerCase().includes(search.toLowerCase()),
   );
@@ -328,16 +350,37 @@ export function SeoKeywordsPanel({ keywords }: { keywords: SeoKeyword[] }) {
                       {row.difficulty === null ? 'No data' : `${row.difficulty}/100`}
                     </td>
                     <td>
-                      <SeoBadge tone={row.tracked ? 'accent' : 'neutral'}>
-                        {row.tracked ? 'Tracked' : 'Not tracked'}
-                      </SeoBadge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SeoBadge tone={row.tracked ? 'accent' : 'neutral'}>
+                          {row.tracked ? 'Tracked' : 'Not tracked'}
+                        </SeoBadge>
+                        {canManage && onToggleTracked && (
+                          <Button
+                            kind="secondary"
+                            disabled={saving !== null}
+                            onClick={() => void toggle(row)}
+                          >
+                            {saving === row.id ? 'Saving…' : row.tracked ? 'Stop tracking' : 'Track'}
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {toggleError && (
+            <p role="alert" className="text-sm text-app-danger">
+              {toggleError}
+            </p>
+          )}
           <SavedRows count={filtered.length} shown={100} />
+          <SeoHint title="Tracking uses the monthly search allowance">
+            Terms found in your Google traffic are saved as suggestions. Each tracked term is
+            checked on its schedule and every check spends one search from this website's
+            allowance, set under Settings → Crawl &amp; data sources.
+          </SeoHint>
           <SeoHint title="Missing estimates are not zero searches">
             Volume and difficulty require a supporting data source. Difficulty is a
             provider estimate of competition, not a promise about how a page will rank.
@@ -410,8 +453,9 @@ export function SeoRankPanel({
             </p>
             {(!status.configured || status.monthlyLimit === 0) && (
               <p className="seo-small-copy mt-2">
-                Ask your administrator to configure the search provider and approve a
-                monthly allowance.
+                {status.configured
+                  ? 'Set a monthly allowance for this website under Settings → Crawl & data sources.'
+                  : 'Ask your administrator to configure the search provider on the server.'}
               </p>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { buildSocialOAuthRouter } from './modules/social/index.js';
+import { buildCalendarOAuthRouter } from './modules/meetings/index.js';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import {
@@ -24,6 +25,7 @@ import { buildMetaWebhookRouter } from './modules/sales/adapters/meta/index.js';
 import { buildWhatsAppWebhookRouter } from './modules/sales/adapters/whatsapp/index.js';
 import { buildGbpWebhookRouter } from './modules/sales/adapters/gbp/index.js';
 import { registerNotificationRoutes } from './modules/notifications/routes.js';
+import { buildChatFileRouter } from './modules/chat/index.js';
 import { Router } from 'express';
 
 /**
@@ -131,6 +133,18 @@ export function buildApp(options: BuildOptions = {}): Express {
 
   // Scoped upload body limit; other CRM endpoints retain their current limit.
   app.use('/api/social', express.json({ limit: '72mb' }));
+  // Chat attachments arrive as raw bytes (application/octet-stream), not
+  // base64 JSON: a third smaller on the wire, and the bytes the type check
+  // reads are exactly the bytes stored. The limit is the configured maximum
+  // plus headroom; the chat service enforces the exact figure.
+  const chatUploadLimit = `${config.CHAT_ATTACHMENT_MAX_MB + 1}mb`;
+  // Same literal /api prefix as the routes themselves (platform/http/route.ts paths).
+  for (const path of [
+    '/api/chat/conversations/:id/attachments',
+    '/api/client-portal/projects/:projectId/discussion/:conversationId/attachments',
+  ]) {
+    app.use(path, express.raw({ type: 'application/octet-stream', limit: chatUploadLimit }));
+  }
   app.use(express.json({ limit: '15mb' }));
 
   app.use(requestId);
@@ -151,9 +165,14 @@ export function buildApp(options: BuildOptions = {}): Express {
   app.use(`${config.API_BASE_PATH}/platform`, buildPlatformRouter());
 
   app.use(`${config.API_BASE_PATH}/social/oauth`, buildSocialOAuthRouter());
+  // Google's redirect after "Connect Google Calendar"; it carries no session (see meetings/google/connect.ts).
+  app.use(`${config.API_BASE_PATH}/meetings/google`, buildCalendarOAuthRouter());
   app.use(config.API_BASE_PATH, publicIdentity);
   app.use(`${config.API_BASE_PATH}/public/recruitment`, buildPublicRecruitmentRouter());
   app.use(`${config.API_BASE_PATH}/public/proposals`, buildPublicProposalPortalRouter());
+  // Chat attachments and preview images for <img>/<a download>: the signed
+  // link is the credential (modules/chat/file-urls.ts), checked per request.
+  app.use(`${config.API_BASE_PATH}/chat-files`, buildChatFileRouter());
 
   // Liveness and readiness are public and carry no tenant context.
   app.get('/health', (_req, res) => {

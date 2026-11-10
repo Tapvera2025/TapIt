@@ -1,6 +1,8 @@
 node_modules/
 dist/
 /storage/
+# Local uploads when the API runs from its package (npm run dev:api), e.g. chat files.
+/packages/server/storage/
 *.tsbuildinfo
 coverage/
 .vitest/

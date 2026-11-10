@@ -70,9 +70,12 @@ export function listLeaveTypes(): Promise<LeaveTypeDto[]> {
   return peopleRead<LeaveTypeDto[]>('/api/leaves/types', { staleMs: 120_000 });
 }
 
-/** Employee-safe catalogue: only active absence types that can be requested. */
-export function listAvailableLeaveTypes(): Promise<LeaveTypeDto[]> {
-  return peopleRead<LeaveTypeDto[]>('/api/leaves/types/available', { staleMs: 0 });
+/**
+ * Employee-safe catalogue of active types that can be requested: absence types
+ * for a leave request, attendance-mode types for a WFH request.
+ */
+export function listAvailableLeaveTypes(kind: 'absence' | 'attendance-mode' = 'absence'): Promise<LeaveTypeDto[]> {
+  return peopleRead<LeaveTypeDto[]>(`/api/leaves/types/available?kind=${kind}`, { staleMs: 0 });
 }
 
 export function createLeaveType(body: {

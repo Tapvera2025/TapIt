@@ -6,6 +6,7 @@ import { xlsxBuffer } from '../attendance/facade.js';
 import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
 import { writePenaltyAudit } from './audit.js';
 import { PenaltyError } from './errors.js';
+import { chargePenalty, releasePenalty } from './payroll.js';
 import * as repo from './repository.js';
 import type { PenaltyRow } from './types.js';
 import type {
@@ -85,6 +86,19 @@ export async function createPenalty(
     if (!(await repo.employeeExists(tx, ctx.organizationId, body.employeeId)))
       throw new PenaltyError('Employee must be an active employee in this organization.');
     const id = await repo.insertPenalty(tx, ctx.organizationId, body, ctx.principal.id);
+    // Deducted in its payroll month's payslip.
+    await chargePenalty(
+      tx,
+      {
+        id,
+        employeeId: body.employeeId,
+        payrollPeriod: body.payrollPeriod,
+        amountPaise: String(body.amountPaise),
+        penaltyType: body.penaltyType,
+        remarks: body.remarks,
+      },
+      ctx.principal.id,
+    );
     await writePenaltyAudit(tx, ctx, 'penalty.created', id, {
       employeeId: body.employeeId,
       penaltyType: body.penaltyType,
@@ -132,6 +146,7 @@ export async function cancelPenalty(
       ))
     )
       throw new PenaltyError('Penalty could not be cancelled.');
+    await releasePenalty(tx, id, ctx.principal.id, body.cancellationReason);
     await writePenaltyAudit(
       tx,
       ctx,

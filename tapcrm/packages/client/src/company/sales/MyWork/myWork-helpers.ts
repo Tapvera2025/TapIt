@@ -148,11 +148,13 @@ export function summarize(
   newlyAssignedCount: number,
   upcomingCount: number,
 ): readonly SectionCount[] {
+  // Same order as the page: a customer on the line first, then promises
+  // already due, then new leads, then optional new work from the pool.
   return [
-    { label: 'Live offers', count: bidPoolCount, urgent: bidPoolCount > 0 },
-    { label: 'Overdue', count: overdueCount, urgent: overdueCount > 0 },
-    { label: 'Handovers', count: handoverCount, urgent: handoverCount > 0 },
-    { label: 'Newly assigned', count: newlyAssignedCount, urgent: newlyAssignedCount > 0 },
-    { label: 'Upcoming', count: upcomingCount, urgent: false },
+    { label: 'Live calls', count: handoverCount, urgent: handoverCount > 0 },
+    { label: 'Overdue callbacks', count: overdueCount, urgent: overdueCount > 0 },
+    { label: 'New leads to call', count: newlyAssignedCount, urgent: newlyAssignedCount > 0 },
+    { label: 'Bid Pool', count: bidPoolCount, urgent: bidPoolCount > 0 },
+    { label: 'Coming up', count: upcomingCount, urgent: false },
   ];
 }

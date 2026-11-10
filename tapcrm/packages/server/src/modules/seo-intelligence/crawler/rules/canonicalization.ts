@@ -41,13 +41,19 @@ export const CANONICALIZATION_RULES: RuleDefinition[] = [
 {
   ruleId: 'C008', ruleVersion: 'v1', group: 'canonicalization', severity: 'high', active: true, tested: true,
   evaluate(obs: PageObservation): RuleResult {
-    // Alias for C002 — detect HTML vs header mismatch in either render mode
-    if (obs.renderMode !== 'both') return { ...pass('C008'), result: 'skipped' };
-    if (obs.rawContentHash !== obs.renderedContentHash) {
-      return { ruleId: 'C008', ruleVersion: 'v1', result: 'review', severity: 'high', confidence: 'inferred',
+    // Rendering is expected to change the page. What matters is JavaScript
+    // changing the directives search engines act on.
+    const raw = obs.rawSignals;
+    if (obs.renderMode !== 'both' || raw === null) return { ...pass('C008'), result: 'skipped' };
+    const norm = (value: string | null) => (value ?? '').trim().toLowerCase();
+    const changes: Record<string, { raw: string | null; rendered: string | null }> = {};
+    if (norm(raw.canonicalLink) !== norm(obs.canonicalLink)) changes['canonical'] = { raw: raw.canonicalLink, rendered: obs.canonicalLink };
+    if (norm(raw.metaRobots) !== norm(obs.metaRobots)) changes['meta_robots'] = { raw: raw.metaRobots, rendered: obs.metaRobots };
+    if (Object.keys(changes).length > 0) {
+      return { ruleId: 'C008', ruleVersion: 'v1', result: 'review', severity: 'high', confidence: 'direct',
         affectedTarget: obs.url,
-        evidence: { url: obs.url, raw_hash: obs.rawContentHash, rendered_hash: obs.renderedContentHash },
-        proposedFix: 'Review the raw vs rendered HTML diff for changes to canonical or meta robots directives introduced by JavaScript.' };
+        evidence: { url: obs.url, changes },
+        proposedFix: 'JavaScript changes the canonical or robots directive after the page loads. Put the intended values in the server HTML so every crawler sees the same directive.' };
     }
     return pass('C008');
   },

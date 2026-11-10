@@ -15,9 +15,6 @@ export class SeoSiteValidationError extends ApplicationError {
 export class SeoScanValidationError extends Error {
   constructor(message: string) { super(message); }
 }
-export class SeoBudgetBlockedError extends Error {
-  constructor(provider: string) { super(`Paid provider "${provider}" is blocked: budget cap reached or not enabled.`); }
-}
 export class SeoProviderQuotaError extends Error {
   constructor(provider: string) { super(`Provider "${provider}" quota exhausted.`); }
 }

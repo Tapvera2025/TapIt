@@ -66,6 +66,26 @@ export function installTypingAuthorizer(authorizer: TypingAuthorizer): void {
   typingAuthorizer = authorizer;
 }
 
+/** Told a person's id when they open TapIt, or when their last socket has gone. */
+export type ConnectionListener = (organizationId: string, userId: string) => void;
+let connectionListener: ConnectionListener | null = null;
+
+/** Chat registers this before the listener starts, to refresh presence dots. */
+export function installConnectionListener(listener: ConnectionListener): void {
+  connectionListener = listener;
+}
+
+/**
+ * A reload, or the reconnect after a token refresh, is back well within this,
+ * so nobody flickers offline; closing the last tab shows after it.
+ */
+const OFFLINE_GRACE_MS = 15_000;
+let offlineGraceMs = OFFLINE_GRACE_MS;
+/** A page opens several sockets at once; one "came online" notice covers them. */
+const ONLINE_NOTICE_MS = 15_000;
+const pendingOffline = new Map<string, ReturnType<typeof setTimeout>>();
+const lastOnlineNotice = new Map<string, number>();
+
 let resolveSocket: SocketPrincipalResolver = async () => null;
 const channels = new Map<string, PeopleChannel>();
 let io: RealtimeServer | null = null;
@@ -129,6 +149,74 @@ export function emitToUser(organizationId: string, userId: string, event: string
   }
 }
 
+/**
+ * Which of these people have TapIt open right now — a socket in their
+ * personal room on any API instance (the Redis adapter asks the others).
+ * Empty when realtime is not running in this process.
+ */
+export async function connectedUserIds(organizationId: string, userIds: readonly string[]): Promise<Set<string>> {
+  const online = new Set<string>();
+  const server = io;
+  if (server === null || userIds.length === 0) return online;
+  const byRoom = new Map(userIds.map((userId) => [personalRoom(organizationId, userId), userId] as const));
+  try {
+    const sockets = await server.in([...byRoom.keys()]).fetchSockets();
+    for (const socket of sockets) {
+      for (const room of socket.rooms) {
+        const userId = byRoom.get(room);
+        if (userId !== undefined) online.add(userId);
+      }
+    }
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'warn', msg: 'realtime presence lookup failed', error: String(error) }));
+  }
+  return online;
+}
+
+function notifyConnection(organizationId: string, userId: string): void {
+  try {
+    connectionListener?.(organizationId, userId);
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'warn', msg: 'realtime connection listener failed', error: String(error) }));
+  }
+}
+
+function socketConnected(organizationId: string, userId: string): void {
+  if (connectionListener === null) return;
+  const room = personalRoom(organizationId, userId);
+  const pending = pendingOffline.get(room);
+  if (pending !== undefined) {
+    // Back within the grace period: they were never shown offline.
+    clearTimeout(pending);
+    pendingOffline.delete(room);
+    return;
+  }
+  const now = Date.now();
+  if (now - (lastOnlineNotice.get(room) ?? 0) < ONLINE_NOTICE_MS) return;
+  lastOnlineNotice.set(room, now);
+  notifyConnection(organizationId, userId);
+}
+
+function socketDisconnected(server: RealtimeServer, organizationId: string, userId: string): void {
+  if (connectionListener === null) return;
+  const room = personalRoom(organizationId, userId);
+  const existing = pendingOffline.get(room);
+  if (existing !== undefined) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    pendingOffline.delete(room);
+    if (io !== server) return;
+    void server.in(room).fetchSockets()
+      .then((sockets) => {
+        if (sockets.length > 0) return;
+        lastOnlineNotice.delete(room);
+        notifyConnection(organizationId, userId);
+      })
+      .catch(() => undefined);
+  }, offlineGraceMs);
+  timer.unref();
+  pendingOffline.set(room, timer);
+}
+
 /** Everyone whose scope on the channel covers `subject` hears it, once. */
 export function emitAboutPerson(
   organizationId: string,
@@ -169,8 +257,12 @@ function handlePermissionsChanged(): void {
   });
 }
 
-export async function startRealtime(httpServer: HttpServer, options: { redisUrl?: string; path?: string } = {}): Promise<void> {
+export async function startRealtime(
+  httpServer: HttpServer,
+  options: { redisUrl?: string; path?: string; offlineGraceMs?: number } = {},
+): Promise<void> {
   if (io !== null) return;
+  offlineGraceMs = options.offlineGraceMs ?? OFFLINE_GRACE_MS;
   const config = loadConfig();
   const url = options.redisUrl ?? config.REDIS_URL;
   publisher = new Redis(url, { maxRetriesPerRequest: null, lazyConnect: true, retryStrategy: () => null });
@@ -220,6 +312,8 @@ export async function startRealtime(httpServer: HttpServer, options: { redisUrl?
   server.on('connection', (socket) => {
     const { identity, rooms } = socket.data;
     void socket.join(rooms);
+    const presenceUserId = identity.principal?.id ?? identity.userId;
+    if (presenceUserId !== undefined) socketConnected(identity.organizationId, presenceUserId);
     socket.on('chat:typing', (payload: unknown) => {
       void (async () => {
         if (!typingAuthorizer || typeof payload !== 'object' || payload === null) return;
@@ -255,6 +349,7 @@ export async function startRealtime(httpServer: HttpServer, options: { redisUrl?
     socket.on('disconnect', () => {
       clearTimeout(expiry);
       clearInterval(revalidate);
+      if (presenceUserId !== undefined) socketDisconnected(server, identity.organizationId, presenceUserId);
     });
   });
 
@@ -266,6 +361,9 @@ export async function startRealtime(httpServer: HttpServer, options: { redisUrl?
 export async function stopRealtime(): Promise<void> {
   const server = io;
   io = null;
+  for (const timer of pendingOffline.values()) clearTimeout(timer);
+  pendingOffline.clear();
+  lastOnlineNotice.clear();
   if (server !== null) {
     server.local.disconnectSockets(true);
     server.engine.close();
@@ -279,4 +377,5 @@ export async function stopRealtime(): Promise<void> {
 export function __resetRealtime(): void {
   channels.clear();
   resolveSocket = async () => null;
+  connectionListener = null;
 }

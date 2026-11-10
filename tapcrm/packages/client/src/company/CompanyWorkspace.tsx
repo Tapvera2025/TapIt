@@ -2,6 +2,7 @@ import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from '
 import { getCompanyIdentity, type CompanyIdentity } from './api/companyApi.js';
 import { setIdentitySessionPrincipal } from '../identity/api/authApi.js';
 import { CompanyLayout } from './layout/CompanyLayout.js';
+import { SalesGuideProvider } from './sales/guide/SalesGuide.js';
 import { DashboardPage } from './dashboard/DashboardPage.js';
 import { EmployeesPage } from './employees/EmployeesPage.js';
 import { SessionsPage } from '../identity/pages/SessionsPage.js';
@@ -84,6 +85,7 @@ import { ExpenseApprovalsPage, MyExpensesPage } from './expenses/ExpensesPages.j
 import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
 import { AccountingPage } from './finance/accounting/AccountingPage.js';
 import { companySearchDestinations } from './layout/navigation.js';
+import { MeetingsPage } from '../meetings/MeetingsPage.js';
 
 export function CompanyWorkspace({
   pathname: rawPathname,
@@ -173,6 +175,9 @@ export function CompanyWorkspace({
   const canViewCallbacks = isSuperAdmin || can('callbacks:view');
   const canViewHandovers = isSuperAdmin || can('handovers:view');
   const canViewDeals = isSuperAdmin || can('deals:view');
+  const hasMeetings = identity.enabledModules.includes('meetings');
+  const canHostMeetings = isSuperAdmin || can('meetings:host');
+  const canViewMeetings = isSuperAdmin || can('meetings:view');
   const canApproveDeals = isSuperAdmin || can('deals:approve');
   const canRecordWin = isSuperAdmin || can('deals:record-win');
   const canConfirmPayment = isSuperAdmin || can('deals:confirm-payment');
@@ -267,6 +272,8 @@ export function CompanyWorkspace({
     '/company/sales/leads/stalled': 'Stalled Leads',
     '/company/sales/leads/re-engagement': 'Re-engagement',
     '/company/sales/leads/imported': 'Imported Leads',
+    '/company/meetings': 'Client meetings',
+    '/company/meetings/calendar': 'Client meetings',
     '/company/sales/callbacks': 'Callbacks',
     '/company/sales/callbacks/calendar': 'Callbacks',
     '/company/sales/callbacks/board': 'Callbacks',
@@ -497,6 +504,18 @@ export function CompanyWorkspace({
           }}
         />
       );
+    if ((pathname === '/company/meetings' || pathname === '/company/meetings/calendar') && hasMeetings && (canHostMeetings || canViewMeetings))
+      return (
+        <MeetingsPage
+          pathname={pathname}
+          currentUserId={userId}
+          organizationTimezone={organizationTimeZone}
+          canHost={canHostMeetings}
+          canView={canViewMeetings}
+          canJoin={isSuperAdmin || can('meetings:join')}
+          canActForOthers={isSuperAdmin || canBeyondOwn('meetings:host')}
+        />
+      );
     if (pathname === '/company/projects' && canViewProjects)
       return (
         <ProjectsPage
@@ -705,6 +724,7 @@ export function CompanyWorkspace({
         <CallbackDetailPage
           id={callbackDetail[1]!}
           currentUserId={userId}
+          canManage={isSuperAdmin || canBeyondOwn('callbacks:edit')}
           onBack={() => onNavigate('/company/sales/callbacks')}
           onNavigate={onNavigate}
         />
@@ -730,7 +750,7 @@ export function CompanyWorkspace({
         />
       );
     if (pathname === '/company/sales/leads' && canViewLeads)
-      return <LeadsPage onNavigate={onNavigate} canViewImports={canViewImports} canImport={canManageImports} />;
+      return <LeadsPage onNavigate={onNavigate} currentUserId={userId} isManager={isSuperAdmin || canReassignLeadsFromUi} canViewImports={canViewImports} canImport={canManageImports} />;
     if (pathname === '/company/sales/bid-pool' && canViewLeads)
       return <BidPoolPage onNavigate={onNavigate} />;
     if (pathname === '/company/sales/my-work' && canViewLeads)
@@ -746,11 +766,12 @@ export function CompanyWorkspace({
           id={leadDetail[1]!}
           currentUserId={userId}
           organizationTimezone={organizationTimeZone}
-          canReassign={canReassignLeadsFromUi}
+          canReassign={isSuperAdmin || canBeyondOwn('leads:reassign')}
           canTransferSourcingCredit={isSuperAdmin}
           canCreateDeal={isSuperAdmin || can('deals:create')}
           canEditLead={isSuperAdmin || can('leads:edit')}
           canViewCalls={canViewCalls}
+          canManageCallbacks={isSuperAdmin || canBeyondOwn('callbacks:edit')}
           onBack={() => onNavigate('/company/sales/leads')}
           onNavigate={onNavigate}
         />
@@ -791,6 +812,7 @@ export function CompanyWorkspace({
           canDecideApprovals={canDecideApprovals}
           canRecordWin={canRecordWin}
           canConfirmPayment={canConfirmPayment}
+          isManager={isSuperAdmin || canReassignLeadsFromUi}
           onBack={() => onNavigate('/company/sales/deals')}
           onNavigate={onNavigate}
         />
@@ -832,7 +854,7 @@ export function CompanyWorkspace({
     return <DashboardPage identity={identity!} onNavigate={onNavigate} />;
   }
 
-  return (
+  const layout = (
     <CompanyLayout
       pathname={pathname}
       identity={identity.user}
@@ -861,6 +883,7 @@ export function CompanyWorkspace({
       canViewChat={canViewChat}
       canViewClients={canViewClients}
       canViewSocial={canViewSocial}
+      canViewMeetings={hasMeetings && (canHostMeetings || canViewMeetings)}
       canViewSeo={canViewSeo}
       canViewProjects={canViewProjects}
       canViewLiveBoard={canBeyondOwn('attendance:view-live')}
@@ -896,6 +919,18 @@ export function CompanyWorkspace({
       {renderContent()}
     </CompanyLayout>
   );
+  // The sales guide follows people across Sales pages; others never see it.
+  return canViewSalesWorkspace ? (
+    <SalesGuideProvider
+      userId={userId}
+      isManager={isSuperAdmin || canReassignLeadsFromUi}
+      canAddLeads={isSuperAdmin || can('leads:create')}
+      canRecordWin={canRecordWin}
+      canDecideApprovals={canDecideApprovals}
+    >
+      {layout}
+    </SalesGuideProvider>
+  ) : layout;
 }
 
 class AttendancePageBoundary extends Component<

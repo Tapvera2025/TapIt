@@ -6,8 +6,12 @@
  *   - a secondary `leads:reassign-with-credit` check when the caller asks
  *     to transfer sourcing credit (the plan reserves credit-move to
  *     Super Admin only via the `leads:reassign-with-credit` policy);
- *   - fail-soft availability — the new owner's `at_capacity` reason is
- *     tolerated (HOD rebalancing), everything else blocks the transfer;
+ *   - the new owner must be an active person in Sales; whether they are
+ *     punched in, on a break or on leave is shown in the picker but does not
+ *     block (leads are handed out before shifts and to cover absences, the
+ *     same rule as imported leads);
+ *   - the lead joins the new owner's pool and Sales Team, so their
+ *     Supervisor and Team Lead see it (and the previous ones stop seeing it);
  *   - the state transition, callback owner transfer, routing-decision
  *     audit, lead activity entry, outbox notifications to the previous
  *     holder and the new owner, realtime emit.
@@ -21,8 +25,7 @@ import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { PlatformForbiddenError } from '../../../platform/errors.js';
 import { NotEligibleError } from '../../../platform/http/error-handler.js';
-import { describeEligibilityReasons } from '../../../platform/availability/reasons.js';
-import { evaluateAvailability } from '../../../platform/availability/service.js';
+import { loadSalesAssignee } from './assignees.js';
 import { notify } from '../../notifications/facade.js';
 import { insertRoutingDecision } from '../intake/repository.js';
 import { emitLeadReassigned } from '../realtime/sales-channel.js';
@@ -86,23 +89,16 @@ export async function reassign(
     }
   }
 
-  // Availability: reject any ineligibility that is not purely a capacity cap;
-  // the fail-soft rule lets an HOD rebalance a team past its soft limit.
-  const [availability] = await evaluateAvailability(ctx, [input.newOwnerId], { pool: 'direct' });
-  if (!availability) throw new LeadNotFoundError();
-  if (!availability.eligible) {
-    const blocking = availability.reasons.filter((r) => r !== 'at_capacity');
-    if (blocking.length > 0) {
-      throw new NotEligibleError(
-        'NOT_ELIGIBLE',
-        `This person can't take the lead right now (${describeEligibilityReasons(blocking)}).`,
-        { unmet: blocking },
-      );
-    }
-  }
-
   const now = new Date();
   const result = await db.transaction(ctx, async (tx) => {
+    const assignee = await loadSalesAssignee(tx, ctx.organizationId, input.newOwnerId);
+    if (!assignee) {
+      throw new NotEligibleError(
+        'NOT_ELIGIBLE',
+        'Leads can only go to active people in Sales. Refresh the list and pick again.',
+        { unmet: ['not_active'] },
+      );
+    }
     const locked = await tx.maybeOne<LockedLeadForReassign>(sql`
       SELECT id,
              owner_id              AS "ownerId",
@@ -127,6 +123,8 @@ export async function reassign(
          SET owner_id             = ${input.newOwnerId},
              current_holder_id    = ${input.newOwnerId},
              originating_agent_id = ${nextOriginatingAgentId},
+             sales_pool_id        = COALESCE(${assignee.poolId}::uuid, sales_pool_id),
+             sales_team_id        = COALESCE(${assignee.teamId}::uuid, sales_team_id),
              routing_status       = 'assigned',
              status               = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
              updated_at           = ${now}

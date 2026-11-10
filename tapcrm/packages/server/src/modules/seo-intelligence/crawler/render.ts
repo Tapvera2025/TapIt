@@ -2,13 +2,15 @@
  * Headless rendering via Playwright + Chromium.
  *
  * Gated behind SEO_RENDER_ENABLED=true. Playwright is loaded via dynamic
- * import so a tenant without chromium installed never crashes the server at
- * startup — the first render attempt returns { state: 'not_configured' }.
+ * import so a server without Chromium never crashes at startup — the first
+ * render attempt returns { state: 'not_configured' }. SEO_RENDER_CHROMIUM_PATH
+ * points at a system Chromium when Playwright's own download is not used.
  *
- * One shared browser per process; new context per page so cookies/storage
- * do not leak between crawls. Pages are hard-capped on time, size and
- * network activity to prevent runaway rendering from a malicious or
- * accidentally-infinite site.
+ * Safety: the page's own HTML comes from the crawler's guarded fetch (the
+ * navigation is answered from that body), and every other request the page
+ * makes — scripts, XHR, iframes — passes the same SSRF guard first. Chromium
+ * keeps its sandbox unless the server runs as root, where Chromium cannot
+ * start sandboxed. One shared browser per process; a fresh context per page.
  */
 import { createHash } from 'node:crypto';
 import { guardUrl } from './ssrf-guard.js';
@@ -16,10 +18,11 @@ import { guardUrl } from './ssrf-guard.js';
 export interface RenderOptions {
   timeoutMs?: number;
   maxBytes?: number;
-  /** Viewport width. Default 1366 — same as Lighthouse-mobile widescreen. */
   viewportWidth?: number;
   viewportHeight?: number;
   userAgent?: string;
+  /** The raw HTML already fetched for `url`; served to the browser instead of fetching the page again. */
+  html?: string;
 }
 
 export interface RenderResult {
@@ -33,15 +36,21 @@ export interface RenderResult {
 
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
-const DEFAULT_UA = 'TapcrmSeoBot/1.0 (+https://tapcrm.local/bots; rendered)';
+const DEFAULT_UA = 'Mozilla/5.0 (compatible; TapcrmSeoBot/1.0; rendered)';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+type RouteLike = {
+  request: () => { url: () => string; isNavigationRequest: () => boolean };
+  continue: () => Promise<void>;
+  abort: (errorCode?: string) => Promise<void>;
+  fulfill: (response: { status: number; contentType: string; body: string }) => Promise<void>;
+};
 type BrowserLike = {
   newContext: (opts?: unknown) => Promise<ContextLike>;
   close: () => Promise<void>;
 };
 type ContextLike = {
   newPage: () => Promise<PageLike>;
+  route: (url: string, handler: (route: RouteLike) => Promise<void>) => Promise<void>;
   close: () => Promise<void>;
 };
 type PageLike = {
@@ -50,7 +59,11 @@ type PageLike = {
   content: () => Promise<string>;
   close: () => Promise<void>;
 };
-/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Rendering is switched on for this server (Chromium may still be missing). */
+export function renderingAvailable(): boolean {
+  return process.env['SEO_RENDER_ENABLED'] === 'true';
+}
 
 let browserPromise: Promise<BrowserLike | null> | null = null;
 
@@ -61,9 +74,12 @@ async function getBrowser(): Promise<BrowserLike | null> {
         const mod = await import('playwright' as string);
         const chromium = (mod as { chromium?: { launch: (opts?: unknown) => Promise<BrowserLike> } }).chromium;
         if (!chromium) return null;
+        const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+        const executablePath = process.env['SEO_RENDER_CHROMIUM_PATH'];
         return await chromium.launch({
           headless: true,
-          args: ['--no-sandbox', '--disable-dev-shm-usage'],
+          ...(executablePath ? { executablePath } : {}),
+          args: ['--disable-dev-shm-usage', ...(runningAsRoot ? ['--no-sandbox'] : [])],
         });
       } catch {
         // playwright not installed or chromium not downloaded
@@ -84,19 +100,9 @@ export async function closeRenderBrowser(): Promise<void> {
   }
 }
 
-/**
- * Renders a URL via headless Chromium, returning the serialized DOM.
- *
- * The SSRF guard runs first (same as safeFetch) so a renderer can't be
- * tricked into hitting internal metadata endpoints via a crafted site URL.
- *
- * Caps:
- *   - Request timeout: 30s default
- *   - Body cap: 10 MiB default — if content() exceeds, HTML is truncated
- *   - Waits for `networkidle` or timeout, whichever comes first
- */
+/** Renders a URL via headless Chromium, returning the serialized DOM. */
 export async function renderPage(rawUrl: string, opts: RenderOptions = {}): Promise<RenderResult> {
-  if (process.env['SEO_RENDER_ENABLED'] !== 'true') {
+  if (!renderingAvailable()) {
     return { state: 'disabled', html: null, contentHash: null, byteLength: 0, elapsedMs: 0 };
   }
 
@@ -115,6 +121,24 @@ export async function renderPage(rawUrl: string, opts: RenderOptions = {}): Prom
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT;
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
   const started = Date.now();
+  const allowedHosts = new Map<string, Promise<boolean>>();
+  const allowed = (url: string): Promise<boolean> => {
+    let host: string;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'data:' || parsed.protocol === 'blob:') return Promise.resolve(true);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return Promise.resolve(false);
+      host = `${parsed.protocol}//${parsed.host}`;
+    } catch {
+      return Promise.resolve(false);
+    }
+    let verdict = allowedHosts.get(host);
+    if (!verdict) {
+      verdict = guardUrl(url).then(() => true, () => false);
+      allowedHosts.set(host, verdict);
+    }
+    return verdict;
+  };
 
   let context: ContextLike | null = null;
   let page: PageLike | null = null;
@@ -122,6 +146,18 @@ export async function renderPage(rawUrl: string, opts: RenderOptions = {}): Prom
     context = await browser.newContext({
       userAgent: opts.userAgent ?? DEFAULT_UA,
       viewport: { width: opts.viewportWidth ?? 1366, height: opts.viewportHeight ?? 768 },
+      serviceWorkers: 'block',
+    });
+    let served = false;
+    await context.route('**/*', async (route) => {
+      const request = route.request();
+      if (opts.html !== undefined && !served && request.isNavigationRequest() && sameDocument(request.url(), rawUrl)) {
+        served = true;
+        await route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: opts.html });
+        return;
+      }
+      if (await allowed(request.url())) await route.continue();
+      else await route.abort('blockedbyclient');
     });
     page = await context.newPage();
     await page.goto(rawUrl, { timeout: timeoutMs, waitUntil: 'domcontentloaded' });
@@ -133,7 +169,7 @@ export async function renderPage(rawUrl: string, opts: RenderOptions = {}): Prom
     let truncated = false;
     const byteLength = Buffer.byteLength(html, 'utf8');
     if (byteLength > maxBytes) {
-      html = html.slice(0, maxBytes); // approximation — chars != bytes, but for the hash this is fine
+      html = html.slice(0, maxBytes);
       truncated = true;
     }
 
@@ -151,6 +187,18 @@ export async function renderPage(rawUrl: string, opts: RenderOptions = {}): Prom
   } finally {
     if (page) { try { await page.close(); } catch { /* ignore */ } }
     if (context) { try { await context.close(); } catch { /* ignore */ } }
+  }
+}
+
+function sameDocument(a: string, b: string): boolean {
+  try {
+    const x = new URL(a);
+    const y = new URL(b);
+    x.hash = '';
+    y.hash = '';
+    return x.toString() === y.toString();
+  } catch {
+    return false;
   }
 }
 

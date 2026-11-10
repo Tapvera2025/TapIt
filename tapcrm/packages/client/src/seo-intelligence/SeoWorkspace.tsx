@@ -5,6 +5,7 @@ import { AddSiteModal } from './AddSiteModal.js';
 import { SeoOverviewPanel } from './SeoOverviewPanel.js';
 import { SeoFindingsPanel } from './SeoAuditPanel.js';
 import { SeoRulesPanel } from './SeoRulesPanel.js';
+import { SeoSiteSettingsPanel } from './SeoSiteSettingsPanel.js';
 import {
   SeoSearchPanel,
   SeoKeywordsPanel,
@@ -60,6 +61,7 @@ interface DetailData {
   fixes?: SeoFixProposal[];
   alerts?: SeoAlert[];
   rules?: SeoRuleRow[];
+  settings?: api.SeoSiteSettings;
 }
 interface Props {
   pathname: string;
@@ -158,6 +160,8 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
           return { fixes: await api.listSeoFixProposals(selectedId) };
         case 'monitoring':
           return { alerts: await api.listSeoAlerts(selectedId) };
+        case 'crawl':
+          return { settings: await api.getSeoSiteSettings(selectedId) };
         case 'sites':
           return {};
       }
@@ -511,7 +515,15 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
               />
             )}
             {section === 'keywords' && (
-              <SeoKeywordsPanel keywords={data.keywords ?? []} />
+              <SeoKeywordsPanel
+                keywords={data.keywords ?? []}
+                canManage={canManage}
+                onToggleTracked={async (keywordId, tracked) => {
+                  if (!selectedId) return;
+                  await api.updateSeoKeyword(selectedId, keywordId, { tracked });
+                  detail.reload();
+                }}
+              />
             )}
             {section === 'rank-tracking' && (
               <SeoRankPanel
@@ -588,6 +600,18 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
                   busy === 'scan' || (!!latestScan && isScanInFlight(latestScan.status))
                 }
                 canManage={canManage}
+              />
+            )}
+            {section === 'crawl' && data.settings && (
+              <SeoSiteSettingsPanel
+                settings={data.settings}
+                siteName={selectedSite?.normalizedHost ?? 'this website'}
+                canManage={canManage}
+                onSave={async (patch) => {
+                  if (!selectedId) return;
+                  await api.updateSeoSiteSettings(selectedId, patch);
+                  detail.reload();
+                }}
               />
             )}
             {section === 'rules' && (

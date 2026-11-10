@@ -27,5 +27,9 @@ export interface StorageService {
     key: string;
     expiresInSeconds: number;
     now?: Date;
+    /** Overrides the stored Content-Disposition (`response-content-disposition`), e.g. to name a download. */
+    responseContentDisposition?: string;
+    /** Overrides the stored Content-Type (`response-content-type`). */
+    responseContentType?: string;
   }): string;
 }

@@ -3,23 +3,32 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { listSites, querySearchAnalytics, SearchConsoleConfigurationError, type SearchConsoleSite } from '../../platform/integrations/google/search-console.js';
 import { upsertGscMetrics } from './repository.js';
+import { sql } from '../../platform/dal/sql.js';
+import { hostKey } from './url.js';
 
-/** Match the registered website only; never silently import another property. */
+/**
+ * Match the registered website only; never silently import another property.
+ * The www. and bare forms of a host are the same website (the crawler treats
+ * them so too); an exact URL-prefix match still wins over the www. variant.
+ */
 export function resolveGscProperty(siteUrl: string, properties: readonly SearchConsoleSite[]): string {
   const site = new URL(siteUrl);
-  const matches = properties.filter((property) => {
-    if (property.permissionLevel === 'siteUnverifiedUser') return false;
+  const rank = (property: SearchConsoleSite): number | null => {
+    if (property.permissionLevel === 'siteUnverifiedUser') return null;
     if (property.siteUrl.startsWith('sc-domain:')) {
       const domain = property.siteUrl.slice('sc-domain:'.length).toLowerCase();
-      return site.hostname === domain || site.hostname.endsWith(`.${domain}`);
+      return site.hostname === domain || site.hostname.endsWith(`.${domain}`) ? 2 : null;
     }
     try {
       const prefix = new URL(property.siteUrl);
-      return site.origin === prefix.origin && site.pathname.startsWith(prefix.pathname);
-    } catch { return false; }
-  });
-  // Prefer a URL-prefix property, then the most specific matching domain.
-  matches.sort((a, b) => Number(a.siteUrl.startsWith('sc-domain:')) - Number(b.siteUrl.startsWith('sc-domain:')) || b.siteUrl.length - a.siteUrl.length);
+      if (!site.pathname.startsWith(prefix.pathname) || site.protocol !== prefix.protocol) return null;
+      if (site.origin === prefix.origin) return 0;
+      return hostKey(site.hostname) === hostKey(prefix.hostname) && site.port === prefix.port ? 1 : null;
+    } catch { return null; }
+  };
+  const matches = properties.filter((property) => rank(property) !== null);
+  // Exact URL prefix, then the www. variant, then the most specific matching domain.
+  matches.sort((a, b) => rank(a)! - rank(b)! || b.siteUrl.length - a.siteUrl.length);
   if (!matches[0]) throw new SearchConsoleConfigurationError('The connected Google account has no verified Search Console property covering this website. Grant it access to the matching property.');
   return matches[0].siteUrl;
 }
@@ -34,8 +43,9 @@ export async function importGscPerformance(ctx: RequestContext, siteId: string, 
     const rows = await querySearchAnalytics(propertyUrl, {
       startDate, endDate, dimensions: ['date', 'query', 'page', 'country', 'device'],
       rowLimit: pageSize, startRow: page * pageSize,
-      // A domain property may include other subdomains. Restrict to this site.
-      filters: [{ dimension: 'page', operator: 'contains', expression: new URL(siteUrl).origin + '/' }],
+      // A domain property may include other subdomains. Restrict to this site,
+      // with or without www. and on either scheme.
+      filters: [{ dimension: 'page', operator: 'includingRegex', expression: sitePageRegex(siteUrl) }],
     });
     for (const row of rows) {
       const [date, query, pageUrl, country, device] = row.keys;
@@ -52,4 +62,37 @@ export async function importGscPerformance(ctx: RequestContext, siteId: string, 
   for (const row of observations) row.rowLimitHit = rowLimitHit;
   await db.transaction(ctx, async (tx) => { await upsertGscMetrics(tx, observations); });
   return { state: 'ok' as const, synced: observations.length, propertyUrl, rowLimitHit };
+}
+
+/** RE2 pattern matching this site's pages on http(s), with or without www. */
+export function sitePageRegex(siteUrl: string): string {
+  const url = new URL(siteUrl);
+  const host = hostKey(url.hostname).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const port = url.port ? `:${url.port}` : '';
+  return `^https?://(www\\.)?${host}${port}/`;
+}
+
+/**
+ * The days to import: 90 days the first time, then from four days before the
+ * newest stored day (Search Console keeps revising recent days) to today.
+ */
+export async function gscSyncWindow(ctx: RequestContext, siteId: string, now = new Date()): Promise<{ startDate: string; endDate: string }> {
+  const row = await db.maybeOne<{ latest: string | null }>(ctx, sql`
+    SELECT max(date)::text AS latest FROM seo_gsc_metrics
+    WHERE organization_id = ${ctx.organizationId} AND site_id = ${siteId}
+  `);
+  const endDate = now.toISOString().slice(0, 10);
+  const fullStart = new Date(now.getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
+  if (!row?.latest) return { startDate: fullStart, endDate };
+  const resume = new Date(Date.parse(`${row.latest}T00:00:00Z`) - 4 * 86_400_000).toISOString().slice(0, 10);
+  return { startDate: resume > fullStart ? resume : fullStart, endDate };
+}
+
+/** Search Console itself keeps 16 months; older rows are dropped. */
+export async function pruneGscMetrics(ctx: RequestContext, siteId: string): Promise<void> {
+  await db.query(ctx, sql`
+    DELETE FROM seo_gsc_metrics
+    WHERE organization_id = ${ctx.organizationId} AND site_id = ${siteId}
+      AND date < (current_date - interval '16 months')::date
+  `);
 }

@@ -1,24 +1,42 @@
 import { useEffect, useState } from 'react';
 import { Button, Field } from '../../../ui/index.js';
 import {
-  getHandoverTargets,
+  getLeadAssignees,
   reassignLead,
-  type HandoverTarget,
   type Lead,
+  type LeadAssignee,
+  type LeadAssigneeAvailability,
 } from './api.js';
 import {
   hasFormProblems,
   validateReassignForm,
   type ReassignFormInput,
 } from './reassign-helpers.js';
-import { sentenceLabel } from './callback-ui.js';
 
 /**
- * Reassign a lead to a new owner (R1 plan step 1.15). The handover-
- * targets endpoint already returns pool-eligible users resolved via
- * the availability facade, so we reuse it rather than build a parallel
- * `/eligible-agents` route.
+ * Reassign a lead to a new owner (R1 plan step 1.15). The list is everyone in
+ * Sales the caller can give the lead to; whether they are working right now is
+ * shown next to their name, not enforced, so a lead can be handed out before a
+ * shift or to cover a break or leave.
  */
+
+const AVAILABILITY_LABEL: Record<LeadAssigneeAvailability, string> = {
+  working: 'working now',
+  on_break: 'on a break',
+  not_punched_in: 'not punched in',
+  on_leave: 'on leave',
+  on_holiday: 'on a holiday',
+  outside_shift: 'outside their shift',
+  unknown: 'status unknown',
+};
+
+function assigneeLabel(person: LeadAssignee): string {
+  const parts = [person.fullName, person.positionCode.replace(/^sales-/, '').replaceAll('-', ' ')];
+  if (person.poolName) parts.push(person.poolName);
+  parts.push(AVAILABILITY_LABEL[person.availability]);
+  parts.push(`${person.activeLeadCount} open lead${person.activeLeadCount === 1 ? '' : 's'}${person.atCapacity ? ' (at capacity)' : ''}`);
+  return parts.join(' · ');
+}
 
 export function ReassignModal({
   lead,
@@ -31,7 +49,7 @@ export function ReassignModal({
   onClose: () => void;
   onReassigned: (updated: Lead) => void;
 }): React.JSX.Element {
-  const [targets, setTargets] = useState<HandoverTarget[]>([]);
+  const [targets, setTargets] = useState<LeadAssignee[]>([]);
   const [targetsError, setTargetsError] = useState<string | null>(null);
   const [form, setForm] = useState<ReassignFormInput>({
     newOwnerId: '',
@@ -47,20 +65,20 @@ export function ReassignModal({
 
   useEffect(() => {
     let cancelled = false;
-    getHandoverTargets(lead.id)
-      .then((rows) => {
+    getLeadAssignees(lead.id)
+      .then((result) => {
         if (!cancelled) {
-          setTargets(rows.filter((row) => row.id !== lead.currentHolderId));
+          setTargets(result.items.filter((row) => row.id !== lead.ownerId));
           setTargetsError(null);
         }
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setTargetsError(cause instanceof Error ? cause.message : 'Could not load eligible agents.');
+        if (!cancelled) setTargetsError(cause instanceof Error ? cause.message : 'Could not load the people you can assign to.');
       });
     return () => {
       cancelled = true;
     };
-  }, [lead.id, lead.currentHolderId]);
+  }, [lead.id, lead.ownerId]);
 
   const problems = validateReassignForm(form);
   const canSubmit = !submitting && !hasFormProblems(problems);
@@ -131,16 +149,24 @@ export function ReassignModal({
             }}
             className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
           >
-            <option value="">Select an eligible agent</option>
+            <option value="">Choose who gets the lead</option>
             {targets.map((target) => (
-              <option key={target.id} value={target.id} disabled={!target.selectable}>
-                {target.fullName} · {target.positionCode.replaceAll('-', ' ')} · {sentenceLabel(target.availability)}
+              <option key={target.id} value={target.id}>
+                {assigneeLabel(target)}
               </option>
             ))}
           </select>
           {touched.newOwnerId && problems.newOwnerId && (
             <p className="mt-1 text-xs text-app-danger">{problems.newOwnerId}</p>
           )}
+          {(() => {
+            const picked = targets.find((target) => target.id === form.newOwnerId);
+            return picked && picked.availability !== 'working' ? (
+              <p className="mt-1 text-xs font-normal text-app-muted">
+                {picked.fullName} is {AVAILABILITY_LABEL[picked.availability]}. The lead is theirs now and waits in their My Work.
+              </p>
+            ) : null;
+          })()}
         </label>
 
         <div className="mt-4">

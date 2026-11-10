@@ -450,7 +450,7 @@ function AdminAdvances(): React.JSX.Element {
             <option value="">Select employee</option>
             {employees.map((employee) => (
               <option key={employee.id} value={employee.id}>
-                {employee.fullName} · {employee.employeeId ?? employee.id}
+                {employee.fullName}{employee.employeeId ? ` · ${employee.employeeId}` : employee.email ? ` · ${employee.email}` : ''}
               </option>
             ))}
           </select>
@@ -637,10 +637,11 @@ function AdminAdvances(): React.JSX.Element {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold">Approved advances · Payroll handoff</h2>
+            <h2 className="text-lg font-bold">Approved advances · Payroll recovery</h2>
             <p className="mt-1 text-sm text-app-muted">
-              Approved advances are available here for payroll processing. No separate
-              deduction schedule is required.
+              An approved advance is recovered automatically from the salary of its advance
+              month. It appears under Payroll › Bonuses &amp; Deductions and is marked recovered
+              when that payslip is published.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
