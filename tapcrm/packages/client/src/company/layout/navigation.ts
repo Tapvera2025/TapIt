@@ -595,6 +595,12 @@ export function companySearchDestinations({
 
   for (const group of companyNavigation) {
     for (const item of group.items) {
+      if (
+        (isSuperAdmin || accountType !== 'employee') &&
+        (item.path === '/company/attendance/today' || item.path === '/company/attendance/my')
+      ) {
+        continue;
+      }
       if (item.label === 'Recruitment' && (!isHr || !hasRecruitment)) continue;
       if ((item.label === 'Access Explorer' || item.label === 'Geofencing') && !isSuperAdmin) continue;
       if (item.requiredAction && !isSuperAdmin && !actions.has(item.requiredAction))

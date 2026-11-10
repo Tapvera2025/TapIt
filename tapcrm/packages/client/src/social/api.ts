@@ -90,7 +90,7 @@ export const disconnectSocialAccount = (
     { method: 'DELETE', body: JSON.stringify({ revokeGrant }) },
   );
 const companyConnections = '/api/social/company-connections';
-/** Company-wide sign-ins (today: Google Business Profile), managed by company admins. */
+/** Company-wide sign-ins (Google, Facebook + Instagram, LinkedIn, YouTube), managed by company admins. */
 export const listCompanyConnections = () =>
   identityRequest<SocialCompanyConnection[]>(companyConnections);
 export const startCompanyConnection = (platform: SocialCompanyPlatform) =>

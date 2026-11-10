@@ -1,11 +1,19 @@
 .seo-workspace {
   --seo-tone: var(--app-accent);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   min-width: 0;
   color: var(--app-foreground);
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 24px 28px 40px;
   font-size: 14px;
+}
+.seo-page-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 .seo-workspace * {
   box-sizing: border-box;
@@ -95,13 +103,7 @@
   min-width: 0;
 }
 .seo-primary-tabs {
-  display: flex;
-  gap: 5px;
-  border-bottom: 1px solid var(--app-border);
-  margin-bottom: 24px;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  overscroll-behavior-x: contain;
+  margin: 0;
 }
 .seo-primary-tab {
   display: flex;
@@ -124,15 +126,7 @@
   border-radius: 10px 10px 0 0;
 }
 .seo-secondary-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 24px;
-  padding: 6px;
-  background: color-mix(in srgb, var(--app-surface) 60%, transparent);
-  border: 1px solid var(--app-border);
-  border-radius: 14px;
-  width: fit-content;
+  margin: 0;
 }
 .seo-secondary-tab {
   padding: 9px 16px;
@@ -190,15 +184,24 @@
   flex-shrink: 0;
 }
 .seo-surface {
-  background: linear-gradient(
-    145deg,
-    var(--app-surface),
-    color-mix(in srgb, var(--app-surface) 90%, var(--app-background))
-  );
-  border: 1px solid var(--app-border);
-  border-radius: 20px;
-  box-shadow: 0 3px 12px #0f172a03;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 6%, transparent), transparent 58%),
+    color-mix(in srgb, var(--app-surface) 78%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 35%, transparent),
+    0 12px 30px -24px color-mix(in srgb, var(--app-foreground) 36%, transparent);
   min-width: 0;
+}
+.dark .seo-surface {
+  border-color: color-mix(in srgb, var(--theme-primary) 18%, var(--app-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 12%, transparent), transparent 62%),
+    color-mix(in srgb, var(--app-surface) 90%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 14px 34px -24px rgba(2, 8, 23, 0.82);
 }
 .seo-metric-grid {
   display: grid;
@@ -207,9 +210,7 @@
 }
 .seo-metric {
   padding: 20px;
-  border: 1px solid var(--app-border);
-  border-radius: 18px;
-  background: var(--app-surface);
+  border-radius: 1rem;
   min-width: 0;
   text-align: left;
 }
@@ -620,9 +621,6 @@
   color: var(--app-foreground);
 }
 @media (min-width: 1600px) {
-  .seo-workspace {
-    padding-top: 30px;
-  }
   .seo-hero {
     padding: 32px 38px;
   }
@@ -631,9 +629,6 @@
   }
 }
 @media (max-width: 1100px) {
-  .seo-workspace {
-    padding: 20px;
-  }
   .seo-overview-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -656,25 +651,21 @@
   }
 }
 @media (max-width: 640px) {
-  .seo-workspace {
-    padding: 18px 14px 32px;
-  }
-  .seo-topbar {
+  .seo-page-actions {
     align-items: stretch;
-    flex-direction: column;
-    gap: 15px;
-    margin-bottom: 16px;
   }
-  .seo-topbar h1 {
-    font-size: 23px;
+  .seo-page-actions > * {
+    flex: 1 1 100%;
+  }
+  .seo-page-actions > .ui-button {
+    width: 100%;
   }
   .seo-site-selector {
     max-width: none;
     min-width: 0;
   }
   .seo-primary-tabs {
-    margin: 0 -14px 18px;
-    padding: 0 8px;
+    width: 100%;
   }
   .seo-primary-tab {
     font-size: 12px;
@@ -682,11 +673,8 @@
     gap: 7px;
   }
   .seo-secondary-tabs {
-    width: 100%;
-    gap: 3px;
     flex-wrap: nowrap;
-    overflow: auto;
-    margin-bottom: 20px;
+    overflow-x: auto;
   }
   .seo-secondary-tab {
     padding: 9px 12px;

@@ -1,5 +1,6 @@
 import type {
   SocialAccount,
+  SocialCompanyAssetPlatform,
   SocialPlatform,
   SocialPost,
   SocialPostDestination,
@@ -16,6 +17,9 @@ export interface AccountRow extends Omit<
   connectionId: string;
   /** The connection's client; null when the account uses a company-wide connection. */
   connectionClientId: string | null;
+  /** The connection's platform. A company Meta sign-in (`facebook`) also serves Instagram
+   * accounts, and its token is sealed for the connection's platform, not the account's. */
+  connectionPlatform: SocialPlatform;
   /** The company location this account was assigned from, if any. */
   locationId: string | null;
   connectedAt: Date;
@@ -36,17 +40,20 @@ export interface ConnectionRow {
   status: SocialAccount['status'];
   externalAccountId: string | null;
   externalAccountEmail: string | null;
+  externalAccountName: string | null;
   lastDiscoveredAt: Date | null;
   lastError: string | null;
   createdBy: string;
   createdAt: Date;
 }
-/** A social_connection_location row: a location a company connection can manage. */
+/** A social_connection_location row: something a company connection can manage. */
 export interface LocationRow {
   id: string;
   organizationId: string;
   connectionId: string;
-  platform: SocialPlatform;
+  platform: SocialCompanyAssetPlatform;
+  /** Search Console properties only: the client the property is assigned to. */
+  clientId: string | null;
   externalId: string;
   name: string;
   profileImageUrl: string | null;

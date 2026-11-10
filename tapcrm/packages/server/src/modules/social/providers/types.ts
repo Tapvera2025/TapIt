@@ -44,6 +44,15 @@ export interface ProviderIdentity {
   /** Stable platform user id. Never an email, which a user can change. */
   externalAccountId: string;
   email?: string;
+  /** Display name, for platforms that do not share an email with this integration. */
+  name?: string;
+}
+
+/** A Search Console property a Google sign-in can read. */
+export interface SearchConsoleProperty {
+  /** As Search Console names it: `https://www.example.com/` or `sc-domain:example.com`. */
+  siteUrl: string;
+  permissionLevel: 'siteOwner' | 'siteFullUser' | 'siteRestrictedUser';
 }
 
 export interface SocialMedia {
@@ -61,8 +70,9 @@ export interface SocialContent {
   media: SocialMedia[];
   privacyStatus?: 'public' | 'private' | 'unlisted';
   madeForKids?: boolean;
-  /** 'story' routes to the platform's ephemeral story primitive when available. */
-  postType?: 'feed' | 'story';
+  /** 'story' routes to the platform's ephemeral story primitive when available;
+   * 'reel' publishes one video as a Facebook or Instagram Reel. */
+  postType?: 'feed' | 'story' | 'reel';
 }
 
 export interface PublishInput {
@@ -113,6 +123,10 @@ export interface SocialProvider {
   discoverAccounts(credentials: OAuthCredential): Promise<DiscoveredAccount[]>;
   /** Required for company-wide connections, which are keyed by the signed-in user. */
   getAuthorizedIdentity?(credentials: OAuthCredential): Promise<ProviderIdentity>;
+  /** Google only: the Search Console properties this sign-in can read, if it granted that. */
+  listSearchConsoleProperties?(
+    credentials: OAuthCredential,
+  ): Promise<SearchConsoleProperty[]>;
   refreshCredentials(credentials: OAuthCredential): Promise<OAuthCredential>;
   validatePost(content: SocialContent, account?: ProviderAccount): string[];
   publishPost(input: PublishInput): Promise<PublishedPost>;

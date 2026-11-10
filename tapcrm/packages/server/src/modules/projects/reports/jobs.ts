@@ -1,5 +1,5 @@
 import { defineJob, type JobHandle } from '../../../platform/jobs/runner.js';
-import { googleAuthConfigured } from '../../../platform/integrations/google/token.js';
+import { searchConsoleConnected } from '../../social/facade.js';
 import { toDateOnly } from '../../../platform/time.js';
 import { projectsDueForFetch } from './repository.js';
 import { observationWindow, syncProjectRanks } from './sync.js';
@@ -71,7 +71,7 @@ export function registerProjectReportJobs(): ProjectReportJobs {
     handler: async ({ ctx, clock }) => {
       // Registered unconditionally so the schedule exists and the job history
       // stays continuous, but it does nothing without credentials.
-      if (!googleAuthConfigured()) return { itemsProcessed: 0, details: { skipped: 'google-search-console-off' } };
+      if (!await searchConsoleConnected(ctx)) return { itemsProcessed: 0, details: { skipped: 'no-google-login' } };
 
       const window = await observationWindow(ctx, clock);
       const projectIds = await projectsDueForFetch(ctx);

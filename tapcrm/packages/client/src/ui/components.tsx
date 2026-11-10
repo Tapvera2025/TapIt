@@ -171,8 +171,8 @@ export function Page({
   const recruitmentHeader = variant === 'recruitment';
   return (
     <WorkspacePageContainer>
-        <header className={recruitmentHeader ? 'recruitment-page-header' : 'page-toolbar'}>
-          <div className={recruitmentHeader ? 'flex min-w-0 items-start gap-3' : 'min-w-0'}>
+        <header className={recruitmentHeader ? 'recruitment-page-header' : 'ui-page-header'}>
+          <div className={recruitmentHeader ? 'flex min-w-0 items-start gap-3' : 'ui-page-header-copy min-w-0'}>
             {recruitmentHeader && <span className="recruitment-page-header-icon"><Icon name="briefcase" className="size-5" /></span>}
             <div className="min-w-0">
             {eyebrow && (
@@ -188,7 +188,7 @@ export function Page({
             )}
             </div>
           </div>
-          {action && <div className={recruitmentHeader ? 'recruitment-page-header-actions' : 'page-toolbar-action'}>{action}</div>}
+          {action && <div className={recruitmentHeader ? 'recruitment-page-header-actions' : 'ui-page-header-action'}>{action}</div>}
         </header>
         <div className="mt-6 space-y-5">{children}</div>
     </WorkspacePageContainer>
@@ -505,6 +505,85 @@ export function Button({
     </button>
   );
 }
+
+export type SegmentedTabItem = {
+  id: string;
+  label: string;
+  icon?: ReactNode;
+  controls?: string;
+};
+
+/** Compact, keyboard-accessible tab control shared by workspace pages. */
+export function SegmentedTabs({
+  items,
+  value,
+  onChange,
+  ariaLabel,
+  density = 'regular',
+  scrollable = false,
+  className = '',
+}: {
+  items: readonly SegmentedTabItem[];
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  density?: 'regular' | 'compact';
+  scrollable?: boolean;
+  className?: string;
+}): React.JSX.Element {
+  const tabListRef = useRef<HTMLDivElement>(null);
+  const select = (index: number, focus: boolean) => {
+    const item = items[index];
+    if (!item) return;
+    onChange(item.id);
+    if (focus) {
+      const tab = tabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index];
+      tab?.focus();
+    }
+  };
+
+  return (
+    <div
+      ref={tabListRef}
+      className={`ui-segmented-tabs ${density === 'compact' ? 'is-compact' : ''} ${scrollable ? 'is-scrollable' : ''} ${className}`.trim()}
+      role="tablist"
+      aria-label={ariaLabel}
+      aria-orientation="horizontal"
+    >
+      {items.map((item) => {
+        const selected = value === item.id;
+        return (
+          <button
+            key={item.id}
+            id={item.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            aria-controls={item.controls}
+            tabIndex={selected ? 0 : -1}
+            className="ui-segmented-tab"
+            onClick={() => onChange(item.id)}
+            onKeyDown={(event) => {
+              const currentIndex = items.findIndex((candidate) => candidate.id === item.id);
+              let nextIndex: number | null = null;
+              if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % items.length;
+              if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + items.length) % items.length;
+              if (event.key === 'Home') nextIndex = 0;
+              if (event.key === 'End') nextIndex = items.length - 1;
+              if (nextIndex === null) return;
+              event.preventDefault();
+              select(nextIndex, true);
+            }}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Field({
   label,
   value,

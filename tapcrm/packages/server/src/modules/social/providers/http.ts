@@ -16,6 +16,20 @@ export function string(value: unknown): string {
 export function number(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : Number(value) || 0;
 }
+/** A website a platform reports for a Page or company, as an absolute http(s) URL, or ''.
+ * Facebook may list several space-separated sites and often omits the scheme. */
+export function websiteUrl(value: unknown): string {
+  const first = string(value).trim().split(/\s+/)[0] ?? '';
+  if (!first || first.length > 2048) return '';
+  try {
+    const url = new URL(/^https?:\/\//i.test(first) ? first : `https://${first}`);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname.includes('.'))
+      return '';
+    return url.href;
+  } catch {
+    return '';
+  }
+}
 export function requiredId(value: unknown): string {
   const id = string(value);
   if (!id)
@@ -87,6 +101,22 @@ export function validateCommon(content: SocialContent, maxCaption: number): stri
 
 export function assertValid(errors: string[]): void {
   if (errors.length) throw new ProviderError('POST_INVALID', errors.join(' '));
+}
+
+/** A video upload outlasts an API call: ten minutes covers the largest file the CRM
+ * accepts on a slow connection. */
+export function uploadSignal(): AbortSignal {
+  return AbortSignal.timeout(10 * 60_000);
+}
+
+/** The bytes CRM storage loaded for a media item; adapters never download a URL. */
+export function mediaBytes(media: { bytes?: Uint8Array }): Uint8Array {
+  if (!media.bytes?.length)
+    throw new ProviderError(
+      'MEDIA_BYTES_REQUIRED',
+      'The media must be loaded from CRM storage before publishing.',
+    );
+  return media.bytes;
 }
 
 export function bearer(token: string): Record<string, string> {

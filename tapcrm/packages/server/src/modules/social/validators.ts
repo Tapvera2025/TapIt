@@ -20,6 +20,18 @@ const link = z
     }
   }, 'Links must use HTTPS');
 const timestamp = z.string().datetime({ offset: true });
+/** One status, or several separated by commas (`draft,scheduled`); empty means all. */
+const statusFilter = z
+  .string()
+  .max(300)
+  .transform((value) =>
+    value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  )
+  .pipe(z.array(z.enum(SOCIAL_POST_STATUSES)).max(SOCIAL_POST_STATUSES.length))
+  .transform((values) => (values.length ? [...new Set(values)] : undefined));
 const filterDate = z.union([timestamp, z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]);
 const override = z
   .object({
@@ -27,7 +39,8 @@ const override = z
     title: z.string().max(500).optional(),
     link: z.union([link, z.literal('')]).optional(),
     mediaIds: ids.optional(),
-    postType: z.enum(['feed', 'story']).optional(),
+    postType: z.enum(['feed', 'story', 'reel']).optional(),
+    privacyStatus: z.enum(['public', 'unlisted', 'private']).optional(),
   })
   .strict();
 export const socialPostSchema = z
@@ -59,7 +72,7 @@ export const socialPostActionSchema = z
   .strict();
 export const socialPostQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
-  status: z.enum(SOCIAL_POST_STATUSES).optional(),
+  status: statusFilter.optional(),
   platform: z.enum(SOCIAL_PLATFORMS).optional(),
   from: filterDate.optional(),
   to: filterDate.optional(),

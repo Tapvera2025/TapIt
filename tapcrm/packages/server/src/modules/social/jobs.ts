@@ -102,6 +102,7 @@ async function contentForDestination(
     ...(row.title ? { title: row.title } : {}),
     ...(row.link ? { link: row.link } : {}),
     postType: row.postType,
+    ...(row.privacyStatus ? { privacyStatus: row.privacyStatus } : {}),
     media: items,
   };
 }

@@ -6,7 +6,7 @@ import { sql } from '../../platform/dal/sql.js';
 import type { RequestContext } from '../../platform/dal/context.js';
 import type { SeoJobPayload } from './types.js';
 import { importGscPerformance, gscSyncWindow, pruneGscMetrics } from './gsc-sync.js';
-import { googleAuthConfigured } from '../../platform/integrations/google/token.js';
+import { searchConsoleConnected } from '../social/facade.js';
 import { refreshCrux, refreshLighthouse } from './performance.js';
 import { checkSiteRanks } from './rank-tracking.js';
 import { harvestKeywordsFromGsc } from './gsc-keywords.js';
@@ -74,10 +74,10 @@ async function forEachSite(
   ctx: RequestContext,
   job: string,
   targetSiteId: string | undefined,
-  work: (site: { id: string; displayUrl: string; normalizedHost: string; scopePath: string | null }) => Promise<number>,
+  work: (site: { id: string; clientId: string | null; displayUrl: string; normalizedHost: string; scopePath: string | null }) => Promise<number>,
 ): Promise<RunOutcome> {
-  const sites = await db.query<{ id: string; displayUrl: string; normalizedHost: string; scopePath: string | null }>(ctx, sql`
-    SELECT id, display_url, normalized_host, scope_path FROM seo_sites
+  const sites = await db.query<{ id: string; clientId: string | null; displayUrl: string; normalizedHost: string; scopePath: string | null }>(ctx, sql`
+    SELECT id, client_id, display_url, normalized_host, scope_path FROM seo_sites
     WHERE organization_id = ${ctx.organizationId} AND active = true
       AND (${targetSiteId ?? null}::uuid IS NULL OR id = ${targetSiteId ?? null}::uuid)
   `);
@@ -233,12 +233,14 @@ export function registerSeoJobs(): void {
     attempts: 3,
     backoffMs: 5 * 60_000,
     handler: async ({ ctx, payload }) => {
-      if (!googleAuthConfigured()) return { itemsProcessed: 0 };
+      // Only an organization with its own Google login (or the shared login's one
+      // organization) has anything to import.
+      if (!(await searchConsoleConnected(ctx))) return { itemsProcessed: 0 };
       return forEachSite(ctx, 'seo:gsc_sync', (payload as SeoJobPayload | undefined)?.siteId, async (site) => {
         // A full 90-day import once, then only the last few days, which
         // Search Console still revises.
         const window = await gscSyncWindow(ctx, site.id);
-        const result = await importGscPerformance(ctx, site.id, site.displayUrl, window.startDate, window.endDate);
+        const result = await importGscPerformance(ctx, site.id, site.displayUrl, window.startDate, window.endDate, site.clientId);
         await pruneGscMetrics(ctx, site.id);
         // Top queries become suggested search terms (only a few are tracked automatically).
         await harvestKeywordsFromGsc(ctx, site.id);

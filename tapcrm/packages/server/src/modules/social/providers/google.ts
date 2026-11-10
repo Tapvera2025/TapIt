@@ -13,6 +13,7 @@ import {
   string,
   tokenFromResponse,
   unsupported,
+  uploadSignal,
   validateCommon,
 } from './http.js';
 import {
@@ -27,6 +28,7 @@ import {
   type PublishedPost,
   type ProviderIdentity,
   type PublishInput,
+  type SearchConsoleProperty,
   type SocialContent,
   type SocialProvider,
 } from './types.js';
@@ -45,17 +47,32 @@ const YOUTUBE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.readonly',
   'https://www.googleapis.com/auth/yt-analytics.readonly',
 ];
+/** Read-only: listing properties and reading their search reports. */
+export const SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
+const PROPERTY_LEVELS: readonly SearchConsoleProperty['permissionLevel'][] = [
+  'siteOwner',
+  'siteFullUser',
+  'siteRestrictedUser',
+];
 
 export class GoogleProvider implements SocialProvider {
   readonly supportsPkce = true;
   readonly capabilities: ProviderCapabilities;
   private readonly scopes: string[];
+  private readonly requiredScopes: string[];
 
+  /** `searchConsole`: a company Business Profile sign-in also asks to read Search
+   * Console. That permission is optional: declining it still connects the profiles. */
   constructor(
     readonly platform: 'google_business' | 'youtube',
     private readonly config: ProviderConfig,
+    options: { searchConsole?: boolean } = {},
   ) {
-    this.scopes = platform === 'youtube' ? YOUTUBE_SCOPES : BUSINESS_SCOPES;
+    this.requiredScopes = platform === 'youtube' ? YOUTUBE_SCOPES : BUSINESS_SCOPES;
+    this.scopes =
+      platform === 'google_business' && options.searchConsole
+        ? [...BUSINESS_SCOPES, SEARCH_CONSOLE_SCOPE]
+        : this.requiredScopes;
     this.capabilities = {
       publishText: platform === 'google_business',
       publishImages: platform === 'google_business',
@@ -114,8 +131,8 @@ export class GoogleProvider implements SocialProvider {
         code_verifier: input.codeVerifier,
       }),
     });
-    const credentials = tokenFromResponse(result.data, this.scopes);
-    if (!this.scopes.every((scope) => credentials.scopes.includes(scope)))
+    const credentials = tokenFromResponse(result.data, this.requiredScopes);
+    if (!this.requiredScopes.every((scope) => credentials.scopes.includes(scope)))
       throw new ProviderError(
         'OAUTH_PERMISSIONS_MISSING',
         'Required Google permissions were not granted. Reconnect and grant all required permissions.',
@@ -143,6 +160,9 @@ export class GoogleProvider implements SocialProvider {
   }
 
   async getAuthorizedIdentity(credentials: OAuthCredential): Promise<ProviderIdentity> {
+    // A YouTube sign-in is for one channel, chosen on Google's screen: a Brand
+    // Account channel is its own Google identity. The channel is what is connected.
+    if (this.platform === 'youtube') return this.channelIdentity(credentials);
     const result = await request('https://openidconnect.googleapis.com/v1/userinfo', {
       headers: bearer(credentials.accessToken),
     });
@@ -154,6 +174,48 @@ export class GoogleProvider implements SocialProvider {
       );
     const email = string(result.data['email']).slice(0, 320);
     return { externalAccountId, ...(email ? { email } : {}) };
+  }
+
+  private async channelIdentity(credentials: OAuthCredential): Promise<ProviderIdentity> {
+    const url = new URL('https://www.googleapis.com/youtube/v3/channels');
+    url.search = form({ mine: 'true', part: 'id,snippet', maxResults: '1' }).toString();
+    const result = await request(url, { headers: bearer(credentials.accessToken) });
+    const channel = array(result.data['items'])[0] ?? {};
+    const externalAccountId = string(channel['id']);
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(externalAccountId))
+      throw new ProviderError(
+        'YOUTUBE_CHANNEL_MISSING',
+        'This Google account has no YouTube channel. Sign in again and choose the channel to connect.',
+      );
+    const name = string(object(channel['snippet'])['title']).trim().slice(0, 200);
+    return { externalAccountId, ...(name ? { name } : {}) };
+  }
+
+  /** Verified properties only: an unverified user cannot read a property's reports. */
+  async listSearchConsoleProperties(
+    credentials: OAuthCredential,
+  ): Promise<SearchConsoleProperty[]> {
+    if (!credentials.scopes.includes(SEARCH_CONSOLE_SCOPE)) return [];
+    const result = await request('https://www.googleapis.com/webmasters/v3/sites', {
+      headers: bearer(credentials.accessToken),
+    });
+    const properties: SearchConsoleProperty[] = [];
+    const seen = new Set<string>();
+    for (const entry of array(result.data['siteEntry'])) {
+      const siteUrl = string(entry['siteUrl']);
+      const level = PROPERTY_LEVELS.find((item) => item === entry['permissionLevel']);
+      if (!level || seen.has(siteUrl) || siteUrl.length > 2048) continue;
+      if (!/^sc-domain:[a-z0-9.-]+$/i.test(siteUrl)) {
+        try {
+          if (!['http:', 'https:'].includes(new URL(siteUrl).protocol)) continue;
+        } catch {
+          continue;
+        }
+      }
+      seen.add(siteUrl);
+      properties.push({ siteUrl, permissionLevel: level });
+    }
+    return properties;
   }
 
   async discoverAccounts(credentials: OAuthCredential): Promise<DiscoveredAccount[]> {
@@ -381,7 +443,7 @@ export class GoogleProvider implements SocialProvider {
           'Content-Length': String(media.bytes.byteLength),
         },
         body: Buffer.from(media.bytes),
-        signal: AbortSignal.timeout(120_000),
+        signal: uploadSignal(),
       },
       true,
     );

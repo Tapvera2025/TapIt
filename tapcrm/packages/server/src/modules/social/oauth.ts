@@ -1,7 +1,11 @@
 import { randomBytes, createHash } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { SocialCompanyConnection, SocialCompanyPlatform } from '@tapcrm/contracts';
+import {
+  SOCIAL_COMPANY_PLATFORMS,
+  type SocialCompanyConnection,
+  type SocialCompanyPlatform,
+} from '@tapcrm/contracts';
 import { ApplicationError } from '../../errors.js';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
@@ -14,13 +18,17 @@ import {
   socialBaseUrl,
   type CredentialContext,
 } from './security.js';
-import { getProvider, listProviderReadiness } from './providers/index.js';
+import {
+  getCompanyProvider,
+  getProvider,
+  listProviderReadiness,
+} from './providers/index.js';
 import {
   SOCIAL_PLATFORMS,
   type DiscoveredAccount,
   type SocialPlatform,
 } from './providers/types.js';
-import { saveCompanyConnection } from './company.js';
+import { discoverCompanyAssets, saveCompanyConnection } from './company.js';
 import { saveConnectionAccounts } from './service.js';
 
 const context = { organizationId: 'oauth', clientId: 'oauth', platform: 'oauth' };
@@ -84,14 +92,30 @@ function checkBrowser(req: Request, state: string): void {
     );
 }
 
-/** Starts a platform sign-in for one client, or for the whole company (`clientId` null). */
+function companyPlatform(platform: SocialPlatform): SocialCompanyPlatform {
+  const match = SOCIAL_COMPANY_PLATFORMS.find((item) => item === platform);
+  if (!match)
+    throw new ApplicationError(
+      'This platform cannot be connected for the whole company.',
+      422,
+      'SOCIAL_COMPANY_UNSUPPORTED',
+    );
+  return match;
+}
+
+/** Starts a platform sign-in for one client, or for the whole company (`clientId` null).
+ * A company sign-in asks for what the company provider lists: a Meta login asks for its
+ * Pages and their Instagram accounts, a Google login also for Search Console. */
 export async function startOAuth(
   ctx: RequestContext,
   clientId: string | null,
   platform: SocialPlatform,
   res: Response,
 ) {
-  const provider = getProvider(platform);
+  const provider =
+    clientId === null
+      ? getCompanyProvider(companyPlatform(platform))
+      : getProvider(platform);
   const state = encryptCredentials<State>(
     {
       organizationId: ctx.organizationId,
@@ -269,7 +293,7 @@ export async function completeCompanyOAuth(
     consumed.verifierEncrypted,
     verifierContext(ctx.organizationId, null, platform, stateHash),
   );
-  const provider = getProvider(platform);
+  const provider = getCompanyProvider(platform);
   try {
     if (!provider.getAuthorizedIdentity)
       throw new ApplicationError(
@@ -283,13 +307,14 @@ export async function completeCompanyOAuth(
       ...(provider.supportsPkce ? { codeVerifier: verifier } : {}),
     });
     const identity = await provider.getAuthorizedIdentity(credentials);
-    const locations = await provider.discoverAccounts(credentials);
+    const discovery = await discoverCompanyAssets(platform, credentials);
     const connection = await saveCompanyConnection(
       ctx,
       platform,
       credentials,
       identity,
-      locations,
+      discovery.assets,
+      discovery.warning,
     );
     await db.query(
       ctx,

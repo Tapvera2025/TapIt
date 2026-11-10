@@ -36,10 +36,14 @@
       0 14px 34px -24px rgba(2, 8, 23, 0.82);
   }
 
-  .page-toolbar {
+  .ui-page-header {
     display: flex;
-    align-items: flex-end;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: 1rem;
     padding: 1.25rem 1.5rem;
     border: 1px solid color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
@@ -48,6 +52,25 @@
       linear-gradient(120deg, color-mix(in srgb, var(--theme-primary) 7%, transparent), transparent 48%),
       color-mix(in srgb, var(--app-surface) 76%, transparent);
     box-shadow: inset 0 1px 0 color-mix(in srgb, white 35%, transparent);
+  }
+
+  .ui-page-header-copy {
+    flex: 1 1 28rem;
+    min-width: 0;
+  }
+
+  .ui-page-header-action {
+    display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .ui-page-header-action > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .dark .ui-glass-surface {
@@ -61,12 +84,30 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
-  .dark .page-toolbar {
+  .dark .ui-page-header {
     border-color: color-mix(in srgb, var(--theme-primary) 20%, var(--app-border));
     background:
       linear-gradient(120deg, color-mix(in srgb, var(--theme-primary) 14%, transparent), transparent 52%),
       color-mix(in srgb, var(--app-surface) 88%, transparent);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  }
+
+  @media (max-width: 768px) {
+    .ui-page-header {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 0.875rem;
+      padding: 1rem;
+    }
+
+    .ui-page-header-action {
+      width: 100%;
+      justify-content: stretch;
+    }
+
+    .ui-page-header-action > .ui-button {
+      width: 100%;
+    }
   }
 
   .ui-button {
@@ -89,6 +130,71 @@
   .ui-button:focus-visible {
     outline: 2px solid var(--theme-primary);
     outline-offset: 2px;
+  }
+
+  .ui-segmented-tabs {
+    display: flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    overflow-x: auto;
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--app-surface) 78%, var(--app-background));
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+
+  .ui-segmented-tabs.is-scrollable {
+    flex-wrap: nowrap;
+  }
+
+  .ui-segmented-tabs:not(.is-scrollable) {
+    flex-wrap: wrap;
+  }
+
+  .ui-segmented-tab {
+    display: inline-flex;
+    min-height: 2.5rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    background: transparent;
+    color: var(--app-muted);
+    font-size: 0.8125rem;
+    font-weight: 650;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .ui-segmented-tab:hover:not([aria-selected='true']) {
+    color: var(--app-foreground);
+    background: color-mix(in srgb, var(--theme-primary) 8%, transparent);
+  }
+
+  .ui-segmented-tab[aria-selected='true'] {
+    border-color: color-mix(in srgb, var(--theme-primary) 42%, transparent);
+    background: var(--app-gradient);
+    color: var(--app-on-accent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 24%, transparent), 0 5px 13px -10px color-mix(in srgb, var(--theme-primary) 85%, transparent);
+  }
+
+  .ui-segmented-tab:focus-visible {
+    outline: 2px solid var(--theme-primary);
+    outline-offset: 2px;
+  }
+
+  .ui-segmented-tabs.is-compact .ui-segmented-tab {
+    min-height: 2.25rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
   }
 
   .ui-form-control {
@@ -136,6 +242,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .ui-button,
+    .ui-segmented-tab,
     .ui-form-control,
     .ui-progress-ring circle {
       transition: none;

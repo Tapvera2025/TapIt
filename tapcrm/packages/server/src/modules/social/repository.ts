@@ -14,7 +14,7 @@ import { notify } from '../notifications/facade.js';
 
 const POST = sql`SELECT p.*, ARRAY(SELECT media_id FROM social_post_media pm WHERE pm.organization_id=p.organization_id AND pm.client_id=p.client_id AND pm.post_id=p.id ORDER BY position) AS shared_media_ids, u.full_name AS created_by_name FROM social_post p JOIN app_user u ON u.organization_id = p.organization_id AND u.id = p.created_by`;
 // An account's connection is either its client's own or the company's (client_id NULL).
-const ACCOUNT = sql`SELECT a.*, c.scopes, c.credentials_encrypted, c.expires_at, c.client_id AS connection_client_id FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id`;
+const ACCOUNT = sql`SELECT a.*, c.scopes, c.credentials_encrypted, c.expires_at, c.client_id AS connection_client_id, c.platform AS connection_platform FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id`;
 const DESTINATION = sql`SELECT d.*, a.name AS account_name, a.platform, d.last_error AS error,
   ARRAY(SELECT dm.media_id FROM social_destination_media dm WHERE dm.organization_id = d.organization_id AND dm.client_id = d.client_id AND dm.destination_id = d.id ORDER BY dm.position) AS media_ids
   FROM social_post_destination d JOIN social_account a ON a.organization_id = d.organization_id AND a.client_id = d.client_id AND a.id = d.account_id`;
@@ -126,9 +126,10 @@ export async function queryPosts(
 ): Promise<{ rows: PostRow[]; total: number; page: number; pageSize: number }> {
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 25;
+  const statuses = query.status?.length ? [...query.status] : null;
   const clauses = sql`p.organization_id = ${ctx.organizationId} AND p.client_id = ${clientId}
     AND (${query.search ?? null}::text IS NULL OR p.caption ILIKE ${`%${query.search ?? ''}%`})
-    AND (${query.status ?? null}::text IS NULL OR p.status = ${query.status ?? null})
+    AND (${statuses}::text[] IS NULL OR p.status = ANY(${statuses}::text[]))
     AND (${query.from ?? null}::timestamptz IS NULL OR COALESCE(p.scheduled_at,p.published_at,p.created_at) >= ${query.from ?? null}::timestamptz)
     AND (${query.to ?? null}::timestamptz IS NULL OR COALESCE(p.scheduled_at,p.published_at,p.created_at) <= ${query.to ?? null}::timestamptz)
     AND (${query.platform ?? null}::text IS NULL OR EXISTS(SELECT 1 FROM social_post_destination d JOIN social_account a ON a.organization_id = d.organization_id AND a.client_id = d.client_id AND a.id = d.account_id WHERE d.organization_id = p.organization_id AND d.client_id = p.client_id AND d.post_id = p.id AND a.platform = ${query.platform ?? null}))`;

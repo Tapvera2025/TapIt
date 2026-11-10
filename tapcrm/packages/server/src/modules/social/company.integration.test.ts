@@ -27,6 +27,7 @@ const fake = vi.hoisted(() => ({
   publish: vi.fn(),
   revoke: vi.fn(),
   insights: vi.fn(),
+  properties: vi.fn(async () => []),
 }));
 vi.mock('./providers/index.js', () => {
   const capabilities = {
@@ -43,30 +44,33 @@ vi.mock('./providers/index.js', () => {
     message: 'TEST ONLY',
     capabilities,
   });
+  const provider = (platform: string) => ({
+    platform,
+    supportsPkce: true,
+    capabilities,
+    validatePost: () => [],
+    getAuthorizationUrl: ({
+      state,
+      codeChallenge,
+    }: {
+      state: string;
+      codeChallenge: string;
+    }) =>
+      `https://provider.test/authorize?${new URLSearchParams({ state, code_challenge: codeChallenge }).toString()}`,
+    exchangeCode: fake.exchange,
+    getAuthorizedIdentity: fake.identity,
+    discoverAccounts: fake.discover,
+    refreshCredentials: fake.refresh,
+    publishPost: fake.publish,
+    revoke: fake.revoke,
+    getAccountInsights: fake.insights,
+    listSearchConsoleProperties: fake.properties,
+  });
   return {
     getProviderReadiness: readiness,
     listProviderReadiness: () => ['google_business', 'facebook'].map(readiness),
-    getProvider: (platform: string) => ({
-      platform,
-      supportsPkce: true,
-      capabilities,
-      validatePost: () => [],
-      getAuthorizationUrl: ({
-        state,
-        codeChallenge,
-      }: {
-        state: string;
-        codeChallenge: string;
-      }) =>
-        `https://provider.test/authorize?${new URLSearchParams({ state, code_challenge: codeChallenge }).toString()}`,
-      exchangeCode: fake.exchange,
-      getAuthorizedIdentity: fake.identity,
-      discoverAccounts: fake.discover,
-      refreshCredentials: fake.refresh,
-      publishPost: fake.publish,
-      revoke: fake.revoke,
-      getAccountInsights: fake.insights,
-    }),
+    getProvider: provider,
+    getCompanyProvider: provider,
   };
 });
 
@@ -332,10 +336,15 @@ describe.skipIf(!enabled)('Company-wide Google Business Profile connections', ()
     const listed = await request(app).get(company).set(headers());
     expect(listed.status).toBe(200);
     expect(listed.body.data).toEqual([]);
-    // Only platforms that support a company sign-in are accepted.
+    // Only platforms that support a company sign-in are accepted. Instagram is
+    // connected through the company's Facebook login, never on its own.
     expect(
-      (await request(app).post(`${company}/oauth/facebook/start`).set(headers()).send({}))
-        .status,
+      (
+        await request(app)
+          .post(`${company}/oauth/instagram/start`)
+          .set(headers())
+          .send({})
+      ).status,
     ).toBe(422);
   });
 

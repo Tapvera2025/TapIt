@@ -12,8 +12,30 @@ import {
   type SocialMedia,
   type SocialPost,
   type SocialPostInput,
+  type SocialPostType,
+  type SocialPrivacyStatus,
   type SocialSettings,
 } from './types.js';
+
+/** Where a Facebook or Instagram destination places the post. */
+const PLACEMENTS: Partial<
+  Record<SocialAccount['platform'], { value: SocialPostType; label: string }[]>
+> = {
+  facebook: [
+    { value: 'feed', label: 'Feed post (photos, a video or a link)' },
+    { value: 'reel', label: 'Reel (one vertical video, 3–90 seconds)' },
+  ],
+  instagram: [
+    { value: 'feed', label: 'Feed post (a single video becomes a Reel)' },
+    { value: 'reel', label: 'Reel (one video)' },
+    { value: 'story', label: 'Story (one image or video)' },
+  ],
+};
+const VISIBILITY: { value: SocialPrivacyStatus; label: string }[] = [
+  { value: 'public', label: 'Public' },
+  { value: 'unlisted', label: 'Unlisted (anyone with the link)' },
+  { value: 'private', label: 'Private' },
+];
 
 export function Composer({
   clientId,
@@ -69,6 +91,8 @@ export function Composer({
           title: item.title ?? '',
           link: item.link ?? '',
           mediaIds: item.mediaIds,
+          postType: item.postType,
+          ...(item.privacyStatus ? { privacyStatus: item.privacyStatus } : {}),
         },
       ]) ?? [],
     ),
@@ -92,15 +116,24 @@ export function Composer({
     ...(link ? { link } : {}),
     accountIds,
     mediaIds: sharedMediaIds,
+    // A YouTube destination always says its visibility, so an upload is never
+    // private by accident.
     overrides: Object.fromEntries(
-      Object.entries(overrides)
-        .filter(([id]) => accountIds.includes(id))
-        .map(([id, override]) => [
-          id,
-          {
-            ...override,
-          },
-        ]),
+      accountIds.flatMap((id) => {
+        const override = overrides[id];
+        const youtube =
+          accounts.find((account) => account.id === id)?.platform === 'youtube';
+        if (!override && !youtube) return [];
+        return [
+          [
+            id,
+            {
+              ...override,
+              ...(youtube ? { privacyStatus: override?.privacyStatus ?? 'public' } : {}),
+            },
+          ],
+        ];
+      }),
     ),
     intent: 'draft',
   };
@@ -381,23 +414,41 @@ export function Composer({
                         }
                       />
                     )}
-                    {account.platform === 'instagram' && (
+                    {account.platform === 'youtube' && (
                       <Select
-                        label="Instagram placement"
+                        label="YouTube visibility"
+                        value={overrides[account.id]?.privacyStatus ?? 'public'}
+                        onChange={(value) =>
+                          setOverrides((current) => ({
+                            ...current,
+                            [account.id]: {
+                              ...current[account.id],
+                              privacyStatus:
+                                VISIBILITY.find((item) => item.value === value)?.value ??
+                                'public',
+                            },
+                          }))
+                        }
+                        options={VISIBILITY}
+                      />
+                    )}
+                    {PLACEMENTS[account.platform] && (
+                      <Select
+                        label={`${PLATFORM_LABELS[account.platform]} placement`}
                         value={overrides[account.id]?.postType ?? 'feed'}
                         onChange={(value) =>
                           setOverrides((current) => ({
                             ...current,
                             [account.id]: {
                               ...current[account.id],
-                              postType: value === 'story' ? 'story' : 'feed',
+                              postType:
+                                PLACEMENTS[account.platform]?.find(
+                                  (item) => item.value === value,
+                                )?.value ?? 'feed',
                             },
                           }))
                         }
-                        options={[
-                          { value: 'feed', label: 'Feed post / Reel' },
-                          { value: 'story', label: 'Story (one image or video)' },
-                        ]}
+                        options={PLACEMENTS[account.platform] ?? []}
                       />
                     )}
                     <Field

@@ -16,6 +16,11 @@ import {
   SocialEmpty,
   socialDate,
 } from './presentation.js';
+import {
+  SECTION_STATUSES,
+  sectionStatusPlaceholder,
+  sectionStatusQuery,
+} from './planner-model.js';
 import { scheduleInZone, scheduleToUtc } from './time.js';
 import {
   PLATFORM_LABELS,
@@ -74,11 +79,7 @@ export function Planner({
   const [selectedDate, setSelectedDate] = useState(today);
   const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
   const calendar = section === 'calendar';
-  const sectionStatus =
-    section === 'approvals'
-      ? 'pending_approval'
-      : status ||
-        (section === 'published' ? 'published' : section === 'drafts' ? 'draft' : '');
+  const sectionStatus = sectionStatusQuery(section, status);
 
   useEffect(() => {
     setPage(1);
@@ -270,14 +271,15 @@ export function Planner({
           />
           <Select
             label="Status"
-            value={sectionStatus}
+            value={section === 'approvals' ? 'pending_approval' : status}
             onChange={setStatus}
             disabled={section === 'approvals'}
+            placeholder={sectionStatusPlaceholder(section)}
             options={Object.entries(STATUS_LABELS)
               .filter(
                 ([value]) =>
-                  section !== 'drafts' ||
-                  ['draft', 'scheduled', 'approved', 'pending_approval'].includes(value),
+                  !SECTION_STATUSES[section] ||
+                  SECTION_STATUSES[section].some((item) => item === value),
               )
               .map(([value, label]) => ({ value, label }))}
           />

@@ -44,6 +44,10 @@ export function validateSocialPost(
     const images = selectedMedia.filter((item) => item.mimeType.startsWith('image/'));
     if (postType === 'story' && platform !== 'instagram')
       messages.push(`${label}: Stories are supported for Instagram destinations only.`);
+    if (postType === 'reel' && platform !== 'facebook' && platform !== 'instagram')
+      messages.push(`${label}: Reels are for Facebook and Instagram only.`);
+    if (postType === 'reel' && (videos.length !== 1 || images.length > 0))
+      messages.push(`${label}: a Reel is exactly one video.`);
     if (platform === 'instagram' && postType === 'story' && selectedMedia.length !== 1)
       messages.push(`${label}: Instagram Stories need exactly one image or video.`);
     if (caption.length > limits[platform])
@@ -58,8 +62,8 @@ export function validateSocialPost(
       messages.push(`${label}: select one MP4 video and no images.`);
     if (platform === 'youtube' && (!title.trim() || title.length > 100))
       messages.push(`${label}: add a video title of 1–100 characters.`);
-    if (platform !== 'instagram' && platform !== 'youtube' && videos.length)
-      messages.push(`${label}: video publishing is unavailable in this integration.`);
+    if (platform === 'google_business' && videos.length)
+      messages.push(`${label}: Business Profile posts take images only.`);
     if (videos.length > 1 || (videos.length && images.length))
       messages.push(`${label}: a video cannot be combined with other media.`);
     const maxMedia = platform === 'facebook' || platform === 'instagram' ? 10 : 1;

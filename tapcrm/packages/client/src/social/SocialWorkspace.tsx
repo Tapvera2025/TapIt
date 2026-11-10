@@ -75,7 +75,7 @@ export function SocialWorkspace({
   canConnect: boolean;
   canPublish: boolean;
   canSettings: boolean;
-  /** Connect the company's own Google account and assign its locations to clients. */
+  /** Connect the company's own logins and assign what they manage to clients. */
   canManageIntegrations: boolean;
 }): React.JSX.Element {
   const sectionPart =

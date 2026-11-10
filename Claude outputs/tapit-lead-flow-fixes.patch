@@ -1,0 +1,1269 @@
+diff --git a/tapcrm/migrations/0144_lead_phone_match_key.sql b/tapcrm/migrations/0144_lead_phone_match_key.sql
+new file mode 100644
+index 0000000..e2eef3b
+--- /dev/null
++++ b/tapcrm/migrations/0144_lead_phone_match_key.sql
+@@ -0,0 +1,48 @@
++-- =====================================================================
++-- 0144 — One duplicate-matching key for lead phone numbers
++--
++-- Website, ad and imported leads store lead.phone_normalized as the digits
++-- of the number's E.164 form ("919876543210"). Leads typed in by hand stored
++-- the bare digits of whatever was typed ("9876543210", "09876543210"), so
++-- the duplicate check on Add lead missed the same person entered another
++-- way. The app now stores the E.164 digits for typed leads too; this brings
++-- the existing ones into line with the same rule (normalizeLeadPhone):
++--
++--   "0091 98765 43210" -> drop the international prefix 00
++--   "98765 43210"      -> a 10-digit number takes India's code, 91
++--   "098765 43210"     -> so does 0 followed by 10 digits
++--
++-- Only keys that are still the bare digits of the typed number are touched,
++-- so a key an import built with another country code is left alone. The
++-- updated_at trigger is paused so the backfill does not count as activity
++-- on every lead (the stalled-lead sweep reads updated_at).
++-- =====================================================================
++
++ALTER TABLE lead DISABLE TRIGGER trg_lead_updated;
++
++WITH typed AS (
++  SELECT l.organization_id, l.id, d.digits
++    FROM lead l
++    CROSS JOIN LATERAL (SELECT regexp_replace(l.phone, '\D', '', 'g') AS digits) d
++   WHERE l.phone IS NOT NULL
++     AND btrim(l.phone) NOT LIKE '+%'
++     AND l.phone_normalized = d.digits
++), canonical AS (
++  SELECT organization_id, id, digits,
++         CASE
++           WHEN digits LIKE '00%'                           THEN substr(digits, 3)
++           WHEN length(digits) = 10                         THEN '91' || digits
++           WHEN length(digits) = 11 AND digits LIKE '0%'    THEN '91' || substr(digits, 2)
++           ELSE digits
++         END AS key
++    FROM typed
++)
++UPDATE lead l
++   SET phone_normalized = c.key
++  FROM canonical c
++ WHERE l.organization_id = c.organization_id
++   AND l.id = c.id
++   AND c.key <> c.digits
++   AND c.key ~ '^[1-9][0-9]{1,14}$';
++
++ALTER TABLE lead ENABLE TRIGGER trg_lead_updated;
+diff --git a/tapcrm/packages/client/src/company/CompanyWorkspace.tsx b/tapcrm/packages/client/src/company/CompanyWorkspace.tsx
+index 796a38c..948d87b 100644
+--- a/tapcrm/packages/client/src/company/CompanyWorkspace.tsx
++++ b/tapcrm/packages/client/src/company/CompanyWorkspace.tsx
+@@ -700,6 +700,7 @@ export function CompanyWorkspace({
+         <CallbackDetailPage
+           id={callbackDetail[1]!}
+           currentUserId={userId}
++          canManage={isSuperAdmin || canBeyondOwn('callbacks:edit')}
+           onBack={() => onNavigate('/company/sales/callbacks')}
+           onNavigate={onNavigate}
+         />
+@@ -741,11 +742,12 @@ export function CompanyWorkspace({
+           id={leadDetail[1]!}
+           currentUserId={userId}
+           organizationTimezone={organizationTimeZone}
+-          canReassign={canReassignLeadsFromUi}
++          canReassign={isSuperAdmin || canBeyondOwn('leads:reassign')}
+           canTransferSourcingCredit={isSuperAdmin}
+           canCreateDeal={isSuperAdmin || can('deals:create')}
+           canEditLead={isSuperAdmin || can('leads:edit')}
+           canViewCalls={canViewCalls}
++          canManageCallbacks={isSuperAdmin || canBeyondOwn('callbacks:edit')}
+           onBack={() => onNavigate('/company/sales/leads')}
+           onNavigate={onNavigate}
+         />
+diff --git a/tapcrm/packages/client/src/company/sales/leads/CallbackDetailPage.tsx b/tapcrm/packages/client/src/company/sales/leads/CallbackDetailPage.tsx
+index 7f836df..1c6e0e1 100644
+--- a/tapcrm/packages/client/src/company/sales/leads/CallbackDetailPage.tsx
++++ b/tapcrm/packages/client/src/company/sales/leads/CallbackDetailPage.tsx
+@@ -3,13 +3,13 @@ import { Button, Card, Page, Select, SkeletonDetail } from '../../../ui/index.js
+ import { callbackOutcome, getCallback, getCallbacks, getLead, updateCallback, type Lead, type LeadCallback } from './api.js';
+ import { callbackStatusLabel, formatCallbackDate, organizationLocalToIso, organizationNowLocal, sentenceLabel } from './callback-ui.js';
+ 
+-export function CallbackDetailPage({ id, currentUserId, onBack, onNavigate }: { id: string; currentUserId: string; onBack: () => void; onNavigate: (path: string) => void }): React.JSX.Element {
++export function CallbackDetailPage({ id, currentUserId, canManage = false, onBack, onNavigate }: { id: string; currentUserId: string; canManage?: boolean; onBack: () => void; onNavigate: (path: string) => void }): React.JSX.Element {
+   const [callback, setCallback] = useState<LeadCallback | null>(null); const [lead, setLead] = useState<Lead | null>(null); const [history, setHistory] = useState<LeadCallback[]>([]); const [rescheduleAt, setRescheduleAt] = useState(''); const [outcome, setOutcome] = useState('connected'); const [error, setError] = useState('');
+   const reload = () => getCallback(id).then(async (next) => { setCallback(next); const [nextLead, nextHistory] = await Promise.all([getLead(next.leadId), getCallbacks(next.leadId)]); setLead(nextLead); setHistory(nextHistory); }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load callback.'));
+   useEffect(() => { void reload(); }, [id]);
+   if (error) return <Page eyebrow="Sales" title="Callback"><p className="text-sm text-app-danger">{error}</p><Button className="mt-4" kind="secondary" onClick={onBack}>Back</Button></Page>;
+   if (!callback) return <Page eyebrow="Sales" title="Callback"><SkeletonDetail sections={2} /></Page>;
+-  const canOperate = callback.ownerId === currentUserId; const run = async (action: () => Promise<unknown>) => { try { await action(); setError(''); await reload(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Callback action failed.'); } };
++  const canOperate = callback.ownerId === currentUserId || canManage; const run = async (action: () => Promise<unknown>) => { try { await action(); setError(''); await reload(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Callback action failed.'); } };
+   return <Page eyebrow="Sales" title="Callback detail" description={lead ? `${lead.contactName} · Lead #${lead.leadNumber}` : `Lead ${callback.leadId}`} action={<div className="flex flex-wrap gap-2">{lead && <Button onClick={() => onNavigate(`/company/sales/leads/${lead.id}`)}>Open lead</Button>}<Button kind="secondary" onClick={onBack}>Back to callbacks</Button></div>}>
+     {error && <p className="mb-4 text-sm text-app-danger">{error}</p>}<div className="grid gap-6 lg:grid-cols-3"><Card className="lg:col-span-2"><div className="grid gap-4 sm:grid-cols-2"><Info label="Status" value={callbackStatusLabel(callback.status)} /><Info label="Owner" value={callback.ownerName ?? 'Unknown'} /><Info label="Scheduled" value={formatCallbackDate(callback.scheduledAt, callback.organizationTimezone)} /><Info label="Outcome" value={callback.outcome ? sentenceLabel(callback.outcome) : '—'} /><Info label="Reason" value={callback.reason ?? '—'} /><Info label="Reminder timezone" value={callback.organizationTimezone} /></div>{canOperate && callback.status === 'pending' && <div className="mt-6 space-y-3 border-t border-app-border pt-5"><div className="flex flex-wrap gap-2"><Button onClick={() => void run(() => callbackOutcome(callback.id, 'completed', outcome))}>Complete</Button><Button kind="secondary" onClick={() => void run(() => callbackOutcome(callback.id, 'not_reachable', 'not_reachable'))}>Not reachable</Button><Button kind="danger" onClick={() => void run(() => callbackOutcome(callback.id, 'cancelled'))}>Cancel</Button></div><Select label="Completion outcome" value={outcome} onChange={setOutcome} options={['connected', 'follow_up_required', 'converted', 'not_interested', 'other'].map((value) => ({ value, label: sentenceLabel(value) }))} /><div className="flex gap-2"><input type="datetime-local" aria-label="New callback time" min={organizationNowLocal(callback.organizationTimezone)} value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} className="rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm" /><Button kind="secondary" disabled={!rescheduleAt} onClick={() => void run(() => updateCallback(callback.id, { scheduledAt: organizationLocalToIso(rescheduleAt, callback.organizationTimezone) }))}>Reschedule</Button></div></div>}</Card><ReminderCard callback={callback} /><Card className="lg:col-span-3"><h2 className="font-display text-lg font-bold">Callback history</h2><div className="mt-4 space-y-2">{history.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()).map((item) => <button key={item.id} onClick={() => item.id !== callback.id && onNavigate(`/company/sales/callbacks/${item.id}`)} className={`block w-full rounded-lg border p-3 text-left text-sm ${item.id === callback.id ? 'border-app-accent' : 'border-app-border'}`}><span className="font-semibold">{formatCallbackDate(item.scheduledAt, item.organizationTimezone)}</span> · {callbackStatusLabel(item.status)}{item.parentCallbackId ? ' · rescheduled from previous callback' : ''}</button>)}</div></Card></div>
+   </Page>;
+diff --git a/tapcrm/packages/client/src/company/sales/leads/LeadDetailsPage.tsx b/tapcrm/packages/client/src/company/sales/leads/LeadDetailsPage.tsx
+index 96f974a..c813e21 100644
+--- a/tapcrm/packages/client/src/company/sales/leads/LeadDetailsPage.tsx
++++ b/tapcrm/packages/client/src/company/sales/leads/LeadDetailsPage.tsx
+@@ -13,7 +13,7 @@ import { isStillStalled, LEAD_ANCHORS, leadGuidance, leadSteps } from '../guide/
+ import { cannotOpen, mailHref, telHref, type GuideCommand } from '../guide/guidance.js';
+ import { SalesCoach, StepTracker, focusGuideTarget, useSalesGuide } from '../guide/SalesGuide.js';
+ 
+-export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canReassign = false, canTransferSourcingCredit = false, canCreateDeal = false, canEditLead = false, canViewCalls = false, onBack, onNavigate }: { id: string; currentUserId: string; organizationTimezone: string; canReassign?: boolean; canTransferSourcingCredit?: boolean; canCreateDeal?: boolean; canEditLead?: boolean; canViewCalls?: boolean; onBack: () => void; onNavigate?: (path: string) => void }): React.JSX.Element {
++export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canReassign = false, canTransferSourcingCredit = false, canCreateDeal = false, canEditLead = false, canViewCalls = false, canManageCallbacks = false, onBack, onNavigate }: { id: string; currentUserId: string; organizationTimezone: string; canReassign?: boolean; canTransferSourcingCredit?: boolean; canCreateDeal?: boolean; canEditLead?: boolean; canViewCalls?: boolean; canManageCallbacks?: boolean; onBack: () => void; onNavigate?: (path: string) => void }): React.JSX.Element {
+   const [lead, setLead] = useState<Lead | null>(null);
+   const [handovers, setHandovers] = useState<Handover[]>([]);
+   const [callbacks, setCallbacks] = useState<LeadCallback[]>([]);
+@@ -37,10 +37,20 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
+ 
+   useEffect(() => {
+     void reload();
+-    void getHandoverTargets(id).then(setTargets).catch(() => setTargets([]));
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [id]);
+ 
++  // Only the person on the call (the lead's current holder) can hand it over,
++  // so only they need the list of people who can take it.
++  const viewerHoldsLead = lead !== null && lead.currentHolderId === currentUserId;
++  useEffect(() => {
++    if (!viewerHoldsLead) {
++      setTargets([]);
++      return;
++    }
++    void getHandoverTargets(id).then(setTargets).catch(() => setTargets([]));
++  }, [id, viewerHoldsLead]);
++
+   useEffect(() => {
+     if (!canViewCalls || !lead?.phone || !normalizePhone(lead.phone)) {
+       setCalls([]);
+@@ -132,8 +142,8 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
+   const pendingCallback = callbacks.find((callback) => callback.status === 'pending');
+   const holderLabel = lead.currentHolderId === currentUserId ? 'You' : lead.currentHolderName;
+   const ownerLabel = lead.ownerId === currentUserId ? 'You' : lead.ownerName;
+-  const showHandover = handovers.length > 0 || (!closed && (isHolder || lead.ownerId === currentUserId));
+-  const showCallbacks = callbacks.length > 0 || (isHolder && !closed);
++  const showHandover = handovers.length > 0 || (!closed && isHolder);
++  const showCallbacks = callbacks.length > 0 || ((isHolder || lead.ownerId === currentUserId) && !closed);
+ 
+   return (
+     <Page eyebrow="Sales" title={lead.contactName} description={`Lead #${lead.leadNumber}${lead.companyName ? ` · ${lead.companyName}` : ''}`} action={action}>
+@@ -184,7 +194,7 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
+ 
+           <div className="space-y-5">
+             <div id={LEAD_ANCHORS.status} className="rounded-2xl"><LeadStatusPanel lead={lead} canEdit={canEditLead} onChanged={reload} /></div>
+-            {showCallbacks && <CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} onReload={reload} />}
++            {showCallbacks && <CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} canManage={canManageCallbacks} onReload={reload} />}
+             {showHandover && <HandoverPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} handovers={handovers} targets={targets} onReload={reload} />}
+           </div>
+ 
+@@ -256,14 +266,15 @@ function ContactLink({ href, children }: { href: string | null; children: ReactN
+   return href ? <a href={href} className="text-app-accent underline-offset-2 hover:underline">{children}</a> : <>{children}</>;
+ }
+ 
+-function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, onReload }: { lead: Lead; currentUserId: string; organizationTimezone: string; callbacks: LeadCallback[]; onReload: () => Promise<void> }): React.JSX.Element {
++function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, canManage, onReload }: { lead: Lead; currentUserId: string; organizationTimezone: string; callbacks: LeadCallback[]; canManage: boolean; onReload: () => Promise<void> }): React.JSX.Element {
+   const [scheduledAt, setScheduledAt] = useState('');
+   const [reason, setReason] = useState('');
+   const [error, setError] = useState('');
+   const isHolder = lead.currentHolderId === currentUserId;
+   const closed = isClosedLeadStatus(lead.status);
+   const hasOpenCallback = callbacks.some((callback) => callback.status === 'pending');
+-  const canSchedule = isHolder && !closed && !hasOpenCallback;
++  // The owner books follow-ups too, even while a colleague holds a live call.
++  const canSchedule = (isHolder || lead.ownerId === currentUserId) && !closed && !hasOpenCallback;
+   const run = async (action: () => Promise<unknown>, onDone?: () => void) => {
+     try {
+       await action();
+@@ -292,9 +303,11 @@ function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, o
+         <div key={callback.id} className="mt-4 border-t border-app-border pt-3 text-sm">
+           <p className="font-semibold">{formatCallbackDate(callback.scheduledAt, callback.organizationTimezone)} · {callbackStatusLabel(callback.status)}</p>
+           <p className="mt-1 text-xs text-app-muted">{callback.ownerId === currentUserId ? 'Yours' : `With ${callback.ownerName ?? 'someone else'}`}{callback.reason ? ` · ${callback.reason}` : ''}{callback.outcome ? ` · Outcome: ${sentenceLabel(callback.outcome)}` : ''}</p>
+-          {callback.status === 'pending' && callback.ownerId === currentUserId && (
++          {/* Its owner works it; a Supervisor / Team Lead / Sales Head whose reach
++              includes it can move or close it when the owner is away. */}
++          {callback.status === 'pending' && (callback.ownerId === currentUserId || canManage) && (
+             <div className="mt-2 space-y-2">
+-              <p className="text-xs text-app-muted">After the call, record how it went:</p>
++              <p className="text-xs text-app-muted">{callback.ownerId === currentUserId ? 'After the call, record how it went:' : `Handle it for ${callback.ownerName ?? 'its owner'} — record how it went, move it or cancel it:`}</p>
+               <div className="flex flex-wrap gap-2">
+                 <Button kind="secondary" onClick={() => void run(() => callbackOutcome(callback.id, 'completed', 'connected'))}>We spoke</Button>
+                 <Button kind="secondary" onClick={() => void run(() => callbackOutcome(callback.id, 'not_reachable', 'not_reachable'))}>Couldn’t reach them</Button>
+@@ -375,7 +388,7 @@ function HandoverPanel({ lead, currentUserId, organizationTimezone, handovers, t
+   const [callbackAt, setCallbackAt] = useState('');
+   const [error, setError] = useState('');
+   const isTerminal = lead.status === 'converted' || lead.status === 'closed_lost';
+-  const ownerCanOffer = (lead.currentHolderId === currentUserId || lead.ownerId === currentUserId) && !active && !isTerminal;
++  const ownerCanOffer = lead.currentHolderId === currentUserId && !active && !isTerminal;
+   const receiver = active?.toUserId === currentUserId;
+   const receivers = targets.filter((target) => target.id !== lead.currentHolderId);
+   const anyoneAvailable = receivers.some((target) => target.selectable);
+diff --git a/tapcrm/packages/client/src/company/sales/leads/LeadsPage.tsx b/tapcrm/packages/client/src/company/sales/leads/LeadsPage.tsx
+index 230a26c..7ac6905 100644
+--- a/tapcrm/packages/client/src/company/sales/leads/LeadsPage.tsx
++++ b/tapcrm/packages/client/src/company/sales/leads/LeadsPage.tsx
+@@ -20,6 +20,7 @@ export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, c
+   const [sourceOpen, setSourceOpen] = useState(false);
+   const [sourcesShown, setSourcesShown] = useState(false);
+   const [error, setError] = useState('');
++  const [notice, setNotice] = useState('');
+   const reload = () => Promise.all([getLeads(), getLeadSources(), getCampaigns()])
+     .then(([page, nextSources, nextCampaigns]) => { setItems(page.items); setSources(nextSources); setCampaigns(nextCampaigns); })
+     .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load leads.'))
+@@ -54,8 +55,24 @@ export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, c
+       {canViewImports && <LeadsViewTabs active="all" onNavigate={onNavigate} />}
+       {importOpen && <ImportLeadsWizard sources={sources} campaigns={campaigns} onClose={() => setImportOpen(false)} onDone={(importId) => { setImportOpen(false); onNavigate(`${IMPORTED_LEADS_PATH}?import=${importId}`); }} />}
+       {error && <p className="rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger">{error}</p>}
++      {notice && <p role="status" className="rounded-lg bg-app-accent/10 p-3 text-sm">{notice}</p>}
+       {duplicates.length > 0 && <Card className="border border-amber-500/40 bg-amber-500/10"><p className="font-semibold">Possible duplicate lead created</p><p className="mt-1 text-sm text-app-muted">Check these existing leads before you reach out: {duplicates.map((duplicate) => `#${duplicate.leadNumber}${duplicate.ownerName ? ` (${duplicate.ownerName})` : ''}`).join(', ')}.</p></Card>}
+-      {open && <AddLeadDrawer sources={sources} campaigns={campaigns} onClose={() => setOpen(false)} onCreated={(lead, dupes) => { setDuplicates(dupes); void reload(); if (!dupes.length) onNavigate(`/company/sales/leads/${lead.id}`); }} onOpenExisting={(leadId) => onNavigate(`/company/sales/leads/${leadId}`)} />}
++      {open && <AddLeadDrawer sources={sources} campaigns={campaigns} onClose={() => setOpen(false)} onCreated={(lead, dupes) => {
++        setDuplicates(dupes);
++        void reload();
++        // Open the lead only when it is yours to work. An inbound enquiry goes
++        // to whoever routing picks (or waits for an owner), which the person
++        // who typed it in may not be able to open.
++        const yours = lead.ownerId === currentUserId || lead.currentHolderId === currentUserId;
++        if (yours) {
++          setNotice('');
++          if (!dupes.length) onNavigate(`/company/sales/leads/${lead.id}`);
++        } else {
++          setNotice(lead.ownerId
++            ? `Lead #${lead.leadNumber} for ${lead.contactName} was added and went to ${lead.ownerName ?? 'a colleague'}.`
++            : `Lead #${lead.leadNumber} for ${lead.contactName} was added. Nobody is free to take it right now, so it is waiting for a manager to assign it.`);
++        }
++      }} onOpenExisting={(leadId) => onNavigate(`/company/sales/leads/${leadId}`)} />}
+       {sourceOpen && <SourceForm onCancel={() => setSourceOpen(false)} onSave={async (input) => { try { await createLeadSource(input); setSourceOpen(false); await reload(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to create source.'); } }} />}
+ 
+       {showSources && (
+diff --git a/tapcrm/packages/client/src/company/sales/leads/ReassignModal.tsx b/tapcrm/packages/client/src/company/sales/leads/ReassignModal.tsx
+index c9fb0bb..a8c0d3e 100644
+--- a/tapcrm/packages/client/src/company/sales/leads/ReassignModal.tsx
++++ b/tapcrm/packages/client/src/company/sales/leads/ReassignModal.tsx
+@@ -1,25 +1,43 @@
+ import { useEffect, useState } from 'react';
+ import { Button, Field } from '../../../ui/index.js';
+ import {
+-  getHandoverTargets,
++  getLeadAssignees,
+   reassignLead,
+-  type HandoverTarget,
+   type Lead,
++  type LeadAssignee,
++  type LeadAssigneeAvailability,
+ } from './api.js';
+ import {
+   hasFormProblems,
+   validateReassignForm,
+   type ReassignFormInput,
+ } from './reassign-helpers.js';
+-import { sentenceLabel } from './callback-ui.js';
+ 
+ /**
+- * Reassign a lead to a new owner (R1 plan step 1.15). The handover-
+- * targets endpoint already returns pool-eligible users resolved via
+- * the availability facade, so we reuse it rather than build a parallel
+- * `/eligible-agents` route.
++ * Reassign a lead to a new owner (R1 plan step 1.15). The list is everyone in
++ * Sales the caller can give the lead to; whether they are working right now is
++ * shown next to their name, not enforced, so a lead can be handed out before a
++ * shift or to cover a break or leave.
+  */
+ 
++const AVAILABILITY_LABEL: Record<LeadAssigneeAvailability, string> = {
++  working: 'working now',
++  on_break: 'on a break',
++  not_punched_in: 'not punched in',
++  on_leave: 'on leave',
++  on_holiday: 'on a holiday',
++  outside_shift: 'outside their shift',
++  unknown: 'status unknown',
++};
++
++function assigneeLabel(person: LeadAssignee): string {
++  const parts = [person.fullName, person.positionCode.replace(/^sales-/, '').replaceAll('-', ' ')];
++  if (person.poolName) parts.push(person.poolName);
++  parts.push(AVAILABILITY_LABEL[person.availability]);
++  parts.push(`${person.activeLeadCount} open lead${person.activeLeadCount === 1 ? '' : 's'}${person.atCapacity ? ' (at capacity)' : ''}`);
++  return parts.join(' · ');
++}
++
+ export function ReassignModal({
+   lead,
+   canTransferSourcingCredit,
+@@ -31,7 +49,7 @@ export function ReassignModal({
+   onClose: () => void;
+   onReassigned: (updated: Lead) => void;
+ }): React.JSX.Element {
+-  const [targets, setTargets] = useState<HandoverTarget[]>([]);
++  const [targets, setTargets] = useState<LeadAssignee[]>([]);
+   const [targetsError, setTargetsError] = useState<string | null>(null);
+   const [form, setForm] = useState<ReassignFormInput>({
+     newOwnerId: '',
+@@ -47,20 +65,20 @@ export function ReassignModal({
+ 
+   useEffect(() => {
+     let cancelled = false;
+-    getHandoverTargets(lead.id)
+-      .then((rows) => {
++    getLeadAssignees(lead.id)
++      .then((result) => {
+         if (!cancelled) {
+-          setTargets(rows.filter((row) => row.id !== lead.currentHolderId));
++          setTargets(result.items.filter((row) => row.id !== lead.ownerId));
+           setTargetsError(null);
+         }
+       })
+       .catch((cause: unknown) => {
+-        if (!cancelled) setTargetsError(cause instanceof Error ? cause.message : 'Could not load eligible agents.');
++        if (!cancelled) setTargetsError(cause instanceof Error ? cause.message : 'Could not load the people you can assign to.');
+       });
+     return () => {
+       cancelled = true;
+     };
+-  }, [lead.id, lead.currentHolderId]);
++  }, [lead.id, lead.ownerId]);
+ 
+   const problems = validateReassignForm(form);
+   const canSubmit = !submitting && !hasFormProblems(problems);
+@@ -131,16 +149,24 @@ export function ReassignModal({
+             }}
+             className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
+           >
+-            <option value="">Select an eligible agent</option>
++            <option value="">Choose who gets the lead</option>
+             {targets.map((target) => (
+-              <option key={target.id} value={target.id} disabled={!target.selectable}>
+-                {target.fullName} · {target.positionCode.replaceAll('-', ' ')} · {sentenceLabel(target.availability)}
++              <option key={target.id} value={target.id}>
++                {assigneeLabel(target)}
+               </option>
+             ))}
+           </select>
+           {touched.newOwnerId && problems.newOwnerId && (
+             <p className="mt-1 text-xs text-app-danger">{problems.newOwnerId}</p>
+           )}
++          {(() => {
++            const picked = targets.find((target) => target.id === form.newOwnerId);
++            return picked && picked.availability !== 'working' ? (
++              <p className="mt-1 text-xs font-normal text-app-muted">
++                {picked.fullName} is {AVAILABILITY_LABEL[picked.availability]}. The lead is theirs now and waits in their My Work.
++              </p>
++            ) : null;
++          })()}
+         </label>
+ 
+         <div className="mt-4">
+diff --git a/tapcrm/packages/client/src/company/sales/leads/api.ts b/tapcrm/packages/client/src/company/sales/leads/api.ts
+index 597a865..3a4c742 100644
+--- a/tapcrm/packages/client/src/company/sales/leads/api.ts
++++ b/tapcrm/packages/client/src/company/sales/leads/api.ts
+@@ -30,6 +30,10 @@ export function rescueFromTriage(leadId: string, input: { newOwnerId: string; re
+ export function returnTriageToPool(leadId: string): Promise<{ leadId: string }> { return identityRequest(`/api/leads/${encodeURIComponent(leadId)}/triage/return`, { method: 'POST' }); }
+ export function closeTriageLead(leadId: string, input: { reason: string; lossReason?: 'not_interested' | 'no_budget' | 'no_need' | 'competitor' | 'unqualified' | 'timing' | 'duplicate' | 'other' | 'unspecified' }): Promise<{ leadId: string }> { return identityRequest(`/api/leads/${encodeURIComponent(leadId)}/triage/close`, { method: 'POST', body: JSON.stringify(input) }); }
+ export function createLeadSource(input: { name: string; direction: LeadSource['direction'] }): Promise<LeadSource> { return identityRequest('/api/lead-sources', { method: 'POST', body: JSON.stringify(input) }); }
++export type LeadAssigneeAvailability = 'working' | 'on_break' | 'not_punched_in' | 'on_leave' | 'on_holiday' | 'outside_shift' | 'unknown';
++export interface LeadAssignee { id: string; fullName: string; positionCode: string; poolName: string | null; availability: LeadAssigneeAvailability; atCapacity: boolean; activeLeadCount: number; isCurrentOwner: boolean; }
++/** People in Sales the caller can give this lead to, with whether they are working now. */
++export function getLeadAssignees(leadId: string): Promise<{ items: LeadAssignee[] }> { return identityRequest(`/api/leads/${encodeURIComponent(leadId)}/assignees`); }
+ export function getHandoverTargets(leadId: string): Promise<HandoverTarget[]> { return identityRequest(`/api/handovers/targets?leadId=${encodeURIComponent(leadId)}`); }
+ export function getHandovers(leadId: string): Promise<Handover[]> { return identityRequest(`/api/handovers?leadId=${encodeURIComponent(leadId)}`); }
+ export function getAllHandovers(status = 'all'): Promise<Handover[]> { return identityRequest(`/api/handovers?status=${encodeURIComponent(status)}`); }
+diff --git a/tapcrm/packages/contracts/src/registry.generated.ts b/tapcrm/packages/contracts/src/registry.generated.ts
+index 92aab12..f478249 100644
+--- a/tapcrm/packages/contracts/src/registry.generated.ts
++++ b/tapcrm/packages/contracts/src/registry.generated.ts
+@@ -10,7 +10,7 @@
+  * Editing it by hand makes the build red, which is the point — the document is
+  * the source of truth, not the code.
+  *
+- * Actions: 238   Bindings: 721
++ * Actions: 238   Bindings: 722
+  */
+ 
+ import type { ActionDefinition, ActionBinding } from './registry.types.js';
+@@ -4306,6 +4306,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
+   { method: 'POST', path: '/api/leads/import', action: 'leads:create', resourceParam: null },
+   { method: 'PATCH', path: '/api/leads/:id', action: 'leads:edit', resourceParam: 'id' },
+   { method: 'POST', path: '/api/leads/:id/close-lost', action: 'leads:edit', resourceParam: 'id' },
++  { method: 'GET', path: '/api/leads/:id/assignees', action: 'leads:reassign', resourceParam: 'id' },
+   { method: 'POST', path: '/api/leads/:id/reassign', action: 'leads:reassign', resourceParam: 'id' },
+   { method: 'POST', path: '/api/leads/bulk-reassign', action: 'leads:reassign', resourceParam: null },
+   { method: 'POST', path: '/api/leads/:id/reassign-with-credit', action: 'leads:reassign-with-credit', resourceParam: 'id' },
+diff --git a/tapcrm/packages/server/src/modules/sales/handover/service.ts b/tapcrm/packages/server/src/modules/sales/handover/service.ts
+index 552aa32..520d0e9 100644
+--- a/tapcrm/packages/server/src/modules/sales/handover/service.ts
++++ b/tapcrm/packages/server/src/modules/sales/handover/service.ts
+@@ -161,7 +161,13 @@ export async function recordLeadHandoverDisposition(ctx: RequestContext, id: str
+     if (!await recordHandoverDisposition(tx, ctx.organizationId, id, input.disposition, input.reason ?? null, input.annotations ?? {})) throw new HandoverConflictError(HANDOVER_ERROR_CODES.FINALIZED, 'This handover has already received a final disposition');
+     if (input.disposition === 'rejected' && !await closeLeadAsLostInTransaction(tx, ctx.organizationId, existing.leadId, input.lossReason!)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'The Lead cannot be closed as lost in its current lifecycle state');
+     if (input.disposition === 'rejected') await cancelOpenCallbacksInTransaction(tx, ctx, existing.leadId, 'lead_closed_lost');
+-    if (input.disposition === 'callback') { await tx.query(sql`UPDATE lead SET status = 'callback_scheduled' WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId}`); await scheduleCallbackInTransaction(tx, ctx, existing.leadId, input.scheduledAt!, input.reason ?? null, ctx.principal.id); }
++    if (input.disposition === 'callback') {
++      await tx.query(sql`UPDATE lead SET status = 'callback_scheduled' WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId}`);
++      await scheduleCallbackInTransaction(tx, ctx, existing.leadId, input.scheduledAt!, input.reason ?? null, ctx.principal.id);
++      // The live call is over and the follow-up is the owner's, so the lead goes
++      // back to them: they can book the next callback or hand over again.
++      await tx.query(sql`UPDATE lead SET current_holder_id = owner_id WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId} AND owner_id IS NOT NULL`);
++    }
+     const event = input.disposition === 'rejected' ? 'lead.closed_lost' : input.disposition === 'callback' ? 'callback.requested' : 'deal.creation_requested';
+     await insertActivity(tx, ctx.organizationId, existing.leadId, event, ctx.principal.id, { handoverId: id, disposition: input.disposition, reason: input.reason ?? null, lossReason: input.lossReason ?? null });
+     await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.disposition_recorded', ctx.principal.id, { handoverId: id, disposition: input.disposition });
+diff --git a/tapcrm/packages/server/src/modules/sales/intake/service.ts b/tapcrm/packages/server/src/modules/sales/intake/service.ts
+index 3b68815..4390afd 100644
+--- a/tapcrm/packages/server/src/modules/sales/intake/service.ts
++++ b/tapcrm/packages/server/src/modules/sales/intake/service.ts
+@@ -26,6 +26,7 @@ import type { RequestContext } from '../../../platform/dal/context.js';
+ import { db } from '../../../platform/dal/db.js';
+ import { enterBidPool, getBidCard, announceBidPoolAdded } from '../bidding/service.js';
+ import { dedupeAndIdentify } from './dedupe.js';
++import { normalizeLeadPhone } from '../leads/normalization.js';
+ import {
+   findConnector,
+   findOrInsertCompanyByName,
+@@ -133,7 +134,9 @@ export async function ingest(ctx: RequestContext, payload: IntakePayload): Promi
+     }
+ 
+     const { contact } = validation;
+-    const phoneNormalized = digitsOnlyPhone(contact.phoneE164 ?? contact.phoneRaw);
++    // Same matching key as a lead typed in by hand, so the duplicate check
++    // finds a website or imported lead from the number an agent types.
++    const phoneNormalized = contact.phoneE164 ? digitsOnlyPhone(contact.phoneE164) : normalizeLeadPhone(contact.phoneRaw);
+     const emailNormalized = legacyEmailNormalized(contact.email);
+ 
+     // Step 5 (company): resolve or create a company when the payload names one.
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/assignees.ts b/tapcrm/packages/server/src/modules/sales/leads/assignees.ts
+new file mode 100644
+index 0000000..ff18632
+--- /dev/null
++++ b/tapcrm/packages/server/src/modules/sales/leads/assignees.ts
+@@ -0,0 +1,110 @@
++/**
++ * Who a lead can be given to, for the Reassign / Assign an owner dialog.
++ *
++ * Anyone active in Sales within the caller's reach can take a lead: a
++ * Supervisor's pool, a Team Lead's team and its pools, a Sales Head's whole
++ * department. Whether they are working right now is shown, not enforced —
++ * leads are often handed out before a shift, or to cover someone on a break
++ * or on leave (the same rule as handing out imported leads).
++ */
++import { effectivePolicy } from '@tapcrm/authz';
++import { globalAccess } from '@tapcrm/contracts';
++import type { RequestContext } from '../../../platform/dal/context.js';
++import { db, type Tx } from '../../../platform/dal/db.js';
++import { sql } from '../../../platform/dal/sql.js';
++import { scopeResolver } from '../../../platform/authz-adapter.js';
++import { evaluateAvailability } from '../../../platform/availability/service.js';
++import type { EligibilityReason } from '../../../platform/availability/types.js';
++
++export const SALES_POSITION_CODES = ['sales-head', 'sales-team-lead', 'sales-supervisor', 'sales-agent'] as const;
++
++export type AssigneeAvailability = 'working' | 'on_break' | 'not_punched_in' | 'on_leave' | 'on_holiday' | 'outside_shift' | 'unknown';
++
++export interface LeadAssignee {
++  readonly id: string;
++  readonly fullName: string;
++  readonly positionCode: string;
++  readonly poolName: string | null;
++  readonly availability: AssigneeAvailability;
++  readonly atCapacity: boolean;
++  readonly activeLeadCount: number;
++  readonly isCurrentOwner: boolean;
++}
++
++export interface AssigneeHome {
++  readonly id: string;
++  readonly poolId: string | null;
++  readonly teamId: string | null;
++}
++
++/** An active person in Sales, with the pool and Sales Team a lead of theirs belongs to. */
++export async function loadSalesAssignee(tx: Tx, organizationId: string, userId: string): Promise<AssigneeHome | null> {
++  return tx.maybeOne<AssigneeHome>(sql`
++    SELECT u.id, u.team_id AS "poolId",
++           CASE WHEN u.team_id IS NULL THEN NULL ELSE COALESCE(t.parent_team_id, u.team_id) END AS "teamId"
++      FROM app_user u
++      LEFT JOIN team t ON t.organization_id = u.organization_id AND t.id = u.team_id
++      LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
++      LEFT JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
++     WHERE u.organization_id = ${organizationId} AND u.id = ${userId}
++       AND u.account_type = 'employee' AND u.status = 'active'
++       AND (d.code = 'sales' OR p.code = ANY(${[...SALES_POSITION_CODES]}::text[]))
++  `);
++}
++
++function availabilityOf(reasons: readonly EligibilityReason[]): AssigneeAvailability {
++  for (const reason of ['on_leave', 'on_holiday', 'on_break', 'not_punched_in', 'outside_shift'] as const) {
++    if (reasons.includes(reason)) return reason;
++  }
++  return reasons.includes('service_unavailable') ? 'unknown' : 'working';
++}
++
++export async function listLeadAssignees(ctx: RequestContext, leadId: string): Promise<LeadAssignee[]> {
++  const lead = await db.maybeOne<{ ownerId: string | null }>(ctx, sql`
++    SELECT owner_id AS "ownerId" FROM lead WHERE organization_id = ${ctx.organizationId} AND id = ${leadId}
++  `);
++  if (!lead) return [];
++
++  let reach = sql`TRUE`;
++  if (!globalAccess(ctx.principal)) {
++    const policy = await effectivePolicy(ctx, 'leads:reassign');
++    const scope = policy?.allowed ? policy.scope : null;
++    const authz = { ...ctx, scope: scopeResolver };
++    if (scope === 'pool') reach = sql`u.team_id = ANY(${[...(await scopeResolver.poolIds(authz))]}::uuid[])`;
++    else if (scope === 'team') reach = sql`u.team_id = ANY(${[...(await scopeResolver.teamIds(authz))]}::uuid[])`;
++    else if (scope === 'department') reach = sql`u.department_id = ${await scopeResolver.departmentId(authz)}`;
++    else reach = sql`u.id = ${ctx.principal.id}`;
++  }
++
++  const people = await db.query<{ id: string; fullName: string; positionCode: string; poolName: string | null }>(ctx, sql`
++    SELECT u.id, u.full_name AS "fullName", p.code AS "positionCode", t.name AS "poolName"
++      FROM app_user u
++      JOIN position p ON p.organization_id = u.organization_id AND p.id = u.position_id
++      LEFT JOIN team t ON t.organization_id = u.organization_id AND t.id = u.team_id
++      LEFT JOIN department d ON d.organization_id = u.organization_id AND d.id = u.department_id
++     WHERE u.organization_id = ${ctx.organizationId}
++       AND u.account_type = 'employee' AND u.status = 'active'
++       AND (d.code = 'sales' OR p.code = ANY(${[...SALES_POSITION_CODES]}::text[]))
++       AND ${reach}
++     ORDER BY u.full_name
++  `);
++  if (people.length === 0) return [];
++
++  const availability = new Map((await evaluateAvailability(ctx, people.map((person) => person.id), { pool: 'direct' }))
++    .map((result) => [result.userId, result]));
++  const rank: Record<AssigneeAvailability, number> = {
++    working: 0, on_break: 1, outside_shift: 2, not_punched_in: 3, unknown: 4, on_holiday: 5, on_leave: 6,
++  };
++  return people
++    .map((person) => {
++      const result = availability.get(person.id);
++      return {
++        ...person,
++        availability: result ? availabilityOf(result.reasons) : 'unknown' as const,
++        atCapacity: result?.reasons.includes('at_capacity') ?? false,
++        activeLeadCount: result?.activeLeadCount ?? 0,
++        isCurrentOwner: person.id === lead.ownerId,
++      };
++    })
++    .sort((a, b) => rank[a.availability] - rank[b.availability] || a.activeLeadCount - b.activeLeadCount || a.fullName.localeCompare(b.fullName));
++}
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/callback-automation.test.ts b/tapcrm/packages/server/src/modules/sales/leads/callback-automation.test.ts
+index f3341a0..b92b469 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/callback-automation.test.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/callback-automation.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from 'vitest';
+-import { reminderAt, selectSalesSupervisor } from './callback-automation.js';
++import { reminderAt, reminderToSend, selectSalesSupervisor } from './callback-automation.js';
+ 
+ describe('callback reminder timing', () => {
+   it('generates the three reminder instants from the persisted callback instant', () => {
+@@ -10,6 +10,38 @@ describe('callback reminder timing', () => {
+   });
+ });
+ 
++describe('which callback reminder to send', () => {
++  const callback = new Date('2026-09-29T05:30:00.000Z');
++  const bookedTheDayBefore = new Date('2026-09-28T10:00:00.000Z');
++  const at = (iso: string) => new Date(iso);
++
++  it('sends each reminder in turn for a callback booked well ahead', () => {
++    expect(reminderToSend(callback, bookedTheDayBefore, at('2026-09-29T04:00:00.000Z'))).toBeNull();
++    expect(reminderToSend(callback, bookedTheDayBefore, at('2026-09-29T04:30:30.000Z'))?.type).toBe('t_minus_60');
++    expect(reminderToSend(callback, bookedTheDayBefore, at('2026-09-29T05:15:10.000Z'))?.type).toBe('t_minus_15');
++    expect(reminderToSend(callback, bookedTheDayBefore, at('2026-09-29T05:30:05.000Z'))?.type).toBe('due');
++  });
++
++  it('sends only the latest one when several came due together', () => {
++    const late = reminderToSend(callback, bookedTheDayBefore, at('2026-09-29T05:40:00.000Z'));
++    expect(late).toEqual({ type: 'due', at: callback });
++  });
++
++  it('skips advance reminders whose time had passed when the callback was booked', () => {
++    const bookedTenMinutesAhead = at('2026-09-29T05:20:00.000Z');
++    expect(reminderToSend(callback, bookedTenMinutesAhead, at('2026-09-29T05:21:00.000Z'))).toBeNull();
++    expect(reminderToSend(callback, bookedTenMinutesAhead, at('2026-09-29T05:30:00.000Z'))?.type).toBe('due');
++    const bookedFortyMinutesAhead = at('2026-09-29T04:50:00.000Z');
++    expect(reminderToSend(callback, bookedFortyMinutesAhead, at('2026-09-29T04:51:00.000Z'))).toBeNull();
++    expect(reminderToSend(callback, bookedFortyMinutesAhead, at('2026-09-29T05:15:00.000Z'))?.type).toBe('t_minus_15');
++  });
++
++  it('still says "call now" for a callback booked a moment in the past', () => {
++    const bookedJustAfter = at('2026-09-29T05:30:20.000Z');
++    expect(reminderToSend(callback, bookedJustAfter, at('2026-09-29T05:31:00.000Z'))?.type).toBe('due');
++  });
++});
++
+ describe('missed callback supervisory routing', () => {
+   it('selects the nearest eligible Sales supervisor or team lead, not an arbitrary manager', () => {
+     expect(selectSalesSupervisor([
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/callback-automation.ts b/tapcrm/packages/server/src/modules/sales/leads/callback-automation.ts
+index 637420b..5fcdfdd 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/callback-automation.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/callback-automation.ts
+@@ -2,22 +2,42 @@ import type { Principal } from '@tapcrm/contracts';
+ import { createJobContext, type RequestContext } from '../../../platform/dal/context.js';
+ import { platformDb, type Tx } from '../../../platform/dal/db.js';
+ import { sql } from '../../../platform/dal/sql.js';
+-import { notifyCallbackMissed, notifyCallbackReminder } from './callback-notifications.js';
++import { notifyCallbackMissed, notifyCallbackReminder, type ReminderType } from './callback-notifications.js';
+ import { insertActivity, insertAudit } from './repository.js';
+ import { settleLeadAfterCallbackInTransaction } from './lifecycle.js';
+ import { listHandoverTargets } from '../handover/repository.js';
+ 
+ const SYSTEM_ID = '00000000-0000-0000-0000-000000000000';
+-const REMINDERS = [
++const REMINDERS: readonly { type: ReminderType; offsetMinutes: number }[] = [
+   { type: 't_minus_60', offsetMinutes: 60 },
+   { type: 't_minus_15', offsetMinutes: 15 },
+   { type: 'due', offsetMinutes: 0 },
+-] as const;
++];
+ 
+ export function reminderAt(scheduledAt: Date, offsetMinutes: number): Date {
+   return new Date(scheduledAt.getTime() - offsetMinutes * 60_000);
+ }
+ 
++/**
++ * The one reminder a callback should get now, if any.
++ *
++ * Only the latest reminder whose time has come is sent, so a callback booked
++ * ten minutes ahead, or one picked up late after the job was down, gets one
++ * "Call them now" instead of "in 1 hour", "in 15 minutes" and "now" at once.
++ * An advance reminder whose time had already passed when the callback was
++ * booked is never sent; the "due" one always is.
++ */
++export function reminderToSend(scheduledAt: Date, bookedAt: Date, now: Date): { type: ReminderType; at: Date } | null {
++  let latest: { type: ReminderType; at: Date } | null = null;
++  for (const reminder of REMINDERS) {
++    const at = reminderAt(scheduledAt, reminder.offsetMinutes);
++    if (at.getTime() > now.getTime()) continue;
++    if (reminder.offsetMinutes > 0 && at.getTime() < bookedAt.getTime()) continue;
++    latest = { type: reminder.type, at };
++  }
++  return latest;
++}
++
+ function jobContext(organizationId: string): RequestContext {
+   const principal: Principal = { id: SYSTEM_ID, organizationId, sessionVersion: 0, accountType: 'service', allowedActions: [], allowedResources: [], expiresAt: new Date(0) };
+   return createJobContext({ organizationId, principal, jobName: 'callback-automation', runId: 'scheduled' });
+@@ -32,6 +52,10 @@ export function selectSalesSupervisor(candidates: readonly SalesSupervisorCandid
+     .sort((a, b) => a.depth - b.depth || (a.positionCode === 'sales-supervisor' ? -1 : 1) - (b.positionCode === 'sales-supervisor' ? -1 : 1))[0]?.id ?? null;
+ }
+ 
++/**
++ * The owner's nearest Sales Supervisor or Team Lead who looks after the lead:
++ * a Supervisor sits in the lead's pool, a Team Lead in its Sales Team.
++ */
+ async function resolveSalesSupervisor(tx: Tx, ctx: RequestContext, ownerId: string, leadId: string): Promise<string | null> {
+   const targets = await listHandoverTargets(ctx);
+   const candidates = await tx.query<ReportingChainCandidate>(sql`
+@@ -47,7 +71,8 @@ async function resolveSalesSupervisor(tx: Tx, ctx: RequestContext, ownerId: stri
+     )
+     SELECT chain.id, chain."teamId" AS "teamId", chain.depth
+     FROM reporting_chain chain
+-    JOIN lead l ON l.organization_id = ${ctx.organizationId} AND l.id = ${leadId} AND l.sales_team_id = chain."teamId"
++    JOIN lead l ON l.organization_id = ${ctx.organizationId} AND l.id = ${leadId}
++               AND chain."teamId" IN (l.sales_team_id, l.sales_pool_id)
+     WHERE chain.depth > 0
+   `);
+   const eligible = candidates.flatMap((candidate) => {
+@@ -61,38 +86,41 @@ async function processOrganization(organizationId: string): Promise<number> {
+   const ctx = jobContext(organizationId);
+   return platformDb.transactionForOrganization(organizationId, 'callback-automation', 'process callback reminders and missed callbacks', async (tx) => {
+     let processed = 0;
+-    const callbacks = await tx.query<{ id: string; leadId: string; ownerId: string; scheduledAt: Date }>(sql`
+-      SELECT c.id, c.lead_id AS "leadId", c.owner_id AS "ownerId", c.scheduled_at AS "scheduledAt"
++    // Callbacks already past the 30-minute grace are marked missed below
++    // instead of being told "call them now".
++    const callbacks = await tx.query<{ id: string; leadId: string; ownerId: string; scheduledAt: Date; createdAt: Date }>(sql`
++      SELECT c.id, c.lead_id AS "leadId", c.owner_id AS "ownerId", c.scheduled_at AS "scheduledAt", c.created_at AS "createdAt"
+       FROM lead_callback c
+       WHERE c.organization_id = ${organizationId} AND c.status = 'pending'
+-        AND (c.scheduled_at <= now() OR c.scheduled_at <= now() + interval '60 minutes')
++        AND c.scheduled_at <= now() + interval '60 minutes'
++        AND c.scheduled_at > now() - interval '30 minutes'
+       FOR UPDATE SKIP LOCKED
+     `);
+ 
++    const now = new Date();
+     for (const callback of callbacks) {
+-      for (const reminder of REMINDERS) {
+-        const scheduledAt = reminderAt(new Date(callback.scheduledAt), reminder.offsetMinutes);
+-        if (scheduledAt > new Date()) continue;
+-        const rows = await tx.query<{ id: string }>(sql`
+-          INSERT INTO lead_callback_reminder (organization_id, callback_id, reminder_type, scheduled_at)
+-          VALUES (${organizationId}, ${callback.id}, ${reminder.type}, ${scheduledAt})
+-          ON CONFLICT (organization_id, callback_id, reminder_type) DO NOTHING
+-          RETURNING id
+-        `);
+-        const reminderRow = rows[0];
+-        if (!reminderRow) continue;
+-        await tx.query(sql`
+-          INSERT INTO lead_callback_reminder_delivery (organization_id, reminder_id, recipient_id, channel, status, scheduled_at, delivered_at, detail)
+-          VALUES (${organizationId}, ${reminderRow.id}, ${callback.ownerId}, 'in-app', 'delivered', ${scheduledAt}, now(), 'Persisted through the notification outbox'),
+-                 (${organizationId}, ${reminderRow.id}, ${callback.ownerId}, 'push', 'scheduled', ${scheduledAt}, NULL, 'Push provider integration deferred')
+-          ON CONFLICT (organization_id, reminder_id, recipient_id, channel) DO NOTHING
+-        `);
+-        await notifyCallbackReminder(tx, ctx, callback.ownerId, callback.leadId, reminder.type, reminderRow.id);
+-        processed += 1;
+-      }
++      const scheduledAt = new Date(callback.scheduledAt);
++      const reminder = reminderToSend(scheduledAt, new Date(callback.createdAt), now);
++      if (!reminder) continue;
++      const rows = await tx.query<{ id: string }>(sql`
++        INSERT INTO lead_callback_reminder (organization_id, callback_id, reminder_type, scheduled_at)
++        VALUES (${organizationId}, ${callback.id}, ${reminder.type}, ${reminder.at})
++        ON CONFLICT (organization_id, callback_id, reminder_type) DO NOTHING
++        RETURNING id
++      `);
++      const reminderRow = rows[0];
++      if (!reminderRow) continue;
++      await tx.query(sql`
++        INSERT INTO lead_callback_reminder_delivery (organization_id, reminder_id, recipient_id, channel, status, scheduled_at, delivered_at, detail)
++        VALUES (${organizationId}, ${reminderRow.id}, ${callback.ownerId}, 'in-app', 'delivered', ${reminder.at}, now(), 'Persisted through the notification outbox'),
++               (${organizationId}, ${reminderRow.id}, ${callback.ownerId}, 'push', 'scheduled', ${reminder.at}, NULL, 'Push provider integration deferred')
++        ON CONFLICT (organization_id, reminder_id, recipient_id, channel) DO NOTHING
++      `);
++      await notifyCallbackReminder(tx, ctx, callback.ownerId, callback.leadId, reminder.type, reminderRow.id, scheduledAt);
++      processed += 1;
+     }
+ 
+-    const missed = await tx.query<{ id: string; leadId: string; ownerId: string }>(sql`
++    const missed = await tx.query<{ id: string; leadId: string; ownerId: string; scheduledAt: Date }>(sql`
+       UPDATE lead_callback c
+       SET status = 'missed', missed_at = now()
+       FROM app_user owner
+@@ -100,14 +128,22 @@ async function processOrganization(organizationId: string): Promise<number> {
+         AND c.status = 'pending'
+         AND c.scheduled_at <= now() - interval '30 minutes'
+         AND owner.organization_id = c.organization_id AND owner.id = c.owner_id
+-      RETURNING c.id, c.lead_id AS "leadId", c.owner_id AS "ownerId"
++      RETURNING c.id, c.lead_id AS "leadId", c.owner_id AS "ownerId", c.scheduled_at AS "scheduledAt"
+     `);
+     for (const callback of missed) {
+       await insertActivity(tx, organizationId, callback.leadId, 'callback.missed', null, { callbackId: callback.id, reason: 'grace_period_expired' });
++      // A missed callback stalls the lead, the same as one marked missed by hand.
++      const stalled = await tx.query<{ id: string }>(sql`
++        UPDATE lead SET stalled_at = now(), stalled_reason = 'missed_callback'
++         WHERE organization_id = ${organizationId} AND id = ${callback.leadId}
++           AND stalled_at IS NULL AND status NOT IN ('converted', 'closed_lost')
++        RETURNING id
++      `);
++      if (stalled.length) await insertActivity(tx, organizationId, callback.leadId, 'lead.stalled', null, { reason: 'missed_callback', callbackId: callback.id });
+       await settleLeadAfterCallbackInTransaction(tx, organizationId, callback.leadId, { status: 'missed', outcome: null }, null);
+       await insertAudit(tx, ctx, 'callback.missed', callback.id, { status: 'pending' }, { status: 'missed', reason: 'grace_period_expired' }, 'callback');
+       const supervisorId = await resolveSalesSupervisor(tx, ctx, callback.ownerId, callback.leadId);
+-      await notifyCallbackMissed(tx, ctx, callback.ownerId, supervisorId, callback.leadId, callback.id);
++      await notifyCallbackMissed(tx, ctx, callback.ownerId, supervisorId, callback.leadId, callback.id, new Date(callback.scheduledAt));
+       processed += 1;
+     }
+     return processed;
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/callback-notifications.ts b/tapcrm/packages/server/src/modules/sales/leads/callback-notifications.ts
+index 7ea7dca..4bd18ba 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/callback-notifications.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/callback-notifications.ts
+@@ -1,18 +1,115 @@
+ import type { RequestContext } from '../../../platform/dal/context.js';
+ import type { Tx } from '../../../platform/dal/db.js';
++import { sql } from '../../../platform/dal/sql.js';
+ import { notify } from '../../notifications/facade.js';
+ 
+-export async function notifyCallback(tx: Tx, ctx: RequestContext, ownerId: string, leadId: string, event: 'scheduled' | 'completed' | 'missed' | 'cancelled'): Promise<void> {
+-  if (ownerId === ctx.principal.id) return;
+-  await notify(tx, ctx, { type: `callback.${event}`, priority: event === 'missed' ? 'operational' : 'informational', audience: { users: [ownerId] }, title: `Callback ${event}`, body: `Lead callback ${event}.`, link: `/company/sales/leads/${leadId}`, metadata: { leadId, event } });
++/**
++ * Callback notifications say which lead and when, in the organization's
++ * time zone — "Callback reminder: a callback is due soon" on its own does not
++ * tell an agent with ten callbacks a day which one to pick up.
++ */
++
++export type CallbackEvent = 'scheduled' | 'rescheduled' | 'completed' | 'missed' | 'cancelled';
++export type ReminderType = 't_minus_60' | 't_minus_15' | 'due';
++
++interface CallbackContext {
++  readonly contactName: string;
++  readonly leadNumber: string;
++  readonly timezone: string;
++}
++
++async function leadContext(tx: Tx, organizationId: string, leadId: string): Promise<CallbackContext> {
++  const row = await tx.maybeOne<CallbackContext>(sql`
++    SELECT l.contact_name AS "contactName", l.lead_number::text AS "leadNumber", o.timezone
++      FROM lead l JOIN organization o ON o.id = l.organization_id
++     WHERE l.organization_id = ${organizationId} AND l.id = ${leadId}
++  `);
++  return row ?? { contactName: 'a lead', leadNumber: '', timezone: 'UTC' };
++}
++
++/** "Mon 9 Nov, 3:30 pm" in the organization's zone. */
++export function formatCallbackTime(at: Date, timezone: string): string {
++  try {
++    return new Intl.DateTimeFormat('en-IN', {
++      timeZone: timezone, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
++    }).format(at);
++  } catch {
++    return at.toISOString();
++  }
++}
++
++export async function notifyCallback(
++  tx: Tx,
++  ctx: RequestContext,
++  ownerId: string,
++  leadId: string,
++  event: CallbackEvent,
++  scheduledAt?: Date,
++): Promise<void> {
++  if (ownerId === ctx.principal.id) return; // nobody is told about what they just did
++  const lead = await leadContext(tx, ctx.organizationId, leadId);
++  const when = scheduledAt ? formatCallbackTime(scheduledAt, lead.timezone) : null;
++  const copy: Record<CallbackEvent, { title: string; body: string }> = {
++    scheduled: { title: `Callback booked with ${lead.contactName}`, body: when ? `It is yours, on ${when}.` : 'A callback was booked for you.' },
++    rescheduled: { title: `Callback with ${lead.contactName} moved`, body: when ? `The new time is ${when}.` : 'Its time was changed.' },
++    completed: { title: `Callback with ${lead.contactName} recorded`, body: 'Its outcome was recorded for you.' },
++    missed: { title: `Callback with ${lead.contactName} missed`, body: 'It was marked missed. Book a new time if they still need a call.' },
++    cancelled: { title: `Callback with ${lead.contactName} cancelled`, body: 'It no longer needs a call.' },
++  };
++  await notify(tx, ctx, {
++    type: `callback.${event}`,
++    priority: event === 'missed' ? 'operational' : 'informational',
++    audience: { users: [ownerId] },
++    ...copy[event],
++    link: `/company/sales/leads/${leadId}`,
++    metadata: { leadId, event, ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}) },
++  });
+ }
+ 
+-export async function notifyCallbackReminder(tx: Tx, ctx: RequestContext, ownerId: string, leadId: string, reminderType: string, reminderId: string): Promise<void> {
+-  await notify(tx, ctx, { type: 'callback.reminder', priority: 'operational', audience: { users: [ownerId] }, title: 'Callback reminder', body: 'A scheduled Lead callback is due soon.', link: `/company/sales/leads/${leadId}`, metadata: { leadId, reminderId, reminderType } });
++export async function notifyCallbackReminder(
++  tx: Tx,
++  ctx: RequestContext,
++  ownerId: string,
++  leadId: string,
++  reminderType: ReminderType,
++  reminderId: string,
++  scheduledAt: Date,
++): Promise<void> {
++  const lead = await leadContext(tx, ctx.organizationId, leadId);
++  const number = lead.leadNumber ? ` (lead #${lead.leadNumber})` : '';
++  const title = reminderType === 'due'
++    ? `Call ${lead.contactName} now`
++    : `Callback with ${lead.contactName} in ${reminderType === 't_minus_60' ? '1 hour' : '15 minutes'}`;
++  await notify(tx, ctx, {
++    type: 'callback.reminder',
++    priority: 'operational',
++    audience: { users: [ownerId] },
++    title,
++    body: `Booked for ${formatCallbackTime(scheduledAt, lead.timezone)}${number}.`,
++    link: `/company/sales/leads/${leadId}`,
++    metadata: { leadId, reminderId, reminderType, scheduledAt: scheduledAt.toISOString() },
++  });
+ }
+ 
+-export async function notifyCallbackMissed(tx: Tx, ctx: RequestContext, ownerId: string, supervisorId: string | null, leadId: string, callbackId: string): Promise<void> {
++export async function notifyCallbackMissed(
++  tx: Tx,
++  ctx: RequestContext,
++  ownerId: string,
++  supervisorId: string | null,
++  leadId: string,
++  callbackId: string,
++  scheduledAt: Date,
++): Promise<void> {
+   const users = [...new Set([ownerId, supervisorId].filter((id): id is string => Boolean(id)))];
+   if (users.length === 0) return;
+-  await notify(tx, ctx, { type: 'callback.missed', priority: 'operational', audience: { users }, title: 'Callback missed', body: 'A Lead callback passed its grace period without an outcome.', link: `/company/sales/leads/${leadId}`, metadata: { leadId, callbackId } });
++  const lead = await leadContext(tx, ctx.organizationId, leadId);
++  await notify(tx, ctx, {
++    type: 'callback.missed',
++    priority: 'operational',
++    audience: { users },
++    title: `Callback with ${lead.contactName} missed`,
++    body: `It was due ${formatCallbackTime(scheduledAt, lead.timezone)} and has no outcome 30 minutes later.`,
++    link: `/company/sales/leads/${leadId}`,
++    metadata: { leadId, callbackId },
++  });
+ }
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/callback-service.ts b/tapcrm/packages/server/src/modules/sales/leads/callback-service.ts
+index da053d5..519f6d7 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/callback-service.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/callback-service.ts
+@@ -31,7 +31,10 @@ async function assertLeadAccess(ctx: RequestContext, leadId: string): Promise<{
+     const policy = await effectivePolicy(ctx, 'leads:view');
+     const resource = await loadLeadResource(ctx, leadId);
+     const inScope = Boolean(policy?.allowed && resource && await leadPolicy.check({ ...ctx, scope: scopeResolver }, 'leads:view', resource, policy.scope));
+-    if (!inScope || operationalOwnerId !== ctx.principal.id) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Only the current operational holder may create a callback');
++    // The person working the lead books its callbacks: its current holder, or
++    // its owner (callbacks are the owner's even while a colleague holds a
++    // live call).
++    if (!inScope || (operationalOwnerId !== ctx.principal.id && lead.ownerId !== ctx.principal.id)) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Only the lead owner or the person working the lead may book a callback');
+   }
+   return { operationalOwnerId, callbackAssigneeId };
+ }
+@@ -54,7 +57,7 @@ export async function scheduleCallbackInTransaction(tx: Tx, ctx: RequestContext,
+   const id = await insertCallback(tx, ctx.organizationId, { leadId, ownerId: callbackAssigneeId, scheduledAt, reason, createdBy });
+   await tx.query(sql`UPDATE lead SET status = 'callback_scheduled' WHERE organization_id = ${ctx.organizationId} AND id = ${leadId} AND status NOT IN ('converted', 'closed_lost')`);
+   await insertActivity(tx, ctx.organizationId, leadId, 'callback.scheduled', ctx.principal.id, { callbackId: id, ownerId: callbackAssigneeId, scheduledAt: scheduledAt.toISOString() });
+-  await notifyCallback(tx, ctx, callbackAssigneeId, leadId, 'scheduled');
++  await notifyCallback(tx, ctx, callbackAssigneeId, leadId, 'scheduled', scheduledAt);
+   return id;
+ }
+ 
+@@ -73,13 +76,16 @@ export async function listLeadCallbacks(ctx: RequestContext, query: CallbackList
+ export async function getCallback(ctx: RequestContext, id: string): Promise<LeadCallback> { const callback = await findCallback(ctx, id); if (!callback) throw new LeadNotFoundError(); return callback; }
+ 
+ export async function updateCallback(ctx: RequestContext, id: string, input: UpdateCallbackInput): Promise<LeadCallback> {
+-  const callback = await getCallback(ctx, id); if (callback.ownerId !== ctx.principal.id && !globalAccess(ctx.principal)) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Only the callback owner may reschedule it'); if (!isValidCallbackTransition(callback.status, 'rescheduled')) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'Only pending callbacks may be rescheduled'); assertBookableTime(input.scheduledAt);
+-  const nextId = await db.transaction(ctx, async (tx) => { await markCallbackRescheduled(tx, ctx.organizationId, id); const nextId = await insertCallback(tx, ctx.organizationId, { leadId: callback.leadId, ownerId: callback.ownerId, scheduledAt: input.scheduledAt, reason: input.reason === undefined ? callback.reason : input.reason, parentCallbackId: id, createdBy: ctx.principal.id }); await insertActivity(tx, ctx.organizationId, callback.leadId, 'callback.rescheduled', ctx.principal.id, { callbackId: id, nextCallbackId: nextId, scheduledAt: input.scheduledAt.toISOString() }); await insertAudit(tx, ctx, 'callback.rescheduled', id, callback, { nextCallbackId: nextId, scheduledAt: input.scheduledAt }, 'callback'); await notifyCallback(tx, ctx, callback.ownerId, callback.leadId, 'scheduled'); return nextId; });
++  // Who may move it is the route's `callbacks:edit` check on this callback: its
++  // owner, or a Supervisor / Team Lead / Sales Head whose reach includes it —
++  // so a callback is not lost when its owner is away.
++  const callback = await getCallback(ctx, id); if (!isValidCallbackTransition(callback.status, 'rescheduled')) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'Only pending callbacks may be rescheduled'); assertBookableTime(input.scheduledAt);
++  const nextId = await db.transaction(ctx, async (tx) => { await markCallbackRescheduled(tx, ctx.organizationId, id); const nextId = await insertCallback(tx, ctx.organizationId, { leadId: callback.leadId, ownerId: callback.ownerId, scheduledAt: input.scheduledAt, reason: input.reason === undefined ? callback.reason : input.reason, parentCallbackId: id, createdBy: ctx.principal.id }); await insertActivity(tx, ctx.organizationId, callback.leadId, 'callback.rescheduled', ctx.principal.id, { callbackId: id, nextCallbackId: nextId, scheduledAt: input.scheduledAt.toISOString() }); await insertAudit(tx, ctx, 'callback.rescheduled', id, callback, { nextCallbackId: nextId, scheduledAt: input.scheduledAt }, 'callback'); await notifyCallback(tx, ctx, callback.ownerId, callback.leadId, 'rescheduled', input.scheduledAt); return nextId; });
+   const next = await getCallback(ctx, nextId); return next;
+ }
+ 
+ export async function completeCallback(ctx: RequestContext, id: string, input: CallbackOutcomeInput): Promise<LeadCallback> {
+-  const callback = await getCallback(ctx, id); if (callback.ownerId !== ctx.principal.id && !globalAccess(ctx.principal)) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Only the callback owner may record its outcome'); if (!isValidCallbackTransition(callback.status, input.status)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'This callback is already finalized');
++  const callback = await getCallback(ctx, id); if (!isValidCallbackTransition(callback.status, input.status)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'This callback is already finalized');
+   await db.transaction(ctx, async (tx) => { await updateCallbackStatus(tx, ctx.organizationId, id, input.status, input.outcome ?? null); const event = input.status === 'completed' ? 'callback.completed' : input.status === 'missed' ? 'callback.missed' : input.status === 'not_reachable' ? 'callback.missed' : 'callback.cancelled'; await insertActivity(tx, ctx.organizationId, callback.leadId, event, ctx.principal.id, { callbackId: id, outcome: input.outcome ?? null }); if (input.status === 'missed') { const stalled = await tx.query<{ id: string }>(sql`UPDATE lead SET stalled_at = COALESCE(stalled_at, now()), stalled_reason = COALESCE(stalled_reason, 'missed_callback') WHERE organization_id = ${ctx.organizationId} AND id = ${callback.leadId} AND stalled_at IS NULL RETURNING id`); if (stalled.length) await insertActivity(tx, ctx.organizationId, callback.leadId, 'lead.stalled', ctx.principal.id, { reason: 'missed_callback', callbackId: id }); } await settleLeadAfterCallbackInTransaction(tx, ctx.organizationId, callback.leadId, { status: input.status, outcome: input.outcome ?? null }, ctx.principal.id); await insertAudit(tx, ctx, `callback.${input.status}`, id, { status: callback.status }, { status: input.status, outcome: input.outcome ?? null }, 'callback'); await notifyCallback(tx, ctx, callback.ownerId, callback.leadId, input.status === 'not_reachable' ? 'missed' : input.status); });
+   return getCallback(ctx, id);
+ }
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/normalization.test.ts b/tapcrm/packages/server/src/modules/sales/leads/normalization.test.ts
+index 5256366..e559d59 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/normalization.test.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/normalization.test.ts
+@@ -5,4 +5,10 @@ describe('lead duplicate normalization', () => {
+   it('normalizes email deterministically', () => expect(normalizeLeadEmail('  SALES@Example.COM ')).toBe('sales@example.com'));
+   it('normalizes phone formatting deterministically', () => expect(normalizeLeadPhone('+1 (555) 123-4567')).toBe('15551234567'));
+   it('treats empty values as absent', () => { expect(normalizeLeadEmail('  ')).toBeNull(); expect(normalizeLeadPhone('---')).toBeNull(); });
++  it('gives one Indian number the same key however it is typed, matching the E.164 digits intake stores', () => {
++    for (const typed of ['+91 98765 43210', '98765 43210', '098765-43210', '919876543210', '0091 98765 43210']) {
++      expect(normalizeLeadPhone(typed)).toBe('919876543210');
++    }
++  });
++  it('keeps the bare digits of a number that has no E.164 form', () => expect(normalizeLeadPhone('000')).toBe('000'));
+ });
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/normalization.ts b/tapcrm/packages/server/src/modules/sales/leads/normalization.ts
+index 9b4746b..de87811 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/normalization.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/normalization.ts
+@@ -3,9 +3,17 @@ export function normalizeLeadEmail(value: string | null | undefined): string | n
+   return normalized || null;
+ }
+ 
++/**
++ * The duplicate-matching key for a lead's phone: the digits of its E.164 form,
++ * the same key website, ad and imported leads store ("+91 98765 43210",
++ * "098765 43210" and "9876543210" are all "919876543210"). A number that has
++ * no E.164 form keeps its bare digits.
++ */
+ export function normalizeLeadPhone(value: string | null | undefined): string | null {
+-  const normalized = value?.replace(/\D/g, '');
+-  return normalized || null;
++  const e164 = toContactE164(value);
++  if (e164) return e164.slice(1);
++  const digits = value?.replace(/\D/g, '');
++  return digits || null;
+ }
+ 
+ /**
+@@ -24,8 +32,11 @@ export function toContactE164(value: string | null | undefined): string | null {
+   const hadPlus = trimmed.startsWith('+');
+   // 10-digit domestic → assume Indian country code; the tenant default
+   // timezone is Asia/Kolkata so this matches the dominant intake pattern.
++  // "00" is the international dialling prefix ("0091 98765 43210").
+   const candidate = hadPlus
+     ? `+${digits}`
++    : digits.startsWith('00')
++      ? `+${digits.slice(2)}`
+     : digits.length === 10
+       ? `+91${digits}`
+       : digits.startsWith('0') && digits.length === 11
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/policy.ts b/tapcrm/packages/server/src/modules/sales/leads/policy.ts
+index 27da69a..ea47bd9 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/policy.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/policy.ts
+@@ -9,14 +9,17 @@ export const leadPolicy: ResourcePolicy<LeadResource> = {
+     if (scope === 'own' || scope === 'participant') return resource.ownerId === ctx.principal.id || resource.currentHolderId === ctx.principal.id;
+     if (scope === 'pool') return resource.salesPoolId !== null && (await ctx.scope.poolIds(ctx)).has(resource.salesPoolId);
+     if (scope === 'team') return resource.salesTeamId !== null && (await ctx.scope.teamIds(ctx)).has(resource.salesTeamId);
+-    if (scope === 'department') return resource.departmentId !== null && resource.departmentId === await ctx.scope.departmentId(ctx);
++    // A department manager (Sales Head) also sees leads waiting for an owner
++    // that no team holds yet, so nothing unassigned is invisible to everyone.
++    if (scope === 'department') return (resource.departmentId !== null && resource.departmentId === await ctx.scope.departmentId(ctx))
++      || (resource.departmentId === null && resource.salesTeamId === null && resource.ownerId === null && await ctx.scope.departmentId(ctx) !== null);
+     return false;
+   },
+   async filter(ctx: PolicyEvaluationContext, _action: Action, scope: Scope): Promise<SqlFragment> {
+     if (scope === 'own' || scope === 'participant') return { sql: '(l.owner_id = $1 OR l.current_holder_id = $1)', parameters: [ctx.principal.id] };
+     if (scope === 'pool') { const ids = [...(await ctx.scope.poolIds(ctx))]; return ids.length ? { sql: 'l.sales_pool_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING; }
+     if (scope === 'team') { const ids = [...(await ctx.scope.teamIds(ctx))]; return ids.length ? { sql: 'l.sales_team_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING; }
+-    if (scope === 'department') { const id = await ctx.scope.departmentId(ctx); return id ? { sql: 'EXISTS (SELECT 1 FROM team scope_team WHERE scope_team.organization_id = l.organization_id AND scope_team.id = l.sales_team_id AND scope_team.department_id = $1)', parameters: [id] } : MATCH_NOTHING; }
++    if (scope === 'department') { const id = await ctx.scope.departmentId(ctx); return id ? { sql: '(EXISTS (SELECT 1 FROM team scope_team WHERE scope_team.organization_id = l.organization_id AND scope_team.id = l.sales_team_id AND scope_team.department_id = $1) OR (l.sales_team_id IS NULL AND l.owner_id IS NULL))', parameters: [id] } : MATCH_NOTHING; }
+     return MATCH_NOTHING;
+   },
+   participantFields: () => ['ownerId', 'currentHolderId'],
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/reassign.integration.test.ts b/tapcrm/packages/server/src/modules/sales/leads/reassign.integration.test.ts
+index 7191137..0bdef3b 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/reassign.integration.test.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/reassign.integration.test.ts
+@@ -35,6 +35,11 @@ const HOD = randomUUID();
+ const SUPER_ADMIN = randomUUID();
+ const AGENT_A = randomUUID();
+ const AGENT_B = randomUUID();
++const POOL_B = randomUUID();
++const AGENT_C = randomUUID();
++const OTHER_DEPARTMENT = randomUUID();
++const OTHER_POSITION = randomUUID();
++const OUTSIDER = randomUUID();
+ const SOURCE = randomUUID();
+ 
+ const asOwner = (reason: string, fragment: ReturnType<typeof sql>) =>
+@@ -163,7 +168,7 @@ describe.skipIf(!enabled)('sales reassignment service (PostgreSQL)', () => {
+     );
+     await asOwner(
+       'create department',
+-      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${DEPARTMENT}, ${ORG}, 'SALES', 'Sales', 'sales')`,
++      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${DEPARTMENT}, ${ORG}, 'sales', 'Sales', 'sales')`,
+     );
+     await asOwner(
+       'create position',
+@@ -201,6 +206,33 @@ describe.skipIf(!enabled)('sales reassignment service (PostgreSQL)', () => {
+         VALUES (${AGENT_B}, ${ORG}, 'employee', 'Agent B', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_TEAM}, 'E-' || upper(left(replace(${AGENT_B}::text, '-', ''), 12)))
+       `,
+     );
++    // Agent C sits in another pool and has not punched in today.
++    await asOwner(
++      'create second pool',
++      sql`INSERT INTO team (id, organization_id, department_id, kind, name) VALUES (${POOL_B}, ${ORG}, ${DEPARTMENT}, 'sales-pool', 'Pool B')`,
++    );
++    await asOwner(
++      'create agent C',
++      sql`
++        INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, team_id, employee_id)
++        VALUES (${AGENT_C}, ${ORG}, 'employee', 'Agent C', 'active', ${POSITION}, ${DEPARTMENT}, ${POOL_B}, 'E-' || upper(left(replace(${AGENT_C}::text, '-', ''), 12)))
++      `,
++    );
++    await asOwner(
++      'create another department',
++      sql`INSERT INTO department (id, organization_id, code, name, kind) VALUES (${OTHER_DEPARTMENT}, ${ORG}, 'finance', 'Finance', 'support')`,
++    );
++    await asOwner(
++      'create another position',
++      sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level) VALUES (${OTHER_POSITION}, ${ORG}, ${OTHER_DEPARTMENT}, 'finance-executive', 'Finance Executive', 1)`,
++    );
++    await asOwner(
++      'create someone outside Sales',
++      sql`
++        INSERT INTO app_user (id, organization_id, account_type, full_name, status, position_id, department_id, employee_id)
++        VALUES (${OUTSIDER}, ${ORG}, 'employee', 'Finance Person', 'active', ${OTHER_POSITION}, ${OTHER_DEPARTMENT}, 'E-' || upper(left(replace(${OUTSIDER}::text, '-', ''), 12)))
++      `,
++    );
+     await asOwner(
+       'create lead source',
+       sql`INSERT INTO lead_source (id, organization_id, name, direction, status) VALUES (${SOURCE}, ${ORG}, ${`Website ${RUN}`}, 'inbound', 'active')`,
+@@ -378,6 +410,38 @@ describe.skipIf(!enabled)('sales reassignment service (PostgreSQL)', () => {
+     expect(updated.assignedAt?.getTime()).toBe(row.assignedAt.getTime());
+   });
+ 
++  it('hands a lead to someone who has not punched in yet, and moves it into their pool', async () => {
++    const leadId = await insertAssignedLead(AGENT_A, AGENT_A);
++    const updated = await reassign(ctxSuperAdmin(), leadId, {
++      newOwnerId: AGENT_C,
++      reason: 'covering for agent A before the shift starts',
++      transferPendingCallbacks: true,
++      transferScheduledActivities: true,
++      transferSourcingCredit: false,
++    });
++    expect(updated.ownerId).toBe(AGENT_C);
++    const rows = await asOwner(
++      'read lead pool',
++      sql`SELECT owner_id, sales_pool_id, sales_team_id FROM lead WHERE id = ${leadId}`,
++    );
++    expect(rows[0]).toMatchObject({ ownerId: AGENT_C, salesPoolId: POOL_B, salesTeamId: POOL_B });
++  });
++
++  it('refuses to hand a lead to someone outside Sales', async () => {
++    const leadId = await insertAssignedLead(AGENT_A, AGENT_A);
++    await expect(
++      reassign(ctxSuperAdmin(), leadId, {
++        newOwnerId: OUTSIDER,
++        reason: 'wrong person picked by mistake',
++        transferPendingCallbacks: true,
++        transferScheduledActivities: true,
++        transferSourcingCredit: false,
++      }),
++    ).rejects.toMatchObject({ code: 'NOT_ELIGIBLE' });
++    const rows = await asOwner('read owner', sql`SELECT owner_id FROM lead WHERE id = ${leadId}`);
++    expect(rows[0]).toMatchObject({ ownerId: AGENT_A });
++  });
++
+   it('HOD employee without leads:reassign-with-credit cannot transfer sourcing credit', async () => {
+     const leadId = await insertAssignedLead(AGENT_A, AGENT_A);
+     await expect(
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/reassign.ts b/tapcrm/packages/server/src/modules/sales/leads/reassign.ts
+index 2da2951..3bf5fb2 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/reassign.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/reassign.ts
+@@ -6,8 +6,12 @@
+  *   - a secondary `leads:reassign-with-credit` check when the caller asks
+  *     to transfer sourcing credit (the plan reserves credit-move to
+  *     Super Admin only via the `leads:reassign-with-credit` policy);
+- *   - fail-soft availability — the new owner's `at_capacity` reason is
+- *     tolerated (HOD rebalancing), everything else blocks the transfer;
++ *   - the new owner must be an active person in Sales; whether they are
++ *     punched in, on a break or on leave is shown in the picker but does not
++ *     block (leads are handed out before shifts and to cover absences, the
++ *     same rule as imported leads);
++ *   - the lead joins the new owner's pool and Sales Team, so their
++ *     Supervisor and Team Lead see it (and the previous ones stop seeing it);
+  *   - the state transition, callback owner transfer, routing-decision
+  *     audit, lead activity entry, outbox notifications to the previous
+  *     holder and the new owner, realtime emit.
+@@ -21,8 +25,7 @@ import { db } from '../../../platform/dal/db.js';
+ import { sql } from '../../../platform/dal/sql.js';
+ import { PlatformForbiddenError } from '../../../platform/errors.js';
+ import { NotEligibleError } from '../../../platform/http/error-handler.js';
+-import { describeEligibilityReasons } from '../../../platform/availability/reasons.js';
+-import { evaluateAvailability } from '../../../platform/availability/service.js';
++import { loadSalesAssignee } from './assignees.js';
+ import { notify } from '../../notifications/facade.js';
+ import { insertRoutingDecision } from '../intake/repository.js';
+ import { emitLeadReassigned } from '../realtime/sales-channel.js';
+@@ -86,23 +89,16 @@ export async function reassign(
+     }
+   }
+ 
+-  // Availability: reject any ineligibility that is not purely a capacity cap;
+-  // the fail-soft rule lets an HOD rebalance a team past its soft limit.
+-  const [availability] = await evaluateAvailability(ctx, [input.newOwnerId], { pool: 'direct' });
+-  if (!availability) throw new LeadNotFoundError();
+-  if (!availability.eligible) {
+-    const blocking = availability.reasons.filter((r) => r !== 'at_capacity');
+-    if (blocking.length > 0) {
++  const now = new Date();
++  const result = await db.transaction(ctx, async (tx) => {
++    const assignee = await loadSalesAssignee(tx, ctx.organizationId, input.newOwnerId);
++    if (!assignee) {
+       throw new NotEligibleError(
+         'NOT_ELIGIBLE',
+-        `This person can't take the lead right now (${describeEligibilityReasons(blocking)}).`,
+-        { unmet: blocking },
++        'Leads can only go to active people in Sales. Refresh the list and pick again.',
++        { unmet: ['not_active'] },
+       );
+     }
+-  }
+-
+-  const now = new Date();
+-  const result = await db.transaction(ctx, async (tx) => {
+     const locked = await tx.maybeOne<LockedLeadForReassign>(sql`
+       SELECT id,
+              owner_id              AS "ownerId",
+@@ -127,6 +123,8 @@ export async function reassign(
+          SET owner_id             = ${input.newOwnerId},
+              current_holder_id    = ${input.newOwnerId},
+              originating_agent_id = ${nextOriginatingAgentId},
++             sales_pool_id        = COALESCE(${assignee.poolId}::uuid, sales_pool_id),
++             sales_team_id        = COALESCE(${assignee.teamId}::uuid, sales_team_id),
+              routing_status       = 'assigned',
+              status               = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
+              updated_at           = ${now}
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/routes.ts b/tapcrm/packages/server/src/modules/sales/leads/routes.ts
+index 8541914..ba7f160 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/routes.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/routes.ts
+@@ -3,6 +3,7 @@ import { route } from '../../../platform/http/route.js';
+ import { checkDuplicateLeads, closeLeadAsLost, createLead, createSource, editSource, getCampaigns, getLead, getSources, listLeads, listStalledLeads, loadLeadResource, updateLead } from './service.js';
+ import { listReengagementSegments } from './reengagement-service.js';
+ import { reassign, reassignBodySchema } from './reassign.js';
++import { listLeadAssignees } from './assignees.js';
+ import { closeFromTriage, listTriage, rescueFromTriage, returnToBidPool, triageCloseBodySchema, triageRescueBodySchema } from './triage.js';
+ import { closeLeadLostSchema, createLeadSchema, leadListQuerySchema, reengagementQuerySchema, sourceSchema, updateLeadSchema, updateSourceSchema } from './validators.js';
+ 
+@@ -19,6 +20,7 @@ export function registerLeadRoutes(): void {
+   route({ method: 'POST', path: '/api/leads', action: 'leads:create', module: 'leads', status: 201, handler: async ({ ctx, body }) => createLead(ctx, createLeadSchema.parse(body)) });
+   route({ method: 'PATCH', path: '/api/leads/:id', action: 'leads:edit', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params, body }) => updateLead(ctx, id(params['id']!), updateLeadSchema.parse(body)) });
+   route({ method: 'POST', path: '/api/leads/:id/close-lost', action: 'leads:edit', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params, body }) => closeLeadAsLost(ctx, id(params['id']!), closeLeadLostSchema.parse(body)) });
++  route({ method: 'GET', path: '/api/leads/:id/assignees', action: 'leads:reassign', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params }) => ({ items: await listLeadAssignees(ctx, id(params['id']!)) }) });
+   route({ method: 'POST', path: '/api/leads/:id/reassign', action: 'leads:reassign', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params, body }) => reassign(ctx, id(params['id']!), reassignBodySchema.parse(body)) });
+   route({ method: 'POST', path: '/api/leads/:id/triage/rescue', action: 'leads:rescue-from-triage', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params, body }) => rescueFromTriage(ctx, id(params['id']!), triageRescueBodySchema.parse(body)) });
+   route({ method: 'POST', path: '/api/leads/:id/triage/return', action: 'leads:rescue-from-triage', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params }) => returnToBidPool(ctx, id(params['id']!)) });
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/service.ts b/tapcrm/packages/server/src/modules/sales/leads/service.ts
+index 00a6600..9fb3043 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/service.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/service.ts
+@@ -104,8 +104,11 @@ export async function createLead(ctx: RequestContext, input: CreateLeadInput): P
+   const ownerId = decision.type === 'SKIPPED' ? decision.ownerId : decision.type === 'ASSIGNED' ? decision.agentId : null;
+   const routingStatus = ownerId ? 'assigned' as const : 'unrouted' as const;
+   const status = ownerId && input.status === 'new' ? 'assigned' as const : input.status;
+-  const resource = { type: 'lead' as const, id: 'new', organizationId: ctx.organizationId, ownerId, currentHolderId: ownerId, salesTeamId: decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.salesTeamId : null, salesPoolId: null, departmentId: null };
+-  if (ownerId && !outbound) await assertManageScope(ctx, resource);
++  // The router, not the person typing, picks the owner of an inbound enquiry,
++  // so recording one needs only `leads:create` (checked by the route). Asking
++  // whether the creator could edit a lead owned by whoever routing picked made
++  // the Add lead form fail for everyone but Super Admin whenever an agent was
++  // free.
+   return db.transaction(ctx, async (tx) => {
+     const visibility = await visibilityFilter(ctx, 'leads:view', 'lead');
+     const phone = normalizeLeadPhone(input.phone);
+@@ -130,12 +133,15 @@ export async function createLead(ctx: RequestContext, input: CreateLeadInput): P
+     // a later "queue for sales team" handover has a team to route into. The
+     // pool is the agent's immediate team; the parent team (if any) is the
+     // Sales Team.
+-    if (ownerId) {
++    // An unrouted enquiry (nobody free to take it) stays with the creator's
++    // pool and team, so their supervisor and team lead see it waiting.
++    const homeUserId = ownerId ?? (salesTeamId === null ? ctx.principal.id : null);
++    if (homeUserId) {
+       const owner = await tx.maybeOne<{ teamId: string | null; parentTeamId: string | null }>(sql`
+         SELECT u.team_id AS "teamId", t.parent_team_id AS "parentTeamId"
+           FROM app_user u
+           LEFT JOIN team t ON t.organization_id = u.organization_id AND t.id = u.team_id
+-         WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${ownerId}
++         WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${homeUserId}
+       `);
+       if (owner?.teamId) {
+         salesPoolId = owner.teamId;
+diff --git a/tapcrm/packages/server/src/modules/sales/leads/validators.ts b/tapcrm/packages/server/src/modules/sales/leads/validators.ts
+index da4137d..c6c920a 100644
+--- a/tapcrm/packages/server/src/modules/sales/leads/validators.ts
++++ b/tapcrm/packages/server/src/modules/sales/leads/validators.ts
+@@ -4,7 +4,7 @@ import { LEAD_LOSS_REASONS, LEAD_STATUSES } from './types.js';
+ export const sourceSchema = z.object({ name: z.string().trim().min(1).max(160), direction: z.enum(['inbound', 'outbound']), status: z.enum(['active', 'inactive']).optional().default('active') });
+ export const updateSourceSchema = z.object({ name: z.string().trim().min(1).max(160).optional(), direction: z.enum(['inbound', 'outbound']).optional(), status: z.enum(['active', 'inactive']).optional() }).refine((value) => Object.keys(value).length > 0, { message: 'At least one source field is required' });
+ const leadStatus = z.enum(LEAD_STATUSES);
+-export const createLeadSchema = z.object({ contactName: z.string().trim().min(1).max(200), companyName: z.string().trim().max(200).nullable().optional(), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), sourceId: z.string().uuid(), campaignId: z.string().uuid().nullable().optional(), previousLeadId: z.string().uuid().nullable().optional(), status: leadStatus.optional().default('new'), requirement: z.string().trim().max(2000).nullable().optional(), location: z.string().trim().max(500).nullable().optional(), languagePreference: z.string().trim().max(80).nullable().optional(), notes: z.string().trim().max(4000).nullable().optional() }).refine((value) => value.phone || value.email, { message: 'Phone or email is required' });
++export const createLeadSchema = z.object({ contactName: z.string().trim().min(1).max(200), companyName: z.string().trim().max(200).nullable().optional(), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), sourceId: z.string().uuid(), campaignId: z.string().uuid().nullable().optional(), previousLeadId: z.string().uuid().nullable().optional(), status: z.enum(['new', 'assigned', 'contacted', 'discovery', 'proposal_sent', 'follow_up', 'nurture']).optional().default('new'), requirement: z.string().trim().max(2000).nullable().optional(), location: z.string().trim().max(500).nullable().optional(), languagePreference: z.string().trim().max(80).nullable().optional(), notes: z.string().trim().max(4000).nullable().optional() }).refine((value) => value.phone || value.email, { message: 'Phone or email is required' });
+ export const updateLeadSchema = z.object({ contactName: z.string().trim().min(1).max(200).optional(), companyName: z.string().trim().max(200).nullable().optional(), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), campaignId: z.string().uuid().nullable().optional(), status: z.enum(['new', 'assigned', 'contacted', 'discovery', 'proposal_sent', 'follow_up', 'callback_scheduled', 'nurture']).optional() }).refine((value) => Object.keys(value).length > 0, { message: 'At least one mutable lead field is required' });
+ export const leadListQuerySchema = z.object({ search: z.string().trim().max(200).optional(), status: leadStatus.or(z.literal('all')).optional().default('all'), ownerId: z.string().uuid().optional(), sourceId: z.string().uuid().optional(), campaignId: z.string().uuid().optional(), territoryId: z.string().uuid().optional(), salesTeamId: z.string().uuid().optional(), salesPoolId: z.string().uuid().optional(), page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) });
+ export const createCallbackSchema = z.object({ leadId: z.string().uuid(), scheduledAt: z.coerce.date(), reason: z.string().trim().max(1000).optional() });
+diff --git a/tapcrm/seeds/registry.seed.json b/tapcrm/seeds/registry.seed.json
+index 6692820..601aaa4 100644
+--- a/tapcrm/seeds/registry.seed.json
++++ b/tapcrm/seeds/registry.seed.json
+@@ -4964,6 +4964,12 @@
+       "action": "leads:edit",
+       "resourceParam": "id"
+     },
++    {
++      "method": "GET",
++      "path": "/api/leads/:id/assignees",
++      "action": "leads:reassign",
++      "resourceParam": "id"
++    },
+     {
+       "method": "POST",
+       "path": "/api/leads/:id/reassign",
+diff --git a/tapcrm/team-docs/security/AUTHORIZATION.md b/tapcrm/team-docs/security/AUTHORIZATION.md
+index a00d01e..82ee82e 100644
+--- a/tapcrm/team-docs/security/AUTHORIZATION.md
++++ b/tapcrm/team-docs/security/AUTHORIZATION.md
+@@ -535,6 +535,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
+ | POST | /api/leads/import | `leads:create` | — |
+ | PATCH | /api/leads/:id | `leads:edit` | id |
+ | POST | /api/leads/:id/close-lost | `leads:edit` | id |
++| GET | /api/leads/:id/assignees | `leads:reassign` | id |
+ | POST | /api/leads/:id/reassign | `leads:reassign` | id |
+ | POST | /api/leads/bulk-reassign | `leads:reassign` | — |
+ | POST | /api/leads/:id/reassign-with-credit | `leads:reassign-with-credit` | id |

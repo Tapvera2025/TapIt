@@ -1,0 +1,56 @@
+.meeting-view-tabs {
+  margin-bottom: 0.25rem;
+}
+
+.meeting-filter-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.875rem;
+  color: var(--app-foreground);
+  text-align: left;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.meeting-filter-card:hover,
+.meeting-filter-card.is-selected {
+  border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-border));
+}
+
+.meeting-filter-card:hover {
+  transform: translateY(-1px);
+}
+
+.meeting-filter-card.is-selected {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 18%, transparent), 0 10px 24px -20px color-mix(in srgb, var(--app-accent) 80%, transparent);
+}
+
+.meeting-count-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.875rem;
+}
+
+.meeting-section-heading h2 {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .meeting-view-tabs {
+    width: 100%;
+  }
+
+  .meeting-view-tabs .ui-segmented-tab {
+    padding-inline: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meeting-filter-card {
+    transition: none;
+  }
+}

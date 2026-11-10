@@ -570,7 +570,7 @@ export async function syncGscData(
     const registered = await db.one<{ displayUrl: string }>(ctx, sql`
       SELECT display_url FROM seo_sites WHERE organization_id = ${ctx.organizationId} AND id = ${site.id}
     `);
-    return await importGscPerformance(ctx, site.id, registered.displayUrl, startDate, endDate);
+    return await importGscPerformance(ctx, site.id, registered.displayUrl, startDate, endDate, site.client_id);
   } catch (error) {
     if (error instanceof SearchConsoleConfigurationError) throw new ApplicationError(error.message, 422, 'SEO_GSC_CONFIGURATION');
     if (error instanceof SearchConsoleUnavailableError) throw new ApplicationError('Google Search Console is temporarily unavailable. Please retry the sync.', 503, 'SEO_GSC_UNAVAILABLE');
