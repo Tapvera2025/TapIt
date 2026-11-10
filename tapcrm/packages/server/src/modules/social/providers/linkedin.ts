@@ -6,6 +6,7 @@ import {
   bearer,
   form,
   jsonBody,
+  mediaBytes,
   number,
   object,
   request,
@@ -13,7 +14,9 @@ import {
   string,
   tokenFromResponse,
   unsupported,
+  uploadSignal,
   validateCommon,
+  websiteUrl,
 } from './http.js';
 import {
   ProviderError,
@@ -23,12 +26,18 @@ import {
   type ProviderAccount,
   type ProviderCapabilities,
   type ProviderConfig,
+  type ProviderIdentity,
   type ProviderInsights,
   type PublishedPost,
   type PublishInput,
   type SocialContent,
+  type SocialMedia,
   type SocialProvider,
 } from './types.js';
+
+/** LinkedIn's accepted video sizes. */
+const VIDEO_MIN_BYTES = 75 * 1024;
+const VIDEO_MAX_BYTES = 500 * 1024 * 1024;
 
 export class LinkedInProvider implements SocialProvider {
   readonly platform = 'linkedin' as const;
@@ -53,7 +62,7 @@ export class LinkedInProvider implements SocialProvider {
     this.capabilities = {
       publishText: true,
       publishImages: true,
-      publishVideo: false,
+      publishVideo: true,
       accountInsights: Boolean(config.organizationEnabled && config.insightsEnabled),
       postInsights: Boolean(config.organizationEnabled && config.insightsEnabled),
     };
@@ -123,6 +132,20 @@ export class LinkedInProvider implements SocialProvider {
     return tokenFromResponse(result.data, credentials.scopes, credentials);
   }
 
+  async getAuthorizedIdentity(credentials: OAuthCredential): Promise<ProviderIdentity> {
+    const user = await request('https://api.linkedin.com/v2/userinfo', {
+      headers: bearer(credentials.accessToken),
+    });
+    const externalAccountId = string(user.data['sub']);
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(externalAccountId))
+      throw new ProviderError(
+        'PROVIDER_RESPONSE_INVALID',
+        'LinkedIn did not identify the signed-in member. Connect again.',
+      );
+    const name = string(user.data['name']).trim().slice(0, 200);
+    return { externalAccountId, ...(name ? { name } : {}) };
+  }
+
   async discoverAccounts(credentials: OAuthCredential): Promise<DiscoveredAccount[]> {
     const user = await request('https://api.linkedin.com/v2/userinfo', {
       headers: bearer(credentials.accessToken),
@@ -173,6 +196,7 @@ export class LinkedInProvider implements SocialProvider {
           `https://api.linkedin.com/rest/organizations/${urn.split(':').at(-1)}`,
           { headers: this.headers(credentials) },
         );
+        const website = websiteUrl(organization.data['localizedWebsite']);
         accounts.push({
           platform: 'linkedin',
           externalId: urn,
@@ -182,7 +206,11 @@ export class LinkedInProvider implements SocialProvider {
             urn,
           credentials,
           capabilities: this.capabilities,
-          metadata: { accountType: 'organization', role: string(acl['role']) },
+          metadata: {
+            accountType: 'organization',
+            role: string(acl['role']),
+            ...(website ? { websiteUri: website } : {}),
+          },
         });
       }
       const next = array(object(result.data['paging'])['links']).some(
@@ -199,15 +227,28 @@ export class LinkedInProvider implements SocialProvider {
   validatePost(content: SocialContent, account?: ProviderAccount): string[] {
     const errors = validateCommon(content, 3000);
     if (content.media.length > 1)
-      errors.push('LinkedIn currently supports one image per post in this integration.');
+      errors.push(
+        'LinkedIn currently supports one image or video per post in this integration.',
+      );
     if (
-      content.media.some((media) => !['image/jpeg', 'image/png'].includes(media.mimeType))
+      content.media.some(
+        (media) => !['image/jpeg', 'image/png', 'video/mp4'].includes(media.mimeType),
+      )
     )
       errors.push(
-        'LinkedIn currently supports JPEG/PNG images here. Video, documents, and multi-image publishing are unavailable.',
+        'LinkedIn accepts one JPEG/PNG image or one MP4 video here. Documents and multi-image publishing are unavailable.',
       );
+    if (
+      content.media.some(
+        (media) =>
+          media.mimeType === 'video/mp4' &&
+          media.sizeBytes !== undefined &&
+          (media.sizeBytes < VIDEO_MIN_BYTES || media.sizeBytes > VIDEO_MAX_BYTES),
+      )
+    )
+      errors.push('LinkedIn videos must be between 75 KB and 500 MB.');
     if (content.link && content.media.length)
-      errors.push('Choose a LinkedIn article link or image attachment.');
+      errors.push('Choose a LinkedIn article link or a media attachment.');
     if (
       account?.externalId.startsWith('urn:li:organization:') &&
       !this.config.organizationEnabled
@@ -240,7 +281,14 @@ export class LinkedInProvider implements SocialProvider {
       isReshareDisabledByAuthor: false,
     };
     const media = input.content.media[0];
-    if (media) {
+    if (media?.mimeType.startsWith('video/')) {
+      post['content'] = {
+        media: {
+          id: await this.uploadVideo(input, media),
+          ...(input.content.title ? { title: input.content.title } : {}),
+        },
+      };
+    } else if (media) {
       if (!media.bytes?.length)
         throw new ProviderError(
           'MEDIA_BYTES_REQUIRED',
@@ -298,6 +346,102 @@ export class LinkedInProvider implements SocialProvider {
       externalPostId: id,
       url: `https://www.linkedin.com/feed/update/${encodeURIComponent(id)}/`,
     };
+  }
+
+  /** LinkedIn's Videos API: initialize, upload each part it asks for, finalize, then
+   * wait until the video is AVAILABLE — a post cannot use it before. Nothing is
+   * published until the post itself is created, so a retry here is always safe. */
+  private async uploadVideo(input: PublishInput, media: SocialMedia): Promise<string> {
+    const bytes = mediaBytes(media);
+    const headers = this.headers(input.credentials);
+    const start = jsonBody({
+      initializeUploadRequest: {
+        owner: input.account.externalId,
+        fileSizeBytes: bytes.byteLength,
+        uploadCaptions: false,
+        uploadThumbnail: false,
+      },
+    });
+    const started = await request(
+      'https://api.linkedin.com/rest/videos?action=initializeUpload',
+      { method: 'POST', ...start, headers: { ...start.headers, ...headers } },
+    );
+    const value = object(started.data['value']);
+    const video = string(value['video']);
+    if (!/^urn:li:video:[A-Za-z0-9_-]+$/.test(video))
+      throw new ProviderError(
+        'PROVIDER_RESPONSE_INVALID',
+        'LinkedIn did not start the video upload. Try again.',
+      );
+    const parts: string[] = [];
+    for (const instruction of array(value['uploadInstructions'])) {
+      const uploadUrl = string(instruction['uploadUrl']);
+      assertUploadUrl(uploadUrl, ['linkedin.com', 'licdn.com']);
+      const first = number(instruction['firstByte']);
+      const last = number(instruction['lastByte']);
+      if (
+        !Number.isInteger(first) ||
+        !Number.isInteger(last) ||
+        first < 0 ||
+        last < first ||
+        last >= bytes.byteLength
+      )
+        throw new ProviderError(
+          'PROVIDER_RESPONSE_INVALID',
+          'LinkedIn returned an invalid upload range. Try again.',
+        );
+      // Upload URLs are pre-signed; the API token is not sent to them.
+      const part = await request(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: Buffer.from(bytes.subarray(first, last + 1)),
+        signal: uploadSignal(),
+      });
+      const etag = part.response.headers.get('etag');
+      if (!etag)
+        throw new ProviderError(
+          'UPLOAD_FAILED',
+          'LinkedIn did not confirm a video part. Publishing will retry.',
+          { transient: true, retryAfter: 60 },
+        );
+      parts.push(etag);
+    }
+    if (!parts.length)
+      throw new ProviderError(
+        'PROVIDER_RESPONSE_INVALID',
+        'LinkedIn did not say where to upload the video. Try again.',
+      );
+    const finish = jsonBody({
+      finalizeUploadRequest: {
+        video,
+        uploadToken: string(value['uploadToken']),
+        uploadedPartIds: parts,
+      },
+    });
+    await request('https://api.linkedin.com/rest/videos?action=finalizeUpload', {
+      method: 'POST',
+      ...finish,
+      headers: { ...finish.headers, ...headers },
+    });
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      if (attempt) await new Promise((resolve) => setTimeout(resolve, 2000));
+      const status = await request(
+        `https://api.linkedin.com/rest/videos/${encodeURIComponent(video)}`,
+        { headers },
+      );
+      const state = string(status.data['status']);
+      if (state === 'AVAILABLE') return video;
+      if (state === 'PROCESSING_FAILED')
+        throw new ProviderError(
+          'MEDIA_PROCESSING_FAILED',
+          'LinkedIn could not process the video. Use an MP4 of 3 seconds to 30 minutes.',
+        );
+    }
+    throw new ProviderError(
+      'MEDIA_PROCESSING_PENDING',
+      'LinkedIn is still processing the video. Publishing will retry.',
+      { transient: true, retryAfter: 120 },
+    );
   }
 
   async getPostStatus(input: {

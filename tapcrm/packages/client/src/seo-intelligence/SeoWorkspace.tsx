@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Button, SkeletonPage } from '../ui/index.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button, Page, SegmentedTabs, SkeletonPage } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import { AddSiteModal } from './AddSiteModal.js';
 import { SeoOverviewPanel } from './SeoOverviewPanel.js';
@@ -21,7 +21,6 @@ import { SeoEmptyState, SeoSectionHeader, SeoBadge } from './SeoUi.js';
 import {
   SEO_TABS,
   seoTabForSection,
-  moveTabIndex,
   type SeoSection,
 } from './seo-navigation.js';
 import { useSeoResource } from './useSeoResource.js';
@@ -254,31 +253,14 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
         'Google search data imported. The view shows the latest complete reporting period.',
       );
   }
-  function keyboardTabs(
-    event: KeyboardEvent<HTMLButtonElement>,
-    items: readonly { id: string }[],
-    index: number,
-    select: (index: number) => void,
-  ) {
-    const next = moveTabIndex(index, event.key, items.length);
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    select(next);
-    const list = event.currentTarget.parentElement;
-    const button = list?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next];
-    button?.focus();
-    button?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }
   if (siteResource.loading && !siteResource.data) return <SkeletonPage />;
   return (
-    <div className="seo-workspace">
-      <header className="seo-topbar">
-        <div>
-          <p className="seo-eyebrow">Understand. Improve. Grow.</p>
-          <h1>Website SEO</h1>
-          <p>Know what’s holding your website back, and what to do next.</p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
+    <Page
+      eyebrow="SEO intelligence"
+      title="Website SEO"
+      description="Know what’s holding your website back, and what to do next."
+      action={(
+        <div className="seo-page-actions">
           {sites.length > 0 && (
             <div className="seo-site-selector">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
@@ -302,95 +284,71 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
             </div>
           )}
           {canManage && (
-            <button
-              className="btn-secondary inline-flex items-center gap-2"
-              type="button"
-              onClick={() => setShowAddSite(true)}
-            >
+            <Button kind="secondary" onClick={() => setShowAddSite(true)}>
               <Icon name="plus" className="size-4" />
               Add website
-            </button>
+            </Button>
           )}
         </div>
-      </header>
-      <div className="seo-primary-tabs" role="tablist" aria-label="SEO areas">
-        {SEO_TABS.map((tab, index) => (
-          <button
-            key={tab.id}
-            type="button"
-            id={`seo-tab-${tab.id}`}
-            className="seo-primary-tab"
-            role="tab"
-            aria-selected={activeTab.id === tab.id}
-            tabIndex={activeTab.id === tab.id ? 0 : -1}
-            aria-controls="seo-main-panel"
-            data-active={activeTab.id === tab.id}
-            onClick={() => navigate(tab.sections[0].id)}
-            onKeyDown={(event) =>
-              keyboardTabs(event, SEO_TABS, index, (next) =>
-                navigate(SEO_TABS[next]!.sections[0].id),
-              )
-            }
-          >
-            <Icon name={tab.icon} className="size-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <p className="seo-tab-scroll-hint" aria-hidden="true">
-        Swipe the tabs to explore all areas <Icon name="arrow" className="size-3" />
-      </p>
-      {activeTab.sections.length > 1 && (
-        <div
-          className="seo-secondary-tabs"
-          role="tablist"
-          aria-label={`${activeTab.label} tools`}
-        >
-          {activeTab.sections.map((item, index) => (
-            <button
-              type="button"
-              key={item.id}
-              id={`seo-tool-${item.id}`}
-              className="seo-secondary-tab"
-              role="tab"
-              aria-selected={section === item.id}
-              tabIndex={section === item.id ? 0 : -1}
-              aria-controls="seo-main-panel"
-              data-active={section === item.id}
-              onClick={() => navigate(item.id)}
-              onKeyDown={(event) =>
-                keyboardTabs(event, activeTab.sections, index, (next) =>
-                  navigate(activeTab.sections[next]!.id),
-                )
-              }
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
       )}
-      {notice && (
-        <p
+    >
+      <div className="seo-workspace">
+        <SegmentedTabs
+        ariaLabel="SEO areas"
+        className="seo-primary-tabs"
+        items={SEO_TABS.map((tab) => ({
+          id: `seo-tab-${tab.id}`,
+          label: tab.label,
+          icon: <Icon name={tab.icon} className="size-4" />,
+          controls: 'seo-main-panel',
+        }))}
+        value={`seo-tab-${activeTab.id}`}
+        onChange={(id) => {
+          const selected = SEO_TABS.find((tab) => `seo-tab-${tab.id}` === id);
+          if (selected) navigate(selected.sections[0]!.id);
+        }}
+        scrollable
+        />
+        <p className="seo-tab-scroll-hint" aria-hidden="true">
+          Swipe the tabs to explore all areas <Icon name="arrow" className="size-3" />
+        </p>
+        {activeTab.sections.length > 1 && (
+          <SegmentedTabs
+          ariaLabel={`${activeTab.label} tools`}
+          className="seo-secondary-tabs"
+          density="compact"
+          items={activeTab.sections.map((item) => ({
+            id: `seo-tool-${item.id}`,
+            label: item.label,
+            controls: 'seo-main-panel',
+          }))}
+          value={`seo-tool-${section}`}
+            onChange={(id) => navigate(id.replace('seo-tool-', '') as SeoSection)}
+            scrollable
+          />
+        )}
+        {notice && (
+          <p
           role="status"
           className="mb-5 rounded-xl border border-app-accent/20 bg-app-accent/5 p-4 text-sm"
         >
           {notice}
-        </p>
-      )}
-      {actionError && (
-        <p
+          </p>
+        )}
+        {actionError && (
+          <p
           role="alert"
           className="mb-5 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-app-danger"
         >
           {actionError}
-        </p>
-      )}
-      {['finding', 'fix', 'alert'].includes(busy) && (
-        <p role="status" className="seo-small-copy mb-4">
-          Saving your update…
-        </p>
-      )}
-      <div
+          </p>
+        )}
+        {['finding', 'fix', 'alert'].includes(busy) && (
+          <p role="status" className="seo-small-copy mb-4">
+            Saving your update…
+          </p>
+        )}
+        <div
         role="tabpanel"
         id="seo-main-panel"
         aria-labelledby={
@@ -627,9 +585,9 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
             )}
           </>
         )}
-      </div>
-      {showAddSite && (
-        <AddSiteModal
+        </div>
+        {showAddSite && (
+          <AddSiteModal
           onClose={() => setShowAddSite(false)}
           onCreated={(site) => {
             setNewSite(site);
@@ -638,9 +596,10 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
             setShowAddSite(false);
             navigate('overview');
           }}
-        />
-      )}
-    </div>
+          />
+        )}
+      </div>
+    </Page>
   );
 }
 function LoadFailure({ message, retry }: { message: string; retry: () => void }) {
@@ -703,7 +662,7 @@ function SeoSitesPanel({
           {sites.map((site) => (
             <button
               key={site.id}
-              className="seo-surface flex items-center gap-4 p-5 text-left hover:border-app-accent/50"
+              className="ui-card seo-surface flex items-center gap-4 p-5 text-left hover:border-app-accent/50"
               type="button"
               onClick={() => onSelect(site)}
             >

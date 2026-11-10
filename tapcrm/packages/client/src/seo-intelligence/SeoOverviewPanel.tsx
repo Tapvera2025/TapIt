@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getSeoRuleCopy } from '@tapcrm/contracts';
-import { Button } from '../ui/index.js';
+import { Button, Card } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import { downloadSeoReport } from './api.js';
 import { FindingsTrendChart } from './FindingsTrendChart.js';
@@ -98,7 +98,7 @@ export function SeoOverviewPanel({
   }
   return (
     <div className="seo-panel">
-      <section className="seo-hero seo-surface">
+      <Card className="seo-hero seo-surface">
         <div className="seo-hero-copy">
           <p className="seo-eyebrow">Your website, at a glance</p>
           <h2>{heading}</h2>
@@ -138,7 +138,7 @@ export function SeoOverviewPanel({
           </div>
         </div>
         <SeoWebsiteIllustration className="seo-hero-art" />
-      </section>
+      </Card>
       {scan?.terminationReason && (
         <SeoHint tone="warning" title="A note about your last checkup">
           {scan.terminationReason}

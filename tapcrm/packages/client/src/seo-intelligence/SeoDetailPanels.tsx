@@ -130,7 +130,7 @@ export function SeoSearchPanel({
         <SeoEmptyState
           kind="search"
           title="Your Google story starts with data"
-          description="No search report has been imported for this website in the latest reporting period. Import data from the connected Google Search Console account. If access is missing, ask your administrator to connect the website’s property."
+          description="No search report has been imported for this website in the latest reporting period. Import data through your organization’s Google logins. If access is missing, ask your administrator to connect the Google account that manages this website under Social → Company connections."
         />
       ) : (
         <>

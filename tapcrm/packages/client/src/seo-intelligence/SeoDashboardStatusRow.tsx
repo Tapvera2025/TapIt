@@ -117,7 +117,7 @@ function GoogleTrafficTile({
         <p className="seo-status-tile-body">Loading…</p>
       ) : state === 'empty' ? (
         <p className="seo-status-tile-body">
-          No Google Search Console data yet. Connect GSC to see clicks and impressions.
+          No Google Search Console data yet. Connect the Google login that manages this website under Social → Company connections to see clicks and impressions.
         </p>
       ) : state === 'error' ? (
         <p className="seo-status-tile-body">Could not load Google traffic.</p>

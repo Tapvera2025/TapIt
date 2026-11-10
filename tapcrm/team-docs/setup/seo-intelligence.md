@@ -30,7 +30,7 @@ The coverage ring is not an SEO score. Marking a recommendation done only update
 
 | Service | Used for | Required |
 |---|---|---|
-| Google Search Console (OAuth) | `seo_gsc_metrics` import | Optional |
+| Google Search Console — the organization's own Google logins (Social → Company connections) | `seo_gsc_metrics` import, project rank fetching | Optional |
 | CrUX API (`CRUX_API_KEY`, or an eligible `PAGESPEED_API_KEY`) | Origin-level real-user Core Web Vitals | Optional |
 | PageSpeed Insights (`PAGESPEED_API_KEY`) | Lighthouse mobile lab performance | Optional |
 | SerpApi (`SERPAPI_API_KEY`) | Live country/device organic rank observations | Optional |
@@ -40,7 +40,9 @@ Core crawl audits do not require these integrations. Search Performance reports 
 
 Docker forwards `GOOGLE_SEARCH_CONSOLE_AUTH`, the OAuth/service-account variables, and `SERPAPI_API_KEY` into the server. After changing `.env`, recreate the server with `docker compose up -d server`. Source changes require `docker compose up -d --build`.
 
-GSC imports match the registered website against accessible Google properties, preserve the exact property identifier, request daily dimensions, and upsert at the actual daily grain. The displayed 28-day window ends three days ago. Query rows can be incomplete due to Google's reporting limits; displayed totals cover the loaded rows.
+Search Console is read per organization. Each organization connects its own Google login under **Social → Company connections**; the properties that login can read are listed there and can be assigned to clients. Imports and project rank fetching read only through the organization's own logins (`modules/social/facade.ts` → `searchConsoleToken`), so no organization can list, link or read another's property. The server's shared login (`GOOGLE_SEARCH_CONSOLE_AUTH` + its credentials) serves only the organization named in `GOOGLE_SEARCH_CONSOLE_ORGANIZATION`.
+
+GSC imports match the registered website against the organization's properties (those assigned to the website's client first), preserve the exact property identifier, request daily dimensions, and upsert at the actual daily grain. The displayed 28-day window ends three days ago. Query rows can be incomplete due to Google's reporting limits; displayed totals cover the loaded rows.
 
 Live SERP checks require migration `0116_seo_serp_allowance.sql` and an explicitly configured `seo_serp_allowance` row for the organization/site. The default allowance is zero. Provision the approved monthly search limit through a tenant-scoped DAL operation. The UI displays used/remaining searches and offers **Check ranks now**. No API key is returned to the browser.
 

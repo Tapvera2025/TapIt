@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, ErrorMessage, Field, Loading, Modal, Notice, Page, Select } from '../ui/index.js';
+import { Button, Card, Empty, ErrorMessage, Field, Loading, Modal, Notice, Page, SegmentedTabs, Select } from '../ui/index.js';
 import {
   MEETING_DURATIONS,
   acceptMeeting,
@@ -27,6 +27,7 @@ import {
 } from './api.js';
 import { MEETING_STATUS_LABEL, MEETING_STATUS_TONE, describeHistory, durationMinutes, formatMeetingTime, joinableNow } from './format.js';
 import { SlotPicker } from './SlotPicker.js';
+import './meetings.css';
 
 type Tab = 'mine' | 'everyone' | 'calendar';
 type Dialog =
@@ -181,10 +182,10 @@ export function MeetingsPage({
     }
   };
 
-  const tabs: Array<{ key: Tab; label: string }> = [
-    ...(canHost ? [{ key: 'mine' as const, label: 'My meetings' }] : []),
-    ...(canView ? [{ key: 'everyone' as const, label: 'Everyone' }] : []),
-    ...(canHost ? [{ key: 'calendar' as const, label: 'Google Calendar' }] : []),
+  const tabs: Array<{ id: Tab; label: string }> = [
+    ...(canHost ? [{ id: 'mine' as const, label: 'My meetings' }] : []),
+    ...(canView ? [{ id: 'everyone' as const, label: 'Everyone' }] : []),
+    ...(canHost ? [{ id: 'calendar' as const, label: 'Google Calendar' }] : []),
   ];
 
   return (
@@ -194,16 +195,17 @@ export function MeetingsPage({
       description="Meeting requests from clients, the meetings you host, and who is meeting whom."
       action={canHost ? <Button onClick={() => setDialog({ kind: 'book' })}>Book a meeting</Button> : undefined}
     >
-      <div className="flex flex-wrap gap-2" role="tablist">
-        {tabs.map((item) => (
-          <button key={item.key} type="button" role="tab" aria-selected={tab === item.key} onClick={() => setTab(item.key)}
-            className={`rounded-xl border px-4 py-2 text-sm font-semibold ${tab === item.key ? 'border-app-accent bg-app-accent/10 text-app-accent' : 'border-app-border hover:border-app-accent'}`}>
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedTabs
+        ariaLabel="Meeting views"
+        className="meeting-view-tabs"
+        items={tabs.map((item) => ({ ...item, id: `tab-meeting-${item.id}`, controls: 'meetings-panel' }))}
+        value={`tab-meeting-${tab}`}
+        onChange={(value) => setTab(value.replace('tab-meeting-', '') as Tab)}
+        scrollable
+      />
       {notice && <Notice>{notice}</Notice>}
       {error !== null && <ErrorMessage cause={error} />}
+      <div role="tabpanel" id="meetings-panel" aria-labelledby={`tab-meeting-${tab}`} tabIndex={0} className="min-w-0">
       {tab === 'mine' && canHost && (
         mine === null ? <Loading /> : (
           <MyMeetings
@@ -243,6 +245,7 @@ export function MeetingsPage({
           onDisconnect={() => void run(async () => setCalendar(await disconnectCalendar()), 'Google Calendar disconnected.')}
         />
       )}
+      </div>
       {dialog?.kind === 'book' && (
         <BookMeetingDialog currentUserId={currentUserId} timeZone={organizationTimezone} calendar={calendar} onClose={() => setDialog(null)}
           onBooked={(meeting) => { setDialog(null); setNotice(`Booked "${meeting.title}" for ${formatMeetingTime(meeting.startsAt, organizationTimezone)}.`); void reload(); }} />
@@ -296,7 +299,10 @@ function Section({ title, empty, children }: { title: string; empty?: string; ch
   const items = Array.isArray(children) ? children : [children];
   return (
     <section className="space-y-3">
-      <h2 className="font-display text-lg font-bold">{title}</h2>
+      <header className="meeting-section-heading flex items-center justify-between gap-3 border-b border-app-border pb-2">
+        <h2 className="font-display text-lg font-bold">{title}</h2>
+        <span className="rounded-full bg-app-surface-raised px-2.5 py-1 text-xs font-semibold tabular-nums text-app-muted">{items.length}</span>
+      </header>
       {items.length === 0 ? <p className="text-sm text-app-muted">{empty}</p> : items}
     </section>
   );
@@ -331,16 +337,16 @@ function EveryoneBoard({ meetings, statusFilter, onStatusFilter, currentUserId, 
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
         {SUMMARY.map((item) => (
-          <button key={item.status} type="button" onClick={() => onStatusFilter(statusFilter === item.status ? '' : item.status)}
-            className={`rounded-xl border p-3 text-left ${statusFilter === item.status ? 'border-app-accent' : 'border-app-border'}`}>
+          <button key={item.status} type="button" aria-pressed={statusFilter === item.status} onClick={() => onStatusFilter(statusFilter === item.status ? '' : item.status)}
+            className={`ui-card meeting-filter-card ${statusFilter === item.status ? 'is-selected' : ''}`}>
             <p className="font-display text-2xl font-bold">{counts.get(item.status) ?? 0}</p>
             <p className="text-xs text-app-muted">{item.label}</p>
           </button>
         ))}
-        <div className="rounded-xl border border-app-border p-3">
+        <Card className="meeting-count-card">
           <p className="font-display text-2xl font-bold">{moved}</p>
           <p className="text-xs text-app-muted">Moved by the host</p>
-        </div>
+        </Card>
       </div>
       <div className="max-w-xs">
         <Select label="Show" value={statusFilter} onChange={onStatusFilter} placeholder="All meetings"

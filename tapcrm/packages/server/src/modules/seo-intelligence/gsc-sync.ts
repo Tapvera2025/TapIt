@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
-import { listSites, querySearchAnalytics, SearchConsoleConfigurationError, type SearchConsoleSite } from '../../platform/integrations/google/search-console.js';
+import { querySearchAnalytics, SearchConsoleConfigurationError, type SearchConsoleSite } from '../../platform/integrations/google/search-console.js';
+import { listSearchConsoleProperties, searchConsoleToken, type SearchConsolePropertyAccess } from '../social/facade.js';
 import { upsertGscMetrics } from './repository.js';
 import { sql } from '../../platform/dal/sql.js';
 import { hostKey } from './url.js';
@@ -29,12 +30,39 @@ export function resolveGscProperty(siteUrl: string, properties: readonly SearchC
   const matches = properties.filter((property) => rank(property) !== null);
   // Exact URL prefix, then the www. variant, then the most specific matching domain.
   matches.sort((a, b) => rank(a)! - rank(b)! || b.siteUrl.length - a.siteUrl.length);
-  if (!matches[0]) throw new SearchConsoleConfigurationError('The connected Google account has no verified Search Console property covering this website. Grant it access to the matching property.');
+  if (!matches[0]) throw new SearchConsoleConfigurationError('None of your organization’s Google logins can read a Search Console property covering this website. Connect the Google account that manages it under Social → Company connections, or add one of your logins as a user of the property.');
   return matches[0].siteUrl;
 }
 
-export async function importGscPerformance(ctx: RequestContext, siteId: string, siteUrl: string, startDate: string, endDate: string) {
-  const propertyUrl = resolveGscProperty(siteUrl, await listSites());
+/**
+ * The property for a website, among those the ORGANIZATION's own Google logins can
+ * read (Social → Company connections). Properties assigned to the website's client
+ * are tried first, so two clients on related domains each get their own.
+ */
+export function chooseGscProperty(siteUrl: string, properties: readonly SearchConsolePropertyAccess[], clientId: string | null): string {
+  const asSites = (list: readonly SearchConsolePropertyAccess[]) =>
+    list.map((property) => ({ siteUrl: property.propertyUrl, permissionLevel: property.permissionLevel }));
+  const own = clientId === null ? [] : properties.filter((property) => property.clientId === clientId);
+  if (own.length > 0) {
+    try {
+      return resolveGscProperty(siteUrl, asSites(own));
+    } catch (error) {
+      if (!(error instanceof SearchConsoleConfigurationError)) throw error;
+    }
+  }
+  return resolveGscProperty(siteUrl, asSites(properties));
+}
+
+export async function importGscPerformance(ctx: RequestContext, siteId: string, siteUrl: string, startDate: string, endDate: string, clientId: string | null = null) {
+  const { properties, problem } = await listSearchConsoleProperties(ctx);
+  let propertyUrl: string;
+  try {
+    propertyUrl = chooseGscProperty(siteUrl, properties, clientId);
+  } catch (error) {
+    // Nothing matched because the shared login could not list its properties: say that.
+    throw problem ?? error;
+  }
+  const accessToken = await searchConsoleToken(ctx, propertyUrl);
   const pageSize = 25_000;
   const maxPages = 10;
   const observations: Parameters<typeof upsertGscMetrics>[1] = [];
@@ -46,7 +74,7 @@ export async function importGscPerformance(ctx: RequestContext, siteId: string, 
       // A domain property may include other subdomains. Restrict to this site,
       // with or without www. and on either scheme.
       filters: [{ dimension: 'page', operator: 'includingRegex', expression: sitePageRegex(siteUrl) }],
-    });
+    }, accessToken);
     for (const row of rows) {
       const [date, query, pageUrl, country, device] = row.keys;
       if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !query || !pageUrl || !country || !device) throw new Error('Search Console returned an unexpected dimension layout.');

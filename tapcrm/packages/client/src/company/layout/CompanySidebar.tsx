@@ -764,8 +764,12 @@ export function CompanySidebar({
     {
       label: 'Attendance',
       items: [
-        { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
-        { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+        ...(accountType === 'employee'
+          ? [
+              { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
+              { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+            ]
+          : []),
         ...(canViewAttendanceReports
           ? [
               {
@@ -1098,7 +1102,7 @@ export function CompanySidebar({
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
         className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
-        aria-label="Company navigation"
+        aria-label={variant === 'client' ? 'Client navigation' : 'Company navigation'}
       >
         <div
           ref={activeNavIndicatorRef}
@@ -1271,10 +1275,10 @@ export function CompanySidebar({
       )}
       <div className={`mx-1 shrink-0 border-t border-sidebar-border/70 px-1 pt-4 pb-2 ${collapsed ? 'xl:mx-0 xl:px-0' : ''}`}>
         <div
-          className={`flex min-w-0 items-center gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-hover-bg/45 px-3 py-2.5 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
+          className={`sidebar-profile-card flex min-w-0 items-center gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-hover-bg/45 px-3 py-2.5 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
           title={collapsed ? `${identity.fullName} · ${roleLabel}` : undefined}
         >
-          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active-bg text-xs font-bold text-sidebar-active-fg">
+          <span className="sidebar-profile-avatar grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active-bg text-xs font-bold text-sidebar-active-fg">
             {identity.fullName.trim().slice(0, 1).toUpperCase() || '?'}
           </span>
           <span className={`min-w-0 leading-tight ${collapsed ? 'xl:hidden' : ''}`}>

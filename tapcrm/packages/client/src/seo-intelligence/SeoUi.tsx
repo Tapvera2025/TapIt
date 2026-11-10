@@ -55,11 +55,11 @@ export function SeoMetricCard({
     </>
   );
   return onClick ? (
-    <button type="button" className={`seo-metric seo-tone-${tone}`} onClick={onClick}>
+    <button type="button" className={`ui-card seo-metric seo-tone-${tone}`} onClick={onClick}>
       {body}
     </button>
   ) : (
-    <div className={`seo-metric seo-tone-${tone}`}>{body}</div>
+    <div className={`ui-card seo-metric seo-tone-${tone}`}>{body}</div>
   );
 }
 export function SeoEmptyState({

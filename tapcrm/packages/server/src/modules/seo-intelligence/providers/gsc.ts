@@ -20,13 +20,16 @@ const PROVENANCE: SeoProvenance = {
   isPaid: false,
 };
 
+/** `accessToken` comes from Social's `searchConsoleToken`, which only hands out the
+ * organization's own Google logins. */
 export async function gscFetch(
   propertyUrl: string,
   request: SearchAnalyticsRequest,
+  accessToken: string,
 ): Promise<SeoProviderResult<SearchAnalyticsRow[]>> {
   const start = Date.now();
   try {
-    const rows = await querySearchAnalytics(propertyUrl, request);
+    const rows = await querySearchAnalytics(propertyUrl, request, accessToken);
     return {
       state: 'ok',
       data: rows,

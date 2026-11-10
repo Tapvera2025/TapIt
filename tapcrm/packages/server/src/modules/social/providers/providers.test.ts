@@ -363,8 +363,10 @@ describe('Real publishing payloads and limits', () => {
       new MetaProvider('instagram', config).publishPost(ig),
     ).rejects.toMatchObject({ code: 'POST_INVALID' });
     const linked = input('linkedin');
+    // Two items: LinkedIn here takes one image or one video.
     linked.content.media = [
       { url: 'https://cdn.example.com/video.mp4', mimeType: 'video/mp4' },
+      { url: 'https://cdn.example.com/photo.jpg', mimeType: 'image/jpeg' },
     ];
     await expect(new LinkedInProvider(config).publishPost(linked)).rejects.toMatchObject({
       code: 'POST_INVALID',

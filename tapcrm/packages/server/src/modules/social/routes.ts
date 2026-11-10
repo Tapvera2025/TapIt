@@ -188,7 +188,7 @@ export function registerSocialRoutes(): void {
         // Revoking would end the company sign-in for every client it serves.
         if (account.connectionClientId === null)
           throw new ApplicationError(
-            'This location uses your company Google connection. Unassign it here; manage the Google sign-in under Company connections.',
+            'This account uses one of your company logins. Unassign it here; manage the login under Company connections.',
             422,
             'SOCIAL_COMPANY_CONNECTION',
           );
@@ -199,10 +199,10 @@ export function registerSocialRoutes(): void {
               service.connectionCredentialContext(ctx.organizationId, {
                 id: account.connectionId,
                 clientId: account.connectionClientId,
-                platform: account.platform,
+                platform: account.connectionPlatform,
               }),
             );
-            await getProvider(account.platform).revoke(credentials);
+            await getProvider(account.connectionPlatform).revoke(credentials);
             revocationStatus = 'revoked';
           } catch {
             revocationStatus = 'remove_access_in_platform_settings';

@@ -11,6 +11,8 @@ import type {
   SocialPostInput,
   SocialPostList,
   SocialPostQuery,
+  SocialPostType,
+  SocialPrivacyStatus,
   SocialSettings,
 } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
@@ -108,6 +110,7 @@ async function postDto(tx: Tx, ctx: RequestContext, row: PostRow): Promise<Socia
       link: d.link,
       mediaIds: d.mediaIds,
       postType: d.postType,
+      privacyStatus: d.privacyStatus,
       platformPostId: d.platformPostId,
       platformPostUrl: d.platformPostUrl,
       attempts: d.attempts,
@@ -319,7 +322,9 @@ interface EffectiveDestination {
   title: string | null;
   link: string | null;
   mediaIds: string[];
-  postType: 'feed' | 'story';
+  postType: SocialPostType;
+  /** YouTube only. */
+  privacyStatus: SocialPrivacyStatus | null;
 }
 async function validateSelections(
   tx: Tx,
@@ -359,6 +364,10 @@ async function validateSelections(
       throw new SocialValidationError(
         'Stories are supported for Instagram destinations only.',
       );
+    if (postType === 'reel' && !['facebook', 'instagram'].includes(account.platform))
+      throw new SocialValidationError(
+        'Reels are supported for Facebook and Instagram destinations only.',
+      );
     return {
       account,
       caption: override?.caption ?? input.caption,
@@ -366,6 +375,8 @@ async function validateSelections(
       link: override?.link !== undefined ? override.link || null : input.link || null,
       mediaIds: override?.mediaIds ?? input.mediaIds,
       postType,
+      privacyStatus:
+        account.platform === 'youtube' ? (override?.privacyStatus ?? null) : null,
     };
   });
   if (strict)
@@ -388,7 +399,10 @@ async function validateSelections(
   return effective;
 }
 function validationContent(
-  item: Pick<EffectiveDestination, 'caption' | 'title' | 'link' | 'mediaIds' | 'postType'>,
+  item: Pick<
+    EffectiveDestination,
+    'caption' | 'title' | 'link' | 'mediaIds' | 'postType' | 'privacyStatus'
+  >,
   media: MediaRow[],
 ): SocialContent {
   return {
@@ -396,6 +410,7 @@ function validationContent(
     ...(item.title !== null ? { title: item.title } : {}),
     ...(item.link !== null ? { link: item.link } : {}),
     postType: item.postType,
+    ...(item.privacyStatus !== null ? { privacyStatus: item.privacyStatus } : {}),
     media: item.mediaIds.map((id) => {
       const row = media.find((m) => m.id === id);
       if (!row) throw new SocialValidationError('Media is no longer available.');
@@ -430,7 +445,7 @@ async function replaceContents(
     );
   for (const item of effective) {
     const destination = await tx.one<{ id: string }>(
-      sql`INSERT INTO social_post_destination(organization_id,client_id,post_id,account_id,caption,title,link,post_type) VALUES (${ctx.organizationId},${clientId},${postId},${item.account.id},${item.caption},${item.title},${item.link},${item.postType}) RETURNING id`,
+      sql`INSERT INTO social_post_destination(organization_id,client_id,post_id,account_id,caption,title,link,post_type,privacy_status) VALUES (${ctx.organizationId},${clientId},${postId},${item.account.id},${item.caption},${item.title},${item.link},${item.postType},${item.privacyStatus}) RETURNING id`,
     );
     for (const [position, id] of item.mediaIds.entries())
       await tx.query(
@@ -531,6 +546,7 @@ function inputFromPost(post: SocialPost): SocialPostInput {
           link: d.link ?? '',
           mediaIds: d.mediaIds,
           postType: d.postType,
+          ...(d.privacyStatus ? { privacyStatus: d.privacyStatus } : {}),
         },
       ]),
     ),
@@ -942,10 +958,34 @@ export async function credentialsForAccount(
     });
   return credentialsForConnection(
     ctx,
-    { id: row.connectionId, clientId: row.connectionClientId, platform: row.platform },
+    {
+      id: row.connectionId,
+      clientId: row.connectionClientId,
+      platform: row.connectionPlatform,
+    },
     row.name,
   );
 }
+
+/** What admins are told when a company sign-in stops working. */
+const COMPANY_RECONNECT_NOTICE: Record<string, { title: string; body: string }> = {
+  google_business: {
+    title: 'Reconnect your company Google Business Profile',
+    body: 'Google stopped accepting the company sign-in. Posts to its locations will fail until someone reconnects it.',
+  },
+  facebook: {
+    title: 'Reconnect your company Facebook login',
+    body: 'Facebook stopped accepting the company login. Posts to its Pages and Instagram accounts will fail until someone reconnects it.',
+  },
+  linkedin: {
+    title: 'Reconnect your company LinkedIn login',
+    body: 'LinkedIn stopped accepting the company login. Posts to its pages will fail until someone reconnects it.',
+  },
+  youtube: {
+    title: 'Reconnect your company YouTube channel',
+    body: 'Google stopped accepting the sign-in for this channel. Uploads to it will fail until someone reconnects it.',
+  },
+};
 
 /** The platform stopped accepting a connection's token. Every account it serves
  * needs the reconnect, so they all say so. Company admins hear about it once:
@@ -953,7 +993,7 @@ export async function credentialsForAccount(
 export async function markConnectionReconnectRequired(
   tx: Tx,
   ctx: RequestContext,
-  connection: Pick<ConnectionRow, 'id' | 'clientId'>,
+  connection: Pick<ConnectionRow, 'id' | 'clientId' | 'platform'>,
   message: string,
 ): Promise<void> {
   const reason = message.slice(0, 1000);
@@ -963,13 +1003,14 @@ export async function markConnectionReconnectRequired(
   await tx.query(
     sql`UPDATE social_account SET status = 'reconnect_required', last_error = ${reason} WHERE organization_id = ${ctx.organizationId} AND connection_id = ${connection.id} AND status = 'connected'`,
   );
-  if (changed && connection.clientId === null)
+  const notice = COMPANY_RECONNECT_NOTICE[connection.platform];
+  if (changed && connection.clientId === null && notice)
     await notify(tx, ctx, {
       type: NOTIFICATION_TYPES.SOCIAL_CONNECTION_RECONNECT_REQUIRED,
       priority: 'operational',
       audience: { holders: { action: 'system:manage-integrations' } },
-      title: 'Reconnect your company Google Business Profile',
-      body: 'Google stopped accepting the company sign-in. Posts to its locations will fail until someone reconnects it.',
+      title: notice.title,
+      body: notice.body,
       link: '/company/social/connections',
       metadata: { connectionId: connection.id },
     });
@@ -986,7 +1027,11 @@ export async function markAccountError(
       await markConnectionReconnectRequired(
         tx,
         ctx,
-        { id: row.connectionId, clientId: row.connectionClientId },
+        {
+          id: row.connectionId,
+          clientId: row.connectionClientId,
+          platform: row.connectionPlatform,
+        },
         message,
       );
     await tx.query(

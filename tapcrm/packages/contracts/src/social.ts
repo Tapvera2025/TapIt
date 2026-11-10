@@ -50,14 +50,29 @@ export interface SocialAccount {
   lastSyncedAt: string | null;
   lastError: string | null;
 }
-/** Platforms a company can connect once and share across its clients. */
-export const SOCIAL_COMPANY_PLATFORMS = ['google_business'] as const;
+/** Platforms a company can sign in to once and share across its clients. A Meta
+ * sign-in is `facebook` and lists the Pages and the Instagram accounts linked to them. */
+export const SOCIAL_COMPANY_PLATFORMS = [
+  'google_business',
+  'facebook',
+  'linkedin',
+  'youtube',
+] as const;
 export type SocialCompanyPlatform = (typeof SOCIAL_COMPANY_PLATFORMS)[number];
+/** What a company sign-in can list for assignment to clients. `search_console` is a
+ * Search Console property: read for reporting, never published to. */
+export const SOCIAL_COMPANY_ASSET_PLATFORMS = [
+  ...SOCIAL_PLATFORMS,
+  'search_console',
+] as const;
+export type SocialCompanyAssetPlatform = (typeof SOCIAL_COMPANY_ASSET_PLATFORMS)[number];
 /** A company-wide platform sign-in. Its token never leaves the server. */
 export interface SocialCompanyConnection {
   id: string;
   platform: SocialCompanyPlatform;
   accountEmail: string | null;
+  /** The signed-in platform account's display name, when the platform shares one. */
+  accountName: string | null;
   status: SocialConnectionStatus;
   connectedAt: string;
   connectedByName: string | null;
@@ -67,27 +82,40 @@ export interface SocialCompanyConnection {
   assignedCount: number;
 }
 export interface SocialCompanyLocationAssignment {
-  accountId: string;
+  /** The client's publishing account; null for a Search Console property, which has none. */
+  accountId: string | null;
   clientId: string;
   clientName: string;
   status: SocialConnectionStatus;
   /** `client_connection`: connected earlier through the client's own sign-in, not this company connection. */
   via: 'company_connection' | 'client_connection';
 }
-/** A location the company connection can manage, and the client it is assigned to. */
+/** The client an unassigned location most likely belongs to, and why. */
+export interface SocialCompanyLocationSuggestion {
+  clientId: string;
+  clientName: string;
+  /** `website`: the location's website is one of the client's domains. `name`: the names match. */
+  reason: 'website' | 'name';
+}
+/** Something a company sign-in can manage — a Page, Instagram account, Business Profile,
+ * LinkedIn page, YouTube channel or Search Console property — and the client it serves. */
 export interface SocialCompanyLocation {
   id: string;
   connectionId: string;
-  platform: SocialCompanyPlatform;
+  platform: SocialCompanyAssetPlatform;
   externalId: string;
   name: string;
   address: string | null;
+  /** A short platform-specific line, such as an Instagram username or a property's access level. */
+  detail: string | null;
   websiteUrl: string | null;
   mapsUrl: string | null;
   /** `missing`: the connected account no longer manages this location. */
   status: 'available' | 'missing';
   lastSeenAt: string;
   assignment: SocialCompanyLocationAssignment | null;
+  /** Only for an available, unassigned location. */
+  suggestion: SocialCompanyLocationSuggestion | null;
 }
 export interface SocialMedia {
   id: string;
@@ -101,13 +129,18 @@ export interface SocialMedia {
   url: string;
   createdAt: string;
 }
-export type SocialPostType = 'feed' | 'story';
+/** `story`: Instagram only. `reel`: one video, as a Facebook or Instagram Reel. */
+export type SocialPostType = 'feed' | 'story' | 'reel';
+/** YouTube visibility. */
+export type SocialPrivacyStatus = 'public' | 'unlisted' | 'private';
 export interface SocialPostOverride {
   caption?: string | undefined;
   title?: string | undefined;
   link?: string | undefined;
   mediaIds?: string[] | undefined;
   postType?: SocialPostType | undefined;
+  /** YouTube only; an upload without one is private. */
+  privacyStatus?: SocialPrivacyStatus | undefined;
 }
 export interface SocialPostInput {
   caption: string;
@@ -130,6 +163,8 @@ export interface SocialPostDestination {
   link: string | null;
   mediaIds: string[];
   postType: SocialPostType;
+  /** YouTube only; null uploads as private. */
+  privacyStatus: SocialPrivacyStatus | null;
   platformPostId: string | null;
   platformPostUrl: string | null;
   attempts: number;
@@ -175,7 +210,8 @@ export interface SocialPostList {
 }
 export interface SocialPostQuery {
   search?: string | undefined;
-  status?: SocialPostStatus | undefined;
+  /** One status or several; the API takes them comma-separated (`draft,scheduled`). */
+  status?: readonly SocialPostStatus[] | undefined;
   platform?: SocialPlatform | undefined;
   from?: string | undefined;
   to?: string | undefined;

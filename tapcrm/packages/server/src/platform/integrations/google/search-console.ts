@@ -1,7 +1,13 @@
 import { GoogleAuthUnavailableError, googleAccessToken } from './token.js';
 
 /**
- * The two Search Console calls the SEO module needs.
+ * The two Search Console calls the SEO modules need.
+ *
+ * Every call carries the access token it reads with. Which token an
+ * organization may use is decided by the Social module's facade
+ * (`searchConsoleToken`): the organization's own Google logins, or — for the
+ * one organization allowed — the server's shared login. Nothing here picks a
+ * token on a caller's behalf, so no organization can read through another's.
  *
  * Errors are split the way TECH.md §9.8 asks: a fault in the configuration is
  * reported to the user and never retried, and a transient fault is thrown so
@@ -55,15 +61,21 @@ interface ErrorBody {
   readonly error?: { readonly message?: string; readonly status?: string };
 }
 
-async function call<T>(path: string, init?: { body: unknown }): Promise<T> {
-  let token: string;
+/**
+ * A token from the server's shared Search Console login (GOOGLE_SEARCH_CONSOLE_AUTH).
+ * Only the Social facade calls this, and only for the organization the deployment
+ * names in GOOGLE_SEARCH_CONSOLE_ORGANIZATION.
+ */
+export async function sharedSearchConsoleToken(): Promise<string> {
   try {
-    token = await googleAccessToken();
+    return await googleAccessToken();
   } catch (cause) {
     if (cause instanceof GoogleAuthUnavailableError) throw new SearchConsoleConfigurationError(cause.message);
     throw new SearchConsoleUnavailableError(cause instanceof Error ? cause.message : String(cause));
   }
+}
 
+async function call<T>(path: string, token: string, init?: { body: unknown }): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_ROOT}${path}`, {
@@ -98,9 +110,9 @@ async function call<T>(path: string, init?: { body: unknown }): Promise<T> {
   throw new SearchConsoleConfigurationError(detail);
 }
 
-/** Every property the configured account can read. */
-export async function listSites(): Promise<SearchConsoleSite[]> {
-  const payload = await call<{ siteEntry?: SearchConsoleSite[] }>('/sites');
+/** Every property the token's Google account can read. */
+export async function listSites(accessToken: string): Promise<SearchConsoleSite[]> {
+  const payload = await call<{ siteEntry?: SearchConsoleSite[] }>('/sites', accessToken);
   return payload.siteEntry ?? [];
 }
 
@@ -111,10 +123,12 @@ export async function listSites(): Promise<SearchConsoleSite[]> {
 export async function querySearchAnalytics(
   propertyUrl: string,
   request: SearchAnalyticsRequest,
+  accessToken: string,
 ): Promise<SearchAnalyticsRow[]> {
   const filters = request.filters ?? [];
   const payload = await call<{ rows?: SearchAnalyticsRow[] }>(
     `/sites/${encodeURIComponent(propertyUrl)}/searchAnalytics/query`,
+    accessToken,
     {
       body: {
         startDate: request.startDate,

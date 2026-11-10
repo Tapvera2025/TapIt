@@ -1,36 +1,38 @@
 import { Icon } from '../ui/index.js';
 import {
-  PLATFORM_LABELS,
+  ASSET_LABELS,
   STATUS_LABELS,
-  type SocialPlatform,
+  type SocialCompanyAssetPlatform,
   type SocialPostStatus,
 } from './types.js';
 
-const platformStyle: Record<SocialPlatform, string> = {
+const platformStyle: Record<SocialCompanyAssetPlatform, string> = {
   facebook: 'bg-blue-600 text-white',
   instagram: 'bg-fuchsia-600 text-white',
   linkedin: 'bg-sky-700 text-white',
   google_business: 'bg-emerald-600 text-white',
   youtube: 'bg-red-600 text-white',
+  search_console: 'bg-amber-600 text-white',
 };
-const platformShort: Record<SocialPlatform, string> = {
+const platformShort: Record<SocialCompanyAssetPlatform, string> = {
   facebook: 'f',
   instagram: '◎',
   linkedin: 'in',
   google_business: 'G',
   youtube: '▶',
+  search_console: 'SC',
 };
 export function PlatformMark({
   platform,
   small = false,
 }: {
-  platform: SocialPlatform;
+  platform: SocialCompanyAssetPlatform;
   small?: boolean;
 }): React.JSX.Element {
   return (
     <span
-      title={PLATFORM_LABELS[platform]}
-      aria-label={PLATFORM_LABELS[platform]}
+      title={ASSET_LABELS[platform]}
+      aria-label={ASSET_LABELS[platform]}
       className={`inline-flex shrink-0 items-center justify-center rounded-lg font-bold ${small ? 'size-6 text-xs' : 'size-10 text-lg'} ${platformStyle[platform]}`}
     >
       {platformShort[platform]}

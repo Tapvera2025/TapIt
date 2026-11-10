@@ -80,7 +80,14 @@ export function SearchConsoleCard({ projectId, onSynced }: { projectId: string; 
     ...(link !== null && !settings.properties.some((p) => p.propertyUrl === link.propertyUrl)
       ? [{ value: link.propertyUrl, label: `${link.propertyUrl} (no longer listed)` }]
       : []),
-    ...settings.properties.map((property) => ({ value: property.propertyUrl, label: property.propertyUrl })),
+    ...settings.properties.map((property) => ({
+      value: property.propertyUrl,
+      label: [
+        property.propertyUrl,
+        property.forThisClient ? '(this client)' : property.clientName ? `(${property.clientName})` : '',
+        property.status === 'reconnect_required' ? '— login needs reconnecting' : '',
+      ].filter(Boolean).join(' '),
+    })),
   ];
 
   return <Card>
@@ -98,7 +105,7 @@ export function SearchConsoleCard({ projectId, onSynced }: { projectId: string; 
 
     {notice && <div className="mb-3"><Notice>{notice}</Notice></div>}
     {error && <div className="mb-3"><Notice error>{error}</Notice></div>}
-    {!settings.configured && <div className="mb-3"><Notice error>Google Search Console is not configured on this server. Set GOOGLE_SEARCH_CONSOLE_AUTH to enable automatic fetching.</Notice></div>}
+    {!settings.configured && <div className="mb-3"><Notice error>No Google login is connected yet. A company admin connects the Google account that manages your clients’ Search Console properties under Social → Company connections; its properties then appear here.</Notice></div>}
     {settings.configured && settings.error !== null && <div className="mb-3"><Notice error>{settings.error}</Notice></div>}
 
     <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">

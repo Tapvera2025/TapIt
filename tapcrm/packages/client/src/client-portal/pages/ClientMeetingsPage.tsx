@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, ErrorMessage, Loading, Modal, Notice, Page, Select } from '../../ui/index.js';
+import { Button, Card, Empty, ErrorMessage, Icon, Loading, Modal, Notice, Page, Select } from '../../ui/index.js';
 import {
   MEETING_DURATIONS,
   cancelPortalMeeting,
@@ -14,6 +14,7 @@ import {
 import { durationMinutes, formatMeetingTime, joinableNow } from '../../meetings/format.js';
 import { SlotPicker } from '../../meetings/SlotPicker.js';
 import { getPortalProfile, listPortalProjects, type PortalProject } from '../api/portalApi.js';
+import '../../meetings/meetings.css';
 
 const STATUS_TEXT: Record<PortalMeeting['status'], string> = {
   requested: 'Waiting for confirmation',
@@ -24,6 +25,17 @@ const STATUS_TEXT: Record<PortalMeeting['status'], string> = {
   expired: 'Lapsed',
   completed: 'Held',
   no_show: 'Missed',
+};
+
+const STATUS_CLASS: Record<PortalMeeting['status'], string> = {
+  requested: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  proposed: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  confirmed: 'border-app-accent/30 bg-app-accent/10 text-app-accent',
+  declined: 'border-app-danger/30 bg-app-danger/10 text-app-danger',
+  cancelled: 'border-app-danger/30 bg-app-danger/10 text-app-danger',
+  expired: 'border-app-border bg-app-surface-raised text-app-muted',
+  completed: 'border-app-accent/30 bg-app-accent/10 text-app-accent',
+  no_show: 'border-app-border bg-app-surface-raised text-app-muted',
 };
 
 export function ClientMeetingsPage({ initialProjectId, onError }: { initialProjectId: string | null; onError: (cause: unknown) => void }): React.JSX.Element {
@@ -80,7 +92,10 @@ export function ClientMeetingsPage({ initialProjectId, onError }: { initialProje
         <>
           {toPick.length > 0 && (
             <section className="space-y-3">
-              <h2 className="font-display text-lg font-bold">Pick a new time</h2>
+              <header className="meeting-section-heading flex items-center justify-between gap-3 border-b border-app-border pb-2">
+                <h2 className="font-display text-lg font-bold">Pick a new time</h2>
+                <span className="rounded-full bg-app-surface-raised px-2.5 py-1 text-xs font-semibold tabular-nums text-app-muted">{toPick.length}</span>
+              </header>
               {toPick.map((meeting) => (
                 <Card key={meeting.id}>
                   <MeetingSummary meeting={meeting} timeZone={timeZone} />
@@ -97,7 +112,10 @@ export function ClientMeetingsPage({ initialProjectId, onError }: { initialProje
             </section>
           )}
           <section className="space-y-3">
-            <h2 className="font-display text-lg font-bold">Coming up</h2>
+            <header className="meeting-section-heading flex items-center justify-between gap-3 border-b border-app-border pb-2">
+              <h2 className="font-display text-lg font-bold">Coming up</h2>
+              <span className="rounded-full bg-app-surface-raised px-2.5 py-1 text-xs font-semibold tabular-nums text-app-muted">{upcoming.length}</span>
+            </header>
             {upcoming.length === 0 ? <Empty>No meetings booked. Use “Request a meeting” to ask someone on your project.</Empty> : upcoming.map((meeting) => (
               <Card key={meeting.id}>
                 <MeetingSummary meeting={meeting} timeZone={timeZone} />
@@ -116,7 +134,10 @@ export function ClientMeetingsPage({ initialProjectId, onError }: { initialProje
           </section>
           {earlier.length > 0 && (
             <section className="space-y-3">
-              <h2 className="font-display text-lg font-bold">Earlier</h2>
+              <header className="meeting-section-heading flex items-center justify-between gap-3 border-b border-app-border pb-2">
+                <h2 className="font-display text-lg font-bold">Earlier</h2>
+                <span className="rounded-full bg-app-surface-raised px-2.5 py-1 text-xs font-semibold tabular-nums text-app-muted">{earlier.length}</span>
+              </header>
               {earlier.map((meeting) => <Card key={meeting.id}><MeetingSummary meeting={meeting} timeZone={timeZone} /></Card>)}
             </section>
           )}
@@ -142,14 +163,18 @@ function MeetingSummary({ meeting, timeZone }: { meeting: PortalMeeting; timeZon
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-app-muted">{meeting.project?.name ?? 'Meeting'}</p>
-        <h3 className="mt-1 font-display text-base font-bold">{formatMeetingTime(meeting.startsAt, timeZone)} · {durationMinutes(meeting.startsAt, meeting.endsAt)} min</h3>
+        <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-app-muted">
+          <Icon name="calendar" className="size-4 text-app-accent" />
+          {meeting.project?.name ?? 'Meeting'}
+        </p>
+        <h3 className="mt-2 font-display text-base font-bold">{formatMeetingTime(meeting.startsAt, timeZone)}</h3>
+        <p className="mt-1 text-xs font-medium text-app-muted">{durationMinutes(meeting.startsAt, meeting.endsAt)} minute meeting</p>
         <p className="mt-1 text-sm">With {meeting.host.name}{meeting.host.role ? ` (${meeting.host.role})` : ''}</p>
         {meeting.agenda && <p className="mt-1 whitespace-pre-line text-sm text-app-muted">{meeting.agenda}</p>}
         {meeting.declineReason && <p className="mt-1 text-sm text-app-danger">{meeting.host.name}: {meeting.declineReason}</p>}
         {meeting.cancelReason && meeting.cancelledByYou === false && <p className="mt-1 text-sm text-app-danger">Cancelled: {meeting.cancelReason}</p>}
       </div>
-      <span className="rounded-full border border-app-border px-2.5 py-0.5 text-xs font-semibold">{STATUS_TEXT[meeting.status]}</span>
+      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_CLASS[meeting.status]}`}>{STATUS_TEXT[meeting.status]}</span>
     </div>
   );
 }

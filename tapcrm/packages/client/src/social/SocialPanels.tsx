@@ -1,4 +1,4 @@
-import { PLATFORM_LABELS } from './types.js';
+import { PLATFORM_LABELS, SOCIAL_COMPANY_PLATFORMS } from './types.js';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
@@ -21,6 +21,7 @@ import {
   syncSocialAnalytics,
 } from './api.js';
 import { AssignLocationModal } from './CompanyConnections.js';
+import { sectionStatusQuery } from './planner-model.js';
 import {
   dateInZone,
   PlatformMark,
@@ -51,7 +52,7 @@ export function ConnectedAccounts({
   accounts: SocialAccount[];
   providers: SocialProvider[];
   canConnect: boolean;
-  /** May assign the company Google account's locations to clients. */
+  /** May assign what the company's logins manage to clients. */
   canManageIntegrations: boolean;
   onCompanyConnections: () => void;
   onChanged: () => void;
@@ -61,7 +62,9 @@ export function ConnectedAccounts({
   const [revokeGrant, setRevokeGrant] = useState(false);
   const [disconnect, setDisconnect] = useState<SocialAccount | null>(null);
   const [assigning, setAssigning] = useState(false);
-  const companyPlatform = providers.some((item) => item.platform === 'google_business');
+  const companyPlatform = providers.some((item) =>
+    SOCIAL_COMPANY_PLATFORMS.some((platform) => platform === item.platform),
+  );
   async function connect(provider: SocialProvider): Promise<void> {
     setBusy(provider.platform);
     setError('');
@@ -94,7 +97,7 @@ export function ConnectedAccounts({
           'Local access removed. Remove the app in the platform settings to revoke the full grant.',
         );
       setDisconnect(null);
-      toast.success(company ? 'Location unassigned' : 'Account disconnected');
+      toast.success(company ? 'Unassigned from this client' : 'Account disconnected');
       onChanged();
     } catch (cause) {
       setError(
@@ -124,21 +127,21 @@ export function ConnectedAccounts({
       {companyPlatform && (
         <Card>
           <div className="flex flex-wrap items-center gap-4">
-            <PlatformMark platform="google_business" />
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-app-accent/10 text-app-accent">
+              <Icon name="building" />
+            </span>
             <div className="min-w-48 flex-1">
-              <h3 className="font-semibold">
-                Google Business Profile through your company account
-              </h3>
+              <h3 className="font-semibold">Through your company logins</h3>
               <p className="mt-1 text-xs leading-5 text-app-muted">
                 {canManageIntegrations
-                  ? 'Assign one of the profiles your company’s Google account manages. This client does not need to sign in.'
-                  : 'Your company admin can assign this client’s Business Profile from the company’s Google account.'}
+                  ? 'Assign a Page, Instagram account, Business Profile, LinkedIn page, YouTube channel or Search Console property one of your company’s logins manages. This client does not need to sign in.'
+                  : 'Your company admin can assign this client’s Pages, profiles and channels from the company’s logins.'}
               </p>
             </div>
             {canManageIntegrations && (
               <div className="flex flex-wrap gap-2">
                 <Button disabled={Boolean(busy)} onClick={() => setAssigning(true)}>
-                  Assign a location
+                  Assign from a company login
                 </Button>
                 <Button kind="secondary" onClick={onCompanyConnections}>
                   Company connections
@@ -218,7 +221,7 @@ export function ConnectedAccounts({
                   <p className="mt-1 text-xs text-app-muted">
                     Connected {new Date(account.connectedAt).toLocaleDateString('en-IN')}
                     {account.connectionScope === 'company'
-                      ? ' · through your company’s Google account'
+                      ? ' · through a company login'
                       : ''}
                   </p>
                   <p className="mt-1 text-[11px] text-app-muted">
@@ -262,7 +265,7 @@ export function ConnectedAccounts({
                             disabled={Boolean(busy)}
                             onClick={onCompanyConnections}
                           >
-                            Reconnect company account
+                            Reconnect company login
                           </Button>
                         )
                       ) : (
@@ -305,13 +308,13 @@ export function ConnectedAccounts({
       </Card>
       {disconnect && disconnect.connectionScope === 'company' && (
         <Modal
-          title="Unassign location"
+          title="Unassign from this client"
           onClose={() => setDisconnect(null)}
           dirty={false}
         >
           <p className="text-sm leading-6">
             Unassign {disconnect.name} from {clientName}? Scheduled posts to it are
-            cancelled. Your company’s Google account keeps working for your other clients.
+            cancelled. The company login keeps working for your other clients.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button
@@ -319,7 +322,7 @@ export function ConnectedAccounts({
               disabled={Boolean(busy)}
               onClick={() => void confirmDisconnect()}
             >
-              Unassign location
+              Unassign
             </Button>
             <Button
               kind="secondary"
@@ -422,7 +425,11 @@ export function SocialOverview({
     void Promise.all([
       listSocialPosts(clientId, { status: 'scheduled', pageSize: '1' }),
       listSocialPosts(clientId, { status: 'pending_approval', pageSize: '1' }),
-      listSocialPosts(clientId, { status: 'published', pageSize: '1' }),
+      // Counts what the Published section lists: partly published posts are out too.
+      listSocialPosts(clientId, {
+        status: sectionStatusQuery('published', ''),
+        pageSize: '1',
+      }),
       listSocialPosts(clientId, { pageSize: '5' }),
     ])
       .then(([scheduled, approvals, published, recent]) => {

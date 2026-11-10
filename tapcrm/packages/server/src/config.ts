@@ -170,6 +170,11 @@ const schema = z.object({
   GOOGLE_OAUTH_CLIENT_ID: optionalEnvString(z.string().trim().min(1).optional()),
   GOOGLE_OAUTH_CLIENT_SECRET: optionalEnvString(z.string().trim().min(1).optional()),
   GOOGLE_OAUTH_REFRESH_TOKEN: optionalEnvString(z.string().trim().min(1).optional()),
+  // The ONE organization (by its code) that reads Search Console through the
+  // shared login above — the deployment's own company. Every other organization
+  // connects its own Google login under Social → Company connections, so no
+  // customer can read another's properties. Unset: nobody uses the shared login.
+  GOOGLE_SEARCH_CONSOLE_ORGANIZATION: optionalEnvString(z.string().trim().min(1).max(64).optional()),
   // Search Console data is incomplete for the last few days. Observations are
   // taken from a window ending this many days back.
   GOOGLE_SEARCH_CONSOLE_LAG_DAYS: z.coerce.number().int().min(1).max(30).default(3),

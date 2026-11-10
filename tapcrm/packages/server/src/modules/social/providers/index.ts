@@ -1,3 +1,4 @@
+import type { SocialCompanyPlatform } from '@tapcrm/contracts';
 import { GoogleProvider } from './google.js';
 import { LinkedInProvider } from './linkedin.js';
 import { MetaProvider } from './meta.js';
@@ -94,17 +95,35 @@ export function listProviderReadiness(): ProviderReadiness[] {
   return SOCIAL_PLATFORMS.map(getProviderReadiness);
 }
 
-export function getProvider(platform: SocialPlatform): SocialProvider {
-  if (!SOCIAL_PLATFORMS.includes(platform))
-    throw new ProviderError(
-      'PLATFORM_UNSUPPORTED',
-      'Choose a supported social platform.',
-    );
+function assertReady(platform: SocialPlatform): void {
   const readiness = getProviderReadiness(platform);
   if (readiness.status !== 'ready')
     throw new ProviderError(
       readiness.status === 'setup_required' ? 'SETUP_REQUIRED' : 'API_APPROVAL_REQUIRED',
       readiness.message,
     );
+}
+
+export function getProvider(platform: SocialPlatform): SocialProvider {
+  if (!SOCIAL_PLATFORMS.includes(platform))
+    throw new ProviderError(
+      'PLATFORM_UNSUPPORTED',
+      'Choose a supported social platform.',
+    );
+  assertReady(platform);
   return buildProvider(platform, configFor(platform));
+}
+
+/** The provider for a company-wide sign-in: one login that lists everything it manages.
+ * A Meta sign-in lists the Pages and the Instagram accounts linked to them; a Google
+ * sign-in also lists the Search Console properties it can read. Refreshing, revoking
+ * and publishing use `getProvider`, which serves either kind of stored token. */
+export function getCompanyProvider(platform: SocialCompanyPlatform): SocialProvider {
+  assertReady(platform);
+  const config = configFor(platform);
+  if (platform === 'facebook')
+    return new MetaProvider('facebook', config, { companyWide: true });
+  if (platform === 'google_business')
+    return new GoogleProvider('google_business', config, { searchConsole: true });
+  return buildProvider(platform, config);
 }

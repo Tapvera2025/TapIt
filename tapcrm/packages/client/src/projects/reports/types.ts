@@ -8,7 +8,9 @@ export interface BlogInput { title: string; url: string | null; description: str
 export type FetchOutcome = 'ok' | 'no-data' | 'skipped' | 'failed';
 export type SyncStatus = 'ok' | 'partial' | 'failed';
 export interface SearchConsoleLink { propertyUrl: string; propertyType: 'domain' | 'url-prefix'; lastSyncAt: string | null; lastSyncStatus: SyncStatus | null; lastSyncMessage: string | null; keywordsSynced: number; }
-export interface SearchConsoleSettings { configured: boolean; link: SearchConsoleLink | null; properties: Array<{ propertyUrl: string; permissionLevel: string }>; error: string | null; }
+/** A property one of the organization's own Google logins can read; `forThisClient`: assigned to the project's client. */
+export interface SearchConsoleProperty { propertyUrl: string; permissionLevel: string; clientName: string | null; forThisClient: boolean; status: 'connected' | 'reconnect_required'; }
+export interface SearchConsoleSettings { configured: boolean; link: SearchConsoleLink | null; properties: SearchConsoleProperty[]; error: string | null; }
 export interface SyncResult { status: SyncStatus; fetched: number; unavailable: number; skipped: number; message: string | null; }
 export interface RankHistoryEntry { id: string; rank: number | null; source: string; status: string; observedAt: string; exactPosition: number | null; impressions: string | null; clicks: string | null; windowStart: string | null; windowEnd: string | null; unavailableReason: string | null; }
 export type BacklinkCategory = 'social_media' | 'others';
