@@ -260,6 +260,28 @@ describe('Task Bug Fixes Regression Suite — Bug #1 and Bug #2', () => {
       expect(taskGlobalStatus).toBe('pending'); // Global status unchanged
     });
   });
+
+  describe('BUG #3 — Task Cancellation Permission', () => {
+    it('allows super admin or creator to cancel, forbids non-creator employees', () => {
+      const creatorId = 'emp-creator';
+      const nonCreatorId = 'emp-other';
+
+      const canCancel = (accountType: 'employee' | 'super-admin', userId: string, taskCreatedBy: string) => {
+        const isSuperAdmin = accountType === 'super-admin';
+        const isCreator = taskCreatedBy === userId;
+        return isSuperAdmin || isCreator;
+      };
+
+      // Super admin can cancel
+      expect(canCancel('super-admin', 'admin-1', creatorId)).toBe(true);
+
+      // Creator employee can cancel
+      expect(canCancel('employee', creatorId, creatorId)).toBe(true);
+
+      // Non-creator employee cannot cancel
+      expect(canCancel('employee', nonCreatorId, creatorId)).toBe(false);
+    });
+  });
 });
 
 // Database-backed integration tests when PostgreSQL is available

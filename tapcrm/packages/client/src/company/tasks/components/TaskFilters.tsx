@@ -13,6 +13,8 @@ export function TaskFilters({
   isSuperAdmin = false,
   viewScope = 'my_tasks',
   onViewScopeChange,
+  viewMode = 'list',
+  onViewModeChange,
 }: TaskFiltersProps): React.JSX.Element {
   const [searchInput, setSearchInput] = useState(query.search ?? '');
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -276,9 +278,50 @@ export function TaskFilters({
           </select>
         </div>
 
-        {/* Right cluster: Search Bar & Primary Action Button (aligned with sort on desktop/laptop) */}
+        {/* Right cluster: View Mode Toggle, Search Bar & Primary Action Button (aligned with sort on desktop/laptop) */}
         <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto shrink-0 justify-between sm:justify-end">
-          <div className="task-search-glass relative flex h-8 min-w-0 flex-1 sm:flex-initial sm:w-56 lg:w-64 items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface/75 px-2.5 shadow-xs backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/60 focus-within:ring-1 focus-within:ring-app-accent/30">
+          {onViewModeChange && (
+            <div
+              role="group"
+              aria-label="Task layout view"
+              className="inline-flex h-8 items-center rounded-lg border border-app-border bg-app-background/60 p-0.5 shrink-0"
+            >
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onViewModeChange('list')}
+                aria-label="List view"
+                title="List view"
+                className={`inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition ${
+                  viewMode === 'list'
+                    ? 'bg-app-accent text-white shadow-xs'
+                    : 'text-app-muted hover:text-app-foreground'
+                }`}
+                aria-pressed={viewMode === 'list'}
+              >
+                <Icon name="list" className="size-3.5" />
+                <span className="hidden md:inline">List</span>
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onViewModeChange('kanban')}
+                aria-label="Kanban board view"
+                title="Kanban board view"
+                className={`inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition ${
+                  viewMode === 'kanban'
+                    ? 'bg-app-accent text-white shadow-xs'
+                    : 'text-app-muted hover:text-app-foreground'
+                }`}
+                aria-pressed={viewMode === 'kanban'}
+              >
+                <Icon name="kanban" className="size-3.5" />
+                <span className="hidden md:inline">Board</span>
+              </button>
+            </div>
+          )}
+
+          <div className="task-search-glass relative flex h-8 min-w-0 flex-1 sm:flex-initial sm:w-52 lg:w-64 items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface/75 px-2.5 shadow-xs backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/60 focus-within:ring-1 focus-within:ring-app-accent/30">
             <Icon name="search" className="size-3.5 shrink-0 text-app-muted" />
             <input
               type="search"

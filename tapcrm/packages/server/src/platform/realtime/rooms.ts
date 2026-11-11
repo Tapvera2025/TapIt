@@ -35,6 +35,9 @@ export interface Subject {
 export const personalRoom = (organizationId: string, userId: string): string =>
   `o:${organizationId}:u:${userId}`;
 
+export const organizationRoom = (organizationId: string): string =>
+  `o:${organizationId}`;
+
 const channelRoom = (organizationId: string, channel: string, part: string): string =>
   `o:${organizationId}:${channel}:${part}`;
 
