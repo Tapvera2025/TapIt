@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { io, type Socket } from 'socket.io-client';
+import { getIdentityAccessToken, identityApiBasePath } from '../../../identity/api/authApi.js';
 import { Icon } from '../../../ui/Icon.js';
 import { getMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../../../identity/api/sessionsApi.js';
 import { loadTodayStatus, punch, type PunchKind, type TodayStatus } from '../../live/liveApi.js';
@@ -365,19 +367,54 @@ export function MyTasksWidget({ ctx }: { ctx: WidgetContext }): React.JSX.Elemen
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
 
   useEffect(() => {
-    // The task API has a global task status and a per-assignee status. Load
-    // the assigned set without filtering by the global status, then filter by
-    // this user's assignment status below.
-    listTasks({ assigneeId: ctx.userId, status: 'all', sortBy: 'dueDate', sortOrder: 'asc', pageSize: 20 })
-      .then((r) => setTasks(r.items.filter((task) => {
-        const status = taskStatusForUser(task, ctx.userId);
-        return status === 'pending' || status === 'in_progress';
-      }).slice(0, 5)))
-      .catch(() => setTasks([]))
-      .finally(() => setLoading(false));
+    let active = true;
+    const load = () => {
+      listTasks({ assigneeId: ctx.userId, status: 'all', sortBy: 'dueDate', sortOrder: 'asc', pageSize: 20 })
+        .then((r) => {
+          if (!active) return;
+          setTasks(r.items.filter((task) => {
+            const status = taskStatusForUser(task, ctx.userId);
+            return status === 'pending' || status === 'in_progress';
+          }).slice(0, 5));
+        })
+        .catch(() => {
+          if (active) setTasks([]);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    };
+
+    load();
+
+    const token = getIdentityAccessToken();
+    let socket: Socket | null = null;
+    if (token) {
+      socket = io({
+        path: `${identityApiBasePath()}/socket.io`,
+        auth: (send) => send({ token: getIdentityAccessToken() ?? '' }),
+        reconnectionDelayMax: 30_000,
+      });
+      socket.on('task:updated', () => load());
+      socket.on('task:created', () => load());
+      socket.on('task:deleted', () => load());
+    }
+
+    return () => {
+      active = false;
+      socket?.close();
+    };
   }, [ctx.userId]);
 
   async function changeTaskStatus(taskId: string, status: TaskStatus): Promise<void> {
+    const targetTask = tasks?.find((t) => t.id === taskId);
+    if (status === 'cancelled' && targetTask) {
+      const canCancel = targetTask.createdBy === ctx.userId;
+      if (!canCancel) {
+        setError('Only a super admin or the employee who created the task can cancel it.');
+        return;
+      }
+    }
     setUpdatingTaskId(taskId);
     setError(null);
     try {
@@ -425,7 +462,7 @@ export function MyTasksWidget({ ctx }: { ctx: WidgetContext }): React.JSX.Elemen
             <div className="flex min-w-0 items-start gap-3">
               <span className="mt-1.5 size-2 shrink-0 rounded-full bg-app-accent" />
               <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{task.title}</p><div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-app-muted"><span className="capitalize">{task.priority}</span>{task.dueDate && <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>}</div></div>
-              <select value={taskStatusForUser(task, ctx.userId)} disabled={updatingTaskId === task.id} onChange={(event) => void changeTaskStatus(task.id, event.target.value as TaskStatus)} aria-label={`Change status for ${task.title}`} className="max-w-28 shrink-0 rounded-lg border border-app-border bg-app-surface px-2 py-1.5 text-[11px] font-semibold outline-none focus:border-app-accent disabled:opacity-60"><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select>
+              <select value={taskStatusForUser(task, ctx.userId)} disabled={updatingTaskId === task.id} onChange={(event) => void changeTaskStatus(task.id, event.target.value as TaskStatus)} aria-label={`Change status for ${task.title}`} className="max-w-28 shrink-0 rounded-lg border border-app-border bg-app-surface px-2 py-1.5 text-[11px] font-semibold outline-none focus:border-app-accent disabled:opacity-60"><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="completed">Completed</option>{task.createdBy === ctx.userId && <option value="cancelled">Cancelled</option>}</select>
             </div>
           </li>
         ))}

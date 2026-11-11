@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../../../ui/Icon.js';
 import { SkeletonTable } from '../../../ui/components.js';
-import type { TaskListProps, TaskStatus } from '../types/index.js';
+import type { Task, TaskListProps, TaskStatus } from '../types/index.js';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskStatusBadge.js';
 
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
@@ -96,6 +96,7 @@ function ExpandableTaskDescription({
 export function TaskList({
   tasks,
   loading = false,
+  isSuperAdmin = false,
   currentUserId,
   onTransitionStatus,
   onEditTask,
@@ -110,6 +111,9 @@ export function TaskList({
   const [openAssigneeTaskId, setOpenAssigneeTaskId] = useState<string | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const statusAnchorRef = useRef<HTMLElement | null>(null);
+
+  const canCancel = (task: Task): boolean =>
+    Boolean(isSuperAdmin || (currentUserId && task.createdBy === currentUserId));
   const [statusMenuOptions, setStatusMenuOptions] = useState<{
     taskId: string;
     transitions: TaskStatus[];
@@ -239,9 +243,11 @@ export function TaskList({
         // task view, the status badge must reflect the signed-in user's
         // assignment status—the same state changed by the widget.
         const displayedStatus = myAssignment?.status ?? task.status;
-        const availableTransitions = myAssignment
-          ? (VALID_TRANSITIONS[myAssignment.status] ?? [])
-          : (VALID_TRANSITIONS[displayedStatus] ?? []);
+        const availableTransitions = (
+          myAssignment
+            ? (VALID_TRANSITIONS[myAssignment.status] ?? [])
+            : (VALID_TRANSITIONS[displayedStatus] ?? [])
+        ).filter((s) => s !== 'cancelled' || canCancel(task));
         const statusCellColor = {
           pending: 'border-amber-500/30 bg-amber-500/10',
           in_progress: 'border-sky-500/30 bg-sky-500/10',
@@ -537,8 +543,9 @@ export function TaskList({
                         })
                         .map((assignee) => {
                           const isSelf = currentUserId === assignee.id;
-                          const assigneeTransitions =
-                            VALID_TRANSITIONS[assignee.status] ?? [];
+                          const assigneeTransitions = (
+                            VALID_TRANSITIONS[assignee.status] ?? []
+                          ).filter((s) => s !== 'cancelled' || canCancel(task));
                           return (
                             <div
                               key={assignee.id}

@@ -4,6 +4,8 @@ import { globalAccess } from '@tapcrm/contracts';
 import { scopeResolver } from '../../platform/authz-adapter.js';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
+import { sql } from '../../platform/dal/sql.js';
+import { emitToOrganization, emitToUser } from '../../platform/realtime/index.js';
 import {
   TASK_ERROR_CODES,
   TaskNotFoundError,
@@ -127,13 +129,33 @@ export async function loadTaskResource(
   };
 }
 
+function emitTaskRealtime(
+  organizationId: string,
+  event: 'task:created' | 'task:updated' | 'task:deleted',
+  task: Task,
+): void {
+  emitToOrganization(organizationId, event, {
+    id: task.id,
+    status: task.status,
+    task,
+  });
+  const stakeholderIds = new Set([task.createdBy, ...task.assignees.map((a) => a.id)]);
+  for (const stakeholderId of stakeholderIds) {
+    emitToUser(organizationId, stakeholderId, event, {
+      id: task.id,
+      status: task.status,
+      task,
+    });
+  }
+}
+
 export async function createTask(
   ctx: RequestContext,
   input: CreateTaskInput,
 ): Promise<Task> {
   const uniqueAssigneeIds = [...new Set(input.assigneeIds ?? [])];
 
-  return db.transaction(ctx, async (tx) => {
+  const created = await db.transaction(ctx, async (tx) => {
     if (uniqueAssigneeIds.length > 0) {
       const validIds = await validateAssigneeIds(
         tx,
@@ -199,6 +221,9 @@ export async function createTask(
 
     return created;
   });
+
+  emitTaskRealtime(ctx.organizationId, 'task:created', created);
+  return created;
 }
 
 export async function getTask(
@@ -242,7 +267,7 @@ export async function updateTask(
     throw new TaskNotFoundError();
   }
 
-  return db.transaction(ctx, async (tx) => {
+  const updated = await db.transaction(ctx, async (tx) => {
     await updateTaskRow(tx, ctx.organizationId, id, {
       title: input.title,
       description: input.description,
@@ -273,12 +298,15 @@ export async function updateTask(
 
     await notifyTaskUpdated(tx, ctx, existing, changedTaskFields(existing, input));
 
-    const updated = await findTaskByIdTx(tx, ctx.organizationId, id);
-    if (!updated) {
+    const taskResult = await findTaskByIdTx(tx, ctx.organizationId, id);
+    if (!taskResult) {
       throw new TaskNotFoundError();
     }
-    return updated;
+    return taskResult;
   });
+
+  emitTaskRealtime(ctx.organizationId, 'task:updated', updated);
+  return updated;
 }
 
 export async function transitionTask(
@@ -291,9 +319,23 @@ export async function transitionTask(
     throw new TaskNotFoundError();
   }
 
+  // Authorization check: task can only be cancelled by super admin and the particular employee who created the task
+  if (input.status === 'cancelled') {
+    const isSuperAdmin = globalAccess(ctx.principal) || ctx.principal.accountType === 'super-admin';
+    const isCreator = existing.createdBy === ctx.principal.id;
+    if (!isSuperAdmin && !isCreator) {
+      throw new AuthorizationError(
+        'tasks:update',
+        'not_allowed',
+        'Only a super admin or the employee who created the task can cancel it.',
+      );
+    }
+  }
+
+  const isSuperAdmin = globalAccess(ctx.principal) || ctx.principal.accountType === 'super-admin';
   const isAssignee = existing.assignees.some((a) => a.id === ctx.principal.id);
   const targetUserId =
-    input.userId ?? (isAssignee ? ctx.principal.id : undefined);
+    input.userId ?? (!isSuperAdmin && isAssignee ? ctx.principal.id : undefined);
 
   if (targetUserId) {
     const assignee = existing.assignees.find((a) => a.id === targetUserId);
@@ -353,7 +395,7 @@ export async function transitionTask(
       }
     }
 
-    return db.transaction(ctx, async (tx) => {
+    const updated = await db.transaction(ctx, async (tx) => {
       await updateTaskAssigneeStatus(
         tx,
         ctx.organizationId,
@@ -361,6 +403,16 @@ export async function transitionTask(
         targetUserId,
         input.status,
       );
+
+      // Check if all assignees have completed
+      const allCompleted = existing.assignees.every((a) =>
+        a.id === targetUserId ? input.status === 'completed' : a.status === 'completed',
+      );
+      if (allCompleted && existing.status !== 'completed') {
+        await updateTaskRow(tx, ctx.organizationId, id, { status: 'completed' });
+      } else if (input.status === 'in_progress' && existing.status === 'pending') {
+        await updateTaskRow(tx, ctx.organizationId, id, { status: 'in_progress' });
+      }
 
       const action =
         input.status === 'completed'
@@ -383,20 +435,30 @@ export async function transitionTask(
       // what moved.
       await notifyTaskStatusChanged(tx, ctx, { ...existing, status: assignee.status }, input.status);
 
-      const updated = await findTaskByIdTx(tx, ctx.organizationId, id);
-      if (!updated) {
+      const taskResult = await findTaskByIdTx(tx, ctx.organizationId, id);
+      if (!taskResult) {
         throw new TaskNotFoundError();
       }
-      return updated;
+      return taskResult;
     });
+
+    emitTaskRealtime(ctx.organizationId, 'task:updated', updated);
+    return updated;
   }
 
   assertValidTransition(existing.status, input.status);
 
-  return db.transaction(ctx, async (tx) => {
+  const updated = await db.transaction(ctx, async (tx) => {
     await updateTaskRow(tx, ctx.organizationId, id, {
       status: input.status,
     });
+
+    // Synchronize all task assignees with the new task status
+    await tx.query(sql`
+      UPDATE task_assignee
+      SET status = ${input.status}
+      WHERE organization_id = ${ctx.organizationId} AND task_id = ${id}
+    `);
 
     const action =
       input.status === 'completed' ? 'task.completed' : 'task.status_changed';
@@ -410,12 +472,15 @@ export async function transitionTask(
 
     await notifyTaskStatusChanged(tx, ctx, existing, input.status);
 
-    const updated = await findTaskByIdTx(tx, ctx.organizationId, id);
-    if (!updated) {
+    const taskResult = await findTaskByIdTx(tx, ctx.organizationId, id);
+    if (!taskResult) {
       throw new TaskNotFoundError();
     }
-    return updated;
+    return taskResult;
   });
+
+  emitTaskRealtime(ctx.organizationId, 'task:updated', updated);
+  return updated;
 }
 
 export async function updateAssignmentStatus(
@@ -440,7 +505,7 @@ export async function assignTask(
 
   const uniqueAssigneeIds = [...new Set(input.assigneeIds)];
 
-  return db.transaction(ctx, async (tx) => {
+  const updated = await db.transaction(ctx, async (tx) => {
     if (uniqueAssigneeIds.length > 0) {
       const validIds = await validateAssigneeIds(
         tx,
@@ -496,6 +561,9 @@ export async function assignTask(
     }
     return updated;
   });
+
+  emitTaskRealtime(ctx.organizationId, 'task:updated', updated);
+  return updated;
 }
 
 export async function listTaskAssignees(

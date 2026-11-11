@@ -119,6 +119,7 @@ export interface TaskAssignModalProps {
 }
 
 export type TaskViewScope = 'my_tasks' | 'all_employee_tasks';
+export type TaskViewMode = 'list' | 'kanban';
 
 export interface TaskFiltersProps {
   readonly query: TaskListQuery;
@@ -128,11 +129,14 @@ export interface TaskFiltersProps {
   readonly isSuperAdmin?: boolean | undefined;
   readonly viewScope?: TaskViewScope | undefined;
   readonly onViewScopeChange?: ((scope: TaskViewScope) => void) | undefined;
+  readonly viewMode?: TaskViewMode | undefined;
+  readonly onViewModeChange?: ((mode: TaskViewMode) => void) | undefined;
 }
 
 export interface TaskListProps {
   readonly tasks: readonly Task[];
   readonly loading?: boolean | undefined;
+  readonly isSuperAdmin?: boolean | undefined;
   readonly currentUserId?: string | undefined;
   readonly onTransitionStatus: (
     taskId: string,
@@ -142,6 +146,8 @@ export interface TaskListProps {
   readonly onEditTask?: ((task: Task) => void) | undefined;
   readonly onAssignTask?: ((task: Task) => void) | undefined;
 }
+
+export type TaskKanbanBoardProps = TaskListProps;
 
 export interface TaskStatusBadgeProps {
   readonly status: TaskStatus;

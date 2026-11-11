@@ -11,6 +11,8 @@ const paths: Record<string, string> = {
   coffee: 'M18 8h1a4 4 0 0 1 0 8h-1 M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z M6 1v3 M10 1v3 M14 1v3',
   fit: 'M8 3H3v5 M16 3h5v5 M3 16v5h5 M21 16v5h-5',
   grid: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+  kanban: 'M4 4h4v16H4V4zm6 0h4v10h-4V4zm6 0h4v14h-4V4z',
+  list: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01',
   users:
     'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M16 3a4 4 0 0 1 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
   monitor: 'M3 3h18v13H3z M8 21h8 M12 16v5',
