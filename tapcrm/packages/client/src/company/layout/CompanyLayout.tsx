@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
-import { BreakOverlay } from './BreakOverlay.js';
 import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
 import type { CompanySearchDestination } from './navigation.js';
 
@@ -334,7 +333,6 @@ export function CompanyLayout({
           </div>
         </div>
       </div>
-      <BreakOverlay />
     </ChatUnreadProvider>
   );
 }
