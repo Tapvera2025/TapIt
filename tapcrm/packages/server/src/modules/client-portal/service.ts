@@ -6,12 +6,19 @@ import {
   deletePendingAttachment, editMessage, findMessageById, getConversation, getMessageEdits, listMessages, listPins, markRead,
   reactToMessage, removeReactionFromMessage, sendMessage, uploadAttachment,
 } from '../chat/facade.js';
-import { listBlogs, overview } from '../projects/reports/repository.js';
-import { getSeoReport } from '../projects/reports/service.js';
-import type { ReportQuery } from '../projects/reports/validators.js';
-import { listBacklinks } from '../projects/reports/off-page.js';
-import { downloadScreenshot, listScreenshots } from '../projects/reports/screenshots.js';
-import { createClientFeedback, listClientFeedback, type CreateClientFeedbackInput, type FeedbackArea } from '../projects/reports/clientFeedback.js';
+import {
+  createClientFeedback,
+  downloadScreenshot,
+  getSeoReport,
+  listBacklinks,
+  listBlogs,
+  listClientFeedback,
+  listScreenshots,
+  overview,
+  type CreateClientFeedbackInput,
+  type FeedbackArea,
+  type ReportQuery,
+} from '../projects/facade.js';
 import type { Conversation, ListMessagesQuery, Message, MessageEdit, PinnedMessage, ReactionEmoji } from '../chat/facade.js';
 import type { PortalBacklinkPage, PortalBlogReport, PortalDashboard, PortalKeywordReport, PortalProfile, PortalProject, PortalScreenshotPage } from './types.js';
 

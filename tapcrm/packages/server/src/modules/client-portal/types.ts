@@ -1,4 +1,4 @@
-import type { ReportPeriod } from '../projects/reports/period.js';
+import type { ReportPeriod } from '../projects/facade.js';
 
 export type PortalWorkStatus = 'new' | 'ongoing' | 'ended' | 'expired';
 export type PortalServiceKind = 'website' | 'seo' | 'ads' | 'smo' | 'google_marketing' | 'other';

@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 241   Bindings: 739
+ * Actions: 241   Bindings: 744
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -4657,6 +4657,9 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PUT', path: '/api/social/clients/:clientId/settings', action: 'social:settings', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/social/clients/:clientId/analytics', action: 'social:view', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/social/clients/:clientId/analytics/export', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/search-console/properties', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/clients/:clientId/search-console/performance', action: 'social:view', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/clients/:clientId/search-console/inspect', action: 'social:view', resourceParam: 'clientId' },
   { method: 'POST', path: '/api/social/clients/:clientId/analytics/sync', action: 'social:manage', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/social/company-connections', action: 'system:manage-integrations', resourceParam: null },
   { method: 'POST', path: '/api/social/company-connections/oauth/:platform/start', action: 'system:manage-integrations', resourceParam: null },

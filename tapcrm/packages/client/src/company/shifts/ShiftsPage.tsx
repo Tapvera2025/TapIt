@@ -24,6 +24,9 @@ export function ShiftsPage(): React.JSX.Element {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [graceMinutes, setGraceMinutes] = useState('');
+  const [earlyExitGraceMinutes, setEarlyExitGraceMinutes] = useState('');
+  const [closingExtensionMinutes, setClosingExtensionMinutes] = useState('');
+  const [minOvertimeMinutes, setMinOvertimeMinutes] = useState('');
   const [fullDayMinutes, setFullDayMinutes] = useState('');
   const [halfDayMinutes, setHalfDayMinutes] = useState('');
 
@@ -55,7 +58,11 @@ export function ShiftsPage(): React.JSX.Element {
           ...(effectiveFrom ? { effectiveFrom } : {}),
           ...(startTime ? { startTime } : {}),
           ...(endTime ? { endTime } : {}),
-          ...(graceMinutes ? { graceMinutes: Number(graceMinutes) } : {}),
+          // Grace is required by the server; a flexible shift has none.
+          graceMinutes: kind === 'fixed' && graceMinutes ? Number(graceMinutes) : 0,
+          ...(kind === 'fixed' && earlyExitGraceMinutes ? { earlyExitGraceMinutes: Number(earlyExitGraceMinutes) } : {}),
+          ...(kind === 'fixed' && closingExtensionMinutes ? { maxClosingExtensionMinutes: Number(closingExtensionMinutes) } : {}),
+          ...(kind === 'fixed' && minOvertimeMinutes ? { minOvertimeMinutes: Number(minOvertimeMinutes) } : {}),
           ...(fullDayMinutes ? { fullDayMinutes: Number(fullDayMinutes) } : {}),
           ...(halfDayMinutes ? { halfDayMinutes: Number(halfDayMinutes) } : {}),
         },
@@ -64,6 +71,7 @@ export function ShiftsPage(): React.JSX.Element {
       setShowForm(false);
       setCode(''); setName(''); setKind('fixed'); setEffectiveFrom('');
       setStartTime(''); setEndTime(''); setGraceMinutes(''); setFullDayMinutes(''); setHalfDayMinutes('');
+      setEarlyExitGraceMinutes(''); setClosingExtensionMinutes(''); setMinOvertimeMinutes('');
       void load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create shift.');
@@ -169,6 +177,42 @@ export function ShiftsPage(): React.JSX.Element {
                     min="0"
                     className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-app-muted">Early-exit grace minutes</label>
+                  <input
+                    type="number"
+                    value={earlyExitGraceMinutes}
+                    onChange={(e) => setEarlyExitGraceMinutes(e.target.value)}
+                    min="0"
+                    placeholder="0"
+                    className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-app-muted">Punch-out allowed until (minutes after shift end)</label>
+                  <input
+                    type="number"
+                    value={closingExtensionMinutes}
+                    onChange={(e) => setClosingExtensionMinutes(e.target.value)}
+                    min="0"
+                    max="720"
+                    placeholder="240"
+                    className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                  />
+                  <p className="mt-1 text-xs text-app-muted">Punches this long after the shift ends still count. Leave empty for 4 hours.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-app-muted">Minimum overtime minutes</label>
+                  <input
+                    type="number"
+                    value={minOvertimeMinutes}
+                    onChange={(e) => setMinOvertimeMinutes(e.target.value)}
+                    min="0"
+                    placeholder="Not recorded"
+                    className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                  />
+                  <p className="mt-1 text-xs text-app-muted">Extra time counts as overtime once it reaches this. Leave empty to not record overtime.</p>
                 </div>
               </>
             )}

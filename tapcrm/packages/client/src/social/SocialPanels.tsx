@@ -8,7 +8,6 @@ import {
   Modal,
   Notice,
   SkeletonMetric,
-  SkeletonTable,
 } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import {
@@ -34,6 +33,7 @@ import type {
   SocialAnalytics,
   SocialPost,
   SocialProvider,
+  SocialPlatform,
   SocialSettings,
 } from './types.js';
 
@@ -553,7 +553,7 @@ export function SocialOverview({
   );
 }
 
-export function SocialAnalyticsPanel({
+export function SocialPlatformAnalyticsPanel({
   clientId,
   timezone,
   canManage,
@@ -563,17 +563,21 @@ export function SocialAnalyticsPanel({
   canManage: boolean;
 }): React.JSX.Element {
   const today = dateInZone(new Date().toISOString(), timezone);
-  const [from, setFrom] = useState(`${today.slice(0, 7)}-01`);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(today);
-  const [period, setPeriod] = useState({ from, to });
+  const [period, setPeriod] = useState({ from: monthStart, to: today });
   const [data, setData] = useState<SocialAnalytics | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [activePlatform, setActivePlatform] = useState<'all' | SocialPlatform>('all');
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError('');
-    setData(null);
     void getSocialAnalytics(clientId, period.from, period.to)
       .then((result) => {
         if (!cancelled) setData(result);
@@ -588,250 +592,188 @@ export function SocialAnalyticsPanel({
     return () => {
       cancelled = true;
     };
-  }, [clientId, period]);
+  }, [clientId, period, reloadKey]);
+
+  const snapshots = (data?.snapshots ?? []).filter(
+    (snapshot) => activePlatform === 'all' || snapshot.platform === activePlatform,
+  );
+  const unavailable = (data?.unavailable ?? []).filter(
+    (item) => activePlatform === 'all' || item.platform === activePlatform,
+  );
+  const accountCount = data?.aggregates.reduce((sum, aggregate) => sum + aggregate.accountCount, 0) ?? 0;
+
+  function applyPeriod(next: { from: string; to: string }): void {
+    if (next.from > next.to) {
+      setError('The start date must be before the end date.');
+      return;
+    }
+    setError('');
+    setFrom(next.from);
+    setTo(next.to);
+    setPeriod(next);
+  }
+
+  async function syncRange(): Promise<void> {
+    if (from > to) {
+      setError('The start date must be before the end date.');
+      return;
+    }
+    setError('');
+    if (period.from !== from || period.to !== to) setPeriod({ from, to });
+    setSyncing(true);
+    try {
+      setData(await syncSocialAnalytics(clientId, from, to));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Synchronization failed.');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
-      <Card>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (from > to) {
-              setError('The start date must be before the end date.');
-              return;
-            }
-            setPeriod({ from, to });
-          }}
-          className="flex flex-wrap items-end gap-3"
-        >
+      <Card className="overflow-hidden border-app-border/70 bg-gradient-to-br from-orange-50/70 via-app-surface to-sky-50/50 dark:from-orange-950/15 dark:via-app-surface dark:to-sky-950/15">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[.18em] text-app-accent">SOCIAL PERFORMANCE</p>
+            <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-app-foreground sm:text-3xl">Channel analytics</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-app-muted">Review account health and post performance by platform. Each provider keeps its own metric definitions.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { label: '7 days', days: 7 },
+              { label: '30 days', days: 30 },
+              { label: '90 days', days: 90 },
+              { label: 'Month to date', days: 0 },
+            ].map((item) => {
+              const end = today;
+              const start = item.days === 0
+                ? monthStart
+                : (() => {
+                    const date = new Date(`${end}T00:00:00Z`);
+                    date.setUTCDate(date.getUTCDate() - (item.days - 1));
+                    return date.toISOString().slice(0, 10);
+                  })();
+              const selected = period.from === start && period.to === end;
+              return (
+                <button key={item.label} type="button" onClick={() => applyPeriod({ from: start, to: end })} aria-pressed={selected} className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${selected ? 'border-app-accent bg-app-accent text-white' : 'border-app-border bg-app-surface/80 text-app-muted hover:border-app-accent/50 hover:text-app-accent'}`}>
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <form onSubmit={(event) => { event.preventDefault(); applyPeriod({ from, to }); }} className="mt-5 flex flex-wrap items-end gap-3 border-t border-app-border/60 pt-4">
           <Field label="From" type="date" value={from} onChange={setFrom} required />
           <Field label="To" type="date" value={to} onChange={setTo} required />
-          <Button type="submit" kind="secondary" disabled={loading}>
-            Apply reporting period
-          </Button>
-          {canManage && (
-            <Button
-              kind="secondary"
-              disabled={loading}
-              onClick={() => {
-                setLoading(true);
-                void syncSocialAnalytics(clientId, from, to)
-                  .then(setData)
-                  .catch((cause: unknown) =>
-                    setError(
-                      cause instanceof Error ? cause.message : 'Synchronization failed',
-                    ),
-                  )
-                  .finally(() => setLoading(false));
-              }}
-            >
-              Sync platform data
+          <Button type="submit" kind="secondary" disabled={loading || syncing}>Apply dates</Button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button type="button" kind="secondary" disabled={loading || syncing} onClick={() => setReloadKey((key) => key + 1)}>
+              <Icon name="refresh" className="mr-2 inline size-4" />Refresh
             </Button>
-          )}
-          <Button
-            kind="secondary"
-            disabled={loading || !data?.snapshots.length}
-            onClick={() => {
-              void downloadSocialAnalyticsCsv(clientId, period.from, period.to).catch(
-                (cause: unknown) =>
-                  setError(cause instanceof Error ? cause.message : 'Export failed'),
+            {canManage && <Button type="button" kind="secondary" disabled={loading || syncing} onClick={() => void syncRange()}>
+              <Icon name="refresh" className={`mr-2 inline size-4 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing…' : 'Sync channel data'}
+            </Button>}
+            <Button type="button" kind="secondary" disabled={loading || syncing || !data?.snapshots.length} onClick={() => {
+              void downloadSocialAnalyticsCsv(clientId, period.from, period.to).catch((cause: unknown) =>
+                setError(cause instanceof Error ? cause.message : 'Export failed.'),
               );
-            }}
-          >
-            Export CSV
-          </Button>
+            }}>
+              <Icon name="download" className="mr-2 inline size-4" />Export CSV
+            </Button>
+          </div>
         </form>
-        <p className="mt-4 text-xs leading-5 text-app-muted">
-          Metrics come from each platform’s official API. Definitions and reporting
-          periods can differ; compare matching sources and periods. No estimates are
-          substituted for missing data.
-        </p>
+        <p className="mt-3 text-[11px] leading-5 text-app-muted">Metrics come from each platform’s official API. Missing or unsupported metrics stay unavailable; totals are never combined across platforms.</p>
       </Card>
-      {error && <Notice error>{error}</Notice>}
-      {loading ? (
-        <SkeletonTable columns={4} rows={5} />
-      ) : (
-        data && (
-          <>
-            {data.aggregates.length > 0 && (
-              <Card>
-                <h2 className="font-semibold">Per-platform aggregates</h2>
-                <p className="mt-1 text-xs leading-5 text-app-muted">
-                  Within each platform only. Metric definitions differ across
-                  platforms, so no cross-platform totals are computed.
-                </p>
-                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {data.aggregates.map((aggregate) => (
-                    <div
-                      key={aggregate.platform}
-                      className="rounded-xl border border-app-border p-4"
-                    >
-                      <div className="flex items-center gap-2">
-                        <PlatformMark platform={aggregate.platform} small />
-                        <div>
-                          <h3 className="text-sm font-semibold">
-                            {PLATFORM_LABELS[aggregate.platform]}
-                          </h3>
-                          <p className="text-[11px] text-app-muted">
-                            {aggregate.accountCount} account
-                            {aggregate.accountCount === 1 ? '' : 's'}
-                          </p>
-                        </div>
+
+      {error && <Notice error><div className="flex flex-wrap items-center justify-between gap-3"><span>{error}</span><Button kind="secondary" onClick={() => setReloadKey((key) => key + 1)}>Try again</Button></div></Notice>}
+      {loading && !data ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <SkeletonMetric key={index} />)}</div>
+      ) : data ? (
+        <>
+          {loading && <p className="text-right text-[10px] font-semibold text-app-muted">Refreshing this period…</p>}
+
+          <section aria-labelledby="social-channel-summary-title" className="space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-app-accent">BY NETWORK</p><h3 id="social-channel-summary-title" className="mt-1 font-display text-xl font-bold">Platform overview</h3></div>
+              <button type="button" aria-pressed={activePlatform === 'all'} onClick={() => setActivePlatform('all')} className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${activePlatform === 'all' ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised'}`}>All platforms · {accountCount} accounts</button>
+            </div>
+            {data.aggregates.length ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {data.aggregates.map((aggregate) => {
+                  const selected = activePlatform === aggregate.platform;
+                  return (
+                    <button key={aggregate.platform} type="button" aria-pressed={selected} onClick={() => setActivePlatform(selected ? 'all' : aggregate.platform)} className={`group rounded-2xl border bg-app-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selected ? 'border-app-accent ring-1 ring-app-accent/20' : 'border-app-border/80 hover:border-app-accent/45'}`}>
+                      <div className="flex items-center gap-3">
+                        <PlatformMark platform={aggregate.platform} />
+                        <div className="min-w-0 flex-1"><h4 className="truncate text-sm font-bold">{PLATFORM_LABELS[aggregate.platform]}</h4><p className="mt-0.5 text-[11px] text-app-muted">{aggregate.accountCount} connected account{aggregate.accountCount === 1 ? '' : 's'}</p></div>
+                        <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${selected ? 'bg-app-accent text-white' : 'bg-app-surface-raised text-app-muted'}`}>{selected ? 'Filtered' : 'View accounts'}</span>
                       </div>
-                      {aggregate.latestAccountMetrics.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-[11px] font-semibold uppercase text-app-muted">
-                            Latest account counters
-                          </p>
-                          <ul className="mt-1 space-y-1 text-sm">
-                            {aggregate.latestAccountMetrics.map((metric) => (
-                              <li
-                                key={`account:${metric.key}`}
-                                className="flex items-baseline justify-between gap-2"
-                              >
-                                <span className="truncate">{metric.label}</span>
-                                <span className="font-semibold tabular-nums">
-                                  {metric.value.toLocaleString()}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
+                      {aggregate.latestAccountMetrics.length > 0 ? (
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          {aggregate.latestAccountMetrics.slice(0, 4).map((metric) => (
+                            <div key={`account:${metric.key}`} className="rounded-xl bg-app-background/75 px-3 py-2.5">
+                              <p className="truncate text-[10px] font-medium text-app-muted">{metric.label}</p>
+                              <p className="mt-1 truncate text-lg font-bold tabular-nums tracking-tight">{metric.value.toLocaleString()}</p>
+                            </div>
+                          ))}
                         </div>
-                      )}
+                      ) : <p className="mt-4 rounded-xl border border-dashed border-app-border px-3 py-4 text-xs text-app-muted">No account counters returned.</p>}
                       {aggregate.postMetricTotals.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-[11px] font-semibold uppercase text-app-muted">
-                            Post metric totals
-                          </p>
-                          <ul className="mt-1 space-y-1 text-sm">
-                            {aggregate.postMetricTotals.map((metric) => (
-                              <li
-                                key={`post:${metric.key}`}
-                                className="flex items-baseline justify-between gap-2"
-                              >
-                                <span className="truncate">
-                                  {metric.label}{' '}
-                                  <span className="text-[11px] text-app-muted">
-                                    ({metric.postCount} post
-                                    {metric.postCount === 1 ? '' : 's'})
-                                  </span>
-                                </span>
-                                <span className="font-semibold tabular-nums">
-                                  {metric.value.toLocaleString()}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
+                        <div className="mt-3 border-t border-app-border/70 pt-3">
+                          <p className="text-[9px] font-bold uppercase tracking-wide text-app-muted">Post totals in this period</p>
+                          <div className="mt-2 flex flex-wrap gap-2">{aggregate.postMetricTotals.slice(0, 3).map((metric) => <span key={`post:${metric.key}`} className="rounded-full bg-app-surface-raised px-2.5 py-1.5 text-[10px] text-app-muted"><strong className="text-app-foreground">{metric.value.toLocaleString()}</strong> {metric.label.toLowerCase()} · {metric.postCount} post{metric.postCount === 1 ? '' : 's'}</span>)}</div>
                         </div>
                       )}
-                      <p className="mt-3 text-[11px] text-app-muted">{aggregate.note}</p>
+                      <p className="mt-3 text-[10px] leading-4 text-app-muted">{aggregate.note}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : <Card className="border-dashed"><p className="text-sm font-semibold">No platform summaries for this period.</p><p className="mt-1 text-xs text-app-muted">Sync connected channels with supported account-level metrics to populate this view.</p></Card>}
+          </section>
+
+          <section aria-labelledby="social-account-performance-title" className="space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-app-accent">ACCOUNT DETAIL</p><h3 id="social-account-performance-title" className="mt-1 font-display text-xl font-bold">Account performance</h3></div>
+              <label className="text-[10px] font-semibold text-app-muted">Platform <select value={activePlatform} onChange={(event) => setActivePlatform(event.target.value as 'all' | SocialPlatform)} className="ml-2 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs text-app-foreground"><option value="all">All channels</option>{data.aggregates.map((aggregate) => <option key={aggregate.platform} value={aggregate.platform}>{PLATFORM_LABELS[aggregate.platform]}</option>)}</select></label>
+            </div>
+            {snapshots.length ? (
+              <div className="grid gap-3 xl:grid-cols-2">
+                {snapshots.map((snapshot) => (
+                  <Card key={snapshot.id} className="overflow-hidden p-0">
+                    <div className="flex flex-wrap items-center gap-3 border-b border-app-border/70 bg-app-surface-raised/45 px-4 py-3.5 sm:px-5">
+                      <PlatformMark platform={snapshot.platform} small />
+                      <div className="min-w-0 flex-1"><h4 className="truncate text-sm font-bold">{snapshot.accountName}</h4><p className="mt-0.5 text-[10px] text-app-muted">{PLATFORM_LABELS[snapshot.platform]} · {snapshot.periodStart.slice(0, 10)} — {snapshot.periodEnd.slice(0, 10)}</p></div>
+                      <span className="rounded-full border border-app-border bg-app-surface px-2.5 py-1 text-[9px] font-semibold text-app-muted">Synced {socialDate(snapshot.syncedAt, timezone)}</span>
                     </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-            {data.snapshots.length ? (
-              data.snapshots.map((snapshot) => (
-                <Card key={snapshot.id}>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <PlatformMark platform={snapshot.platform} />
-                    <div>
-                      <h2 className="font-semibold">{snapshot.accountName}</h2>
-                      <p className="mt-1 text-xs text-app-muted">
-                        {PLATFORM_LABELS[snapshot.platform]} ·{' '}
-                        {snapshot.periodStart.slice(0, 10)} to{' '}
-                        {snapshot.periodEnd.slice(0, 10)}
-                      </p>
+                    <div className="p-4 sm:p-5">
+                      {snapshot.postId && <div className="mb-3 rounded-xl bg-app-accent/[.06] px-3 py-2.5"><p className="text-[9px] font-bold uppercase tracking-wide text-app-accent">Post performance</p><p className="mt-1 truncate text-xs font-semibold" title={snapshot.caption || snapshot.postId}>{snapshot.caption || snapshot.postId}</p></div>}
+                      {snapshot.note && <p className="mb-3 text-[11px] leading-5 text-app-muted">{snapshot.note}</p>}
+                      {snapshot.metrics.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{snapshot.metrics.map((metric, index) => <div key={metric.key} className={`rounded-xl border px-3 py-3 ${index === 0 ? 'border-app-accent/25 bg-orange-50/50 dark:bg-orange-950/10' : 'border-app-border/70 bg-app-background/50'}`}><p className="truncate text-[10px] font-medium text-app-muted" title={metric.label}>{metric.label}</p><p className="mt-1.5 text-xl font-bold tabular-nums tracking-tight">{metric.value.toLocaleString()}{metric.unit ? <span className="ml-1 text-xs font-medium text-app-muted">{metric.unit}</span> : null}</p></div>)}</div> : <p className="rounded-xl border border-dashed border-app-border p-4 text-center text-xs text-app-muted">The provider returned no metrics for this account.</p>}
+                      {snapshot.series.length > 0 && <details className="mt-4 group">
+                        <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl border border-app-border/70 px-3 py-2.5 text-xs font-semibold hover:bg-app-surface-raised"><span>Daily performance · {snapshot.series.length} data points</span><span className="text-app-accent transition group-open:rotate-180">⌄</span></summary>
+                        <div className="mt-2 max-h-64 overflow-auto rounded-xl border border-app-border/70">
+                          <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-app-surface-raised text-[10px] uppercase tracking-wide text-app-muted"><tr><th className="px-3 py-2.5">Date</th><th className="px-3 py-2.5">Metric</th><th className="px-3 py-2.5 text-right">Value</th></tr></thead><tbody className="divide-y divide-app-border/60">{snapshot.series.map((point, index) => <tr key={`${point.date}:${point.metric}:${index}`}><td className="px-3 py-2.5">{point.date}</td><td className="px-3 py-2.5 capitalize">{point.metric.replaceAll('_', ' ')}</td><td className="px-3 py-2.5 text-right font-semibold tabular-nums">{point.value.toLocaleString()}</td></tr>)}</tbody></table>
+                        </div>
+                      </details>}
                     </div>
-                    <p className="ml-auto text-[11px] text-app-muted">
-                      Synced {socialDate(snapshot.syncedAt, timezone)}
-                    </p>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {snapshot.postId && (
-                      <p className="text-sm font-semibold">
-                        Post performance · {snapshot.caption || snapshot.postId}
-                      </p>
-                    )}
-                    {snapshot.note && (
-                      <p className="text-xs leading-5 text-app-muted">{snapshot.note}</p>
-                    )}
-                  </div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    {snapshot.metrics.map((metric) => (
-                      <div
-                        key={metric.key}
-                        className="rounded-xl bg-app-surface-raised p-4"
-                      >
-                        <h3 className="text-xs text-app-muted">{metric.label}</h3>
-                        <p className="mt-2 text-2xl font-semibold">
-                          {metric.value.toLocaleString()}
-                          {metric.unit ? (
-                            <span className="ml-1 text-sm text-app-muted">
-                              {metric.unit}
-                            </span>
-                          ) : null}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  {snapshot.series.length > 0 && (
-                    <details className="mt-4">
-                      <summary className="cursor-pointer text-sm font-semibold">
-                        Daily engagement and performance
-                      </summary>
-                      <div className="mt-3 max-h-72 overflow-auto">
-                        <table className="w-full text-left text-xs">
-                          <thead>
-                            <tr>
-                              <th className="p-2">Date</th>
-                              <th className="p-2">Native metric</th>
-                              <th className="p-2">Value</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {snapshot.series.map((point, index) => (
-                              <tr key={index}>
-                                <td className="p-2">{point.date}</td>
-                                <td className="p-2">
-                                  {point.metric.replaceAll('_', ' ')}
-                                </td>
-                                <td className="p-2">{point.value.toLocaleString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </details>
-                  )}
-                </Card>
-              ))
-            ) : (
-              <Card>
-                <SocialEmpty
-                  title="No platform metrics available for this period"
-                  description="Analytics appear after a connected account grants the required permissions and the backend completes a supported synchronization."
-                />
-              </Card>
-            )}
-            {data.unavailable.length > 0 && (
-              <Card>
-                <h2 className="text-sm font-semibold">Metric availability</h2>
-                <div className="mt-3 space-y-3">
-                  {data.unavailable.map((item) => (
-                    <div
-                      key={`${item.accountId}:${item.platform}`}
-                      className="flex items-start gap-2"
-                    >
-                      <PlatformMark platform={item.platform} small />
-                      <p className="text-xs leading-5 text-app-muted">{item.reason}</p>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-          </>
-        )
-      )}
+                  </Card>
+                ))}
+              </div>
+            ) : <Card className="border-dashed"><p className="text-sm font-semibold">No account snapshots for this selection.</p><p className="mt-1 text-xs text-app-muted">Try another platform or reporting period, or sync channel data.</p></Card>}
+          </section>
+
+          {unavailable.length > 0 && (
+            <Card className="border-amber-300/70 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/10">
+              <div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300"><Icon name="alert-circle" className="size-4" /></span><div className="min-w-0"><h3 className="text-sm font-semibold">Some channel metrics are unavailable</h3><p className="mt-1 text-[11px] text-app-muted">These provider responses were not counted as zero.</p></div></div>
+              <div className="mt-4 grid gap-2 md:grid-cols-2">{unavailable.map((item) => <div key={`${item.accountId}:${item.platform}`} className="flex min-w-0 items-start gap-2 rounded-xl border border-app-border/60 bg-app-surface/80 px-3 py-2.5"><PlatformMark platform={item.platform} small /><p className="text-xs leading-5 text-app-muted">{item.reason}</p></div>)}</div>
+            </Card>
+          )}
+        </>
+      ) : !loading && !error ? (
+        <Card className="border-dashed"><SocialEmpty title="No social analytics yet" description="Connect a channel with analytics access, then sync its data for the reporting period." /></Card>
+      ) : null}
     </div>
   );
 }

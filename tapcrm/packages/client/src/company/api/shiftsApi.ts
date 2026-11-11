@@ -38,6 +38,9 @@ export function createShift(body: {
     startTime?: string;
     endTime?: string;
     graceMinutes?: number;
+    earlyExitGraceMinutes?: number;
+    maxClosingExtensionMinutes?: number;
+    minOvertimeMinutes?: number;
     fullDayMinutes?: number;
     halfDayMinutes?: number;
   };

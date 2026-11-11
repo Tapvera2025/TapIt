@@ -20,9 +20,9 @@ import { Composer } from './Composer.js';
 import { Planner } from './Planner.js';
 import { PostDetails } from './PostDetails.js';
 import { PlatformMark, SocialEmpty } from './presentation.js';
+import { SocialAnalyticsPanel } from './SocialAnalyticsPanel.js';
 import {
   ConnectedAccounts,
-  SocialAnalyticsPanel,
   SocialOverview,
   SocialSettingsPanel,
 } from './SocialPanels.js';
@@ -306,9 +306,11 @@ export function SocialWorkspace({
     <Page
       eyebrow="Manage Social Media"
       title={title}
-      description="Plan, review and publish content for every client from one workspace."
+      description={section === 'analytics'
+        ? 'Google Search performance, indexing status and native social analytics for this client.'
+        : 'Plan, review and publish content for every client from one workspace.'}
       action={
-        canManage && section !== 'create' && section !== 'connections' ? (
+        canManage && section !== 'create' && section !== 'connections' && section !== 'analytics' ? (
           <Button onClick={create} disabled={!client}>
             <Icon name="plus" className="mr-2 inline size-4" />
             Create post
@@ -449,6 +451,8 @@ export function SocialWorkspace({
               clientId={client.id}
               timezone={settings.timezone}
               canManage={canManage}
+              canManageIntegrations={canManageIntegrations}
+              onManageConnections={() => navigate('connections')}
             />
           )}
           {section === 'settings' && (

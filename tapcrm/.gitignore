@@ -23,3 +23,7 @@ npm-debug.log*
 /tmp/
 /.cache/
 /UI/
+
+# Local runtime state and database snapshots are not source artifacts.
+/dump.rdb
+/.superpowers/brainstorm/**/state/

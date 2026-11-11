@@ -8,6 +8,26 @@
   min-width: 0;
 }
 
+.dashboard-grid .layout {
+  position: relative;
+}
+
+.dashboard-grid[data-columns='8'] {
+  --dashboard-columns: 8;
+}
+
+.dashboard-grid[data-columns='12'] {
+  --dashboard-columns: 12;
+}
+
+.dashboard-grid.editing .layout {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--app-accent) 11%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--app-accent) 8%, transparent) 1px, transparent 1px);
+  background-size: calc(100% / var(--dashboard-columns)) 100%, 100% 4.5rem;
+  background-position: left top;
+}
+
 .dashboard-command-bar {
   display: flex;
   flex-wrap: wrap;
@@ -50,6 +70,10 @@
   transition: box-shadow 0.15s ease;
 }
 
+.dashboard-grid .react-grid-item:not(.react-draggable-dragging):not(.resizing) {
+  transition: transform 0.18s ease, width 0.18s ease, height 0.18s ease, box-shadow 0.15s ease;
+}
+
 /* Give h-full widget roots a definite, resize-aware containing block. */
 .dashboard-widget-content {
   display: flex;
@@ -60,6 +84,162 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.dashboard-widget-frame {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.dashboard-widget-editbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  min-height: 2rem;
+  flex: 0 0 2rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  padding: 0 0.125rem 0.25rem;
+}
+
+.dashboard-widget-drag-handle,
+.dashboard-widget-settings > summary {
+  display: inline-flex;
+  width: 1.7rem;
+  height: 1.7rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-border);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--app-surface) 90%, transparent);
+  color: var(--app-muted);
+  cursor: grab;
+  list-style: none;
+  user-select: none;
+}
+
+.dashboard-widget-drag-handle:active {
+  cursor: grabbing;
+}
+
+.dashboard-widget-settings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-widget-settings {
+  position: relative;
+  z-index: 5;
+}
+
+.dashboard-widget-settings > summary {
+  cursor: pointer;
+}
+
+.dashboard-widget-settings-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 20;
+  width: min(18rem, calc(100vw - 2rem));
+  padding: 0.85rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.9rem;
+  background: var(--app-surface);
+  box-shadow: 0 16px 38px -22px color-mix(in srgb, var(--app-foreground) 40%, transparent);
+  color: var(--app-foreground);
+  cursor: default;
+}
+
+.dashboard-widget-settings-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.dashboard-widget-settings-description {
+  margin: 0.25rem 0 0.7rem;
+  color: var(--app-muted);
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+
+.dashboard-widget-settings-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--app-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dashboard-widget-size-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.dashboard-widget-size-presets button,
+.dashboard-widget-settings-actions button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 1.9rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.5rem;
+  background: var(--app-background);
+  padding: 0.3rem;
+  color: var(--app-foreground);
+  font-size: 0.62rem;
+  font-weight: 650;
+}
+
+.dashboard-widget-size-presets button:hover:not(:disabled),
+.dashboard-widget-settings-actions button:hover {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+}
+
+.dashboard-widget-size-presets button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.dashboard-widget-settings-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.dashboard-widget-settings-actions button {
+  flex: 1 1 auto;
+}
+
+.dashboard-widget-settings-actions .dashboard-widget-settings-remove {
+  color: var(--app-danger);
+}
+
+.dashboard-widget-copy-label {
+  margin-right: auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+  padding: 0.2rem 0.45rem;
+  color: var(--app-accent);
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.dashboard-widget-content-editing {
+  height: auto;
+  flex: 1 1 auto;
 }
 
 /* Keep the component's root on the same sizing contract as its grid cell. */
@@ -74,8 +254,78 @@
 /* Every dashboard widget shares one resize-aware content contract. */
 .dashboard-widget-shell {
   box-sizing: border-box;
-  container-type: inline-size;
+  container-name: dashboard-widget;
+  container-type: size;
   padding: 1rem;
+}
+
+@container dashboard-widget (max-height: 24rem) {
+  .dashboard-team-attendance-summary {
+    flex: 0 0 auto;
+    grid-template-columns: clamp(3.5rem, 20cqh, 6rem) minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .dashboard-team-attendance-ring {
+    width: clamp(3.5rem, 20cqh, 6rem);
+    height: clamp(3.5rem, 20cqh, 6rem);
+  }
+
+  .dashboard-team-attendance-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .dashboard-team-attendance-metric {
+    padding: 0.35rem 0.45rem;
+  }
+
+  .dashboard-team-attendance-label {
+    font-size: 0.55rem;
+  }
+
+  .dashboard-team-attendance-value {
+    margin-top: 0;
+    font-size: 0.95rem;
+  }
+}
+
+@container dashboard-widget (max-width: 32rem) and (min-height: 24rem) {
+  .dashboard-team-attendance-summary {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem;
+  }
+
+  .dashboard-team-attendance-ring {
+    width: 5rem;
+    height: 5rem;
+  }
+
+  .dashboard-team-attendance-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container dashboard-widget (max-width: 32rem) and (max-height: 24rem) {
+  .dashboard-team-attendance-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-team-attendance-ring {
+    display: none;
+  }
+
+  .dashboard-team-attendance-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.25rem;
+  }
+
+  .dashboard-team-attendance-metric {
+    padding: 0.3rem;
+  }
 }
 
 .dashboard-work-break-graph {
@@ -423,6 +673,7 @@
 .dashboard-grid.editing .react-grid-item {
   cursor: move;
   border-color: var(--app-accent);
+  overflow: visible;
 }
 
 .dashboard-grid .react-grid-item.react-grid-placeholder {
@@ -434,10 +685,36 @@
 .dashboard-grid .react-resizable-handle {
   opacity: 0;
   transition: opacity 0.15s ease;
+  background-image: none;
 }
 
 .dashboard-grid.editing .react-resizable-handle {
   opacity: 0.6;
+}
+
+.dashboard-grid .react-grid-item > .react-resizable-handle::after {
+  border: 0;
+  border-radius: 999px;
+  background: var(--app-accent);
+  box-shadow: 0 0 0 2px var(--app-surface);
+}
+
+.dashboard-grid .react-resizable-handle-n::after,
+.dashboard-grid .react-resizable-handle-s::after {
+  top: 8px;
+  right: 5px;
+  bottom: auto;
+  width: 10px;
+  height: 4px;
+}
+
+.dashboard-grid .react-resizable-handle-e::after,
+.dashboard-grid .react-resizable-handle-w::after {
+  top: 5px;
+  right: 8px;
+  bottom: auto;
+  width: 4px;
+  height: 10px;
 }
 
 .dashboard-widget-remove {
@@ -535,4 +812,172 @@
 
 .mobile-dashboard-control-button.mobile-dashboard-remove {
   color: var(--app-danger);
+}
+
+/* Administrator overview: quiet canvas, roomy glass cards, visible hierarchy. */
+.dashboard-admin-mode {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 12%, var(--app-border));
+  border-radius: 2rem;
+  padding: clamp(0.875rem, 2.2vw, 1.5rem);
+  background:
+    radial-gradient(ellipse at 10% 0%, color-mix(in srgb, var(--theme-primary) 13%, transparent), transparent 38%),
+    radial-gradient(ellipse at 100% 24%, color-mix(in srgb, #a5b4fc 20%, transparent), transparent 34%),
+    color-mix(in srgb, var(--app-background) 78%, var(--app-surface));
+}
+
+.dashboard-admin-hero {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  overflow: hidden;
+  padding: clamp(1.125rem, 2.8vw, 2rem);
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 19%, var(--app-border));
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, #a5b4fc 26%, transparent), transparent 36%),
+    linear-gradient(132deg, color-mix(in srgb, var(--theme-primary) 10%, var(--app-surface)), var(--app-surface) 58%, color-mix(in srgb, #bfdbfe 17%, var(--app-surface)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 56%, transparent), 0 18px 45px -36px color-mix(in srgb, var(--app-foreground) 48%, transparent);
+}
+
+.dark .dashboard-admin-hero {
+  background:
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, #818cf8 19%, transparent), transparent 36%),
+    linear-gradient(132deg, color-mix(in srgb, var(--theme-primary) 12%, var(--app-surface)), var(--app-surface) 58%, color-mix(in srgb, #2563eb 13%, var(--app-surface)));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 18px 45px -36px rgba(2, 8, 23, 0.9);
+}
+
+.dashboard-admin-hero h1 {
+  margin: 0.3rem 0 0;
+  color: var(--app-foreground);
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.dashboard-admin-hero p:last-child {
+  margin: 0.55rem 0 0;
+  color: var(--app-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.dashboard-admin-eyebrow {
+  color: var(--app-accent) !important;
+  font-size: 0.65rem !important;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.dashboard-admin-date,
+.dashboard-admin-refresh {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.625rem 0.9rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.dashboard-admin-date {
+  border: 1px solid color-mix(in srgb, var(--app-border) 82%, transparent);
+  background: color-mix(in srgb, var(--app-surface) 72%, transparent);
+  color: var(--app-muted);
+}
+
+.dashboard-admin-refresh {
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 30%, var(--app-border));
+  background: var(--app-foreground);
+  color: var(--app-background);
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+
+.dashboard-admin-refresh:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.dashboard-admin-mode .dashboard-grid .react-grid-item {
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.dashboard-admin-card {
+  display: flex;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--theme-primary) 5%, transparent), transparent 45%),
+    color-mix(in srgb, var(--app-surface) 86%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 45%, transparent), 0 16px 38px -30px color-mix(in srgb, var(--app-foreground) 48%, transparent);
+}
+
+.dark .dashboard-admin-card {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--theme-primary) 10%, transparent), transparent 50%),
+    color-mix(in srgb, var(--app-surface) 94%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 16px 38px -30px rgba(2, 8, 23, 0.9);
+}
+
+.dashboard-admin-card > * {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.dashboard-admin-mode .mobile-dashboard-widget {
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.dashboard-admin-mode .mobile-dashboard-widget-content {
+  border-radius: 1.5rem;
+}
+
+@media (max-width: 767px) {
+  .dashboard-admin-mode {
+    border-radius: 1.5rem;
+    padding: 0.75rem;
+  }
+
+  .dashboard-admin-hero {
+    align-items: flex-start;
+    border-radius: 1.35rem;
+    padding: 1.1rem;
+  }
+
+  .dashboard-admin-hero > div:last-child {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .dashboard-admin-card {
+    min-height: 17rem;
+    border-radius: 1.25rem;
+  }
 }

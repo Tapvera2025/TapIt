@@ -16,6 +16,7 @@ import { GoogleAuthUnavailableError, googleAccessToken } from './token.js';
  */
 
 const API_ROOT = 'https://www.googleapis.com/webmasters/v3';
+const INSPECTION_API_ROOT = 'https://searchconsole.googleapis.com/v1';
 
 /** Search Console's own ceiling for one response. */
 const MAX_ROWS = 25_000;
@@ -75,10 +76,10 @@ export async function sharedSearchConsoleToken(): Promise<string> {
   }
 }
 
-async function call<T>(path: string, token: string, init?: { body: unknown }): Promise<T> {
+async function call<T>(path: string, token: string, init?: { body: unknown }, root = API_ROOT): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_ROOT}${path}`, {
+    response = await fetch(`${root}${path}`, {
       method: init === undefined ? 'GET' : 'POST',
       headers: {
         authorization: `Bearer ${token}`,
@@ -108,6 +109,56 @@ async function call<T>(path: string, token: string, init?: { body: unknown }): P
     );
   }
   throw new SearchConsoleConfigurationError(detail);
+}
+
+export interface GoogleUrlInspectionResult {
+  inspectionResultLink?: string;
+  indexStatusResult?: {
+    verdict?: string;
+    coverageState?: string;
+    robotsTxtState?: string;
+    indexingState?: string;
+    lastCrawlTime?: string;
+    pageFetchState?: string;
+    googleCanonical?: string;
+    userCanonical?: string;
+    sitemap?: string[];
+    referringUrls?: string[];
+    crawledAs?: string;
+  };
+  mobileUsabilityResult?: { verdict?: string; issues?: Array<{ issueType?: string; severity?: string; message?: string }> };
+  richResultsResult?: {
+    verdict?: string;
+    detectedItems?: Array<{
+      richResultType?: string;
+      items?: Array<{
+        name?: string;
+        issues?: Array<{ issueType?: string; severity?: string; message?: string; issueMessage?: string }>;
+      }>;
+    }>;
+  };
+  ampResult?: {
+    verdict?: string;
+    ampUrl?: string;
+    lastCrawlTime?: string;
+    issues?: Array<{ severity?: string; issueMessage?: string }>;
+  };
+}
+
+/** Inspect the page version currently known to Google's index (not a live test). */
+export async function inspectIndexedUrl(
+  inspectionUrl: string,
+  propertyUrl: string,
+  accessToken: string,
+): Promise<GoogleUrlInspectionResult> {
+  const response = await call<{ inspectionResult?: GoogleUrlInspectionResult }>(
+    '/urlInspection/index:inspect',
+    accessToken,
+    { body: { inspectionUrl, siteUrl: propertyUrl, languageCode: 'en' } },
+    INSPECTION_API_ROOT,
+  );
+  if (!response.inspectionResult) throw new SearchConsoleUnavailableError('Google returned no URL inspection result.');
+  return response.inspectionResult;
 }
 
 /** Every property the token's Google account can read. */

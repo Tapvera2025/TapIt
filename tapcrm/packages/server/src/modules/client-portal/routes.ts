@@ -8,11 +8,15 @@ import {
   getProjectBacklinks, getProjectBlogReport, getProjectKeywordReport, getProjectScreenshotContent, getProjectScreenshots, getProjectFeedback, createProjectFeedback,
 } from './service.js';
 import { editMessageSchema, listMessagesQuerySchema, reactionSchema, sendMessageSchema, uploadedBody, uploadedFileName } from '../chat/facade.js';
-import { createProjectReportPdf } from '../projects/reports/pdf.js';
-import { reportQuerySchema } from '../projects/reports/validators.js';
-import { backlinkListSchema } from '../projects/reports/off-page.js';
-import { screenshotIdSchema, screenshotListSchema } from '../projects/reports/screenshots.js';
-import { createClientFeedbackSchema, feedbackListQuerySchema } from '../projects/reports/clientFeedback.js';
+import {
+  backlinkListSchema,
+  createClientFeedbackSchema,
+  createProjectReportPdf,
+  feedbackListQuerySchema,
+  reportQuerySchema,
+  screenshotIdSchema,
+  screenshotListSchema,
+} from '../projects/facade.js';
 
 /**
  * Client portal read API and project-scoped discussion API (PRD §12.3).

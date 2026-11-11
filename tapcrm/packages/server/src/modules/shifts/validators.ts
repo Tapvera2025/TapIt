@@ -25,7 +25,7 @@ export const versionSchema = z.object({
   effectiveFrom: date.optional(),
   startTime: time.nullable().default(null),
   endTime: time.nullable().default(null),
-  graceMinutes: minutes(240),
+  graceMinutes: minutes(240).default(0),
   earlyExitGraceMinutes: minutes(240).default(0),
   fullDayMinutes: minutes(1_440),
   halfDayMinutes: minutes(1_440),

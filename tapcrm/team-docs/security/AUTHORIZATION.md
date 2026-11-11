@@ -838,6 +838,9 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/social/clients/:clientId/settings | `social:settings` | clientId |
 | GET | /api/social/clients/:clientId/analytics | `social:view` | clientId |
 | GET | /api/social/clients/:clientId/analytics/export | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/search-console/properties | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/search-console/performance | `social:view` | clientId |
+| POST | /api/social/clients/:clientId/search-console/inspect | `social:view` | clientId |
 | POST | /api/social/clients/:clientId/analytics/sync | `social:manage` | clientId |
 | GET | /api/social/company-connections | `system:manage-integrations` | — |
 | POST | /api/social/company-connections/oauth/:platform/start | `system:manage-integrations` | — |

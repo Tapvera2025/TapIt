@@ -273,3 +273,82 @@ export interface SocialAnalytics {
   aggregates: SocialAnalyticsPlatformAggregate[];
   unavailable: { accountId: string; platform: SocialPlatform; reason: string }[];
 }
+
+/** Read-only Search Console property assigned to an existing CRM client. */
+export interface SocialSearchConsoleProperty {
+  propertyUrl: string;
+  permissionLevel: string;
+  status: SocialConnectionStatus;
+}
+
+export interface SocialSearchConsoleMetricSet {
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  avgPosition: number | null;
+}
+
+export interface SocialSearchConsoleDailyMetric extends SocialSearchConsoleMetricSet {
+  date: string;
+}
+
+export interface SocialSearchConsoleDimensionRow extends SocialSearchConsoleMetricSet {
+  value: string;
+}
+
+export interface SocialSearchConsolePerformance {
+  propertyUrl: string;
+  startDate: string;
+  endDate: string;
+  fetchedAt: string;
+  latestDataDate: string | null;
+  totals: SocialSearchConsoleMetricSet | null;
+  daily: SocialSearchConsoleDailyMetric[];
+  queries: SocialSearchConsoleDimensionRow[];
+  pages: SocialSearchConsoleDimensionRow[];
+  countries: SocialSearchConsoleDimensionRow[];
+  devices: SocialSearchConsoleDimensionRow[];
+  rowLimitHit: { queries: boolean; pages: boolean; countries: boolean; devices: boolean };
+}
+
+export interface SocialGoogleIndexIssue {
+  issueType?: string;
+  severity?: string;
+  message?: string;
+  issueMessage?: string;
+}
+
+/** Google's indexed-version response from the Search Console URL Inspection API. */
+export interface SocialGoogleIndexInspection {
+  inspectionUrl: string;
+  propertyUrl: string;
+  inspectedAt: string;
+  inspectionResultLink?: string;
+  indexStatusResult?: {
+    verdict?: string;
+    coverageState?: string;
+    robotsTxtState?: string;
+    indexingState?: string;
+    lastCrawlTime?: string;
+    pageFetchState?: string;
+    googleCanonical?: string;
+    userCanonical?: string;
+    sitemap?: string[];
+    referringUrls?: string[];
+    crawledAs?: string;
+  };
+  mobileUsabilityResult?: { verdict?: string; issues?: SocialGoogleIndexIssue[] };
+  richResultsResult?: {
+    verdict?: string;
+    detectedItems?: Array<{
+      richResultType?: string;
+      items?: Array<{ name?: string; issues?: SocialGoogleIndexIssue[] }>;
+    }>;
+  };
+  ampResult?: {
+    verdict?: string;
+    ampUrl?: string;
+    lastCrawlTime?: string;
+    issues?: SocialGoogleIndexIssue[];
+  };
+}

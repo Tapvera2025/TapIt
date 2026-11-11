@@ -279,31 +279,76 @@ function MyMeetings({ meetings, calendar, currentUserId, timeZone, focusId, onDi
     <MeetingCard key={meeting.id} meeting={meeting} currentUserId={currentUserId} timeZone={timeZone} focused={meeting.id === focusId} canAct={hosting(meeting)} canJoin={false} onDialog={onDialog} onJoin={onJoin} />
   );
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {calendar && calendar.mode === 'oauth' && !calendar.connected && (
         <Notice>
           {calendar.needsReconnect ? 'Your Google Calendar connection stopped working. ' : 'Connect your Google Calendar so clients only see times you are free and meetings get a Meet link automatically. '}
           <button type="button" className="font-semibold underline" onClick={onConnect}>{calendar.needsReconnect ? 'Reconnect' : 'Connect Google Calendar'}</button>
         </Notice>
       )}
-      <Section title="Waiting for your answer" empty="No requests are waiting for you.">{waiting.map(card)}</Section>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Section
+          title="Waiting for your answer"
+          empty="No requests are waiting for you."
+          emptyHint="New client requests that need your response will show up here."
+          emptyKind="requests"
+        >{waiting.map(card)}</Section>
+        <Section
+          title="Coming up"
+          empty="Nothing booked yet."
+          emptyHint="Meetings you accept or schedule will appear here."
+          emptyKind="upcoming"
+        >{upcoming.map(card)}</Section>
+      </div>
       {offered.length > 0 && <Section title="Waiting for the client to pick a time">{offered.map(card)}</Section>}
-      <Section title="Coming up" empty="Nothing booked.">{upcoming.map(card)}</Section>
       {toRecord.length > 0 && <Section title="How did these go?">{toRecord.map(card)}</Section>}
       {past.length > 0 && <Section title="Earlier">{past.map(card)}</Section>}
     </div>
   );
 }
 
-function Section({ title, empty, children }: { title: string; empty?: string; children: React.ReactNode }): React.JSX.Element {
+function MeetingEmptyGlyph({ kind }: { kind: 'requests' | 'upcoming' }): React.JSX.Element {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      {kind === 'requests' ? (
+        <>
+          <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5 7.6 7.6 0 0 1-3.2-.7L4 20l1.1-4.5A7.5 7.5 0 1 1 20 11.5Z" />
+          <circle cx="12.5" cy="11.5" r="2.8" />
+          <path d="M12.5 10v1.7l1.1.7" />
+        </>
+      ) : (
+        <>
+          <rect x="4" y="5.5" width="16" height="15" rx="2.2" />
+          <path d="M8 3.5v4M16 3.5v4M4 9.5h16M8 13h3M8 16.5h6" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function Section({ title, empty, emptyHint, emptyKind, children }: {
+  title: string;
+  empty?: string;
+  emptyHint?: string;
+  emptyKind?: 'requests' | 'upcoming';
+  children: React.ReactNode;
+}): React.JSX.Element {
   const items = Array.isArray(children) ? children : [children];
   return (
-    <section className="space-y-3">
-      <header className="meeting-section-heading flex items-center justify-between gap-3 border-b border-app-border pb-2">
-        <h2 className="font-display text-lg font-bold">{title}</h2>
-        <span className="rounded-full bg-app-surface-raised px-2.5 py-1 text-xs font-semibold tabular-nums text-app-muted">{items.length}</span>
+    <section className="meeting-section ui-card">
+      <header className="meeting-section-heading flex items-center justify-between gap-3">
+        <h2 className="font-display text-base font-bold sm:text-lg">{title}</h2>
+        <span className="meeting-section-count">{items.length}</span>
       </header>
-      {items.length === 0 ? <p className="text-sm text-app-muted">{empty}</p> : items}
+      {items.length === 0 && empty ? (
+        <div className="meeting-empty-state">
+          <span className="meeting-empty-icon"><MeetingEmptyGlyph kind={emptyKind ?? 'upcoming'} /></span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-app-foreground">{empty}</p>
+            {emptyHint && <p className="mt-1 text-xs leading-5 text-app-muted">{emptyHint}</p>}
+          </div>
+        </div>
+      ) : <div className="meeting-section-list">{items}</div>}
     </section>
   );
 }
