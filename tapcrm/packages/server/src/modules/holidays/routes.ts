@@ -3,8 +3,8 @@ import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { route } from '../../platform/http/route.js';
 import { sql } from '../../platform/dal/sql.js';
-import { createHoliday, listHolidays, reviseHoliday } from './service.js';
-import { createSchema, listQuerySchema, reviseSchema } from './validators.js';
+import { createHoliday, createHolidayBatch, listHolidays, reviseHoliday } from './service.js';
+import { bulkCreateSchema, createSchema, listQuerySchema, reviseSchema } from './validators.js';
 
 /** Design §7 — three bindings, as declared in the registry seed. */
 
@@ -33,6 +33,15 @@ export function registerHolidayRoutes(): void {
     action: 'holidays:manage',
     module: 'holidays',
     handler: async ({ ctx, body }) => createHoliday(ctx, createSchema.parse(body)),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/holidays/bulk',
+    action: 'holidays:manage',
+    module: 'holidays',
+    status: 201,
+    handler: async ({ ctx, body }) => createHolidayBatch(ctx, bulkCreateSchema.parse(body)),
   });
 
   route({

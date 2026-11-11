@@ -12,6 +12,7 @@ import {
 import type { ShiftTemplate, WeekdaySchedule } from '../api/shiftsApi.js';
 import { createEmployee, getNextEmployeeId, type CreateEmployeeInput } from '../api/employeesApi.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
+import { ConfirmDiscardModal, ConfirmCancelButton } from '../../ui/ConfirmDiscardModal.js';
 
 interface AddEmployeeWizardModalProps {
   isOpen: boolean;
@@ -42,6 +43,7 @@ type WizardFieldErrors = {
   state?: string;
   postalCode?: string;
   emergencyContactName?: string;
+  emergencyContactCountryCode?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
 
@@ -59,6 +61,129 @@ type WizardFieldErrors = {
   password?: string;
   confirmPassword?: string;
 };
+
+interface EmployeeWizardDraftData {
+  fullName?: string;
+  email?: string;
+  employeeId?: string;
+  joiningDate?: string;
+  departmentId?: string;
+  positionId?: string;
+  teamId?: string;
+  designationId?: string;
+  specialization?: string;
+  reportsTo?: string;
+  phoneCountryCode?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  emergencyContactName?: string;
+  emergencyContactCountryCode?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
+  shiftId?: string;
+  weekdayScheduleId?: string;
+  skillsList?: Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>;
+  qualificationsList?: Array<{ institution: string; degree: string; fieldOfStudy: string; passingYear: string; grade: string }>;
+  step?: number;
+  savedAt?: string;
+}
+
+const DRAFT_KEY = 'tapcrm.employee_wizard_draft';
+
+function sanitizeNameInput(value: string): string {
+  return value.replace(/[^a-zA-Z\s'.-]/g, '');
+}
+
+export const PHONE_COUNTRY_OPTIONS = [
+  { code: '+91', country: 'IN', label: '+91 (India)' },
+  { code: '+1', country: 'US', label: '+1 (US)' },
+  { code: '+44', country: 'UK', label: '+44 (UK)' },
+  { code: '+971', country: 'UAE', label: '+971 (UAE)' },
+  { code: '+65', country: 'SG', label: '+65 (Singapore)' },
+  { code: '+61', country: 'AU', label: '+61 (Australia)' },
+  { code: '+1', country: 'CA', label: '+1 (Canada)' },
+  { code: '+49', country: 'DE', label: '+49 (Germany)' },
+  { code: '+33', country: 'FR', label: '+33 (France)' },
+  { code: '+966', country: 'SA', label: '+966 (Saudi Arabia)' },
+  { code: '+974', country: 'QA', label: '+974 (Qatar)' },
+  { code: '+968', country: 'OM', label: '+968 (Oman)' },
+  { code: '+965', country: 'KW', label: '+965 (Kuwait)' },
+  { code: '+973', country: 'BH', label: '+973 (Bahrain)' },
+  { code: '+81', country: 'JP', label: '+81 (Japan)' },
+  { code: '+86', country: 'CN', label: '+86 (China)' },
+  { code: '+82', country: 'KR', label: '+82 (South Korea)' },
+  { code: '+880', country: 'BD', label: '+880 (Bangladesh)' },
+  { code: '+92', country: 'PK', label: '+92 (Pakistan)' },
+  { code: '+94', country: 'LK', label: '+94 (Sri Lanka)' },
+  { code: '+977', country: 'NP', label: '+977 (Nepal)' },
+  { code: '+60', country: 'MY', label: '+60 (Malaysia)' },
+  { code: '+62', country: 'ID', label: '+62 (Indonesia)' },
+  { code: '+63', country: 'PH', label: '+63 (Philippines)' },
+  { code: '+27', country: 'ZA', label: '+27 (South Africa)' },
+  { code: '+234', country: 'NG', label: '+234 (Nigeria)' },
+  { code: '+254', country: 'KE', label: '+254 (Kenya)' },
+  { code: '+55', country: 'BR', label: '+55 (Brazil)' },
+  { code: '+52', country: 'MX', label: '+52 (Mexico)' },
+  { code: '+34', country: 'ES', label: '+34 (Spain)' },
+  { code: '+39', country: 'IT', label: '+39 (Italy)' },
+  { code: '+31', country: 'NL', label: '+31 (Netherlands)' },
+  { code: '+41', country: 'CH', label: '+41 (Switzerland)' },
+  { code: '+46', country: 'SE', label: '+46 (Sweden)' },
+  { code: '+47', country: 'NO', label: '+47 (Norway)' },
+  { code: '+64', country: 'NZ', label: '+64 (New Zealand)' },
+  { code: '+353', country: 'IE', label: '+353 (Ireland)' },
+] as const;
+
+function splitPhoneAndCountryCode(
+  input: string,
+  defaultCode = '+91'
+): { countryCode: string; nationalNumber: string } {
+  const trimmed = input.trim();
+  if (trimmed.startsWith('+')) {
+    const sorted = [...PHONE_COUNTRY_OPTIONS].map((o) => o.code).sort((a, b) => b.length - a.length);
+    for (const code of sorted) {
+      if (trimmed.startsWith(code)) {
+        return { countryCode: code, nationalNumber: trimmed.slice(code.length).trim() };
+      }
+    }
+    const match = trimmed.match(/^(\+\d{1,4})\s*(.*)$/);
+    if (match) {
+      return { countryCode: match[1] ?? defaultCode, nationalNumber: match[2] ?? '' };
+    }
+  }
+  return { countryCode: defaultCode, nationalNumber: trimmed };
+}
+
+function formatFullPhone(countryCode: string, nationalNumber: string): string {
+  const trimmed = nationalNumber.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('+')) return trimmed;
+  return `${countryCode} ${trimmed}`;
+}
+
+function sanitizePhoneInput(value: string): string {
+  const hasPlus = value.startsWith('+');
+  const cleaned = value.replace(/[^0-9\s-]/g, '');
+  return hasPlus ? `+${cleaned.replace(/^\+/, '')}` : cleaned;
+}
+
+function sanitizeDigitsOnly(value: string, maxLength?: number): string {
+  const digits = value.replace(/\D/g, '');
+  return maxLength ? digits.slice(0, maxLength) : digits;
+}
+
+function stripEmojis(value: string): string {
+  return value.replace(
+    /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g,
+    '',
+  );
+}
 
 function flattenPositions(
   positions: CompanyLadderPosition[],
@@ -86,6 +211,9 @@ export function AddEmployeeWizardModal({
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<WizardFieldErrors>({});
 
   // Dynamic positions and managers
@@ -150,13 +278,76 @@ export function AddEmployeeWizardModal({
     });
   }
 
-  // Pre-load next sequence on mount
+  // Restore saved draft on open
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const data = JSON.parse(saved) as EmployeeWizardDraftData;
+        if (data && typeof data === 'object') {
+          if (typeof data.fullName === 'string') setFullName(data.fullName);
+          if (typeof data.email === 'string') setEmail(data.email);
+          if (typeof data.employeeId === 'string') setEmployeeId(data.employeeId);
+          if (typeof data.joiningDate === 'string') setJoiningDate(data.joiningDate);
+          if (typeof data.departmentId === 'string') setDepartmentId(data.departmentId);
+          if (typeof data.positionId === 'string') setPositionId(data.positionId);
+          if (typeof data.teamId === 'string') setTeamId(data.teamId);
+          if (typeof data.designationId === 'string') setDesignationId(data.designationId);
+          if (typeof data.specialization === 'string') setSpecialization(data.specialization);
+          if (typeof data.reportsTo === 'string') setReportsTo(data.reportsTo);
+          if (typeof data.phoneCountryCode === 'string') setPhoneCountryCode(data.phoneCountryCode);
+          if (typeof data.phone === 'string') {
+            const parsed = splitPhoneAndCountryCode(data.phone, data.phoneCountryCode || '+91');
+            setPhoneCountryCode(parsed.countryCode);
+            setPhone(parsed.nationalNumber);
+          }
+          if (typeof data.dateOfBirth === 'string') setDateOfBirth(data.dateOfBirth);
+          if (typeof data.gender === 'string') setGender(data.gender);
+          if (typeof data.addressLine1 === 'string') setAddressLine1(data.addressLine1);
+          if (typeof data.addressLine2 === 'string') setAddressLine2(data.addressLine2);
+          if (typeof data.city === 'string') setCity(data.city);
+          if (typeof data.state === 'string') setState(data.state);
+          if (typeof data.postalCode === 'string') setPostalCode(data.postalCode);
+          if (typeof data.emergencyContactName === 'string') setEmergencyContactName(data.emergencyContactName);
+          if (typeof data.emergencyContactCountryCode === 'string') setEmergencyContactCountryCode(data.emergencyContactCountryCode);
+          if (typeof data.emergencyContactPhone === 'string') {
+            const parsed = splitPhoneAndCountryCode(data.emergencyContactPhone, data.emergencyContactCountryCode || '+91');
+            setEmergencyContactCountryCode(parsed.countryCode);
+            setEmergencyContactPhone(parsed.nationalNumber);
+          }
+          if (typeof data.emergencyContactRelation === 'string') setEmergencyContactRelation(data.emergencyContactRelation);
+          if (typeof data.shiftId === 'string') setShiftId(data.shiftId);
+          if (typeof data.weekdayScheduleId === 'string') setWeekdayScheduleId(data.weekdayScheduleId);
+          if (Array.isArray(data.skillsList)) {
+            setSkillsList(data.skillsList as Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>);
+          }
+          if (Array.isArray(data.qualificationsList)) {
+            setQualificationsList(data.qualificationsList as Array<{ institution: string; degree: string; fieldOfStudy: string; passingYear: string; grade: string }>);
+          }
+          if (typeof data.step === 'number' && [1, 2, 3, 4, 5].includes(data.step)) {
+            setStep(data.step as 1 | 2 | 3 | 4 | 5);
+          }
+          const savedTime = typeof data.savedAt === 'string'
+            ? new Date(data.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '';
+          setDraftNotice(`Restored saved draft${savedTime ? ` from ${savedTime}` : ''}.`);
+          setHasDraft(true);
+          return;
+        }
+      }
+    } catch {
+      // Ignore JSON parse errors
+    }
+  }, [isOpen]);
+
+  // Pre-load next sequence on mount if no employeeId
   useEffect(() => {
     if (!isOpen) return;
     if (!employeeId) {
       void handleAutoGenerateEmployeeId();
     }
-  }, [isOpen]);
+  }, [isOpen, employeeId]);
 
   // Fetch positions whenever departmentId changes
   useEffect(() => {
@@ -191,6 +382,7 @@ export function AddEmployeeWizardModal({
   }, [departmentId, positionId, teamId, isRootPosition]);
 
   // Stage 2: Personal Information
+  const [phoneCountryCode, setPhoneCountryCode] = useState('+91');
   const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('');
@@ -200,6 +392,7 @@ export function AddEmployeeWizardModal({
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [emergencyContactName, setEmergencyContactName] = useState('');
+  const [emergencyContactCountryCode, setEmergencyContactCountryCode] = useState('+91');
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
   const [emergencyContactRelation, setEmergencyContactRelation] = useState('');
 
@@ -263,6 +456,8 @@ export function AddEmployeeWizardModal({
       const trimmedName = fullName.trim();
       if (!trimmedName) {
         errs.fullName = 'Full name is required.';
+      } else if (!/^[a-zA-Z\s'.-]+$/.test(trimmedName)) {
+        errs.fullName = 'Full name must only contain letters, spaces, hyphens, and apostrophes (no numbers or emojis).';
       } else if (trimmedName.length < 2) {
         errs.fullName = 'Full name must be at least 2 characters.';
       } else if (trimmedName.length > 160) {
@@ -297,17 +492,28 @@ export function AddEmployeeWizardModal({
         errs.joiningDate = 'Please enter a valid joining date.';
       }
     } else if (s === 2) {
-      const trimmedPhone = phone.trim();
+      const trimmedPhone = formatFullPhone(phoneCountryCode, phone);
+      const fullPhone = formatFullPhone(phoneCountryCode, trimmedPhone);
+      const phoneDigits = fullPhone.replace(/\D/g, '');
       if (!trimmedPhone) {
         errs.phone = 'Contact phone is required.';
-      } else if (trimmedPhone.length > 30) {
-        errs.phone = 'Phone number must be at most 30 characters.';
+      } else if (!/^\+?[0-9\s-]+$/.test(trimmedPhone) || phoneDigits.length < 7 || phoneDigits.length > 15) {
+        errs.phone = 'Please enter a valid phone number with 7 to 15 digits (numbers only).';
       }
 
       if (!dateOfBirth.trim()) {
         errs.dateOfBirth = 'Date of birth is required.';
       } else if (isNaN(Date.parse(dateOfBirth))) {
         errs.dateOfBirth = 'Please enter a valid date of birth.';
+      } else {
+        const dob = new Date(dateOfBirth);
+        const today = new Date();
+        const minAgeDate = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
+        if (dob > today) {
+          errs.dateOfBirth = 'Date of birth cannot be in the future.';
+        } else if (dob > minAgeDate) {
+          errs.dateOfBirth = 'Employee must be at least 16 years old.';
+        }
       }
 
       if (!gender.trim()) {
@@ -324,6 +530,8 @@ export function AddEmployeeWizardModal({
       const trimmedCity = city.trim();
       if (!trimmedCity) {
         errs.city = 'City is required.';
+      } else if (!/^[a-zA-Z\s'.-]+$/.test(trimmedCity)) {
+        errs.city = 'City must only contain letters (no numbers or emojis).';
       } else if (trimmedCity.length > 100) {
         errs.city = 'City must be at most 100 characters.';
       }
@@ -331,6 +539,8 @@ export function AddEmployeeWizardModal({
       const trimmedState = state.trim();
       if (!trimmedState) {
         errs.state = 'State is required.';
+      } else if (!/^[a-zA-Z\s'.-]+$/.test(trimmedState)) {
+        errs.state = 'State must only contain letters (no numbers or emojis).';
       } else if (trimmedState.length > 100) {
         errs.state = 'State must be at most 100 characters.';
       }
@@ -338,27 +548,35 @@ export function AddEmployeeWizardModal({
       const trimmedPostal = postalCode.trim();
       if (!trimmedPostal) {
         errs.postalCode = 'Postal code is required.';
-      } else if (trimmedPostal.length > 20) {
-        errs.postalCode = 'Postal code must be at most 20 characters.';
+      } else if (!/^\d{4,10}$/.test(trimmedPostal)) {
+        errs.postalCode = 'Postal code must be 4 to 10 numeric digits only.';
       }
 
       const trimmedEmgName = emergencyContactName.trim();
       if (!trimmedEmgName) {
         errs.emergencyContactName = 'Emergency contact name is required.';
+      } else if (!/^[a-zA-Z\s'.-]+$/.test(trimmedEmgName)) {
+        errs.emergencyContactName = 'Emergency contact name must only contain letters (no numbers or emojis).';
+      } else if (trimmedEmgName.length < 2) {
+        errs.emergencyContactName = 'Emergency contact name must be at least 2 characters.';
       } else if (trimmedEmgName.length > 160) {
         errs.emergencyContactName = 'Name must be at most 160 characters.';
       }
 
       const trimmedEmgPhone = emergencyContactPhone.trim();
+      const fullEmgPhone = formatFullPhone(emergencyContactCountryCode, trimmedEmgPhone);
+      const emgPhoneDigits = fullEmgPhone.replace(/\D/g, '');
       if (!trimmedEmgPhone) {
         errs.emergencyContactPhone = 'Emergency contact phone is required.';
-      } else if (trimmedEmgPhone.length > 30) {
-        errs.emergencyContactPhone = 'Emergency contact phone must be at most 30 characters.';
+      } else if (!/^\+?[0-9\s-]+$/.test(trimmedEmgPhone) || emgPhoneDigits.length < 7 || emgPhoneDigits.length > 15) {
+        errs.emergencyContactPhone = 'Emergency contact phone must have 7 to 15 digits (numbers only).';
       }
 
       const trimmedEmgRel = emergencyContactRelation.trim();
       if (!trimmedEmgRel) {
         errs.emergencyContactRelation = 'Emergency contact relationship is required.';
+      } else if (!/^[a-zA-Z\s-]+$/.test(trimmedEmgRel)) {
+        errs.emergencyContactRelation = 'Relationship must only contain letters (no numbers or emojis).';
       } else if (trimmedEmgRel.length > 60) {
         errs.emergencyContactRelation = 'Relationship must be at most 60 characters.';
       }
@@ -373,8 +591,9 @@ export function AddEmployeeWizardModal({
       }
 
       if (skillsList.length === 0) {
-        if (newSkillName.trim()) {
-          setSkillsList([{ skillName: newSkillName.trim(), proficiency: newSkillProficiency }]);
+        const trimmedSkill = stripEmojis(newSkillName.trim());
+        if (trimmedSkill) {
+          setSkillsList([{ skillName: trimmedSkill, proficiency: newSkillProficiency }]);
           setNewSkillName('');
         } else {
           errs.skills = 'At least one skill is required.';
@@ -382,14 +601,27 @@ export function AddEmployeeWizardModal({
       }
     } else if (s === 4) {
       if (qualificationsList.length === 0) {
-        if (institution.trim() && degree.trim()) {
+        const trimmedInst = stripEmojis(institution.trim());
+        const trimmedDeg = stripEmojis(degree.trim());
+        if (trimmedInst && trimmedDeg) {
+          const trimmedYear = passingYear.trim();
+          if (trimmedYear) {
+            const yr = parseInt(trimmedYear, 10);
+            const currentYear = new Date().getFullYear();
+            if (!/^\d{4}$/.test(trimmedYear) || isNaN(yr) || yr < 1950 || yr > currentYear + 10) {
+              errs.qualificationDraft = `Passing year must be a 4-digit year between 1950 and ${currentYear + 10}.`;
+              setFieldErrors(errs);
+              focusFirstError(errs);
+              return false;
+            }
+          }
           setQualificationsList([
             {
-              institution: institution.trim(),
-              degree: degree.trim(),
-              fieldOfStudy: fieldOfStudy.trim(),
-              passingYear: passingYear.trim(),
-              grade: grade.trim(),
+              institution: trimmedInst,
+              degree: trimmedDeg,
+              fieldOfStudy: stripEmojis(fieldOfStudy.trim()),
+              passingYear: trimmedYear,
+              grade: stripEmojis(grade.trim()),
             },
           ]);
           setInstitution('');
@@ -425,7 +657,89 @@ export function AddEmployeeWizardModal({
     return true;
   }
 
+  function handleSaveDraft(): void {
+    const draftData: EmployeeWizardDraftData = {
+      fullName: fullName.trim(),
+      email: email.trim(),
+      employeeId: employeeId.trim(),
+      joiningDate: joiningDate.trim(),
+      departmentId: departmentId.trim(),
+      positionId: positionId.trim(),
+      teamId: teamId.trim(),
+      designationId: designationId.trim(),
+      specialization: specialization.trim(),
+      reportsTo: reportsTo.trim(),
+      phoneCountryCode,
+      phone: phone.trim(),
+      dateOfBirth: dateOfBirth.trim(),
+      gender: gender.trim(),
+      addressLine1: addressLine1.trim(),
+      addressLine2: addressLine2.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      postalCode: postalCode.trim(),
+      emergencyContactName: emergencyContactName.trim(),
+      emergencyContactCountryCode,
+      emergencyContactPhone: emergencyContactPhone.trim(),
+      emergencyContactRelation: emergencyContactRelation.trim(),
+      shiftId: shiftId.trim(),
+      weekdayScheduleId: weekdayScheduleId.trim(),
+      skillsList: skillsList.map((s) => ({ skillName: s.skillName.trim(), proficiency: s.proficiency })),
+      qualificationsList: qualificationsList.map((q) => ({
+        institution: q.institution.trim(),
+        degree: q.degree.trim(),
+        fieldOfStudy: q.fieldOfStudy.trim(),
+        passingYear: q.passingYear.trim(),
+        grade: q.grade.trim(),
+      })),
+      step,
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
+      setHasDraft(true);
+      setDraftNotice('Draft saved successfully.');
+    } catch {
+      setError('Unable to save draft.');
+    }
+  }
+
+  function handleClearDraft(): void {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+      setHasDraft(false);
+      setDraftNotice(null);
+    } catch {
+      // Ignore
+    }
+  }
+
   function handleNext(): void {
+    if (step === 1) {
+      setFullName((v) => v.trim());
+      setEmail((v) => v.trim());
+      setEmployeeId((v) => v.trim());
+      setJoiningDate((v) => v.trim());
+    } else if (step === 2) {
+      setPhone((v) => v.trim());
+      setDateOfBirth((v) => v.trim());
+      setAddressLine1((v) => v.trim());
+      setAddressLine2((v) => v.trim());
+      setCity((v) => v.trim());
+      setState((v) => v.trim());
+      setPostalCode((v) => v.trim());
+      setEmergencyContactName((v) => v.trim());
+      setEmergencyContactPhone((v) => v.trim());
+      setEmergencyContactRelation((v) => v.trim());
+    } else if (step === 3) {
+      setNewSkillName((v) => v.trim());
+    } else if (step === 4) {
+      setInstitution((v) => v.trim());
+      setDegree((v) => v.trim());
+      setFieldOfStudy((v) => v.trim());
+      setPassingYear((v) => v.trim());
+      setGrade((v) => v.trim());
+    }
     if (!validateStep(step)) return;
     if (step < 5) setStep((prev) => (prev + 1) as 1 | 2 | 3 | 4 | 5);
   }
@@ -435,11 +749,16 @@ export function AddEmployeeWizardModal({
   }
 
   function addSkill(): void {
-    if (!newSkillName.trim()) {
+    const trimmedSkill = stripEmojis(newSkillName.trim()).trim();
+    if (!trimmedSkill) {
       setFieldErrors((prev) => ({ ...prev, newSkillName: 'Skill name is required.' }));
       return;
     }
-    setSkillsList([...skillsList, { skillName: newSkillName.trim(), proficiency: newSkillProficiency }]);
+    if (trimmedSkill.length > 50) {
+      setFieldErrors((prev) => ({ ...prev, newSkillName: 'Skill name must be at most 50 characters.' }));
+      return;
+    }
+    setSkillsList([...skillsList, { skillName: trimmedSkill, proficiency: newSkillProficiency }]);
     setNewSkillName('');
     clearFieldError('skills');
     clearFieldError('newSkillName');
@@ -450,21 +769,35 @@ export function AddEmployeeWizardModal({
   }
 
   function addQualification(): void {
-    if (!institution.trim() || !degree.trim()) {
+    const trimmedInst = stripEmojis(institution.trim()).trim();
+    const trimmedDeg = stripEmojis(degree.trim()).trim();
+    if (!trimmedInst || !trimmedDeg) {
       setFieldErrors((prev) => ({
         ...prev,
         qualificationDraft: 'Institution and degree are required to add qualification.',
       }));
       return;
     }
+    const trimmedYear = passingYear.trim();
+    if (trimmedYear) {
+      const yr = parseInt(trimmedYear, 10);
+      const currentYear = new Date().getFullYear();
+      if (!/^\d{4}$/.test(trimmedYear) || isNaN(yr) || yr < 1950 || yr > currentYear + 10) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          qualificationDraft: `Passing year must be a 4-digit year between 1950 and ${currentYear + 10}.`,
+        }));
+        return;
+      }
+    }
     setQualificationsList([
       ...qualificationsList,
       {
-        institution: institution.trim(),
-        degree: degree.trim(),
-        fieldOfStudy: fieldOfStudy.trim(),
-        passingYear: passingYear.trim(),
-        grade: grade.trim(),
+        institution: trimmedInst,
+        degree: trimmedDeg,
+        fieldOfStudy: stripEmojis(fieldOfStudy.trim()).trim(),
+        passingYear: trimmedYear,
+        grade: stripEmojis(grade.trim()).trim(),
       },
     ]);
     setInstitution('');
@@ -492,53 +825,80 @@ export function AddEmployeeWizardModal({
     setBusy(true);
     setError('');
 
+    const trimmedFullName = fullName.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedEmployeeId = employeeId.trim().toUpperCase();
+    const trimmedDepartmentId = departmentId.trim();
+    const trimmedPositionId = positionId.trim();
+    const trimmedTeamId = teamId.trim();
+    const trimmedDesignationId = designationId.trim();
+    const trimmedSpecialization = specialization.trim();
+    const trimmedReportsTo = reportsTo.trim();
+    const trimmedJoiningDate = joiningDate.trim();
+    const trimmedPhone = phone.trim();
+    const trimmedPassword = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+    const trimmedShiftId = shiftId.trim();
+    const trimmedWeekdayScheduleId = weekdayScheduleId.trim();
+
     const personalInfo: NonNullable<CreateEmployeeInput['personalInfo']> = {};
-    if (phone.trim()) personalInfo.phone = phone.trim();
-    if (dateOfBirth) personalInfo.dateOfBirth = dateOfBirth;
-    if (gender) personalInfo.gender = gender;
+    if (trimmedPhone) personalInfo.phone = trimmedPhone;
+    if (dateOfBirth.trim()) personalInfo.dateOfBirth = dateOfBirth.trim();
+    if (gender.trim()) personalInfo.gender = gender.trim();
     if (addressLine1.trim()) personalInfo.addressLine1 = addressLine1.trim();
     if (addressLine2.trim()) personalInfo.addressLine2 = addressLine2.trim();
     if (city.trim()) personalInfo.city = city.trim();
     if (state.trim()) personalInfo.state = state.trim();
     if (postalCode.trim()) personalInfo.postalCode = postalCode.trim();
     if (emergencyContactName.trim()) personalInfo.emergencyContactName = emergencyContactName.trim();
-    if (emergencyContactPhone.trim()) personalInfo.emergencyContactPhone = emergencyContactPhone.trim();
+    const trimmedEmgPhone = formatFullPhone(emergencyContactCountryCode, emergencyContactPhone);
+    if (trimmedEmgPhone) personalInfo.emergencyContactPhone = trimmedEmgPhone;
     if (emergencyContactRelation.trim()) personalInfo.emergencyContactRelation = emergencyContactRelation.trim();
 
     const qualifications: NonNullable<CreateEmployeeInput['qualifications']> = qualificationsList.map((q) => {
       const item: NonNullable<CreateEmployeeInput['qualifications']>[number] = {
-        institution: q.institution,
-        degree: q.degree,
+        institution: q.institution.trim(),
+        degree: q.degree.trim(),
       };
-      if (q.fieldOfStudy) item.fieldOfStudy = q.fieldOfStudy;
-      if (q.passingYear) item.passingYear = parseInt(q.passingYear, 10);
-      if (q.grade) item.grade = q.grade;
+      if (q.fieldOfStudy?.trim()) item.fieldOfStudy = q.fieldOfStudy.trim();
+      if (q.passingYear?.trim()) item.passingYear = parseInt(q.passingYear.trim(), 10);
+      if (q.grade?.trim()) item.grade = q.grade.trim();
       return item;
     });
 
+    const skills: NonNullable<CreateEmployeeInput['skills']> = skillsList.map((s) => ({
+      skillName: s.skillName.trim(),
+      proficiency: s.proficiency,
+    }));
+
     const payload: CreateEmployeeInput = {
-      ...(employeeId.trim() ? { employeeId: employeeId.trim().toUpperCase() } : {}),
-      fullName: fullName.trim(),
-      email: email.trim().toLowerCase(),
-      password,
-      confirmPassword,
-      departmentId,
-      positionId,
-      ...(teamId ? { teamId } : {}),
-      ...(designationId ? { designationId } : {}),
-      ...(specialization ? { specialization } : {}),
-      reportsTo: reportsTo || null,
-      ...(joiningDate ? { joiningDate } : {}),
-      ...(phone.trim() ? { phone: phone.trim() } : {}),
+      ...(trimmedEmployeeId ? { employeeId: trimmedEmployeeId } : {}),
+      fullName: trimmedFullName,
+      email: trimmedEmail,
+      password: trimmedPassword,
+      confirmPassword: trimmedConfirmPassword,
+      departmentId: trimmedDepartmentId,
+      positionId: trimmedPositionId,
+      ...(trimmedTeamId ? { teamId: trimmedTeamId } : {}),
+      ...(trimmedDesignationId ? { designationId: trimmedDesignationId } : {}),
+      ...(trimmedSpecialization ? { specialization: trimmedSpecialization } : {}),
+      reportsTo: trimmedReportsTo || null,
+      ...(trimmedJoiningDate ? { joiningDate: trimmedJoiningDate } : {}),
+      ...(trimmedPhone ? { phone: trimmedPhone } : {}),
       ...(Object.keys(personalInfo).length > 0 ? { personalInfo } : {}),
-      ...(shiftId ? { shiftId } : {}),
-      ...(weekdayScheduleId ? { weekdayScheduleId } : {}),
+      ...(trimmedShiftId ? { shiftId: trimmedShiftId } : {}),
+      ...(trimmedWeekdayScheduleId ? { weekdayScheduleId: trimmedWeekdayScheduleId } : {}),
       ...(qualifications.length > 0 ? { qualifications } : {}),
-      ...(skillsList.length > 0 ? { skills: skillsList } : {}),
+      ...(skills.length > 0 ? { skills } : {}),
     };
 
     try {
       const res = await createEmployee(payload);
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // Ignore
+      }
       onSuccess(res.employee.fullName, res.employee.id, res.onboardingWorkflowId, res.setupUrl);
     } catch (cause) {
       if (cause instanceof IdentityApiError) {
@@ -558,7 +918,7 @@ export function AddEmployeeWizardModal({
       aria-modal="true"
       className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
     >
-      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={() => setShowDiscardConfirm(true)} />
 
       <dialog
         open
@@ -570,14 +930,17 @@ export function AddEmployeeWizardModal({
             <h2 className="font-display text-xl font-bold">New Employee Onboarding</h2>
             <p className="text-xs text-app-muted mt-0.5">Multi-stage employee creation & onboarding setup</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
+          <ConfirmCancelButton
+            onDiscard={onClose}
+            title="Discard employee onboarding?"
+            description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+            discardText="Discard"
+            continueText="Continue"
             aria-label="Close modal"
-            className="grid size-8 place-items-center rounded-lg text-xl text-app-muted hover:bg-app-background"
+            className="grid size-8 place-items-center rounded-lg text-xl text-app-muted hover:bg-app-background transition-colors"
           >
             ×
-          </button>
+          </ConfirmCancelButton>
         </div>
 
         {/* Stepper Wizard Bar */}
@@ -621,6 +984,24 @@ export function AddEmployeeWizardModal({
           </div>
         )}
 
+        {draftNotice && (
+          <div className="shrink-0 mb-3 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs text-emerald-800 dark:text-emerald-200">
+            <div className="flex items-center gap-1.5">
+              <span>💾</span>
+              <span>{draftNotice}</span>
+            </div>
+            {hasDraft && (
+              <button
+                type="button"
+                onClick={handleClearDraft}
+                className="font-semibold text-red-500 hover:underline"
+              >
+                Discard Draft
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Modal Form Body */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-4">
           {step === 1 && (
@@ -633,9 +1014,10 @@ export function AddEmployeeWizardModal({
                   required
                   value={fullName}
                   onChange={(e) => {
-                    setFullName(e.target.value);
+                    setFullName(sanitizeNameInput(e.target.value));
                     clearFieldError('fullName');
                   }}
+                  onBlur={() => setFullName((v) => v.trim())}
                   placeholder="e.g. John Doe"
                   className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                     fieldErrors.fullName ? 'border-red-500' : 'border-app-border'
@@ -652,9 +1034,10 @@ export function AddEmployeeWizardModal({
                   required
                   value={email}
                   onChange={(e) => {
-                    setEmail(e.target.value);
+                    setEmail(stripEmojis(e.target.value.trim()));
                     clearFieldError('email');
                   }}
+                  onBlur={() => setEmail((v) => v.trim())}
                   placeholder="john.doe@company.com"
                   className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                     fieldErrors.email ? 'border-red-500' : 'border-app-border'
@@ -681,9 +1064,10 @@ export function AddEmployeeWizardModal({
                     type="text"
                     value={employeeId}
                     onChange={(e) => {
-                      setEmployeeId(e.target.value.toUpperCase());
+                      setEmployeeId(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''));
                       clearFieldError('employeeId');
                     }}
+                    onBlur={() => setEmployeeId((v) => v.trim())}
                     placeholder="e.g. EMP-00001 (or click Auto)"
                     className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm uppercase outline-none focus:border-app-accent ${
                       fieldErrors.employeeId ? 'border-red-500' : 'border-app-border'
@@ -843,20 +1227,48 @@ export function AddEmployeeWizardModal({
               <div className="grid gap-3.5 sm:grid-cols-3">
                 <div>
                   <label htmlFor="wizard-phone" className="mb-1 block text-xs font-semibold text-app-muted">Contact Phone *</label>
-                  <input
-                    id="wizard-phone"
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value);
-                      clearFieldError('phone');
-                    }}
-                    placeholder="+91 9876543210"
-                    className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
+                  <div
+                    className={`flex rounded-lg border bg-app-background transition-colors focus-within:border-app-accent focus-within:ring-1 focus-within:ring-app-accent/20 ${
                       fieldErrors.phone ? 'border-red-500' : 'border-app-border'
                     }`}
-                  />
+                  >
+                    <select
+                      id="wizard-phoneCountryCode"
+                      value={phoneCountryCode}
+                      onChange={(e) => {
+                        setPhoneCountryCode(e.target.value);
+                        clearFieldError('phone');
+                      }}
+                      aria-label="Contact phone country code"
+                      className="w-[74px] sm:w-[78px] shrink-0 rounded-l-lg border-r border-app-border bg-app-surface-raised/60 px-1.5 py-2 text-xs font-semibold text-app-foreground outline-none cursor-pointer hover:bg-app-surface focus:bg-app-surface transition"
+                    >
+                      {PHONE_COUNTRY_OPTIONS.map((item) => (
+                        <option key={`phone-${item.country}-${item.code}`} value={item.code}>
+                          {item.country} {item.code}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="wizard-phone"
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.startsWith('+')) {
+                          const parsed = splitPhoneAndCountryCode(val, phoneCountryCode);
+                          setPhoneCountryCode(parsed.countryCode);
+                          setPhone(sanitizePhoneInput(parsed.nationalNumber));
+                        } else {
+                          setPhone(sanitizePhoneInput(val));
+                        }
+                        clearFieldError('phone');
+                      }}
+                      onBlur={() => setPhone((v) => v.trim())}
+                      placeholder="8240998467"
+                      className="min-w-0 flex-1 rounded-r-lg bg-transparent px-3 py-2 text-sm outline-none placeholder:text-app-muted"
+                    />
+                  </div>
                   {fieldErrors.phone && <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>}
                 </div>
                 <div>
@@ -870,6 +1282,7 @@ export function AddEmployeeWizardModal({
                       setDateOfBirth(e.target.value);
                       clearFieldError('dateOfBirth');
                     }}
+                    onBlur={() => setDateOfBirth((v) => v.trim())}
                     className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                       fieldErrors.dateOfBirth ? 'border-red-500' : 'border-app-border'
                     }`}
@@ -911,9 +1324,10 @@ export function AddEmployeeWizardModal({
                       required
                       value={addressLine1}
                       onChange={(e) => {
-                        setAddressLine1(e.target.value);
+                        setAddressLine1(stripEmojis(e.target.value));
                         clearFieldError('addressLine1');
                       }}
+                      onBlur={() => setAddressLine1((v) => v.trim())}
                       placeholder="Street Address Line 1"
                       className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                         fieldErrors.addressLine1 ? 'border-red-500' : 'border-app-border'
@@ -927,7 +1341,8 @@ export function AddEmployeeWizardModal({
                       id="wizard-addressLine2"
                       type="text"
                       value={addressLine2}
-                      onChange={(e) => setAddressLine2(e.target.value)}
+                      onChange={(e) => setAddressLine2(stripEmojis(e.target.value))}
+                      onBlur={() => setAddressLine2((v) => v.trim())}
                       placeholder="Line 2 (Apartment, suite, etc.) (Optional)"
                       className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
                     />
@@ -940,9 +1355,10 @@ export function AddEmployeeWizardModal({
                       required
                       value={city}
                       onChange={(e) => {
-                        setCity(e.target.value);
+                        setCity(sanitizeNameInput(e.target.value));
                         clearFieldError('city');
                       }}
+                      onBlur={() => setCity((v) => v.trim())}
                       placeholder="City"
                       className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                         fieldErrors.city ? 'border-red-500' : 'border-app-border'
@@ -959,9 +1375,10 @@ export function AddEmployeeWizardModal({
                         required
                         value={state}
                         onChange={(e) => {
-                          setState(e.target.value);
+                          setState(sanitizeNameInput(e.target.value));
                           clearFieldError('state');
                         }}
+                        onBlur={() => setState((v) => v.trim())}
                         placeholder="State"
                         className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                           fieldErrors.state ? 'border-red-500' : 'border-app-border'
@@ -977,10 +1394,11 @@ export function AddEmployeeWizardModal({
                         required
                         value={postalCode}
                         onChange={(e) => {
-                          setPostalCode(e.target.value);
+                          setPostalCode(sanitizeDigitsOnly(e.target.value, 10));
                           clearFieldError('postalCode');
                         }}
-                        placeholder="Postal Code"
+                        onBlur={() => setPostalCode((v) => v.trim())}
+                        placeholder="Postal Code (e.g. 110001)"
                         className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                           fieldErrors.postalCode ? 'border-red-500' : 'border-app-border'
                         }`}
@@ -1002,9 +1420,10 @@ export function AddEmployeeWizardModal({
                       required
                       value={emergencyContactName}
                       onChange={(e) => {
-                        setEmergencyContactName(e.target.value);
+                        setEmergencyContactName(sanitizeNameInput(e.target.value));
                         clearFieldError('emergencyContactName');
                       }}
+                      onBlur={() => setEmergencyContactName((v) => v.trim())}
                       placeholder="Contact Name"
                       className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                         fieldErrors.emergencyContactName ? 'border-red-500' : 'border-app-border'
@@ -1014,20 +1433,48 @@ export function AddEmployeeWizardModal({
                   </div>
                   <div>
                     <label htmlFor="wizard-emergencyContactPhone" className="mb-1 block text-xs font-semibold text-app-muted">Contact Phone *</label>
-                    <input
-                      id="wizard-emergencyContactPhone"
-                      type="tel"
-                      required
-                      value={emergencyContactPhone}
-                      onChange={(e) => {
-                        setEmergencyContactPhone(e.target.value);
-                        clearFieldError('emergencyContactPhone');
-                      }}
-                      placeholder="Contact Phone"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
+                    <div
+                      className={`flex rounded-lg border bg-app-background transition-colors focus-within:border-app-accent focus-within:ring-1 focus-within:ring-app-accent/20 ${
                         fieldErrors.emergencyContactPhone ? 'border-red-500' : 'border-app-border'
                       }`}
-                    />
+                    >
+                      <select
+                        id="wizard-emergencyContactCountryCode"
+                        value={emergencyContactCountryCode}
+                        onChange={(e) => {
+                          setEmergencyContactCountryCode(e.target.value);
+                          clearFieldError('emergencyContactPhone');
+                        }}
+                        aria-label="Emergency contact phone country code"
+                        className="w-24 shrink-0 rounded-l-lg border-r border-app-border bg-app-surface-raised/60 px-2 py-2 text-xs font-semibold text-app-foreground outline-none cursor-pointer hover:bg-app-surface focus:bg-app-surface transition"
+                      >
+                        {PHONE_COUNTRY_OPTIONS.map((item) => (
+                          <option key={`emg-${item.country}-${item.code}`} value={item.code}>
+                            {item.code} {item.country}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        id="wizard-emergencyContactPhone"
+                        type="tel"
+                        required
+                        value={emergencyContactPhone}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.startsWith('+')) {
+                            const parsed = splitPhoneAndCountryCode(val, emergencyContactCountryCode);
+                            setEmergencyContactCountryCode(parsed.countryCode);
+                            setEmergencyContactPhone(sanitizePhoneInput(parsed.nationalNumber));
+                          } else {
+                            setEmergencyContactPhone(sanitizePhoneInput(val));
+                          }
+                          clearFieldError('emergencyContactPhone');
+                        }}
+                        onBlur={() => setEmergencyContactPhone((v) => v.trim())}
+                        placeholder="9876543210"
+                        className="min-w-0 flex-1 rounded-r-lg bg-transparent px-3 py-2 text-sm outline-none placeholder:text-app-muted"
+                      />
+                    </div>
                     {fieldErrors.emergencyContactPhone && (
                       <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyContactPhone}</p>
                     )}
@@ -1040,9 +1487,10 @@ export function AddEmployeeWizardModal({
                       required
                       value={emergencyContactRelation}
                       onChange={(e) => {
-                        setEmergencyContactRelation(e.target.value);
+                        setEmergencyContactRelation(sanitizeNameInput(e.target.value));
                         clearFieldError('emergencyContactRelation');
                       }}
+                      onBlur={() => setEmergencyContactRelation((v) => v.trim())}
                       placeholder="Relationship (e.g. Spouse)"
                       className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                         fieldErrors.emergencyContactRelation ? 'border-red-500' : 'border-app-border'
@@ -1115,10 +1563,11 @@ export function AddEmployeeWizardModal({
                     type="text"
                     value={newSkillName}
                     onChange={(e) => {
-                      setNewSkillName(e.target.value);
+                      setNewSkillName(stripEmojis(e.target.value));
                       clearFieldError('newSkillName');
                       clearFieldError('skills');
                     }}
+                    onBlur={() => setNewSkillName((v) => v.trim())}
                     placeholder="e.g. TypeScript, Customer Service"
                     className={`flex-1 rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                       fieldErrors.newSkillName || (fieldErrors.skills && skillsList.length === 0) ? 'border-red-500' : 'border-app-border'
@@ -1181,10 +1630,11 @@ export function AddEmployeeWizardModal({
                       type="text"
                       value={institution}
                       onChange={(e) => {
-                        setInstitution(e.target.value);
+                        setInstitution(stripEmojis(e.target.value));
                         clearFieldError('qualificationDraft');
                         clearFieldError('qualifications');
                       }}
+                      onBlur={() => setInstitution((v) => v.trim())}
                       placeholder="Institution / University"
                       className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                         fieldErrors.qualificationDraft || (fieldErrors.qualifications && qualificationsList.length === 0)
@@ -1200,10 +1650,11 @@ export function AddEmployeeWizardModal({
                       type="text"
                       value={degree}
                       onChange={(e) => {
-                        setDegree(e.target.value);
+                        setDegree(stripEmojis(e.target.value));
                         clearFieldError('qualificationDraft');
                         clearFieldError('qualifications');
                       }}
+                      onBlur={() => setDegree((v) => v.trim())}
                       placeholder="Degree (e.g. B.Tech, MBA)"
                       className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                         fieldErrors.qualificationDraft || (fieldErrors.qualifications && qualificationsList.length === 0)
@@ -1218,7 +1669,8 @@ export function AddEmployeeWizardModal({
                       id="wizard-fieldOfStudy"
                       type="text"
                       value={fieldOfStudy}
-                      onChange={(e) => setFieldOfStudy(e.target.value)}
+                      onChange={(e) => setFieldOfStudy(stripEmojis(e.target.value))}
+                      onBlur={() => setFieldOfStudy((v) => v.trim())}
                       placeholder="Field of Study (e.g. Computer Science)"
                       className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
                     />
@@ -1228,10 +1680,12 @@ export function AddEmployeeWizardModal({
                       <label htmlFor="wizard-passingYear" className="mb-1 block text-xs font-semibold text-app-muted">Passing Year (Optional)</label>
                       <input
                         id="wizard-passingYear"
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={passingYear}
-                        onChange={(e) => setPassingYear(e.target.value)}
-                        placeholder="Passing Year"
+                        onChange={(e) => setPassingYear(sanitizeDigitsOnly(e.target.value, 4))}
+                        onBlur={() => setPassingYear((v) => v.trim())}
+                        placeholder="Passing Year (e.g. 2023)"
                         className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
                       />
                     </div>
@@ -1241,7 +1695,8 @@ export function AddEmployeeWizardModal({
                         id="wizard-grade"
                         type="text"
                         value={grade}
-                        onChange={(e) => setGrade(e.target.value)}
+                        onChange={(e) => setGrade(stripEmojis(e.target.value))}
+                        onBlur={() => setGrade((v) => v.trim())}
                         placeholder="Grade / CGPA"
                         className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
                       />
@@ -1316,6 +1771,7 @@ export function AddEmployeeWizardModal({
                           setPassword(e.target.value);
                           clearFieldError('password');
                         }}
+                        onBlur={() => setPassword((v) => v.trim())}
                         placeholder="••••••••••••"
                         className={`w-full rounded-lg border bg-app-background px-3 py-2 pr-10 text-sm font-mono outline-none focus:border-app-accent ${
                           fieldErrors.password ? 'border-red-500' : 'border-app-border'
@@ -1343,6 +1799,7 @@ export function AddEmployeeWizardModal({
                         setConfirmPassword(e.target.value);
                         clearFieldError('confirmPassword');
                       }}
+                      onBlur={() => setConfirmPassword((v) => v.trim())}
                       placeholder="••••••••••••"
                       className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
                         fieldErrors.confirmPassword ? 'border-red-500' : 'border-app-border'
@@ -1367,15 +1824,36 @@ export function AddEmployeeWizardModal({
 
         {/* Modal Footer Controls */}
         <div className="shrink-0 mt-4 flex items-center justify-between pt-4">
-          <button
-            type="button"
-            onClick={step === 1 ? onClose : handleBack}
-            className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent"
-          >
-            {step === 1 ? 'Cancel' : 'Back'}
-          </button>
+          <div className="flex items-center gap-2">
+            <ConfirmCancelButton
+              onDiscard={onClose}
+              title="Discard employee onboarding?"
+              description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+              discardText="Discard"
+              continueText="Continue"
+              className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent hover:text-red-500 transition-colors"
+            >
+              Cancel
+            </ConfirmCancelButton>
+            {step > 1 && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent"
+              >
+                Back
+              </button>
+            )}
+          </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              className="rounded-lg border border-app-border bg-app-surface px-4 py-2 text-sm font-semibold hover:border-app-accent hover:bg-app-background/50 transition-colors"
+            >
+              Save as Draft
+            </button>
             {step < 5 ? (
               <button
                 type="button"
@@ -1397,6 +1875,19 @@ export function AddEmployeeWizardModal({
           </div>
         </div>
       </dialog>
+
+      <ConfirmDiscardModal
+        isOpen={showDiscardConfirm}
+        onDiscard={() => {
+          setShowDiscardConfirm(false);
+          onClose();
+        }}
+        onContinue={() => setShowDiscardConfirm(false)}
+        title="Discard employee onboarding?"
+        description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+        discardText="Discard"
+        continueText="Continue"
+      />
     </div>
     ),
     document.body,

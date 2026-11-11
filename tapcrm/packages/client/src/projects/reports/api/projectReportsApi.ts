@@ -1,5 +1,6 @@
 import { identityDownload, identityRequest } from '../../../identity/api/authApi.js';
 import type { BlogInput, RankHistoryEntry, SearchConsoleSettings, SeoReport, SeoKeyword, SyncResult } from '../types.js';
+export interface ClientFeedback { id: string; projectId: string; area: 'keyword-tracker' | 'blog-updates' | 'off-page-seo' | 'screenshots'; note: string; createdByName: string; createdAt: string; }
 
 function path(projectId: string, suffix = ''): string { return `/api/projects/${encodeURIComponent(projectId)}/reports/on-page-seo${suffix}`; }
 export function getProjectSeoReport(projectId: string, query: Record<string, string | number | undefined>): Promise<SeoReport> { const params = new URLSearchParams(); Object.entries(query).forEach(([key, value]) => { if (value !== undefined) params.set(key, String(value)); }); const suffix = params.toString() ? `?${params.toString()}` : ''; return identityRequest(`${path(projectId)}${suffix}`); }
@@ -12,6 +13,7 @@ export function archiveKeyword(projectId: string, keywordId: string): Promise<{ 
 export function createBlog(projectId: string, input: BlogInput): Promise<{ id: string }> { return identityRequest(path(projectId, '/blog-posts'), { method: 'POST', body: JSON.stringify(input) }); }
 export function updateBlog(projectId: string, blogId: string, input: BlogInput): Promise<{ id: string }> { return identityRequest(path(projectId, `/blog-posts/${encodeURIComponent(blogId)}`), { method: 'PATCH', body: JSON.stringify(input) }); }
 export function archiveBlog(projectId: string, blogId: string): Promise<{ archived: true }> { return identityRequest(path(projectId, `/blog-posts/${encodeURIComponent(blogId)}/archive`), { method: 'POST' }); }
+export function getClientFeedback(projectId: string, area: ClientFeedback['area']): Promise<ClientFeedback[]> { return identityRequest(`/api/projects/${encodeURIComponent(projectId)}/reports/client-feedback?area=${encodeURIComponent(area)}`); }
 
 export function getSearchConsoleSettings(projectId: string): Promise<SearchConsoleSettings> { return identityRequest(path(projectId, '/search-console')); }
 export function linkSearchConsoleProperty(projectId: string, propertyUrl: string): Promise<unknown> { return identityRequest(path(projectId, '/search-console'), { method: 'PUT', body: JSON.stringify({ propertyUrl }) }); }

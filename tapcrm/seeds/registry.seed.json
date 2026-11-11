@@ -3022,6 +3022,18 @@
     },
     {
       "method": "GET",
+      "path": "/api/org/currency-settings",
+      "action": "advance:view-own",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/org/currency-settings",
+      "action": "system:manage-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/org/teams",
       "action": "org:view-structure",
       "resourceParam": null
@@ -3881,6 +3893,12 @@
     {
       "method": "POST",
       "path": "/api/holidays",
+      "action": "holidays:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/holidays/bulk",
       "action": "holidays:manage",
       "resourceParam": null
     },
@@ -4864,6 +4882,12 @@
     },
     {
       "method": "POST",
+      "path": "/api/projects/bulk-assign",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
       "path": "/api/projects",
       "action": "projects:manage",
       "resourceParam": null
@@ -4925,6 +4949,12 @@
     {
       "method": "GET",
       "path": "/api/projects/:id/reports/on-page-seo",
+      "action": "projects:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id/reports/client-feedback",
       "action": "projects:view",
       "resourceParam": "id"
     },

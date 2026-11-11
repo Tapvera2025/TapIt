@@ -271,6 +271,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/identity/geofence-appeals/:id/decide | `identity:manage-geofence` | — |
 | POST | /api/identity/users/:id/unlock | `identity:unlock-account` | id |
 | GET | /api/org/departments | `org:view-structure` | — |
+| GET | /api/org/currency-settings | `advance:view-own` | — |
+| PUT | /api/org/currency-settings | `system:manage-settings` | — |
 | GET | /api/org/teams | `org:view-structure` | — |
 | GET | /api/org/ladder/:departmentCode | `org:view-structure` | — |
 | GET | /api/org/chart | `org:view-structure` | — |
@@ -415,6 +417,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/leaves/types/:id | `leave:manage-types` | id |
 | GET | /api/holidays | `holidays:view` | — |
 | POST | /api/holidays | `holidays:manage` | — |
+| POST | /api/holidays/bulk | `holidays:manage` | — |
 | PATCH | /api/holidays/:id | `holidays:manage` | id |
 | GET | /api/payroll/payslips/mine | `payroll:view` | — |
 | GET | /api/payroll/payslips/:id | `payroll:view` | id |
@@ -578,6 +581,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/handoff/:id | `handoff:view` | id |
 | GET | /api/projects | `projects:view` | — |
 | GET | /api/projects/:id | `projects:view` | id |
+| POST | /api/projects/bulk-assign | `projects:manage` | — |
 | POST | /api/projects | `projects:manage` | — |
 | PATCH | /api/projects/:id | `projects:manage` | id |
 | POST | /api/projects/:id/team | `projects:manage` | id |
@@ -589,6 +593,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/projects/:id/discussion-group/archive | `projects:manage` | id |
 | GET | /api/projects/:id/profitability | `projects:view-financials` | id |
 | GET | /api/projects/:id/reports/on-page-seo | `projects:view` | id |
+| GET | /api/projects/:id/reports/client-feedback | `projects:view` | id |
 | GET | /api/projects/:id/reports/download | `projects:view` | id |
 | POST | /api/projects/:id/reports/on-page-seo/keywords | `projects:manage` | id |
 | PATCH | /api/projects/:id/reports/on-page-seo/keywords/:keywordId | `projects:manage` | id |

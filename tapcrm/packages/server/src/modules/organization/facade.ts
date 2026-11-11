@@ -21,3 +21,4 @@ export {
 export { findTeam } from './teams/repository.js';
 export { findDepartment } from './departments/repository.js';
 export { enqueueOrganizationAudit } from './repository.js';
+export { getCurrencySettings, type CurrencySettings } from './currency.js';

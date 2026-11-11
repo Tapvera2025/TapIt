@@ -89,7 +89,7 @@ const GROUP_ICONS: Record<string, string> = {
 export function CompanySidebar({
   variant = 'company',
   pathname,
-  identity: _identity,
+  identity,
   organizationName: _organizationName,
   accountType,
   canRequestRoleChange = false,
@@ -156,6 +156,7 @@ export function CompanySidebar({
     departmentCode?: string | null;
     departmentName?: string | null;
     positionCode?: string | null;
+    positionName?: string | null;
   };
   organizationName: string | null;
   accountType: string;
@@ -253,6 +254,9 @@ export function CompanySidebar({
   const [isDraggingSidebarPill, setIsDraggingSidebarPill] = useState(false);
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const roleLabel = identity.accountType === 'super-admin'
+    ? 'Super Admin'
+    : identity.positionName || identity.positionCode || 'Employee';
 
   const restoreActiveSidebarPill = () => {
     const navigation = navigationRef.current;
@@ -1385,7 +1389,21 @@ export function CompanySidebar({
           <SidebarPet pet={activePet} />
         </div>
       )}
-      <div className="shrink-0 border-t border-t-[color:var(--sidebar-border)] pt-4">
+      <div className={`mx-1 shrink-0 border-t border-sidebar-border/70 px-1 pt-4 pb-2 ${collapsed ? 'xl:mx-0 xl:px-0' : ''}`}>
+        <div
+          className={`flex min-w-0 items-center gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-hover-bg/45 px-3 py-2.5 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
+          title={collapsed ? `${identity.fullName} · ${roleLabel}` : undefined}
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active-bg text-xs font-bold text-sidebar-active-fg">
+            {identity.fullName.trim().slice(0, 1).toUpperCase() || '?'}
+          </span>
+          <span className={`min-w-0 leading-tight ${collapsed ? 'xl:hidden' : ''}`}>
+            <span className="block truncate text-sm font-semibold leading-5 text-sidebar-foreground">{identity.fullName}</span>
+            <span className="mt-0.5 block truncate text-xs font-medium leading-4 text-sidebar-muted">{roleLabel}{identity.departmentName ? ` · ${identity.departmentName}` : ''}</span>
+          </span>
+        </div>
+      </div>
+      <div className="shrink-0 border-t border-t-[color:var(--sidebar-border)] px-1 pt-3">
         <button
           type="button"
           onClick={onLogout}

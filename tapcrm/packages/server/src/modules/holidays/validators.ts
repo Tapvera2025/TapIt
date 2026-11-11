@@ -42,6 +42,10 @@ export const createSchema = z.object({
   scopes: z.array(scopeRow).default([]),
 });
 
+export const bulkCreateSchema = z.object({
+  holidays: z.array(createSchema).min(1).max(100),
+});
+
 export const reviseSchema = z.union([
   z.object({ status: z.enum(['active', 'withdrawn']) }).strict(),
   z.object({ scopes: z.array(scopeRow) }).strict(),
@@ -53,6 +57,7 @@ export const listQuerySchema = z.object({
 });
 
 export type CreateBody = z.infer<typeof createSchema>;
+export type BulkCreateBody = z.infer<typeof bulkCreateSchema>;
 export type ReviseBody = z.infer<typeof reviseSchema>;
 export type ListQuery = z.infer<typeof listQuerySchema>;
 export type ScopeRow = z.infer<typeof scopeRow>;

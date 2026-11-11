@@ -29,6 +29,25 @@ function elapsedSeconds(startIso: string | null, now: Date): number {
   return Math.max(0, Math.floor((now.getTime() - new Date(startIso).getTime()) / 1000));
 }
 
+function exactCompletedBreakSeconds(events: AttendanceEventView[]): number {
+  const effective = events
+    .filter((event) => !event.isVoid && (event.kind === 'break-start' || event.kind === 'break-end'))
+    .sort((a, b) => Date.parse(a.occurredAt ?? a.at ?? '') - Date.parse(b.occurredAt ?? b.at ?? ''));
+  let openAt: number | null = null;
+  let total = 0;
+  for (const event of effective) {
+    const at = Date.parse(event.occurredAt ?? event.at ?? '');
+    if (!Number.isFinite(at)) continue;
+    if (event.kind === 'break-start') {
+      openAt = at;
+    } else if (openAt !== null && at >= openAt) {
+      total += Math.floor((at - openAt) / 1000);
+      openAt = null;
+    }
+  }
+  return total;
+}
+
 function fmtBreakTimer(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const remaining = seconds % 60;
@@ -263,17 +282,25 @@ function StatusPill({ state, isWfh }: { state: string; isWfh?: boolean }): React
 
 function BreakStatusCard({
   row,
+  events,
   now,
   breakActionButton,
 }: {
   row: LiveRow | null;
+  events: AttendanceEventView[];
   now: Date;
   breakActionButton: ReactNode;
 }): React.JSX.Element {
   const isOnBreak = row?.state === 'ON_BREAK';
-  const breakSeconds = elapsedSeconds(isOnBreak ? (row?.since ?? null) : null, now);
+  const currentBreakSeconds = elapsedSeconds(isOnBreak ? (row?.since ?? null) : null, now);
+  const completedBreakSeconds = Math.max(
+    Math.max(0, row?.breakMinutes ?? 0) * 60,
+    exactCompletedBreakSeconds(events),
+  );
+  const totalBreakSeconds = completedBreakSeconds + currentBreakSeconds;
   const breakLimitSeconds = 60 * 60;
-  const progress = Math.min(breakSeconds / breakLimitSeconds, 1);
+  const progress = Math.min(totalBreakSeconds / breakLimitSeconds, 1);
+  const isOverLimit = totalBreakSeconds > breakLimitSeconds;
   const circumference = 2 * Math.PI * 47;
   const strokeOffset = circumference * (1 - progress);
 
@@ -283,8 +310,8 @@ function BreakStatusCard({
       <div className="today-break-status-header flex items-center justify-between gap-3 md:flex-col md:items-start md:justify-start md:gap-1.5">
         <p className="text-base font-bold text-app-foreground">Break Status</p>
         {isOnBreak ? (
-          <span className="flex items-center gap-1.5 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-app-accent dark:bg-orange-950/40">
-            <IconClock className="h-3 w-3 text-app-accent" />
+          <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${isOverLimit ? 'bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300' : 'bg-orange-100 text-app-accent dark:bg-orange-950/40'}`}>
+            <IconClock className="h-3 w-3" />
             On Break
           </span>
         ) : (
@@ -296,16 +323,16 @@ function BreakStatusCard({
 
       <div className="today-break-status-content mt-2 flex flex-1 flex-col items-center justify-center md:mt-0 md:grid md:min-h-0 md:grid-cols-[minmax(0,1fr)_auto] md:gap-4">
         <div className="today-break-controls contents md:flex md:h-44 md:min-w-0 md:self-center md:flex-col md:items-start md:justify-end md:gap-3 xl:h-[clamp(13rem,15vw,13.75rem)]">
-          <div className="today-break-total order-2 mt-3 w-full rounded-xl border border-app-border bg-app-surface-raised px-2.5 py-1.5 text-center md:order-none md:mt-0 md:max-w-[14rem] md:px-4 md:py-5">
+          <div className={`today-break-total order-2 mt-3 w-full rounded-xl border bg-app-surface-raised px-2.5 py-1.5 text-center md:order-none md:mt-0 md:max-w-[14rem] md:px-4 md:py-5 ${isOverLimit ? 'border-red-300 dark:border-red-800' : 'border-app-border'}`}>
             <p className="text-[11px] text-app-muted">Total break today</p>
-            <p className="mt-0.5 text-base font-bold tabular-nums text-app-foreground">{fmtHm(row?.breakMinutes ?? 0)}</p>
+            <p className={`mt-0.5 text-base font-bold tabular-nums ${isOverLimit ? 'text-red-600 dark:text-red-300' : 'text-app-foreground'}`}>{fmtHm(Math.floor(totalBreakSeconds / 60))}</p>
           </div>
           {breakActionButton}
         </div>
 
         <div className="today-break-timer relative order-1 grid size-28 place-items-center rounded-full sm:size-32 md:order-none md:self-center md:size-44 xl:size-[clamp(13rem,15vw,13.75rem)]">
           <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
-            <circle cx="56" cy="56" r="47" fill="none" stroke="currentColor" strokeWidth="7" className="text-app-accent/15" />
+            <circle cx="56" cy="56" r="47" fill="none" stroke="currentColor" strokeWidth="7" className={isOverLimit ? 'text-red-500/15' : 'text-app-accent/15'} />
             <circle
               cx="56"
               cy="56"
@@ -314,16 +341,15 @@ function BreakStatusCard({
               stroke="currentColor"
               strokeWidth="7"
               strokeLinecap="round"
-              className="text-app-accent transition-[stroke-dashoffset] duration-500"
+              className={`${isOverLimit ? 'text-red-500' : 'text-app-accent'} transition-[stroke-dashoffset,color] duration-500`}
               strokeDasharray={circumference}
               strokeDashoffset={strokeOffset}
             />
           </svg>
           <div className="text-center">
-            <p className="text-2xl font-bold tabular-nums tracking-tight text-app-foreground">
-              {isOnBreak ? fmtBreakTimer(breakSeconds) : '00:00'}
+            <p className={`text-2xl font-bold tabular-nums tracking-tight ${isOverLimit ? 'text-red-600 dark:text-red-300' : 'text-app-foreground'}`}>
+              {fmtBreakTimer(totalBreakSeconds)}
             </p>
-            <p className="mt-0.5 text-[11px] font-medium text-app-muted">/ 01:00</p>
           </div>
         </div>
       </div>
@@ -721,7 +747,7 @@ export function TodayPage({
               />
             </div>
             <div className="min-h-0 lg:flex-none xl:flex-[1.1]">
-              <BreakStatusCard row={row} now={now} breakActionButton={isTabletOrLarger ? breakActionButton : null} />
+              <BreakStatusCard row={row} events={events} now={now} breakActionButton={isTabletOrLarger ? breakActionButton : null} />
             </div>
           </div>
           <div className="today-attendance-activity-slot min-h-0 min-w-0 overflow-hidden">

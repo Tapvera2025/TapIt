@@ -21,6 +21,8 @@ interface TaskDbRow {
   projectName?: string | null;
   priority: TaskPriority;
   status: TaskStatus;
+  statusUpdatedByName?: string | null;
+  statusUpdatedAt?: Date | string | null;
   dueDate: Date | null;
   createdBy: string;
   createdByName?: string | null;
@@ -36,6 +38,8 @@ interface TaskDbRow {
     departmentId?: string | null;
     assignedAt: string | Date;
     status?: string | null;
+    statusUpdatedByName?: string | null;
+    statusUpdatedAt?: Date | string | null;
   }> | null;
 }
 
@@ -48,6 +52,8 @@ function mapTaskRow(row: TaskDbRow): Task {
     departmentId: a.departmentId ?? null,
     assignedAt: new Date(a.assignedAt),
     status: (a.status as TaskStatus) ?? 'pending',
+    statusUpdatedByName: a.statusUpdatedByName ?? a.fullName ?? null,
+    statusUpdatedAt: a.statusUpdatedAt ? new Date(a.statusUpdatedAt) : new Date(a.assignedAt),
   }));
   const assigneeTeamIds = assignees
     .map((a) => a.teamId)
@@ -77,6 +83,10 @@ function mapTaskRow(row: TaskDbRow): Task {
     projectName: row.projectName ?? null,
     priority: row.priority,
     status: row.status,
+    statusUpdatedByName: row.statusUpdatedByName ?? row.createdByName ?? null,
+    statusUpdatedAt: row.statusUpdatedAt
+      ? new Date(row.statusUpdatedAt)
+      : (row.updatedAt ? new Date(row.updatedAt) : new Date(row.createdAt)),
     dueDate: row.dueDate ? new Date(row.dueDate) : null,
     createdBy: row.createdBy,
     createdByName: row.createdByName ?? null,
@@ -244,6 +254,32 @@ const TASK_SELECT = sql`
     project.name AS "projectName",
     t.priority,
     t.status,
+    COALESCE(
+      (
+        SELECT u_audit.full_name
+        FROM audit_outbox ao
+        JOIN app_user u_audit ON u_audit.id::text = (ao.payload->>'actorId') AND u_audit.organization_id = ao.organization_id
+        WHERE ao.organization_id = t.organization_id
+          AND ao.payload->>'targetId' = t.id::text
+          AND ao.payload->>'action' IN ('task.status_changed', 'task.completed', 'task.assignee_status_changed', 'task.assignee_completed')
+        ORDER BY ao.enqueued_at DESC
+        LIMIT 1
+      ),
+      creator.full_name
+    ) AS "statusUpdatedByName",
+    COALESCE(
+      (
+        SELECT ao.enqueued_at
+        FROM audit_outbox ao
+        WHERE ao.organization_id = t.organization_id
+          AND ao.payload->>'targetId' = t.id::text
+          AND ao.payload->>'action' IN ('task.status_changed', 'task.completed', 'task.assignee_status_changed', 'task.assignee_completed')
+        ORDER BY ao.enqueued_at DESC
+        LIMIT 1
+      ),
+      t.updated_at,
+      t.created_at
+    ) AS "statusUpdatedAt",
     t.due_date,
     t.created_by,
     creator.full_name AS "createdByName",
@@ -260,7 +296,34 @@ const TASK_SELECT = sql`
           'teamId', u.team_id,
           'departmentId', u.department_id,
           'assignedAt', ta.assigned_at,
-          'status', ta.status
+          'status', ta.status,
+          'statusUpdatedByName', COALESCE(
+            (
+              SELECT u_asgn_audit.full_name
+              FROM audit_outbox ao_asgn
+              JOIN app_user u_asgn_audit ON u_asgn_audit.id::text = (ao_asgn.payload->>'actorId') AND u_asgn_audit.organization_id = ao_asgn.organization_id
+              WHERE ao_asgn.organization_id = t.organization_id
+                AND ao_asgn.payload->>'targetId' = t.id::text
+                AND ao_asgn.payload->>'action' IN ('task.assignee_status_changed', 'task.assignee_completed')
+                AND ao_asgn.payload->'after'->>'assigneeId' = ta.user_id::text
+              ORDER BY ao_asgn.enqueued_at DESC
+              LIMIT 1
+            ),
+            u.full_name
+          ),
+          'statusUpdatedAt', COALESCE(
+            (
+              SELECT ao_asgn.enqueued_at
+              FROM audit_outbox ao_asgn
+              WHERE ao_asgn.organization_id = t.organization_id
+                AND ao_asgn.payload->>'targetId' = t.id::text
+                AND ao_asgn.payload->>'action' IN ('task.assignee_status_changed', 'task.assignee_completed')
+                AND ao_asgn.payload->'after'->>'assigneeId' = ta.user_id::text
+              ORDER BY ao_asgn.enqueued_at DESC
+              LIMIT 1
+            ),
+            ta.assigned_at
+          )
         ) ORDER BY ta.assigned_at ASC)
         FROM task_assignee ta
         JOIN app_user u ON u.id = ta.user_id AND u.organization_id = ta.organization_id

@@ -18,6 +18,14 @@ export interface WidgetDef {
   /** Called with the identity; returns true when the widget should be available. */
   readonly available: (identity: CompanyIdentity) => boolean;
   /** Default grid placement — what the widget looks like when added. */
-  readonly defaultLayout: { w: number; h: number; minW: number; minH: number };
+  readonly defaultLayout: {
+    w: number;
+    h: number;
+    minW: number;
+    minH: number;
+    maxW?: number;
+    maxH?: number;
+    resizable?: boolean;
+  };
   readonly component: WidgetComponent;
 }

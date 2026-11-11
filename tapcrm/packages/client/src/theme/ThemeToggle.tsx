@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTheme } from './ThemeContext.js';
 import { Icon } from '../ui/Icon.js';
 
@@ -17,30 +17,55 @@ export function ThemeToggle({
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [isChanging, setIsChanging] = useState(false);
+  const [showLongPressTooltip, setShowLongPressTooltip] = useState(false);
+  const longPressTimer = useRef<number | null>(null);
   const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
   const isDark = resolvedTheme === 'dark';
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   return (
     <button
       type="button"
-      className={`${compact ? 'navbar-action-button theme-toggle-navbar inline-flex size-9 items-center justify-center gap-1 rounded-xl border border-app-border bg-app-surface/70 p-0 text-app-muted' : 'theme-toggle-liquid group inline-flex items-center gap-2 rounded-full border p-1.5 pr-3 text-xs font-semibold shadow-sm max-sm:size-9 max-sm:justify-center max-sm:p-0'} transition duration-200 hover:-translate-y-px hover:shadow-md focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 ${isChanging ? 'theme-toggle-liquid-changing' : ''} ${
-        floating
+      className={`${compact ? 'navbar-action-button theme-toggle-navbar inline-flex size-9 items-center justify-center gap-1 rounded-xl border border-app-border bg-app-surface/70 p-0 text-app-muted' : 'theme-toggle-liquid group inline-flex items-center gap-2 rounded-full border p-1.5 pr-3 text-xs font-semibold shadow-sm max-sm:size-9 max-sm:justify-center max-sm:p-0'} transition duration-200 hover:-translate-y-px hover:shadow-md focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 ${isChanging ? 'theme-toggle-liquid-changing' : ''} ${floating
           ? 'fixed bottom-6 right-6 z-20 border-app-border/80 bg-app-surface/95 text-app-foreground shadow-[0_12px_35px_rgba(0,0,0,0.22)] backdrop-blur-md max-[560px]:bottom-4 max-[560px]:right-4'
           : !compact ? 'border-app-border/80 bg-app-surface/80 text-app-foreground hover:border-app-accent/60 hover:bg-app-surface' : ''
-      } ${className}`}
+        } ${className}`}
       onClick={() => {
         setIsChanging(true);
         setTheme(nextTheme);
         onActivate?.();
         window.setTimeout(() => setIsChanging(false), 420);
       }}
+      onPointerDown={(event) => {
+        if (event.pointerType !== 'touch') return;
+        clearLongPress();
+        longPressTimer.current = window.setTimeout(() => setShowLongPressTooltip(true), 600);
+      }}
+      onPointerUp={() => {
+        clearLongPress();
+        setShowLongPressTooltip(false);
+      }}
+      onPointerCancel={() => {
+        clearLongPress();
+        setShowLongPressTooltip(false);
+      }}
+      onPointerLeave={() => {
+        clearLongPress();
+        setShowLongPressTooltip(false);
+      }}
       aria-label={`Switch to ${nextTheme} mode`}
-      title={`Switch to ${nextTheme} mode`}
-      data-tooltip={compact ? `Switch to ${nextTheme} mode` : undefined}
       aria-pressed={isDark}
+      data-tooltip={`Switch to ${nextTheme} mode`}
+      data-tooltip-visible={showLongPressTooltip ? 'true' : undefined}
     >
       <span className="theme-toggle-liquid-sheen" aria-hidden="true" />
-      <span className="grid size-7 place-items-center rounded-full bg-app-accent/12 text-app-accent ring-1 ring-inset ring-app-accent/15 transition group-hover:bg-app-accent group-hover:text-app-background">
+      <span className="grid size-7 place-items-center text-app-accent transition">
         {isDark ? (
           <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="4" />

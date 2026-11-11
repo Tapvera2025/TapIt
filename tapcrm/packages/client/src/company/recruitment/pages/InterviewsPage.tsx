@@ -12,6 +12,7 @@ import type {
   InterviewStatus,
   JobRequisition,
 } from '../types/index.js';
+import { formatMinutes } from '../../../ui/format-duration.js';
 
 export function InterviewsPage({
   preselectedCandidate,
@@ -171,7 +172,7 @@ export function InterviewsPage({
 
                 <div>
                   <span className="capitalize text-xs font-medium">{int.interviewType.replace('_', ' ')}</span>
-                  <p className="text-xs text-app-muted">{int.durationMinutes} mins</p>
+                  <p className="text-xs text-app-muted">{formatMinutes(int.durationMinutes)}</p>
                 </div>
 
                 <div className="text-xs text-app-foreground">

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { NotificationBell } from '../../notifications/NotificationBell.js';
-import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { BrandLogo } from '../../ui/BrandLogo.js';
 import { Icon } from '../../ui/Icon.js';
 import { AiPetButton } from './AiPet.js';
@@ -22,6 +21,7 @@ function initials(fullName: string): string {
 export function Navbar({
   identity,
   organizationName,
+  organizationCode,
   sidebarCollapsed,
   sidebarOpen,
   onToggleSidebar,
@@ -32,6 +32,7 @@ export function Navbar({
 }: {
   identity: { fullName: string; email: string; accountType?: string };
   organizationName: string | null;
+  organizationCode: string | null;
   sidebarCollapsed: boolean;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
@@ -42,7 +43,7 @@ export function Navbar({
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
-  const role = organizationName ? organizationName.slice(0, 3).toUpperCase() : 'ABP';
+  const role = organizationCode?.trim() || organizationName?.slice(0, 3).toUpperCase() || 'ABP';
   const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
 
   useEffect(() => {
@@ -71,7 +72,7 @@ export function Navbar({
 
   return (
     <header className="global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl xl:top-4 xl:mx-5 xl:mt-4 xl:rounded-2xl xl:border">
-      <div className="flex h-full min-w-0 items-center gap-2 px-2 sm:gap-3 sm:px-5">
+      <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:gap-3 sm:px-5">
         <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2 lg:gap-1">
           <button
             type="button"
@@ -79,7 +80,7 @@ export function Navbar({
               event.stopPropagation();
               onToggleSidebar();
             }}
-            className="navbar-action-button inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
+            className="navbar-action-button inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 xl:hidden"
             aria-label={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
             aria-expanded={sidebarExpanded}
             title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -97,30 +98,29 @@ export function Navbar({
           </span>
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2.5 max-[420px]:gap-2">
           <GlobalFeatureSearch
             destinations={searchDestinations}
             onNavigate={onNavigate}
           />
           <NotificationBell onNavigate={onNavigate} />
-          <ThemeToggle compact className="global-navbar-theme-toggle md:hidden" />
           <div ref={accountRef} className="relative">
             <button
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
-              className="flex h-9 items-center gap-2 rounded-xl border border-app-border bg-app-surface-raised px-1.5 pr-2 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 sm:pr-2.5"
+              className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 lg:h-9 lg:w-auto lg:justify-start lg:gap-2 lg:rounded-xl lg:px-1.5 lg:pr-2.5"
               aria-label="Open account menu"
               aria-haspopup="menu"
               aria-expanded={accountOpen}
             >
-              <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-app-accent/15 text-[10px] font-bold text-app-accent ring-1 ring-inset ring-app-accent/20">
+              <span className="text-[10px] font-bold text-app-accent lg:grid lg:size-6 lg:shrink-0 lg:place-items-center lg:rounded-lg lg:bg-app-accent/15 lg:ring-1 lg:ring-inset lg:ring-app-accent/20">
                 {initials(identity.fullName)}
               </span>
               <span className="hidden min-w-0 lg:block">
                 <span className="block max-w-28 truncate text-xs font-semibold text-app-foreground">
                   {identity.fullName}
                 </span>
-                <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-app-muted">
+                <span className="block whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.12em] text-app-muted" title={role}>
                   {role}
                 </span>
               </span>
