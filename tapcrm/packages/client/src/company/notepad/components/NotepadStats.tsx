@@ -1,4 +1,4 @@
-import { Button } from '../../../ui/components.js';
+import { Button } from '../../../ui/index.js';
 
 export interface NotepadStatsProps {
   readonly characterCount: number;

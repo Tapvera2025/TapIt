@@ -1,7 +1,13 @@
 import { GoogleAuthUnavailableError, googleAccessToken } from './token.js';
 
 /**
- * The two Search Console calls the SEO module needs.
+ * The two Search Console calls the SEO modules need.
+ *
+ * Every call carries the access token it reads with. Which token an
+ * organization may use is decided by the Social module's facade
+ * (`searchConsoleToken`): the organization's own Google logins, or — for the
+ * one organization allowed — the server's shared login. Nothing here picks a
+ * token on a caller's behalf, so no organization can read through another's.
  *
  * Errors are split the way TECH.md §9.8 asks: a fault in the configuration is
  * reported to the user and never retried, and a transient fault is thrown so
@@ -10,6 +16,7 @@ import { GoogleAuthUnavailableError, googleAccessToken } from './token.js';
  */
 
 const API_ROOT = 'https://www.googleapis.com/webmasters/v3';
+const INSPECTION_API_ROOT = 'https://searchconsole.googleapis.com/v1';
 
 /** Search Console's own ceiling for one response. */
 const MAX_ROWS = 25_000;
@@ -28,7 +35,7 @@ export type SearchConsoleDimension = 'query' | 'page' | 'country' | 'device' | '
 
 export interface SearchAnalyticsFilter {
   readonly dimension: 'query' | 'page' | 'country' | 'device';
-  readonly operator: 'equals' | 'contains' | 'notContains';
+  readonly operator: 'equals' | 'contains' | 'notContains' | 'includingRegex' | 'excludingRegex';
   readonly expression: string;
 }
 
@@ -38,6 +45,7 @@ export interface SearchAnalyticsRequest {
   readonly dimensions: readonly SearchConsoleDimension[];
   readonly filters?: readonly SearchAnalyticsFilter[];
   readonly rowLimit?: number;
+  readonly startRow?: number;
 }
 
 export interface SearchAnalyticsRow {
@@ -54,18 +62,24 @@ interface ErrorBody {
   readonly error?: { readonly message?: string; readonly status?: string };
 }
 
-async function call<T>(path: string, init?: { body: unknown }): Promise<T> {
-  let token: string;
+/**
+ * A token from the server's shared Search Console login (GOOGLE_SEARCH_CONSOLE_AUTH).
+ * Only the Social facade calls this, and only for the organization the deployment
+ * names in GOOGLE_SEARCH_CONSOLE_ORGANIZATION.
+ */
+export async function sharedSearchConsoleToken(): Promise<string> {
   try {
-    token = await googleAccessToken();
+    return await googleAccessToken();
   } catch (cause) {
     if (cause instanceof GoogleAuthUnavailableError) throw new SearchConsoleConfigurationError(cause.message);
     throw new SearchConsoleUnavailableError(cause instanceof Error ? cause.message : String(cause));
   }
+}
 
+async function call<T>(path: string, token: string, init?: { body: unknown }, root = API_ROOT): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_ROOT}${path}`, {
+    response = await fetch(`${root}${path}`, {
       method: init === undefined ? 'GET' : 'POST',
       headers: {
         authorization: `Bearer ${token}`,
@@ -97,9 +111,59 @@ async function call<T>(path: string, init?: { body: unknown }): Promise<T> {
   throw new SearchConsoleConfigurationError(detail);
 }
 
-/** Every property the configured account can read. */
-export async function listSites(): Promise<SearchConsoleSite[]> {
-  const payload = await call<{ siteEntry?: SearchConsoleSite[] }>('/sites');
+export interface GoogleUrlInspectionResult {
+  inspectionResultLink?: string;
+  indexStatusResult?: {
+    verdict?: string;
+    coverageState?: string;
+    robotsTxtState?: string;
+    indexingState?: string;
+    lastCrawlTime?: string;
+    pageFetchState?: string;
+    googleCanonical?: string;
+    userCanonical?: string;
+    sitemap?: string[];
+    referringUrls?: string[];
+    crawledAs?: string;
+  };
+  mobileUsabilityResult?: { verdict?: string; issues?: Array<{ issueType?: string; severity?: string; message?: string }> };
+  richResultsResult?: {
+    verdict?: string;
+    detectedItems?: Array<{
+      richResultType?: string;
+      items?: Array<{
+        name?: string;
+        issues?: Array<{ issueType?: string; severity?: string; message?: string; issueMessage?: string }>;
+      }>;
+    }>;
+  };
+  ampResult?: {
+    verdict?: string;
+    ampUrl?: string;
+    lastCrawlTime?: string;
+    issues?: Array<{ severity?: string; issueMessage?: string }>;
+  };
+}
+
+/** Inspect the page version currently known to Google's index (not a live test). */
+export async function inspectIndexedUrl(
+  inspectionUrl: string,
+  propertyUrl: string,
+  accessToken: string,
+): Promise<GoogleUrlInspectionResult> {
+  const response = await call<{ inspectionResult?: GoogleUrlInspectionResult }>(
+    '/urlInspection/index:inspect',
+    accessToken,
+    { body: { inspectionUrl, siteUrl: propertyUrl, languageCode: 'en' } },
+    INSPECTION_API_ROOT,
+  );
+  if (!response.inspectionResult) throw new SearchConsoleUnavailableError('Google returned no URL inspection result.');
+  return response.inspectionResult;
+}
+
+/** Every property the token's Google account can read. */
+export async function listSites(accessToken: string): Promise<SearchConsoleSite[]> {
+  const payload = await call<{ siteEntry?: SearchConsoleSite[] }>('/sites', accessToken);
   return payload.siteEntry ?? [];
 }
 
@@ -110,16 +174,19 @@ export async function listSites(): Promise<SearchConsoleSite[]> {
 export async function querySearchAnalytics(
   propertyUrl: string,
   request: SearchAnalyticsRequest,
+  accessToken: string,
 ): Promise<SearchAnalyticsRow[]> {
   const filters = request.filters ?? [];
   const payload = await call<{ rows?: SearchAnalyticsRow[] }>(
     `/sites/${encodeURIComponent(propertyUrl)}/searchAnalytics/query`,
+    accessToken,
     {
       body: {
         startDate: request.startDate,
         endDate: request.endDate,
         dimensions: request.dimensions,
         rowLimit: Math.min(request.rowLimit ?? MAX_ROWS, MAX_ROWS),
+        ...(request.startRow === undefined ? {} : { startRow: request.startRow }),
         type: 'web',
         ...(filters.length === 0 ? {} : { dimensionFilterGroups: [{ groupType: 'and', filters }] }),
       },

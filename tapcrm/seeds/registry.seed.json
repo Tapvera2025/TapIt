@@ -1306,6 +1306,36 @@
       "description": ""
     },
     {
+      "action": "lead-imports:manage",
+      "module": "lead-imports",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "lead-imports:view",
+      "module": "lead-imports",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "leads:claim",
       "module": "leads",
       "resource": "lead",
@@ -1520,6 +1550,51 @@
       "module": "leave",
       "resource": "leaveRequest",
       "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "meetings:host",
+      "module": "meetings",
+      "resource": "meeting",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "meetings:join",
+      "module": "meetings",
+      "resource": "meeting",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "meetings:view",
+      "module": "meetings",
+      "resource": "meeting",
+      "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
       "initiatorField": null,
@@ -2521,6 +2596,501 @@
       "description": ""
     },
     {
+      "action": "seo:acknowledge-alert",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:comment-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_document",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:create-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:create-site",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:edit-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:export-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:export-report",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-alerts",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-finding-groups",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-findings",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-fixes",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-keywords",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-rules",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-scans",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:list-sites",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:manage-content-brand",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-ai-visibility",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-backlinks",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-cwv",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-finding",
+      "module": "seo-intelligence",
+      "resource": "seo_finding",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-findings-trend",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-rank-tracking",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-scan",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-search-performance",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:read-site",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:review-content",
+      "module": "seo-intelligence",
+      "resource": "seo_content_document",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "ownerId",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:sync-search-performance",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:trigger-scan",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:update-finding",
+      "module": "seo-intelligence",
+      "resource": "seo_finding",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:update-fix",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:update-rule",
+      "module": "seo-intelligence",
+      "resource": null,
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "seo:update-site",
+      "module": "seo-intelligence",
+      "resource": "seo_site",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "sheets:manage",
       "module": "workspace",
       "resource": "sheet",
@@ -2570,6 +3140,96 @@
       "module": "shifts",
       "resource": "shift",
       "domain": "people",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "social:approve",
+      "module": "social",
+      "resource": "socialPost",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "createdBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "social:connect",
+      "module": "social",
+      "resource": "socialWorkspace",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "social:manage",
+      "module": "social",
+      "resource": "socialWorkspace",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "social:publish",
+      "module": "social",
+      "resource": "socialWorkspace",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "social:settings",
+      "module": "social",
+      "resource": "socialWorkspace",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "social:view",
+      "module": "social",
+      "resource": "socialWorkspace",
+      "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
       "initiatorField": null,
@@ -2824,6 +3484,51 @@
       "action": "tasks:view",
       "module": "tasks",
       "resource": "task",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "telephony:listen",
+      "module": "telephony",
+      "resource": "telephonyCall",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "telephony:manage",
+      "module": "telephony",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "telephony:view",
+      "module": "telephony",
+      "resource": "telephonyCall",
       "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
@@ -4300,6 +5005,18 @@
     },
     {
       "method": "POST",
+      "path": "/api/leads/:id/close-lost",
+      "action": "leads:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leads/:id/assignees",
+      "action": "leads:reassign",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
       "path": "/api/leads/:id/reassign",
       "action": "leads:reassign",
       "resourceParam": "id"
@@ -4440,6 +5157,282 @@
       "method": "POST",
       "path": "/api/callbacks/:id/outcome",
       "action": "callbacks:edit",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings",
+      "action": "meetings:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/mine",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/people",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/clients",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/availability",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:id/accept",
+      "action": "meetings:host",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:id/propose",
+      "action": "meetings:host",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:id/decline",
+      "action": "meetings:host",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:id/cancel",
+      "action": "meetings:host",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:id/outcome",
+      "action": "meetings:host",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/meetings/:id/link",
+      "action": "meetings:host",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:id/join",
+      "action": "meetings:join",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/calendar",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/calendar/connect",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/calendar/complete",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/meetings/calendar",
+      "action": "meetings:host",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/overview",
+      "action": "telephony:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/calls",
+      "action": "telephony:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/calls/:id",
+      "action": "telephony:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/calls/:id/recording",
+      "action": "telephony:listen",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/employees",
+      "action": "telephony:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/connections",
+      "action": "telephony:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/telephony/connections",
+      "action": "telephony:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/telephony/connections/:id",
+      "action": "telephony:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telephony/connections/:id/test",
+      "action": "telephony:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telephony/connections/:id/sync",
+      "action": "telephony:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telephony/connections/:id/disconnect",
+      "action": "telephony:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/connections/:id/runs",
+      "action": "telephony:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/agents",
+      "action": "telephony:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/telephony/agents/:id/employee",
+      "action": "telephony:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telephony/agents/rematch",
+      "action": "telephony:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/telephony/employee-options",
+      "action": "telephony:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/lead-imports",
+      "action": "lead-imports:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/lead-imports",
+      "action": "lead-imports:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/lead-imports/leads",
+      "action": "lead-imports:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/lead-imports/assign",
+      "action": "lead-imports:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/lead-imports/assignees",
+      "action": "lead-imports:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/lead-imports/call-tracking",
+      "action": "lead-imports:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/lead-imports/call-tracking/leads/:id",
+      "action": "lead-imports:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/lead-imports/:id",
+      "action": "lead-imports:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lead-imports/:id/preview",
+      "action": "lead-imports:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lead-imports/:id/start",
+      "action": "lead-imports:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lead-imports/:id/resume",
+      "action": "lead-imports:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lead-imports/:id/discard",
+      "action": "lead-imports:manage",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/lead-imports/:id/rows",
+      "action": "lead-imports:view",
       "resourceParam": "id"
     },
     {
@@ -5692,6 +6685,198 @@
     },
     {
       "method": "GET",
+      "path": "/api/social/providers",
+      "action": "social:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients",
+      "action": "social:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/accounts",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/oauth/:platform/start",
+      "action": "social:connect",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/oauth/:platform/complete",
+      "action": "social:connect",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/oauth/:platform/select",
+      "action": "social:connect",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/social/clients/:clientId/accounts/:accountId",
+      "action": "social:connect",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/posts",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/posts/:postId",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/posts",
+      "action": "social:manage",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/social/clients/:clientId/posts/:postId",
+      "action": "social:manage",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/posts/:postId/actions",
+      "action": "social:manage",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/posts/:postId/publish",
+      "action": "social:publish",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/posts/:postId/review",
+      "action": "social:approve",
+      "resourceParam": "postId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/media",
+      "action": "social:manage",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/media/:mediaId",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/settings",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/social/clients/:clientId/settings",
+      "action": "social:settings",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/analytics",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/analytics/export",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/search-console/properties",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/search-console/performance",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/search-console/inspect",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/analytics/sync",
+      "action": "social:manage",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/company-connections",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/company-connections/oauth/:platform/start",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/company-connections/oauth/:platform/complete",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/company-connections/:connectionId/locations",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/company-connections/:connectionId/sync",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/social/company-connections/:connectionId/locations/:locationId/client",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/social/company-connections/:connectionId",
+      "action": "system:manage-integrations",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/clients",
       "action": "clients:view",
       "resourceParam": null
@@ -5874,6 +7059,114 @@
       "method": "POST",
       "path": "/api/chat/messages/:id/unsend",
       "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/presence",
+      "action": "chat:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/search",
+      "action": "chat:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/saved",
+      "action": "chat:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/scheduled",
+      "action": "chat:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/pins",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/attachments",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/attachments/:id",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/scheduled",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/chat/scheduled/:id",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/scheduled/:id",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/scheduled/:id/send-now",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/messages/:id",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/chat/messages/:id",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/messages/:id/edits",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/pin",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/messages/:id/pin",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/save",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/messages/:id/save",
+      "action": "chat:view",
       "resourceParam": "id"
     },
     {
@@ -6487,6 +7780,306 @@
       "path": "/api/recruitment/resume-submissions/:id/ats-scans",
       "action": "recruitment:manage-submissions",
       "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites",
+      "action": "seo:list-sites",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content",
+      "action": "seo:create-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content-members",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content-brand",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/seo/sites/:siteId/content-brand",
+      "action": "seo:manage-content-brand",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content/:documentId",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content/:documentId/comments",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/comments",
+      "action": "seo:comment-content",
+      "resourceParam": "documentId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/sites/:siteId/content/:documentId/comments/:threadId",
+      "action": "seo:comment-content",
+      "resourceParam": "documentId"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/seo/sites/:siteId/content/:documentId",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/seo/sites/:siteId/content/:documentId/body",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/checkpoint",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/content/:documentId/history",
+      "action": "seo:read-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/restore",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/workflow",
+      "action": "seo:edit-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/review",
+      "action": "seo:review-content",
+      "resourceParam": "documentId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/content/:documentId/export",
+      "action": "seo:export-content",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites",
+      "action": "seo:create-site",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId",
+      "action": "seo:read-site",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/sites/:siteId",
+      "action": "seo:update-site",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/settings",
+      "action": "seo:read-site",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/sites/:siteId/settings",
+      "action": "seo:update-site",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/sites/:siteId/keywords/:keywordId",
+      "action": "seo:update-site",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/scans",
+      "action": "seo:list-scans",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/scans",
+      "action": "seo:trigger-scan",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/scans/:scanRunId",
+      "action": "seo:read-scan",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/findings",
+      "action": "seo:list-findings",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/findings/:findingId",
+      "action": "seo:read-finding",
+      "resourceParam": "findingId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/findings/:findingId",
+      "action": "seo:update-finding",
+      "resourceParam": "findingId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/gsc-metrics",
+      "action": "seo:read-search-performance",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/gsc-sync",
+      "action": "seo:sync-search-performance",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/keywords",
+      "action": "seo:list-keywords",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/serp-observations",
+      "action": "seo:read-rank-tracking",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/rank-status",
+      "action": "seo:read-rank-tracking",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/rank-checks",
+      "action": "seo:sync-search-performance",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/ai-observations",
+      "action": "seo:read-ai-visibility",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/backlinks",
+      "action": "seo:read-backlinks",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/cwv-observations",
+      "action": "seo:read-cwv",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/performance-status",
+      "action": "seo:read-cwv",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/performance-refresh",
+      "action": "seo:trigger-scan",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/fix-proposals",
+      "action": "seo:list-fixes",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/fix-proposals/:proposalId",
+      "action": "seo:update-fix",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/alerts",
+      "action": "seo:list-alerts",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/alerts/:alertId",
+      "action": "seo:acknowledge-alert",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/finding-groups",
+      "action": "seo:list-finding-groups",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/sites/:siteId/findings-trend",
+      "action": "seo:read-findings-trend",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/seo/sites/:siteId/report",
+      "action": "seo:export-report",
+      "resourceParam": "siteId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seo/rules",
+      "action": "seo:list-rules",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/seo/rules/:ruleId",
+      "action": "seo:update-rule",
+      "resourceParam": null
     }
   ]
 }

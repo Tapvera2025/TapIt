@@ -71,13 +71,14 @@ const ctxFor = (principal: Principal) =>
     runId: RUN,
   });
 
-// Body generates a total of 100000 paise (₹1000) + 18% GST = 118000 paise.
+// Body generates ₹100 subtotal + 18% GST = ₹118 total (11_800 paise).
+// Stays within the agent position's ₹500 cap, so no approval is required.
 const sampleBody: CreateDraftInput = {
   items: [
     {
       serviceName: 'Website redesign',
       quantity: '1',
-      unitPriceMinor: 100_000n,
+      unitPriceMinor: 10_000n,
       itemDiscountMinor: 0n,
       taxCategory: 'standard',
       taxRateBps: 1800,
@@ -89,13 +90,14 @@ const sampleBody: CreateDraftInput = {
   advanceMinor: 0n,
 };
 
-// A body that will exceed the agent's ₹500 limit — ₹10,000 total.
+// Exceeds agent (₹500) but fits within supervisor (₹5,000): ₹2,000 flat.
+// Routes approval to the supervisor.
 const exceedingBody: CreateDraftInput = {
   items: [
     {
       serviceName: 'Website redesign',
       quantity: '1',
-      unitPriceMinor: 1_000_000n,
+      unitPriceMinor: 200_000n,
       itemDiscountMinor: 0n,
       taxCategory: 'standard',
       taxRateBps: 0,
@@ -150,6 +152,19 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
       'create pool team',
       sql`INSERT INTO team (id, organization_id, department_id, kind, name) VALUES (${POOL_TEAM}, ${ORG}, ${DEPARTMENT}, 'sales-pool', 'Pool A')`,
     );
+    // listPending() invokes effectivePolicy('approvals:decide') for the caller;
+    // without a position_policy row the supervisor is forbidden from reading
+    // their own queue.
+    await asOwner(
+      'grant approvals:decide to supervisor position',
+      sql`INSERT INTO position_policy (organization_id, position_id, action, allowed, scope)
+          VALUES (${ORG}, ${SUPERVISOR_POSITION}, 'approvals:decide', true, 'department')`,
+    );
+    await asOwner(
+      'grant approvals:decide to HOD position',
+      sql`INSERT INTO position_policy (organization_id, position_id, action, allowed, scope)
+          VALUES (${ORG}, ${HOD_POSITION}, 'approvals:decide', true, 'department')`,
+    );
     await asOwner(
       'create super admin',
       sql`INSERT INTO app_user (id, organization_id, account_type, full_name, status) VALUES (${SUPER_ADMIN}, ${ORG}, 'super-admin', 'Super Admin', 'active')`,
@@ -187,6 +202,7 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
     await asOwner('cleanup contacts',           sql`DELETE FROM contact             WHERE organization_id = ${ORG}`);
     await asOwner('cleanup users',              sql`DELETE FROM app_user            WHERE organization_id = ${ORG}`);
     await asOwner('cleanup pool',               sql`DELETE FROM team                WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup position policies',  sql`DELETE FROM position_policy     WHERE organization_id = ${ORG}`);
     await asOwner('cleanup positions',          sql`DELETE FROM position            WHERE organization_id = ${ORG}`);
     await asOwner('cleanup department',         sql`DELETE FROM department          WHERE organization_id = ${ORG}`);
     await asOwner('cleanup org',                sql`DELETE FROM organization        WHERE id              = ${ORG}`);

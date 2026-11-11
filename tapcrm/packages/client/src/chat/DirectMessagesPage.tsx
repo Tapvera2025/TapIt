@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Loading } from '../ui/components.js';
+import { createPortal } from 'react-dom';
+import { Loading } from '../ui/index.js';
 import { getChatColleagues, startDirectConversation, type Conversation } from './api/chatApi.js';
+import { Avatar } from './Avatar.js';
 import { ConversationWorkspace } from './ConversationWorkspace.js';
+import { PRESENCE_LABEL, usePresenceMap } from './presence.js';
 import { useChat } from './useChat.js';
 
 function otherMember(conversation: Conversation, myId: string): { userId: string; fullName: string } | null {
@@ -19,12 +22,15 @@ export function DirectMessagesPage({
   currentUserId,
   initialConversationId,
   initialMessageId,
+  initialNonce,
 }: {
   currentUserId: string;
   initialConversationId?: string | undefined;
   initialMessageId?: string | undefined;
+  initialNonce?: number | undefined;
 }): React.JSX.Element {
   const chat = useChat('direct');
+  const presence = usePresenceMap(true);
   const [showPicker, setShowPicker] = useState(false);
   const [colleagues, setColleagues] = useState<{ id: string; fullName: string }[]>([]);
   const [colleaguesLoaded, setColleaguesLoaded] = useState(false);
@@ -63,29 +69,37 @@ export function DirectMessagesPage({
         onNewClick={openPicker}
         initialConversationId={initialConversationId}
         initialMessageId={initialMessageId}
+        initialNonce={initialNonce ?? 0}
       />
 
       {showPicker && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setShowPicker(false)}>
-          <div data-lenis-prevent className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto overscroll-contain p-4" onClick={(event) => event.stopPropagation()}>
-            <p className="mb-3 text-sm font-semibold">Start a conversation</p>
-            {!colleaguesLoaded ? (
-              <Loading />
-            ) : colleagues.length === 0 ? (
-              <p className="text-sm text-app-muted">No one else is available to message yet.</p>
-            ) : (
-              <ul>
-                {colleagues.map((person) => (
-                  <li key={person.id}>
-                    <button type="button" onClick={() => void startChatWith(person.id)} className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-app-surface-raised">
-                      {person.fullName}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
+        createPortal(
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setShowPicker(false)}>
+            <div data-lenis-prevent className="ui-card max-h-[70vh] w-full max-w-sm overflow-y-auto overscroll-contain p-4" onClick={(event) => event.stopPropagation()}>
+              <p className="mb-3 text-sm font-semibold">Start a conversation</p>
+              {!colleaguesLoaded ? (
+                <Loading />
+              ) : colleagues.length === 0 ? (
+                <p className="text-sm text-app-muted">No one else is available to message yet.</p>
+              ) : (
+                <ul>
+                  {colleagues.map((person) => (
+                    <li key={person.id}>
+                      <button type="button" onClick={() => void startChatWith(person.id)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-app-surface-raised">
+                        <Avatar name={person.fullName} seed={person.id} presence={presence[person.id]} size="sm" />
+                        <span className="min-w-0 flex-1 truncate">{person.fullName}</span>
+                        {presence[person.id] && presence[person.id] !== 'offline' && (
+                          <span className="shrink-0 text-[11px] text-app-muted">{PRESENCE_LABEL[presence[person.id]!]}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )
       )}
 
       {error && (

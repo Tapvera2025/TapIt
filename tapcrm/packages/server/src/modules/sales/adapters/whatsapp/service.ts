@@ -106,15 +106,14 @@ async function findConnectorsByAccountIds(providerAccountIds: readonly string[])
   }>(
     'webhook-dispatch',
     'resolve WhatsApp connector(s) for incoming webhook',
+    // SECURITY DEFINER resolver (migration 0121) — webhook is pre-auth.
     sql`
       SELECT id                  AS "connectorId",
              organization_id     AS "organizationId",
              status,
              external_account_id AS "externalAccountId",
              config
-        FROM sales_connector
-       WHERE kind = 'whatsapp'
-         AND external_account_id = ANY(${providerAccountIds}::text[])
+        FROM resolve_sales_connectors_by_external('whatsapp', ${providerAccountIds}::text[])
     `,
   );
   const byAccountId = new Map<string, WhatsAppConnectorRow>();
@@ -129,9 +128,26 @@ async function findConnectorsByAccountIds(providerAccountIds: readonly string[])
   return byAccountId;
 }
 
-function webhookCtxFor(organizationId: string): RequestContext {
+async function resolveWebhookActorId(organizationId: string): Promise<string> {
+  const actor = await platformDb.maybeOne<{ id: string }>(
+    'webhook-dispatch',
+    'resolve webhook actor for WhatsApp ingestion attribution',
+    sql`SELECT resolve_webhook_actor(${organizationId}::uuid) AS id`,
+  );
+  if (!actor?.id) {
+    throw new ApplicationError(
+      'No admin user available to attribute webhook ingestion',
+      503,
+      'WEBHOOK_ACTOR_UNAVAILABLE',
+    );
+  }
+  return actor.id;
+}
+
+async function webhookCtxFor(organizationId: string): Promise<RequestContext> {
+  const actorId = await resolveWebhookActorId(organizationId);
   const principal: Principal = {
-    id: '00000000-0000-7000-8000-000000000000',
+    id: actorId,
     organizationId,
     sessionVersion: 0,
     accountType: 'service',
@@ -216,7 +232,7 @@ export async function ingestWhatsAppWebhook(
       skipped++;
       continue;
     }
-    const ctx = webhookCtxFor(connector.organizationId);
+    const ctx = await webhookCtxFor(connector.organizationId);
     const payload: IntakePayload = {
       connectorId: connector.connectorId,
       externalLeadId: event.messageId,

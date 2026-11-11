@@ -22,7 +22,10 @@ export async function listReengagementSegments(ctx: RequestContext, query: Reeng
   if (query.from) filters.push(sql`l.lost_at >= ${query.from}`);
   if (query.to) filters.push(sql`l.lost_at < ${query.to}`);
   const filter = sql.join(filters, ' AND ');
-  const rows = await db.query<{ sourceName: string; campaignName: string | null; lossReason: string; lostDate: string; count: number }>(ctx, sql`SELECT source.name AS "sourceName", campaign.name AS "campaignName", l.loss_reason AS "lossReason", date_trunc('day', l.lost_at)::date::text AS "lostDate", COUNT(*)::int AS count FROM lead l JOIN lead_source source ON source.organization_id = l.organization_id AND source.id = l.source_id LEFT JOIN campaign ON campaign.organization_id = l.organization_id AND campaign.id = l.campaign_id WHERE l.organization_id = ${ctx.organizationId} AND ${filter} GROUP BY source.name, campaign.name, l.loss_reason, date_trunc('day', l.lost_at)::date ORDER BY "lostDate" DESC, "sourceName", "campaignName"`);
+  // Group lost_at by the organization's local calendar day so an event just
+  // after local midnight doesn't bucket into the previous UTC day (R3-01).
+  // `organization.timezone` is NOT NULL and defaults to Asia/Kolkata.
+  const rows = await db.query<{ sourceName: string; campaignName: string | null; lossReason: string; lostDate: string; count: number }>(ctx, sql`SELECT source.name AS "sourceName", campaign.name AS "campaignName", l.loss_reason AS "lossReason", (l.lost_at AT TIME ZONE org.timezone)::date::text AS "lostDate", COUNT(*)::int AS count FROM lead l JOIN lead_source source ON source.organization_id = l.organization_id AND source.id = l.source_id LEFT JOIN campaign ON campaign.organization_id = l.organization_id AND campaign.id = l.campaign_id JOIN organization org ON org.id = l.organization_id WHERE l.organization_id = ${ctx.organizationId} AND ${filter} GROUP BY source.name, campaign.name, l.loss_reason, (l.lost_at AT TIME ZONE org.timezone)::date ORDER BY "lostDate" DESC, "sourceName", "campaignName"`);
   await db.transaction(ctx, async (tx) => insertAudit(tx, ctx, 'reengagement.segments.viewed', ctx.organizationId, null, { segmentCount: rows.length }, 'reengagement_segment'));
   return { filters: query, total: rows.reduce((sum, row) => sum + Number(row.count), 0), segments: rows.map((row) => ({ ...row, count: Number(row.count) })) };
 }

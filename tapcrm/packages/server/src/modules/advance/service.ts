@@ -5,6 +5,7 @@ import { notify } from '../notifications/facade.js';
 import { xlsxBuffer } from '../attendance/facade.js';
 import { writeAdvanceAudit } from './audit.js';
 import { AdvanceError } from './errors.js';
+import { planDefaultRecovery, scheduleRecovery } from './payroll.js';
 import { getCurrencySettings } from '../organization/facade.js';
 import type { AdvanceRow, DeductionRow } from './types.js';
 import type {
@@ -109,8 +110,9 @@ export async function approveAdvance(
       requestedAmountPaise: string;
       employeeId: string;
       currency: string;
+      requestedForPeriod: string;
     }>(
-      sql`SELECT requested_amount_paise::text AS "requestedAmountPaise", employee_id AS "employeeId", currency FROM employee_advance WHERE organization_id=${ctx.organizationId} AND id=${id} AND status='pending' FOR UPDATE`,
+      sql`SELECT requested_amount_paise::text AS "requestedAmountPaise", employee_id AS "employeeId", currency, requested_for_period::text AS "requestedForPeriod" FROM employee_advance WHERE organization_id=${ctx.organizationId} AND id=${id} AND status='pending' FOR UPDATE`,
     );
     if (!current) throw new AdvanceError('Only a pending advance can be approved.');
     if (BigInt(body.approvedAmountPaise) > BigInt(current.requestedAmountPaise))
@@ -118,6 +120,13 @@ export async function approveAdvance(
     await tx.query(
       sql`UPDATE employee_advance SET status='approved', approved_amount_paise=${body.approvedAmountPaise}, approved_at=now(), approved_by=${ctx.principal.id}, approval_note=${body.approvalNote ?? null}, updated_at=now() WHERE organization_id=${ctx.organizationId} AND id=${id} AND status='pending'`,
     );
+    // Recovered from the salary of the advance's month unless HR schedules otherwise.
+    await planDefaultRecovery(tx, ctx, {
+      id,
+      employeeId: current.employeeId,
+      approvedAmountPaise: String(body.approvedAmountPaise),
+      requestedForPeriod: current.requestedForPeriod,
+    });
     await writeAdvanceAudit(tx, ctx, 'advance.approved', 'employeeAdvance', id, {
       requestedAmountPaise: current.requestedAmountPaise,
       approvedAmountPaise: body.approvedAmountPaise,
@@ -181,6 +190,12 @@ export async function createManualAdvance(
     const row = await tx.one<{ id: string }>(
       sql`INSERT INTO employee_advance (organization_id, employee_id, requested_amount_paise, approved_amount_paise, currency, requested_for_period, reason, status, source, approved_at, approved_by, created_by) VALUES (${ctx.organizationId}, ${body.employeeId}, ${body.amountPaise}, ${body.amountPaise}, ${body.currency}, ${body.requestedForPeriod}::date, ${body.reason}, 'approved', 'manual', now(), ${ctx.principal.id}, ${ctx.principal.id}) RETURNING id`,
     );
+    await planDefaultRecovery(tx, ctx, {
+      id: row.id,
+      employeeId: body.employeeId,
+      approvedAmountPaise: String(body.amountPaise),
+      requestedForPeriod: body.requestedForPeriod,
+    });
     await writeAdvanceAudit(
       tx,
       ctx,
@@ -235,20 +250,18 @@ export async function createDeduction(
   body: DeductionBody,
 ): Promise<void> {
   await db.transaction(ctx, async (tx) => {
-    const advance = await tx.one<{ employeeId: string; approvedAmountPaise: string }>(
-      sql`SELECT employee_id AS "employeeId", approved_amount_paise::text AS "approvedAmountPaise" FROM employee_advance WHERE organization_id=${ctx.organizationId} AND id=${advanceId} AND status='approved' FOR UPDATE`,
+    const advance = await tx.maybeOne<{ employeeId: string; approvedAmountPaise: string; requestedForPeriod: string }>(
+      sql`SELECT employee_id AS "employeeId", approved_amount_paise::text AS "approvedAmountPaise", requested_for_period::text AS "requestedForPeriod" FROM employee_advance WHERE organization_id=${ctx.organizationId} AND id=${advanceId} AND status='approved' FOR UPDATE`,
     );
-    const used = await tx.one<{ amount: string }>(
-      sql`SELECT COALESCE(SUM(scheduled_amount_paise),0)::text AS amount FROM employee_advance_deduction WHERE organization_id=${ctx.organizationId} AND advance_id=${advanceId} AND status <> 'cancelled'`,
+    if (!advance) throw new AdvanceError('Only an approved advance can be scheduled for recovery.');
+    const deductionId = await scheduleRecovery(
+      tx,
+      ctx,
+      { id: advanceId, ...advance },
+      body.payrollPeriod,
+      String(body.scheduledAmountPaise),
     );
-    if (
-      BigInt(used.amount) + BigInt(body.scheduledAmountPaise) >
-      BigInt(advance.approvedAmountPaise)
-    )
-      throw new AdvanceError('Scheduled deductions cannot exceed the approved balance.');
-    const row = await tx.one<{ id: string }>(
-      sql`INSERT INTO employee_advance_deduction (organization_id, advance_id, employee_id, payroll_period, scheduled_amount_paise) VALUES (${ctx.organizationId}, ${advanceId}, ${advance.employeeId}, ${body.payrollPeriod}::date, ${body.scheduledAmountPaise}) RETURNING id`,
-    );
+    const row = { id: deductionId };
     await writeAdvanceAudit(
       tx,
       ctx,

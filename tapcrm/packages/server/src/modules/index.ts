@@ -1,3 +1,6 @@
+import { registerSocialPolicies, registerSocialRoutes, registerSocialJobs } from './social/index.js';
+import { registerSeoPolicies, registerSeoRoutes, registerSeoJobs } from './seo-intelligence/index.js';
+import { registerMeetingJobs, registerMeetingPolicies, registerMeetingRoutes } from './meetings/index.js';
 import { registerBreakPolicyResolver } from './attendance/facade.js';
 import { registerPaymentReadinessPort } from './sales/deals/payments-port.js';
 import { manualPaymentReadinessPort } from './sales/deals/manual-payment-port.js';
@@ -55,7 +58,7 @@ import { registerTerritoryRoutes } from './sales/territories/routes.js';
 import { registerLeadPolicies } from './sales/leads/policy.js';
 import { registerLeadRoutes } from './sales/leads/routes.js';
 import { registerBidPoolRoutes } from './sales/bidding/routes.js';
-import { registerLeadImportRoutes } from './sales/imports/routes.js';
+import { registerLeadImportJobs, registerLeadImportRoutes } from './sales/imports/index.js';
 import { registerDealPolicies } from './sales/deals/policy.js';
 import { registerDealRoutes } from './sales/deals/routes.js';
 import { registerProposalRoutes } from './sales/proposals/routes.js';
@@ -68,6 +71,7 @@ import { registerHandoverPolicies } from './sales/handover/policy.js';
 import { registerHandoverRoutes } from './sales/handover/routes.js';
 import { registerCallbackPolicies } from './sales/leads/callback-policy.js';
 import { registerCallbackRoutes } from './sales/leads/callback-routes.js';
+import { registerTelephonyJobs, registerTelephonyPolicies, registerTelephonyRoutes } from './sales/telephony/index.js';
 import { registerSalesJobs } from './sales/leads/jobs.js';
 import { registerSalesIntakeJobs } from './sales/intake/jobs.js';
 import { registerRecruitmentPolicies } from './recruitment/policy.js';
@@ -79,6 +83,7 @@ import {
   registerNotepadPolicies,
 } from './myNotepad/index.js';
 import {
+  registerChatJobs,
   registerChatPolicies,
   registerChatRealtime,
   registerChatRoutes,
@@ -87,8 +92,8 @@ import { registerClientPolicies, registerClientRoutes } from './clients/index.js
 import { registerProjectPolicies, registerProjectReportJobs, registerProjectRoutes } from './projects/index.js';
 import { registerClientPortalRoutes } from './client-portal/index.js';
 import { registerMyTodoRoutes } from './myTodo/routes.js';
-import { registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
-import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
+import { registerAdvancePayrollPorts, registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
+import { registerPenaltyPayrollPorts, registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
 import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
 import { registerTaRoutes } from './ta/routes.js';
 import { registerAccountingJobs, registerAccountingPolicies, registerAccountingRoutes } from './finance/accounting/index.js';
@@ -106,6 +111,8 @@ export function initializePorts(): void {
   // addition.
   registerPaymentReadinessPort(manualPaymentReadinessPort);
   registerPayrollPorts();
+  registerAdvancePayrollPorts();
+  registerPenaltyPayrollPorts();
 }
 
 export function registerAllPolicies(): void {
@@ -135,12 +142,16 @@ export function registerAllPolicies(): void {
   registerDeliveryPolicies();
   registerHandoverPolicies();
   registerCallbackPolicies();
+  registerTelephonyPolicies();
   registerRecruitmentPolicies();
   registerNotepadPolicies();
   registerChatPolicies();
   registerClientPolicies();
+  registerSocialPolicies();
   registerProjectPolicies();
   registerAccountingPolicies();
+  registerSeoPolicies();
+  registerMeetingPolicies();
 }
 
 /** Realtime wiring that has no route/policy shape of its own (the typing relay). */
@@ -179,17 +190,21 @@ export function registerAllRoutes(): void {
   registerDeliveryBriefRoutes();
   registerHandoverRoutes();
   registerCallbackRoutes();
+  registerTelephonyRoutes();
   registerRecruitmentRoutes();
   registerMyNotepadRoutes();
   registerMyNotepadAdminRoutes();
   registerChatRoutes();
   registerClientRoutes();
+  registerSocialRoutes();
   registerProjectRoutes();
   registerClientPortalRoutes();
   registerMyTodoRoutes();
   registerOnboardingRoutes();
   registerVerificationRoutes();
   registerAccountingRoutes();
+  registerSeoRoutes();
+  registerMeetingRoutes();
 }
 
 let jobsRegistered = false;
@@ -210,6 +225,12 @@ export function registerAllJobs(): void {
   registerNotificationJobs();
   registerSalesJobs();
   registerSalesIntakeJobs();
+  registerTelephonyJobs();
+  registerLeadImportJobs();
   registerProjectReportJobs();
+  registerSocialJobs();
   registerAccountingJobs();
+  registerSeoJobs();
+  registerMeetingJobs();
+  registerChatJobs();
 }

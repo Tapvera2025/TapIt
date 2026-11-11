@@ -16,6 +16,7 @@ import {
   overrideProbability,
   updateDealStage,
 } from './service.js';
+import { createLead } from '../leads/service.js';
 import { DEAL_ERROR_CODES, DealStateError } from './state-machine.js';
 
 /**
@@ -47,6 +48,7 @@ const AGENT = randomUUID();
 const SUPER_ADMIN = randomUUID();
 const CONTACT = randomUUID();
 const SOURCE = randomUUID();
+const OUTBOUND_SOURCE = randomUUID();
 
 const asOwner = (reason: string, fragment: ReturnType<typeof sql>) =>
   platformDb.query('migration', reason, fragment);
@@ -78,20 +80,23 @@ const ctxFor = (principal: Principal) =>
     runId: RUN,
   });
 
-async function insertClaimedLead(originatingAgentId: string): Promise<string> {
+async function insertClaimedLead(
+  originatingAgentId: string,
+  companyName: string | null = null,
+): Promise<string> {
   const leadId = randomUUID();
   await asOwner(
     'create lead in claimed state',
     sql`
       INSERT INTO lead (
-        id, organization_id, source_id, contact_id, contact_name,
+        id, organization_id, source_id, contact_id, contact_name, company_name,
         status, routing_status,
         sales_pool_id, sales_team_id, created_by,
         owner_id, current_holder_id, originating_agent_id,
         entry_method, direction, bid_state, claimed_at,
         lead_stage, lead_outcome
       ) VALUES (
-        ${leadId}, ${ORG}, ${SOURCE}, ${CONTACT}, ${'Lead ' + leadId.slice(0, 4)},
+        ${leadId}, ${ORG}, ${SOURCE}, ${CONTACT}, ${'Lead ' + leadId.slice(0, 4)}, ${companyName},
         'contacted', 'assigned',
         ${POOL_TEAM}, ${POOL_TEAM}, ${originatingAgentId},
         ${originatingAgentId}, ${originatingAgentId}, ${originatingAgentId},
@@ -152,6 +157,10 @@ describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
       sql`INSERT INTO lead_source (id, organization_id, name, direction, status) VALUES (${SOURCE}, ${ORG}, ${`Website ${RUN}`}, 'inbound', 'active')`,
     );
     await asOwner(
+      'create outbound lead source',
+      sql`INSERT INTO lead_source (id, organization_id, name, direction, status) VALUES (${OUTBOUND_SOURCE}, ${ORG}, ${`Cold call ${RUN}`}, 'outbound', 'active')`,
+    );
+    await asOwner(
       'create contact',
       sql`
         INSERT INTO contact (id, organization_id, full_name, primary_phone, preferred_timezone, created_by)
@@ -164,7 +173,9 @@ describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
     await asOwner('cleanup audit outbox',  sql`DELETE FROM audit_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup deal contacts', sql`DELETE FROM deal_contact WHERE organization_id = ${ORG}`);
     await asOwner('cleanup deals',         sql`DELETE FROM deal         WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup callbacks',     sql`DELETE FROM lead_callback WHERE organization_id = ${ORG}`);
     await asOwner('cleanup leads',         sql`DELETE FROM lead         WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup companies',     sql`DELETE FROM company      WHERE organization_id = ${ORG}`);
     await asOwner('cleanup contacts',      sql`DELETE FROM contact      WHERE organization_id = ${ORG}`);
     await asOwner('cleanup sources',       sql`DELETE FROM lead_source  WHERE organization_id = ${ORG}`);
     await asOwner('cleanup users',         sql`DELETE FROM app_user     WHERE organization_id = ${ORG}`);
@@ -192,6 +203,134 @@ describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
     expect(deal.contractStatus).toBe('not_required');
     expect(deal.paymentStatus).toBe('unpaid');
     expect(deal.originatingLeadId).toBe(leadId);
+  });
+
+  it('converting a lead cancels its open callback and leaves finished ones alone', async () => {
+    const leadId = await insertClaimedLead(AGENT);
+    const rescheduledId = randomUUID();
+    const pendingId = randomUUID();
+    await asOwner(
+      'create a rescheduled callback and its pending replacement',
+      sql`
+        INSERT INTO lead_callback (id, organization_id, lead_id, owner_id, scheduled_at, status, parent_callback_id, created_by)
+        VALUES (${rescheduledId}, ${ORG}, ${leadId}, ${AGENT}, ${new Date(Date.now() + 60 * 60_000)}, 'rescheduled', NULL, ${AGENT}),
+               (${pendingId}, ${ORG}, ${leadId}, ${AGENT}, ${new Date(Date.now() + 2 * 60 * 60_000)}, 'pending', ${rescheduledId}, ${AGENT})
+      `,
+    );
+
+    await createDeal(ctxFor(employee(AGENT)), {
+      originatingLeadId: leadId,
+      title: 'Converted while a callback was booked',
+      contactId: CONTACT,
+      currency: 'INR',
+    });
+
+    const callbacks = await asOwner(
+      'read callbacks after conversion',
+      sql`SELECT id, status, cancelled_at FROM lead_callback WHERE lead_id = ${leadId} ORDER BY scheduled_at`,
+    );
+    expect(callbacks).toMatchObject([
+      { id: rescheduledId, status: 'rescheduled', cancelledAt: null },
+      { id: pendingId, status: 'cancelled' },
+    ]);
+    expect((callbacks[1] as { cancelledAt: Date | null }).cancelledAt).not.toBeNull();
+
+    const activity = await asOwner(
+      'read callback activity',
+      sql`SELECT metadata FROM lead_activity WHERE organization_id = ${ORG} AND lead_id = ${leadId} AND event_name = 'callback.cancelled'`,
+    );
+    expect(activity).toHaveLength(1);
+    expect((activity[0] as { metadata: unknown }).metadata).toMatchObject({
+      callbackId: pendingId,
+      reason: 'lead_converted',
+    });
+  });
+
+  it('keeps the company of a lead added by hand and records the conversion on the lead', async () => {
+    const admin = ctxFor(superAdmin(SUPER_ADMIN));
+    const { lead } = await createLead(admin, {
+      contactName: 'Priya Nair',
+      companyName: `Acme Interiors ${RUN}`,
+      phone: '+9198001' + RUN,
+      sourceId: OUTBOUND_SOURCE,
+      status: 'new',
+    });
+    expect(lead.companyId).not.toBeNull();
+
+    const deal = await createDeal(admin, {
+      originatingLeadId: lead.id,
+      title: 'Showroom fit-out',
+      currency: 'INR',
+    });
+    expect(deal.companyId).toBe(lead.companyId);
+    expect(deal.companyName).toBe(`Acme Interiors ${RUN}`);
+
+    const converted = await asOwner(
+      'read conversion activity',
+      sql`SELECT actor_id, metadata FROM lead_activity WHERE organization_id = ${ORG} AND lead_id = ${lead.id} AND event_name = 'lead.converted'`,
+    );
+    expect(converted).toEqual([
+      {
+        actorId: SUPER_ADMIN,
+        metadata: {
+          from: 'assigned',
+          dealId: deal.id,
+          dealNumber: deal.dealNumber,
+          title: 'Showroom fit-out',
+        },
+      },
+    ]);
+  });
+
+  it('links a company on conversion when the lead holds only a company name', async () => {
+    const existingCompany = randomUUID();
+    await asOwner(
+      'create a company the lead names in different case',
+      sql`INSERT INTO company (id, organization_id, name, created_by) VALUES (${existingCompany}, ${ORG}, ${`globex ${RUN}`}, ${AGENT})`,
+    );
+    const knownName = await insertClaimedLead(AGENT, `Globex ${RUN}`);
+    const newName = await insertClaimedLead(AGENT, `Hooli ${RUN}`);
+    const noName = await insertClaimedLead(AGENT);
+
+    const agent = ctxFor(employee(AGENT));
+    const known = await createDeal(agent, {
+      originatingLeadId: knownName,
+      title: 'Globex rebrand',
+      contactId: CONTACT,
+      currency: 'INR',
+    });
+    const created = await createDeal(agent, {
+      originatingLeadId: newName,
+      title: 'Hooli app',
+      contactId: CONTACT,
+      currency: 'INR',
+    });
+    const none = await createDeal(agent, {
+      originatingLeadId: noName,
+      title: 'No company',
+      contactId: CONTACT,
+      currency: 'INR',
+    });
+
+    expect(known.companyId).toBe(existingCompany);
+    expect(created.companyName).toBe(`Hooli ${RUN}`);
+    expect(none.companyId).toBeNull();
+    const leads = await asOwner(
+      'read lead company links',
+      sql`SELECT id, company_id FROM lead WHERE id IN (${knownName}, ${newName}, ${noName})`,
+    );
+    expect(
+      Object.fromEntries(
+        leads.map((row) => {
+          const { id, companyId } = row as { id: string; companyId: string | null };
+          return [id, companyId];
+        }),
+      ),
+    ).toEqual({
+      [knownName]: existingCompany,
+      [newName]: created.companyId,
+      [noName]: null,
+    });
   });
 
   it('createDeal with directEntryReason sets the caller as originating agent', async () => {

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Icon } from '../../../ui/Icon.js';
-import { SkeletonTable } from '../../../ui/components.js';
+import { Icon } from '../../../ui/index.js';
+import { SkeletonTable } from '../../../ui/index.js';
 import type { TaskListProps, TaskStatus } from '../types/index.js';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskStatusBadge.js';
 

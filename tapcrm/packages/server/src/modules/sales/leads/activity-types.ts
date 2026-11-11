@@ -15,6 +15,7 @@ export const LEAD_ACTIVITY_EVENTS = [
   'lead.nurtured',
   'lead.stalled',
   'lead.closed_lost',
+  'lead.converted',
   'lead.reengaged',
   'call.recorded',
   'handover.offered',

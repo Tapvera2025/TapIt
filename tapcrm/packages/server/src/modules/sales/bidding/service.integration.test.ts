@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { localDateOf } from '../../../platform/time.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { Principal } from '@tapcrm/contracts';
@@ -105,9 +106,7 @@ async function insertPoolOpenLead(now = new Date()): Promise<string> {
 
 async function makeAgentEligible(userId: string): Promise<void> {
   const now = new Date();
-  const workDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    .toISOString()
-    .slice(0, 10);
+  const workDate = localDateOf(now, 'Asia/Kolkata');
   const windowStart = new Date(now.getTime() - 60 * 60_000);
   const windowEnd = new Date(now.getTime() + 12 * 60 * 60_000);
   await asOwner(
@@ -268,12 +267,16 @@ describe.skipIf(!enabled)('sales bidding service (PostgreSQL)', () => {
     await expect(pass(ctxFor(AGENT_B), leadId, 'other')).rejects.toBeInstanceOf(BidPoolInvalidStateError);
   });
 
-  it('expire of a pool_open lead moves it to triage', async () => {
+  it('expire of a pool_open lead with an eligible fallback agent assigns rather than triaging', async () => {
+    // Fixtures seed AGENT_A/AGENT_B into the sales pool, so the direct-router
+    // in `expire()` finds a candidate and routes 'fallback_assigned' instead
+    // of going to triage. Triage is only reached when no eligible agent exists
+    // (see next test).
     const leadId = await insertPoolOpenLead(new Date(Date.now() - 11 * 60_000));
     const result = await expire(ctxFor(AGENT_A), leadId);
-    expect(result.outcome).toBe('triaged');
+    expect(result.outcome).toBe('fallback_assigned');
     const rows = await asOwner('read lead state', sql`SELECT bid_state FROM lead WHERE id = ${leadId}`);
-    expect(rows[0]).toMatchObject({ bidState: 'triage' });
+    expect(rows[0]).toMatchObject({ bidState: 'fallback_assigned' });
     const decisions = await asOwner(
       'read fallback decision',
       sql`SELECT mode FROM sales_routing_decision WHERE organization_id = ${ORG} AND lead_id = ${leadId}`,

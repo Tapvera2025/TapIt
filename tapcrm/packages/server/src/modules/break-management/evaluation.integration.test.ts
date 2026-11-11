@@ -170,6 +170,21 @@ describe.skipIf(!enabled)('break evaluation consequences (PostgreSQL)', () => {
     expect(await notificationsFor(userId, 'breaks.explanation_required')).toHaveLength(1);
   });
 
+  it('evaluating a later day first catches up the earlier stale days instead of failing', async () => {
+    const userId = await person('catch-up');
+    await policyFor(userId, 'require-explanation');
+    // Three days of the same week, none evaluated yet (as after a backfill).
+    const days = [];
+    for (const date of ['2026-09-21', '2026-09-22', '2026-09-23']) days.push(await dayWithLongBreak(userId, date));
+    // The job for the last day runs first: it used to throw "blocked-by-earlier".
+    expect(await evaluate(userId, days[2]!.recordId, 1)).toBe('evaluated');
+    const evaluated = await asOwner<{ workDate: string; breaksEvaluatedVersion: number | null }>('evaluated', sql`
+      SELECT work_date::text AS work_date, breaks_evaluated_version
+      FROM attendance_record WHERE user_id = ${userId} ORDER BY work_date
+    `);
+    expect(evaluated.map((day) => day.breaksEvaluatedVersion)).toEqual([1, 1, 1]);
+  });
+
   it('an automatic amount rule deducts pay, and a corrected day takes the deduction back', async () => {
     const userId = await person('amount');
     await policyFor(userId, 'deduct-amount', { amount: '250.00', autoApply: true });

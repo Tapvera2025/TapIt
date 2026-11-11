@@ -299,11 +299,13 @@ export async function sweepStale(
     const offers: Offer<{ recordId: string }>[] = [];
     let flagged = 0;
     for (const row of rows) {
-      const decision = await queue.nextGeneration(
-        tx,
-        recalculationKey(row.id, row.inputVersion),
-        now,
-      );
+      // A day calculated by older rules has the same inputs as before, so its
+      // usual key is already done. Keying it by the rules too lets a rules
+      // change actually recalculate the days it affects.
+      const key = row.rulesVersion === null || row.rulesVersion === RULES_VERSION
+        ? recalculationKey(row.id, row.inputVersion)
+        : `${recalculationKey(row.id, row.inputVersion)}:${RULES_VERSION}`;
+      const decision = await queue.nextGeneration(tx, key, now);
       if (decision.kind === 'run')
         offers.push({ key: decision.key, payload: { recordId: row.id } });
       if (decision.kind === 'exhausted') {

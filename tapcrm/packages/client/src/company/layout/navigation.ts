@@ -105,6 +105,12 @@ export const companyNavigation: CompanyNavGroup[] = [
         icon: 'grid',
         requiredAction: 'projects:view',
       },
+      {
+        label: 'Client meetings',
+        path: '/company/meetings',
+        icon: 'calendar',
+        requiredAnyAction: ['meetings:host', 'meetings:view'],
+      },
     ],
   },
   {
@@ -142,6 +148,60 @@ export const companyNavigation: CompanyNavGroup[] = [
     label: 'Sales',
     items: [
       {
+        label: 'Sales Overview',
+        path: '/company/sales',
+        icon: 'chart',
+        requiredAnyAction: ['territories:view', 'leads:view', 'callbacks:view', 'handovers:view', 'deals:view', 'deals:record-win', 'approvals:decide', 'deals:forecast', 'telephony:view', 'telephony:manage'],
+      },
+      {
+        label: 'My Work',
+        path: '/company/sales/my-work',
+        icon: 'briefcase',
+        requiredAction: 'leads:view',
+      },
+      {
+        label: 'Bid Pool',
+        path: '/company/sales/bid-pool',
+        icon: 'inbox',
+        requiredAction: 'leads:view',
+      },
+      {
+        label: 'Leads',
+        path: '/company/sales/leads',
+        icon: 'users',
+        requiredAction: 'leads:view',
+      },
+      {
+        label: 'Deals',
+        path: '/company/sales/deals',
+        icon: 'briefcase',
+        requiredAction: 'deals:view',
+      },
+      {
+        label: 'Approvals',
+        path: '/company/sales/approvals',
+        icon: 'check',
+        requiredAction: 'approvals:decide',
+      },
+      {
+        label: 'Wins to record',
+        path: '/company/sales/wins',
+        icon: 'check',
+        requiredAction: 'deals:record-win',
+      },
+      {
+        label: 'Reports',
+        path: '/company/sales/reports',
+        icon: 'chart',
+        requiredAction: 'deals:forecast',
+      },
+      {
+        label: 'Sales Setup',
+        path: '/company/sales/setup',
+        icon: 'settings',
+        requiredAnyAction: ['territories:view', 'leads:view', 'telephony:view', 'telephony:manage'],
+      },
+      {
         label: 'Territories',
         path: '/company/sales/territories',
         icon: 'map',
@@ -164,6 +224,30 @@ export const companyNavigation: CompanyNavGroup[] = [
         path: '/company/sales/handovers',
         icon: 'share',
         requiredAction: 'handovers:view',
+      },
+      {
+        label: 'Calls',
+        path: '/company/sales/calls',
+        icon: 'phone',
+        requiredAction: 'telephony:view',
+        children: [
+          { label: 'Team calls', path: '/company/sales/calls' },
+          { label: 'My calls', path: '/company/sales/calls/me' },
+          { label: 'Call log', path: '/company/sales/calls/log' },
+          { label: 'Assigned lead calls', path: '/company/sales/calls/assigned-leads' },
+        ],
+      },
+      {
+        label: 'Imported leads',
+        path: '/company/sales/leads/imported',
+        icon: 'upload',
+        requiredAction: 'lead-imports:view',
+      },
+      {
+        label: 'Call Integrations',
+        path: '/company/sales/call-integrations',
+        icon: 'settings',
+        requiredAction: 'telephony:manage',
       },
     ],
   },
@@ -233,7 +317,7 @@ export const companyNavigation: CompanyNavGroup[] = [
       {
         label: 'Audit Log',
         path: '/company/audit',
-        icon: 'clipboard',
+        icon: 'clipboard-list',
         requiredAction: 'audit:view',
       },
     ],
@@ -511,6 +595,12 @@ export function companySearchDestinations({
 
   for (const group of companyNavigation) {
     for (const item of group.items) {
+      if (
+        (isSuperAdmin || accountType !== 'employee') &&
+        (item.path === '/company/attendance/today' || item.path === '/company/attendance/my')
+      ) {
+        continue;
+      }
       if (item.label === 'Recruitment' && (!isHr || !hasRecruitment)) continue;
       if ((item.label === 'Access Explorer' || item.label === 'Geofencing') && !isSuperAdmin) continue;
       if (item.requiredAction && !isSuperAdmin && !actions.has(item.requiredAction))

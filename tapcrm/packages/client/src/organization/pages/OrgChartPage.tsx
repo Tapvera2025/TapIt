@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { WorkspacePageContainer } from '../../ui/components.js';
+import { WorkspacePageContainer } from '../../ui/index.js';
 import { organizationApi } from '../api/organizationApi.js';
 import {
   Button,
@@ -16,7 +16,7 @@ import {
   matchesPerson,
   type ReportingNode,
 } from '../components/org-chart-model.js';
-import { Icon } from '../../ui/Icon.js';
+import { Icon } from '../../ui/index.js';
 import type {
   OrganizationChart,
   OrganizationChartDepartment,
@@ -379,6 +379,7 @@ export function OrgChartPage(): React.JSX.Element {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search people, roles, or teams…"
+                className="bg-transparent"
               />
             </label>
           </div>

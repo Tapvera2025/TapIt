@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button } from '../../../ui/components.js';
+import { Button } from '../../../ui/index.js';
 import { claimBidPoolLead, passBidPoolLead, type MaskedBidCard } from './api.js';
 import {
   classifyClaimError,

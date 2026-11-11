@@ -77,19 +77,23 @@ export async function loadCalendarInputs(
           WHERE holiday_id = ANY(${holidayIds}::uuid[])
         `);
 
-  // Preload the person's shifts only if a shift-scoped holiday overlaps the
-  // range. Otherwise a 62-day payroll batch would multiply into 62N shift
-  // queries for nothing.
+  // One `resolveRange` for the whole range (never one per date): it gives the
+  // shift for shift-scoped holidays and the days the person's weekday schedule
+  // or rotation leaves without a shift — their weekly off, which attendance
+  // already counts as a week-off. Leave and WFH must see the same calendar.
   const shiftIdsByDate = new Map<DateOnly, string | null>();
-  if (scopes.some((s) => s.shiftId !== null)) {
-    const resolved = await shifts.resolveRange(
-      tx,
-      userId,
-      from,
-      to,
-      placements === undefined ? {} : { placements },
-    );
-    for (const r of resolved) shiftIdsByDate.set(r.date, r.shiftId);
+  const scheduledWeekOffs = new Set<DateOnly>();
+  const resolved = await shifts.resolveRange(
+    tx,
+    userId,
+    from,
+    to,
+    placements === undefined ? {} : { placements },
+  );
+  for (const r of resolved) {
+    shiftIdsByDate.set(r.date, r.shiftId);
+    if (r.kind === 'none' && (r.source === 'weekday-schedule' || r.source === 'rotation'))
+      scheduledWeekOffs.add(r.date);
   }
 
   return {
@@ -98,6 +102,7 @@ export async function loadCalendarInputs(
     holidays: holidays.map((h) => ({ ...h })),
     scopes,
     shiftIdsByDate,
+    scheduledWeekOffs,
   };
 }
 

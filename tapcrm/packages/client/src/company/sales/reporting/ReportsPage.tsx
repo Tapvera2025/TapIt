@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Page } from '../../../ui/components.js';
+import { Button, Card, Page } from '../../../ui/index.js';
 import { STAGE_LABELS, LIFECYCLE_LABELS, LOSS_REASON_LABELS, formatCurrencyLabel } from '../deals/deals-helpers.js';
 import { paiseToRupees } from '../proposals/proposals-helpers.js';
 import { getForecast, type ForecastReport } from './api.js';
@@ -82,10 +82,13 @@ function TotalsCard({ report }: { report: ForecastReport }): React.JSX.Element {
   return (
     <Card>
       <h3 className="font-display text-lg font-bold">Period totals</h3>
+      <p className="mt-1 text-xs text-app-muted">
+        Won and lost are for this period. Open now is every deal still open today.
+      </p>
       <div className="mt-3 grid grid-cols-2 gap-4 text-sm">
         <Metric label="Won" value={String(report.totals.wonCount)} />
         <Metric label="Lost" value={String(report.totals.lostCount)} />
-        <Metric label="Open" value={String(report.totals.openCount)} />
+        <Metric label="Open now" value={String(report.totals.openCount)} />
         <Metric label="Won amount" value={`${symbol}${paiseToRupees(wonMinor)}`} />
       </div>
     </Card>
@@ -123,13 +126,16 @@ function LifecycleCard({ report }: { report: ForecastReport }): React.JSX.Elemen
     <Card>
       <h3 className="font-display text-lg font-bold">Lifecycle this period</h3>
       <p className="mt-1 text-xs text-app-muted">
-        Counts a deal when its terminal event lands in the period (open deals use created_at).
+        Won, lost and cancelled count when that happened in this period. Created, still
+        open counts deals created in this period that are still open.
       </p>
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
         {report.lifecycle.map((bucket) => (
           <div key={bucket.lifecycleStatus} className="rounded-lg bg-app-background p-3">
             <p className="text-xs font-semibold uppercase text-app-muted">
-              {LIFECYCLE_LABELS[bucket.lifecycleStatus]}
+              {bucket.lifecycleStatus === 'open'
+                ? 'Created, still open'
+                : LIFECYCLE_LABELS[bucket.lifecycleStatus]}
             </p>
             <p className="mt-1 font-display text-2xl font-bold">{bucket.count}</p>
           </div>

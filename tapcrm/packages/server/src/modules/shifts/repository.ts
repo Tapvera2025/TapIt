@@ -488,6 +488,31 @@ export async function insertWeekdayScheduleAssignment(
     createdBy: string;
   },
 ): Promise<string> {
+  // Saving again for the same start date corrects that assignment. Rows are
+  // never deleted (the app role has no DELETE), so the schedule is updated in
+  // place; its end stays wherever the next change begins.
+  const sameDay = await tx.maybeOne<{ id: string }>(sql`
+    UPDATE weekday_schedule_assignment
+    SET schedule_id = ${input.scheduleId}
+    WHERE organization_id = ${input.organizationId}
+      AND user_id = ${input.userId}
+      AND effective_from = ${input.effectiveFrom}
+    RETURNING id
+  `);
+  if (sameDay !== null) return sameDay.id;
+
+  // A schedule already planned to start later keeps its date: the new one
+  // runs until then. Without this bound the new open-ended row would overlap
+  // it and the exclusion constraint would refuse the save with a 500.
+  const next = await tx.maybeOne<{ effectiveFrom: DateOnly }>(sql`
+    SELECT effective_from::text AS effective_from
+    FROM weekday_schedule_assignment
+    WHERE organization_id = ${input.organizationId}
+      AND user_id = ${input.userId}
+      AND effective_from > ${input.effectiveFrom}
+    ORDER BY effective_from
+    LIMIT 1
+  `);
   await tx.query(sql`
     UPDATE weekday_schedule_assignment
     SET effective_to = ${input.effectiveFrom}
@@ -498,9 +523,10 @@ export async function insertWeekdayScheduleAssignment(
   `);
   const row = await tx.one<{ id: string }>(sql`
     INSERT INTO weekday_schedule_assignment
-      (organization_id, user_id, schedule_id, effective_from, created_by)
+      (organization_id, user_id, schedule_id, effective_from, effective_to, created_by)
     VALUES
-      (${input.organizationId}, ${input.userId}, ${input.scheduleId}, ${input.effectiveFrom}, ${input.createdBy})
+      (${input.organizationId}, ${input.userId}, ${input.scheduleId}, ${input.effectiveFrom},
+       ${next?.effectiveFrom ?? null}, ${input.createdBy})
     RETURNING id
   `);
   return row.id;
@@ -611,23 +637,40 @@ type AssignmentKind = 'template' | 'rotation' | 'permanent-flexible';
  * running is ended there. Returns the ids of any that start on or after it,
  * which the caller refuses rather than silently rewriting.
  */
+/**
+ * Makes room for an assignment of `kind` from `from`: the one running on that
+ * date ends there. Returns the start of the next assignment of the kind, if
+ * one is already planned, so a backdated assignment runs until it instead of
+ * being refused; and `sameDay` when one already starts on `from`.
+ */
 export async function endAssignmentsFrom(
   tx: Tx,
   userId: string,
   kind: AssignmentKind,
   from: DateOnly,
-): Promise<string[]> {
-  const later = await tx.query<{ id: string }>(sql`
-    SELECT id FROM shift_assignment
+): Promise<{ next: DateOnly | null; sameDay: string | null }> {
+  const later = await tx.query<{ id: string; effectiveFrom: DateOnly }>(sql`
+    SELECT id, effective_from::text AS effective_from FROM shift_assignment
     WHERE user_id = ${userId} AND kind = ${kind} AND effective_from >= ${from}
+    ORDER BY effective_from
   `);
-  if (later.length > 0) return later.map((row) => row.id);
+  const sameDay = later.find((row) => row.effectiveFrom === from)?.id ?? null;
+  if (sameDay !== null) return { next: null, sameDay };
   await tx.query(sql`
     UPDATE shift_assignment SET effective_to = ${from}
     WHERE user_id = ${userId} AND kind = ${kind} AND effective_from < ${from}
       AND (effective_to IS NULL OR effective_to > ${from})
   `);
-  return [];
+  return { next: later[0]?.effectiveFrom ?? null, sameDay: null };
+}
+
+/** The first date the shift has a version — before it, the shift has no times. */
+export async function firstVersionFrom(tx: Tx, shiftId: string): Promise<DateOnly | null> {
+  const row = await tx.maybeOne<{ effectiveFrom: DateOnly }>(sql`
+    SELECT effective_from::text AS effective_from FROM shift_version
+    WHERE shift_id = ${shiftId} ORDER BY effective_from LIMIT 1
+  `);
+  return row?.effectiveFrom ?? null;
 }
 
 export async function insertAssignment(
@@ -710,21 +753,25 @@ export async function replaceOverride(
   `);
 }
 
+/** As `endAssignmentsFrom`, for a department's default shift. */
 export async function endDepartmentDefaultsFrom(
   tx: Tx,
   departmentId: string,
   from: DateOnly,
-): Promise<string[]> {
-  const later = await tx.query<{ id: string }>(sql`
-    SELECT id FROM department_shift_default WHERE department_id = ${departmentId} AND effective_from >= ${from}
+): Promise<{ next: DateOnly | null; sameDay: string | null }> {
+  const later = await tx.query<{ id: string; effectiveFrom: DateOnly }>(sql`
+    SELECT id, effective_from::text AS effective_from FROM department_shift_default
+    WHERE department_id = ${departmentId} AND effective_from >= ${from}
+    ORDER BY effective_from
   `);
-  if (later.length > 0) return later.map((row) => row.id);
+  const sameDay = later.find((row) => row.effectiveFrom === from)?.id ?? null;
+  if (sameDay !== null) return { next: null, sameDay };
   await tx.query(sql`
     UPDATE department_shift_default SET effective_to = ${from}
     WHERE department_id = ${departmentId} AND effective_from < ${from}
       AND (effective_to IS NULL OR effective_to > ${from})
   `);
-  return [];
+  return { next: later[0]?.effectiveFrom ?? null, sameDay: null };
 }
 
 export async function insertDepartmentDefault(

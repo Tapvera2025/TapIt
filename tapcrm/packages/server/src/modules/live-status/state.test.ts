@@ -164,3 +164,23 @@ describe('deriveRow — presence_confidence', () => {
     expect(row.presenceConfidence).toBe('confirmed');
   });
 });
+
+describe('remote punches (shown live, same rule as remote-without-approval)', () => {
+  const now = ist('2026-10-05T11:00:00');
+  it('a web punch-in without WFH approval is remote', () => {
+    const row = deriveRow({ ...daySpec, events: [event('in', '2026-10-05T09:05:00')], now });
+    expect([row.state, row.isWfh, row.isRemote]).toEqual(['WORKING', false, true]);
+  });
+  it('approved WFH is not remote', () => {
+    const row = deriveRow({ ...daySpec, isWfh: true, events: [event('in', '2026-10-05T09:05:00')], now });
+    expect([row.isWfh, row.isRemote]).toEqual([true, false]);
+  });
+  it('a device punch-in is not remote', () => {
+    const device = { ...event('in', '2026-10-05T09:05:00'), source: 'device' as const };
+    const row = deriveRow({ ...daySpec, events: [device], now });
+    expect(row.isRemote).toBe(false);
+  });
+  it('nobody in yet is not remote', () => {
+    expect(deriveRow({ ...daySpec, events: [], now }).isRemote).toBe(false);
+  });
+});

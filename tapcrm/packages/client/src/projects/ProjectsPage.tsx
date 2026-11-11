@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Notice, Page, SkeletonTable } from '../ui/components.js';
+import { Button, Card, Notice, Page, SkeletonTable } from '../ui/index.js';
 import { getProjects, type Project } from './api/projectsApi.js';
 import { CreateDiscussionGroupModal } from './CreateDiscussionGroupModal.js';
 import { CreateProjectModal } from './CreateProjectModal.js';

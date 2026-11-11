@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Notice, WorkspacePageContainer } from '../../../ui/components.js';
+import { Button, Notice, WorkspacePageContainer } from '../../../ui/index.js';
 import { getCompanyIdentity } from '../../api/companyApi.js';
 import {
   assignTask,

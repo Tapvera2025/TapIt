@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { BrandLogo } from '../../../ui/BrandLogo.js';
-import { Button, Notice } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { BrandLogo } from '../../../ui/index.js';
+import { Button, Notice } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import {
   getPublicApplicationLinkDetails,
   submitPublicApplication,

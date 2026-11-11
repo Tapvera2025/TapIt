@@ -20,7 +20,7 @@ import {
   Page,
   Select,
   Button,
-} from '../../ui/components.js';
+} from '../../ui/index.js';
 
 interface RolePosition {
   id: string;

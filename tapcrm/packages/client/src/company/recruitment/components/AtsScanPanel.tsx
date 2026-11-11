@@ -11,7 +11,7 @@ import {
   type AtsScanReport,
   type AtsSubmissionScanState,
 } from '@tapcrm/contracts';
-import { Button, Notice } from '../../../ui/components.js';
+import { Button, Notice } from '../../../ui/index.js';
 import { getSubmissionAts, runAtsScan } from '../api/recruitmentApi.js';
 import type { CandidateResumeSubmission } from '../types/index.js';
 import { AtsCriteriaModal } from './AtsCriteriaModal.js';

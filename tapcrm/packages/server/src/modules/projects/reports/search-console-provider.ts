@@ -157,7 +157,7 @@ export function searchConsoleProvider(): RankProvider {
           endDate: window.end,
           dimensions: ['query'],
           filters: group.filters,
-        });
+        }, target.accessToken);
         results.push(...matchRows(rows, group.requests));
       }
       return results;

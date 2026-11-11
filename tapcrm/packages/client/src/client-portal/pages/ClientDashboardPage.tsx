@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatProjectDate } from '../../projects/formatDate.js';
-import { Card, Empty, ErrorMessage, Loading, WorkspacePageContainer } from '../../ui/components.js';
-import { Icon } from '../../ui/Icon.js';
+import { Card, Empty, ErrorMessage, Loading, WorkspacePageContainer } from '../../ui/index.js';
+import { Icon } from '../../ui/index.js';
 import { getPortalDashboard, PORTAL_STATUS_LABELS, type PortalDashboard, type PortalWorkStatus } from '../api/portalApi.js';
 import { PortalLink, ProgressBar, StatusBadge } from '../components.js';
 import { useClientMessages } from '../useClientMessages.js';

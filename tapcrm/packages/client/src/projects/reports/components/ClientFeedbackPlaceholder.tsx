@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Loading, Notice } from '../../../ui/components.js';
+import { Card, Loading, Notice } from '../../../ui/index.js';
 import { getClientFeedback, type ClientFeedback } from '../api/projectReportsApi.js';
 
 const AREA_BY_LABEL = { 'Keyword Tracker': 'keyword-tracker', 'Blog Updates': 'blog-updates', 'Off-page SEO': 'off-page-seo', Screenshots: 'screenshots' } as const;

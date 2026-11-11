@@ -2,6 +2,16 @@ import type { DateOnly } from '@tapcrm/contracts';
 import { addDays, daysBetween } from '../../platform/time.js';
 import { rupeesToPaise, roundToRupee, prorateAndRound } from './money.js';
 
+/**
+ * Which calculation produced a payslip. Frozen into each employee's inputs, so
+ * it is part of the fingerprint: a run calculated by an older engine reads as
+ * changed and is recalculated before it can be published. Published payslips
+ * are never touched; a revision recalculates with the current engine.
+ *   2: statutory lines from the accepted settings (PY-4), overtime and holiday
+ *      work when the settings pay for them, advance recoveries and penalties.
+ */
+export const PAYROLL_ENGINE_VERSION = 'payroll-engine/2';
+
 export interface FrozenDay {
   readonly workDate: string;
   readonly state: 'open' | 'closed';
@@ -12,6 +22,8 @@ export interface FrozenDay {
   readonly holidayUnits: number;
   readonly nightMinutes: number;
   readonly overtimeMinutes: number;
+  /** Minutes worked on a holiday or weekly off; present only on such days. */
+  readonly holidayWorkedMinutes?: number;
 }
 
 export interface FrozenStructureSegment {
@@ -38,7 +50,7 @@ export interface FrozenInput {
   readonly amountStr: string;  // numeric string
   readonly label: string;
   readonly direction: 'earning' | 'deduction';
-  readonly sourceId: string | null;  // break_breach_id or null
+  readonly sourceId: string | null;  // break breach, advance deduction or penalty; null for manual entries
 }
 
 export interface FrozenConfig {
@@ -169,6 +181,12 @@ export function computePayslip(input: ComputePayslipInput): ComputePayslipResult
     }
   }
 
+  // 3b. Overtime and work on holidays, when the month's settings pay for them.
+  addExtraTimePay(lines, nonProratedSegment ?? segments[segments.length - 1], input.days, input.config.settings);
+
+  // 3c. Statutory lines from the month's accepted settings (PY-4).
+  applyStatutorySettings(lines, segments, input.config.settings);
+
   // 4. Add payroll inputs as lines
   for (const inp of input.inputs) {
     const amountPaise = roundToRupee(rupeesToPaise(inp.amountStr));
@@ -197,6 +215,212 @@ export function computePayslip(input: ComputePayslipInput): ComputePayslipResult
   const netPaise = grossPaise - deductionsPaise;
 
   return { grossPaise, deductionsPaise, netPaise, employerContributionPaise, lines, totalUnits, paidUnits, unpaidUnits };
+}
+
+// ── overtime and holiday work ────────────────────────────────────────────────
+
+/**
+ * Paid only when the month's settings switch it on:
+ *   overtime:     { enabled, multiplier? = 2 }
+ *   holidayWork:  { enabled, multiplier? = 2 }
+ *   ordinaryRate: { workingDaysPerMonth? = 26, hoursPerDay? = 8 }
+ * The hourly ordinary rate is the monthly wage of the lines tagged `pf-wage`
+ * (basic and DA) over working days × hours. Overtime is the credited overtime
+ * of working days; holiday work is the time worked on holidays and weekly offs.
+ */
+function addExtraTimePay(
+  lines: PayslipLine[],
+  segment: FrozenStructureSegment | undefined,
+  days: readonly FrozenDay[],
+  settings: Record<string, unknown>,
+): void {
+  const overtime = obj(settings['overtime']);
+  const holidayWork = obj(settings['holidayWork']);
+  const otOn = overtime?.['enabled'] === true;
+  const holidayOn = holidayWork?.['enabled'] === true;
+  if ((!otOn && !holidayOn) || segment === undefined) return;
+  const ordinary = obj(settings['ordinaryRate']);
+  const daysPerMonth = num(ordinary?.['workingDaysPerMonth']) ?? 26;
+  const hoursPerDay = num(ordinary?.['hoursPerDay']) ?? 8;
+  if (daysPerMonth <= 0 || hoursPerDay <= 0) return;
+  const wagePaise = segment.lines
+    .filter((line) => line.kind === 'earning' && line.statutoryTags.includes('pf-wage'))
+    .reduce((sum, line) => sum + rupeesToPaise(line.amountStr), 0n);
+  if (wagePaise === 0n) return;
+  // pay = wage × minutes × multiplier / (days × hours × 60), to the rupee, half up,
+  // computed exactly with the decimals scaled to thousandths.
+  const pay = (minutes: number, multiplier: number): bigint => {
+    const m = BigInt(Math.round(multiplier * 1000));
+    const d = BigInt(Math.round(daysPerMonth * 1000));
+    const h = BigInt(Math.round(hoursPerDay * 1000));
+    const numerator = wagePaise * BigInt(minutes) * m * 1000n;
+    const denominator = d * h * 60n;
+    return ((numerator + 50n * denominator) / (100n * denominator)) * 100n;
+  };
+  const rateBasis = { wagePaise: wagePaise.toString(), workingDaysPerMonth: daysPerMonth, hoursPerDay };
+  if (otOn) {
+    const minutes = days.reduce((sum, day) => sum + (day.overtimeMinutes ?? 0), 0);
+    const multiplier = num(overtime?.['multiplier']) ?? 2;
+    if (minutes > 0)
+      lines.push({
+        code: 'OVERTIME', label: 'Overtime', kind: 'earning', amountPaise: pay(minutes, multiplier),
+        basis: { overtimeMinutes: minutes, multiplier, ...rateBasis }, sortOrder: 8000,
+      });
+  }
+  if (holidayOn) {
+    const minutes = days.reduce((sum, day) => sum + (day.holidayWorkedMinutes ?? 0), 0);
+    const multiplier = num(holidayWork?.['multiplier']) ?? 2;
+    if (minutes > 0)
+      lines.push({
+        code: 'HOLIDAY-WORK', label: 'Work on holidays and weekly offs', kind: 'earning',
+        amountPaise: pay(minutes, multiplier),
+        basis: { holidayWorkedMinutes: minutes, multiplier, ...rateBasis }, sortOrder: 8001,
+      });
+  }
+}
+
+// ── statutory settings (PY-4) ────────────────────────────────────────────────
+
+/**
+ * The statutory parts of the accepted settings. Each is optional: a setting
+ * that is missing leaves the salary structure's own amount for that line, so
+ * months accepted without statutory settings calculate exactly as before.
+ *
+ *   pf:              { employeeRate, employerRate, wageCeiling? }   rates as fractions (0.12)
+ *   professionalTax: { monthly }                                     rupees per month
+ *   esi:             { enabled, employeeRate?, employerRate?, wageLimit? }
+ */
+export interface StatutorySettings {
+  readonly pf: { employeeRate: number; employerRate: number; wageCeilingPaise: bigint | null } | null;
+  readonly professionalTaxPaise: bigint | null;
+  readonly esi: { enabled: boolean; employeeRate: number; employerRate: number; wageLimitPaise: bigint } | null;
+}
+
+const num = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0
+      ? Number(value)
+      : null;
+const obj = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+
+export function statutorySettings(settings: Record<string, unknown>): StatutorySettings {
+  const pf = obj(settings['pf']);
+  const pt = obj(settings['professionalTax']);
+  const esi = obj(settings['esi']);
+  const pfEmployee = pf ? num(pf['employeeRate']) : null;
+  const pfEmployer = pf ? num(pf['employerRate']) : null;
+  const pfCeiling = pf ? num(pf['wageCeiling']) : null;
+  const ptMonthly = pt ? num(pt['monthly']) : null;
+  return {
+    pf:
+      pfEmployee !== null && pfEmployer !== null
+        ? {
+            employeeRate: pfEmployee,
+            employerRate: pfEmployer,
+            wageCeilingPaise: pfCeiling !== null && pfCeiling > 0 ? rupeesToPaise(pfCeiling) : null,
+          }
+        : null,
+    professionalTaxPaise: ptMonthly !== null ? rupeesToPaise(ptMonthly) : null,
+    esi:
+      esi !== null && typeof esi['enabled'] === 'boolean'
+        ? {
+            enabled: esi['enabled'],
+            employeeRate: num(esi['employeeRate']) ?? 0.0075,
+            employerRate: num(esi['employerRate']) ?? 0.0325,
+            wageLimitPaise: rupeesToPaise(num(esi['wageLimit']) ?? 21000),
+          }
+        : null,
+  };
+}
+
+const STATUTORY_TAGS: readonly string[] = ['pf-wage', 'pf', 'pt', 'esi'];
+
+/**
+ * The settings define PF, PT or ESI, but no salary line is marked for any of
+ * them, so they would quietly not apply: PF stays whatever fixed amount was
+ * typed and ESI is never deducted. The run reports it as a warning.
+ */
+export function statutoryUnmarked(
+  segments: readonly FrozenStructureSegment[],
+  settings: Record<string, unknown>,
+): boolean {
+  if (segments.length === 0) return false;
+  const rules = statutorySettings(settings);
+  if (rules.pf === null && rules.professionalTaxPaise === null && rules.esi === null) return false;
+  return !segments.some((segment) =>
+    segment.lines.some((line) => line.statutoryTags.some((tag) => STATUTORY_TAGS.includes(tag))),
+  );
+}
+
+/** `paise × rate`, exact to six decimal places of the rate, then rounded to the rupee (PY-3). */
+function percentOf(paise: bigint, rate: number): bigint {
+  const micro = BigInt(Math.round(rate * 1_000_000));
+  // Rounded half-up to the rupee in one step: (paise × micro) / (10⁶ × 100) rupees.
+  return ((paise * micro + 50_000_000n) / 100_000_000n) * 100n;
+}
+
+/**
+ * Replaces the amounts of structure lines tagged `pf`, `pt` or `esi` with what
+ * the settings say, from the earned (already prorated) lines:
+ *   PF  — the rate of the earned `pf-wage` lines, capped at the wage ceiling;
+ *         the deduction takes the employee rate, the employer line its own
+ *   PT  — the monthly amount
+ *   ESI — the rate of gross earnings when gross is within the wage limit,
+ *         nothing (the line is dropped) above it or when ESI is off
+ */
+function applyStatutorySettings(
+  lines: PayslipLine[],
+  segments: readonly FrozenStructureSegment[],
+  settings: Record<string, unknown>,
+): void {
+  const rules = statutorySettings(settings);
+  if (rules.pf === null && rules.professionalTaxPaise === null && rules.esi === null) return;
+  const tags = new Map<string, readonly string[]>();
+  for (const segment of segments) for (const line of segment.lines) tags.set(line.code, line.statutoryTags);
+  const tagged = (line: PayslipLine, tag: string) => (tags.get(line.code) ?? []).includes(tag);
+
+  const pfWage = lines
+    .filter((line) => line.kind === 'earning' && tagged(line, 'pf-wage'))
+    .reduce((sum, line) => sum + line.amountPaise, 0n);
+  const gross = lines
+    .filter((line) => line.kind === 'earning')
+    .reduce((sum, line) => sum + line.amountPaise, 0n);
+
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i]!;
+    if (line.kind === 'earning') continue;
+    if (rules.pf !== null && tagged(line, 'pf')) {
+      const base =
+        rules.pf.wageCeilingPaise !== null && pfWage > rules.pf.wageCeilingPaise
+          ? rules.pf.wageCeilingPaise
+          : pfWage;
+      const rate = line.kind === 'deduction' ? rules.pf.employeeRate : rules.pf.employerRate;
+      lines[i] = {
+        ...line,
+        amountPaise: percentOf(base, rate),
+        basis: { statutory: 'pf', pfWagePaise: pfWage.toString(), basePaise: base.toString(), rate },
+      };
+    } else if (rules.professionalTaxPaise !== null && tagged(line, 'pt')) {
+      lines[i] = {
+        ...line,
+        amountPaise: gross > 0n ? rules.professionalTaxPaise : 0n,
+        basis: { statutory: 'pt', monthlyPaise: rules.professionalTaxPaise.toString() },
+      };
+    } else if (rules.esi !== null && tagged(line, 'esi')) {
+      if (!rules.esi.enabled || gross > rules.esi.wageLimitPaise) {
+        lines.splice(i, 1);
+        continue;
+      }
+      const rate = line.kind === 'deduction' ? rules.esi.employeeRate : rules.esi.employerRate;
+      lines[i] = {
+        ...line,
+        amountPaise: percentOf(gross, rate),
+        basis: { statutory: 'esi', grossPaise: gross.toString(), rate },
+      };
+    }
+  }
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

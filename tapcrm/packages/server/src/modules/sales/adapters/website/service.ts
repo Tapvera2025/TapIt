@@ -128,26 +128,49 @@ export function verifyHmacSignature(secret: string, rawBody: Buffer, signatureHe
   return timingSafeEqual(Buffer.from(expected, 'utf8'), Buffer.from(trimmed, 'utf8'));
 }
 
-/** Platform-scoped connector lookup. Audited by platformDb's operation label. */
+/**
+ * Platform-scoped connector lookup. Audited by platformDb's operation label.
+ * Wraps the SECURITY DEFINER resolver (migration 0121) — the webhook has no
+ * tenant context yet, so an RLS-bound SELECT against sales_connector returns
+ * nothing. The resolver bypasses RLS on exactly this one lookup shape.
+ */
 async function findWebsiteConnector(connectorId: string): Promise<WebsiteConnectorRow | null> {
   return platformDb.maybeOne<WebsiteConnectorRow>(
     'webhook-dispatch',
     'resolve website connector for webhook authentication',
     sql`
       SELECT id,
-             organization_id      AS "organizationId",
+             organization_id         AS "organizationId",
              kind,
              status,
              (config->>'webhookSecret') AS "webhookSecret"
-        FROM sales_connector
-       WHERE id = ${connectorId}
+        FROM resolve_sales_connector_by_id(${connectorId})
     `,
   );
 }
 
-function webhookCtxFor(organizationId: string): RequestContext {
+/**
+ * The webhook has no human actor, but every write path through intake
+ * carries a composite FK (organization_id, created_by) → app_user. We
+ * attribute to the org's first active admin via the SECURITY DEFINER
+ * resolver in migration 0121 so inserts succeed.
+ */
+async function webhookCtxFor(organizationId: string): Promise<RequestContext> {
+  const actor = await platformDb.maybeOne<{ id: string }>(
+    'webhook-dispatch',
+    'resolve webhook actor for ingestion attribution',
+    sql`SELECT resolve_webhook_actor(${organizationId}::uuid) AS id`,
+  );
+  const actorId = actor?.id ?? null;
+  if (!actorId) {
+    throw new ApplicationError(
+      'No admin user available to attribute webhook ingestion',
+      503,
+      'WEBHOOK_ACTOR_UNAVAILABLE',
+    );
+  }
   const principal: Principal = {
-    id: '00000000-0000-7000-8000-000000000000',
+    id: actorId,
     organizationId,
     sessionVersion: 0,
     accountType: 'service',
@@ -220,7 +243,7 @@ export async function ingestWebsiteSubmission(
     ...(body.mappingVersion !== undefined ? { mappingVersion: body.mappingVersion } : {}),
   };
 
-  const ingestResult = await ingest(webhookCtxFor(connector.organizationId), payload);
+  const ingestResult = await ingest(await webhookCtxFor(connector.organizationId), payload);
   return {
     submissionId: ingestResult.submissionId,
     outcome: ingestResult.outcome,

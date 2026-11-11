@@ -7,8 +7,8 @@ import {
   subscribeConnectionState,
   type RealtimeConnectionState,
 } from './realtimeClient.js';
-import { Icon } from '../../ui/Icon.js';
-import { WorkspacePageContainer } from '../../ui/components.js';
+import { Icon } from '../../ui/index.js';
+import { WorkspacePageContainer } from '../../ui/index.js';
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -964,6 +964,11 @@ export function LiveBoardPage(): React.JSX.Element {
                                   WFH
                                 </span>
                               )}
+                              {row.isRemote && (
+                                <span title="Punched in from the web or the app without approved WFH" className="rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                                  Remote
+                                </span>
+                              )}
                             </div>
                             <span className="text-[11px] text-app-muted block">{empCode}</span>
                           </div>
@@ -1019,6 +1024,11 @@ export function LiveBoardPage(): React.JSX.Element {
                           {row.isWfh && (
                             <span className="rounded-md border border-app-border bg-app-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-app-muted">
                               WFH
+                            </span>
+                          )}
+                          {row.isRemote && (
+                            <span title="Punched in from the web or the app without approved WFH" className="rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                              Remote
                             </span>
                           )}
                         </div>
@@ -1139,7 +1149,7 @@ export function LiveBoardPage(): React.JSX.Element {
               <div>
                 <span className="text-[11px] text-app-muted block">Work Mode</span>
                 <span className="font-semibold text-app-foreground mt-1 inline-block">
-                  {selectedEmployee.isWfh ? '🏠 Remote / WFH' : '🏢 Office'}
+                  {selectedEmployee.isWfh ? '🏠 WFH (approved)' : selectedEmployee.isRemote ? '🌐 Remote, no WFH approval' : '🏢 Office'}
                 </span>
               </div>
               <div>

@@ -81,7 +81,7 @@ async function loadSubject(
   return subject;
 }
 
-async function assertAssignable(tx: Tx, shiftId: string): Promise<void> {
+async function assertAssignable(tx: Tx, shiftId: string, from?: DateOnly): Promise<void> {
   const shift = await repo.findShift(tx, shiftId);
   if (shift === null) throw new ShiftNotFoundError('No such shift template.');
   // SH-5: inactive templates cannot be newly assigned; existing assignments keep resolving.
@@ -97,6 +97,21 @@ async function assertAssignable(tx: Tx, shiftId: string): Promise<void> {
       `Shift ${shift.code} has no version yet.`,
     );
   }
+  // Before its first version a shift has no times: the days would resolve to
+  // "no shift", go unjudged and be paid in full. Refuse instead of failing quietly.
+  const firstVersion = from === undefined ? null : await repo.firstVersionFrom(tx, shiftId);
+  if (from !== undefined && firstVersion !== null && from < firstVersion) {
+    throw new ShiftValidationError(
+      SHIFT_ERROR_CODES.NO_VERSION,
+      `Shift ${shift.code} has no timings before ${firstVersion}. Add a version of the shift from ${from}, or assign it from ${firstVersion}.`,
+    );
+  }
+}
+
+/** A backdated assignment runs until the one already planned after it. */
+function boundedBy(effectiveTo: DateOnly | null, next: DateOnly | null): DateOnly | null {
+  if (next === null) return effectiveTo;
+  return effectiveTo === null || effectiveTo > next ? next : effectiveTo;
 }
 
 /** §6.3 "No overlap" — refuse a change that makes two consecutive shifts overlap. */
@@ -408,19 +423,20 @@ export async function assign(
         departmentId: body.departmentId,
       });
       await assertMayChangeFrom(ctx, tx, body.effectiveFrom, clock);
-      await assertAssignable(tx, body.shiftId);
-      const later = await repo.endDepartmentDefaultsFrom(
+      await assertAssignable(tx, body.shiftId, body.effectiveFrom);
+      const room = await repo.endDepartmentDefaultsFrom(
         tx,
         body.departmentId,
         body.effectiveFrom,
       );
-      if (later.length > 0) {
+      if (room.sameDay !== null) {
         throw new ShiftConflictError(
           SHIFT_ERROR_CODES.ASSIGNMENT_CONFLICT,
-          'A later default already exists for this department.',
-          { ids: later },
+          `This department's default already changes on ${body.effectiveFrom}. Pick another date.`,
+          { ids: [room.sameDay] },
         );
       }
+      const effectiveTo = boundedBy(body.effectiveTo, room.next);
       // A default changed under existing assignments can still meet an overlap;
       // the resolver flags that day at read time (§5.2).
       const id = await repo.insertDepartmentDefault(tx, {
@@ -428,13 +444,13 @@ export async function assign(
         departmentId: body.departmentId,
         shiftId: body.shiftId,
         effectiveFrom: body.effectiveFrom,
-        effectiveTo: body.effectiveTo,
+        effectiveTo,
         createdBy: ctx.principal.id,
       });
       await recordDaysChanged(tx, ctx.organizationId, {
         departmentId: body.departmentId,
         from: body.effectiveFrom,
-        to: body.effectiveTo === null ? null : addDays(body.effectiveTo, -1),
+        to: effectiveTo === null ? null : addDays(effectiveTo, -1),
         reason: 'department default',
       });
       return { id };
@@ -451,7 +467,7 @@ export async function assign(
             'A shift override names the shift.',
           );
         }
-        await assertAssignable(tx, body.shiftId);
+        await assertAssignable(tx, body.shiftId, body.workDate);
       }
       const shiftId = body.override === 'shift' ? body.shiftId : null;
       const inputs = await repo.loadShiftInputs(
@@ -495,7 +511,7 @@ export async function assign(
     let rotationId: string | null = null;
     let rotationDays: Map<number, string | null> | undefined;
     if (body.kind === 'template') {
-      await assertAssignable(tx, body.shiftId);
+      await assertAssignable(tx, body.shiftId, body.effectiveFrom);
       shiftId = body.shiftId;
     }
     if (body.kind === 'rotation') {
@@ -512,7 +528,7 @@ export async function assign(
           ]),
         );
         for (const id of new Set(rotationDays.values()))
-          if (id !== null) await assertAssignable(tx, id);
+          if (id !== null) await assertAssignable(tx, id, body.effectiveFrom);
         rotationId = await repo.insertRotation(tx, {
           organizationId: ctx.organizationId,
           name: body.rotation.name,
@@ -522,14 +538,25 @@ export async function assign(
       }
     }
 
+    // Room for the assignment: the one running on the start date ends there,
+    // and one already planned later bounds this one instead of refusing it.
+    const room = await repo.endAssignmentsFrom(tx, body.userId, body.kind, body.effectiveFrom);
+    if (room.sameDay !== null) {
+      throw new ShiftConflictError(
+        SHIFT_ERROR_CODES.ASSIGNMENT_CONFLICT,
+        `This person already has an assignment of this kind starting on ${body.effectiveFrom}. Pick another date.`,
+        { ids: [room.sameDay] },
+      );
+    }
+    const effectiveTo = boundedBy(body.effectiveTo, room.next);
     const next: AssignmentInput = {
       kind: body.kind,
       shiftId,
       rotationId,
       effectiveFrom: body.effectiveFrom,
-      effectiveTo: body.effectiveTo,
+      effectiveTo,
     };
-    const lastChecked = checkRange(body.effectiveTo, body.effectiveFrom);
+    const lastChecked = checkRange(effectiveTo, body.effectiveFrom);
     const inputs = await repo.loadShiftInputs(
       tx,
       body.userId,
@@ -542,19 +569,6 @@ export async function assign(
       lastChecked,
     );
 
-    const later = await repo.endAssignmentsFrom(
-      tx,
-      body.userId,
-      body.kind,
-      body.effectiveFrom,
-    );
-    if (later.length > 0) {
-      throw new ShiftConflictError(
-        SHIFT_ERROR_CODES.ASSIGNMENT_CONFLICT,
-        'This person already has a later assignment of this kind. Change that one instead.',
-        { ids: later },
-      );
-    }
     const id = await repo.insertAssignment(tx, {
       organizationId: ctx.organizationId,
       userId: body.userId,
@@ -562,14 +576,14 @@ export async function assign(
       shiftId,
       rotationId,
       effectiveFrom: body.effectiveFrom,
-      effectiveTo: body.effectiveTo,
+      effectiveTo,
       reason: body.reason ?? null,
       createdBy: ctx.principal.id,
     });
     await recordDaysChanged(tx, ctx.organizationId, {
       userIds: [body.userId],
       from: body.effectiveFrom,
-      to: body.effectiveTo === null ? null : addDays(body.effectiveTo, -1),
+      to: effectiveTo === null ? null : addDays(effectiveTo, -1),
       reason: `${body.kind} assignment`,
     });
     return { id, rotationId };

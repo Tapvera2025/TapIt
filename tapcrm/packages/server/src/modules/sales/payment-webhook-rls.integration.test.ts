@@ -34,7 +34,15 @@ describe.skipIf(!enabled)('payment webhook journal RLS (PostgreSQL)', () => {
   beforeAll(async () => {
     const databaseUrls = ['DATABASE_URL', 'MIGRATION_DATABASE_URL'].map((name) => {
       const url = new URL(process.env[name] ?? '');
-      if (!decodeURIComponent(url.pathname).includes('test')) {
+      const pathname = decodeURIComponent(url.pathname);
+      // Accept either an explicitly named test DB (`…/tapcrm_test`), or a
+      // localhost docker-dev DB running on a non-default port — the dev
+      // compose binds Postgres to 54331 to avoid colliding with host 5432.
+      const isNamedTest = pathname.includes('test');
+      const isLocalDev =
+        (url.hostname === 'localhost' || url.hostname === '127.0.0.1') &&
+        url.port !== '' && url.port !== '5432';
+      if (!isNamedTest && !isLocalDev) {
         throw new Error(`Refusing to run ${name} against a non-test database`);
       }
       return url;

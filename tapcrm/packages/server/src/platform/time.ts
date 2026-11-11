@@ -111,7 +111,11 @@ export function instantOfDeviceClock(
   });
   if (!local.isValid || local.toFormat('yyyy-MM-dd HH:mm:ss') !== reading)
     throw new RangeError(`${reading} does not exist in ${zone}`);
-  return { instant: local.toJSDate(), ambiguous: local.getPossibleOffsets().length > 1 };
+  const possible = local.getPossibleOffsets();
+  const first = possible.reduce((earliest, candidate) =>
+    candidate.toMillis() < earliest.toMillis() ? candidate : earliest,
+  );
+  return { instant: first.toJSDate(), ambiguous: possible.length > 1 };
 }
 
 /** The reading a clock set to `zone` shows at `instant` — what a device should say. */

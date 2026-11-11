@@ -195,17 +195,34 @@ export async function loadDealResource(ctx: RequestContext, id: string): Promise
     responsibleCloserId: string;
     originatingAgentId: string;
     lifecycleStatus: DealLifecycleStatus;
+    createdBy: string | null;
+    closedBy: string | null;
+    paymentInitiatedBy: string | null;
   }>(
     ctx,
     sql`SELECT id,
                organization_id       AS "organizationId",
                responsible_closer_id AS "responsibleCloserId",
                originating_agent_id  AS "originatingAgentId",
-               lifecycle_status      AS "lifecycleStatus"
+               lifecycle_status      AS "lifecycleStatus",
+               created_by            AS "createdBy",
+               closed_by_id          AS "closedBy",
+               payment_initiated_by  AS "paymentInitiatedBy"
           FROM deal
          WHERE organization_id = ${ctx.organizationId} AND id = ${id}`,
   );
-  return row ? { type: 'deal' as const, ...row } : null;
+  if (!row) return null;
+  return {
+    type: 'deal' as const,
+    id: row.id,
+    organizationId: row.organizationId,
+    responsibleCloserId: row.responsibleCloserId,
+    originatingAgentId: row.originatingAgentId,
+    lifecycleStatus: row.lifecycleStatus,
+    createdBy: row.createdBy,
+    closedBy: row.closedBy,
+    payment: { initiatedBy: row.paymentInitiatedBy },
+  };
 }
 
 export interface InsertDealInput {
@@ -280,11 +297,13 @@ export async function updatePaymentStatusRow(
   id: string,
   nextStatus: DealPaymentStatus,
   now: Date,
+  initiatedBy: string | null = null,
 ): Promise<void> {
   await tx.query(sql`
     UPDATE deal
-       SET payment_status = ${nextStatus},
-           updated_at     = ${now}
+       SET payment_status       = ${nextStatus},
+           payment_initiated_by = ${initiatedBy},
+           updated_at           = ${now}
      WHERE organization_id = ${organizationId}
        AND id              = ${id}
   `);

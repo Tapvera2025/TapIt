@@ -1,47 +1,147 @@
 import { z } from 'zod';
 import { route } from '../../../platform/http/route.js';
-import { PlatformValidationError } from '../../../platform/errors.js';
-import { ingestLeadImport } from './service.js';
+import {
+  assign,
+  assignees,
+  createImport,
+  discardImport,
+  getImport,
+  leadCalls,
+  listImported,
+  listImports,
+  listRows,
+  previewImport,
+  resumeImport,
+  startImport,
+  trackCalls,
+} from './service.js';
+import {
+  assignSchema,
+  callTrackingQuerySchema,
+  createImportSchema,
+  importedLeadsQuerySchema,
+  importRowsQuerySchema,
+  importSettingsSchema,
+  listImportsQuerySchema,
+} from './validators.js';
+
+const MODULE = 'lead-imports';
+const id = (value: string | undefined) => z.string().uuid('Not a valid id').parse(value);
 
 /**
- * Lead imports are a Super-Admin pilot tool. The handler is marked
- * `authOnly` because no registry Action for "import leads" exists yet;
- * the service enforces `accountType === 'super-admin'`. A follow-up
- * can promote the capability to a proper `imports:leads` action.
+ * Lead Imports routes. Bindings: AUTHORIZATION.md §6.5.
  *
- * The raw `text/csv` body parser is installed globally in `app.ts`
- * before `express.json`, so `req.body` arrives here as a Buffer.
+ *   lead-imports:view    imports, imported leads and their call tracking
+ *   lead-imports:manage  upload, review, import and assign
+ *
+ * Static paths register before `/api/lead-imports/:id`, which is greedy.
  */
-
-const importQuerySchema = z.object({
-  connectorId: z.string().uuid(),
-  dryRun: z
-    .union([z.literal('true'), z.literal('false'), z.boolean()])
-    .transform((v) => v === true || v === 'true')
-    .default('true'),
-  scopeToPoolId: z.string().uuid().optional(),
-});
-
 export function registerLeadImportRoutes(): void {
+  route({
+    method: 'GET',
+    path: '/api/lead-imports',
+    action: 'lead-imports:view',
+    module: MODULE,
+    handler: async ({ ctx, query }) => listImports(ctx, listImportsQuerySchema.parse(query).limit),
+  });
   route({
     method: 'POST',
     path: '/api/lead-imports',
-    authOnly: true,
-    module: 'leads',
+    action: 'lead-imports:manage',
+    module: MODULE,
+    status: 201,
+    handler: async ({ ctx, body }) => createImport(ctx, createImportSchema.parse(body)),
+  });
+
+  /* ---- Imported leads ---- */
+  route({
+    method: 'GET',
+    path: '/api/lead-imports/leads',
+    action: 'lead-imports:view',
+    module: MODULE,
+    handler: async ({ ctx, query }) => listImported(ctx, importedLeadsQuerySchema.parse(query)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/lead-imports/assign',
+    action: 'lead-imports:manage',
+    module: MODULE,
+    handler: async ({ ctx, body }) => assign(ctx, assignSchema.parse(body)),
+  });
+  route({
+    method: 'GET',
+    path: '/api/lead-imports/assignees',
+    action: 'lead-imports:manage',
+    module: MODULE,
+    handler: async ({ ctx }) => assignees(ctx),
+  });
+
+  /* ---- Are assigned leads being called? ---- */
+  route({
+    method: 'GET',
+    path: '/api/lead-imports/call-tracking',
+    action: 'lead-imports:view',
+    module: MODULE,
+    handler: async ({ ctx, query }) => trackCalls(ctx, callTrackingQuerySchema.parse(query)),
+  });
+  route({
+    method: 'GET',
+    path: '/api/lead-imports/call-tracking/leads/:id',
+    action: 'lead-imports:view',
+    module: MODULE,
+    resourceParam: 'id',
+    handler: async ({ ctx, params }) => leadCalls(ctx, id(params['id'])),
+  });
+
+  /* ---- One import ---- */
+  route({
+    method: 'GET',
+    path: '/api/lead-imports/:id',
+    action: 'lead-imports:view',
+    module: MODULE,
+    resourceParam: 'id',
+    handler: async ({ ctx, params }) => getImport(ctx, id(params['id'])),
+  });
+  route({
+    method: 'POST',
+    path: '/api/lead-imports/:id/preview',
+    action: 'lead-imports:manage',
+    module: MODULE,
+    resourceParam: 'id',
+    handler: async ({ ctx, params, body }) => previewImport(ctx, id(params['id']), importSettingsSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/lead-imports/:id/start',
+    action: 'lead-imports:manage',
+    module: MODULE,
+    resourceParam: 'id',
     status: 202,
-    handler: async ({ ctx, req }) => {
-      const query = importQuerySchema.safeParse(req.query);
-      if (!query.success) {
-        throw new PlatformValidationError(query.error.issues.map((i) => i.message).join('; '));
-      }
-      const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
-      const csv = rawBody.toString('utf8');
-      return ingestLeadImport(ctx, {
-        csv,
-        connectorId: query.data.connectorId,
-        dryRun: query.data.dryRun,
-        scopeToPoolId: query.data.scopeToPoolId ?? null,
-      });
-    },
+    handler: async ({ ctx, params, body }) => startImport(ctx, id(params['id']), importSettingsSchema.parse(body)),
+  });
+  route({
+    method: 'POST',
+    path: '/api/lead-imports/:id/resume',
+    action: 'lead-imports:manage',
+    module: MODULE,
+    resourceParam: 'id',
+    status: 202,
+    handler: async ({ ctx, params }) => resumeImport(ctx, id(params['id'])),
+  });
+  route({
+    method: 'POST',
+    path: '/api/lead-imports/:id/discard',
+    action: 'lead-imports:manage',
+    module: MODULE,
+    resourceParam: 'id',
+    handler: async ({ ctx, params }) => discardImport(ctx, id(params['id'])),
+  });
+  route({
+    method: 'GET',
+    path: '/api/lead-imports/:id/rows',
+    action: 'lead-imports:view',
+    module: MODULE,
+    resourceParam: 'id',
+    handler: async ({ ctx, params, query }) => listRows(ctx, id(params['id']), importRowsQuerySchema.parse(query)),
   });
 }

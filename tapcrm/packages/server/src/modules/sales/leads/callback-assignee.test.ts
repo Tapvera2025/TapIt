@@ -1,23 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { LEAD_ACTIVITY_EVENTS, isLeadActivityEvent } from './activity-types.js';
-
-/**
- * Mirror of the private `resolveCallbackAssignee` logic in callback-service.ts.
- * The plan test asserts post-handover a scheduled callback goes to the
- * originating agent, not the current holder. We keep the resolver
- * logic as a pure function here so the behaviour is pinned without
- * standing up a DB.
- */
-function resolveCallbackAssignee(lead: {
-  originatingAgentId: string | null;
-  currentHolderId: string | null;
-  ownerId: string | null;
-}): string | null {
-  return lead.originatingAgentId ?? lead.ownerId ?? lead.currentHolderId;
-}
+import { resolveCallbackAssignee } from './callback-assignee.js';
 
 describe('resolveCallbackAssignee (R1 plan step 1.18)', () => {
-  it('post-handover: originating agent still owns the callback', () => {
+  it('post-handover: the owner gets the callback, not the temporary holder', () => {
     expect(
       resolveCallbackAssignee({
         originatingAgentId: 'orig-agent',
@@ -27,7 +13,17 @@ describe('resolveCallbackAssignee (R1 plan step 1.18)', () => {
     ).toBe('orig-agent');
   });
 
-  it('no originating agent yet: fall back to owner', () => {
+  it('after a reassignment: the new owner gets the callback, not the original sourcer', () => {
+    expect(
+      resolveCallbackAssignee({
+        originatingAgentId: 'original-sourcer',
+        currentHolderId: 'new-owner',
+        ownerId: 'new-owner',
+      }),
+    ).toBe('new-owner');
+  });
+
+  it('no originating agent yet: the owner gets the callback', () => {
     expect(
       resolveCallbackAssignee({
         originatingAgentId: null,
@@ -35,6 +31,16 @@ describe('resolveCallbackAssignee (R1 plan step 1.18)', () => {
         ownerId: 'owner-of-lead',
       }),
     ).toBe('owner-of-lead');
+  });
+
+  it('no owner: fall back to the originating agent', () => {
+    expect(
+      resolveCallbackAssignee({
+        originatingAgentId: 'orig-agent',
+        currentHolderId: 'current-holder',
+        ownerId: null,
+      }),
+    ).toBe('orig-agent');
   });
 
   it('neither originating nor owner: fall back to current holder', () => {

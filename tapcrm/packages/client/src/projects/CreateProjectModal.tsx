@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getClients, type Client } from '../clients/api/clientsApi.js';
 import { getChatColleagues } from '../chat/index.js';
-import { Button, Field, Loading, Modal, Notice, Select } from '../ui/components.js';
+import { Button, Field, Loading, Modal, Notice, Select } from '../ui/index.js';
 import {
   PROJECT_SERVICES,
   PROJECT_SERVICE_LABELS,

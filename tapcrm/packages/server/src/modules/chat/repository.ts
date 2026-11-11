@@ -1,11 +1,15 @@
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
+import { attachmentsForMessages } from './attachments.js';
+import { previewsForMessages } from './link-preview.js';
 import type {
+  AttachmentKind,
   Conversation,
   ConversationKind,
   ConversationMember,
   Message,
+  MessageEdit,
   MessageMention,
   MessagePreview,
   MessageReaction,
@@ -47,7 +51,13 @@ interface MessageRow {
   forwardedFromSenderId: string | null;
   deletedAt: Date | null;
   createdAt: Date;
+  editedAt: Date | null;
 }
+
+/** The core columns of a message row, for every read below. */
+const MESSAGE_COLUMNS = sql.raw(
+  'id, organization_id, conversation_id, sender_id, body, reply_to_message_id, forwarded, forwarded_from_sender_id, deleted_at, created_at, edited_at',
+);
 
 /** `organizationId::userId1::userId2` sorted lexically — the DM de-duplication key. */
 export function directPairKey(userIdA: string, userIdB: string): string {
@@ -155,15 +165,62 @@ async function membersFor(ctx: RequestContext, conversationIds: readonly string[
 
 async function lastMessagesFor(ctx: RequestContext, conversationIds: readonly string[]): Promise<Map<string, MessagePreview>> {
   if (conversationIds.length === 0) return new Map();
-  // DISTINCT ON: the single newest row per conversation, in one query.
-  const rows = await db.query<MessagePreview & { conversationId: string }>(ctx, sql`
-    SELECT DISTINCT ON (conversation_id) conversation_id AS "conversationId",
-           id, sender_id AS "senderId", body, deleted_at AS "deletedAt", created_at AS "createdAt"
-    FROM message
-    WHERE organization_id = ${ctx.organizationId} AND conversation_id = ANY(${[...conversationIds]}::uuid[])
-    ORDER BY conversation_id, created_at DESC, id DESC
+  // DISTINCT ON: the single newest row per conversation, in one query; its
+  // files are counted alongside so a files-only message still has a preview.
+  const rows = await db.query<PreviewRow & { conversationId: string }>(ctx, sql`
+    SELECT last.conversation_id AS "conversationId", last.id, last.sender_id AS "senderId", last.body,
+           last.deleted_at AS "deletedAt", last.created_at AS "createdAt",
+           files.count::int AS "attachmentCount", files.first_kind AS "firstKind", files.first_name AS "firstName"
+      FROM (
+        SELECT DISTINCT ON (conversation_id) conversation_id, id, sender_id, body, deleted_at, created_at
+          FROM message
+         WHERE organization_id = ${ctx.organizationId} AND conversation_id = ANY(${[...conversationIds]}::uuid[])
+         ORDER BY conversation_id, created_at DESC, id DESC
+      ) last
+      LEFT JOIN LATERAL (
+        SELECT count(*) AS count,
+               (array_agg(ma.kind ORDER BY ma.position))[1] AS first_kind,
+               (array_agg(ma.file_name ORDER BY ma.position))[1] AS first_name
+          FROM message_attachment ma
+         WHERE ma.organization_id = ${ctx.organizationId} AND ma.message_id = last.id
+      ) files ON true
   `);
-  return new Map(rows.map((r) => [r.conversationId, r]));
+  return new Map(rows.map((r) => [r.conversationId, toPreview(r)]));
+}
+
+interface PreviewRow {
+  id: string;
+  senderId: string;
+  body: string | null;
+  deletedAt: Date | null;
+  createdAt: Date;
+  attachmentCount: number | null;
+  firstKind: AttachmentKind | null;
+  firstName: string | null;
+}
+
+function toPreview(row: PreviewRow): MessagePreview {
+  const unsent = row.deletedAt !== null;
+  return {
+    id: row.id,
+    senderId: row.senderId,
+    body: row.body,
+    deletedAt: row.deletedAt,
+    createdAt: row.createdAt,
+    attachmentCount: unsent ? 0 : Number(row.attachmentCount ?? 0),
+    firstAttachment: !unsent && row.firstKind && row.firstName ? { kind: row.firstKind, fileName: row.firstName } : null,
+  };
+}
+
+async function pinCountsFor(ctx: RequestContext, conversationIds: readonly string[]): Promise<Map<string, number>> {
+  if (conversationIds.length === 0) return new Map();
+  const rows = await db.query<{ conversationId: string; count: number }>(ctx, sql`
+    SELECT conversation_id AS "conversationId", count(*)::int AS count
+      FROM message_pin
+     WHERE organization_id = ${ctx.organizationId} AND conversation_id = ANY(${[...conversationIds]}::uuid[])
+     GROUP BY conversation_id
+  `);
+  return new Map(rows.map((r) => [r.conversationId, r.count]));
 }
 
 /** Unread = messages after MY read cursor, not sent by me. Zero if I have never opened it. */
@@ -212,6 +269,7 @@ function toConversation(
   members: Map<string, ConversationMember[]>,
   lastMessages: Map<string, MessagePreview>,
   unread: Map<string, number>,
+  pins: Map<string, number>,
 ): Conversation {
   return {
     id: row.id,
@@ -225,6 +283,7 @@ function toConversation(
     members: members.get(row.id) ?? [],
     lastMessage: lastMessages.get(row.id) ?? null,
     unreadCount: unread.get(row.id) ?? 0,
+    pinnedCount: pins.get(row.id) ?? 0,
   };
 }
 
@@ -248,8 +307,13 @@ export async function listConversationsForUser(ctx: RequestContext, kind?: Conve
     ORDER BY "lastActivityAt" DESC
   `);
   const ids = rows.map((r) => r.id);
-  const [members, lastMessages, unread] = await Promise.all([membersFor(ctx, ids), lastMessagesFor(ctx, ids), unreadCountsFor(ctx, ids)]);
-  return rows.map((row) => toConversation(row, members, lastMessages, unread));
+  const [members, lastMessages, unread, pins] = await Promise.all([
+    membersFor(ctx, ids),
+    lastMessagesFor(ctx, ids),
+    unreadCountsFor(ctx, ids),
+    pinCountsFor(ctx, ids),
+  ]);
+  return rows.map((row) => toConversation(row, members, lastMessages, unread, pins));
 }
 
 export async function findConversationById(ctx: RequestContext, id: string): Promise<Conversation | null> {
@@ -258,12 +322,13 @@ export async function findConversationById(ctx: RequestContext, id: string): Pro
     FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${id}
   `);
   if (!row) return null;
-  const [members, lastMessages, unread] = await Promise.all([
+  const [members, lastMessages, unread, pins] = await Promise.all([
     membersFor(ctx, [id]),
     lastMessagesFor(ctx, [id]),
     unreadCountsFor(ctx, [id]),
+    pinCountsFor(ctx, [id]),
   ]);
-  return toConversation(row, members, lastMessages, unread);
+  return toConversation(row, members, lastMessages, unread, pins);
 }
 
 /** Reuses the existing DM if one already exists between these two people (unique index on the pair key). */
@@ -399,14 +464,22 @@ export function decodeMessageCursor(cursor: string): { createdAt: Date; id: stri
   }
 }
 
+/**
+ * Everything a message renders beyond its own row: reactions, mentions,
+ * read receipts, the replied-to preview, files, link previews, its pin and
+ * whether the VIEWER saved it. One query per facet for the whole page.
+ * An unsent message keeps only its tombstone: no files, previews or pin.
+ */
 async function attachDerived(ctx: RequestContext, conversationId: string, rows: MessageRow[]): Promise<Message[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
+  const liveIds = rows.filter((r) => r.deletedAt === null).map((r) => r.id);
 
-  const [reactionRows, mentionRows, membersByConversation, replyRows] = await Promise.all([
+  const [reactionRows, mentionRows, membersByConversation, replyRows, attachments, previews, pinRows, savedRows] = await Promise.all([
     db.query<{ messageId: string } & MessageReaction>(ctx, sql`
       SELECT message_id AS "messageId", user_id AS "userId", emoji FROM message_reaction
       WHERE organization_id = ${ctx.organizationId} AND message_id = ANY(${ids}::uuid[])
+      ORDER BY created_at
     `),
     db.query<{ messageId: string; userId: string; fullName: string }>(ctx, sql`
       SELECT mm.message_id AS "messageId", mm.user_id AS "userId", u.full_name AS "fullName"
@@ -418,14 +491,35 @@ async function attachDerived(ctx: RequestContext, conversationId: string, rows: 
     (async () => {
       const replyIds = [...new Set(rows.map((r) => r.replyToMessageId).filter((id): id is string => id !== null))];
       if (replyIds.length === 0) return new Map<string, MessagePreview>();
-      const previews = await db.query<MessagePreview>(ctx, sql`
-        SELECT id, sender_id AS "senderId", body, deleted_at AS "deletedAt", created_at AS "createdAt"
-        FROM message WHERE organization_id = ${ctx.organizationId} AND id = ANY(${replyIds}::uuid[])
+      const previewRows = await db.query<PreviewRow>(ctx, sql`
+        SELECT m.id, m.sender_id AS "senderId", m.body, m.deleted_at AS "deletedAt", m.created_at AS "createdAt",
+               files.count::int AS "attachmentCount", files.first_kind AS "firstKind", files.first_name AS "firstName"
+          FROM message m
+          LEFT JOIN LATERAL (
+            SELECT count(*) AS count,
+                   (array_agg(ma.kind ORDER BY ma.position))[1] AS first_kind,
+                   (array_agg(ma.file_name ORDER BY ma.position))[1] AS first_name
+              FROM message_attachment ma
+             WHERE ma.organization_id = m.organization_id AND ma.message_id = m.id
+          ) files ON true
+         WHERE m.organization_id = ${ctx.organizationId} AND m.id = ANY(${replyIds}::uuid[])
       `);
-      return new Map(previews.map((p) => [p.id, p]));
+      return new Map(previewRows.map((p) => [p.id, toPreview(p)]));
     })(),
+    attachmentsForMessages(ctx, liveIds),
+    previewsForMessages(ctx, liveIds),
+    db.query<{ messageId: string; pinnedAt: Date; pinnedBy: string }>(ctx, sql`
+      SELECT message_id AS "messageId", pinned_at AS "pinnedAt", pinned_by AS "pinnedBy" FROM message_pin
+      WHERE organization_id = ${ctx.organizationId} AND message_id = ANY(${ids}::uuid[])
+    `),
+    db.query<{ messageId: string }>(ctx, sql`
+      SELECT message_id AS "messageId" FROM message_star
+      WHERE organization_id = ${ctx.organizationId} AND user_id = ${ctx.principal.id} AND message_id = ANY(${ids}::uuid[])
+    `),
   ]);
   const members = membersByConversation.get(conversationId) ?? [];
+  const pins = new Map(pinRows.map((p) => [p.messageId, p]));
+  const saved = new Set(savedRows.map((r) => r.messageId));
 
   const reactionsByMessage = new Map<string, MessageReaction[]>();
   for (const r of reactionRows) {
@@ -441,51 +535,178 @@ async function attachDerived(ctx: RequestContext, conversationId: string, rows: 
     mentionsByMessage.set(m.messageId, list);
   }
 
-  return rows.map((row) => ({
-    id: row.id,
-    organizationId: row.organizationId,
-    conversationId: row.conversationId,
-    senderId: row.senderId,
-    body: row.body,
-    replyToMessageId: row.replyToMessageId,
-    replyPreview: row.replyToMessageId ? (replyRows.get(row.replyToMessageId) ?? null) : null,
-    forwarded: row.forwarded,
-    forwardedFromSenderId: row.forwardedFromSenderId,
-    deletedAt: row.deletedAt,
-    createdAt: row.createdAt,
-    reactions: reactionsByMessage.get(row.id) ?? [],
-    // "Seen by": other members whose read cursor has reached this message.
-    seenBy: members.filter((m) => m.userId !== row.senderId && m.lastReadAt !== null && m.lastReadAt >= row.createdAt).map((m) => m.userId),
-    mentions: mentionsByMessage.get(row.id) ?? [],
-  }));
+  return rows.map((row) => {
+    const pin = pins.get(row.id);
+    return {
+      id: row.id,
+      organizationId: row.organizationId,
+      conversationId: row.conversationId,
+      senderId: row.senderId,
+      body: row.body,
+      replyToMessageId: row.replyToMessageId,
+      replyPreview: row.replyToMessageId ? (replyRows.get(row.replyToMessageId) ?? null) : null,
+      forwarded: row.forwarded,
+      forwardedFromSenderId: row.forwardedFromSenderId,
+      deletedAt: row.deletedAt,
+      createdAt: row.createdAt,
+      editedAt: row.deletedAt ? null : row.editedAt,
+      reactions: reactionsByMessage.get(row.id) ?? [],
+      // "Seen by": other members whose read cursor has reached this message.
+      seenBy: members.filter((m) => m.userId !== row.senderId && m.lastReadAt !== null && m.lastReadAt >= row.createdAt).map((m) => m.userId),
+      mentions: mentionsByMessage.get(row.id) ?? [],
+      attachments: attachments.get(row.id) ?? [],
+      linkPreviews: previews.get(row.id) ?? [],
+      pinnedAt: pin?.pinnedAt ?? null,
+      pinnedBy: pin?.pinnedBy ?? null,
+      saved: saved.has(row.id),
+    };
+  });
 }
 
+/**
+ * A keyset bound at the cursor message's EXACT timestamp. Cursors carry the
+ * time to the millisecond while PostgreSQL stores microseconds, so the
+ * message's own row is the authority when it exists (it always does:
+ * messages are tombstoned, never deleted).
+ */
+function cursorTime(organizationId: string, cursor: { createdAt: Date; id: string }) {
+  return sql`COALESCE((SELECT cm.created_at FROM message cm WHERE cm.organization_id = ${organizationId} AND cm.id = ${cursor.id}::uuid), ${cursor.createdAt}::timestamptz)`;
+}
+
+/** Messages of one conversation, NEWEST first, strictly older than `cursor` (or the newest page). */
 export async function listMessages(
   ctx: RequestContext,
   conversationId: string,
   options: { limit: number; cursor: { createdAt: Date; id: string } | null },
 ): Promise<Message[]> {
-  const cursorAt = options.cursor?.createdAt ?? null;
-  const cursorId = options.cursor?.id ?? null;
+  const bound = options.cursor
+    ? sql`AND (created_at, id) < (${cursorTime(ctx.organizationId, options.cursor)}, ${options.cursor.id}::uuid)`
+    : sql``;
   const rows = await db.query<MessageRow>(ctx, sql`
-    SELECT id, organization_id, conversation_id, sender_id, body, reply_to_message_id, forwarded, forwarded_from_sender_id, deleted_at, created_at
+    SELECT ${MESSAGE_COLUMNS}
     FROM message
     WHERE organization_id = ${ctx.organizationId} AND conversation_id = ${conversationId}
-      AND (${cursorAt}::timestamptz IS NULL OR (created_at, id) < (${cursorAt}::timestamptz, ${cursorId}::uuid))
+      ${bound}
     ORDER BY created_at DESC, id DESC
     LIMIT ${options.limit}
   `);
   return attachDerived(ctx, conversationId, rows);
 }
 
-export async function findMessageById(ctx: RequestContext, id: string): Promise<Message | null> {
-  const row = await db.maybeOne<MessageRow>(ctx, sql`
-    SELECT id, organization_id, conversation_id, sender_id, body, reply_to_message_id, forwarded, forwarded_from_sender_id, deleted_at, created_at
-    FROM message WHERE organization_id = ${ctx.organizationId} AND id = ${id}
+/** Messages strictly NEWER than `after`, the `limit` closest to it, returned newest first like every page. */
+export async function listMessagesAfter(
+  ctx: RequestContext,
+  conversationId: string,
+  options: { limit: number; after: { createdAt: Date; id: string } },
+): Promise<Message[]> {
+  const rows = await db.query<MessageRow>(ctx, sql`
+    SELECT ${MESSAGE_COLUMNS}
+    FROM message
+    WHERE organization_id = ${ctx.organizationId} AND conversation_id = ${conversationId}
+      AND (created_at, id) > (${cursorTime(ctx.organizationId, options.after)}, ${options.after.id}::uuid)
+    ORDER BY created_at ASC, id ASC
+    LIMIT ${options.limit}
   `);
+  return attachDerived(ctx, conversationId, rows.reverse());
+}
+
+/**
+ * A window centred on one message: up to `before` messages at-or-before it
+ * (the target included) and up to `after` after it, each newest first.
+ */
+export async function listMessagesAround(
+  ctx: RequestContext,
+  conversationId: string,
+  targetId: string,
+  options: { before: number; after: number },
+): Promise<{ atOrBefore: Message[]; after: Message[] }> {
+  const target = sql`(SELECT t.created_at, t.id FROM message t WHERE t.organization_id = ${ctx.organizationId} AND t.id = ${targetId}::uuid)`;
+  const [older, newer] = await Promise.all([
+    db.query<MessageRow>(ctx, sql`
+      SELECT ${MESSAGE_COLUMNS} FROM message
+      WHERE organization_id = ${ctx.organizationId} AND conversation_id = ${conversationId}
+        AND (created_at, id) <= ${target}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ${options.before}
+    `),
+    db.query<MessageRow>(ctx, sql`
+      SELECT ${MESSAGE_COLUMNS} FROM message
+      WHERE organization_id = ${ctx.organizationId} AND conversation_id = ${conversationId}
+        AND (created_at, id) > ${target}
+      ORDER BY created_at ASC, id ASC
+      LIMIT ${options.after}
+    `),
+  ]);
+  const [atOrBefore, after] = await Promise.all([
+    attachDerived(ctx, conversationId, older),
+    attachDerived(ctx, conversationId, newer.reverse()),
+  ]);
+  return { atOrBefore, after };
+}
+
+/** The core row only — for authorization loaders and checks that need no rendering. */
+export async function findMessageRow(ctx: RequestContext, id: string): Promise<MessageRow | null> {
+  return db.maybeOne<MessageRow>(ctx, sql`
+    SELECT ${MESSAGE_COLUMNS} FROM message WHERE organization_id = ${ctx.organizationId} AND id = ${id}
+  `);
+}
+
+export async function findMessageRowTx(tx: Tx, organizationId: string, id: string, forUpdate = false): Promise<MessageRow | null> {
+  return tx.maybeOne<MessageRow>(sql`
+    SELECT ${MESSAGE_COLUMNS} FROM message WHERE organization_id = ${organizationId} AND id = ${id}
+    ${forUpdate ? sql.raw('FOR UPDATE') : sql.raw('')}
+  `);
+}
+
+export type { MessageRow };
+
+export async function findMessageById(ctx: RequestContext, id: string): Promise<Message | null> {
+  const row = await findMessageRow(ctx, id);
   if (!row) return null;
   const [message] = await attachDerived(ctx, row.conversationId, [row]);
   return message ?? null;
+}
+
+/** Full DTOs for messages that may span conversations (saved tray, pins, search jump). */
+export async function findMessagesByIds(ctx: RequestContext, ids: readonly string[]): Promise<Map<string, Message>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db.query<MessageRow>(ctx, sql`
+    SELECT ${MESSAGE_COLUMNS} FROM message WHERE organization_id = ${ctx.organizationId} AND id = ANY(${[...ids]}::uuid[])
+  `);
+  const byConversation = new Map<string, MessageRow[]>();
+  for (const row of rows) byConversation.set(row.conversationId, [...(byConversation.get(row.conversationId) ?? []), row]);
+  const result = new Map<string, Message>();
+  for (const [conversationId, group] of byConversation) {
+    for (const message of await attachDerived(ctx, conversationId, group)) result.set(message.id, message);
+  }
+  return result;
+}
+
+/** Only actual, current members of this conversation can be @mentioned — a stale id is silently dropped, never a 500. */
+async function insertMentions(tx: Tx, organizationId: string, conversationId: string, messageId: string, mentionIds: readonly string[]): Promise<string[]> {
+  if (mentionIds.length === 0) return [];
+  const inserted = await tx.query<{ userId: string }>(sql`
+    INSERT INTO message_mention (message_id, organization_id, user_id)
+    SELECT ${messageId}, ${organizationId}, cm.user_id
+    FROM conversation_member cm
+    WHERE cm.organization_id = ${organizationId} AND cm.conversation_id = ${conversationId}
+      AND cm.left_at IS NULL AND cm.user_id = ANY(${[...new Set(mentionIds)]}::uuid[])
+    ON CONFLICT DO NOTHING
+    RETURNING user_id
+  `);
+  return inserted.map((row) => row.userId);
+}
+
+/** The links a message contains, in order — written with the message so search sees them at once. */
+export async function replaceMessageLinks(tx: Tx, organizationId: string, messageId: string, urls: readonly string[]): Promise<void> {
+  await tx.query(sql`DELETE FROM message_link WHERE organization_id = ${organizationId} AND message_id = ${messageId}`);
+  if (urls.length === 0) return;
+  await tx.query(sql`
+    INSERT INTO message_link (message_id, organization_id, url, position)
+    SELECT ${messageId}, ${organizationId}, u.url, (u.ord - 1)::smallint
+    FROM unnest(${[...urls]}::text[]) WITH ORDINALITY AS u(url, ord)
+    ON CONFLICT DO NOTHING
+  `);
 }
 
 export async function insertMessage(
@@ -501,35 +722,67 @@ export async function insertMessage(
             ${input.forwarded ?? false}, ${input.forwardedFromSenderId ?? null})
     RETURNING id, created_at AS "createdAt"
   `);
-  const mentionIds = input.mentionedUserIds ?? [];
-  if (mentionIds.length > 0) {
-    // Only actual, current members of this conversation can be @mentioned — a
-    // stale draft naming someone who already left is silently dropped, never 500s.
-    await tx.query(sql`
-      INSERT INTO message_mention (message_id, organization_id, user_id)
-      SELECT ${created.id}, ${organizationId}, cm.user_id
-      FROM conversation_member cm
-      WHERE cm.organization_id = ${organizationId} AND cm.conversation_id = ${conversationId}
-        AND cm.left_at IS NULL AND cm.user_id = ANY(${[...new Set(mentionIds)]}::uuid[])
-      ON CONFLICT DO NOTHING
-    `);
-  }
+  await insertMentions(tx, organizationId, conversationId, created.id, input.mentionedUserIds ?? []);
   return created;
 }
 
+/**
+ * Unsend: a tombstone (product decision) — the row and its timestamp remain,
+ * but the content does not: body, edit history, pin and link rows go, and
+ * its files stop being served (the file route checks `deleted_at`).
+ */
 export async function unsendMessage(tx: Tx, organizationId: string, id: string, deletedBy: string): Promise<void> {
   await tx.query(sql`
     UPDATE message SET body = NULL, deleted_at = now(), deleted_by = ${deletedBy}
     WHERE organization_id = ${organizationId} AND id = ${id}
   `);
+  await tx.query(sql`DELETE FROM message_edit WHERE organization_id = ${organizationId} AND message_id = ${id}`);
+  await tx.query(sql`DELETE FROM message_pin WHERE organization_id = ${organizationId} AND message_id = ${id}`);
+  await tx.query(sql`DELETE FROM message_link WHERE organization_id = ${organizationId} AND message_id = ${id}`);
 }
 
-export async function addReaction(tx: Tx, organizationId: string, messageId: string, userId: string, emoji: string): Promise<void> {
+/**
+ * Edit: the previous text goes to `message_edit`, the mentions are replaced
+ * by the new set. Returns who is NEWLY mentioned (to notify them).
+ */
+export async function editMessageBody(
+  tx: Tx,
+  input: { organizationId: string; conversationId: string; messageId: string; editorId: string; previousBody: string; body: string; mentionedUserIds: readonly string[] },
+): Promise<{ newlyMentioned: string[] }> {
   await tx.query(sql`
+    INSERT INTO message_edit (organization_id, message_id, previous_body, edited_by)
+    VALUES (${input.organizationId}, ${input.messageId}, ${input.previousBody}, ${input.editorId})
+  `);
+  await tx.query(sql`
+    UPDATE message SET body = ${input.body}, edited_at = now()
+    WHERE organization_id = ${input.organizationId} AND id = ${input.messageId}
+  `);
+  const before = await tx.query<{ userId: string }>(sql`
+    DELETE FROM message_mention WHERE organization_id = ${input.organizationId} AND message_id = ${input.messageId}
+    RETURNING user_id
+  `);
+  const after = await insertMentions(tx, input.organizationId, input.conversationId, input.messageId, input.mentionedUserIds);
+  const previously = new Set(before.map((row) => row.userId));
+  return { newlyMentioned: after.filter((userId) => !previously.has(userId)) };
+}
+
+export async function listMessageEdits(ctx: RequestContext, messageId: string): Promise<MessageEdit[]> {
+  return db.query<MessageEdit>(ctx, sql`
+    SELECT id, previous_body AS "previousBody", edited_by AS "editedBy", edited_at AS "editedAt"
+    FROM message_edit
+    WHERE organization_id = ${ctx.organizationId} AND message_id = ${messageId}
+    ORDER BY edited_at DESC, id DESC
+  `);
+}
+
+export async function addReaction(tx: Tx, organizationId: string, messageId: string, userId: string, emoji: string): Promise<boolean> {
+  const inserted = await tx.query<{ messageId: string }>(sql`
     INSERT INTO message_reaction (message_id, organization_id, user_id, emoji)
     VALUES (${messageId}, ${organizationId}, ${userId}, ${emoji})
     ON CONFLICT (message_id, user_id, emoji) DO NOTHING
+    RETURNING message_id
   `);
+  return inserted.length > 0;
 }
 
 export async function removeReaction(tx: Tx, organizationId: string, messageId: string, userId: string, emoji: string): Promise<void> {
@@ -543,5 +796,96 @@ export async function markConversationRead(tx: Tx, organizationId: string, conve
   await tx.query(sql`
     UPDATE conversation_member SET last_read_at = now()
     WHERE organization_id = ${organizationId} AND conversation_id = ${conversationId} AND user_id = ${userId}
+  `);
+}
+
+/* ---------------------------------- pins ---------------------------------- */
+
+export const MAX_PINS_PER_CONVERSATION = 50;
+
+/** 'pinned' (new pin), 'already' (no change) or 'full' (the conversation is at its pin limit). */
+export async function pinMessage(
+  tx: Tx,
+  input: { organizationId: string; conversationId: string; messageId: string; userId: string },
+): Promise<'pinned' | 'already' | 'full'> {
+  const already = await tx.maybeOne<{ messageId: string }>(sql`
+    SELECT message_id AS "messageId" FROM message_pin WHERE organization_id = ${input.organizationId} AND message_id = ${input.messageId}
+  `);
+  if (already) return 'already';
+  if ((await countPins(tx, input.organizationId, input.conversationId)) >= MAX_PINS_PER_CONVERSATION) return 'full';
+  await tx.query(sql`
+    INSERT INTO message_pin (conversation_id, message_id, organization_id, pinned_by)
+    VALUES (${input.conversationId}, ${input.messageId}, ${input.organizationId}, ${input.userId})
+    ON CONFLICT DO NOTHING
+  `);
+  return 'pinned';
+}
+
+export async function countPins(tx: Tx, organizationId: string, conversationId: string): Promise<number> {
+  const row = await tx.one<{ count: number }>(sql`
+    SELECT count(*)::int AS count FROM message_pin WHERE organization_id = ${organizationId} AND conversation_id = ${conversationId}
+  `);
+  return row.count;
+}
+
+export async function unpinMessage(tx: Tx, organizationId: string, messageId: string): Promise<boolean> {
+  const removed = await tx.query<{ messageId: string }>(sql`
+    DELETE FROM message_pin WHERE organization_id = ${organizationId} AND message_id = ${messageId} RETURNING message_id
+  `);
+  return removed.length > 0;
+}
+
+export async function listPinRows(ctx: RequestContext, conversationId: string): Promise<{ messageId: string; pinnedAt: Date; pinnedBy: string; pinnedByName: string }[]> {
+  return db.query(ctx, sql`
+    SELECT p.message_id AS "messageId", p.pinned_at AS "pinnedAt", p.pinned_by AS "pinnedBy", u.full_name AS "pinnedByName"
+    FROM message_pin p
+    JOIN app_user u ON u.organization_id = p.organization_id AND u.id = p.pinned_by
+    WHERE p.organization_id = ${ctx.organizationId} AND p.conversation_id = ${conversationId}
+    ORDER BY p.pinned_at DESC, p.message_id DESC
+  `);
+}
+
+/* --------------------------------- saved ---------------------------------- */
+
+export async function saveMessage(tx: Tx, input: { organizationId: string; conversationId: string; messageId: string; userId: string }): Promise<void> {
+  await tx.query(sql`
+    INSERT INTO message_star (user_id, message_id, organization_id, conversation_id)
+    VALUES (${input.userId}, ${input.messageId}, ${input.organizationId}, ${input.conversationId})
+    ON CONFLICT (user_id, message_id) DO NOTHING
+  `);
+}
+
+export async function unsaveMessage(tx: Tx, organizationId: string, messageId: string, userId: string): Promise<void> {
+  await tx.query(sql`
+    DELETE FROM message_star WHERE organization_id = ${organizationId} AND message_id = ${messageId} AND user_id = ${userId}
+  `);
+}
+
+/** My saved messages, newest saved first, only from conversations I still belong to. */
+export async function listSavedRows(
+  ctx: RequestContext,
+  options: { limit: number; cursor: { createdAt: Date; id: string } | null },
+): Promise<{ messageId: string; savedAt: Date; conversationId: string; kind: ConversationKind; name: string | null; projectId: string | null; senderName: string; otherMemberName: string | null }[]> {
+  const cursorAt = options.cursor?.createdAt ?? null;
+  const cursorId = options.cursor?.id ?? null;
+  return db.query(ctx, sql`
+    SELECT s.message_id AS "messageId", s.created_at AS "savedAt", c.id AS "conversationId", c.kind, c.name,
+           c.project_id AS "projectId", u.full_name AS "senderName",
+           CASE WHEN c.kind = 'direct' THEN (
+             SELECT ou.full_name FROM conversation_member ocm
+             JOIN app_user ou ON ou.organization_id = ocm.organization_id AND ou.id = ocm.user_id
+             WHERE ocm.organization_id = c.organization_id AND ocm.conversation_id = c.id AND ocm.user_id <> ${ctx.principal.id}
+             LIMIT 1
+           ) END AS "otherMemberName"
+    FROM message_star s
+    JOIN conversation c ON c.organization_id = s.organization_id AND c.id = s.conversation_id AND c.archived_at IS NULL
+    JOIN conversation_member cm ON cm.organization_id = c.organization_id AND cm.conversation_id = c.id
+     AND cm.user_id = ${ctx.principal.id} AND cm.left_at IS NULL
+    JOIN message m ON m.organization_id = s.organization_id AND m.id = s.message_id
+    JOIN app_user u ON u.organization_id = m.organization_id AND u.id = m.sender_id
+    WHERE s.organization_id = ${ctx.organizationId} AND s.user_id = ${ctx.principal.id}
+      AND (${cursorAt}::timestamptz IS NULL OR (s.created_at, s.message_id) < (${cursorAt}::timestamptz, ${cursorId}::uuid))
+    ORDER BY s.created_at DESC, s.message_id DESC
+    LIMIT ${options.limit}
   `);
 }

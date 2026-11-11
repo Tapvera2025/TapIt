@@ -1,5 +1,56 @@
 import { useId, type CSSProperties } from 'react';
 
+/** Reusable elapsed-time ring. Keep the formatted time visible to screen readers. */
+export function TimerRing({
+  value,
+  max,
+  label,
+  valueLabel,
+  caption,
+  className = '',
+}: {
+  value: number;
+  max: number;
+  label: string;
+  valueLabel: string;
+  caption?: string;
+  className?: string;
+}): React.JSX.Element {
+  const safeMax = Number.isFinite(max) ? Math.max(0, max) : 0;
+  const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+  const progress = safeMax > 0 ? Math.max(0, Math.min(safeValue / safeMax, 1)) : 0;
+  const radius = 47;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <div
+      className={`ui-progress-ring relative grid place-items-center rounded-full ${className}`}
+      role="img"
+      aria-label={`${label}: ${valueLabel}${caption ? `, ${caption}` : ''}`}
+    >
+      <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
+        <circle cx="56" cy="56" r={radius} fill="none" stroke="currentColor" strokeWidth="7" className="text-app-accent/15" />
+        <circle
+          cx="56"
+          cy="56"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="7"
+          strokeLinecap="round"
+          className="text-app-accent transition-[stroke-dashoffset] duration-500"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - progress)}
+        />
+      </svg>
+      <div className="relative z-[1] text-center">
+        <p className="text-2xl font-bold tabular-nums tracking-tight text-app-foreground">{valueLabel}</p>
+        {caption && <p className="mt-0.5 text-[11px] font-medium text-app-muted">{caption}</p>}
+      </div>
+    </div>
+  );
+}
+
 /** Accessible, dependency-free charts. Values are always shown as text. */
 export function RingChart({
   value,

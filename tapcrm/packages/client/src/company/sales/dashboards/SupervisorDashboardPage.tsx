@@ -1,4 +1,4 @@
-import { Page } from '../../../ui/components.js';
+import { Page } from '../../../ui/index.js';
 import { ClaimsDistribution } from './ClaimsDistribution.js';
 import { PoolHealth } from './PoolHealth.js';
 

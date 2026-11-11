@@ -30,6 +30,8 @@ export interface LiveRow {
   lastScanAt: string | null;
   likelyFinishedAt: string | null;
   isWfh: boolean;
+  /** Punched in from the web or the app without approved WFH. */
+  isRemote?: boolean;
   dayGroup: 'leave' | 'holiday' | null;
   shiftStartAt: string | null;
   shiftEndAt: string | null;
@@ -46,9 +48,12 @@ export interface LiveBoard {
   asOf?: string;
 }
 
+export type PunchDisabledReason = 'no-shift-today' | 'already-finished' | 'on-approved-leave';
+
 export interface TodayStatus {
   row: LiveRow | null;
   allowedMoves: readonly string[];
+  disabledReason?: PunchDisabledReason | null;
 }
 
 export function loadLiveBoard(signal?: AbortSignal): Promise<LiveBoard> {
@@ -57,6 +62,13 @@ export function loadLiveBoard(signal?: AbortSignal): Promise<LiveBoard> {
 
 export function loadTodayStatus(signal?: AbortSignal): Promise<TodayStatus> {
   return identityRequest<TodayStatus>('/api/attendance/live?self=true', { signal: signal ?? null });
+}
+
+export const ATTENDANCE_UPDATED_EVENT = 'tapcrm:attendance-updated';
+
+/** Notify mounted attendance surfaces after a punch changes the live state. */
+export function notifyAttendanceUpdated(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ATTENDANCE_UPDATED_EVENT));
 }
 
 export type PunchKind = 'in' | 'out' | 'break-start' | 'break-end';

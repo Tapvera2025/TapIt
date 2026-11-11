@@ -1,4 +1,4 @@
-import type { EventKind } from '@tapcrm/contracts';
+import type { DateOnly, EventKind } from '@tapcrm/contracts';
 import { allowedMoves as allowedFromState } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import * as AttendanceFacade from '../attendance/facade.js';
@@ -18,11 +18,25 @@ import * as repo from './repository.js';
  * user-error waiting to happen. §9.2's "Punch out" example is exactly
  * this: give two clear buttons, not four confusing ones.
  */
+/**
+ * Explains why the UI should not offer a Punch In button. `null` means
+ * either `in` is allowed, or the UI already shows an active session and
+ * the absence of `in` from `allowedMoves` is self-explanatory.
+ */
+export type PunchDisabledReason =
+  | 'no-shift-today'
+  | 'already-finished'
+  | 'on-approved-leave';
+
 export async function loadToday(
   tx: Tx,
   userId: string,
   now: Date,
-): Promise<{ row: repo.Row | null; allowedMoves: readonly EventKind[] }> {
+): Promise<{
+  row: repo.Row | null;
+  allowedMoves: readonly EventKind[];
+  disabledReason: PunchDisabledReason | null;
+}> {
   // A live read is also a safe recovery point for a delayed auto-close job.
   // Reuse attendance's idempotent closure decision, then refresh the live
   // projection only when the row is overdue or its next rollover is due.
@@ -35,11 +49,26 @@ export async function loadToday(
   }
   const currentDay = await AttendanceFacade.currentDayFor(tx, userId, now);
 
+  async function reasonForNoIn(workDate: DateOnly): Promise<PunchDisabledReason | null> {
+    const shift = await ShiftsFacade.resolve(tx, userId, workDate);
+    if (shift.kind === 'none') return 'no-shift-today';
+    const overlays = await AttendanceFacade.overlaysForDay(tx, userId, workDate);
+    if (overlays.some((overlay) => overlay.sourceKind === 'leave')) return 'on-approved-leave';
+    return null;
+  }
+
   // No row yet → only allow punch in if the employee has a shift today.
   if (row === null) {
     const todayWindow = await ShiftsFacade.dayWindowContaining(tx, userId, now);
     const shift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
-    return { row: null, allowedMoves: shift.kind !== 'none' ? ['in'] : [] };
+    if (shift.kind !== 'none') {
+      const overlays = await AttendanceFacade.overlaysForDay(tx, userId, todayWindow.date);
+      if (overlays.some((o) => o.sourceKind === 'leave')) {
+        return { row: null, allowedMoves: [], disabledReason: 'on-approved-leave' };
+      }
+      return { row: null, allowedMoves: ['in'], disabledReason: null };
+    }
+    return { row: null, allowedMoves: [], disabledReason: 'no-shift-today' };
   }
 
   // Once a previous day has been auto-closed, the attendance ledger is
@@ -50,7 +79,14 @@ export async function loadToday(
     const todayWindow = await ShiftsFacade.dayWindowContaining(tx, userId, now);
     if (row.workDate < todayWindow.date) {
       const todayShift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
-      return { row, allowedMoves: todayShift.kind !== 'none' ? ['in'] : [] };
+      if (todayShift.kind !== 'none') {
+        const overlays = await AttendanceFacade.overlaysForDay(tx, userId, todayWindow.date);
+        if (overlays.some((o) => o.sourceKind === 'leave')) {
+          return { row, allowedMoves: [], disabledReason: 'on-approved-leave' };
+        }
+        return { row, allowedMoves: ['in'], disabledReason: null };
+      }
+      return { row, allowedMoves: [], disabledReason: 'no-shift-today' };
     }
   }
 
@@ -60,7 +96,11 @@ export async function loadToday(
     const nextWindow = await ShiftsFacade.dayWindow(tx, userId, currentDay);
     if (nextWindow.start <= now) {
       const nextShift = await ShiftsFacade.resolve(tx, userId, currentDay);
-      return { row, allowedMoves: nextShift.kind !== 'none' ? ['scan', 'out', 'in'] : ['scan', 'out'] };
+      return {
+        row,
+        allowedMoves: nextShift.kind !== 'none' ? ['scan', 'out', 'in'] : ['scan', 'out'],
+        disabledReason: nextShift.kind === 'none' ? 'no-shift-today' : null,
+      };
     }
   }
 
@@ -68,10 +108,14 @@ export async function loadToday(
   // Post-rollover NOT_IN state: block punch-in if no shift is assigned today.
   if (moves.includes('in')) {
     const todayWindow = await ShiftsFacade.dayWindowContaining(tx, userId, now);
-    const shift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
-    if (shift.kind === 'none') {
-      return { row, allowedMoves: moves.filter((m) => m !== 'in' && m !== 'scan') };
+    const reason = await reasonForNoIn(todayWindow.date);
+    if (reason !== null) {
+      return { row, allowedMoves: moves.filter((m) => m !== 'in' && m !== 'scan'), disabledReason: reason };
     }
   }
-  return { row, allowedMoves: moves };
+  // Finished today's shift and the day hasn't rolled over yet.
+  if (row.state === 'FINISHED' && !moves.includes('in')) {
+    return { row, allowedMoves: moves, disabledReason: 'already-finished' };
+  }
+  return { row, allowedMoves: moves, disabledReason: null };
 }

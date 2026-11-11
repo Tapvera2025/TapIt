@@ -14,7 +14,7 @@ COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
 RUN npm ci --include=optional \
   && OXIDE_CPU="$(case "${TARGETARCH}" in amd64) printf '%s' 'x64' ;; arm64) printf '%s' 'arm64' ;; *) printf '%s' "${TARGETARCH}" ;; esac)" \
-  && npm install --no-save --package-lock=false --include=optional --os=linux --cpu="${OXIDE_CPU}" --libc=glibc @tailwindcss/oxide \
+  && npm install --no-save --package-lock=false --include=optional --os=linux --cpu="${OXIDE_CPU}" --libc=glibc @tailwindcss/oxide lightningcss rollup \
   && npm cache clean --force \
   && rm -rf /root/.cache/node-gyp
 

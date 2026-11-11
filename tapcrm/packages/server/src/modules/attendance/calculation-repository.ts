@@ -205,9 +205,9 @@ export async function staleRecords(
   changedBefore: Date,
   after: string | null,
   limit: number,
-): Promise<{ id: string; inputVersion: number }[]> {
-  return tx.query<{ id: string; inputVersion: number }>(sql`
-    SELECT id, input_version FROM attendance_record
+): Promise<{ id: string; inputVersion: number; rulesVersion: string | null }[]> {
+  return tx.query<{ id: string; inputVersion: number; rulesVersion: string | null }>(sql`
+    SELECT id, input_version, rules_version FROM attendance_record
     WHERE (calculated_input_version < input_version
            OR rules_version IS DISTINCT FROM ${RULES_VERSION})
       AND input_changed_at < ${changedBefore}

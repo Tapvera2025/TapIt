@@ -1,5 +1,5 @@
-import { Button } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Button } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 
 export interface TodoHeaderProps {
   readonly onAddTodo: () => void;

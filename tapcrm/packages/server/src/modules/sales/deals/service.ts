@@ -13,6 +13,9 @@ import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { PlatformForbiddenError, PlatformNotFoundError } from '../../../platform/errors.js';
 import { sql } from '../../../platform/dal/sql.js';
+import { findOrInsertCompanyByName } from '../intake/repository.js';
+import { cancelOpenCallbacksInTransaction } from '../leads/lifecycle.js';
+import { insertActivity, insertAudit } from '../leads/repository.js';
 import {
   DEAL_ERROR_CODES,
   DealStateError,
@@ -124,11 +127,49 @@ export async function createDeal(ctx: RequestContext, input: CreateDealInput): P
   }
 
   const dealId = await db.transaction(ctx, async (tx) => {
+    // Prevent a second deal from the same lead and transition the lead
+    // atomically with the deal insert so the two cannot diverge.
+    let lead: { status: string; companyId: string | null } | null = null;
+    if (input.originatingLeadId) {
+      const existing = await tx.maybeOne<{
+        id: string;
+        outcome: string;
+        status: string;
+        companyId: string | null;
+        companyName: string | null;
+      }>(sql`
+        SELECT id, lead_outcome AS outcome, status::text AS status,
+               company_id AS "companyId", company_name AS "companyName"
+          FROM lead
+         WHERE organization_id = ${ctx.organizationId}
+           AND id              = ${input.originatingLeadId}
+         FOR UPDATE
+      `);
+      if (existing && existing.outcome === 'converted') {
+        throw new ApplicationError(
+          'This lead has already been converted to a deal.',
+          409,
+          'DEAL_LEAD_ALREADY_CONVERTED',
+        );
+      }
+      if (existing) {
+        // A lead added by hand may hold its company only as a name.
+        const leadCompanyId =
+          existing.companyId ??
+          (await findOrInsertCompanyByName(
+            tx,
+            ctx.organizationId,
+            existing.companyName,
+            ctx.principal.id,
+          ));
+        lead = { status: existing.status, companyId: leadCompanyId };
+      }
+    }
     const id = await insertDeal(tx, ctx.organizationId, {
       originatingLeadId: input.originatingLeadId ?? null,
       directEntryReason: input.directEntryReason ?? null,
       contactId,
-      companyId,
+      companyId: companyId ?? lead?.companyId ?? null,
       serviceRequested: input.serviceRequested ?? null,
       title: input.title,
       scopeSummary: input.scopeSummary ?? null,
@@ -144,6 +185,52 @@ export async function createDeal(ctx: RequestContext, input: CreateDealInput): P
       originatingLeadId: input.originatingLeadId ?? null,
       directEntryReason: input.directEntryReason ?? null,
     });
+    if (input.originatingLeadId) {
+      // Flip the source lead to converted so operational counts and
+      // outbound queues stop treating it as still-in-flight.
+      await tx.query(sql`
+        UPDATE lead
+           SET status        = 'converted',
+               lead_outcome  = 'converted',
+               converted_at  = COALESCE(converted_at, now()),
+               company_id    = COALESCE(company_id, ${lead?.companyId ?? null}::uuid),
+               updated_at    = now()
+         WHERE organization_id = ${ctx.organizationId}
+           AND id              = ${input.originatingLeadId}
+      `);
+      await cancelOpenCallbacksInTransaction(
+        tx,
+        ctx,
+        input.originatingLeadId,
+        'lead_converted',
+      );
+      const { dealNumber } = await tx.one<{ dealNumber: string }>(sql`
+        SELECT deal_number::text AS "dealNumber"
+          FROM deal
+         WHERE organization_id = ${ctx.organizationId} AND id = ${id}
+      `);
+      await insertActivity(
+        tx,
+        ctx.organizationId,
+        input.originatingLeadId,
+        'lead.converted',
+        ctx.principal.id,
+        {
+          from: lead?.status ?? null,
+          dealId: id,
+          dealNumber,
+          title: input.title,
+        },
+      );
+      await insertAudit(
+        tx,
+        ctx,
+        'lead.converted',
+        input.originatingLeadId,
+        { status: lead?.status ?? null },
+        { status: 'converted', dealId: id },
+      );
+    }
     return id;
   });
 
@@ -246,6 +333,26 @@ export async function markLost(ctx: RequestContext, id: string, input: MarkLostI
       { lifecycleStatus: locked.lifecycleStatus },
       { lifecycleStatus: 'lost', lossReason: input.reason, note: input.note ?? null, at: now.toISOString() },
     );
+    // R2-04: pending approval requests on a lost deal's commercials would
+    // otherwise linger in the Approvals queue with no eligible approver.
+    // Invalidate them atomically with the loss transition so the queue
+    // reflects actionable work only. `approval_request` records the reason
+    // in `blocked_reason`; `decided_by` must accompany `decided_at`.
+    const cancelled = await tx.query<{ id: string }>(sql`
+      UPDATE approval_request
+         SET state          = 'invalidated',
+             decided_at     = ${now},
+             decided_by     = ${ctx.principal.id},
+             blocked_reason = COALESCE(blocked_reason, 'Deal was marked lost; approval no longer required.'),
+             updated_at     = ${now}
+       WHERE organization_id = ${ctx.organizationId}
+         AND deal_id         = ${id}
+         AND state IN ('pending', 'escalated', 'returned')
+       RETURNING id
+    `);
+    for (const row of cancelled) {
+      await insertDealAudit(tx, ctx, 'approval.invalidated_on_deal_lost', row.id, { state: 'pending' }, { state: 'invalidated', dealId: id });
+    }
   });
   const updated = await findDeal(ctx, id);
   if (!updated) throw new DealNotFoundError();
@@ -370,7 +477,7 @@ async function doConfirmPayment(
       }
     }
 
-    await updatePaymentStatusRow(tx, ctx.organizationId, id, 'advance_confirmed', now);
+    await updatePaymentStatusRow(tx, ctx.organizationId, id, 'advance_confirmed', now, ctx.principal.id);
     await insertDealAudit(tx, ctx, 'deal.payment_confirmed', id,
       { paymentStatus: before.paymentStatus },
       {
@@ -423,7 +530,10 @@ async function revertPaymentConfirmation(
       );
     }
 
-    await updatePaymentStatusRow(tx, ctx.organizationId, id, 'unpaid', now);
+    // Revert clears the initiator so the next confirmation can be done by
+    // anyone, including the original confirmer. The audit trail still names
+    // both the original confirmer and the reverter.
+    await updatePaymentStatusRow(tx, ctx.organizationId, id, 'unpaid', now, null);
     await insertDealAudit(tx, ctx, 'deal.payment_reverted', id,
       { paymentStatus: 'advance_confirmed' },
       { paymentStatus: 'unpaid', reason, at: now.toISOString() },

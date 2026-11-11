@@ -1,4 +1,4 @@
-import { Button, Modal, Notice } from '../../../ui/components.js';
+import { Button, Modal, Notice } from '../../../ui/index.js';
 import type { MyNotepadHistoryItem } from '../types/index.js';
 
 export interface NoteHistoryModalProps {
