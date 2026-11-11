@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 const reason = z.string().trim().min(3).max(1000);
 const uuid = z.string().uuid();
+const positiveMoney = z
+  .string()
+  .regex(/^\d+(\.\d{1,2})?$/)
+  .refine((value) => {
+    const [whole = '0', fraction = ''] = value.split('.');
+    return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0')) > 0n;
+  }, 'Amount must be greater than zero.');
 
 export const dunningSchema = z.object({ reason });
 export const dunningScheduleSchema = z.object({
@@ -12,7 +19,7 @@ export const dunningScheduleSchema = z.object({
   reason,
 });
 export const writeOffSchema = z.object({
-  amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  amount: positiveMoney,
   reason,
 });
 export const disputeSchema = z.object({
@@ -24,7 +31,7 @@ export const disputeResolutionSchema = z.object({
   resolution: reason,
 });
 export const promiseSchema = z.object({
-  promisedAmount: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  promisedAmount: positiveMoney,
   promisedFor: z.string().datetime(),
   reason,
 });

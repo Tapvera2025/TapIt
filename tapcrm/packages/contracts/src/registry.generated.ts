@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 198   Bindings: 718
+ * Actions: 198   Bindings: 728
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -3834,6 +3834,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/payables/vendor-bank-changes/:id/approve', action: 'payables:approve-bill', resourceParam: 'id' },
   { method: 'POST', path: '/api/payables/bills/from-expense', action: 'payables:create-bill', resourceParam: null },
   { method: 'GET', path: '/api/payables/bills/:id/artifact', action: 'payables:view', resourceParam: 'id' },
+  { method: 'GET', path: '/api/payables/reimbursement-claims', action: 'payables:create-bill', resourceParam: null },
   { method: 'GET', path: '/api/payables/subscriptions', action: 'payables:view', resourceParam: null },
   { method: 'POST', path: '/api/payables/subscriptions', action: 'payables:create-bill', resourceParam: null },
   { method: 'GET', path: '/api/payables/purchase-requests', action: 'payables:view', resourceParam: null },
@@ -3850,6 +3851,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/payables/claims/:id', action: 'payables:claim', resourceParam: 'id' },
   { method: 'GET', path: '/api/payables/claims/:claimId/attachments/:attachmentId', action: 'payables:claim', resourceParam: 'claimId' },
   { method: 'GET', path: '/api/payables/runs', action: 'payables:view', resourceParam: null },
+  { method: 'GET', path: '/api/payables/runs/candidates', action: 'payables:view', resourceParam: null },
   { method: 'POST', path: '/api/payables/runs', action: 'payables:create-bill', resourceParam: null },
   { method: 'POST', path: '/api/payables/runs/:id/approve', action: 'payables:execute-run', resourceParam: 'id' },
   { method: 'POST', path: '/api/payables/runs/:id/execute', action: 'payables:execute-run', resourceParam: 'id' },
@@ -3950,6 +3952,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/invoicing/invoices', action: 'invoicing:view', resourceParam: null },
   { method: 'GET', path: '/api/invoicing/invoices/:id/pdf', action: 'invoicing:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/payments/receipts', action: 'payments:view', resourceParam: null },
+  { method: 'GET', path: '/api/payments/receipts/:id/allocatable-invoices', action: 'payments:allocate', resourceParam: 'id' },
   { method: 'POST', path: '/api/payments/receipts', action: 'payments:record', resourceParam: null },
   { method: 'POST', path: '/api/payments/receipts/:id/verify', action: 'payments:record', resourceParam: 'id' },
   { method: 'POST', path: '/api/payments/receipts/:id/allocate', action: 'payments:allocate', resourceParam: 'id' },
@@ -3960,6 +3963,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/payments/settlements', action: 'payments:view', resourceParam: null },
   { method: 'POST', path: '/api/payments/settlement-imports', action: 'payments:record', resourceParam: null },
   { method: 'POST', path: '/api/payments/fx-rates', action: 'payments:record', resourceParam: null },
+  { method: 'GET', path: '/api/payments/fx-rates', action: 'payments:view', resourceParam: null },
   { method: 'POST', path: '/api/payments/fx-revaluations', action: 'payments:record', resourceParam: null },
   { method: 'GET', path: '/api/payments/fx-revaluations', action: 'payments:view', resourceParam: null },
   { method: 'GET', path: '/api/payments/exceptions', action: 'payments:view', resourceParam: null },

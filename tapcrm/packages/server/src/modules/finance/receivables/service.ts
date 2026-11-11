@@ -298,8 +298,12 @@ export async function resolveDispute(
     const row = await tx.one<{ invoiceId: string; status: string }>(
       sql`SELECT invoice_id AS "invoiceId",status FROM finance_receivable_dispute WHERE organization_id=${ctx.organizationId} AND id=${disputeId} FOR UPDATE`,
     );
+    if (!['open', 'under_review'].includes(row.status))
+      throw new ReceivablesValidationError(
+        'Only open or under-review disputes can be resolved.',
+      );
     await tx.query(
-      sql`UPDATE finance_receivable_dispute SET status=${input.status},resolution=${input.resolution},resolved_by=${ctx.principal.id},resolved_at=now(),hold_collections=${input.status !== 'resolved'} WHERE organization_id=${ctx.organizationId} AND id=${disputeId}`,
+      sql`UPDATE finance_receivable_dispute SET status=${input.status},resolution=${input.resolution},resolved_by=${ctx.principal.id},resolved_at=now(),hold_collections=${input.status === 'under_review'} WHERE organization_id=${ctx.organizationId} AND id=${disputeId}`,
     );
     if (input.status === 'resolved' || input.status === 'rejected')
       await refreshInvoiceStatus(tx, ctx.organizationId, row.invoiceId, false);
@@ -325,7 +329,10 @@ export async function createPromise(
       sql`SELECT GREATEST(round(i.total*100)::bigint-COALESCE((SELECT SUM(amount_minor) FROM payment_allocation WHERE organization_id=i.organization_id AND invoice_id=i.id),0),0)::text AS outstanding FROM finance_invoice i WHERE i.organization_id=${ctx.organizationId} AND i.id=${invoiceId} AND i.status='issued' FOR SHARE`,
     );
     if (!invoice) throw new ReceivablesNotFoundError('Issued invoice not found.');
-    if (cents(input.promisedAmount) > BigInt(invoice.outstanding))
+    const promisedAmount = cents(input.promisedAmount);
+    if (promisedAmount <= 0n)
+      throw new ReceivablesValidationError('Promise amount must be greater than zero.');
+    if (promisedAmount > BigInt(invoice.outstanding))
       throw new ReceivablesValidationError(
         'Promise amount cannot exceed the outstanding balance.',
       );
@@ -353,6 +360,8 @@ export async function resolvePromise(
     const row = await tx.one<{ status: string }>(
       sql`SELECT status FROM finance_receivable_promise WHERE organization_id=${ctx.organizationId} AND id=${promiseId} FOR UPDATE`,
     );
+    if (row.status !== 'open')
+      throw new ReceivablesValidationError('Only open promises can be resolved.');
     await tx.query(
       sql`UPDATE finance_receivable_promise SET status=${input.status},resolved_by=${ctx.principal.id},resolved_at=now(),updated_at=now() WHERE organization_id=${ctx.organizationId} AND id=${promiseId}`,
     );
@@ -465,11 +474,17 @@ export async function proposeWriteOff(
     const invoice = await tx.maybeOne<{
       clientId: string;
       outstanding: string;
-    }>(sql`SELECT i.client_id AS "clientId",
+      receivableStatus: string;
+    }>(sql`SELECT i.client_id AS "clientId",i.receivable_status AS "receivableStatus",
       GREATEST(round(i.total * 100)::bigint-COALESCE((SELECT SUM(pa.amount_minor) FROM payment_allocation pa WHERE pa.organization_id=i.organization_id AND pa.invoice_id=i.id),0),0)::text AS outstanding
       FROM finance_invoice i WHERE i.organization_id=${ctx.organizationId} AND i.id=${invoiceId} AND i.status='issued' FOR SHARE`);
     if (!invoice) throw new ReceivablesNotFoundError('Issued invoice not found.');
-    if (cents(input.amount) > BigInt(invoice.outstanding))
+    const writeOffAmount = cents(input.amount);
+    if (writeOffAmount <= 0n)
+      throw new ReceivablesValidationError('Write-off amount must be greater than zero.');
+    if (invoice.receivableStatus === 'written_off')
+      throw new ReceivablesValidationError('This invoice has already been written off.');
+    if (writeOffAmount > BigInt(invoice.outstanding))
       throw new ReceivablesValidationError(
         'Write-off cannot exceed the outstanding invoice balance.',
       );

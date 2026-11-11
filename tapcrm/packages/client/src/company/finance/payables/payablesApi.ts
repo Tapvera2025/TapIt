@@ -1,5 +1,8 @@
 import { identityRequest } from '../../../identity/api/authApi.js';
-export interface Paginated<T> { items: T[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } }
+export interface Paginated<T> {
+  items: T[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}
 export interface Vendor {
   id: string;
   legalName: string;
@@ -19,6 +22,7 @@ export interface Bill {
   total: string;
   extractionStatus: string;
   status: string;
+  artifactFilename: string | null;
   journalId: string | null;
 }
 export interface PaymentRun {
@@ -61,24 +65,70 @@ export interface Subscription {
   nextDueDate: string;
   status: string;
 }
+export interface ReimbursementClaim {
+  id: string;
+  employeeName: string;
+  expenseDate: string;
+  amount: string;
+  currency: string;
+}
+export interface PaymentRunCandidate {
+  id: string;
+  invoiceNumber: string;
+  vendorName: string;
+  currency: string;
+  total: string;
+  dueDate: string;
+}
 const pageQuery = (page: number, pageSize: number) => `page=${page}&pageSize=${pageSize}`;
-export const listVendors = (page = 1, pageSize = 6) => identityRequest<Paginated<Vendor>>(`/api/payables/vendors?${pageQuery(page, pageSize)}`);
-export const listBills = (page = 1, pageSize = 6) => identityRequest<Paginated<Bill>>(`/api/payables/bills?${pageQuery(page, pageSize)}`);
-export const listRuns = (page = 1, pageSize = 6) => identityRequest<Paginated<PaymentRun>>(`/api/payables/runs?${pageQuery(page, pageSize)}`);
-export const listBankChanges = (page = 1, pageSize = 6) => identityRequest<Paginated<BankChange>>(`/api/payables/vendor-bank-changes?${pageQuery(page, pageSize)}`);
-export const listPurchaseRequests = (page = 1, pageSize = 6) => identityRequest<Paginated<PurchaseRequest>>(`/api/payables/purchase-requests?${pageQuery(page, pageSize)}`);
-export const listSubscriptions = (page = 1, pageSize = 6) => identityRequest<Paginated<Subscription>>(`/api/payables/subscriptions?${pageQuery(page, pageSize)}`);
+export const listVendors = (page = 1, pageSize = 6) =>
+  identityRequest<Paginated<Vendor>>(
+    `/api/payables/vendors?${pageQuery(page, pageSize)}`,
+  );
+export const listBills = (page = 1, pageSize = 6) =>
+  identityRequest<Paginated<Bill>>(`/api/payables/bills?${pageQuery(page, pageSize)}`);
+export const listRuns = (page = 1, pageSize = 6) =>
+  identityRequest<Paginated<PaymentRun>>(
+    `/api/payables/runs?${pageQuery(page, pageSize)}`,
+  );
+export const listBankChanges = (page = 1, pageSize = 6) =>
+  identityRequest<Paginated<BankChange>>(
+    `/api/payables/vendor-bank-changes?${pageQuery(page, pageSize)}`,
+  );
+export const listPurchaseRequests = (page = 1, pageSize = 6) =>
+  identityRequest<Paginated<PurchaseRequest>>(
+    `/api/payables/purchase-requests?${pageQuery(page, pageSize)}`,
+  );
+export const listSubscriptions = (page = 1, pageSize = 6) =>
+  identityRequest<Paginated<Subscription>>(
+    `/api/payables/subscriptions?${pageQuery(page, pageSize)}`,
+  );
+export const listReimbursementClaims = () =>
+  identityRequest<ReimbursementClaim[]>('/api/payables/reimbursement-claims');
+export const listPaymentRunCandidates = () =>
+  identityRequest<PaymentRunCandidate[]>('/api/payables/runs/candidates');
 export const createVendor = (body: Record<string, unknown>) =>
   identityRequest('/api/payables/vendors', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+export const createBankChange = (vendorId: string, body: Record<string, unknown>) =>
+  identityRequest(`/api/payables/vendors/${vendorId}/bank-changes`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
 export const createBill = (body: Record<string, unknown>) =>
   identityRequest('/api/payables/bills', { method: 'POST', body: JSON.stringify(body) });
 export const createSubscription = (body: Record<string, unknown>) =>
-  identityRequest('/api/payables/subscriptions', { method: 'POST', body: JSON.stringify(body) });
+  identityRequest('/api/payables/subscriptions', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 export const createPurchaseRequest = (body: Record<string, unknown>) =>
-  identityRequest('/api/payables/purchase-requests', { method: 'POST', body: JSON.stringify(body) });
+  identityRequest('/api/payables/purchase-requests', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 export const createReimbursement = (claimId: string, reason: string) =>
   identityRequest('/api/payables/bills/from-expense', {
     method: 'POST',
@@ -105,11 +155,20 @@ export const approveRun = (id: string, reason: string) =>
     body: JSON.stringify({ reason }),
   });
 export const approvePurchaseRequest = (id: string, reason: string) =>
-  identityRequest(`/api/payables/purchase-requests/${id}/approve`, { method: 'POST', body: JSON.stringify({ reason }) });
+  identityRequest(`/api/payables/purchase-requests/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
 export const matchPurchaseRequest = (id: string, billId: string, reason: string) =>
-  identityRequest(`/api/payables/purchase-requests/${id}/match-bill`, { method: 'POST', body: JSON.stringify({ billId, reason }) });
+  identityRequest(`/api/payables/purchase-requests/${id}/match-bill`, {
+    method: 'POST',
+    body: JSON.stringify({ billId, reason }),
+  });
 export const approveBankChange = (id: string, reason: string) =>
-  identityRequest(`/api/payables/vendor-bank-changes/${id}/approve`, { method: 'POST', body: JSON.stringify({ reason }) });
+  identityRequest(`/api/payables/vendor-bank-changes/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
 export const executeRun = (id: string, reason: string) =>
   identityRequest(`/api/payables/runs/${id}/execute`, {
     method: 'POST',

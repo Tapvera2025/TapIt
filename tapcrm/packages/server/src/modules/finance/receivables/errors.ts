@@ -1,19 +1,15 @@
-export class ReceivablesValidationError extends Error {
-  readonly statusCode = 422;
-  readonly code = 'RECEIVABLES_VALIDATION_ERROR';
+import { ApplicationError } from '../../../errors.js';
 
+export class ReceivablesValidationError extends ApplicationError {
   constructor(message: string) {
-    super(message);
+    super(message, 422, 'RECEIVABLES_VALIDATION_ERROR');
     this.name = 'ReceivablesValidationError';
   }
 }
 
-export class ReceivablesNotFoundError extends Error {
-  readonly statusCode = 404;
-  readonly code = 'RECEIVABLES_NOT_FOUND';
-
+export class ReceivablesNotFoundError extends ApplicationError {
   constructor(message: string) {
-    super(message);
+    super(message, 404, 'RECEIVABLES_NOT_FOUND');
     this.name = 'ReceivablesNotFoundError';
   }
 }

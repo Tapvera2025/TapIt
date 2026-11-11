@@ -26,6 +26,7 @@ export function PaymentOperationsPage(): React.JSX.Element {
   const [notice, setNotice] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('INR');
+  const [receiptExchangeRate, setReceiptExchangeRate] = useState('10000');
   const [provider, setProvider] = useState('manual');
   const [cashClassification, setCashClassification] = useState<
     'receivable' | 'unapplied' | 'advance'
@@ -38,6 +39,10 @@ export function PaymentOperationsPage(): React.JSX.Element {
   );
   const [allocationTarget, setAllocationTarget] = useState('');
   const [allocationAmount, setAllocationAmount] = useState('');
+  const [allocationInvoices, setAllocationInvoices] = useState<api.AllocatableInvoice[]>(
+    [],
+  );
+  const [allocationInvoicesLoading, setAllocationInvoicesLoading] = useState(false);
   const load = async () => {
     setLoading(true);
     try {
@@ -58,6 +63,28 @@ export function PaymentOperationsPage(): React.JSX.Element {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    if (!allocationReceipt) {
+      setAllocationInvoices([]);
+      return;
+    }
+    let live = true;
+    setAllocationInvoicesLoading(true);
+    void api
+      .listAllocatableInvoices(allocationReceipt.id)
+      .then((items) => {
+        if (live) setAllocationInvoices(items);
+      })
+      .catch((e) => {
+        if (live) setError(message(e));
+      })
+      .finally(() => {
+        if (live) setAllocationInvoicesLoading(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [allocationReceipt]);
   const record = async () => {
     try {
       const amountMinor = toMinor(amount);
@@ -65,6 +92,7 @@ export function PaymentOperationsPage(): React.JSX.Element {
         provider,
         amountMinor: amountMinor.toString(),
         currency,
+        exchangeRateBps: currency === 'INR' ? undefined : Number(receiptExchangeRate),
         bankReference: reference || undefined,
         cashClassification,
         idempotencyKey: `manual:${reference || Date.now()}`,
@@ -81,10 +109,16 @@ export function PaymentOperationsPage(): React.JSX.Element {
   const allocate = async () => {
     if (!allocationReceipt || !allocationTarget.trim()) return;
     try {
+      const amountMinor = toMinor(allocationAmount);
+      const remainingMinor = BigInt(allocationReceipt.remainingMinor);
+      if (amountMinor > remainingMinor)
+        throw new Error(
+          `Allocation cannot exceed the remaining receipt balance of ${formatMinor(remainingMinor.toString(), allocationReceipt.currency)}.`,
+        );
       await api.allocateReceipt(allocationReceipt.id, {
         [allocationTargetType === 'invoice' ? 'invoiceId' : 'dealId']:
           allocationTarget.trim(),
-        amountMinor: toMinor(allocationAmount).toString(),
+        amountMinor: amountMinor.toString(),
         reason: reason || 'Allocated payment receipt.',
       });
       setNotice('Receipt allocated.');
@@ -200,6 +234,20 @@ export function PaymentOperationsPage(): React.JSX.Element {
                   onChange={(e) => setAmount(e.target.value)}
                 />
               </label>
+              {currency !== 'INR' && (
+                <label className="text-sm font-semibold">
+                  Exchange rate (bps)
+                  <input
+                    className={input}
+                    inputMode="numeric"
+                    value={receiptExchangeRate}
+                    onChange={(e) => setReceiptExchangeRate(e.target.value)}
+                  />
+                  <span className="mt-1 block text-xs font-normal text-app-muted">
+                    Example: 830000 means 1 USD = INR 83.00.
+                  </span>
+                </label>
+              )}
               <label className="text-sm font-semibold">
                 Cash classification
                 <select
@@ -234,7 +282,13 @@ export function PaymentOperationsPage(): React.JSX.Element {
             <Button
               className="mt-4"
               type="button"
-              disabled={!amount || Number(amount) <= 0 || reason.trim().length < 3}
+              disabled={
+                !amount ||
+                Number(amount) <= 0 ||
+                reason.trim().length < 3 ||
+                (currency !== 'INR' &&
+                  (!receiptExchangeRate || Number(receiptExchangeRate) <= 0))
+              }
               onClick={() => void record()}
             >
               Record receipt
@@ -261,6 +315,11 @@ export function PaymentOperationsPage(): React.JSX.Element {
                       <span className="ml-3 text-app-muted">
                         {receipt.bankReference ?? receipt.providerPaymentId ?? receipt.id}
                       </span>
+                      <div className="mt-1 text-xs text-app-muted">
+                        Allocated {formatMinor(receipt.allocatedMinor, receipt.currency)}
+                        {' · '}
+                        Remaining {formatMinor(receipt.remainingMinor, receipt.currency)}
+                      </div>
                     </div>
                     <span className="rounded-full border border-app-border px-2 py-1 text-xs font-semibold">
                       {receipt.state}
@@ -286,17 +345,19 @@ export function PaymentOperationsPage(): React.JSX.Element {
                         Verify &amp; post
                       </Button>
                     )}
-                    {['verified', 'reconciled'].includes(receipt.state) && (
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setAllocationReceipt(receipt);
-                          setAllocationAmount(String(Number(receipt.amountMinor) / 100));
-                        }}
-                      >
-                        Allocate
-                      </Button>
-                    )}
+                    {receipt.state === 'verified' &&
+                      BigInt(receipt.remainingMinor) > 0n && (
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setAllocationReceipt(receipt);
+                            setAllocationTarget('');
+                            setAllocationAmount('');
+                          }}
+                        >
+                          Allocate
+                        </Button>
+                      )}
                   </div>
                 ))}
               </div>
@@ -308,8 +369,9 @@ export function PaymentOperationsPage(): React.JSX.Element {
                 <div>
                   <h2 className="text-lg font-semibold">Allocate receipt</h2>
                   <p className="mt-1 text-sm text-app-muted">
+                    Remaining:{' '}
                     {formatMinor(
-                      allocationReceipt.amountMinor,
+                      allocationReceipt.remainingMinor,
                       allocationReceipt.currency,
                     )}{' '}
                     · {allocationReceipt.id}
@@ -333,15 +395,62 @@ export function PaymentOperationsPage(): React.JSX.Element {
                     <option value="deal">Deal</option>
                   </select>
                 </label>
-                <label className="text-sm font-semibold">
-                  {allocationTargetType === 'invoice' ? 'Invoice' : 'Deal'} UUID
-                  <input
-                    className={input}
-                    value={allocationTarget}
-                    onChange={(e) => setAllocationTarget(e.target.value)}
-                    placeholder="Paste the record UUID"
-                  />
-                </label>
+                {allocationTargetType === 'invoice' ? (
+                  <label className="text-sm font-semibold">
+                    Invoice
+                    <select
+                      className={input}
+                      value={allocationTarget}
+                      onChange={(e) => {
+                        const invoice = allocationInvoices.find(
+                          (item) => item.id === e.target.value,
+                        );
+                        setAllocationTarget(e.target.value);
+                        setAllocationAmount(
+                          invoice
+                            ? String(
+                                Number(
+                                  [
+                                    BigInt(invoice.outstandingMinor),
+                                    BigInt(allocationReceipt.remainingMinor),
+                                  ].reduce((min, value) => (value < min ? value : min)),
+                                ) / 100,
+                              )
+                            : '',
+                        );
+                      }}
+                      disabled={allocationInvoicesLoading}
+                    >
+                      <option value="">
+                        {allocationInvoicesLoading
+                          ? 'Loading invoices…'
+                          : 'Select an invoice'}
+                      </option>
+                      {allocationInvoices.map((invoice) => (
+                        <option key={invoice.id} value={invoice.id}>
+                          {invoice.invoiceNumber} ·{' '}
+                          {formatMinor(invoice.outstandingMinor, invoice.currency)}
+                        </option>
+                      ))}
+                    </select>
+                    {!allocationInvoicesLoading && allocationInvoices.length === 0 && (
+                      <span className="mt-1 block text-xs font-normal text-app-muted">
+                        No issued invoices with an outstanding balance match this receipt
+                        currency.
+                      </span>
+                    )}
+                  </label>
+                ) : (
+                  <label className="text-sm font-semibold">
+                    Deal UUID
+                    <input
+                      className={input}
+                      value={allocationTarget}
+                      onChange={(e) => setAllocationTarget(e.target.value)}
+                      placeholder="Paste the deal UUID"
+                    />
+                  </label>
+                )}
                 <label className="text-sm font-semibold">
                   Amount
                   <input
@@ -395,6 +504,7 @@ export function PaymentOperationsPage(): React.JSX.Element {
                   <tr className="border-b border-app-border">
                     <th className="p-2">Date</th>
                     <th className="p-2">Reference</th>
+                    <th className="p-2">Debit</th>
                     <th className="p-2">Credit</th>
                     <th className="p-2">Status</th>
                   </tr>
@@ -405,11 +515,20 @@ export function PaymentOperationsPage(): React.JSX.Element {
                       <td className="p-2">{line.transactionDate}</td>
                       <td className="p-2">{line.reference ?? line.description ?? '—'}</td>
                       <td className="p-2">
-                        {formatMinor(line.creditMinor, line.currency)}
+                        {line.debitMinor === '0'
+                          ? '—'
+                          : formatMinor(line.debitMinor, line.currency)}
+                      </td>
+                      <td className="p-2">
+                        {line.creditMinor === '0'
+                          ? '—'
+                          : formatMinor(line.creditMinor, line.currency)}
                       </td>
                       <td className="p-2">
                         {line.matchedReceiptId ? (
                           'Matched'
+                        ) : line.creditMinor === '0' ? (
+                          'Outgoing — no receipt match'
                         ) : (
                           <Button
                             type="button"
@@ -507,6 +626,9 @@ function PaymentControls({
 }): React.JSX.Element {
   const [provider, setProvider] = useState('razorpay');
   const [reference, setReference] = useState('');
+  const [settlementDate, setSettlementDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
   const [currency, setCurrency] = useState('INR');
   const [gross, setGross] = useState('');
   const [fee, setFee] = useState('');
@@ -516,31 +638,40 @@ function PaymentControls({
   const [quote, setQuote] = useState('INR');
   const [fxRate, setFxRate] = useState('');
   const [revalueCurrency, setRevalueCurrency] = useState('USD');
+  const [revaluationRate, setRevaluationRate] = useState('');
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10));
+  const [revaluationReason, setRevaluationReason] = useState('');
   const [settlementFile, setSettlementFile] = useState<File | null>(null);
   const [settlements, setSettlements] = useState<api.Settlement[]>([]);
   const [revaluations, setRevaluations] = useState<api.FxRevaluation[]>([]);
+  const [fxRates, setFxRates] = useState<api.FxRate[]>([]);
+  const [settlementReason, setSettlementReason] = useState('');
+  const [settlementImportReason, setSettlementImportReason] = useState('');
   const [reason, setReason] = useState('');
   const inputValue = (value: string) => toMinor(value).toString();
   const refreshHistory = async () => {
-    const [nextSettlements, nextRevaluations] = await Promise.all([
+    const [nextSettlements, nextRevaluations, nextFxRates] = await Promise.all([
       api.listSettlements(),
       api.listFxRevaluations(),
+      api.listFxRates(),
     ]);
     setSettlements(nextSettlements);
     setRevaluations(nextRevaluations);
+    setFxRates(nextFxRates);
   };
   useEffect(() => {
-    void Promise.all([api.listSettlements(), api.listFxRevaluations()])
-      .then(([nextSettlements, nextRevaluations]) => {
+    void Promise.all([api.listSettlements(), api.listFxRevaluations(), api.listFxRates()])
+      .then(([nextSettlements, nextRevaluations, nextFxRates]) => {
         setSettlements(nextSettlements);
         setRevaluations(nextRevaluations);
+        setFxRates(nextFxRates);
       })
       .catch((e) => onError(message(e)));
   }, [onError]);
   const eligibleReceipts = receipts.filter(
     (item) =>
       ['verified', 'reconciled'].includes(item.state) &&
+      !item.settled &&
       item.provider === provider &&
       item.currency === currency,
   );
@@ -563,7 +694,7 @@ function PaymentControls({
       await api.createSettlement({
         provider,
         settlementReference: reference,
-        settlementDate: new Date().toISOString().slice(0, 10),
+        settlementDate,
         currency,
         grossMinor,
         feeMinor,
@@ -573,7 +704,7 @@ function PaymentControls({
           .split(',')
           .map((v) => v.trim())
           .filter(Boolean),
-        reason,
+        reason: settlementReason,
       });
       onDone('Settlement recorded and reconciled when selected receipts matched.');
       await refreshHistory();
@@ -601,8 +732,8 @@ function PaymentControls({
       await api.revalueFx({
         currency: revalueCurrency,
         asOfDate,
-        rateBps: Number(fxRate),
-        reason,
+        rateBps: Number(revaluationRate),
+        reason: revaluationReason,
       });
       onDone('Unrealized FX revaluation posted.');
       await refreshHistory();
@@ -627,7 +758,7 @@ function PaymentControls({
         data,
         provider,
         format: 'generic_csv',
-        reason,
+        reason: settlementImportReason,
       });
       onDone(`${result.rowCount} settlement rows imported for reconciliation.`);
       await refreshHistory();
@@ -662,6 +793,15 @@ function PaymentControls({
               className={input}
               value={currency}
               onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Settlement date
+            <input
+              className={input}
+              type="date"
+              value={settlementDate}
+              onChange={(e) => setSettlementDate(e.target.value)}
             />
           </label>
           <label className="block text-sm font-semibold">
@@ -715,9 +855,18 @@ function PaymentControls({
               )}
             </div>
           </fieldset>
+          <label className="block text-sm font-semibold">
+            Reason
+            <textarea
+              className={input}
+              value={settlementReason}
+              onChange={(e) => setSettlementReason(e.target.value)}
+              placeholder="Explain why this settlement is being recorded"
+            />
+          </label>
           <Button
             type="button"
-            disabled={!reference || !gross || !reason.trim()}
+            disabled={!reference || !gross || !settlementReason.trim()}
             onClick={() => void saveSettlement()}
           >
             Record settlement
@@ -735,10 +884,19 @@ function PaymentControls({
           accept=".csv,text/csv"
           onChange={(e) => setSettlementFile(e.target.files?.[0] ?? null)}
         />
+        <label className="mt-3 block text-sm font-semibold">
+          Import reason
+          <textarea
+            className={input}
+            value={settlementImportReason}
+            onChange={(e) => setSettlementImportReason(e.target.value)}
+            placeholder="Explain why this settlement file is being imported"
+          />
+        </label>
         <Button
           className="mt-3"
           type="button"
-          disabled={!settlementFile || !reason.trim()}
+          disabled={!settlementFile || !settlementImportReason.trim()}
           onClick={() => void importSettlement()}
         >
           Import settlement CSV
@@ -764,13 +922,35 @@ function PaymentControls({
               onChange={(e) => setAsOfDate(e.target.value)}
             />
           </label>
+          <label className="block text-sm font-semibold">
+            Revaluation rate (bps)
+            <input
+              className={input}
+              inputMode="numeric"
+              value={revaluationRate}
+              onChange={(e) => setRevaluationRate(e.target.value)}
+              placeholder="840000"
+            />
+            <span className="mt-1 block text-xs font-normal text-app-muted">
+              Example: 840000 means 1 USD = INR 84.00.
+            </span>
+          </label>
           <p className="text-xs text-app-muted">
             Uses the open non-INR gateway-clearing balance and posts FX gain/loss through
             accounting.
           </p>
+          <label className="block text-sm font-semibold">
+            Reason
+            <textarea
+              className={input}
+              value={revaluationReason}
+              onChange={(e) => setRevaluationReason(e.target.value)}
+              placeholder="Explain why this FX revaluation is being posted"
+            />
+          </label>
           <Button
             type="button"
-            disabled={!fxRate || !reason.trim()}
+            disabled={!revaluationRate || !revaluationReason.trim()}
             onClick={() => void revalue()}
           >
             Run revaluation
@@ -823,7 +1003,7 @@ function PaymentControls({
       </Card>
       <Card className="md:col-span-2">
         <h2 className="text-lg font-semibold">Settlement and FX history</h2>
-        {settlements.length === 0 && revaluations.length === 0 ? (
+        {settlements.length === 0 && revaluations.length === 0 && fxRates.length === 0 ? (
           <div className="mt-4">
             <Empty>No settlement or FX revaluation records.</Empty>
           </div>
@@ -869,6 +1049,27 @@ function PaymentControls({
                       Carrying{' '}
                       {formatMinor(String(item.carryingMinor), String(item.currency))} →{' '}
                       {formatMinor(String(item.revaluedMinor), String(item.currency))}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Saved FX rates</h3>
+              <div className="mt-2 space-y-2 text-sm">
+                {fxRates.map((item) => (
+                  <div
+                    key={String(item.id)}
+                    className="rounded-xl border border-app-border p-3"
+                  >
+                    <div className="flex justify-between gap-3">
+                      <span>
+                        {item.baseCurrency} / {item.quoteCurrency}
+                      </span>
+                      <span>{item.rateBps} bps</span>
+                    </div>
+                    <p className="mt-1 text-app-muted">
+                      {item.source} · {new Date(item.effectiveAt).toLocaleString()}
                     </p>
                   </div>
                 ))}

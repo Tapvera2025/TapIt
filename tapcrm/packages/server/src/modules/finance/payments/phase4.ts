@@ -6,6 +6,7 @@ import { refreshInvoiceStatus } from '../facade.js';
 import { fingerprint } from '../invoicing/fingerprint.js';
 import { storeBankImport } from './file-store.js';
 import { hyperswitchAdapter } from './hyperswitch-adapter.js';
+import { NotEligibleError } from '../../../platform/http/error-handler.js';
 import type {
   AllocatePaymentInput,
   BankImportInput,
@@ -108,7 +109,18 @@ export async function recordReceipt(ctx: RequestContext, input: RecordReceiptInp
 export async function listReceipts(ctx: RequestContext) {
   return db.query(
     ctx,
-    sql`SELECT id,provider,provider_event_id AS "providerEventId",provider_payment_id AS "providerPaymentId",bank_reference AS "bankReference",amount_minor::text AS "amountMinor",currency,received_at AS "receivedAt",fee_minor::text AS "feeMinor",cash_classification AS "cashClassification",state,verified_journal_id AS "verifiedJournalId" FROM payment_receipt WHERE organization_id=${ctx.organizationId} ORDER BY received_at DESC`,
+    sql`SELECT pr.id,pr.provider,pr.provider_event_id AS "providerEventId",pr.provider_payment_id AS "providerPaymentId",pr.bank_reference AS "bankReference",pr.amount_minor::text AS "amountMinor",pr.currency,pr.received_at AS "receivedAt",pr.fee_minor::text AS "feeMinor",pr.cash_classification AS "cashClassification",pr.state,pr.verified_journal_id AS "verifiedJournalId",COALESCE(SUM(pa.amount_minor),0)::text AS "allocatedMinor",GREATEST(pr.amount_minor-COALESCE(SUM(pa.amount_minor),0),0)::text AS "remainingMinor",EXISTS (SELECT 1 FROM finance_payment_settlement_receipt sr WHERE sr.organization_id=pr.organization_id AND sr.receipt_id=pr.id) AS settled FROM payment_receipt pr LEFT JOIN payment_allocation pa ON pa.organization_id=pr.organization_id AND pa.receipt_id=pr.id WHERE pr.organization_id=${ctx.organizationId} GROUP BY pr.id ORDER BY pr.received_at DESC`,
+  );
+}
+
+export async function listAllocatableInvoices(ctx: RequestContext, receiptId: string) {
+  const receipt = await db.one<{ currency: string }>(
+    ctx,
+    sql`SELECT currency FROM payment_receipt WHERE organization_id=${ctx.organizationId} AND id=${receiptId}`,
+  );
+  return db.query(
+    ctx,
+    sql`SELECT i.id,i.invoice_number AS "invoiceNumber",i.invoice_date AS "invoiceDate",i.due_date AS "dueDate",i.currency,i.total::text AS total,GREATEST(round(i.total*100)::bigint-COALESCE(SUM(pa.amount_minor),0),0)::text AS "outstandingMinor" FROM finance_invoice i LEFT JOIN payment_allocation pa ON pa.organization_id=i.organization_id AND pa.invoice_id=i.id WHERE i.organization_id=${ctx.organizationId} AND i.status='issued' AND i.currency=${receipt.currency} GROUP BY i.id HAVING GREATEST(round(i.total*100)::bigint-COALESCE(SUM(pa.amount_minor),0),0)>0 ORDER BY i.due_date ASC NULLS LAST,i.invoice_number ASC`,
   );
 }
 
@@ -221,8 +233,27 @@ export async function allocateReceipt(
       sql`SELECT COALESCE(sum(amount_minor),0)::text AS amount FROM payment_allocation WHERE organization_id=${ctx.organizationId} AND receipt_id=${receiptId}`,
     );
     const remaining = BigInt(receipt.amount) - BigInt(allocated.amount);
+    if (remaining <= 0n)
+      throw new NotEligibleError(
+        'PAYMENT_RECEIPT_FULLY_ALLOCATED',
+        'This receipt has already been fully allocated.',
+        {
+          unmet: ['receipt_remaining_amount > 0'],
+          actual: { remainingMinor: remaining.toString() },
+        },
+      );
     if (input.amountMinor > remaining)
-      throw new Error('PAYMENT_ALLOCATION_EXCEEDS_RECEIPT');
+      throw new NotEligibleError(
+        'PAYMENT_ALLOCATION_EXCEEDS_RECEIPT',
+        `Allocation amount cannot exceed the receipt balance of ${remaining.toString()} minor units.`,
+        {
+          unmet: ['allocation_amount <= receipt_remaining_amount'],
+          actual: {
+            allocationMinor: input.amountMinor.toString(),
+            remainingMinor: remaining.toString(),
+          },
+        },
+      );
     if (input.invoiceId) {
       const invoice = await tx.one<{ totalMinor: string; currency: string }>(
         sql`SELECT round(total * 100)::bigint::text AS "totalMinor",currency FROM finance_invoice WHERE organization_id=${ctx.organizationId} AND id=${input.invoiceId}`,
@@ -232,8 +263,28 @@ export async function allocateReceipt(
       const paid = await tx.one<{ amount: string }>(
         sql`SELECT COALESCE(sum(amount_minor),0)::text AS amount FROM payment_allocation WHERE organization_id=${ctx.organizationId} AND invoice_id=${input.invoiceId}`,
       );
-      if (input.amountMinor > BigInt(invoice.totalMinor) - BigInt(paid.amount))
-        throw new Error('PAYMENT_ALLOCATION_EXCEEDS_INVOICE');
+      const invoiceRemaining = BigInt(invoice.totalMinor) - BigInt(paid.amount);
+      if (invoiceRemaining <= 0n)
+        throw new NotEligibleError(
+          'PAYMENT_INVOICE_FULLY_PAID',
+          'This invoice has no outstanding balance.',
+          {
+            unmet: ['invoice_outstanding_amount > 0'],
+            actual: { outstandingMinor: invoiceRemaining.toString() },
+          },
+        );
+      if (input.amountMinor > invoiceRemaining)
+        throw new NotEligibleError(
+          'PAYMENT_ALLOCATION_EXCEEDS_INVOICE',
+          `Allocation amount cannot exceed the invoice balance of ${invoiceRemaining.toString()} minor units.`,
+          {
+            unmet: ['allocation_amount <= invoice_outstanding_amount'],
+            actual: {
+              allocationMinor: input.amountMinor.toString(),
+              outstandingMinor: invoiceRemaining.toString(),
+            },
+          },
+        );
     }
     const row = await tx.one<{ id: string }>(
       sql`INSERT INTO payment_allocation (organization_id,receipt_id,deal_id,invoice_id,amount_minor,allocated_by) VALUES (${ctx.organizationId},${receiptId},${input.dealId ?? null},${input.invoiceId ?? null},${input.amountMinor},${ctx.principal.id}) ON CONFLICT DO NOTHING RETURNING id`,
@@ -378,8 +429,18 @@ export async function matchBankLine(
     }>(
       sql`SELECT credit_minor::text AS credit,currency,reference,matched_receipt_id AS "matchedReceiptId" FROM finance_bank_statement_line WHERE organization_id=${ctx.organizationId} AND id=${lineId} FOR UPDATE`,
     );
-    if (line.matchedReceiptId) throw new Error('PAYMENT_BANK_LINE_ALREADY_MATCHED');
-    if (BigInt(line.credit) <= 0n) throw new Error('PAYMENT_BANK_LINE_NOT_INCOMING');
+    if (line.matchedReceiptId)
+      throw new NotEligibleError(
+        'PAYMENT_BANK_LINE_ALREADY_MATCHED',
+        'This bank line has already been matched to a receipt.',
+        { unmet: ['bank_line.matched_receipt_id IS NULL'] },
+      );
+    if (BigInt(line.credit) <= 0n)
+      throw new NotEligibleError(
+        'PAYMENT_BANK_LINE_NOT_INCOMING',
+        'Only incoming credit bank lines can be matched to payment receipts.',
+        { unmet: ['credit_amount > 0'], actual: { creditMinor: line.credit } },
+      );
     let receiptId = input.receiptId;
     if (!receiptId && input.createReceipt) {
       const existing = line.reference
@@ -447,11 +508,31 @@ export async function createSettlement(ctx: RequestContext, input: SettlementInp
         receipt.currency !== input.currency ||
         !['verified', 'reconciled'].includes(receipt.state)
       )
-        throw new Error('PAYMENT_SETTLEMENT_RECEIPT_INVALID');
+        throw new NotEligibleError(
+          'PAYMENT_SETTLEMENT_RECEIPT_INVALID',
+          'Selected receipt is not eligible for this settlement.',
+          {
+            unmet: [
+              'receipt.provider = settlement.provider',
+              'receipt.currency = settlement.currency',
+              'receipt.state IN (verified, reconciled)',
+            ],
+            actual: {
+              provider: receipt.provider,
+              currency: receipt.currency,
+              state: receipt.state,
+            },
+          },
+        );
       const alreadySettled = await tx.maybeOne<{ id: string }>(
         sql`SELECT id FROM finance_payment_settlement_receipt WHERE organization_id=${ctx.organizationId} AND receipt_id=${receiptId} LIMIT 1`,
       );
-      if (alreadySettled) throw new Error('PAYMENT_SETTLEMENT_RECEIPT_ALREADY_SETTLED');
+      if (alreadySettled)
+        throw new NotEligibleError(
+          'PAYMENT_SETTLEMENT_RECEIPT_ALREADY_SETTLED',
+          'Selected receipt has already been included in a settlement.',
+          { unmet: ['receipt has no existing settlement'] },
+        );
       const amount = BigInt(receipt.amount);
       const receiptRate = BigInt(receipt.rate ?? 10000);
       await tx.query(
@@ -637,6 +718,19 @@ export async function revalueFx(ctx: RequestContext, input: FxRevaluationInput) 
     const rows = await tx.query<{ amount: string; fee: string; rate: number | null }>(
       sql`SELECT pr.amount_minor::text AS amount,pr.fee_minor::text AS fee,pr.exchange_rate_bps AS rate FROM payment_receipt pr WHERE pr.organization_id=${ctx.organizationId} AND pr.currency=${input.currency} AND pr.received_at::date<=${input.asOfDate} AND pr.state IN ('verified','reconciled') AND NOT EXISTS (SELECT 1 FROM finance_payment_settlement_receipt sr WHERE sr.organization_id=pr.organization_id AND sr.receipt_id=pr.id)`,
     );
+    if (rows.length === 0)
+      throw new NotEligibleError(
+        'PAYMENT_FX_NO_ELIGIBLE_BALANCE',
+        `No open verified ${input.currency} receipts are available for FX revaluation on ${input.asOfDate}.`,
+        {
+          unmet: [
+            'receipt.currency = revaluation.currency',
+            'receipt.received_at <= revaluation.as_of_date',
+            'receipt.state IN (verified, reconciled)',
+            'receipt is not already settled',
+          ],
+        },
+      );
     const carrying = rows.reduce(
       (total, row) =>
         total +
@@ -721,6 +815,12 @@ export async function listFxRevaluations(ctx: RequestContext) {
     sql`SELECT id,currency,as_of_date AS "asOfDate",rate_bps AS "rateBps",carrying_minor::text AS "carryingMinor",revalued_minor::text AS "revaluedMinor",difference_minor::text AS "differenceMinor",journal_id AS "journalId" FROM finance_payment_fx_revaluation WHERE organization_id=${ctx.organizationId} ORDER BY as_of_date DESC`,
   );
 }
+export async function listFxRates(ctx: RequestContext) {
+  return db.query(
+    ctx,
+    sql`SELECT id,base_currency AS "baseCurrency",quote_currency AS "quoteCurrency",rate_bps AS "rateBps",effective_at AS "effectiveAt",source FROM finance_payment_fx_rate WHERE organization_id=${ctx.organizationId} ORDER BY effective_at DESC`,
+  );
+}
 export async function listExceptions(ctx: RequestContext) {
   return db.query(
     ctx,
@@ -734,7 +834,7 @@ export async function resolveException(
 ) {
   return db.transaction(ctx, async (tx) => {
     const row = await tx.one<{ id: string }>(
-      sql`UPDATE finance_payment_exception SET status=${input.status},resolution=${input.resolution},resolved_by=CASE WHEN ${input.status} IN ('resolved','ignored') THEN ${ctx.principal.id} ELSE NULL END,resolved_at=CASE WHEN ${input.status} IN ('resolved','ignored') THEN now() ELSE NULL END WHERE organization_id=${ctx.organizationId} AND id=${id} RETURNING id`,
+      sql`UPDATE finance_payment_exception SET status=${input.status},resolution=${input.resolution},resolved_by=CASE WHEN ${input.status} IN ('resolved','ignored') THEN ${ctx.principal.id}::uuid ELSE NULL END,resolved_at=CASE WHEN ${input.status} IN ('resolved','ignored') THEN now() ELSE NULL END WHERE organization_id=${ctx.organizationId} AND id=${id} RETURNING id`,
     );
     await audit(
       ctx,

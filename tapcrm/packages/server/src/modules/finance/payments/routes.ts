@@ -11,8 +11,10 @@ import {
   importBankCsv,
   importSettlementCsv,
   listBankLines,
+  listAllocatableInvoices,
   listExceptions,
   listFxRevaluations,
+  listFxRates,
   listReceipts,
   listSettlements,
   matchBankLine,
@@ -114,6 +116,15 @@ export function registerPaymentRoutes(): void {
     handler: async ({ ctx }) => listReceipts(ctx),
   });
   route({
+    method: 'GET',
+    path: '/api/payments/receipts/:id/allocatable-invoices',
+    action: 'payments:allocate',
+    module: 'payments',
+    resourceParam: 'id',
+    loadResource: receiptResource,
+    handler: async ({ ctx, params }) => listAllocatableInvoices(ctx, params['id']!),
+  });
+  route({
     method: 'POST',
     path: '/api/payments/receipts/:id/verify',
     action: 'payments:record',
@@ -191,6 +202,13 @@ export function registerPaymentRoutes(): void {
     handler: async ({ ctx, body }) => recordFxRate(ctx, fxRateSchema.parse(body)),
   });
   route({
+    method: 'GET',
+    path: '/api/payments/fx-rates',
+    action: 'payments:view',
+    module: 'payments',
+    handler: async ({ ctx }) => listFxRates(ctx),
+  });
+  route({
     method: 'POST',
     path: '/api/payments/fx-revaluations',
     action: 'payments:record',
@@ -224,7 +242,7 @@ export function registerPaymentRoutes(): void {
         recordedBy: string;
       }>(
         ctx,
-        sql`SELECT id,organization_id AS "organizationId",COALESCE(assigned_to,${ctx.principal.id}) AS "recordedBy" FROM finance_payment_exception WHERE organization_id=${ctx.organizationId} AND id=${id}`,
+        sql`SELECT id,organization_id AS "organizationId",assigned_to AS "recordedBy" FROM finance_payment_exception WHERE organization_id=${ctx.organizationId} AND id=${id}`,
       );
       return row ? { type: 'bankReconciliation', ...row } : null;
     },

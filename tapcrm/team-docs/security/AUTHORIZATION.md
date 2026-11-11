@@ -703,6 +703,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/payables/vendor-bank-changes/:id/approve | `payables:approve-bill` | id |
 | POST | /api/payables/bills/from-expense | `payables:create-bill` | — |
 | GET | /api/payables/bills/:id/artifact | `payables:view` | id |
+| GET | /api/payables/reimbursement-claims | `payables:create-bill` | — |
 | GET | /api/payables/subscriptions | `payables:view` | — |
 | POST | /api/payables/subscriptions | `payables:create-bill` | — |
 | GET | /api/payables/purchase-requests | `payables:view` | — |
@@ -719,6 +720,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/payables/claims/:id | `payables:claim` | id |
 | GET | /api/payables/claims/:claimId/attachments/:attachmentId | `payables:claim` | claimId |
 | GET | /api/payables/runs | `payables:view` | — |
+| GET | /api/payables/runs/candidates | `payables:view` | — |
 | POST | /api/payables/runs | `payables:create-bill` | — |
 | POST | /api/payables/runs/:id/approve | `payables:execute-run` | id |
 | POST | /api/payables/runs/:id/execute | `payables:execute-run` | id |
@@ -819,6 +821,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/invoicing/invoices | `invoicing:view` | — |
 | GET | /api/invoicing/invoices/:id/pdf | `invoicing:view` | id |
 | GET | /api/payments/receipts | `payments:view` | — |
+| GET | /api/payments/receipts/:id/allocatable-invoices | `payments:allocate` | id |
 | POST | /api/payments/receipts | `payments:record` | — |
 | POST | /api/payments/receipts/:id/verify | `payments:record` | id |
 | POST | /api/payments/receipts/:id/allocate | `payments:allocate` | id |
@@ -829,6 +832,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/payments/settlements | `payments:view` | — |
 | POST | /api/payments/settlement-imports | `payments:record` | — |
 | POST | /api/payments/fx-rates | `payments:record` | — |
+| GET | /api/payments/fx-rates | `payments:view` | — |
 | POST | /api/payments/fx-revaluations | `payments:record` | — |
 | GET | /api/payments/fx-revaluations | `payments:view` | — |
 | GET | /api/payments/exceptions | `payments:view` | — |

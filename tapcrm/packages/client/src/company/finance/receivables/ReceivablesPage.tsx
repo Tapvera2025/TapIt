@@ -6,6 +6,12 @@ import {
   type ReceivablesAction,
 } from './ReceivablesActionModal.js';
 
+const formatMinor = (value: string, currency: string) =>
+  `${currency} ${(Number(value) / 100).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
 export function ReceivablesPage(): React.JSX.Element {
   const [aging, setAging] = useState<api.ReceivableAging[]>([]);
   const [agingBuckets, setAgingBuckets] = useState<api.AgingBucket[]>([]);
@@ -198,7 +204,9 @@ export function ReceivablesPage(): React.JSX.Element {
                             : ''}
                         </td>
                         <td className="p-2">{invoice.status}</td>
-                        <td className="p-2">{invoice.outstandingMinor}</td>
+                        <td className="p-2">
+                          {formatMinor(invoice.outstandingMinor, invoice.currency)}
+                        </td>
                         <td className="p-2">
                           <div className="flex flex-wrap gap-2">
                             <Button
@@ -267,7 +275,7 @@ export function ReceivablesPage(): React.JSX.Element {
                       {bucket.invoiceCount} invoices
                     </div>
                     <div className="mt-1">
-                      {bucket.outstandingMinor} minor outstanding
+                      {formatMinor(bucket.outstandingMinor, bucket.currency)} outstanding
                     </div>
                   </div>
                 ))}
@@ -412,7 +420,8 @@ export function ReceivablesPage(): React.JSX.Element {
                       <div>
                         <span className="font-semibold">{client.businessName}</span>
                         <p className="text-app-muted">
-                          {client.invoiceCount} invoices · {client.outstandingMinor} minor
+                          {client.invoiceCount} invoices ·{' '}
+                          {formatMinor(client.outstandingMinor, client.currency)}{' '}
                           outstanding
                         </p>
                       </div>
@@ -445,7 +454,9 @@ export function ReceivablesPage(): React.JSX.Element {
                       <span>
                         {line.invoiceNumber} · {line.status}
                       </span>
-                      <span>{line.outstandingMinor} outstanding</span>
+                      <span>
+                        {formatMinor(line.outstandingMinor, line.currency)} outstanding
+                      </span>
                     </div>
                   ))}
                 </div>

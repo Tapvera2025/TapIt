@@ -5614,6 +5614,12 @@
     },
     {
       "method": "GET",
+      "path": "/api/payables/reimbursement-claims",
+      "action": "payables:create-bill",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/payables/subscriptions",
       "action": "payables:view",
       "resourceParam": null
@@ -5705,6 +5711,12 @@
     {
       "method": "GET",
       "path": "/api/payables/runs",
+      "action": "payables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/runs/candidates",
       "action": "payables:view",
       "resourceParam": null
     },
@@ -6309,6 +6321,12 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/payments/receipts/:id/allocatable-invoices",
+      "action": "payments:allocate",
+      "resourceParam": "id"
+    },
+    {
       "method": "POST",
       "path": "/api/payments/receipts",
       "action": "payments:record",
@@ -6369,6 +6387,12 @@
       "resourceParam": null
     },
     {
+      "method": "GET",
+      "path": "/api/payments/fx-rates",
+      "action": "payments:view",
+      "resourceParam": null
+    },
+    {
       "method": "POST",
       "path": "/api/payments/fx-revaluations",
       "action": "payments:record",
@@ -6395,6 +6419,12 @@
     {
       "method": "GET",
       "path": "/api/billing/profiles",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/form-options",
       "action": "billing:view-terms",
       "resourceParam": null
     },

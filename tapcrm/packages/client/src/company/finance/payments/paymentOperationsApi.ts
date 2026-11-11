@@ -24,6 +24,18 @@ export interface Receipt {
   cashClassification: string;
   state: string;
   verifiedJournalId: string | null;
+  allocatedMinor: string;
+  remainingMinor: string;
+  settled: boolean;
+}
+export interface AllocatableInvoice {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string | null;
+  currency: string;
+  total: string;
+  outstandingMinor: string;
 }
 export interface PaymentException {
   id: string;
@@ -59,12 +71,24 @@ export interface FxRevaluation {
   differenceMinor: string;
   journalId: string | null;
 }
+export interface FxRate {
+  id: string;
+  baseCurrency: string;
+  quoteCurrency: string;
+  rateBps: number;
+  effectiveAt: string;
+  source: string;
+}
 export const recordReceipt = (body: Record<string, unknown>) =>
   identityRequest<{ id: string; state: string }>('/api/payments/receipts', {
     method: 'POST',
     body: JSON.stringify(body),
   });
 export const listReceipts = () => identityRequest<Receipt[]>('/api/payments/receipts');
+export const listAllocatableInvoices = (receiptId: string) =>
+  identityRequest<AllocatableInvoice[]>(
+    `/api/payments/receipts/${encodeURIComponent(receiptId)}/allocatable-invoices`,
+  );
 export const verifyReceipt = (id: string, reason: string) =>
   identityRequest(`/api/payments/receipts/${id}/verify`, {
     method: 'POST',
@@ -118,3 +142,4 @@ export const listSettlements = () =>
   identityRequest<Settlement[]>('/api/payments/settlements');
 export const listFxRevaluations = () =>
   identityRequest<FxRevaluation[]>('/api/payments/fx-revaluations');
+export const listFxRates = () => identityRequest<FxRate[]>('/api/payments/fx-rates');

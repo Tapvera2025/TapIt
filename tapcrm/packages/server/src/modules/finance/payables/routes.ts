@@ -44,15 +44,31 @@ async function runResource(ctx: RequestContext, id: string): Promise<Resource | 
   );
   return row ? { type: 'paymentRun', ...row } : null;
 }
-async function bankChangeResource(ctx: RequestContext, id: string): Promise<Resource | null> {
-  const row = await db.maybeOne<{ id: string; organizationId: string; proposedBy: string; approvedBy: string | null }>(
+async function bankChangeResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const row = await db.maybeOne<{
+    id: string;
+    organizationId: string;
+    proposedBy: string;
+    approvedBy: string | null;
+  }>(
     ctx,
     sql`SELECT id,organization_id AS "organizationId",proposed_by AS "proposedBy",approved_by AS "approvedBy" FROM finance_vendor_bank_account WHERE organization_id=${ctx.organizationId} AND id=${id}`,
   );
   return row ? { type: 'vendorBankChange', ...row } : null;
 }
-async function purchaseRequestResource(ctx: RequestContext, id: string): Promise<Resource | null> {
-  const row = await db.maybeOne<{ id: string; organizationId: string; requesterId: string; approvedBy: string | null }>(
+async function purchaseRequestResource(
+  ctx: RequestContext,
+  id: string,
+): Promise<Resource | null> {
+  const row = await db.maybeOne<{
+    id: string;
+    organizationId: string;
+    requesterId: string;
+    approvedBy: string | null;
+  }>(
     ctx,
     sql`SELECT id,organization_id AS "organizationId",requester_id AS "requesterId",approved_by AS "approvedBy" FROM finance_purchase_request WHERE organization_id=${ctx.organizationId} AND id=${id}`,
   );
@@ -82,7 +98,10 @@ export function registerPayablesRoutes(): void {
     module: 'payables',
     resourceParam: 'id',
     loadResource: async (ctx, id) => {
-      const row = await db.maybeOne<{ id: string; organizationId: string }>(ctx, sql`SELECT id,organization_id AS "organizationId" FROM finance_vendor WHERE organization_id=${ctx.organizationId} AND id=${id}`);
+      const row = await db.maybeOne<{ id: string; organizationId: string }>(
+        ctx,
+        sql`SELECT id,organization_id AS "organizationId" FROM finance_vendor WHERE organization_id=${ctx.organizationId} AND id=${id}`,
+      );
       return row ? { type: 'vendor', ...row } : null;
     },
     handler: async ({ ctx, params, body }) =>
@@ -99,8 +118,12 @@ export function registerPayablesRoutes(): void {
       service.approveBankChange(ctx, params['id']!, billDecisionSchema.parse(body)),
   });
   route({
-    method: 'GET', path: '/api/payables/vendor-bank-changes', action: 'payables:view', module: 'payables',
-    handler: async ({ ctx, query }) => service.listBankChanges(ctx, parsePagination(query)),
+    method: 'GET',
+    path: '/api/payables/vendor-bank-changes',
+    action: 'payables:view',
+    module: 'payables',
+    handler: async ({ ctx, query }) =>
+      service.listBankChanges(ctx, parsePagination(query)),
   });
   route({
     method: 'GET',
@@ -108,6 +131,13 @@ export function registerPayablesRoutes(): void {
     action: 'payables:view',
     module: 'payables',
     handler: async ({ ctx, query }) => service.listBills(ctx, parsePagination(query)),
+  });
+  route({
+    method: 'GET',
+    path: '/api/payables/reimbursement-claims',
+    action: 'payables:create-bill',
+    module: 'payables',
+    handler: async ({ ctx }) => service.listReimbursementClaims(ctx),
   });
   route({
     method: 'POST',
@@ -173,7 +203,8 @@ export function registerPayablesRoutes(): void {
     path: '/api/payables/subscriptions',
     action: 'payables:view',
     module: 'payables',
-    handler: async ({ ctx, query }) => service.listSubscriptions(ctx, parsePagination(query)),
+    handler: async ({ ctx, query }) =>
+      service.listSubscriptions(ctx, parsePagination(query)),
   });
   route({
     method: 'POST',
@@ -189,7 +220,8 @@ export function registerPayablesRoutes(): void {
     path: '/api/payables/purchase-requests',
     action: 'payables:view',
     module: 'payables',
-    handler: async ({ ctx, query }) => service.listPurchaseRequests(ctx, parsePagination(query)),
+    handler: async ({ ctx, query }) =>
+      service.listPurchaseRequests(ctx, parsePagination(query)),
   });
   route({
     method: 'POST',
@@ -201,12 +233,32 @@ export function registerPayablesRoutes(): void {
       service.createPurchaseRequest(ctx, purchaseRequestSchema.parse(body)),
   });
   route({
-    method: 'POST', path: '/api/payables/purchase-requests/:id/approve', action: 'payables:approve-bill', module: 'payables', resourceParam: 'id', loadResource: purchaseRequestResource,
-    handler: async ({ ctx, params, body }) => service.approvePurchaseRequest(ctx, params['id']!, purchaseRequestDecisionSchema.parse(body)),
+    method: 'POST',
+    path: '/api/payables/purchase-requests/:id/approve',
+    action: 'payables:approve-bill',
+    module: 'payables',
+    resourceParam: 'id',
+    loadResource: purchaseRequestResource,
+    handler: async ({ ctx, params, body }) =>
+      service.approvePurchaseRequest(
+        ctx,
+        params['id']!,
+        purchaseRequestDecisionSchema.parse(body),
+      ),
   });
   route({
-    method: 'POST', path: '/api/payables/purchase-requests/:id/match-bill', action: 'payables:approve-bill', module: 'payables', resourceParam: 'id', loadResource: purchaseRequestResource,
-    handler: async ({ ctx, params, body }) => service.matchPurchaseRequest(ctx, params['id']!, purchaseRequestMatchSchema.parse(body)),
+    method: 'POST',
+    path: '/api/payables/purchase-requests/:id/match-bill',
+    action: 'payables:approve-bill',
+    module: 'payables',
+    resourceParam: 'id',
+    loadResource: purchaseRequestResource,
+    handler: async ({ ctx, params, body }) =>
+      service.matchPurchaseRequest(
+        ctx,
+        params['id']!,
+        purchaseRequestMatchSchema.parse(body),
+      ),
   });
   route({
     method: 'GET',
@@ -214,6 +266,13 @@ export function registerPayablesRoutes(): void {
     action: 'payables:view',
     module: 'payables',
     handler: async ({ ctx, query }) => service.listRuns(ctx, parsePagination(query)),
+  });
+  route({
+    method: 'GET',
+    path: '/api/payables/runs/candidates',
+    action: 'payables:view',
+    module: 'payables',
+    handler: async ({ ctx }) => service.listPaymentRunCandidates(ctx),
   });
   route({
     method: 'POST',

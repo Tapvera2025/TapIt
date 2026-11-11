@@ -18,6 +18,10 @@ export type ReceivablesAction =
   | 'schedule';
 type Values = Record<string, string>;
 const valueOf = (values: Values, key: string) => values[key] ?? '';
+const minorToMajor = (value: string): string => {
+  const minor = BigInt(value);
+  return `${minor / 100n}.${(minor % 100n).toString().padStart(2, '0')}`;
+};
 
 export function ReceivablesActionModal({
   action,
@@ -37,7 +41,7 @@ export function ReceivablesActionModal({
   onSubmit: (values: Values) => Promise<void>;
 }): React.JSX.Element {
   const [values, setValues] = useState<Values>({
-    amount: invoice?.outstandingMinor || '',
+    amount: invoice ? minorToMajor(invoice.outstandingMinor) : '',
     cadenceDays: '7',
     dueAt: localDateTime(),
     promisedFor: localDateTime(),
@@ -59,7 +63,13 @@ export function ReceivablesActionModal({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const reason = valueOf(values, 'reason').trim();
-    if (!reason) return setError('A reason is required.');
+    const resolution = valueOf(values, 'resolution').trim();
+    if (action === 'resolve-dispute' ? !resolution : !reason)
+      return setError(
+        action === 'resolve-dispute'
+          ? 'A resolution is required.'
+          : 'A reason is required.',
+      );
     if (
       (action === 'promise' || action === 'write-off') &&
       (!valueOf(values, 'amount') || Number(valueOf(values, 'amount')) <= 0)
@@ -101,7 +111,7 @@ export function ReceivablesActionModal({
       <form onSubmit={(event) => void submit(event)} className="space-y-4">
         <p className="text-sm text-app-muted">
           {invoice
-            ? `${invoice.invoiceNumber} · ${invoice.currency} ${invoice.outstandingMinor} outstanding`
+            ? `${invoice.invoiceNumber} · ${invoice.currency} ${minorToMajor(invoice.outstandingMinor)} outstanding`
             : (client?.businessName ??
               (item && 'invoiceNumber' in item ? item.invoiceNumber : ''))}
         </p>
