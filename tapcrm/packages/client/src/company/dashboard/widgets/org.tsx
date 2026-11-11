@@ -76,8 +76,8 @@ export function OrgTeamDistributionWidget(): React.JSX.Element {
     : departments;
   return (
     <Panel>
-      <p className="text-sm font-semibold">Team distribution</p>
-      <p className="mt-1 text-xs text-app-muted">By department</p>
+      <p className="text-sm font-semibold">Department distribution</p>
+      <p className="mt-1 text-xs text-app-muted">Employees by department</p>
       <div className="mt-2 flex min-h-0 flex-1 flex-col">
         <BarChart label="Employees by department" data={chartData.map(([label, value]) => ({ label, value }))} />
       </div>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { loadTodayStatus, punch, type PunchKind, type LiveRow, type PunchDisabledReason } from '../live/liveApi.js';
+import { ATTENDANCE_UPDATED_EVENT, loadTodayStatus, notifyAttendanceUpdated, punch, type PunchKind, type LiveRow, type PunchDisabledReason } from '../live/liveApi.js';
 import { getBreakAllowance, getBreakPrompts, submitBreachExplanation, type BreakAllowance, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
+import { exactCompletedBreakSeconds } from '../attendance/breakTime.js';
 import { Button, GlassSurface, Modal, SkeletonTodayPage, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
 
@@ -27,25 +28,6 @@ function fmtDateFull(date: Date): string {
 function elapsedSeconds(startIso: string | null, now: Date): number {
   if (!startIso) return 0;
   return Math.max(0, Math.floor((now.getTime() - new Date(startIso).getTime()) / 1000));
-}
-
-function exactCompletedBreakSeconds(events: AttendanceEventView[]): number {
-  const effective = events
-    .filter((event) => !event.isVoid && (event.kind === 'break-start' || event.kind === 'break-end'))
-    .sort((a, b) => Date.parse(a.occurredAt ?? a.at ?? '') - Date.parse(b.occurredAt ?? b.at ?? ''));
-  let openAt: number | null = null;
-  let total = 0;
-  for (const event of effective) {
-    const at = Date.parse(event.occurredAt ?? event.at ?? '');
-    if (!Number.isFinite(at)) continue;
-    if (event.kind === 'break-start') {
-      openAt = at;
-    } else if (openAt !== null && at >= openAt) {
-      total += Math.floor((at - openAt) / 1000);
-      openAt = null;
-    }
-  }
-  return total;
 }
 
 function fmtBreakTimer(seconds: number): string {
@@ -343,10 +325,11 @@ function BreakStatusCard({
 }): React.JSX.Element {
   const isOnBreak = row?.state === 'ON_BREAK';
   const currentBreakSeconds = elapsedSeconds(isOnBreak ? (row?.since ?? null) : null, now);
-  const completedBreakSeconds = Math.max(
-    Math.max(0, row?.breakMinutes ?? 0) * 60,
-    exactCompletedBreakSeconds(events),
-  );
+  const reportedBreakSeconds = Math.max(0, row?.breakMinutes ?? 0) * 60;
+  const reportedCompletedBreakSeconds = isOnBreak
+    ? Math.max(0, reportedBreakSeconds - currentBreakSeconds)
+    : reportedBreakSeconds;
+  const completedBreakSeconds = Math.max(reportedCompletedBreakSeconds, exactCompletedBreakSeconds(events));
   const totalBreakSeconds = completedBreakSeconds + currentBreakSeconds;
   // Fall back to 60 minutes when no policy limit is configured.
   const effectiveLimitMinutes = breakLimitMinutes ?? 60;
@@ -705,6 +688,15 @@ export function TodayPage({
     return () => tabletAndUp.removeEventListener('change', syncViewport);
   }, []);
 
+  useEffect(() => {
+    const refreshAfterAttendanceChange = () => {
+      setPunchMessage(null);
+      setVersion((current) => current + 1);
+    };
+    window.addEventListener(ATTENDANCE_UPDATED_EVENT, refreshAfterAttendanceChange);
+    return () => window.removeEventListener(ATTENDANCE_UPDATED_EVENT, refreshAfterAttendanceChange);
+  }, []);
+
   // Load data
   useEffect(() => {
     abort.current?.abort();
@@ -740,18 +732,16 @@ export function TodayPage({
     return () => { abort.current?.abort(); };
   }, [organizationTimezone, version, userId]);
 
-  const refresh = (): void => setVersion((v) => v + 1);
-
   async function handlePunch(kind: PunchKind, label: string): Promise<void> {
     setPunchBusy(kind);
     setPunchMessage(null);
     try {
       const result = await punch(kind);
+      notifyAttendanceUpdated();
       const at = fmtTime12(new Date());
       setPunchMessage(kind === 'break-start' || kind === 'break-end'
         ? null
         : { ok: true, text: result.replayed ? `${label} already recorded.` : `${label} at ${at}.` });
-      refresh();
     } catch (err) {
       setPunchMessage({ ok: false, text: err instanceof Error ? err.message : 'Failed. Try again.' });
     } finally {

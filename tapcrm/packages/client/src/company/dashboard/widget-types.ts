@@ -6,6 +6,7 @@ export interface WidgetContext {
   readonly identity: CompanyIdentity;
   readonly userId: string;
   readonly onNavigate: (path: string) => void;
+  readonly refreshKey: number;
 }
 
 export type WidgetComponent = (props: { ctx: WidgetContext }) => React.JSX.Element;

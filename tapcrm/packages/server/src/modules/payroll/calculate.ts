@@ -335,6 +335,25 @@ export function statutorySettings(settings: Record<string, unknown>): StatutoryS
   };
 }
 
+const STATUTORY_TAGS: readonly string[] = ['pf-wage', 'pf', 'pt', 'esi'];
+
+/**
+ * The settings define PF, PT or ESI, but no salary line is marked for any of
+ * them, so they would quietly not apply: PF stays whatever fixed amount was
+ * typed and ESI is never deducted. The run reports it as a warning.
+ */
+export function statutoryUnmarked(
+  segments: readonly FrozenStructureSegment[],
+  settings: Record<string, unknown>,
+): boolean {
+  if (segments.length === 0) return false;
+  const rules = statutorySettings(settings);
+  if (rules.pf === null && rules.professionalTaxPaise === null && rules.esi === null) return false;
+  return !segments.some((segment) =>
+    segment.lines.some((line) => line.statutoryTags.some((tag) => STATUTORY_TAGS.includes(tag))),
+  );
+}
+
 /** `paise × rate`, exact to six decimal places of the rate, then rounded to the rupee (PY-3). */
 function percentOf(paise: bigint, rate: number): bigint {
   const micro = BigInt(Math.round(rate * 1_000_000));

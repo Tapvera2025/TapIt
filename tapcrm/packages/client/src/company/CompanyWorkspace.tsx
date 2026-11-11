@@ -20,6 +20,7 @@ import { SalariesPage } from './payroll/SalariesPage.js';
 import { PayrollSettingsPage } from './payroll/PayrollSettingsPage.js';
 import { PayrollInputsPage } from './payroll/PayrollInputsPage.js';
 import { TodayPage } from './today/TodayPage.js';
+import { BreakModeGuard } from './live/BreakModeGuard.js';
 import { LiveBoardPage } from './live/LiveBoardPage.js';
 import { AttendancePage } from './attendance/AttendancePage.js';
 import { EmployeeWisePage } from './attendance/EmployeeWisePage.js';
@@ -574,7 +575,7 @@ export function CompanyWorkspace({
           <DailyLateReportPage canExport={isSuperAdmin} />
         </AttendancePageBoundary>
       );
-    if (pathname === '/company/attendance/live' && canBeyondOwn('attendance:view-live'))
+    if (pathname === '/company/attendance/live' && (isSuperAdmin || canBeyondOwn('attendance:view-live')))
       return <LiveBoardPage />;
     if (pathname === '/company/attendance/corrections' && can('attendance:correct'))
       return <CorrectionsPage />;
@@ -886,7 +887,7 @@ export function CompanyWorkspace({
       canViewMeetings={hasMeetings && (canHostMeetings || canViewMeetings)}
       canViewSeo={canViewSeo}
       canViewProjects={canViewProjects}
-      canViewLiveBoard={canBeyondOwn('attendance:view-live')}
+      canViewLiveBoard={isSuperAdmin || canBeyondOwn('attendance:view-live')}
       canViewAttendanceReports={isHr || canBeyondOwn('attendance:view')}
       canReviewCorrections={can('attendance:correct')}
       canReviewBreaches={can('breaks:review-breach')}
@@ -920,6 +921,12 @@ export function CompanyWorkspace({
     </CompanyLayout>
   );
   // The sales guide follows people across Sales pages; others never see it.
+  const workspaceWithBreakMode = (
+    <>
+      {layout}
+      {!isSuperAdmin && <BreakModeGuard />}
+    </>
+  );
   return canViewSalesWorkspace ? (
     <SalesGuideProvider
       userId={userId}
@@ -928,9 +935,9 @@ export function CompanyWorkspace({
       canRecordWin={canRecordWin}
       canDecideApprovals={canDecideApprovals}
     >
-      {layout}
+      {workspaceWithBreakMode}
     </SalesGuideProvider>
-  ) : layout;
+  ) : workspaceWithBreakMode;
 }
 
 class AttendancePageBoundary extends Component<

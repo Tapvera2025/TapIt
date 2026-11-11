@@ -1,0 +1,701 @@
+.break-mode-dialog {
+  width: min(82rem, calc(100vw - 3rem));
+  max-width: none;
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  overflow: auto;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-radius: 2rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 5%, var(--app-surface)), var(--app-surface) 68%);
+  color: var(--app-foreground);
+  box-shadow: 0 24px 64px -32px color-mix(in srgb, var(--app-foreground) 52%, transparent);
+  animation: break-mode-enter 180ms ease-out both;
+}
+
+.break-mode-dialog::backdrop {
+  background: color-mix(in srgb, #0b1220 32%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.dark .break-mode-dialog::backdrop {
+  background: color-mix(in srgb, #020617 56%, transparent);
+}
+
+.break-mode-content {
+  display: grid;
+  grid-template-areas: 'status timer companion' 'copy timer companion' 'footer timer companion';
+  grid-template-columns: minmax(21rem, 1.05fr) minmax(13rem, 0.65fr) minmax(20rem, 0.95fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: min(40rem, calc(100dvh - 4rem));
+  align-items: center;
+  column-gap: clamp(1rem, 2vw, 2rem);
+  row-gap: 1rem;
+  padding: clamp(2rem, 4vw, 3.5rem);
+  text-align: left;
+}
+
+.break-mode-status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.break-mode-status-icon {
+  display: grid;
+  width: 4.5rem;
+  height: 4.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+  color: var(--app-accent);
+}
+
+.break-mode-status-icon svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.break-mode-status-pill {
+  display: inline-flex;
+  min-height: 2.8rem;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+  padding: 0.65rem 1rem;
+  color: var(--app-accent);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.break-mode-status-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--app-accent);
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--app-accent) 13%, transparent);
+}
+
+.break-mode-copy {
+  grid-area: copy;
+  min-width: 0;
+}
+
+.break-mode-content h2 {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: clamp(2.4rem, 3.5vw, 3.6rem);
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+}
+
+.break-mode-description {
+  max-width: 31rem;
+  margin: 1.1rem 0 0;
+  color: var(--app-muted);
+  font-size: clamp(1.05rem, 1.4vw, 1.3rem);
+  line-height: 1.5;
+}
+
+.break-mode-companion {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  grid-area: companion;
+  min-width: 0;
+  min-height: 28rem;
+  align-self: stretch;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  overflow: visible;
+  padding: 0;
+  color: var(--app-accent);
+  transition: color 250ms ease;
+}
+
+.break-mode-companion::before {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: 5%;
+  left: 0;
+  width: min(100%, 23rem);
+  aspect-ratio: 1;
+  margin: auto;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, #f6bb85 30%, var(--app-surface)) 0%, color-mix(in srgb, #f6bb85 18%, var(--app-surface)) 52%, transparent 74%);
+  content: '';
+  pointer-events: none;
+}
+
+.break-mode-companion[data-mood='ready'] {
+  color: #278568;
+}
+
+.break-mode-companion[data-mood='rushed'] {
+  color: var(--app-danger);
+}
+
+.break-mode-companion-art {
+  display: block;
+  width: min(100%, 18rem);
+  height: 22rem;
+  flex: 0 1 auto;
+  overflow: visible;
+  filter: drop-shadow(0 0.35rem 0.3rem rgb(23 32 51 / 9%));
+}
+
+.break-mode-companion-person {
+  transform-box: view-box;
+  transform-origin: 90px 146px;
+  transition: transform 250ms ease;
+}
+
+.break-mode-companion[data-mood='tired'] .break-mode-companion-person {
+  animation: break-companion-tired 2.5s ease-in-out infinite;
+}
+
+.break-mode-companion[data-mood='recovering'] .break-mode-companion-person {
+  animation: break-companion-breathe 2.8s ease-in-out infinite;
+}
+
+.break-mode-companion[data-mood='ready'] .break-mode-companion-person {
+  animation: break-companion-ready 850ms cubic-bezier(0.2, 0.8, 0.25, 1.2) both;
+}
+
+.break-mode-companion[data-mood='rushed'] .break-mode-companion-person {
+  animation: break-companion-rush 260ms ease-in-out infinite alternate;
+}
+
+.break-mode-speed-lines {
+  stroke-width: 3;
+  opacity: 0;
+}
+
+.break-mode-companion[data-mood='rushed'] .break-mode-speed-lines {
+  animation: break-companion-speed 450ms ease-in-out infinite alternate;
+}
+
+.break-mode-sparkles {
+  stroke: #e8a93f;
+  stroke-width: 3;
+  opacity: 0;
+}
+
+.break-mode-companion[data-mood='ready'] .break-mode-sparkles {
+  animation: break-companion-spark 850ms ease-out both;
+}
+
+.break-mode-companion-caption {
+  color: currentColor;
+  font-size: 0.9rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.break-mode-timer-panel {
+  display: grid;
+  grid-area: timer;
+  width: min(100%, 15rem);
+  min-height: 0;
+  place-items: center;
+  justify-self: end;
+}
+
+.break-mode-timer {
+  --break-timer-color: var(--app-accent);
+  --break-timer-track: color-mix(in srgb, var(--app-accent) 15%, transparent);
+  display: grid;
+  width: 14rem;
+  height: 14rem;
+  position: relative;
+  place-items: center;
+  color: var(--break-timer-color);
+  transition: color 220ms ease;
+}
+
+.break-mode-timer[data-over-limit='true'] {
+  --break-timer-color: var(--app-danger);
+  --break-timer-track: color-mix(in srgb, var(--app-danger) 17%, transparent);
+}
+
+.break-mode-timer-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.break-mode-timer-track,
+.break-mode-timer-progress {
+  fill: none;
+  stroke-width: 5;
+}
+
+.break-mode-timer-track {
+  stroke: var(--break-timer-track);
+}
+
+.break-mode-timer-progress {
+  stroke: var(--break-timer-color);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 450ms linear, stroke 220ms ease;
+}
+
+.break-mode-timer-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 78%;
+  flex-direction: column;
+  align-items: center;
+  max-width: 10rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.break-mode-timer-caption {
+  color: var(--break-timer-color);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  white-space: nowrap;
+}
+
+.break-mode-timer-value {
+  margin-top: 0.2rem;
+  color: var(--app-foreground);
+  font-size: 3rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.045em;
+  transition: color 220ms ease;
+}
+
+.break-mode-timer[data-over-limit='true'] .break-mode-timer-value {
+  color: var(--app-danger);
+}
+
+.break-mode-timer-limit {
+  max-width: 100%;
+  margin-top: 0.15rem;
+  color: var(--app-muted);
+  font-size: 0.9rem;
+  line-height: 1.2;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.break-mode-footer {
+  grid-area: footer;
+  min-width: 0;
+  align-self: end;
+}
+
+.break-mode-error {
+  width: 100%;
+  margin: 0 0 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--app-danger) 28%, var(--app-border));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--app-danger) 8%, var(--app-surface));
+  padding: 0.65rem 0.75rem;
+  color: var(--app-danger);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.break-mode-resume {
+  display: inline-flex;
+  width: min(100%, 23rem);
+  min-height: 3.75rem;
+  align-items: center;
+  gap: 0.85rem;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.9rem 1.4rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.break-mode-resume-arrow {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.break-mode-resume:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.break-mode-resume:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@keyframes break-mode-enter {
+  from { opacity: 0; transform: translateY(0.35rem) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes break-companion-tired {
+  0%, 100% { transform: rotate(-2deg) translateY(1px); }
+  50% { transform: rotate(1deg) translateY(3px); }
+}
+
+@keyframes break-companion-breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-2px) scaleY(1.015); }
+}
+
+@keyframes break-companion-ready {
+  0% { transform: translateY(5px) scale(0.96); }
+  55% { transform: translateY(-7px) scale(1.035); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes break-companion-rush {
+  from { transform: skewX(-4deg) translateX(1px); }
+  to { transform: skewX(2deg) translateX(-2px) translateY(-2px); }
+}
+
+@keyframes break-companion-speed {
+  from { opacity: 0.28; transform: translateX(4px); }
+  to { opacity: 0.8; transform: translateX(-3px); }
+}
+
+@keyframes break-companion-spark {
+  0% { opacity: 0; transform: scale(0.65); }
+  35% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0.65; transform: scale(1); }
+}
+
+@media (max-width: 1100px) and (min-width: 561px) {
+  .break-mode-dialog {
+    width: calc(100vw - 2rem);
+    border-radius: 1.5rem;
+  }
+
+  .break-mode-content {
+    grid-template-areas: 'status companion' 'copy companion' 'timer companion' 'footer companion';
+    grid-template-columns: minmax(0, 1fr) 15rem;
+    grid-template-rows: auto auto auto auto;
+    min-height: min(38rem, calc(100dvh - 4rem));
+    column-gap: 1.25rem;
+    row-gap: 0.8rem;
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+  }
+
+  .break-mode-content h2 {
+    font-size: clamp(2.2rem, 4vw, 3.1rem);
+  }
+
+  .break-mode-companion {
+    min-height: 25rem;
+  }
+
+  .break-mode-companion-art {
+    width: min(100%, 15rem);
+    height: 18.4rem;
+  }
+
+  .break-mode-timer-panel {
+    width: 12rem;
+    justify-self: end;
+  }
+
+  .break-mode-timer {
+    width: 11.5rem;
+    height: 11.5rem;
+  }
+
+  .break-mode-timer-value {
+    font-size: 2.4rem;
+  }
+
+  .break-mode-timer-caption {
+    font-size: 0.67rem;
+  }
+
+  .break-mode-timer-limit {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .break-mode-dialog {
+    width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+    border-radius: 1.25rem;
+  }
+
+  .break-mode-content {
+    grid-template-areas: 'status' 'copy' 'companion' 'timer' 'footer';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    min-height: 0;
+    align-items: center;
+    row-gap: 0.7rem;
+    column-gap: 0;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .break-mode-status {
+    gap: 0.55rem;
+  }
+
+  .break-mode-status-icon {
+    width: 3.2rem;
+    height: 3.2rem;
+  }
+
+  .break-mode-status-icon svg {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+
+  .break-mode-status-pill {
+    min-height: 2.4rem;
+    gap: 0.55rem;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.88rem;
+  }
+
+  .break-mode-content h2 {
+    font-size: clamp(1.7rem, 7vw, 2.3rem);
+    text-align: center;
+  }
+
+  .break-mode-description {
+    margin: 0.45rem auto 0;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .break-mode-companion {
+    width: 100%;
+    min-height: 0;
+    justify-self: center;
+    gap: 0.2rem;
+  }
+
+  .break-mode-companion::before {
+    width: min(100%, 14rem);
+  }
+
+  .break-mode-companion-art {
+    width: 7.25rem;
+    height: 8.85rem;
+  }
+
+  .break-mode-companion-caption {
+    font-size: 0.68rem;
+  }
+
+  .break-mode-timer-panel {
+    width: fit-content;
+    justify-self: center;
+  }
+
+  .break-mode-timer {
+    width: 7.5rem;
+    height: 7.5rem;
+  }
+
+  .break-mode-timer-copy {
+    width: 82%;
+  }
+
+  .break-mode-timer-caption {
+    font-size: 0.53rem;
+  }
+
+  .break-mode-timer-value {
+    font-size: 1.55rem;
+  }
+
+  .break-mode-timer-limit {
+    font-size: 0.66rem;
+  }
+
+  .break-mode-footer,
+  .break-mode-resume {
+    width: 100%;
+  }
+
+  .break-mode-resume {
+    min-height: 3.1rem;
+    padding-block: 0.7rem;
+    font-size: 0.96rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .break-mode-content {
+    row-gap: 0.5rem;
+    padding: 0.8rem;
+  }
+
+  .break-mode-status-icon {
+    width: 2.8rem;
+    height: 2.8rem;
+  }
+
+  .break-mode-status-pill {
+    font-size: 0.8rem;
+  }
+
+  .break-mode-content h2 {
+    font-size: clamp(1.55rem, 7vw, 1.85rem);
+  }
+
+  .break-mode-description {
+    font-size: 0.84rem;
+  }
+
+  .break-mode-companion-art {
+    width: 6.5rem;
+    height: 7.95rem;
+  }
+
+  .break-mode-timer {
+    width: 6.8rem;
+    height: 6.8rem;
+  }
+
+  .break-mode-timer-value {
+    font-size: 1.4rem;
+  }
+}
+
+@media (max-width: 560px) and (max-height: 600px) {
+  .break-mode-dialog {
+    max-height: calc(100dvh - 0.5rem);
+  }
+
+  .break-mode-content {
+    grid-template-areas: 'status companion' 'copy companion' 'timer companion' 'footer footer';
+    grid-template-columns: minmax(0, 1fr) 7.25rem;
+    grid-template-rows: auto 1fr auto auto;
+    align-items: center;
+    column-gap: 0.55rem;
+    row-gap: 0.4rem;
+    padding: 0.75rem;
+    text-align: left;
+  }
+
+  .break-mode-status {
+    gap: 0.45rem;
+  }
+
+  .break-mode-status-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .break-mode-status-icon svg {
+    width: 1.6rem;
+    height: 1.6rem;
+  }
+
+  .break-mode-status-pill {
+    min-height: 2rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.72rem;
+  }
+
+  .break-mode-content h2 {
+    font-size: clamp(1.25rem, 5vw, 1.55rem);
+    text-align: left;
+  }
+
+  .break-mode-description {
+    margin: 0.3rem 0 0;
+    font-size: 0.78rem;
+    text-align: left;
+  }
+
+  .break-mode-companion {
+    width: 7.25rem;
+    min-height: 0;
+    gap: 0.1rem;
+  }
+
+  .break-mode-companion-art {
+    width: 6rem;
+    height: 7.35rem;
+  }
+
+  .break-mode-companion-caption {
+    font-size: 0.58rem;
+  }
+
+  .break-mode-timer-panel {
+    width: 6.5rem;
+    justify-self: center;
+  }
+
+  .break-mode-timer {
+    width: 6.25rem;
+    height: 6.25rem;
+  }
+
+  .break-mode-timer-copy {
+    width: 82%;
+  }
+
+  .break-mode-timer-caption {
+    font-size: 0.46rem;
+  }
+
+  .break-mode-timer-value {
+    font-size: 1.2rem;
+  }
+
+  .break-mode-timer-limit {
+    font-size: 0.52rem;
+  }
+
+  .break-mode-resume {
+    min-height: 2.65rem;
+    font-size: 0.86rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .break-mode-dialog,
+  .break-mode-companion-person,
+  .break-mode-speed-lines,
+  .break-mode-sparkles,
+  .break-mode-timer,
+  .break-mode-timer-progress,
+  .break-mode-timer-value {
+    animation: none;
+    transition: none;
+  }
+}

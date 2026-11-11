@@ -64,6 +64,13 @@ export function loadTodayStatus(signal?: AbortSignal): Promise<TodayStatus> {
   return identityRequest<TodayStatus>('/api/attendance/live?self=true', { signal: signal ?? null });
 }
 
+export const ATTENDANCE_UPDATED_EVENT = 'tapcrm:attendance-updated';
+
+/** Notify mounted attendance surfaces after a punch changes the live state. */
+export function notifyAttendanceUpdated(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ATTENDANCE_UPDATED_EVENT));
+}
+
 export type PunchKind = 'in' | 'out' | 'break-start' | 'break-end';
 
 export interface PunchResult {

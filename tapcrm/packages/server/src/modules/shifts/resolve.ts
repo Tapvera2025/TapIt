@@ -25,6 +25,15 @@ import { addDays, weekdayOf } from '../../platform/time.js';
 export const FLEXIBLE_FULL_DAY_MINUTES = 480;
 export const FLEXIBLE_HALF_DAY_MINUTES = 300;
 
+/**
+ * How long after a fixed shift ends its day still takes punches, when neither
+ * the shift version nor a dated `shift_setting` row says (§5.2, Q3). Without
+ * it the cap is the shift end itself: someone on 09:00–18:00 who punches out
+ * at 18:05 is refused, the day is closed at 18:00 as a guess, and overtime can
+ * never be recorded. The cap still stops at the next shift's start.
+ */
+export const DEFAULT_MAX_CLOSING_EXTENSION_MINUTES = 240;
+
 export interface ShiftVersionInput {
   readonly id: string;
   readonly effectiveFrom: DateOnly;
@@ -258,7 +267,7 @@ export function templateOn(
     maxClosingExtensionMinutes:
       version.maxClosingExtensionMinutes ??
       settingOn(inputs, date)?.maxClosingExtensionMinutes ??
-      null,
+      DEFAULT_MAX_CLOSING_EXTENSION_MINUTES,
     timezone: inputs.timezone,
   };
 }

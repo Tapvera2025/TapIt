@@ -32,6 +32,11 @@ import * as service from './service.js';
 import { getMedia, uploadMedia } from './media.js';
 import { exportAnalyticsCsv, getAnalytics, syncAnalytics } from './service.js';
 import {
+  getClientSearchConsolePerformance,
+  inspectClientSearchConsoleUrl,
+  listClientSearchConsoleProperties,
+} from './search-console-report.js';
+import {
   socialPostSchema,
   socialPostQuerySchema,
   socialSettingsSchema,
@@ -60,6 +65,19 @@ const oauthCompletion = z
   .strict();
 const revocation = z.object({ revokeGrant: z.boolean().default(false) }).strict();
 const assignment = z.object({ clientId: z.string().uuid().nullable() }).strict();
+const searchConsolePropertyUrl = z.string().trim().min(1).max(2048);
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const searchConsolePerformanceQuery = z.object({
+  propertyUrl: searchConsolePropertyUrl,
+  from: isoDate,
+  to: isoDate,
+}).strict().refine((value) => value.from <= value.to, {
+  message: 'Choose a valid Search Console date range.',
+});
+const searchConsoleInspectionInput = z.object({
+  propertyUrl: searchConsolePropertyUrl,
+  inspectionUrl: z.string().trim().url().max(2048),
+}).strict();
 // Preparing content cannot smuggle a publish or approval command through social:manage.
 const preparePost = socialPostSchema.extend({
   intent: z.enum(['draft', 'submit']).default('draft'),
@@ -319,6 +337,15 @@ export function registerSocialRoutes(): void {
     );
     return getAnalytics(ctx, clientId(params), {});
   });
+  workspace('GET', '/search-console/properties', 'social:view', async ({ ctx, params }) =>
+    listClientSearchConsoleProperties(ctx, clientId(params)),
+  );
+  workspace('GET', '/search-console/performance', 'social:view', async ({ ctx, params, query }) =>
+    getClientSearchConsolePerformance(ctx, clientId(params), searchConsolePerformanceQuery.parse(query)),
+  );
+  workspace('POST', '/search-console/inspect', 'social:view', async ({ ctx, params, body }) =>
+    inspectClientSearchConsoleUrl(ctx, clientId(params), searchConsoleInspectionInput.parse(body)),
+  );
 
   // Company-wide connections: one platform sign-in for the whole company, whose
   // locations are assigned to clients. Managing them is a company integration.

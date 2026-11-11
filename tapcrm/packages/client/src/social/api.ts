@@ -18,6 +18,9 @@ import type {
   SocialPostInput,
   SocialPostPage,
   SocialProvider,
+  SocialGoogleIndexInspection,
+  SocialSearchConsolePerformance,
+  SocialSearchConsoleProperty,
   SocialSettings,
 } from './types.js';
 
@@ -201,6 +204,30 @@ export const syncSocialAnalytics = (clientId: string, from: string, to: string) 
     method: 'POST',
     body: JSON.stringify({ from, to }),
   });
+
+export const listClientSearchConsoleProperties = (clientId: string) =>
+  identityRequest<{ properties: SocialSearchConsoleProperty[]; warning: string | null }>(
+    `${workspace(clientId)}/search-console/properties`,
+  );
+
+export const getClientSearchConsolePerformance = (
+  clientId: string,
+  input: { propertyUrl: string; from: string; to: string },
+) => {
+  const params = new URLSearchParams(input);
+  return identityRequest<SocialSearchConsolePerformance>(
+    `${workspace(clientId)}/search-console/performance?${params}`,
+  );
+};
+
+export const inspectClientSearchConsoleUrl = (
+  clientId: string,
+  input: { propertyUrl: string; inspectionUrl: string },
+) =>
+  identityRequest<SocialGoogleIndexInspection>(
+    `${workspace(clientId)}/search-console/inspect`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
 
 /** CSV export bypasses the JSON envelope — downloads the file as a blob. */
 export async function downloadSocialAnalyticsCsv(

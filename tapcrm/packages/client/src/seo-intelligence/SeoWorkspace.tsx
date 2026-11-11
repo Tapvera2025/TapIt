@@ -305,7 +305,7 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
         value={`seo-tab-${activeTab.id}`}
         onChange={(id) => {
           const selected = SEO_TABS.find((tab) => `seo-tab-${tab.id}` === id);
-          if (selected) navigate(selected.sections[0]!.id);
+          if (selected) navigate(selected.sections[0].id);
         }}
         scrollable
         />

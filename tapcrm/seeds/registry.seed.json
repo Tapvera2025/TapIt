@@ -6810,6 +6810,24 @@
       "resourceParam": "clientId"
     },
     {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/search-console/properties",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/social/clients/:clientId/search-console/performance",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/social/clients/:clientId/search-console/inspect",
+      "action": "social:view",
+      "resourceParam": "clientId"
+    },
+    {
       "method": "POST",
       "path": "/api/social/clients/:clientId/analytics/sync",
       "action": "social:manage",

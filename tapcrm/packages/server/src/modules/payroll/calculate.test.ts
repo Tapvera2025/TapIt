@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computePayslip, type ComputePayslipInput, type FrozenDay } from './calculate.js';
+import { computePayslip, statutoryUnmarked, type ComputePayslipInput, type FrozenDay } from './calculate.js';
 import { rupeesToPaise, roundToRupee, prorateAndRound, paiseToRupees } from './money.js';
 import { buildRunPostingIntent, buildRevisionPostingIntent } from './posting.js';
 
@@ -448,5 +448,48 @@ describe('computePayslip — overtime and holiday work (paid only when the setti
     // 6 hours × 96.15 × 2 = ₹1,153.85 → ₹1,154; at 1.5 → ₹865.38 → ₹865.
     expect(slip({ holidayWork: { enabled: true } })['HOLIDAY-WORK']).toBe(1154);
     expect(slip({ holidayWork: { enabled: true, multiplier: 1.5 } })['HOLIDAY-WORK']).toBe(865);
+  });
+});
+
+describe('statutory settings with unmarked salary lines', () => {
+  const settings = { pf: { employeeRate: 0.12, employerRate: 0.12, wageCeiling: 15000 }, professionalTax: { monthly: 200 } };
+  const marked = {
+    ...BASIC_SEGMENT,
+    lines: [
+      { ...BASIC_SEGMENT.lines[0]!, statutoryTags: ['pf-wage'] },
+      BASIC_SEGMENT.lines[1]!,
+      { code: 'PF', label: 'PF', kind: 'deduction' as const, amountStr: '0', prorated: false, statutoryTags: ['pf'], sortOrder: 3 },
+    ],
+  };
+
+  it('is reported when the settings define PF, PT or ESI and no line is marked', () => {
+    expect(statutoryUnmarked([BASIC_SEGMENT], settings)).toBe(true);
+  });
+
+  it('is not reported once a line is marked, or when the settings define none of them', () => {
+    expect(statutoryUnmarked([marked], settings)).toBe(false);
+    expect(statutoryUnmarked([BASIC_SEGMENT], { overtime: { enabled: true } })).toBe(false);
+    expect(statutoryUnmarked([], settings)).toBe(false);
+  });
+
+  it('a marked line is worked out from the settings, an unmarked one keeps its typed amount', () => {
+    const fixedPf = {
+      ...BASIC_SEGMENT,
+      lines: [...BASIC_SEGMENT.lines, { code: 'PF', label: 'PF', kind: 'deduction' as const, amountStr: '1800', prorated: false, statutoryTags: [], sortOrder: 3 }],
+    };
+    const base: ComputePayslipInput = {
+      userId: 'u', periodStart: '2025-01-01', periodEnd: '2025-01-31', employmentFrom: '2024-01-01', employmentTo: null,
+      days: JAN_2025_DAYS, structureSegments: [fixedPf], inputs: [], config: { schemaVersion: 'v1', settings },
+    };
+    expect(computePayslip(base).lines.find((l) => l.code === 'PF')!.amountPaise).toBe(180000n);
+    // Marked: 12% of the ₹15,000 ceiling (basic is ₹30,000).
+    const result = computePayslip({ ...base, structureSegments: [marked] });
+    expect(result.lines.find((l) => l.code === 'PF')!.amountPaise).toBe(180000n);
+    const halfMonth = computePayslip({
+      ...base,
+      structureSegments: [{ ...marked, lines: marked.lines.map((l) => (l.code === 'BASIC' ? { ...l, amountStr: '10000' } : l)) }],
+    });
+    // Marked PF follows the earned basic: 12% of ₹10,000.
+    expect(halfMonth.lines.find((l) => l.code === 'PF')!.amountPaise).toBe(120000n);
   });
 });

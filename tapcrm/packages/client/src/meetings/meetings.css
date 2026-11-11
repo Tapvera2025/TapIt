@@ -1,5 +1,13 @@
 .meeting-view-tabs {
-  margin-bottom: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.meeting-section {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.125rem;
 }
 
 .meeting-filter-card {
@@ -39,6 +47,60 @@
   min-width: 0;
 }
 
+.meeting-section-heading {
+  min-height: 2.5rem;
+  border-bottom: 1px solid var(--app-border);
+  padding-bottom: 0.75rem;
+}
+
+.meeting-section-count {
+  display: inline-grid;
+  min-width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 12%, var(--app-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-primary) 8%, var(--app-surface));
+  padding-inline: 0.55rem;
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.meeting-section-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.meeting-empty-state {
+  display: flex;
+  min-height: 7rem;
+  align-items: center;
+  gap: 1rem;
+  border: 1px dashed color-mix(in srgb, var(--theme-primary) 20%, var(--app-border));
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--theme-primary) 4%, var(--app-surface));
+  padding: 1rem;
+}
+
+.meeting-empty-icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 18%, var(--app-border));
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--theme-primary) 9%, var(--app-surface));
+  color: var(--app-accent);
+}
+
+.meeting-empty-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
 @media (max-width: 640px) {
   .meeting-view-tabs {
     width: 100%;
@@ -46,6 +108,23 @@
 
   .meeting-view-tabs .ui-segmented-tab {
     padding-inline: 0.75rem;
+  }
+
+  .meeting-section {
+    gap: 0.875rem;
+    padding: 0.875rem;
+  }
+
+  .meeting-empty-state {
+    min-height: 6rem;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem;
+  }
+
+  .meeting-empty-icon {
+    width: 2.5rem;
+    height: 2.5rem;
   }
 }
 

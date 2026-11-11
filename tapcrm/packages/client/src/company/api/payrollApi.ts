@@ -100,7 +100,7 @@ export interface RunBlocker {
 export interface RunWarning {
   userId: string;
   fullName: string;
-  kind: 'no-salary-structure' | 'no-leaving-date';
+  kind: 'no-salary-structure' | 'no-leaving-date' | 'statutory-not-applied';
 }
 
 export interface RunDrift {
@@ -171,6 +171,8 @@ export interface SaveStructureLine {
   /** Rupees as a decimal string ("45000.50"): money never travels as a JavaScript number (PG-5). */
   amount: string;
   prorated: boolean;
+  /** What payroll settings use the line for: `pf-wage`, `pf`, `pt` or `esi`; empty for none. */
+  statutoryTags: string[];
 }
 
 export interface SaveStructureInput {
@@ -313,7 +315,7 @@ export function saveStructure(
       method: 'PUT',
       body: JSON.stringify({
         ...input,
-        lines: input.lines.map((line, index) => ({ ...line, statutoryTags: [], sortOrder: (index + 1) * 10 })),
+        lines: input.lines.map((line, index) => ({ ...line, sortOrder: (index + 1) * 10 })),
       }),
     },
     ['/api/payroll/structures'],
