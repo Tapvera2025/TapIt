@@ -1048,7 +1048,7 @@ export function CompanySidebar({
 
   return (
     <aside
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-5 xl:ml-5 xl:h-[calc(100dvh-6.5rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-4 xl:ml-5 xl:h-[calc(100%-2rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
       style={
         collapsed
           ? undefined
