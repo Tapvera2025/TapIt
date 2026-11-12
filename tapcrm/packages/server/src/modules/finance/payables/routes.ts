@@ -66,11 +66,12 @@ async function purchaseRequestResource(
   const row = await db.maybeOne<{
     id: string;
     organizationId: string;
+    createdBy: string;
     requesterId: string;
     approvedBy: string | null;
   }>(
     ctx,
-    sql`SELECT id,organization_id AS "organizationId",requester_id AS "requesterId",approved_by AS "approvedBy" FROM finance_purchase_request WHERE organization_id=${ctx.organizationId} AND id=${id}`,
+    sql`SELECT id,organization_id AS "organizationId",requester_id AS "createdBy",requester_id AS "requesterId",approved_by AS "approvedBy" FROM finance_purchase_request WHERE organization_id=${ctx.organizationId} AND id=${id}`,
   );
   return row ? { type: 'purchaseRequest', ...row } : null;
 }
@@ -94,7 +95,7 @@ export function registerPayablesRoutes(): void {
   route({
     method: 'POST',
     path: '/api/payables/vendors/:id/bank-changes',
-    action: 'payables:create-bill',
+    action: 'payables:create-vendor-bank-change',
     module: 'payables',
     resourceParam: 'id',
     loadResource: async (ctx, id) => {
@@ -110,7 +111,7 @@ export function registerPayablesRoutes(): void {
   route({
     method: 'POST',
     path: '/api/payables/vendor-bank-changes/:id/approve',
-    action: 'payables:approve-bill',
+    action: 'payables:approve-vendor-bank-change',
     module: 'payables',
     resourceParam: 'id',
     loadResource: bankChangeResource,
@@ -169,7 +170,7 @@ export function registerPayablesRoutes(): void {
   route({
     method: 'POST',
     path: '/api/payables/bills/:id/confirm-extraction',
-    action: 'payables:approve-bill',
+    action: 'payables:create-bill',
     module: 'payables',
     resourceParam: 'id',
     loadResource: billResource,
@@ -235,7 +236,7 @@ export function registerPayablesRoutes(): void {
   route({
     method: 'POST',
     path: '/api/payables/purchase-requests/:id/approve',
-    action: 'payables:approve-bill',
+    action: 'payables:approve-purchase-request',
     module: 'payables',
     resourceParam: 'id',
     loadResource: purchaseRequestResource,
@@ -249,7 +250,7 @@ export function registerPayablesRoutes(): void {
   route({
     method: 'POST',
     path: '/api/payables/purchase-requests/:id/match-bill',
-    action: 'payables:approve-bill',
+    action: 'payables:match-purchase-request',
     module: 'payables',
     resourceParam: 'id',
     loadResource: purchaseRequestResource,

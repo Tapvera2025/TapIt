@@ -27,12 +27,14 @@ export async function updateFinanceFoundation(ctx: RequestContext, input: Update
     const current = await lockFoundation(tx, ctx.organizationId);
     if (!current) throw new FinanceFoundationValidationError('Finance foundation could not be initialized.');
     if (current.version !== input.expectedVersion) throw new FinanceFoundationVersionConflictError();
+    const duplicate = await tx.maybeOne<{ id: string }>(sql`SELECT id FROM finance_legal_entity WHERE organization_id=${ctx.organizationId} AND lower(legal_name)=lower(${input.legalName}) AND id <> ${current.legalEntityId}`);
+    if (duplicate) throw new FinanceFoundationValidationError('Legal entity name is already in use. Choose a different legal entity name.');
     const before = { legalName: current.legalName, countryCode: current.countryCode, functionalCurrency: current.functionalCurrency, supportedCurrencies: current.supportedCurrencies, timezone: current.timezone, fiscalYearStartMonth: current.fiscalYearStartMonth, status: current.status, taxPolicyStatus: current.taxPolicyStatus, statutorySourceStatus: current.statutorySourceStatus, revenuePolicyStatus: current.revenuePolicyStatus, paymentProviderStatus: current.paymentProviderStatus };
     await updateFoundation(tx, ctx, input);
     const after = { legalName: input.legalName, countryCode: input.countryCode, functionalCurrency: input.functionalCurrency, supportedCurrencies: input.supportedCurrencies, timezone: input.timezone, fiscalYearStartMonth: input.fiscalYearStartMonth, status: input.status, taxPolicyStatus: input.taxPolicyStatus, statutorySourceStatus: input.statutorySourceStatus, revenuePolicyStatus: input.revenuePolicyStatus, paymentProviderStatus: input.paymentProviderStatus };
     await tx.query(sql`
       INSERT INTO audit_outbox (organization_id, stream, payload)
-      VALUES (${ctx.organizationId}, 'finance', ${JSON.stringify({ action: 'finance.foundation.updated', actorId: ctx.principal.id, actorType: ctx.principal.accountType, targetType: 'financeFoundation', targetId: ctx.organizationId, before, after, reason: input.reason, requestId: ctx.requestId, sourceIp: ctx.sourceIp })}::jsonb)
+      VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({ action: 'finance.foundation.updated', actorId: ctx.principal.id, actorType: ctx.principal.accountType, targetType: 'financeFoundation', targetId: ctx.organizationId, before, after, reason: input.reason, requestId: ctx.requestId, sourceIp: ctx.sourceIp })}::jsonb)
     `);
   });
   return getFinanceFoundation(ctx);

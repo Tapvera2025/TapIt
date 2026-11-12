@@ -65,6 +65,8 @@ export async function createManualSpend(ctx: RequestContext, accountId: string, 
   });
 }
 
+export const listManualSpend = (ctx: RequestContext, accountId: string) => db.query(ctx, sql`SELECT s.id,s.external_spend_id AS "externalSpendId",s.spend_date AS "spendDate",s.campaign_name AS "campaignName",s.amount::text,s.currency,s.project_id AS "projectId",p.name AS "projectName",s.client_id AS "clientId",c.business_name AS "clientName",s.imported_at AS "importedAt" FROM finance_advertising_spend s LEFT JOIN project p ON p.organization_id=s.organization_id AND p.id=s.project_id LEFT JOIN client c ON c.organization_id=s.organization_id AND c.id=s.client_id WHERE s.organization_id=${ctx.organizationId} AND s.account_id=${accountId} ORDER BY s.spend_date DESC,s.imported_at DESC LIMIT 100`);
+
 export async function syncAccount(ctx: RequestContext, accountId: string, input: AdvertisingSyncInput) {
   const account = await db.maybeOne<{ id: string; provider: 'google_ads' | 'meta_ads' | 'manual'; externalAccountId: string; encryptedCredentials: string | null; projectId: string | null; clientId: string | null; currency: string }>(ctx, sql`SELECT id,provider,external_account_id AS "externalAccountId",encrypted_credentials AS "encryptedCredentials",project_id AS "projectId",client_id AS "clientId",currency FROM finance_advertising_account WHERE organization_id=${ctx.organizationId} AND id=${accountId} AND status='active'`);
   if (!account) throw new ProfitabilityError('Advertising account not found or paused.', 404);

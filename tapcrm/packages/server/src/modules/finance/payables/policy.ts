@@ -1,4 +1,8 @@
-import { MATCH_NOTHING, registerResourcePolicy, type ResourcePolicy } from '@tapcrm/authz';
+import {
+  MATCH_NOTHING,
+  registerResourcePolicy,
+  type ResourcePolicy,
+} from '@tapcrm/authz';
 import type { Action } from '@tapcrm/contracts';
 
 function organizationPolicy(
@@ -23,17 +27,25 @@ function organizationPolicy(
 
 export function registerPayablesPolicies(): void {
   registerResourcePolicy(organizationPolicy('vendor', () => null));
-  registerResourcePolicy(organizationPolicy('vendorBankChange', (action) =>
-    action === 'payables:approve-bill' ? 'proposedBy' : null,
-  ));
-  registerResourcePolicy(organizationPolicy('vendorBill', (action) =>
-    action === 'payables:approve-bill' ? 'createdBy' : null,
-  ));
-  registerResourcePolicy(organizationPolicy('purchaseRequest', (action) =>
-    action === 'payables:approve-bill' ? 'requesterId' : null,
-  ));
-  registerResourcePolicy(organizationPolicy('paymentRun', (action) => {
-    if (action === 'payables:execute-run') return 'approvedBy';
-    return null;
-  }));
+  registerResourcePolicy(
+    organizationPolicy('vendorBankChange', (action) =>
+      action === 'payables:approve-vendor-bank-change' ? 'proposedBy' : null,
+    ),
+  );
+  registerResourcePolicy(
+    organizationPolicy('vendorBill', (action) =>
+      action === 'payables:approve-bill' ? 'createdBy' : null,
+    ),
+  );
+  registerResourcePolicy(
+    organizationPolicy('purchaseRequest', (action) =>
+      action === 'payables:approve-purchase-request' ? 'createdBy' : null,
+    ),
+  );
+  registerResourcePolicy(
+    organizationPolicy('paymentRun', (action) => {
+      if (action === 'payables:execute-run') return 'approvedBy';
+      return null;
+    }),
+  );
 }

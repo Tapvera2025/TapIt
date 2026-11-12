@@ -46,14 +46,17 @@ export interface PayablesFormValues {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const money = /^\d+(\.\d{1,2})?$/;
+const positiveMoney = (value: string) => money.test(value) && Number(value) > 0;
+const minorUnits = (value: string) => Math.round(Number(value) * 100);
 
 export function PayablesFormModal({
   kind,
   vendors,
   bills,
   reimbursementClaims,
+  reimbursementClaimsLoading = false,
+  reimbursementClaimsError = '',
   request,
   selectedVendorId = '',
   onClose,
@@ -63,6 +66,8 @@ export function PayablesFormModal({
   vendors: Vendor[];
   bills: Bill[];
   reimbursementClaims: ReimbursementClaim[];
+  reimbursementClaimsLoading?: boolean;
+  reimbursementClaimsError?: string;
   request?: PurchaseRequest | undefined;
   selectedVendorId?: string;
   onClose: () => void;
@@ -106,6 +111,14 @@ export function PayablesFormModal({
   const [saving, setSaving] = useState(false);
   const set = (key: keyof PayablesFormValues, value: string) =>
     setValues((current) => ({ ...current, [key]: value }));
+  const setVendor = (vendorId: string) => {
+    const vendor = vendors.find((item) => item.id === vendorId);
+    setValues((current) => ({
+      ...current,
+      vendorId,
+      ...(vendor ? { currency: vendor.currency } : {}),
+    }));
+  };
   const title: Record<PayablesFormKind, string> = {
     vendor: 'Add vendor',
     bankChange: 'Propose vendor bank change',
@@ -136,8 +149,8 @@ export function PayablesFormModal({
     label: `${claim.employeeName} · ${claim.amount} ${claim.currency} · ${claim.expenseDate}`,
   }));
   const validate = (): string | null => {
-    if (!values.reason.trim())
-      return 'A reason is required and will be retained in the audit log.';
+    if (values.reason.trim().length < 3)
+      return 'Enter a reason of at least 3 characters. It will be retained in the audit log.';
     if (
       kind === 'vendor' &&
       (values.legalName.trim().length < 2 || values.displayName.trim().length < 2)
@@ -150,38 +163,50 @@ export function PayablesFormModal({
       return 'Payment terms must be a whole number from 0 to 365 days.';
     if (
       kind === 'bankChange' &&
-      (!uuid.test(values.vendorId) ||
+      (!values.vendorId ||
         values.bankName.trim().length < 2 ||
         values.accountReference.trim().length < 4)
     )
       return 'Select a vendor and enter a bank name and account reference.';
     if (
       kind === 'bill' &&
-      (!uuid.test(values.vendorId) ||
+      (!values.vendorId ||
         !values.invoiceNumber.trim() ||
         !money.test(values.subtotal) ||
         !money.test(values.taxTotal) ||
         !money.test(values.total))
     )
       return 'Select a vendor, enter an invoice number, and provide valid subtotal, tax, and total amounts.';
+    if (
+      kind === 'bill' &&
+      minorUnits(values.total) !==
+        minorUnits(values.subtotal) + minorUnits(values.taxTotal)
+    )
+      return 'Total must equal subtotal plus tax total.';
     if (kind === 'bill' && values.dueDate < values.issueDate)
       return 'Due date cannot precede the issue date.';
     if (
+      kind === 'bill' &&
+      (!positiveMoney(values.total) ||
+        Number(values.tdsRate) < 0 ||
+        Number(values.tdsRate) > 100)
+    )
+      return 'Total must be greater than zero and TDS rate must be between 0 and 100.';
+    if (kind === 'bill' && Number(values.tdsRate) > 0 && !values.tdsSection.trim())
+      return 'TDS section is required when a TDS rate is entered.';
+    if (
       kind === 'subscription' &&
-      (!uuid.test(values.vendorId) ||
-        values.name.trim().length < 2 ||
-        !money.test(values.amount))
+      (!values.vendorId || values.name.trim().length < 2 || !positiveMoney(values.amount))
     )
       return 'Select a vendor and enter a valid subscription name and amount.';
     if (
       kind === 'purchase' &&
-      (values.description.trim().length < 3 || !money.test(values.amount))
+      (values.description.trim().length < 3 || !positiveMoney(values.amount))
     )
       return 'Enter a description and a valid requested amount.';
-    if (kind === 'reimbursement' && !uuid.test(values.claimId))
-      return 'Enter a valid approved expense claim ID.';
-    if (kind === 'match' && !uuid.test(values.billId))
-      return 'Select an approved bill to match.';
+    if (kind === 'reimbursement' && !values.claimId)
+      return 'Select an approved expense claim.';
+    if (kind === 'match' && !values.billId) return 'Select an approved bill to match.';
     return null;
   };
   const submit = async (event: React.FormEvent) => {
@@ -251,7 +276,7 @@ export function PayablesFormModal({
             label="Vendor"
             required
             value={values.vendorId}
-            onChange={(v) => set('vendorId', v)}
+            onChange={setVendor}
             options={vendorOptions}
           />
           <Field
@@ -281,7 +306,7 @@ export function PayablesFormModal({
             label="Vendor"
             required
             value={values.vendorId}
-            onChange={(v) => set('vendorId', v)}
+            onChange={setVendor}
             options={vendorOptions}
           />
           <Field
@@ -328,6 +353,7 @@ export function PayablesFormModal({
           <Select
             label="Currency"
             required
+            disabled={Boolean(values.vendorId)}
             value={values.currency}
             onChange={(v) => set('currency', v)}
             options={currencyOptions}
@@ -393,7 +419,7 @@ export function PayablesFormModal({
             label="Vendor"
             required
             value={values.vendorId}
-            onChange={(v) => set('vendorId', v)}
+            onChange={setVendor}
             options={vendorOptions}
           />
           <Field
@@ -412,6 +438,7 @@ export function PayablesFormModal({
           <Select
             label="Currency"
             required
+            disabled={Boolean(values.vendorId)}
             value={values.currency}
             onChange={(v) => set('currency', v)}
             options={currencyOptions}
@@ -441,7 +468,7 @@ export function PayablesFormModal({
           <Select
             label="Vendor (optional)"
             value={values.vendorId}
-            onChange={(v) => set('vendorId', v)}
+            onChange={setVendor}
             options={vendorOptions}
           />
           <Field
@@ -469,9 +496,15 @@ export function PayablesFormModal({
     if (kind === 'reimbursement')
       return (
         <div>
+          {reimbursementClaimsError && <Notice error>{reimbursementClaimsError}</Notice>}
           <Select
-            label="Approved expense claim"
+            label={
+              reimbursementClaimsLoading
+                ? 'Approved expense claim (loading…)'
+                : 'Approved expense claim'
+            }
             required
+            disabled={reimbursementClaimsLoading}
             value={values.claimId}
             onChange={(v) => set('claimId', v)}
             options={claimOptions}

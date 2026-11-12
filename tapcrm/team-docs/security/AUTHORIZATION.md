@@ -184,7 +184,11 @@
 | `receivables:write-off` | receivables | invoice | business | yes | yes | proposedBy | yes | no | no |
 | `payables:view` | payables | vendorBill | business | no | no | — | yes | yes | no |
 | `payables:create-bill` | payables | vendorBill | business | no | no | — | yes | yes | no |
+| `payables:create-vendor-bank-change` | payables | vendor | business | no | no | — | yes | yes | no |
 | `payables:approve-bill` | payables | vendorBill | business | yes | yes | createdBy | yes | no | no |
+| `payables:approve-vendor-bank-change` | payables | vendorBankChange | business | yes | yes | proposedBy | yes | no | no |
+| `payables:approve-purchase-request` | payables | purchaseRequest | business | yes | yes | createdBy | yes | no | no |
+| `payables:match-purchase-request` | payables | purchaseRequest | business | no | no | — | yes | yes | no |
 | `payables:claim` | payables | expenseClaim | people | no | no | — | yes | yes | no |
 | `payables:approve-claim` | payables | expenseClaim | people | no | yes | claimedBy | yes | no | no |
 | `payables:execute-run` | payables | paymentRun | business | yes | yes | approvedBy | yes | no | no |
@@ -695,12 +699,12 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/payables/bills | `payables:create-bill` | — |
 | PATCH | /api/payables/bills/:id | `payables:create-bill` | id |
 | POST | /api/payables/bills/:id/approve | `payables:approve-bill` | id |
-| POST | /api/payables/bills/:id/confirm-extraction | `payables:approve-bill` | id |
+| POST | /api/payables/bills/:id/confirm-extraction | `payables:create-bill` | id |
 | GET | /api/payables/vendors | `payables:view` | — |
 | POST | /api/payables/vendors | `payables:create-bill` | — |
-| POST | /api/payables/vendors/:id/bank-changes | `payables:create-bill` | id |
+| POST | /api/payables/vendors/:id/bank-changes | `payables:create-vendor-bank-change` | id |
 | GET | /api/payables/vendor-bank-changes | `payables:view` | — |
-| POST | /api/payables/vendor-bank-changes/:id/approve | `payables:approve-bill` | id |
+| POST | /api/payables/vendor-bank-changes/:id/approve | `payables:approve-vendor-bank-change` | id |
 | POST | /api/payables/bills/from-expense | `payables:create-bill` | — |
 | GET | /api/payables/bills/:id/artifact | `payables:view` | id |
 | GET | /api/payables/reimbursement-claims | `payables:create-bill` | — |
@@ -708,8 +712,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/payables/subscriptions | `payables:create-bill` | — |
 | GET | /api/payables/purchase-requests | `payables:view` | — |
 | POST | /api/payables/purchase-requests | `payables:create-bill` | — |
-| POST | /api/payables/purchase-requests/:id/approve | `payables:approve-bill` | id |
-| POST | /api/payables/purchase-requests/:id/match-bill | `payables:approve-bill` | id |
+| POST | /api/payables/purchase-requests/:id/approve | `payables:approve-purchase-request` | id |
+| POST | /api/payables/purchase-requests/:id/match-bill | `payables:match-purchase-request` | id |
 | GET | /api/payables/claims/mine | `payables:claim` | — |
 | POST | /api/payables/claims | `payables:claim` | — |
 | POST | /api/payables/claims/:id/approve | `payables:approve-claim` | id |
@@ -725,6 +729,11 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/payables/runs/:id/approve | `payables:execute-run` | id |
 | POST | /api/payables/runs/:id/execute | `payables:execute-run` | id |
 | GET | /api/profitability/budgets | `projects:view-financials` | — |
+| GET | /api/profitability/cost-rates | `projects:view-financials` | — |
+| GET | /api/profitability/eligible-cost-sources | `projects:view-financials` | — |
+| GET | /api/profitability/eligible-revenue-sources | `projects:view-financials` | — |
+| GET | /api/profitability/cost-entries | `projects:view-financials` | — |
+| GET | /api/profitability/revenue-entries | `projects:view-financials` | — |
 | POST | /api/profitability/budgets | `projects:manage` | — |
 | POST | /api/profitability/budgets/:id/approve | `projects:manage` | — |
 | POST | /api/profitability/cost-rates | `projects:manage` | — |
@@ -743,6 +752,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/profitability/leakage/scan | `projects:manage` | — |
 | POST | /api/profitability/leakage/:id/decision | `projects:manage` | — |
 | GET | /api/profitability/advertising/accounts | `projects:view-financials` | — |
+| GET | /api/profitability/advertising/accounts/:id/spend | `projects:view-financials` | — |
 | POST | /api/profitability/advertising/accounts | `projects:manage` | — |
 | POST | /api/profitability/advertising/accounts/:id/credentials | `projects:manage` | — |
 | POST | /api/profitability/advertising/accounts/:id/sync | `projects:manage` | — |

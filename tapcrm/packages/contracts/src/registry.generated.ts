@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 198   Bindings: 728
+ * Actions: 202   Bindings: 734
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -139,9 +139,13 @@ export type Action =
   | 'org:view-structure'
   | 'payables:approve-bill'
   | 'payables:approve-claim'
+  | 'payables:approve-purchase-request'
+  | 'payables:approve-vendor-bank-change'
   | 'payables:claim'
   | 'payables:create-bill'
+  | 'payables:create-vendor-bank-change'
   | 'payables:execute-run'
+  | 'payables:match-purchase-request'
   | 'payables:view'
   | 'payments:allocate'
   | 'payments:reconcile'
@@ -339,9 +343,13 @@ export const ACTIONS: readonly Action[] = [
   'org:view-structure',
   'payables:approve-bill',
   'payables:approve-claim',
+  'payables:approve-purchase-request',
+  'payables:approve-vendor-bank-change',
   'payables:claim',
   'payables:create-bill',
+  'payables:create-vendor-bank-change',
   'payables:execute-run',
+  'payables:match-purchase-request',
   'payables:view',
   'payments:allocate',
   'payments:reconcile',
@@ -2206,6 +2214,36 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'payables:approve-purchase-request': {
+    action: 'payables:approve-purchase-request',
+    module: 'payables',
+    resource: 'purchaseRequest',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: true,
+    initiatorField: 'createdBy',
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'payables:approve-vendor-bank-change': {
+    action: 'payables:approve-vendor-bank-change',
+    module: 'payables',
+    resource: 'vendorBankChange',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: true,
+    initiatorField: 'proposedBy',
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'payables:claim': {
     action: 'payables:claim',
     module: 'payables',
@@ -2236,6 +2274,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'payables:create-vendor-bank-change': {
+    action: 'payables:create-vendor-bank-change',
+    module: 'payables',
+    resource: 'vendor',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
   'payables:execute-run': {
     action: 'payables:execute-run',
     module: 'payables',
@@ -2247,6 +2300,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
+      superAdminOnly: false,
+    },
+    description: "",
+  },
+  'payables:match-purchase-request': {
+    action: 'payables:match-purchase-request',
+    module: 'payables',
+    resource: 'purchaseRequest',
+    domain: 'business',
+    sensitive: false,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: true,
+      delegationAllowed: true,
       superAdminOnly: false,
     },
     description: "",
@@ -3826,12 +3894,12 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/payables/bills', action: 'payables:create-bill', resourceParam: null },
   { method: 'PATCH', path: '/api/payables/bills/:id', action: 'payables:create-bill', resourceParam: 'id' },
   { method: 'POST', path: '/api/payables/bills/:id/approve', action: 'payables:approve-bill', resourceParam: 'id' },
-  { method: 'POST', path: '/api/payables/bills/:id/confirm-extraction', action: 'payables:approve-bill', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payables/bills/:id/confirm-extraction', action: 'payables:create-bill', resourceParam: 'id' },
   { method: 'GET', path: '/api/payables/vendors', action: 'payables:view', resourceParam: null },
   { method: 'POST', path: '/api/payables/vendors', action: 'payables:create-bill', resourceParam: null },
-  { method: 'POST', path: '/api/payables/vendors/:id/bank-changes', action: 'payables:create-bill', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payables/vendors/:id/bank-changes', action: 'payables:create-vendor-bank-change', resourceParam: 'id' },
   { method: 'GET', path: '/api/payables/vendor-bank-changes', action: 'payables:view', resourceParam: null },
-  { method: 'POST', path: '/api/payables/vendor-bank-changes/:id/approve', action: 'payables:approve-bill', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payables/vendor-bank-changes/:id/approve', action: 'payables:approve-vendor-bank-change', resourceParam: 'id' },
   { method: 'POST', path: '/api/payables/bills/from-expense', action: 'payables:create-bill', resourceParam: null },
   { method: 'GET', path: '/api/payables/bills/:id/artifact', action: 'payables:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/payables/reimbursement-claims', action: 'payables:create-bill', resourceParam: null },
@@ -3839,8 +3907,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/payables/subscriptions', action: 'payables:create-bill', resourceParam: null },
   { method: 'GET', path: '/api/payables/purchase-requests', action: 'payables:view', resourceParam: null },
   { method: 'POST', path: '/api/payables/purchase-requests', action: 'payables:create-bill', resourceParam: null },
-  { method: 'POST', path: '/api/payables/purchase-requests/:id/approve', action: 'payables:approve-bill', resourceParam: 'id' },
-  { method: 'POST', path: '/api/payables/purchase-requests/:id/match-bill', action: 'payables:approve-bill', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payables/purchase-requests/:id/approve', action: 'payables:approve-purchase-request', resourceParam: 'id' },
+  { method: 'POST', path: '/api/payables/purchase-requests/:id/match-bill', action: 'payables:match-purchase-request', resourceParam: 'id' },
   { method: 'GET', path: '/api/payables/claims/mine', action: 'payables:claim', resourceParam: null },
   { method: 'POST', path: '/api/payables/claims', action: 'payables:claim', resourceParam: null },
   { method: 'POST', path: '/api/payables/claims/:id/approve', action: 'payables:approve-claim', resourceParam: 'id' },
@@ -3856,6 +3924,11 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/payables/runs/:id/approve', action: 'payables:execute-run', resourceParam: 'id' },
   { method: 'POST', path: '/api/payables/runs/:id/execute', action: 'payables:execute-run', resourceParam: 'id' },
   { method: 'GET', path: '/api/profitability/budgets', action: 'projects:view-financials', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/cost-rates', action: 'projects:view-financials', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/eligible-cost-sources', action: 'projects:view-financials', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/eligible-revenue-sources', action: 'projects:view-financials', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/cost-entries', action: 'projects:view-financials', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/revenue-entries', action: 'projects:view-financials', resourceParam: null },
   { method: 'POST', path: '/api/profitability/budgets', action: 'projects:manage', resourceParam: null },
   { method: 'POST', path: '/api/profitability/budgets/:id/approve', action: 'projects:manage', resourceParam: null },
   { method: 'POST', path: '/api/profitability/cost-rates', action: 'projects:manage', resourceParam: null },
@@ -3874,6 +3947,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/profitability/leakage/scan', action: 'projects:manage', resourceParam: null },
   { method: 'POST', path: '/api/profitability/leakage/:id/decision', action: 'projects:manage', resourceParam: null },
   { method: 'GET', path: '/api/profitability/advertising/accounts', action: 'projects:view-financials', resourceParam: null },
+  { method: 'GET', path: '/api/profitability/advertising/accounts/:id/spend', action: 'projects:view-financials', resourceParam: null },
   { method: 'POST', path: '/api/profitability/advertising/accounts', action: 'projects:manage', resourceParam: null },
   { method: 'POST', path: '/api/profitability/advertising/accounts/:id/credentials', action: 'projects:manage', resourceParam: null },
   { method: 'POST', path: '/api/profitability/advertising/accounts/:id/sync', action: 'projects:manage', resourceParam: null },

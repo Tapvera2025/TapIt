@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
+import { getFinanceFoundation } from '../foundation/service.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { BillingTermsNotFoundError, BillingTermsValidationError } from './errors.js';
 import * as repo from './repository.js';
@@ -67,6 +68,7 @@ export async function getRateCard(ctx: RequestContext, id: string) {
 export const getSchedules = (ctx: RequestContext) => repo.listSchedules(ctx);
 export const getBillableEvents = (ctx: RequestContext) => repo.listEvents(ctx);
 export async function getFormOptions(ctx: RequestContext) {
+  await getFinanceFoundation(ctx);
   const [clients, legalEntities, configuration] = await Promise.all([
     db.query<{
       id: string;
@@ -88,12 +90,13 @@ export async function getFormOptions(ctx: RequestContext) {
       legalName: string;
       baseCurrency: string;
       timezone: string;
+      status: string;
     }>(
       ctx,
       sql`
-      SELECT id, code, legal_name AS "legalName", functional_currency AS "baseCurrency", timezone
+      SELECT id, code, legal_name AS "legalName", functional_currency AS "baseCurrency", timezone, status
       FROM finance_legal_entity
-      WHERE organization_id = ${ctx.organizationId} AND status = 'active'
+      WHERE organization_id = ${ctx.organizationId}
       ORDER BY code
     `,
     ),

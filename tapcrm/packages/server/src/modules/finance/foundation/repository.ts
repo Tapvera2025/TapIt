@@ -35,8 +35,8 @@ export async function ensureFoundation(tx: Tx, ctx: RequestContext): Promise<voi
   `);
   const entity = await tx.one<{ id: string }>(sql`
     INSERT INTO finance_legal_entity
-      (organization_id, legal_name, country_code, functional_currency, timezone, created_by)
-    VALUES (${ctx.organizationId}, ${organization.name}, 'IN', ${organization.currency}, ${organization.timezone}, ${ctx.principal.id})
+      (organization_id, code, legal_name, country_code, functional_currency, timezone, created_by)
+    VALUES (${ctx.organizationId}, ${`LE-${ctx.organizationId.replaceAll('-', '').slice(0, 8).toUpperCase()}`}, ${organization.name}, 'IN', ${organization.currency}, ${organization.timezone}, ${ctx.principal.id})
     ON CONFLICT (organization_id, legal_name) DO UPDATE SET updated_at = finance_legal_entity.updated_at
     RETURNING id
   `);

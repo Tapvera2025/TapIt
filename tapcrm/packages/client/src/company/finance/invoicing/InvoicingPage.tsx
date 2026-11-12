@@ -447,13 +447,11 @@ function DraftGenerator({
             }}
           >
             <option value="">Select legal entity</option>
-            {entities
-              .filter((row) => row.isActive)
-              .map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.code} · {row.legalName}
-                </option>
-              ))}
+            {entities.map((row) => (
+              <option key={row.id} value={row.id} disabled={!row.isActive}>
+                {row.code} · {row.legalName}{!row.isActive ? ' · pending review' : ''}
+              </option>
+            ))}
           </select>
         </label>
         <label className="text-sm font-semibold">

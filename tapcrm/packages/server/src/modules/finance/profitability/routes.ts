@@ -6,6 +6,11 @@ import { advertisingAccountSchema, advertisingCredentialsSchema, advertisingSync
 
 export function registerProfitabilityRoutes(): void {
   route({ method: 'GET', path: '/api/profitability/budgets', action: 'projects:view-financials', module: 'projects', handler: async ({ ctx, query }) => service.listBudgets(ctx, parsePagination(query)) });
+  route({ method: 'GET', path: '/api/profitability/cost-rates', action: 'projects:view-financials', module: 'projects', handler: async ({ ctx, query }) => service.listCostRates(ctx, parsePagination(query)) });
+  route({ method: 'GET', path: '/api/profitability/eligible-cost-sources', action: 'projects:view-financials', module: 'projects', handler: async ({ ctx }) => service.listEligibleCostSources(ctx) });
+  route({ method: 'GET', path: '/api/profitability/eligible-revenue-sources', action: 'projects:view-financials', module: 'projects', handler: async ({ ctx }) => service.listEligibleRevenueSources(ctx) });
+  route({ method: 'GET', path: '/api/profitability/cost-entries', action: 'projects:view-financials', module: 'projects', handler: async ({ ctx, query }) => service.listCostEntries(ctx, parsePagination(query)) });
+  route({ method: 'GET', path: '/api/profitability/revenue-entries', action: 'projects:view-financials', module: 'projects', handler: async ({ ctx, query }) => service.listRevenueEntries(ctx, parsePagination(query)) });
   route({ method: 'POST', path: '/api/profitability/budgets', action: 'projects:manage', module: 'projects', status: 201, handler: async ({ ctx, body }) => service.createBudget(ctx, budgetSchema.parse(body)) });
   route({ method: 'POST', path: '/api/profitability/budgets/:id/approve', action: 'projects:manage', module: 'projects', handler: async ({ ctx, params, body }) => service.approveBudget(ctx, params['id']!, decisionSchema.parse(body)) });
   route({ method: 'POST', path: '/api/profitability/cost-rates', action: 'projects:manage', module: 'projects', status: 201, handler: async ({ ctx, body }) => service.createCostRate(ctx, rateSchema.parse(body)) });
@@ -24,6 +29,7 @@ export function registerProfitabilityRoutes(): void {
   route({ method: 'POST', path: '/api/profitability/leakage/scan', action: 'projects:manage', module: 'projects', handler: async ({ ctx, body }) => { const input = leakageSchema.parse(body); return service.scanLeakage(ctx, input.periodStart, input.periodEnd, 'Manual revenue-leakage scan.'); } });
   route({ method: 'POST', path: '/api/profitability/leakage/:id/decision', action: 'projects:manage', module: 'projects', handler: async ({ ctx, params, body }) => service.decideLeakage(ctx, params['id']!, leakageDecisionSchema.parse(body)) });
   route({ method: 'GET', path: '/api/profitability/advertising/accounts', action: 'projects:view-financials', module: 'projects', handler: async ({ ctx, query }) => service.listAdvertisingAccounts(ctx, parsePagination(query)) });
+  route({ method: 'GET', path: '/api/profitability/advertising/accounts/:id/spend', action: 'projects:view-financials', module: 'projects', handler: async ({ ctx, params }) => advertising.listManualSpend(ctx, params['id']!) });
   route({ method: 'POST', path: '/api/profitability/advertising/accounts', action: 'projects:manage', module: 'projects', status: 201, handler: async ({ ctx, body }) => advertising.createAccount(ctx, advertisingAccountSchema.parse(body)) });
   route({ method: 'POST', path: '/api/profitability/advertising/accounts/:id/credentials', action: 'projects:manage', module: 'projects', handler: async ({ ctx, params, body }) => advertising.configureCredentials(ctx, params['id']!, advertisingCredentialsSchema.parse(body)) });
   route({ method: 'POST', path: '/api/profitability/advertising/accounts/:id/sync', action: 'projects:manage', module: 'projects', handler: async ({ ctx, params, body }) => advertising.syncAccount(ctx, params['id']!, advertisingSyncSchema.parse(body)) });

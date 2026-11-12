@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
+import { getFinanceFoundation } from '../foundation/service.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { postSourceJournalTx } from '../accounting/facade.js';
 import {
@@ -21,6 +22,7 @@ import type {
 } from './validators.js';
 
 export async function listFormOptions(ctx: RequestContext) {
+  await getFinanceFoundation(ctx);
   const [clients, entities, contracts, events, foundation] = await Promise.all([
     db.query(
       ctx,
@@ -28,7 +30,7 @@ export async function listFormOptions(ctx: RequestContext) {
     ),
     db.query(
       ctx,
-      sql`SELECT id, code, legal_name AS "legalName", functional_currency AS "baseCurrency", timezone, tax_registration AS "taxRegistration", (status='active') AS "isActive" FROM finance_legal_entity WHERE organization_id=${ctx.organizationId} ORDER BY code`,
+      sql`SELECT id, code, legal_name AS "legalName", functional_currency AS "baseCurrency", timezone, tax_registration AS "taxRegistration", status, (status='active') AS "isActive" FROM finance_legal_entity WHERE organization_id=${ctx.organizationId} ORDER BY code`,
     ),
     db.query(
       ctx,

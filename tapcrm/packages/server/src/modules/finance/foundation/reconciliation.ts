@@ -60,7 +60,7 @@ export async function updateReconciliationSettings(
     const after = await tx.one(sql`SELECT * FROM finance_reconciliation_settings WHERE organization_id=${ctx.organizationId}`);
     await tx.query(sql`
       INSERT INTO audit_outbox (organization_id,stream,payload)
-      VALUES (${ctx.organizationId},'finance',${JSON.stringify({ action:'finance.reconciliation.settings.updated', actorId:ctx.principal.id, targetType:'reconciliationSettings', targetId:ctx.organizationId, before, after, reason:input.reason, requestId:ctx.requestId, sourceIp:ctx.sourceIp })}::jsonb)
+      VALUES (${ctx.organizationId},'activity',${JSON.stringify({ action:'finance.reconciliation.settings.updated', actorId:ctx.principal.id, targetType:'reconciliationSettings', targetId:ctx.organizationId, before, after, reason:input.reason, requestId:ctx.requestId, sourceIp:ctx.sourceIp })}::jsonb)
     `);
   });
   return getReconciliationSettings(ctx);

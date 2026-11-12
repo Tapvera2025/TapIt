@@ -452,16 +452,29 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   },
 
   // Leads
-  'leads:claim': { title: 'Claim leads', description: 'Pick up a lead from the bidding pool.' },
+  'leads:claim': {
+    title: 'Claim leads',
+    description: 'Pick up a lead from the bidding pool.',
+  },
   'leads:create': { title: 'Add leads', description: 'Add new sales leads.' },
   'leads:edit': { title: 'Edit leads', description: 'Change the details of leads.' },
-  'leads:pass': { title: 'Pass on bid-pool leads', description: 'Decline a lead in the bidding pool with a reason.' },
+  'leads:pass': {
+    title: 'Pass on bid-pool leads',
+    description: 'Decline a lead in the bidding pool with a reason.',
+  },
   'leads:reassign': {
     title: 'Reassign leads',
     description: 'Move leads from one salesperson to another.',
   },
-  'leads:reassign-with-credit': { title: 'Reassign leads and move sourcing credit', description: 'Reassign a lead and also transfer the originating-agent credit to the new owner.' },
-  'leads:rescue-from-triage': { title: 'Rescue leads from triage', description: 'Assign a lead that failed routing to a specific agent.' },
+  'leads:reassign-with-credit': {
+    title: 'Reassign leads and move sourcing credit',
+    description:
+      'Reassign a lead and also transfer the originating-agent credit to the new owner.',
+  },
+  'leads:rescue-from-triage': {
+    title: 'Rescue leads from triage',
+    description: 'Assign a lead that failed routing to a specific agent.',
+  },
   'leads:view': { title: 'See leads', description: 'See sales leads.' },
 
   // Leave
@@ -550,6 +563,14 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Approve vendor bills',
     description: 'Approve bills from suppliers before they are paid.',
   },
+  'payables:approve-purchase-request': {
+    title: 'Approve purchase requests',
+    description: 'Approve purchase requests before they become committed spend.',
+  },
+  'payables:approve-vendor-bank-change': {
+    title: 'Approve vendor bank changes',
+    description: 'Approve changes to supplier payment-account details.',
+  },
   'payables:approve-claim': {
     title: 'Approve expense claims',
     description: "Approve or reject employees' expense claims.",
@@ -562,9 +583,17 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Enter vendor bills',
     description: 'Record bills received from suppliers.',
   },
+  'payables:create-vendor-bank-change': {
+    title: 'Propose vendor bank changes',
+    description: 'Submit updated supplier payment-account details for review.',
+  },
   'payables:execute-run': {
     title: 'Pay suppliers',
     description: 'Run a batch payment to suppliers.',
+  },
+  'payables:match-purchase-request': {
+    title: 'Match purchase requests',
+    description: 'Link approved purchase requests to their vendor bills.',
   },
   'payables:view': {
     title: 'See bills and payouts',
@@ -647,25 +676,83 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   },
 
   // Recruitment
-  'recruitment:manage-candidate-rounds': { title: 'Manage interview rounds', description: 'Assign interviewers and pass/fail candidates through pipeline rounds.' },
-  'recruitment:manage-candidates': { title: 'Manage candidates', description: 'Add candidates, upload CVs, screen them and mark them as hired.' },
-  'recruitment:manage-email-templates': { title: 'Manage email templates', description: 'Create and edit joining email templates.' },
-  'recruitment:manage-interviews': { title: 'Manage interviews', description: 'Schedule and reschedule interviews, and record feedback and decisions.' },
-  'recruitment:manage-joining': { title: 'Manage joining', description: "Track new hires' joining dates and paperwork." },
-  'recruitment:manage-links': { title: 'Manage job application links', description: 'Create and switch off the public links candidates use to apply.' },
-  'recruitment:manage-offers': { title: 'Make job offers', description: 'Create job offers and track their status.' },
-  'recruitment:manage-pipeline': { title: 'Manage interview pipeline', description: 'Create and reorder interview rounds for job posts.' },
-  'recruitment:manage-requisitions': { title: 'Open job positions', description: 'Create and close hiring requests (requisitions).' },
-  'recruitment:manage-submissions': { title: 'Review applications', description: 'Review CVs sent through application links and turn them into candidates.' },
-  'recruitment:send-joining-email': { title: 'Send joining email', description: 'Send the joining confirmation email to an accepted candidate.' },
-  'recruitment:submit-round-feedback': { title: 'Submit interview feedback', description: 'Submit interview notes and recommendation as an assigned interviewer.' },
-  'recruitment:view-candidate-events': { title: 'See candidate timeline', description: 'View the full activity timeline for a candidate.' },
-  'recruitment:view-candidates': { title: 'See candidates', description: 'See candidates and their CVs.' },
-  'recruitment:view-interviews': { title: 'See interviews', description: 'See scheduled interviews and feedback.' },
-  'recruitment:view-joining': { title: 'See joining status', description: "See new hires' joining progress." },
-  'recruitment:view-metrics': { title: 'See hiring numbers', description: 'See the recruitment pipeline and hiring figures.' },
-  'recruitment:view-offers': { title: 'See job offers', description: 'See job offers and their status.' },
-  'recruitment:view-requisitions': { title: 'See open job positions', description: 'See hiring requests (requisitions).' },
+  'recruitment:manage-candidate-rounds': {
+    title: 'Manage interview rounds',
+    description: 'Assign interviewers and pass/fail candidates through pipeline rounds.',
+  },
+  'recruitment:manage-candidates': {
+    title: 'Manage candidates',
+    description: 'Add candidates, upload CVs, screen them and mark them as hired.',
+  },
+  'recruitment:manage-email-templates': {
+    title: 'Manage email templates',
+    description: 'Create and edit joining email templates.',
+  },
+  'recruitment:manage-interviews': {
+    title: 'Manage interviews',
+    description: 'Schedule and reschedule interviews, and record feedback and decisions.',
+  },
+  'recruitment:manage-joining': {
+    title: 'Manage joining',
+    description: "Track new hires' joining dates and paperwork.",
+  },
+  'recruitment:manage-links': {
+    title: 'Manage job application links',
+    description: 'Create and switch off the public links candidates use to apply.',
+  },
+  'recruitment:manage-offers': {
+    title: 'Make job offers',
+    description: 'Create job offers and track their status.',
+  },
+  'recruitment:manage-pipeline': {
+    title: 'Manage interview pipeline',
+    description: 'Create and reorder interview rounds for job posts.',
+  },
+  'recruitment:manage-requisitions': {
+    title: 'Open job positions',
+    description: 'Create and close hiring requests (requisitions).',
+  },
+  'recruitment:manage-submissions': {
+    title: 'Review applications',
+    description:
+      'Review CVs sent through application links and turn them into candidates.',
+  },
+  'recruitment:send-joining-email': {
+    title: 'Send joining email',
+    description: 'Send the joining confirmation email to an accepted candidate.',
+  },
+  'recruitment:submit-round-feedback': {
+    title: 'Submit interview feedback',
+    description: 'Submit interview notes and recommendation as an assigned interviewer.',
+  },
+  'recruitment:view-candidate-events': {
+    title: 'See candidate timeline',
+    description: 'View the full activity timeline for a candidate.',
+  },
+  'recruitment:view-candidates': {
+    title: 'See candidates',
+    description: 'See candidates and their CVs.',
+  },
+  'recruitment:view-interviews': {
+    title: 'See interviews',
+    description: 'See scheduled interviews and feedback.',
+  },
+  'recruitment:view-joining': {
+    title: 'See joining status',
+    description: "See new hires' joining progress.",
+  },
+  'recruitment:view-metrics': {
+    title: 'See hiring numbers',
+    description: 'See the recruitment pipeline and hiring figures.',
+  },
+  'recruitment:view-offers': {
+    title: 'See job offers',
+    description: 'See job offers and their status.',
+  },
+  'recruitment:view-requisitions': {
+    title: 'See open job positions',
+    description: 'See hiring requests (requisitions).',
+  },
 
   // Renewals
   'renewals:view': {

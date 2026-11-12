@@ -279,8 +279,8 @@ function Profiles({
           <Select label="Legal entity" value={entityId} onChange={setEntityId}>
             <option value="">Select legal entity</option>
             {options.legalEntities.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.code} · {row.legalName}
+              <option key={row.id} value={row.id} disabled={row.status !== 'active'}>
+                {row.code} · {row.legalName}{row.status !== 'active' ? ` · ${row.status.replace('_', ' ')}` : ''}
               </option>
             ))}
           </Select>
@@ -803,8 +803,8 @@ function Contracts({
             <Select label="Legal entity" value={entityId} onChange={setEntityId}>
               <option value="">Select legal entity</option>
               {options.legalEntities.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.code} · {row.legalName}
+              <option key={row.id} value={row.id} disabled={row.status !== 'active'}>
+                {row.code} · {row.legalName}{row.status !== 'active' ? ` · ${row.status.replace('_', ' ')}` : ''}
                 </option>
               ))}
             </Select>

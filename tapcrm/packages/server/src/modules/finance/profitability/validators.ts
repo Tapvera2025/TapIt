@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 const uuid = z.string().uuid();
 const date = z.string().date();
-const money = z.string().regex(/^\d+(\.\d{1,2})?$/);
+const money = z.string().regex(/^\d+(\.\d{1,2})?$/).refine((value) => Number(value) > 0, 'Amount must be greater than zero');
+const hours = z.string().regex(/^\d+(\.\d{1,4})?$/).refine((value) => Number(value) > 0, 'Hours must be greater than zero');
 const reason = z.string().trim().min(3).max(1000);
 const periodFields = { periodStart: date, periodEnd: date };
 const withPeriod = <T extends z.ZodRawShape>(schema: z.ZodObject<T>) => schema.extend(periodFields).refine((v) => {
@@ -12,14 +13,14 @@ const withPeriod = <T extends z.ZodRawShape>(schema: z.ZodObject<T>) => schema.e
 
 export const budgetSchema = withPeriod(z.object({ projectId: uuid, name: z.string().trim().min(2).max(200), currency: z.string().regex(/^[A-Z]{3}$/), version: z.number().int().min(1).default(1), reason, lines: z.array(z.object({ category: z.enum(['staff_time','vendor','advertising','other']), amount: money, reason })).min(1) }));
 export const rateSchema = z.object({ userId: uuid.optional(), roleCode: z.string().trim().min(1).max(80).optional(), currency: z.string().regex(/^[A-Z]{3}$/), hourlyRate: money, effectiveFrom: date, effectiveTo: date.nullable().optional(), reason }).refine((v) => Boolean(v.userId) !== Boolean(v.roleCode), 'Provide exactly one of userId or roleCode');
-export const timeCostSchema = z.object({ projectId: uuid, userId: uuid, sourceType: z.string().trim().min(1).max(80), sourceId: uuid, workDate: date, hours: z.string().regex(/^\d+(\.\d{1,4})?$/), billableHours: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(), currency: z.string().regex(/^[A-Z]{3}$/), reason }).refine((v) => !v.billableHours || Number(v.billableHours) <= Number(v.hours), 'Billable hours cannot exceed total hours');
+export const timeCostSchema = z.object({ projectId: uuid, userId: uuid, sourceType: z.string().trim().min(1).max(80), sourceId: uuid, workDate: date, hours, billableHours: hours.optional(), currency: z.string().regex(/^[A-Z]{3}$/), reason }).refine((v) => !v.billableHours || Number(v.billableHours) <= Number(v.hours), 'Billable hours cannot exceed total hours');
 export const directCostSchema = z.object({ projectId: uuid.optional(), category: z.enum(['vendor','other']), allocationMode: z.enum(['direct','shared']), sourceType: z.string().trim().min(1).max(80), sourceId: uuid, workDate: date, amount: money, currency: z.string().regex(/^[A-Z]{3}$/), description: z.string().trim().min(3).max(300), reason }).refine((v) => v.allocationMode === 'shared' || Boolean(v.projectId), 'A direct cost must identify a project');
 export const revenueSchema = z.object({ projectId: uuid, sourceType: z.string().trim().min(1).max(80), sourceId: uuid, periodStart: date, amount: money, currency: z.string().regex(/^[A-Z]{3}$/), reason });
 export const allocationSchema = withPeriod(z.object({ driver: z.enum(['equal','budget','approved_hours']), reason }));
 export const decisionSchema = z.object({ reason });
 export const marginSchema = withPeriod(z.object({ projectId: uuid, currency: z.string().regex(/^[A-Z]{3}$/), reason }));
 export const payrollImportSchema = z.object({ runId: uuid, reason });
-export const metricSchema = withPeriod(z.object({ projectId: uuid, currency: z.string().regex(/^[A-Z]{3}$/), availableHours: z.string().regex(/^\d+(\.\d{1,4})?$/), theoreticalValue: money, reason }));
+export const metricSchema = withPeriod(z.object({ projectId: uuid, currency: z.string().regex(/^[A-Z]{3}$/), availableHours: hours, theoreticalValue: money, reason }));
 export const leakageSchema = z.object({ periodStart: date, periodEnd: date }).refine((v) => v.periodEnd >= v.periodStart, 'Period end must not precede period start');
 export const leakageDecisionSchema = z.object({ status: z.enum(['acknowledged','resolved']), resolution: reason });
 export const advertisingAccountSchema = z.object({ provider: z.enum(['google_ads','meta_ads','manual']), externalAccountId: z.string().trim().min(1).max(160), name: z.string().trim().min(2).max(200), projectId: uuid.optional(), clientId: uuid.optional(), fundingModel: z.enum(['client_funded','company_funded','shared']), currency: z.string().regex(/^[A-Z]{3}$/), credentials: z.record(z.string()).optional(), freshnessHours: z.number().int().min(1).max(8760).default(48), reason });

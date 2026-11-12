@@ -10,6 +10,10 @@ export interface Vendor {
   currency: string;
   status: string;
   paymentTermsDays: number;
+  email: string | null;
+  phone: string | null;
+  gstin: string | null;
+  pan: string | null;
 }
 export interface Bill {
   id: string;
@@ -23,7 +27,16 @@ export interface Bill {
   extractionStatus: string;
   status: string;
   artifactFilename: string | null;
+  artifactMimeType: string | null;
+  createdBy: string;
   journalId: string | null;
+  sourceId: string | null;
+  issueDate: string;
+  subtotal: string;
+  taxTotal: string;
+  tdsSection: string | null;
+  tdsRate: string;
+  rcm: boolean;
 }
 export interface PaymentRun {
   id: string;
@@ -32,6 +45,10 @@ export interface PaymentRun {
   status: string;
   manifestSha256: string;
   journalId: string | null;
+  createdBy: string;
+  approvedBy: string | null;
+  executedBy: string | null;
+  manifest: Record<string, unknown> | null;
 }
 export interface BankChange {
   id: string;
@@ -48,11 +65,17 @@ export interface BankChange {
 export interface PurchaseRequest {
   id: string;
   vendorId: string | null;
+  vendorName: string | null;
   description: string;
   amount: string;
   currency: string;
   status: string;
   matchedBillId: string | null;
+  requesterId: string;
+  requesterName: string;
+  approvedBy: string | null;
+  approverName: string | null;
+  reason: string;
 }
 export interface Subscription {
   id: string;
@@ -64,6 +87,8 @@ export interface Subscription {
   recurrence: string;
   nextDueDate: string;
   status: string;
+  reason: string;
+  createdBy: string;
 }
 export interface ReimbursementClaim {
   id: string;

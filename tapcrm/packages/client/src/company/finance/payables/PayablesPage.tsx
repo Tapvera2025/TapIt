@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Empty, Loading, Notice, Page } from '../../../ui/components.js';
+import {
+  Button,
+  Card,
+  Empty,
+  Loading,
+  Modal,
+  Notice,
+  Page,
+} from '../../../ui/components.js';
+import { getIdentitySessionSnapshot } from '../../../identity/api/authApi.js';
+import { identityDownload } from '../../../identity/api/authApi.js';
 import * as api from './payablesApi.js';
 import {
   PayablesFormModal,
@@ -14,9 +24,223 @@ interface PendingAction {
   execute: (reason: string) => Promise<void>;
 }
 
+function PayablesDetailsModal({
+  title,
+  record,
+  document,
+  onClose,
+}: {
+  title: string;
+  record: object;
+  document?: { billId: string; filename: string; mimeType: string };
+  onClose: () => void;
+}): React.JSX.Element {
+  const values = Object.entries(record);
+  const status =
+    (record as { status?: unknown; Status?: unknown }).status ??
+    (record as { Status?: unknown }).Status;
+  const formatValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'object') return JSON.stringify(value, null, 2);
+    if (typeof value === 'string') return value;
+    if (
+      typeof value === 'number' ||
+      typeof value === 'boolean' ||
+      typeof value === 'bigint'
+    )
+      return value.toString();
+    return '—';
+  };
+  return (
+    <Modal title={title} onClose={onClose} size="lg">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-app-border bg-app-background p-4">
+        <p className="text-sm text-app-muted">Business record details</p>
+        {status !== undefined && (
+          <span className="rounded-full border border-app-accent/30 bg-app-accent/10 px-3 py-1 text-xs font-bold capitalize text-app-accent">
+            {formatValue(status).replaceAll('_', ' ')}
+          </span>
+        )}
+      </div>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {values.map(([key, value]) => (
+          <div
+            key={key}
+            className={`rounded-xl border border-app-border bg-app-background p-3 ${typeof value === 'object' ? 'sm:col-span-2' : ''}`}
+          >
+            <dt className="text-xs font-semibold uppercase tracking-wide text-app-muted">
+              {key
+                .replace(/[A-Z]/g, (letter) => ` ${letter}`)
+                .replace(/^./, (letter) => letter.toUpperCase())}
+            </dt>
+            <dd
+              className={`mt-1 whitespace-pre-wrap break-words text-sm text-app-foreground ${typeof value === 'object' ? 'rounded-lg bg-black/5 p-2 font-mono text-xs' : ''}`}
+            >
+              {formatValue(value)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {document && (
+        <section className="mt-5 border-t border-app-border pt-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-app-foreground">
+                Invoice document
+              </h3>
+              <p className="mt-1 text-xs text-app-muted">
+                {document.filename} · {document.mimeType}
+              </p>
+            </div>
+          </div>
+          <BillDocumentPreview {...document} />
+        </section>
+      )}
+    </Modal>
+  );
+}
+
+function BillDocumentPreview({
+  billId,
+  filename,
+  mimeType,
+}: {
+  billId: string;
+  filename: string;
+  mimeType: string;
+}): React.JSX.Element {
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    void identityDownload(`/api/payables/bills/${billId}/artifact`)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch((cause) => {
+        if (active)
+          setError(
+            cause instanceof Error ? cause.message : 'Unable to preview this document.',
+          );
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [billId]);
+  if (error) return <Notice error>{error}</Notice>;
+  if (!url)
+    return (
+      <p className="rounded-lg border border-app-border p-4 text-sm text-app-muted">
+        Loading {filename}…
+      </p>
+    );
+  if (mimeType === 'application/pdf') {
+    return (
+      <iframe
+        title={`Preview of ${filename}`}
+        src={url}
+        className="h-[60vh] w-full rounded-lg border border-app-border"
+      />
+    );
+  }
+  if (mimeType === 'image/png' || mimeType === 'image/jpeg') {
+    return (
+      <img
+        src={url}
+        alt={`Preview of ${filename}`}
+        className="max-h-[60vh] w-full rounded-lg border border-app-border object-contain"
+      />
+    );
+  }
+  return (
+    <a
+      className="text-sm font-semibold text-app-accent hover:underline"
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+    >
+      Open {filename}
+    </a>
+  );
+}
+
+const vendorDetails = (vendor: api.Vendor) => ({
+  'Legal name': vendor.legalName,
+  'Display name': vendor.displayName,
+  Email: vendor.email,
+  Phone: vendor.phone,
+  GSTIN: vendor.gstin,
+  PAN: vendor.pan,
+  Currency: vendor.currency,
+  'Payment terms': `${vendor.paymentTermsDays} days`,
+  Status: vendor.status,
+});
+
+const billDetails = (bill: api.Bill) => ({
+  Vendor: bill.vendorName ?? 'Employee reimbursement',
+  'Invoice number': bill.invoiceNumber,
+  'Issue date': bill.issueDate,
+  'Due date': bill.dueDate,
+  Subtotal: `${bill.subtotal} ${bill.currency}`,
+  'Tax total': `${bill.taxTotal} ${bill.currency}`,
+  Total: `${bill.total} ${bill.currency}`,
+  'TDS section': bill.tdsSection,
+  'TDS rate': `${bill.tdsRate}%`,
+  'Reverse charge': bill.rcm ? 'Yes' : 'No',
+  'Source type': bill.sourceType,
+  Document: bill.artifactFilename ?? 'Not uploaded',
+  'Extraction status': bill.extractionStatus,
+  Status: bill.status,
+});
+
+const paymentRunDetails = (run: api.PaymentRun) => ({
+  Currency: run.currency,
+  Total: `${run.total} ${run.currency}`,
+  'Included bills': Array.isArray(run.manifest?.['bills'])
+    ? run.manifest['bills'].length
+    : '—',
+  Status: run.status,
+  'Accounting journal': run.journalId ?? 'Not posted',
+});
+
+const purchaseRequestDetails = (request: api.PurchaseRequest) => ({
+  Vendor: request.vendorName ?? 'Not specified',
+  Requester: request.requesterName,
+  Description: request.description,
+  Amount: `${request.amount} ${request.currency}`,
+  Status: request.status,
+  Approver: request.approverName ?? 'Not approved',
+  'Matched bill': request.matchedBillId ? 'Matched' : 'Not matched',
+  Reason: request.reason,
+});
+
+const bankChangeDetails = (change: api.BankChange) => ({
+  Vendor: change.vendorName,
+  'Bank name': change.bankName,
+  'Account reference': change.accountReference,
+  'IFSC / routing code': change.ifsc,
+  Status: change.status,
+  Reason: change.reason,
+});
+
+const subscriptionDetails = (subscription: api.Subscription) => ({
+  Vendor: subscription.vendorName,
+  Name: subscription.name,
+  Amount: `${subscription.amount} ${subscription.currency}`,
+  Recurrence: subscription.recurrence,
+  'Next due date': subscription.nextDueDate,
+  Status: subscription.status,
+  Reason: subscription.reason,
+});
+
 export function PayablesPage(): React.JSX.Element {
   const [vendors, setVendors] = useState<api.Vendor[]>([]);
   const [bills, setBills] = useState<api.Bill[]>([]);
+  const [formVendors, setFormVendors] = useState<api.Vendor[]>([]);
+  const [formBills, setFormBills] = useState<api.Bill[]>([]);
   const [runs, setRuns] = useState<api.PaymentRun[]>([]);
   const [bankChanges, setBankChanges] = useState<api.BankChange[]>([]);
   const [purchaseRequests, setPurchaseRequests] = useState<api.PurchaseRequest[]>([]);
@@ -24,6 +248,8 @@ export function PayablesPage(): React.JSX.Element {
   const [reimbursementClaims, setReimbursementClaims] = useState<
     api.ReimbursementClaim[]
   >([]);
+  const [reimbursementClaimsLoading, setReimbursementClaimsLoading] = useState(false);
+  const [reimbursementClaimsError, setReimbursementClaimsError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -33,9 +259,15 @@ export function PayablesPage(): React.JSX.Element {
   >();
   const [selectedVendorId, setSelectedVendorId] = useState('');
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [details, setDetails] = useState<{
+    title: string;
+    record: object;
+    document?: { billId: string; filename: string; mimeType: string };
+  } | null>(null);
   const [pages, setPages] = useState<Record<string, number>>({});
   const [totals, setTotals] = useState<Record<string, number>>({});
   const pageSize = 6;
+  const currentPrincipalId = getIdentitySessionSnapshot().principalId;
   const load = useCallback(
     async (requestedPages = pages) => {
       setLoading(true);
@@ -81,17 +313,35 @@ export function PayablesPage(): React.JSX.Element {
     void load(pages);
   }, [load, pages]);
   useEffect(() => {
-    if (formKind !== 'reimbursement') return;
-    void api
-      .listReimbursementClaims()
-      .then(setReimbursementClaims)
+    if (!formKind) return;
+    void Promise.all([api.listVendors(1, 100), api.listBills(1, 100)])
+      .then(([vendorResult, billResult]) => {
+        setFormVendors(vendorResult.items);
+        setFormBills(billResult.items);
+      })
       .catch((cause) =>
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Unable to load approved expense claims.',
+            : 'Unable to load Payables form options.',
         ),
       );
+  }, [formKind]);
+  useEffect(() => {
+    if (formKind !== 'reimbursement') return;
+    setReimbursementClaimsLoading(true);
+    setReimbursementClaimsError('');
+    void api
+      .listReimbursementClaims()
+      .then(setReimbursementClaims)
+      .catch((cause) =>
+        setReimbursementClaimsError(
+          cause instanceof Error
+            ? cause.message
+            : 'Unable to load approved expense claims.',
+        ),
+      )
+      .finally(() => setReimbursementClaimsLoading(false));
   }, [formKind]);
   const openForm = (
     kind: PayablesFormKind,
@@ -358,6 +608,18 @@ export function PayablesPage(): React.JSX.Element {
                         >
                           Propose bank change
                         </Button>
+                        <Button
+                          kind="secondary"
+                          className="mt-2 ml-2"
+                          onClick={() =>
+                            setDetails({
+                              title: 'Vendor details',
+                              record: vendorDetails(vendor),
+                            })
+                          }
+                        >
+                          View details
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -396,6 +658,26 @@ export function PayablesPage(): React.JSX.Element {
                           ) : null}
                         </div>
                         <div className="flex gap-2">
+                          <Button
+                            kind="secondary"
+                            onClick={() =>
+                              setDetails({
+                                title: 'Bill details',
+                                record: billDetails(bill),
+                                ...(bill.artifactFilename && bill.artifactMimeType
+                                  ? {
+                                      document: {
+                                        billId: bill.id,
+                                        filename: bill.artifactFilename,
+                                        mimeType: bill.artifactMimeType,
+                                      },
+                                    }
+                                  : {}),
+                              })
+                            }
+                          >
+                            View details
+                          </Button>
                           {bill.extractionStatus === 'needs_review' ? (
                             <Button
                               kind="secondary"
@@ -406,7 +688,13 @@ export function PayablesPage(): React.JSX.Element {
                           ) : null}
                           {bill.status === 'needs_review' &&
                           bill.extractionStatus !== 'needs_review' ? (
-                            <Button onClick={() => approve(bill)}>Approve</Button>
+                            bill.createdBy === currentPrincipalId ? (
+                              <span className="self-center text-xs text-app-muted">
+                                Waiting for another approver
+                              </span>
+                            ) : (
+                              <Button onClick={() => approve(bill)}>Approve</Button>
+                            )
                           ) : null}
                         </div>
                       </div>
@@ -439,6 +727,17 @@ export function PayablesPage(): React.JSX.Element {
                         </p>
                       </div>
                       <div className="flex gap-2">
+                        <Button
+                          kind="secondary"
+                          onClick={() =>
+                            setDetails({
+                              title: 'Payment run details',
+                              record: paymentRunDetails(run),
+                            })
+                          }
+                        >
+                          View details
+                        </Button>
                         {run.status === 'proposed' ? (
                           <Button onClick={() => approveRun(run)}>Approve</Button>
                         ) : null}
@@ -470,10 +769,27 @@ export function PayablesPage(): React.JSX.Element {
                         {request.amount} {request.currency} · {request.status}
                       </div>
                       <div className="mt-2 flex gap-2">
+                        <Button
+                          kind="secondary"
+                          onClick={() =>
+                            setDetails({
+                              title: 'Purchase request details',
+                              record: purchaseRequestDetails(request),
+                            })
+                          }
+                        >
+                          View details
+                        </Button>
                         {request.status === 'pending' ? (
-                          <Button onClick={() => approvePurchaseRequest(request)}>
-                            Approve
-                          </Button>
+                          request.requesterId === currentPrincipalId ? (
+                            <span className="self-center text-xs font-semibold text-app-muted">
+                              Waiting for another authorized approver
+                            </span>
+                          ) : (
+                            <Button onClick={() => approvePurchaseRequest(request)}>
+                              Approve
+                            </Button>
+                          )
                         ) : null}
                         {request.status === 'approved' ? (
                           <Button
@@ -507,7 +823,8 @@ export function PayablesPage(): React.JSX.Element {
                       <div className="text-app-muted">
                         {change.accountReference} · {change.status}
                       </div>
-                      {change.status === 'pending' ? (
+                      {change.status === 'pending' &&
+                      change.proposedBy !== currentPrincipalId ? (
                         <Button
                           className="mt-2"
                           onClick={() => approveBankChange(change)}
@@ -515,6 +832,24 @@ export function PayablesPage(): React.JSX.Element {
                           Approve change
                         </Button>
                       ) : null}
+                      {change.status === 'pending' &&
+                      change.proposedBy === currentPrincipalId ? (
+                        <span className="mt-2 inline-block text-xs font-semibold text-app-muted">
+                          Waiting for another authorized approver
+                        </span>
+                      ) : null}
+                      <Button
+                        kind="secondary"
+                        className="mt-2"
+                        onClick={() =>
+                          setDetails({
+                            title: 'Bank change details',
+                            record: bankChangeDetails(change),
+                          })
+                        }
+                      >
+                        View details
+                      </Button>
                     </div>
                   ))}
                   {pager('bankChanges')}
@@ -539,6 +874,18 @@ export function PayablesPage(): React.JSX.Element {
                         {subscription.amount} {subscription.currency} ·{' '}
                         {subscription.recurrence} · next {subscription.nextDueDate}
                       </div>
+                      <Button
+                        kind="secondary"
+                        className="mt-2"
+                        onClick={() =>
+                          setDetails({
+                            title: 'Subscription details',
+                            record: subscriptionDetails(subscription),
+                          })
+                        }
+                      >
+                        View details
+                      </Button>
                     </div>
                   ))}
                   {pager('subscriptions')}
@@ -553,9 +900,11 @@ export function PayablesPage(): React.JSX.Element {
       {formKind && (
         <PayablesFormModal
           kind={formKind}
-          vendors={vendors}
-          bills={bills}
+          vendors={formVendors.length ? formVendors : vendors}
+          bills={formBills.length ? formBills : bills}
           reimbursementClaims={reimbursementClaims}
+          reimbursementClaimsLoading={reimbursementClaimsLoading}
+          reimbursementClaimsError={reimbursementClaimsError}
           request={selectedRequest}
           selectedVendorId={selectedVendorId}
           onClose={() => {
@@ -575,6 +924,14 @@ export function PayablesPage(): React.JSX.Element {
             await pendingAction.execute(reason);
             setPendingAction(null);
           }}
+        />
+      )}
+      {details && (
+        <PayablesDetailsModal
+          title={details.title}
+          record={details.record}
+          {...(details.document ? { document: details.document } : {})}
+          onClose={() => setDetails(null)}
         />
       )}
     </Page>

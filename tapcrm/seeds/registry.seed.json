@@ -1786,6 +1786,36 @@
       "description": ""
     },
     {
+      "action": "payables:approve-purchase-request",
+      "module": "payables",
+      "resource": "purchaseRequest",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "createdBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:approve-vendor-bank-change",
+      "module": "payables",
+      "resource": "vendorBankChange",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "proposedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "payables:claim",
       "module": "payables",
       "resource": "expenseClaim",
@@ -1816,6 +1846,21 @@
       "description": ""
     },
     {
+      "action": "payables:create-vendor-bank-change",
+      "module": "payables",
+      "resource": "vendor",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "payables:execute-run",
       "module": "payables",
       "resource": "paymentRun",
@@ -1826,6 +1871,21 @@
       "grantPolicy": {
         "positionGrantable": true,
         "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:match-purchase-request",
+      "module": "payables",
+      "resource": "purchaseRequest",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
         "superAdminOnly": false
       },
       "description": ""
@@ -5567,7 +5627,7 @@
     {
       "method": "POST",
       "path": "/api/payables/bills/:id/confirm-extraction",
-      "action": "payables:approve-bill",
+      "action": "payables:create-bill",
       "resourceParam": "id"
     },
     {
@@ -5585,7 +5645,7 @@
     {
       "method": "POST",
       "path": "/api/payables/vendors/:id/bank-changes",
-      "action": "payables:create-bill",
+      "action": "payables:create-vendor-bank-change",
       "resourceParam": "id"
     },
     {
@@ -5597,7 +5657,7 @@
     {
       "method": "POST",
       "path": "/api/payables/vendor-bank-changes/:id/approve",
-      "action": "payables:approve-bill",
+      "action": "payables:approve-vendor-bank-change",
       "resourceParam": "id"
     },
     {
@@ -5645,13 +5705,13 @@
     {
       "method": "POST",
       "path": "/api/payables/purchase-requests/:id/approve",
-      "action": "payables:approve-bill",
+      "action": "payables:approve-purchase-request",
       "resourceParam": "id"
     },
     {
       "method": "POST",
       "path": "/api/payables/purchase-requests/:id/match-bill",
-      "action": "payables:approve-bill",
+      "action": "payables:match-purchase-request",
       "resourceParam": "id"
     },
     {
@@ -5741,6 +5801,36 @@
     {
       "method": "GET",
       "path": "/api/profitability/budgets",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/cost-rates",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/eligible-cost-sources",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/eligible-revenue-sources",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/cost-entries",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/revenue-entries",
       "action": "projects:view-financials",
       "resourceParam": null
     },
@@ -5849,6 +5939,12 @@
     {
       "method": "GET",
       "path": "/api/profitability/advertising/accounts",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/advertising/accounts/:id/spend",
       "action": "projects:view-financials",
       "resourceParam": null
     },
