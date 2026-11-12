@@ -230,7 +230,6 @@ export function registerAllJobs(): void {
   registerProjectReportJobs();
   registerSocialJobs();
   registerAccountingJobs();
-  registerSocialJobs();
   registerSeoJobs();
   registerMeetingJobs();
   registerChatJobs();
