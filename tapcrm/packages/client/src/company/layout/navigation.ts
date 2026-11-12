@@ -114,37 +114,6 @@ export const companyNavigation: CompanyNavGroup[] = [
     ],
   },
   {
-    label: 'People',
-    items: [
-      {
-        label: 'Employees',
-        path: '/company/employees',
-        icon: 'users',
-        requiredAction: 'users:view',
-      },
-      {
-        label: 'Employee Notes',
-        path: '/company/employee-notes',
-        icon: 'notepad',
-        requiredAction: 'notepad:view-all',
-      },
-      {
-        label: 'Recruitment',
-        path: '/company/recruitment',
-        icon: 'briefcase',
-        children: [
-          { label: 'Overview', path: '/company/recruitment' },
-          { label: 'Requisitions', path: '/company/recruitment/requisitions' },
-          { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
-          { label: 'Candidates', path: '/company/recruitment/candidates' },
-          { label: 'Interviews', path: '/company/recruitment/interviews' },
-          { label: 'Offers', path: '/company/recruitment/offers' },
-          { label: 'Joining', path: '/company/recruitment/joining' },
-        ],
-      },
-    ],
-  },
-  {
     label: 'Sales',
     items: [
       {
@@ -255,6 +224,12 @@ export const companyNavigation: CompanyNavGroup[] = [
     label: 'Organization',
     items: [
       {
+        label: 'Employees',
+        path: '/company/employees',
+        icon: 'users',
+        requiredAction: 'users:view',
+      },
+      {
         label: 'Overview',
         path: '/company/organization',
         icon: 'grid',
@@ -296,6 +271,33 @@ export const companyNavigation: CompanyNavGroup[] = [
         icon: 'hierarchy',
         requiredAction: 'org:view-structure',
       },
+    ],
+  },
+  {
+    label: 'Employee Activities',
+    items: [
+      {
+        label: 'Employee Notes',
+        path: '/company/employee-notes',
+        icon: 'notepad',
+        requiredAction: 'notepad:view-all',
+      },
+    ],
+  },
+  {
+    label: 'Recruitment',
+    items: [
+      {
+        label: 'Overview',
+        path: '/company/recruitment',
+        icon: 'briefcase',
+      },
+      { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'briefcase' },
+      { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'briefcase' },
+      { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'briefcase' },
+      { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'briefcase' },
+      { label: 'Offers', path: '/company/recruitment/offers', icon: 'briefcase' },
+      { label: 'Joining', path: '/company/recruitment/joining', icon: 'briefcase' },
     ],
   },
   {
@@ -601,7 +603,7 @@ export function companySearchDestinations({
       ) {
         continue;
       }
-      if (item.label === 'Recruitment' && (!isHr || !hasRecruitment)) continue;
+      if (group.label === 'Recruitment' && (!isHr || !hasRecruitment)) continue;
       if ((item.label === 'Access Explorer' || item.label === 'Geofencing') && !isSuperAdmin) continue;
       if (item.requiredAction && !isSuperAdmin && !actions.has(item.requiredAction))
         continue;

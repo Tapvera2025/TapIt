@@ -73,7 +73,7 @@ const GROUP_ICONS: Record<string, string> = {
   Overview: 'grid',
   Communication: 'message',
   Organization: 'building',
-  People: 'users',
+  'Employee Activities': 'users',
   Delivery: 'briefcase',
   Sales: 'dollar-sign',
   Attendance: 'clock',
@@ -220,7 +220,8 @@ export function CompanySidebar({
   onResize?: (width: number) => void;
 }): React.JSX.Element {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
-    Organization: pathname.startsWith('/company/organization'),
+    Organization: pathname.startsWith('/company/organization') || pathname === '/company/employees',
+    Recruitment: pathname.startsWith('/company/recruitment'),
   }));
 
   const toggleSection = (label: string) => {
@@ -266,10 +267,6 @@ export function CompanySidebar({
   const [isDraggingSidebarPill, setIsDraggingSidebarPill] = useState(false);
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
-  const roleLabel = identity.accountType === 'super-admin'
-    ? 'Super Admin'
-    : identity.positionName || identity.positionCode || 'Employee';
-
   const restoreActiveSidebarPill = () => {
     const navigation = navigationRef.current;
     const indicator = activeNavIndicatorRef.current;
@@ -563,78 +560,71 @@ export function CompanySidebar({
         myNotepadNavItem,
       ],
     },
-    ...(isSuperAdmin
+    ...(isSuperAdmin || canViewEmployees
       ? [
           {
             label: 'Organization',
             items: [
-              { label: 'Overview', path: '/company/organization', icon: 'grid' },
-              {
-                label: 'Departments',
-                path: '/company/organization/departments',
-                icon: 'building',
-              },
-              { label: 'Teams', path: '/company/organization/teams', icon: 'users' },
-              {
-                label: 'Positions',
-                path: '/company/organization/positions',
-                icon: 'briefcase',
-              },
-              {
-                label: 'Designations',
-                path: '/company/organization/designations',
-                icon: 'briefcase',
-              },
-              {
-                label: 'Reporting',
-                path: '/company/organization/reporting',
-                icon: 'users',
-              },
-              {
-                label: 'Org Chart',
-                path: '/company/organization/org-chart',
-                icon: 'hierarchy',
-              },
+              ...(canViewEmployees || isSuperAdmin
+                ? [{ label: 'Employees', path: '/company/employees', icon: 'users' }]
+                : []),
+              ...(isSuperAdmin
+                ? [
+                    { label: 'Overview', path: '/company/organization', icon: 'grid' },
+                    {
+                      label: 'Departments',
+                      path: '/company/organization/departments',
+                      icon: 'building',
+                    },
+                    { label: 'Teams', path: '/company/organization/teams', icon: 'users' },
+                    {
+                      label: 'Positions',
+                      path: '/company/organization/positions',
+                      icon: 'briefcase',
+                    },
+                    {
+                      label: 'Designations',
+                      path: '/company/organization/designations',
+                      icon: 'briefcase',
+                    },
+                    {
+                      label: 'Reporting',
+                      path: '/company/organization/reporting',
+                      icon: 'users',
+                    },
+                    {
+                      label: 'Org Chart',
+                      path: '/company/organization/org-chart',
+                      icon: 'hierarchy',
+                    },
+                  ]
+                : []),
             ],
           },
         ]
       : []),
-    ...(isHr || canViewEmployees || isSuperAdmin
+    ...(isSuperAdmin
       ? [
           {
-            label: 'People',
+            label: 'Employee Activities',
             items: [
-              { label: 'Employees', path: '/company/employees', icon: 'users' },
-              ...(isSuperAdmin
-                ? [
-                    {
-                      label: 'Employee Notes',
-                      path: '/company/employee-notes',
-                      icon: 'notepad',
-                    },
-                  ]
-                : []),
-              ...(isHr && hasRecruitment
-                ? [
-                    {
-                      label: 'Recruitment',
-                      path: '/company/recruitment',
-                      icon: 'briefcase',
-                      children: [
-                        { label: 'Overview', path: '/company/recruitment' },
-                        {
-                          label: 'Requisitions',
-                          path: '/company/recruitment/requisitions',
-                        },
-                        { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
-                        { label: 'Candidates', path: '/company/recruitment/candidates' },
-                        { label: 'Interviews', path: '/company/recruitment/interviews' },
-                        { label: 'Offers', path: '/company/recruitment/offers' },
-                        { label: 'Joining', path: '/company/recruitment/joining' },
-                      ],
-                    },
-                  ]
-                : []),
+              { label: 'Employee Notes', path: '/company/employee-notes', icon: 'notepad' },
+            ],
+          },
+        ]
+      : []),
+    ...(isHr && hasRecruitment
+      ? [
+          {
+            label: 'Recruitment',
+            items: [
+              { label: 'Overview', path: '/company/recruitment', icon: 'briefcase' },
+              { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'briefcase' },
+              { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'briefcase' },
+              { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'briefcase' },
+              { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'briefcase' },
+              { label: 'Offers', path: '/company/recruitment/offers', icon: 'briefcase' },
+              { label: 'Joining', path: '/company/recruitment/joining', icon: 'briefcase' },
             ],
           },
         ]
@@ -1138,7 +1128,9 @@ export function CompanySidebar({
           const isOpen =
             openSections[group.label] ??
             (group.label === 'Organization'
-              ? pathname.startsWith('/company/organization')
+              ? pathname.startsWith('/company/organization') || pathname === '/company/employees'
+              : group.label === 'Recruitment'
+                ? pathname.startsWith('/company/recruitment')
               : true);
           return (
             <div
@@ -1295,20 +1287,6 @@ export function CompanySidebar({
           <SidebarPet pet={activePet} />
         </div>
       )}
-      <div className={`mx-1 shrink-0 border-t border-sidebar-border/70 px-1 pt-4 pb-2 ${collapsed ? 'xl:mx-0 xl:px-0' : ''}`}>
-        <div
-          className={`sidebar-profile-card flex min-w-0 items-center gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-hover-bg/45 px-3 py-2.5 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
-          title={collapsed ? `${identity.fullName} · ${roleLabel}` : undefined}
-        >
-          <span className="sidebar-profile-avatar grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active-bg text-xs font-bold text-sidebar-active-fg">
-            {identity.fullName.trim().slice(0, 1).toUpperCase() || '?'}
-          </span>
-          <span className={`min-w-0 leading-tight ${collapsed ? 'xl:hidden' : ''}`}>
-            <span className="block truncate text-sm font-semibold leading-5 text-sidebar-foreground">{identity.fullName}</span>
-            <span className="mt-0.5 block truncate text-xs font-medium leading-4 text-sidebar-muted">{roleLabel}{identity.departmentName ? ` · ${identity.departmentName}` : ''}</span>
-          </span>
-        </div>
-      </div>
       <div className="shrink-0 border-t border-t-[color:var(--sidebar-border)] px-1 pt-3">
         <button
           type="button"
