@@ -229,6 +229,32 @@ export function CompanyLayout({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!sidebarOpen || window.innerWidth >= 1280) return;
+
+    const main = mainScrollRef.current;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousMainOverflowY = main?.style.overflowY ?? '';
+    const previousMainOverscrollBehavior = main?.style.overscrollBehavior ?? '';
+
+    // The page scrolls inside <main>, not on the document. Lock both layers
+    // while the mobile drawer is open so the dimmed content cannot move under
+    // the fixed navbar or shift its position during a swipe.
+    document.body.style.overflow = 'hidden';
+    if (main) {
+      main.style.overflowY = 'hidden';
+      main.style.overscrollBehavior = 'none';
+    }
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      if (main) {
+        main.style.overflowY = previousMainOverflowY;
+        main.style.overscrollBehavior = previousMainOverscrollBehavior;
+      }
+    };
+  }, [sidebarOpen]);
+
   const toggleSidebar = () => {
     if (window.innerWidth >= 1280) {
       setSidebarCollapsed((collapsed) => !collapsed);
@@ -249,7 +275,7 @@ export function CompanyLayout({
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
-          className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+          className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] appearance-none border-0 outline-none bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out focus:outline-none focus-visible:outline-none focus:ring-0 active:outline-none active:ring-0 xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
           aria-label="Close navigation overlay"
           aria-hidden={!sidebarOpen}
           tabIndex={sidebarOpen ? 0 : -1}

@@ -1259,8 +1259,20 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  .mobile-sidebar-backdrop {
+    -webkit-tap-highlight-color: transparent;
+    tap-highlight-color: transparent;
+    box-shadow: none;
+  }
 
+  .mobile-sidebar-backdrop:active,
+  .mobile-sidebar-backdrop:focus,
+  .mobile-sidebar-backdrop:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
     .workspace-sidebar,
     .mobile-sidebar-backdrop {
       transition-duration: 0.01ms !important;
@@ -2008,6 +2020,18 @@ nav button[aria-current='page']::before {
   .notification-overlay-backdrop,
   .notification-panel-drawer .notification-item-button {
     transition: none;
+  }
+}
+
+/* Keep the compact mobile notification popover readable above the page. The
+   tablet/desktop drawer already has its own opaque surface treatment. */
+@media (max-width: 767px) {
+  .notification-panel:not(.notification-panel-drawer) {
+    background: var(--app-surface);
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    opacity: 1;
   }
 }
 

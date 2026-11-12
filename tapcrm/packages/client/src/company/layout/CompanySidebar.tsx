@@ -234,9 +234,16 @@ export function CompanySidebar({
     });
   };
 
-  const [recruitmentOpen, setRecruitmentOpen] = useState(
-    pathname.startsWith('/company/recruitment'),
-  );
+  const toggleNavItem = (label: string) => {
+    setExpandedItems((prev) => ({
+      ...prev,
+      [label]: !(prev[label] ?? true),
+    }));
+  };
+
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(() => ({
+    Recruitment: pathname.startsWith('/company/recruitment'),
+  }));
   const prevPathnameRef = useRef(pathname);
   const navigationRef = useRef<HTMLElement>(null);
   const activeNavIndicatorRef = useRef<HTMLDivElement>(null);
@@ -397,7 +404,9 @@ export function CompanySidebar({
         window.setTimeout(() => {
           suppressSidebarClickRef.current = false;
         }, 600);
-        if (nearest.label === 'Recruitment') setRecruitmentOpen(true);
+        if (nearest.label === 'Recruitment') {
+          setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
+        }
         onNavigate(nearest.path);
         onClose();
         syncActiveSidebarPill();
@@ -426,7 +435,7 @@ export function CompanySidebar({
     const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
     const isRecruitment = pathname.startsWith('/company/recruitment');
     if (!wasRecruitment && isRecruitment) {
-      setRecruitmentOpen(true);
+      setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
     }
     if (pathname.startsWith('/company/organization')) {
       setOpenSections((prev) => (prev['Organization'] ? prev : { ...prev, Organization: true }));
@@ -1115,6 +1124,17 @@ export function CompanySidebar({
           const activeChild = group.items.some(
             (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
           );
+          // A nested destination owns the selection surface when it is active.
+          // Do not also mark an ancestor item as current, otherwise the shared
+          // desktop pill and the nested row both render as selected.
+          const hasActiveNestedDestination = group.items.some((item) =>
+            item.children?.some(
+              (sub) => pathname === sub.path || pathname.startsWith(`${sub.path}/`),
+            ),
+          );
+          const hasExactDestination = group.items.some(
+            (item) => pathname === item.path || item.children?.some((sub) => pathname === sub.path),
+          );
           const isOpen =
             openSections[group.label] ??
             (group.label === 'Organization'
@@ -1144,14 +1164,16 @@ export function CompanySidebar({
               {isOpen && (
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
-                    const isRecruitmentItem = item.label === 'Recruitment';
                     const isRootRoute = variant === 'client'
                       ? item.path === '/client'
                       : item.path === '/company/organization';
                     const isActive = pathname === item.path ||
                       (!isRootRoute && pathname.startsWith(`${item.path}/`));
+                    const isTopLevelActive = isActive &&
+                      !hasActiveNestedDestination &&
+                      (!hasExactDestination || pathname === item.path);
                     const showChildren = Boolean(
-                      item.children && (isRecruitmentItem ? recruitmentOpen : true),
+                      item.children && (expandedItems[item.label] ?? true),
                     );
                     return (
                       <div key={item.path}>
@@ -1165,7 +1187,7 @@ export function CompanySidebar({
                               });
                             else navItemRefs.current.delete(item.path);
                           }}
-                          aria-current={isActive ? 'page' : undefined}
+                          aria-current={isTopLevelActive ? 'page' : undefined}
                           type="button"
                           aria-expanded={item.children ? showChildren : undefined}
                           onPointerDown={startSidebarPillDrag}
@@ -1174,13 +1196,13 @@ export function CompanySidebar({
                               suppressSidebarClickRef.current = false;
                               return;
                             }
-                            if (isRecruitmentItem) {
+                            if (item.children) {
                               if (!pathname.startsWith(item.path)) {
-                                setRecruitmentOpen(true);
+                                setExpandedItems((prev) => ({ ...prev, [item.label]: true }));
                                 onNavigate(item.path);
                                 onClose();
                               } else {
-                                setRecruitmentOpen((prev) => !prev);
+                                toggleNavItem(item.label);
                               }
                             } else {
                               onNavigate(item.path);
@@ -1188,7 +1210,7 @@ export function CompanySidebar({
                               syncActiveSidebarPill();
                             }
                           }}
-                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isTopLevelActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
                           title={collapsed ? item.label : undefined}
                         >
                           <span className="flex items-center gap-3">
@@ -1222,11 +1244,11 @@ export function CompanySidebar({
                         {showChildren && !collapsed && (
                           <div className="ml-7 mt-1 divide-y divide-sidebar-border/70 pl-2">
                             {item.children!.map((sub) => {
-                              const active =
-                                sub.path === '/company/recruitment'
-                                  ? pathname === sub.path
-                                  : pathname === sub.path ||
-                                    pathname.startsWith(`${sub.path}/`);
+                              // Child destinations are intentionally matched
+                              // exactly. A parent route such as
+                              // `/company/sales/leads` must not remain selected
+                              // when a deeper child route is active.
+                              const active = pathname === sub.path;
                               return (
                                 <button
                                   key={sub.path}
@@ -1236,7 +1258,7 @@ export function CompanySidebar({
                                     onNavigate(sub.path);
                                     onClose();
                                   }}
-                                  className={`w-full rounded-none px-3 py-2.5 text-left text-xs font-medium hover:text-sidebar-active-fg ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted'}`}
+                                  className={`w-full rounded-xl px-3 py-2.5 text-left text-xs font-medium hover:text-sidebar-active-fg ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted'}`}
                                 >
                                   {sub.label}
                                 </button>
