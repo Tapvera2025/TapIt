@@ -368,7 +368,11 @@ function BreakStatusCard({
           {breakActionButton}
         </div>
 
-        <div className="today-break-timer relative order-1 grid size-28 place-items-center rounded-full sm:size-32 md:order-none md:self-center md:size-44 xl:size-[clamp(13rem,15vw,13.75rem)]">
+        <div
+          className="today-break-timer relative order-1 grid size-28 place-items-center rounded-full sm:size-32 md:order-none md:self-center md:size-44 xl:size-[clamp(13rem,15vw,13.75rem)]"
+          role="img"
+          aria-label={`Break time used ${fmtBreakTimer(totalBreakSeconds)} of ${effectiveLimitMinutes} minutes${isOverLimit ? ', over limit' : ''}`}
+        >
           <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
             <circle cx="56" cy="56" r="47" fill="none" stroke="currentColor" strokeWidth="7" className={isOverLimit ? 'text-red-500/15' : 'text-app-accent/15'} />
             <circle
@@ -387,6 +391,9 @@ function BreakStatusCard({
           <div className="text-center">
             <p className={`text-2xl font-bold tabular-nums tracking-tight ${isOverLimit ? 'text-red-600 dark:text-red-300' : 'text-app-foreground'}`}>
               {fmtBreakTimer(totalBreakSeconds)}
+            </p>
+            <p className="mt-0.5 text-[11px] font-medium text-app-muted">
+              of {String(Math.floor(effectiveLimitMinutes / 60)).padStart(2, '0')}:{String(effectiveLimitMinutes % 60).padStart(2, '0')}
             </p>
           </div>
         </div>

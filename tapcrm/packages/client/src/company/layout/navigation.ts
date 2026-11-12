@@ -319,7 +319,7 @@ export const companyNavigation: CompanyNavGroup[] = [
       {
         label: 'Audit Log',
         path: '/company/audit',
-        icon: 'clipboard',
+        icon: 'clipboard-list',
         requiredAction: 'audit:view',
       },
     ],

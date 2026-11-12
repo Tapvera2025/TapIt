@@ -997,7 +997,7 @@ export function CompanySidebar({
           ? [{ label: 'Access Explorer', path: '/company/access', icon: 'shield' }]
           : []),
         ...(isSuperAdmin || canViewAudit
-          ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard' }]
+          ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard-list' }]
           : []),
         ...(isSuperAdmin
           ? [{ label: 'Geofencing', path: '/company/geofencing', icon: 'pin' }]

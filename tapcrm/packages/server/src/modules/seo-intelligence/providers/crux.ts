@@ -1,5 +1,6 @@
 /** Real-user field measurements. The CrUX API requires an enabled API key. */
 import { safeFetch } from '../crawler/ssrf-guard.js';
+import { decimal } from '@tapcrm/contracts';
 import type { SeoProviderResult, CruxMetrics } from './types.js';
 
 interface Metric { percentiles?: { p75?: number | string } }
@@ -55,5 +56,5 @@ export async function cruxFetch(url: string, formFactor: 'PHONE' | 'DESKTOP' | '
       inp: inp === null ? null : { p75: inp, rating: cruxRating(inp, 'inp') },
       cls: cls === null ? null : { p75: cls, rating: cruxRating(cls, 'cls') },
       fcp: fcp === null ? null : { p75: fcp }, ttfb: ttfb === null ? null : { p75: ttfb }, collectionStart, collectionEnd },
-    usage: { provider: 'crux', operation: 'queryRecord', units: 1, unitType: 'requests', costCents: 0, elapsedMs: Date.now() - started } };
+    usage: { provider: 'crux', operation: 'queryRecord', units: 1, unitType: 'requests', costCents: decimal('0'), elapsedMs: Date.now() - started } };
 }

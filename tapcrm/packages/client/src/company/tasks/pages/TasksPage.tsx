@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { getIdentityAccessToken, identityApiBasePath } from '../../../identity/api/authApi.js';
-import { Button, Notice, WorkspacePageContainer } from '../../../ui/index.js';
+import { Button, Notice, WorkspacePageContainer } from '../../../ui/components.js';
 import { getCompanyIdentity } from '../../api/companyApi.js';
 import {
   assignTask,

@@ -9,7 +9,7 @@ import { sql } from '../../platform/dal/sql.js';
 export function isContentStaff(ctx: Pick<RequestContext, 'principal'>) {
   return (
     ctx.principal.accountType === 'employee' ||
-    ctx.principal.accountType === 'super-admin'
+    globalAccess(ctx.principal)
   );
 }
 export function canAccessContentSite(

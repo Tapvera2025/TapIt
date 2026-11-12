@@ -71,8 +71,9 @@ async function getBrowser(): Promise<BrowserLike | null> {
   if (!browserPromise) {
     browserPromise = (async () => {
       try {
-        const mod = await import('playwright' as string);
-        const chromium = (mod as { chromium?: { launch: (opts?: unknown) => Promise<BrowserLike> } }).chromium;
+        const moduleName: string = 'playwright';
+        const mod = await import(moduleName);
+        const chromium = mod.chromium;
         if (!chromium) return null;
         const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
         const executablePath = process.env['SEO_RENDER_CHROMIUM_PATH'];

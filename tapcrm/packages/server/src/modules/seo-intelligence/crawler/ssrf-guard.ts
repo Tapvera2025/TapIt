@@ -1,4 +1,3 @@
-import { createConnection } from 'net';
 import { lookup } from 'dns/promises';
 
 /**

@@ -15,7 +15,7 @@ import {
   type EmployeeWiseReport,
 } from './attendanceApi.js';
 import { listHolidays, type Holiday } from '../api/holidaysApi.js';
-import { calendarMonth } from '../../ui/index.js';
+import { calendarMonth } from '../../ui/calendar-model.js';
 import { organizationLocalToIso } from '../sales/leads/callback-ui.js';
 import { attendanceStatus, MonthlyAttendanceKpis } from './AttendanceVisuals.js';
 import { Card, WorkspacePageContainer } from '../../ui/index.js';

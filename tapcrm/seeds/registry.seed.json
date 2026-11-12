@@ -2898,7 +2898,7 @@
     {
       "action": "seo:read-finding",
       "module": "seo-intelligence",
-      "resource": null,
+      "resource": "seo_finding",
       "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
@@ -3033,7 +3033,7 @@
     {
       "action": "seo:update-finding",
       "module": "seo-intelligence",
-      "resource": null,
+      "resource": "seo_finding",
       "domain": "business",
       "sensitive": false,
       "approvalBearing": false,
@@ -7953,13 +7953,13 @@
       "method": "GET",
       "path": "/api/seo/findings/:findingId",
       "action": "seo:read-finding",
-      "resourceParam": null
+      "resourceParam": "findingId"
     },
     {
       "method": "PATCH",
       "path": "/api/seo/findings/:findingId",
       "action": "seo:update-finding",
-      "resourceParam": null
+      "resourceParam": "findingId"
     },
     {
       "method": "GET",

@@ -126,7 +126,7 @@ export async function createLead(ctx: RequestContext, input: CreateLeadInput): P
     // Link a company record the way website and ad leads do, so the deal made
     // from this lead keeps its company.
     const companyId = await findOrInsertCompanyByName(tx, ctx.organizationId, input.companyName ?? null, ctx.principal.id);
-    let territoryId = decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.territoryId : null;
+    const territoryId = decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.territoryId : null;
     let salesTeamId = decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.salesTeamId : null;
     let salesPoolId: string | null = null;
     // Preserve the owning agent's team context on outbound (SKIPPED) leads so

@@ -322,10 +322,10 @@ export function AddEmployeeWizardModal({
           if (typeof data.shiftId === 'string') setShiftId(data.shiftId);
           if (typeof data.weekdayScheduleId === 'string') setWeekdayScheduleId(data.weekdayScheduleId);
           if (Array.isArray(data.skillsList)) {
-            setSkillsList(data.skillsList as Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>);
+            setSkillsList(data.skillsList);
           }
           if (Array.isArray(data.qualificationsList)) {
-            setQualificationsList(data.qualificationsList as Array<{ institution: string; degree: string; fieldOfStudy: string; passingYear: string; grade: string }>);
+            setQualificationsList(data.qualificationsList);
           }
           if (typeof data.step === 'number' && [1, 2, 3, 4, 5].includes(data.step)) {
             setStep(data.step as 1 | 2 | 3 | 4 | 5);

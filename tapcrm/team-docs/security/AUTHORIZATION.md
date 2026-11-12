@@ -266,8 +266,8 @@
 | `seo:trigger-scan` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
 | `seo:read-scan` | seo-intelligence | — | business | no | no | — | yes | yes | no |
 | `seo:list-findings` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
-| `seo:read-finding` | seo-intelligence | — | business | no | no | — | yes | yes | no |
-| `seo:update-finding` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:read-finding` | seo-intelligence | seo_finding | business | no | no | — | yes | yes | no |
+| `seo:update-finding` | seo-intelligence | seo_finding | business | no | no | — | yes | yes | no |
 | `seo:read-search-performance` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
 | `seo:sync-search-performance` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
 | `seo:list-keywords` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
@@ -1028,8 +1028,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/seo/sites/:siteId/scans | `seo:trigger-scan` | siteId |
 | GET | /api/seo/scans/:scanRunId | `seo:read-scan` | — |
 | GET | /api/seo/sites/:siteId/findings | `seo:list-findings` | siteId |
-| GET | /api/seo/findings/:findingId | `seo:read-finding` | — |
-| PATCH | /api/seo/findings/:findingId | `seo:update-finding` | — |
+| GET | /api/seo/findings/:findingId | `seo:read-finding` | findingId |
+| PATCH | /api/seo/findings/:findingId | `seo:update-finding` | findingId |
 | GET | /api/seo/sites/:siteId/gsc-metrics | `seo:read-search-performance` | siteId |
 | POST | /api/seo/sites/:siteId/gsc-sync | `seo:sync-search-performance` | siteId |
 | GET | /api/seo/sites/:siteId/keywords | `seo:list-keywords` | siteId |

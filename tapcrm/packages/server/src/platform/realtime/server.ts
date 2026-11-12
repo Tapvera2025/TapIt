@@ -150,6 +150,15 @@ export function emitToUser(organizationId: string, userId: string, event: string
   }
 }
 
+/** Broadcast to all active sockets belonging to an organization. */
+export function emitToOrganization(organizationId: string, event: string, payload: Record<string, unknown>): void {
+  try {
+    io?.to(organizationRoom(organizationId)).emit(event, payload);
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'warn', msg: 'realtime org emit skipped', event, error: String(error) }));
+  }
+}
+
 /**
  * Which of these people have TapIt open right now — a socket in their
  * personal room on any API instance (the Redis adapter asks the others).
@@ -216,15 +225,6 @@ function socketDisconnected(server: RealtimeServer, organizationId: string, user
   }, offlineGraceMs);
   timer.unref();
   pendingOffline.set(room, timer);
-}
-
-/** Broadcast to all active sockets belonging to an organization. */
-export function emitToOrganization(organizationId: string, event: string, payload: Record<string, unknown>): void {
-  try {
-    io?.to(organizationRoom(organizationId)).emit(event, payload);
-  } catch (error) {
-    console.error(JSON.stringify({ level: 'warn', msg: 'realtime org emit skipped', event, error: String(error) }));
-  }
 }
 
 /** Everyone whose scope on the channel covers `subject` hears it, once. */

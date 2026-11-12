@@ -228,6 +228,7 @@ export function registerAllJobs(): void {
   registerTelephonyJobs();
   registerLeadImportJobs();
   registerProjectReportJobs();
+  registerSocialJobs();
   registerAccountingJobs();
   registerSocialJobs();
   registerSeoJobs();

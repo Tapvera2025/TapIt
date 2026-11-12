@@ -10,6 +10,7 @@ import {
   type SearchAnalyticsRow,
   type SearchAnalyticsRequest,
 } from '../../../platform/integrations/google/search-console.js';
+import { decimal } from '@tapcrm/contracts';
 import type { SeoProviderResult, SeoProvenance } from './types.js';
 
 const PROVENANCE: SeoProvenance = {
@@ -35,7 +36,7 @@ export async function gscFetch(
       data: rows,
       provenance: { ...PROVENANCE, retrievedAt: new Date().toISOString() },
       coverage: rows.length,
-      usage: { provider: 'gsc', operation: 'searchAnalytics', units: rows.length, unitType: 'rows', costCents: 0, elapsedMs: Date.now() - start },
+      usage: { provider: 'gsc', operation: 'searchAnalytics', units: rows.length, unitType: 'rows', costCents: decimal('0'), elapsedMs: Date.now() - start },
     };
   } catch (err) {
     if (err instanceof SearchConsoleConfigurationError) {

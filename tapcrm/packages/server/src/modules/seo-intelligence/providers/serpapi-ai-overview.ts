@@ -16,6 +16,7 @@
  * ("prompts observed") stays honest.
  */
 import { safeFetch } from '../crawler/http.js';
+import { decimal } from '@tapcrm/contracts';
 import type { SeoProviderResult, SeoProvenance, AIAnswerSnapshot, AISearchProvider } from './types.js';
 
 const SERPAPI_ENDPOINT = 'https://serpapi.com/search.json';
@@ -157,7 +158,7 @@ function usage(startedAt: number) {
     units: 1,
     unitType: 'searches',
     // Billed as a regular SerpAPI Google search. Approximation only.
-    costCents: 5,
+    costCents: decimal('5'),
     elapsedMs: Date.now() - startedAt,
   };
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { getIdentityAccessToken, identityApiBasePath } from '../../../identity/api/authApi.js';
-import { Icon } from '../../../ui/index.js';
+import { Icon } from '../../../ui/Icon.js';
 import { getMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../../../identity/api/sessionsApi.js';
 import { ATTENDANCE_UPDATED_EVENT, loadTodayStatus, notifyAttendanceUpdated, punch, type PunchKind, type TodayStatus } from '../../live/liveApi.js';
 import { getMyShiftAssignment, type ShiftAssignment } from '../../api/shiftsApi.js';

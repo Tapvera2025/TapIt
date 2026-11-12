@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NotificationBell } from '../../notifications/NotificationBell.js';
-import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { BrandLogo } from '../../ui/index.js';
 import { Icon } from '../../ui/index.js';
 import { AiPetButton } from './AiPet.js';

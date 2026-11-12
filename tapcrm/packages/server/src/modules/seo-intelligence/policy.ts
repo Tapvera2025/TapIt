@@ -58,6 +58,18 @@ export async function loadSiteResource(ctx: RequestContext, siteId: string) {
   return { type: 'seo_site' as const, id: row.id, organizationId: row.organizationId };
 }
 
+export async function loadFindingResource(ctx: RequestContext, findingId: string) {
+  if (!z.string().uuid().safeParse(findingId).success) return null;
+  const row = await db.maybeOne<{ id: string; organizationId: string }>(
+    ctx,
+    sql`
+    SELECT id, organization_id FROM seo_findings
+    WHERE organization_id = ${ctx.organizationId} AND id = ${findingId}
+  `,
+  );
+  if (!row) return null;
+  return { type: 'seo_finding' as const, id: row.id, organizationId: row.organizationId };
+}
 export function registerSeoPolicies(): void {
   registerContentPolicies();
   registerResourcePolicy(seoSitePolicy());

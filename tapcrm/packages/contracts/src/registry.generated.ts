@@ -3405,7 +3405,7 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
   'seo:read-finding': {
     action: 'seo:read-finding',
     module: 'seo-intelligence',
-    resource: null,
+    resource: 'seo_finding',
     domain: 'business',
     sensitive: false,
     approvalBearing: false,
@@ -3540,7 +3540,7 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
   'seo:update-finding': {
     action: 'seo:update-finding',
     module: 'seo-intelligence',
-    resource: null,
+    resource: 'seo_finding',
     domain: 'business',
     sensitive: false,
     approvalBearing: false,
@@ -4847,8 +4847,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/seo/sites/:siteId/scans', action: 'seo:trigger-scan', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/scans/:scanRunId', action: 'seo:read-scan', resourceParam: null },
   { method: 'GET', path: '/api/seo/sites/:siteId/findings', action: 'seo:list-findings', resourceParam: 'siteId' },
-  { method: 'GET', path: '/api/seo/findings/:findingId', action: 'seo:read-finding', resourceParam: null },
-  { method: 'PATCH', path: '/api/seo/findings/:findingId', action: 'seo:update-finding', resourceParam: null },
+  { method: 'GET', path: '/api/seo/findings/:findingId', action: 'seo:read-finding', resourceParam: 'findingId' },
+  { method: 'PATCH', path: '/api/seo/findings/:findingId', action: 'seo:update-finding', resourceParam: 'findingId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/gsc-metrics', action: 'seo:read-search-performance', resourceParam: 'siteId' },
   { method: 'POST', path: '/api/seo/sites/:siteId/gsc-sync', action: 'seo:sync-search-performance', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/keywords', action: 'seo:list-keywords', resourceParam: 'siteId' },
