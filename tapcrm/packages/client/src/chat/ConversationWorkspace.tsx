@@ -912,6 +912,8 @@ export function ConversationWorkspace({
                                 )}
                               </div>
 
+                          </div>
+
                               {openActionsFor === message.id && actionMenuPosition && createPortal(
                                 <>
                                   <div
@@ -1023,7 +1025,6 @@ export function ConversationWorkspace({
                                   </button>
                                 </div>
                               )}
-                            </div>
                           </li>
                         </Fragment>
                       );

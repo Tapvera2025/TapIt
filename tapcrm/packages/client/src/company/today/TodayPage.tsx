@@ -331,7 +331,7 @@ function BreakStatusCard({
     : reportedBreakSeconds;
   const completedBreakSeconds = Math.max(reportedCompletedBreakSeconds, exactCompletedBreakSeconds(events));
   const totalBreakSeconds = completedBreakSeconds + currentBreakSeconds;
-  // Use the employee's configured daily allowance, with a one-hour fallback.
+  // Fall back to 60 minutes when no policy limit is configured.
   const effectiveLimitMinutes = breakLimitMinutes ?? 60;
   const breakLimitSeconds = effectiveLimitMinutes * 60;
   const progress = Math.min(totalBreakSeconds / breakLimitSeconds, 1);

@@ -410,12 +410,12 @@ describe('EmployeeNoteHistoryModal component', () => {
 });
 
 describe('Super Admin Navigation for Employee Notes', () => {
-  it('registers Employee Notes under People with requiredAction notepad:view-all', async () => {
+  it('registers Employee Notes under Employee Activities with requiredAction notepad:view-all', async () => {
     const { companyNavigation } = await import('../layout/navigation.js');
-    const peopleGroup = companyNavigation.find((g) => g.label === 'People');
-    expect(peopleGroup).toBeDefined();
+    const employeeActivitiesGroup = companyNavigation.find((g) => g.label === 'Employee Activities');
+    expect(employeeActivitiesGroup).toBeDefined();
 
-    const employeeNotesItem = peopleGroup?.items.find((i) => i.label === 'Employee Notes');
+    const employeeNotesItem = employeeActivitiesGroup?.items.find((i) => i.label === 'Employee Notes');
     expect(employeeNotesItem).toBeDefined();
     expect(employeeNotesItem?.path).toBe('/company/employee-notes');
     expect(employeeNotesItem?.icon).toBe('notepad');

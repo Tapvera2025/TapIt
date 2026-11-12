@@ -99,4 +99,51 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
     expect(html).toContain('Settings');
     expect(html).not.toContain('aria-label="Color appearance themes"');
   });
+
+  it('selects only the active nested Leads destination', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(CompanySidebar, {
+          pathname: '/company/sales/leads/re-engagement',
+          identity: { ...baseIdentity, accountType: 'super-admin' },
+          organizationName: 'Test Corp',
+          accountType: 'super-admin',
+          canViewLeads: true,
+          canViewImports: true,
+          onNavigate: () => {},
+          onLogout: () => {},
+          open: true,
+          onClose: () => {},
+        }),
+      ),
+    );
+
+    expect(html).toMatch(/<button[^>]*aria-current="page"[^>]*>[\s\S]*?Follow-up Required/);
+    expect(html).not.toMatch(/<button[^>]*aria-current="page"[^>]*>[\s\S]*?All Leads/);
+  });
+
+  it('places the active pill on My Work instead of the Sales overview ancestor', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(CompanySidebar, {
+          pathname: '/company/sales/my-work',
+          identity: { ...baseIdentity, accountType: 'super-admin' },
+          organizationName: 'Test Corp',
+          accountType: 'super-admin',
+          canViewLeads: true,
+          onNavigate: () => {},
+          onLogout: () => {},
+          open: true,
+          onClose: () => {},
+        }),
+      ),
+    );
+
+    expect(html).toMatch(/<button[^>]*aria-current="page"[^>]*>[\s\S]*?My Work/);
+    expect(html).not.toMatch(/<button[^>]*aria-current="page"[^>]*>[\s\S]*?Overview/);
+  });
 });
