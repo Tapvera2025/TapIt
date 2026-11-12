@@ -129,13 +129,13 @@ export const companyNavigation: CompanyNavGroup[] = [
         requiredAction: 'leads:view',
       },
       {
-        label: 'Bid Pool',
+        label: 'Lead Pool',
         path: '/company/sales/bid-pool',
         icon: 'inbox',
         requiredAction: 'leads:view',
       },
       {
-        label: 'Leads',
+        label: 'Lead Management',
         path: '/company/sales/leads',
         icon: 'users',
         requiredAction: 'leads:view',
@@ -177,7 +177,7 @@ export const companyNavigation: CompanyNavGroup[] = [
         requiredAction: 'territories:view',
       },
       {
-        label: 'Leads',
+        label: 'Lead Management',
         path: '/company/sales/leads',
         icon: 'users',
         requiredAction: 'leads:view',
@@ -207,7 +207,7 @@ export const companyNavigation: CompanyNavGroup[] = [
         ],
       },
       {
-        label: 'Imported leads',
+        label: 'Imported Leads',
         path: '/company/sales/leads/imported',
         icon: 'upload',
         requiredAction: 'lead-imports:view',

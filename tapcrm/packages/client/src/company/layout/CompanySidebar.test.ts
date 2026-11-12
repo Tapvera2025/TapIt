@@ -120,8 +120,8 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
       ),
     );
 
-    expect(html).toMatch(/<button[^>]*aria-current="page"[^>]*>[\s\S]*?Re-engagement/);
-    expect(html).not.toMatch(/<button[^>]*aria-current="page"[^>]*>[\s\S]*?All leads/);
+    expect(html).toMatch(/<button[^>]*aria-current="page"[^>]*>[\s\S]*?Follow-up Required/);
+    expect(html).not.toMatch(/<button[^>]*aria-current="page"[^>]*>[\s\S]*?All Leads/);
   });
 
   it('places the active pill on My Work instead of the Sales overview ancestor', () => {

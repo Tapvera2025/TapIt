@@ -686,16 +686,16 @@ export function CompanySidebar({
               ...(canViewLeads
                 ? [
                     {
-                      label: 'Leads',
+                      label: 'Lead Management',
                       path: '/company/sales/leads',
                       icon: 'users',
                       children: [
-                        { label: 'All leads', path: '/company/sales/leads' },
-                        { label: 'Bid Pool', path: '/company/sales/bid-pool' },
-                        { label: 'Stalled', path: '/company/sales/leads/stalled' },
-                        { label: 'Re-engagement', path: '/company/sales/leads/re-engagement' },
-                        ...(canTriageSales ? [{ label: 'Triage queue', path: '/company/sales/triage' }] : []),
-                        ...(canViewImports ? [{ label: 'Imported leads', path: '/company/sales/leads/imported' }] : []),
+                        { label: 'All Leads', path: '/company/sales/leads' },
+                        { label: 'Lead Pool', path: '/company/sales/bid-pool' },
+                        { label: 'Inactive Leads', path: '/company/sales/leads/stalled' },
+                        { label: 'Follow-up Required', path: '/company/sales/leads/re-engagement' },
+                        ...(canTriageSales ? [{ label: 'Needs Review', path: '/company/sales/triage' }] : []),
+                        ...(canViewImports ? [{ label: 'Imported Leads', path: '/company/sales/leads/imported' }] : []),
                       ],
                     },
                   ]
