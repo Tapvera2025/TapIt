@@ -20,9 +20,16 @@ import {
 import { SeoEmptyState, SeoSectionHeader, SeoBadge } from './SeoUi.js';
 import {
   SEO_TABS,
+  SITE_INDEPENDENT_SECTIONS,
+  isProjectSection,
+  sectionFromPath,
   seoTabForSection,
   type SeoSection,
 } from './seo-navigation.js';
+import { SeoKeywordSearch } from './SeoKeywordSearch.js';
+import { SeoProjectsPanel } from './SeoProjectsPanel.js';
+import { SeoSearchConsoleReport } from './SeoSearchConsoleReport.js';
+import { getProject, type Project } from '../projects/api/projectsApi.js';
 import { useSeoResource } from './useSeoResource.js';
 import { isScanInFlight } from './seo-display.js';
 import * as api from './api.js';
@@ -66,11 +73,45 @@ interface Props {
   pathname: string;
   onNavigate: (path: string) => void;
   canManage: boolean;
+  /** seo:sync-search-performance — run paid searches (scans, position checks). */
+  canScan?: boolean;
+  /** projects:view / projects:manage — the Projects area and project keyword checks. */
+  canViewProjects?: boolean;
+  canManageProjects?: boolean;
+  /** Connect the organization's Google logins (Social → Company connections). */
+  canManageIntegrations?: boolean;
   contentAccess: ContentAccess;
 }
 
-export function SeoWorkspace({ canManage, contentAccess }: Props) {
-  const [section, setSection] = useState<SeoSection>('overview');
+export function SeoWorkspace({
+  pathname,
+  onNavigate,
+  canManage,
+  canScan = false,
+  canViewProjects = false,
+  canManageProjects = false,
+  canManageIntegrations = false,
+  contentAccess,
+}: Props) {
+  const [section, setSection] = useState<SeoSection>(() => sectionFromPath(pathname)?.section ?? 'overview');
+  const [seoProject, setSeoProject] = useState<Project | null>(null);
+  const [keywordSearchSignal, setKeywordSearchSignal] = useState(0);
+  const [deepLinkError, setDeepLinkError] = useState('');
+  // A link to /company/seo-intelligence/<area>[/<project id>] opens that area.
+  useEffect(() => {
+    const target = sectionFromPath(pathname);
+    if (!target) return;
+    setSection(target.section);
+    if (!target.id || !isProjectSection(target.section)) return;
+    let live = true;
+    setDeepLinkError('');
+    void getProject(target.id)
+      .then((project) => { if (live) setSeoProject(project); })
+      .catch((cause: unknown) => {
+        if (live) setDeepLinkError(cause instanceof Error ? cause.message : 'That project could not be opened.');
+      });
+    return () => { live = false; };
+  }, [pathname]);
   const [siteId, setSiteId] = useState<string | null>(null);
   const currentSiteId = useRef(siteId);
   currentSiteId.current = siteId;
@@ -102,8 +143,15 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
     if (selectedId !== siteId) setSiteId(selectedId);
   }, [selectedId, siteId]);
   const activeTab = seoTabForSection(section);
+  // The Projects area needs project access; without it the tab is not offered.
+  const visibleTabs = SEO_TABS.filter((tab) => tab.id !== 'projects' || canViewProjects);
   const detailKey =
-    section === 'sites' || section === 'content-board' || section === 'content-brand'
+    section === 'sites' ||
+    section === 'content-board' ||
+    section === 'content-brand' ||
+    section === 'keyword-search' ||
+    section === 'search-console' ||
+    isProjectSection(section)
       ? null
       : section === 'rules'
         ? 'seo-rules'
@@ -162,6 +210,11 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
         case 'crawl':
           return { settings: await api.getSeoSiteSettings(selectedId) };
         case 'sites':
+        case 'keyword-search':
+        case 'search-console':
+        case 'project-keywords':
+        case 'project-blogs':
+        case 'project-backlinks':
           return {};
       }
     },
@@ -261,7 +314,7 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
       description="Know what’s holding your website back, and what to do next."
       action={(
         <div className="seo-page-actions">
-          {sites.length > 0 && (
+          {sites.length > 0 && !isProjectSection(section) && section !== 'keyword-search' && (
             <div className="seo-site-selector">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
                 <Icon name="monitor" className="size-5" />
@@ -296,7 +349,7 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
         <SegmentedTabs
         ariaLabel="SEO areas"
         className="seo-primary-tabs"
-        items={SEO_TABS.map((tab) => ({
+        items={visibleTabs.map((tab) => ({
           id: `seo-tab-${tab.id}`,
           label: tab.label,
           icon: <Icon name={tab.icon} className="size-4" />,
@@ -304,8 +357,10 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
         }))}
         value={`seo-tab-${activeTab.id}`}
         onChange={(id) => {
-          const selected = SEO_TABS.find((tab) => `seo-tab-${tab.id}` === id);
-          if (selected) navigate(selected.sections[0].id);
+          const selected = visibleTabs.find((tab) => `seo-tab-${tab.id}` === id);
+          if (!selected) return;
+          if (selected.id === 'keyword-search') setKeywordSearchSignal((value) => value + 1);
+          navigate(selected.sections[0].id);
         }}
         scrollable
         />
@@ -358,9 +413,37 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
         }
         tabIndex={0}
       >
-        {siteResource.error ? (
+        {deepLinkError && isProjectSection(section) && (
+          <p role="alert" className="mb-5 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-app-danger">
+            {deepLinkError}
+          </p>
+        )}
+        {section === 'keyword-search' ? (
+          <SeoKeywordSearch
+            openSignal={keywordSearchSignal}
+            sites={sites}
+            selectedSite={selectedSite}
+            onSiteChange={changeSite}
+            onAddSite={() => setShowAddSite(true)}
+            onOpenAllowance={() => navigate('crawl')}
+            canScan={canScan}
+            canManageSite={canManage}
+            canViewProjects={canViewProjects}
+            canManageProjects={canManageProjects}
+            project={seoProject}
+            onProjectChange={setSeoProject}
+          />
+        ) : isProjectSection(section) ? (
+          <SeoProjectsPanel
+            section={section as 'project-keywords' | 'project-blogs' | 'project-backlinks'}
+            project={seoProject}
+            onProjectChange={setSeoProject}
+            canView={canViewProjects}
+            canManage={canManageProjects}
+          />
+        ) : siteResource.error ? (
           <LoadFailure message={siteResource.error} retry={siteResource.reload} />
-        ) : !selectedSite && section !== 'rules' && section !== 'sites' ? (
+        ) : !selectedSite && !SITE_INDEPENDENT_SECTIONS.includes(section) ? (
           <SeoEmptyState
             title="Let’s get to know your website"
             description="Add your website to start a checkup. We’ll turn technical findings into an understandable list of things to review and improve."
@@ -388,6 +471,17 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
               title="Choose a website first"
               description="Select a website to open its content workspace."
             />
+          )
+        ) : section === 'search-console' ? (
+          selectedSite ? (
+            <SeoSearchConsoleReport
+              key={selectedSite.id}
+              site={selectedSite}
+              canManageIntegrations={canManageIntegrations}
+              onManageConnections={() => onNavigate('/company/social/connections')}
+            />
+          ) : (
+            <SeoEmptyState title="Choose a website first" description="Select a website to see its Search Console report." />
           )
         ) : section === 'sites' ? (
           <SeoSitesPanel
@@ -594,7 +688,8 @@ export function SeoWorkspace({ canManage, contentAccess }: Props) {
             setSiteId(site.id);
             siteResource.reload();
             setShowAddSite(false);
-            navigate('overview');
+            // Adding a website from Keyword search stays there, ready to scan it.
+            if (section !== 'keyword-search') navigate('overview');
           }}
           />
         )}

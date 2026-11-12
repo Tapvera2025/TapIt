@@ -1,6 +1,9 @@
 import {
   MATCH_NOTHING,
+  or,
   registerResourcePolicy,
+  scopeMemberIds,
+  scopeReachesAny,
   type PolicyEvaluationContext,
   type Resource,
   type ResourcePolicy,
@@ -13,13 +16,24 @@ import type { Action, Scope } from '@tapcrm/contracts';
  *
  * Implements object-level checks and list visibility filters across scopes:
  * - own / participant: Creator or assigned user
- * - team: User's team members
- * - department: User's department members
+ * - team: User's team tree and reporting line (scopeMemberIds) OR the task's
+ *   team columns
+ * - department: User's department members OR the task's department columns
  * - pool: User's sales pool members
  *
  * NOTE: Handlers do not call authorize() directly; authorization is evaluated
  * upstream by the HTTP router middleware before handlers are reached.
  */
+/** Creator or any assignee is one of the scope's people. */
+async function taskPeopleFilter(ctx: PolicyEvaluationContext, scope: Scope): Promise<SqlFragment> {
+  const members = await scopeMemberIds(ctx, scope);
+  if (members === null || members.size === 0) return MATCH_NOTHING;
+  return {
+    sql: '(t.created_by = ANY($1::uuid[]) OR EXISTS (SELECT 1 FROM task_assignee ta WHERE ta.task_id = t.id AND ta.user_id = ANY($1::uuid[])))',
+    parameters: [[...members]],
+  };
+}
+
 export const taskPolicy: ResourcePolicy = {
   resourceType: 'task',
   domain: 'business',
@@ -46,6 +60,21 @@ export const taskPolicy: ResourcePolicy = {
 
     if (scope === 'own' || scope === 'participant') {
       return isCreator || isAssigned;
+    }
+
+    // People route for team / department: the creator, owner or any assignee
+    // is inside the scope's people. Matching team/department columns alone
+    // missed e.g. a task for someone who reports into you but sits elsewhere.
+    if (scope === 'team' || scope === 'department') {
+      const assigneeObjects = Array.isArray(resource['assignees']) ? (resource['assignees'] as unknown[]) : [];
+      const people: unknown[] = [
+        resource['createdBy'],
+        resource['ownerId'],
+        resource['assignedTo'],
+        ...(Array.isArray(resource['assigneeIds']) ? (resource['assigneeIds'] as unknown[]) : []),
+        ...assigneeObjects.map((a) => (a && typeof a === 'object' ? (a as Record<string, unknown>)['id'] : null)),
+      ];
+      if (await scopeReachesAny(ctx, scope, people.filter((x): x is string => typeof x === 'string'))) return true;
     }
 
     if (scope === 'team') {
@@ -374,20 +403,28 @@ export const taskPolicy: ResourcePolicy = {
 
     if (scope === 'department') {
       const deptId = await ctx.scope.departmentId(ctx);
-      if (deptId === null) return MATCH_NOTHING;
-      return {
-        sql: '(EXISTS (SELECT 1 FROM app_user u WHERE u.id = t.created_by AND u.department_id = $1) OR EXISTS (SELECT 1 FROM task_assignee ta JOIN app_user u ON u.id = ta.user_id WHERE ta.task_id = t.id AND u.department_id = $1))',
-        parameters: [deptId],
-      };
+      return or(
+        deptId === null
+          ? MATCH_NOTHING
+          : {
+              sql: '(EXISTS (SELECT 1 FROM app_user u WHERE u.id = t.created_by AND u.department_id = $1) OR EXISTS (SELECT 1 FROM task_assignee ta JOIN app_user u ON u.id = ta.user_id WHERE ta.task_id = t.id AND u.department_id = $1))',
+              parameters: [deptId],
+            },
+        await taskPeopleFilter(ctx, scope),
+      );
     }
 
     if (scope === 'team') {
       const teams = [...(await ctx.scope.teamIds(ctx))];
-      if (teams.length === 0) return MATCH_NOTHING;
-      return {
-        sql: '(EXISTS (SELECT 1 FROM app_user u WHERE u.id = t.created_by AND u.team_id = ANY($1::uuid[])) OR EXISTS (SELECT 1 FROM task_assignee ta JOIN app_user u ON u.id = ta.user_id WHERE ta.task_id = t.id AND u.team_id = ANY($1::uuid[])))',
-        parameters: [teams],
-      };
+      return or(
+        teams.length === 0
+          ? MATCH_NOTHING
+          : {
+              sql: '(EXISTS (SELECT 1 FROM app_user u WHERE u.id = t.created_by AND u.team_id = ANY($1::uuid[])) OR EXISTS (SELECT 1 FROM task_assignee ta JOIN app_user u ON u.id = ta.user_id WHERE ta.task_id = t.id AND u.team_id = ANY($1::uuid[])))',
+              parameters: [teams],
+            },
+        await taskPeopleFilter(ctx, scope),
+      );
     }
 
     if (scope === 'pool') {

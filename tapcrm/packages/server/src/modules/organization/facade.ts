@@ -8,6 +8,7 @@
  *   employee           getOrganizationChart, listReportingManagerOptions,
  *                      validateManagerAssignment, repairReportingLinesAfterMove
  *   access-management  validateManagerAssignment, repairReportingLinesAfterMove, findTeam
+ *   employee, access-management  notifyUsersPermissionsChanged (permissions:changed outbox event)
  *   break-management   effectiveManagerId (the "notify manager" break consequence)
  */
 export { getOrganizationChart } from './chart/service.js';
@@ -21,4 +22,5 @@ export {
 export { findTeam } from './teams/repository.js';
 export { findDepartment } from './departments/repository.js';
 export { enqueueOrganizationAudit } from './repository.js';
+export { notifyUsersPermissionsChanged } from './positions/repository.js';
 export { getCurrencySettings, type CurrencySettings } from './currency.js';

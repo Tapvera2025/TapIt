@@ -44,3 +44,15 @@ export const searchConsoleLinkSchema = z.object({
   ),
 });
 export type SearchConsoleLinkInput = z.infer<typeof searchConsoleLinkSchema>;
+
+/** Project live-check settings: the website live checks look for, the monthly
+ * number of paid results pages the project may request (0 disables them), and
+ * how many results one check looks through (each page of ten is one search). */
+export const projectSeoSettingsSchema = z
+  .object({
+    websiteUrl: z.string().trim().max(2000).optional().nullable(),
+    monthlyLimit: z.number().int().min(0).max(100000).optional(),
+    searchDepth: z.union([z.literal(10), z.literal(20), z.literal(30), z.literal(50), z.literal(100)]).optional(),
+  })
+  .strict();
+export type ProjectSeoSettingsInput = z.infer<typeof projectSeoSettingsSchema>;

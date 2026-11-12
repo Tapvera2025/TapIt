@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ACTIONS } from '@tapcrm/contracts';
 
 const departmentKind = z.enum(['support', 'delivery']);
 const departmentStatus = z.enum(['active', 'inactive']);
@@ -91,8 +92,9 @@ export const createPositionSchema = z.object({
   name: z.string().trim().min(1).max(160),
   organizationalLevel: z.number().int().min(1).max(100),
   /**
-   * Null only for a department's first position, which becomes its root (the
-   * department head); every later position sits under an existing one.
+   * Null means the position reports to the Super Admin as its department's
+   * top: allowed for the department's first position, or for a new top that
+   * takes the current top(s) under it (`adoptPositionIds`).
    */
   parentPositionId: z
     .string()
@@ -167,7 +169,10 @@ const positionPolicySchema = z.object({
 
 export const updatePositionPoliciesSchema = z
   .object({
-    policies: z.array(positionPolicySchema).max(200),
+    // The editor sends one row per grantable power (on or off). A fixed cap
+    // below the registry size rejected EVERY save once the registry passed it
+    // (242 actions, 220 grantable) — so the cap follows the registry.
+    policies: z.array(positionPolicySchema).max(ACTIONS.length),
   })
   .refine(
     (value) =>

@@ -7,7 +7,13 @@ import { listSearchConsoleProperties, searchConsoleConnected } from '../../socia
 import { systemClock } from '../../../platform/time.js';
 import { archiveBlog, archiveKeyword, deleteSearchConsoleLink, findKeyword, findSearchConsoleLink, insertBlog, insertKeyword, keywordExists, listBlogs, listKeywords, overview, rankHistory, toReport, updateBlog, updateKeyword, updateKeywordRank, upsertSearchConsoleLink, type ReportContext } from './repository.js';
 import { observationWindow, syncProjectRanks } from './sync.js';
-import type { BlogInput, CreateKeywordInput, RankUpdateInput, ReportQuery, SearchConsoleLinkInput, UpdateKeywordInput } from './validators.js';
+import {
+  checkKeywordLiveRank,
+  getProjectSeoSettings,
+  listProjectRankings,
+  updateProjectSeoSettings,
+} from './live-rank.js';
+import type { BlogInput, CreateKeywordInput, ProjectSeoSettingsInput, RankUpdateInput, ReportQuery, SearchConsoleLinkInput, UpdateKeywordInput } from './validators.js';
 
 export async function loadProjectReportResource(ctx: RequestContext, id: string): Promise<Resource | null> { const project = await findProjectById(ctx, id); return project ? { type: 'project', id: project.id, organizationId: project.organizationId, createdBy: project.createdBy, assigneeIds: project.assignees.map((a) => a.userId) } : null; }
 function withProject(ctx: RequestContext, id: string): ReportContext { return { ...ctx, projectId: id }; }
@@ -90,4 +96,27 @@ export async function syncSearchConsoleRanks(ctx: RequestContext, projectId: str
   if (!await findProjectById(ctx, projectId)) throw new ProjectNotFoundError();
   const window = await observationWindow(ctx, systemClock);
   return syncProjectRanks(ctx, projectId, { window, scope: 'all' });
+}
+
+/* ------------------------------------------------------------------ *
+ * Live rank checks (SerpApi primary, Search Console fallback).
+ * ------------------------------------------------------------------ */
+
+export async function getProjectLiveSettings(ctx: RequestContext, projectId: string) {
+  return getProjectSeoSettings(ctx, projectId);
+}
+export async function setProjectLiveSettings(ctx: RequestContext, projectId: string, patch: ProjectSeoSettingsInput) {
+  return updateProjectSeoSettings(ctx, projectId, patch);
+}
+/** All active keywords with their latest live reading, plus the live-check settings. */
+export async function getProjectRankings(ctx: RequestContext, projectId: string) {
+  return listProjectRankings(ctx, projectId);
+}
+/** Live-check one stored keyword, then return the refreshed keyword and the outcome. */
+export async function checkSeoKeywordLive(ctx: RequestContext, projectId: string, keywordId: string) {
+  const scoped = withProject(ctx, projectId);
+  const keyword = await findKeyword(scoped, keywordId);
+  if (!keyword) throw new ProjectNotFoundError();
+  const outcome = await checkKeywordLiveRank(ctx, projectId, keyword);
+  return { keyword: await findKeyword(scoped, keywordId), outcome };
 }

@@ -1,4 +1,5 @@
 import { identityRequest, identityDownload } from '../identity/api/authApi.js';
+import type { SocialGoogleIndexInspection, SocialSearchConsolePerformance } from '../social/types.js';
 import type {
   SeoSite,
   SeoScanRun,
@@ -309,3 +310,71 @@ export const updateSeoRule = (ruleId: string, patch: { active: boolean }) =>
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
+
+// ─── Keyword search: scan a website ──────────────────────────────────────────
+
+export type SeoScanEngine = 'google' | 'bing' | 'google_local';
+export interface SeoScanTopResult {
+  position: number;
+  url: string | null;
+  title: string | null;
+}
+export interface SeoRankScan {
+  id: string;
+  keyword: string;
+  engine: SeoScanEngine;
+  country: string;
+  city: string | null;
+  searchLocation: string;
+  device: 'desktop' | 'mobile';
+  depth: number;
+  status: 'found' | 'not-found' | 'failed';
+  position: number | null;
+  rankingUrl: string | null;
+  rankingTitle: string | null;
+  resultsChecked: number | null;
+  pagesRequested: number;
+  topResults: SeoScanTopResult[];
+  message: string | null;
+  requestedByName: string | null;
+  createdAt: string;
+}
+export interface SeoRankScanInput {
+  keyword: string;
+  searchEngine: 'google' | 'bing';
+  category: 'seo' | 'gmb';
+  country: string;
+  city?: string | null;
+  device: 'desktop' | 'mobile';
+  depth: 10 | 20 | 30 | 50 | 100;
+}
+export const listSeoRankScans = (siteId: string) =>
+  identityRequest<SeoRankScan[]>(`/api/seo/sites/${encodeURIComponent(siteId)}/rank-scans`);
+export const scanSeoRank = (siteId: string, input: SeoRankScanInput) =>
+  identityRequest<{ scan: SeoRankScan; allowance: { monthlyLimit: number; used: number; remaining: number } }>(
+    `/api/seo/sites/${encodeURIComponent(siteId)}/rank-scans`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+
+// ─── Google Search Console (moved from Social → Analytics) ───────────────────
+
+export interface SeoSearchConsoleReport {
+  website: string;
+  property: {
+    propertyUrl: string;
+    permissionLevel: string;
+    status: 'connected' | 'reconnect_required';
+    account: string | null;
+  } | null;
+  problem: string | null;
+  performance: SocialSearchConsolePerformance | null;
+}
+export const getSeoSearchConsoleReport = (siteId: string, range: { from: string; to: string }) =>
+  identityRequest<SeoSearchConsoleReport>(
+    `/api/seo/sites/${encodeURIComponent(siteId)}/search-console?${new URLSearchParams(range).toString()}`,
+  );
+export const inspectSeoPage = (siteId: string, inspectionUrl: string) =>
+  identityRequest<SocialGoogleIndexInspection>(
+    `/api/seo/sites/${encodeURIComponent(siteId)}/search-console/inspect`,
+    { method: 'POST', body: JSON.stringify({ inspectionUrl }) },
+  );

@@ -4,7 +4,7 @@ The native CRM module is at `/company/social`. It reuses Identity, CRM clients, 
 
 ## Enable and configure
 
-1. Apply migrations using `npm run migrate`. `0091_social_media.sql` adds 13 tenant-owned social tables, composite client/tenant foreign keys and forced RLS; `0092_social_catalog.sql` registers the module, its client dependency and six permissions; `0093_social_analytics_context.sql` preserves native metric notes/series and post references and makes approval/audit history append-only for the runtime role; `0094_social_story_destination.sql` adds the per-destination `post_type` column that selects Instagram Story vs feed publishing; `0126_social_company_connections.sql` adds company-wide connections and `0146_social_company_logins.sql` widens them to every platform and to Search Console properties (below). Migrations are additive and forward-only, following the existing runner. Disable the module to withdraw it; retain history and use a reviewed forward fix or backup restore rather than dropping CRM data.
+1. Apply migrations using `npm run migrate`. `0091_social_media.sql` adds 13 tenant-owned social tables, composite client/tenant foreign keys and forced RLS; `0092_social_catalog.sql` registers the module, its client dependency and six permissions; `0093_social_analytics_context.sql` preserves native metric notes/series and post references and makes approval/audit history append-only for the runtime role; `0094_social_story_destination.sql` adds the per-destination `post_type` column that selects Instagram Story vs feed publishing; `0126_social_company_connections.sql` adds company-wide connections `0146_social_company_logins.sql` widens them to every platform and to Search Console properties (below), and `0148_social_location_page_tokens.sql` keeps each company Facebook Page's own token on its location. Migrations are additive and forward-only, following the existing runner. Disable the module to withdraw it; retain history and use a reviewed forward fix or backup restore rather than dropping CRM data.
 2. Existing companies with the Clients entitlement receive the Social entitlement with the same enabled/disabled status. New companies can select Manage Social Media in the platform module catalogue.
 3. Generate `SOCIAL_TOKEN_ENCRYPTION_KEY` once using `openssl rand -hex 32`. Store and back up the key as a secret. Changing it without a planned re-encryption procedure makes stored credentials unreadable. Do not paste credentials into source code, client settings or screenshots.
 4. Set `SOCIAL_PUBLIC_BASE_URL` to the exact public CRM origin, e.g. `https://crm.example.com`, with no path, query or credentials. HTTP localhost is supported only outside production. OAuth callbacks use this configured origin, never a request Host header.
@@ -38,7 +38,7 @@ Agencies manage their clients' pages and profiles from a few staff logins: a Goo
 | Connect | One sign-in lists | Notes |
 |---|---|---|
 | Google | Every Business Profile location the account manages, and every verified Search Console property it can read | Search Console access (`webmasters.readonly`) is asked for but optional: declining it still connects the profiles. Enable the Search Console API in the Google Cloud project behind `SOCIAL_GOOGLE_CLIENT_ID` and add the scope to its OAuth consent screen; if listing fails, the profiles still connect and the reason shows on the login. |
-| Facebook + Instagram | Every Page the login can create content on, and the Instagram professional account linked to each Page | Instagram permissions are optional. The login's user token is stored once; each Page's token is read from it when publishing, so no Page token is kept. Meta user tokens last about 60 days, after which one reconnect heals every Page and Instagram account on the login. |
+| Facebook + Instagram | Every Page the login can create content on, and the Instagram professional account linked to each Page | Instagram permissions are optional. The login's user token is stored once and lists the Pages; each Page and Instagram location also keeps that Page's own token, encrypted for the location (`0148_social_location_page_tokens.sql`). Meta user tokens last about 60 days and cannot be renewed without a sign-in, but a Page token read with one does not expire, so assigned Pages keep publishing after the login expires; reconnecting the login picks up new Pages and heals anything Meta refused. Locations saved before 0148 get their Page token at the next refresh (daily, or **Refresh**). |
 | LinkedIn | The member's own profile, and the company pages it administers | Company pages need `SOCIAL_LINKEDIN_ORGANIZATIONS_ENABLED=true` and LinkedIn's Community Management approval. |
 | YouTube channel | The one channel chosen on Google's screen | Google grants one channel per sign-in (a Brand Account channel is its own Google identity), so each channel is its own company login. |
 
@@ -52,7 +52,7 @@ Why one sign-in: each Google sign-in mints a new refresh token, and Google keeps
 
 A client's own sign-in (Connected Accounts → Connect account) still works for clients who prefer it. Assigning that same item from a company login moves it onto the company token and keeps the account's post history. A client page can unassign a company item but never revoke the company's grant. Database triggers keep a client connection serving only its own client, and a company connection serving clients only through what it lists; a check keeps row-level client assignment to Search Console properties.
 
-Search Console properties connected here are what the rest of the CRM reads: the SEO module's Search Performance import and the project **Google Search Console** card list, link and read only properties the organization's own Google logins can read, through `modules/social/facade.ts` (`listSearchConsoleProperties`, `searchConsoleToken`). The server's shared Search Console login (`GOOGLE_SEARCH_CONSOLE_AUTH`) serves only the organization named in `GOOGLE_SEARCH_CONSOLE_ORGANIZATION`, so no organization reads another's property.
+Search Console properties connected here are what the rest of the CRM reads: the SEO module's Search Performance import, its **Search Console report** (SEO dashboard → Search visibility; it moved there from Social → Analytics, which now shows only social channels) and the project **Google Search Console** card list, link and read only properties the organization's own Google logins can read, through `modules/social/facade.ts` (`listSearchConsoleProperties`, `searchConsoleToken`, `searchConsolePerformance`, `inspectSearchConsoleUrl`). The server's shared Search Console login (`GOOGLE_SEARCH_CONSOLE_AUTH`) serves only the organization named in `GOOGLE_SEARCH_CONSOLE_ORGANIZATION`, so no organization reads another's property.
 
 The OAuth apps, callback URLs (`/api/social/oauth/<platform>/callback`) and `.env` settings are the same as for client sign-ins; the sealed state decides where the browser returns. A Google login additionally requests `openid` and `userinfo.email` to recognise the signed-in account.
 
@@ -106,3 +106,85 @@ These items were requested but cannot be built against a stable public API as of
 - **YouTube Community posts** — YouTube Data API v3 does not expose community posts to third-party applications. Posting requires manual channel access through the YouTube Partner Program and is not available through any supported endpoint.
 - **Facebook Stories** — Meta deprecated the Graph API `page_published_story` write path for third-party publishing; no stable public endpoint exists. Instagram Stories remain supported through the Instagram Content Publishing API.
 - **Google Business Profile post insights** — The former `localPosts` insight endpoint was retired in October 2022. The Business Profile Performance API returns location-level aggregates only, not per-post counters, so a comparable per-post metric cannot be synchronized.
+
+## Clients connecting their own accounts (client portal)
+
+Clients can connect their own social accounts from the client portal at **Social accounts** (`/client/social`). Any active client login can use this page when the organization has the Social and Client portal modules enabled.
+
+### How a client connects an account
+
+1. The client picks a platform.
+2. The client signs in on the platform's own consent screen.
+3. The platform returns the client to the same portal page.
+4. The page shows only the accounts the platform authorized.
+5. The client ticks exactly the accounts to attach. Nothing is attached automatically.
+6. The client confirms.
+
+The choice stays open for 30 minutes. The platform sign-in must come back within 10 minutes.
+
+Platforms in the portal:
+
+- Facebook Pages.
+- Instagram professional (Business or Creator) accounts linked to a Facebook Page. The client signs in with Facebook.
+- YouTube channels (video uploads).
+
+LinkedIn stays agency-only. Google Business Profile is shown as not available. See [provider prerequisites](social-platforms.md#client-portal-connections-provider-prerequisites).
+
+### What a client can and cannot do
+
+A client can connect, reconnect and disconnect accounts they connected themselves.
+
+A client cannot:
+
+- Publish or edit posts.
+- Change workspace settings.
+- See or change company connections.
+- See other clients.
+
+Accounts the agency manages appear as "Managed by your agency" with no actions.
+
+### Disconnecting (client)
+
+Disconnecting an account:
+
+- Removes the stored token for that account.
+- Stops publishing to it.
+- Cancels its scheduled posts. Posts already being published finish and keep their outcome.
+
+An optional separate checkbox, "remove TapIt's access", revokes the grant at the platform:
+
+- Facebook and Instagram: removes TapIt from the whole Facebook login. Every Page and Instagram account connected with that login, in any client, must be reconnected.
+- YouTube: revokes that Google account's grant.
+- Refused if the agency's own company Facebook login is the same Facebook user.
+
+If the platform call fails, the client is told to remove access in their platform settings.
+
+Agency staff can disconnect a client-connected account locally. They cannot revoke the client's own platform grant. That attempt returns error `SOCIAL_CLIENT_OWNED_GRANT`.
+
+### Team side
+
+Accounts connected by a client appear in Manage Social Media for that client with a "Connected by client" badge. They use the normal flow: create, approve (if required), then schedule or publish. Scheduling uses the client's timezone. Only staff who already have access to that client can use them.
+
+### Permission
+
+The new action `social:connect-own-accounts` is held only by client logins, through their fixed policy set. It cannot be given to any position.
+
+Agency staff keep `social:connect`, `social:manage`, `social:publish` and `social:settings` as before.
+
+### Ownership rules
+
+- An account serves one CRM client.
+- If it is already connected for a different client, the client sees "connected elsewhere — ask your agency to move it". No other client's name is shown.
+- If the agency already manages it for this client, the client cannot take it over.
+- The agency cannot take over an account the client connected, either by client sign-in or by company-login assignment. The client must disconnect it first.
+
+### Security
+
+- Sign-in state is sealed, single-use and expires.
+- It is bound to the browser cookie, the client login and its session version, the platform, and the surface (portal or workspace).
+- Callback and redirect URLs are fixed.
+- Tokens are encrypted per organization, client and platform. They are never returned to the browser.
+
+### Database
+
+Migration `0151_social_client_portal_connections.sql` adds `social_connection.connected_via` and `social_oauth_state.surface`, with guard triggers. It is forward-only. To withdraw the feature, stop granting the action.

@@ -57,8 +57,11 @@ export function CompanyLayout({
   canViewExpenses,
   canApproveExpenses,
   isHr,
+  canViewRecruitment,
+  canViewAccessExplorer,
   hasRecruitment,
   hasInterviews,
+  enabledModules,
   title: _title,
   onNavigate,
   onLogout,
@@ -122,7 +125,13 @@ export function CompanyLayout({
   canViewExpenses: boolean;
   canApproveExpenses: boolean;
   isHr: boolean;
+  /** Recruitment workspace reachable: HR, or a held recruitment view power. */
+  canViewRecruitment?: boolean;
+  /** Access Explorer reachable: super-admin, or a held access:view power. */
+  canViewAccessExplorer?: boolean;
   hasRecruitment: boolean;
+  /** Modules enabled for the company; omitted means every module is offered. */
+  enabledModules?: readonly string[];
   /** This user has interviews (rounds or panels): show "My Interviews". */
   hasInterviews: boolean;
   title: string;
@@ -316,8 +325,11 @@ export function CompanyLayout({
             canViewExpenses={canViewExpenses}
             canApproveExpenses={canApproveExpenses}
             isHr={isHr}
+            {...(canViewRecruitment !== undefined ? { canViewRecruitment } : {})}
+            {...(canViewAccessExplorer !== undefined ? { canViewAccessExplorer } : {})}
             hasRecruitment={hasRecruitment}
             hasInterviews={hasInterviews}
+            {...(enabledModules ? { enabledModules } : {})}
             onNavigate={onNavigate}
             onLogout={onLogout}
             open={sidebarOpen}

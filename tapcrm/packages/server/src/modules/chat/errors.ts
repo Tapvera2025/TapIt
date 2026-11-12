@@ -11,6 +11,7 @@ export const CHAT_ERROR_CODES = {
   VALIDATION_FAILED: 'CHAT_VALIDATION_FAILED',
   EDIT_WINDOW_CLOSED: 'CHAT_EDIT_WINDOW_CLOSED',
   CLIENT_NOT_ALLOWED: 'CHAT_CLIENT_NOT_ALLOWED',
+  GROUP_PERMISSION: 'CHAT_GROUP_PERMISSION',
 } as const;
 
 type Missing = 'conversation' | 'message' | 'attachment' | 'scheduled';
@@ -52,5 +53,12 @@ export class ChatEditWindowClosedError extends ApplicationError {
 export class ChatClientNotAllowedError extends ApplicationError {
   constructor() {
     super('This is not available in the client portal', 403, CHAT_ERROR_CODES.CLIENT_NOT_ALLOWED);
+  }
+}
+
+/** A group member asked for something only the group's creator or an admin may do (0153). */
+export class ChatGroupPermissionError extends ApplicationError {
+  constructor(message: string) {
+    super(message, 403, CHAT_ERROR_CODES.GROUP_PERMISSION);
   }
 }

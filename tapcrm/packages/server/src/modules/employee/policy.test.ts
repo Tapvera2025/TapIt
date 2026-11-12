@@ -90,7 +90,10 @@ describe('user authorization scope consistency', () => {
     ).resolves.toBe(true);
     const teamPredicate = await userPolicy['filter'](ctx, 'users:manage', 'team');
     expect(teamPredicate.sql).toContain('u.team_id = ANY');
-    expect(teamPredicate.parameters).toEqual([['team-1', 'team-2', 'team-3']]);
+    // The team route comes first; the people route (members of the team tree and
+    // reporting line, here just the caller) is OR-ed after it.
+    expect(teamPredicate.parameters[0]).toEqual(['team-1', 'team-2', 'team-3']);
+    expect(teamPredicate.sql).toContain('u.id = ANY');
   });
 
   it('uses the resolved pool set rather than exact team equality', async () => {

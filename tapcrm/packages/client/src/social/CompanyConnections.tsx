@@ -221,8 +221,9 @@ export function CompanyConnections({
       setRevision((value) => value + 1);
     }
   }
-  /** Moving a location between clients is an unassign and an assign: the server
-   * never moves one silently, because the old client's scheduled posts are cancelled. */
+  /** Moving a location between clients is asked for explicitly (`move`): the server
+   * never moves one silently, because the old client's scheduled posts are cancelled.
+   * It happens in one step, so a refused move leaves the old client assigned. */
   async function assign(
     location: SocialCompanyLocation,
     client: { id: string; name: string } | null,
@@ -230,13 +231,17 @@ export function CompanyConnections({
     setBusy(location.id);
     setError('');
     try {
-      if (
+      const move = Boolean(
         client &&
         location.assignment?.via === 'company_connection' &&
-        location.assignment.clientId !== client.id
-      )
-        await assignCompanyLocation(location.connectionId, location.id, null);
-      await assignCompanyLocation(location.connectionId, location.id, client?.id ?? null);
+        location.assignment.clientId !== client.id,
+      );
+      await assignCompanyLocation(
+        location.connectionId,
+        location.id,
+        client?.id ?? null,
+        move,
+      );
       toast.success(
         client
           ? `${location.name} assigned to ${client.name}`
@@ -289,6 +294,10 @@ export function CompanyConnections({
       if (result.revocationStatus === 'remove_access_in_platform_settings')
         toast(
           `TapIt deleted its copy of the sign-in. To remove access completely, remove TapIt in ${ACCESS_SETTINGS[disconnecting.platform]}.`,
+        );
+      if (result.othersNeedReconnect)
+        toast(
+          `${result.othersNeedReconnect} client connection${result.othersNeedReconnect === 1 ? '' : 's'} signed in with the same login lost access too and now need${result.othersNeedReconnect === 1 ? 's' : ''} a reconnect.`,
         );
       toast.success(`${connectionName(disconnecting)} disconnected`);
       setDisconnecting(null);

@@ -22,6 +22,7 @@ export * from './actionMetadata.js';
 export * from './principal.js';
 export * from './identity-bootstrap.js';
 export * from './platform.js';
+export * from './platform-modules.js';
 export * from './people.js';
 export * from './accounting.js';
 export * from './accounting-ledger.js';

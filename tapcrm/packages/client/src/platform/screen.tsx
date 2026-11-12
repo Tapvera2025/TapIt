@@ -2,6 +2,14 @@ import { BrandLogo } from '../ui/index.js';
 import { useEffect, useState } from 'react';
 import { api, ApiError, clearTokens, saveTokens, updateOrganization } from './api.js';
 import { ModuleToggleModal } from './ModuleToggleModal.js';
+import { ManageModulesDialog, transitiveDependencies } from './ManageModulesDialog.js';
+import {
+  PLATFORM_MODULE_GROUPS,
+  type PlatformModuleCatalogEntry,
+  type PlatformModuleChangeRequest,
+  type PlatformModuleChangeResult,
+  type PlatformModuleGroup,
+} from '@tapcrm/contracts';
 import { ThemeToggle } from '../theme/ThemeToggle.js';
 import { ACCENT_COLORS, useTheme, type Theme } from '../theme/ThemeContext.js';
 import { Icon } from '../ui/index.js';
@@ -192,53 +200,20 @@ function PlatformKpiCard({
   );
 }
 
-const PLATFORM_GROUPS = [
-  {
-    key: 'hr',
-    label: 'HR',
-    moduleKeys: [
-      'employee-directory',
-      'onboarding',
-      'live-status',
-      'attendance',
-      'break-management',
-      'shifts',
-      'biometric',
-      'leave',
-      'holidays',
-      'payroll',
-      'performance',
-      'recruitment',
-    ],
-  },
-  {
-    key: 'sales',
-    label: 'Sales',
-    moduleKeys: ['territories', 'leads', 'callbacks', 'handovers', 'deals', 'approvals', 'telephony', 'lead-imports'],
-  },
-  {
-    key: 'development',
-    label: 'Development',
-    moduleKeys: ['handoff', 'projects', 'tasks', 'resource-planning', 'delivery'],
-  },
-  {
-    key: 'client',
-    label: 'Client',
-    moduleKeys: ['clients', 'post-closure', 'client-portal'],
-  },
-  {
-    key: 'finance',
-    label: 'Finance',
-    moduleKeys: [
-      'billing-terms',
-      'invoicing',
-      'payments',
-      'receivables',
-      'payables',
-      'accounting',
-    ],
-  },
-] as const;
+/** Selectable module keys of a group, as plain strings. */
+function groupKeys(group: PlatformModuleGroup): readonly string[] {
+  return group.moduleKeys;
+}
+
+/** Keys of a group the admin can switch (core modules are always on). */
+function selectableKeys(
+  group: PlatformModuleGroup,
+  catalog: ReadonlyMap<string, PlatformModuleCatalogEntry>,
+): string[] {
+  return groupKeys(group).filter((key) => catalog.get(key)?.isCore !== true);
+}
+
+const moduleDependencies = transitiveDependencies;
 
 function CompanyDetailsDialog({
   org,
@@ -409,12 +384,13 @@ function CompanyDetailsDialog({
               </div>
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {PLATFORM_GROUPS.map((group) => {
-                const enabled = group.moduleKeys.filter((key) =>
+              {PLATFORM_MODULE_GROUPS.map((group) => {
+                const keys = groupKeys(group);
+                const enabled = keys.filter((key) =>
                   entitlements.some((row) => row.key === key && row.status === 'enabled'),
                 ).length;
                 const status =
-                  enabled === group.moduleKeys.length
+                  enabled === keys.length
                     ? 'Enabled'
                     : enabled > 0
                       ? 'Partially enabled'
@@ -425,7 +401,9 @@ function CompanyDetailsDialog({
                     className={`inline-flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold ${status === 'Enabled' ? 'border-app-accent/35 bg-app-accent/10 text-app-accent' : status === 'Partially enabled' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/10 text-[#f5c56b]' : 'border-app-border bg-app-background/35 text-app-muted'}`}
                   >
                     <span>{group.label}</span>
-                    <span className="text-[10px] opacity-80">{status}</span>
+                    <span className="text-[10px] opacity-80">
+                      {status} · {enabled}/{keys.length}
+                    </span>
                   </span>
                 );
               })}
@@ -1126,12 +1104,16 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   const [busy, setBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [statusChangingId, setStatusChangingId] = useState<string | null>(null);
-  const [pendingModuleAction, setPendingModuleAction] = useState<{
+  const [catalog, setCatalog] = useState<PlatformModuleCatalogEntry[]>([]);
+  const [manageTarget, setManageTarget] = useState<{
     org: Organization;
-    group: (typeof PLATFORM_GROUPS)[number];
-    currentlyEnabled: boolean;
+    groupKey?: string;
   } | null>(null);
-  const [moduleActionKey, setModuleActionKey] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const catalogByKey = new Map<string, PlatformModuleCatalogEntry>(
+    catalog.map((entry) => [entry.key, entry]),
+  );
+  const moduleName = (key: string): string => catalogByKey.get(key)?.name ?? key;
   const [pendingCompanyAction, setPendingCompanyAction] = useState<{
     type: 'delete' | 'status';
     org: Organization;
@@ -1169,12 +1151,14 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const load = async () => {
-    const [o, s] = await Promise.all([
+    const [o, s, modules] = await Promise.all([
       api<Organization[]>('/platform/organizations'),
       api<Record<string, number>>('/platform/dashboard/stats'),
+      api<PlatformModuleCatalogEntry[]>('/platform/modules'),
     ]);
     setOrgs(o);
     setStats(s);
+    setCatalog(modules);
     const entries = await Promise.all(
       o.map(
         async (org) =>
@@ -1513,31 +1497,29 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     setFormStep((step) => Math.min(step + 1, formMode === 'edit' ? 5 : 6));
   }
 
-  async function toggleGroup(
+  async function applyModuleChange(
     org: Organization,
-    group: (typeof PLATFORM_GROUPS)[number],
-    currentlyEnabled: boolean,
-  ): Promise<boolean> {
-    const actionKey = `${org.id}:${group.key}`;
-    setModuleActionKey(actionKey);
-    try {
-      for (const key of group.moduleKeys) {
-        await api(
-          `/platform/organizations/${org.id}/modules/${encodeURIComponent(key)}/${currentlyEnabled ? 'disable' : 'enable'}`,
-          { method: 'POST' },
-        );
-      }
-      setMessage(
-        `${group.label} ${currentlyEnabled ? 'disabled' : 'enabled'} for ${org.name}`,
-      );
-      await load();
-      return true;
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Module update failed');
-      return false;
-    } finally {
-      setModuleActionKey(null);
-    }
+    change: PlatformModuleChangeRequest,
+  ): Promise<void> {
+    // Throws on failure so the dialog can show the server message and keep its staged changes.
+    const result = await api<PlatformModuleChangeResult>(
+      `/platform/organizations/${org.id}/modules`,
+      { method: 'POST', body: JSON.stringify(change) },
+    );
+    setEntitlements((current) => ({
+      ...current,
+      [org.id]: result.modules.map((row) => ({
+        key: row.key,
+        name: row.name,
+        isCore: row.isCore,
+        status: row.status,
+      })),
+    }));
+    const parts: string[] = [];
+    if (result.enabled.length > 0) parts.push(`enabled ${result.enabled.map(moduleName).join(', ')}`);
+    if (result.disabled.length > 0) parts.push(`disabled ${result.disabled.map(moduleName).join(', ')}`);
+    setMessage(`Updated ${org.name}${parts.length > 0 ? `: ${parts.join(' · ')}` : ': no changes'}`);
+    setManageTarget(null);
   }
 
   async function removeCompany(org: Organization): Promise<boolean> {
@@ -1576,15 +1558,20 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  function groupStatus(org: Organization, group: (typeof PLATFORM_GROUPS)[number]) {
+  function groupStatus(org: Organization, group: PlatformModuleGroup) {
     const rows = entitlements[org.id] ?? [];
     const rowByKey = new Map(rows.map((row) => [row.key, row]));
-    const statuses = group.moduleKeys.map(
-      (key) => rowByKey.get(key)?.status ?? 'disabled',
-    );
-    if (statuses.every((status) => status === 'enabled')) return 'enabled' as const;
-    if (statuses.every((status) => status === 'disabled')) return 'disabled' as const;
-    return 'partial' as const;
+    // Ignore modules the server catalogue does not know about.
+    const known = groupKeys(group).filter((key) => catalogByKey.has(key));
+    const enabled = known.filter((key) => rowByKey.get(key)?.status === 'enabled').length;
+    const total = known.length;
+    const state =
+      total > 0 && enabled === total
+        ? ('enabled' as const)
+        : enabled === 0
+          ? ('disabled' as const)
+          : ('partial' as const);
+    return { state, enabled, total };
   }
 
   const visibleOrganizations = orgs.filter((organization) => {
@@ -2206,37 +2193,117 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           Core identity and login modules are enabled automatically.
                         </p>
                         <div className="grid grid-cols-1 gap-[9px] min-[561px]:grid-cols-2">
-                          {PLATFORM_GROUPS.map((group) => (
-                            <label
-                              key={group.key}
-                              className="group flex min-h-[49px] cursor-pointer items-center gap-[9px] rounded-[9px] border border-app-border bg-app-background p-3 hover:border-[#3f5664] hover:bg-app-surface-raised"
-                            >
-                              <input
-                                className="peer sr-only"
-                                type="checkbox"
-                                checked={group.moduleKeys.every((key) =>
-                                  selected.includes(key),
-                                )}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setSelected((current) => {
-                                    const next = new Set(current);
-                                    if (checked) {
-                                      for (const key of group.moduleKeys) next.add(key);
-                                    } else {
-                                      for (const key of group.moduleKeys)
-                                        next.delete(key);
+                          {PLATFORM_MODULE_GROUPS.map((group) => {
+                            const keys = selectableKeys(group, catalogByKey);
+                            const chosen = keys.filter((key) => selected.includes(key));
+                            const all = keys.length > 0 && chosen.length === keys.length;
+                            const some = chosen.length > 0 && !all;
+                            const expanded = expandedGroups.includes(group.key);
+                            return (
+                              <div
+                                key={group.key}
+                                className="rounded-[9px] border border-app-border bg-app-background p-3 hover:border-[#3f5664] min-[561px]:data-[expanded=true]:col-span-2"
+                                data-expanded={expanded}
+                              >
+                                <div className="flex min-h-[25px] items-center gap-[9px]">
+                                  <label className="flex flex-1 cursor-pointer items-center gap-[9px]">
+                                    <input
+                                      className="peer sr-only"
+                                      type="checkbox"
+                                      checked={all}
+                                      disabled={keys.length === 0}
+                                      ref={(node) => {
+                                        if (node) node.indeterminate = some;
+                                      }}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        setSelected((current) => {
+                                          const next = new Set(current);
+                                          for (const key of keys) {
+                                            if (checked) next.add(key);
+                                            else next.delete(key);
+                                          }
+                                          if (checked) {
+                                            for (const key of keys)
+                                              for (const dep of moduleDependencies(key, catalogByKey))
+                                                next.add(dep);
+                                          }
+                                          return [...next];
+                                        });
+                                      }}
+                                    />
+                                    <span className="grid size-[18px] place-items-center rounded-[5px] border border-[#4e626d] text-xs text-transparent peer-checked:border-app-accent peer-checked:bg-app-accent peer-checked:text-app-background peer-indeterminate:border-app-accent peer-indeterminate:text-app-accent">
+                                      {some ? '–' : '✓'}
+                                    </span>
+                                    <strong>{group.label}</strong>
+                                    <span className="text-[11px] font-normal text-app-muted">
+                                      {chosen.length}/{keys.length}
+                                    </span>
+                                  </label>
+                                  <button
+                                    type="button"
+                                    aria-expanded={expanded}
+                                    aria-label={`${expanded ? 'Hide' : 'Choose'} individual ${group.label} modules`}
+                                    className="rounded-md px-2 py-1 text-[11px] font-semibold text-app-accent hover:bg-app-accent/10"
+                                    onClick={() =>
+                                      setExpandedGroups((current) =>
+                                        expanded
+                                          ? current.filter((k) => k !== group.key)
+                                          : [...current, group.key],
+                                      )
                                     }
-                                    return [...next];
-                                  });
-                                }}
-                              />
-                              <span className="grid size-[18px] place-items-center rounded-[5px] border border-[#4e626d] text-xs text-transparent peer-checked:border-app-accent peer-checked:bg-app-accent peer-checked:text-app-background">
-                                ✓
-                              </span>
-                              <strong>{group.label}</strong>
-                            </label>
-                          ))}
+                                  >
+                                    {expanded ? 'Hide' : 'Customize'}
+                                  </button>
+                                </div>
+                                {expanded && (
+                                  <ul className="mt-3 grid gap-1.5 border-t border-app-border/60 pt-3 min-[561px]:grid-cols-2">
+                                    {keys.map((key) => {
+                                      const needs = (catalogByKey.get(key)?.dependsOn ?? []).map(moduleName);
+                                      return (
+                                        <li key={key}>
+                                          <label className="flex cursor-pointer items-start gap-2 text-xs">
+                                            <input
+                                              type="checkbox"
+                                              className="mt-0.5 accent-[var(--app-accent)]"
+                                              checked={selected.includes(key)}
+                                              onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setSelected((current) => {
+                                                  const next = new Set(current);
+                                                  if (checked) {
+                                                    next.add(key);
+                                                    for (const dep of moduleDependencies(key, catalogByKey))
+                                                      next.add(dep);
+                                                  } else {
+                                                    next.delete(key);
+                                                    // Anything that needs this module goes too.
+                                                    for (const other of [...next]) {
+                                                      if (moduleDependencies(other, catalogByKey).includes(key))
+                                                        next.delete(other);
+                                                    }
+                                                  }
+                                                  return [...next];
+                                                });
+                                              }}
+                                            />
+                                            <span>
+                                              {moduleName(key)}
+                                              {needs.length > 0 && (
+                                                <span className="block text-[10px] text-app-muted">
+                                                  Needs {needs.join(', ')} (added automatically)
+                                                </span>
+                                              )}
+                                            </span>
+                                          </label>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </>
                     )}
@@ -2427,29 +2494,28 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           Platform areas
                         </p>
                         <div className="grid gap-2 sm:grid-cols-2">
-                          {PLATFORM_GROUPS.map((group) => {
+                          {PLATFORM_MODULE_GROUPS.map((group) => {
                             const status = groupStatus(o, group);
                             return (
                               <button
                                 type="button"
                                 key={group.key}
-                                className={`w-full rounded-xl border px-3 py-2 text-left text-[10px] font-semibold ${status === 'enabled' ? 'border-app-accent/35 bg-app-accent/10 text-app-accent' : status === 'partial' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/[0.04] text-[#f5c56b]' : 'border-app-border text-app-muted'} hover:border-app-accent`}
-                                onClick={() =>
-                                  setPendingModuleAction({
-                                    org: o,
-                                    group,
-                                    currentlyEnabled: status === 'enabled',
-                                  })
-                                }
-                                disabled={moduleActionKey !== null}
+                                title={`Manage ${group.label} modules`}
+                                className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-[10px] font-semibold ${status.state === 'enabled' ? 'border-app-accent/35 bg-app-accent/10 text-app-accent' : status.state === 'partial' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/[0.04] text-[#f5c56b]' : 'border-app-border text-app-muted'} hover:border-app-accent`}
+                                onClick={() => setManageTarget({ org: o, groupKey: group.key })}
                               >
-                                {group.label}: {status}
+                                <span>
+                                  {group.label}: {status.state}
+                                </span>
+                                <span className="opacity-80">
+                                  {status.enabled}/{status.total}
+                                </span>
                               </button>
                             );
                           })}
                         </div>
                       </div>
-                      <div className="mt-6 grid grid-cols-2 gap-2 border-t border-app-border pt-4 sm:grid-cols-4">
+                      <div className="mt-6 grid grid-cols-2 gap-2 border-t border-app-border pt-4 sm:grid-cols-5">
                         <button
                           type="button"
                           className="col-span-2 min-h-11 rounded-xl bg-app-accent px-3 py-2.5 text-xs font-bold text-app-on-accent transition hover:brightness-110 sm:col-span-1"
@@ -2460,10 +2526,16 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                         <button
                           type="button"
                           className="min-h-11 rounded-xl border border-app-accent/30 px-3 py-2.5 text-xs font-semibold text-app-accent transition hover:bg-app-accent/10"
+                          onClick={() => setManageTarget({ org: o })}
+                        >
+                          Modules
+                        </button>
+                        <button
+                          type="button"
+                          className="min-h-11 rounded-xl border border-app-accent/30 px-3 py-2.5 text-xs font-semibold text-app-accent transition hover:bg-app-accent/10"
                           onClick={() => editOrganization(o)}
                           disabled={
                             busy ||
-                            moduleActionKey !== null ||
                             deletingId !== null ||
                             statusChangingId !== null
                           }
@@ -2818,23 +2890,14 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           onClose={() => setSelectedCompany(null)}
         />
       )}
-      {pendingModuleAction && (
-        <ModuleToggleModal
-          companyName={pendingModuleAction.org.name}
-          moduleName={pendingModuleAction.group.label}
-          action={pendingModuleAction.currentlyEnabled ? 'Disable' : 'Enable'}
-          variant={pendingModuleAction.currentlyEnabled ? 'warning' : 'accent'}
-          busy={moduleActionKey !== null}
-          onCancel={() => setPendingModuleAction(null)}
-          onConfirm={() => {
-            void toggleGroup(
-              pendingModuleAction.org,
-              pendingModuleAction.group,
-              pendingModuleAction.currentlyEnabled,
-            ).then((success) => {
-              if (success) setPendingModuleAction(null);
-            });
-          }}
+      {manageTarget && (
+        <ManageModulesDialog
+          companyName={manageTarget.org.name}
+          catalog={catalog}
+          entitlements={entitlements[manageTarget.org.id] ?? []}
+          initialGroupKey={manageTarget.groupKey}
+          onClose={() => setManageTarget(null)}
+          onApply={(change) => applyModuleChange(manageTarget.org, change)}
         />
       )}
       {pendingCompanyAction && (

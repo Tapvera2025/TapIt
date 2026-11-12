@@ -24,7 +24,9 @@ interface ProjectRow {
   workStatus: ProjectWorkStatus;
   startDate: Date;
   expectedEndDate: Date | null;
-  budget: string | null;
+  projectValue: string | null;
+  upfrontAmount: string | null;
+  dueAmount: string | null;
   currency: string;
   description: string | null;
   remarks: string | null;
@@ -36,7 +38,7 @@ interface ProjectRow {
 
 const SELECT_PROJECT = sql`
   SELECT p.id, p.organization_id, p.client_id, c.client_name, c.business_name, p.name, p.priority, p.work_status,
-         p.start_date, p.expected_end_date, p.budget, p.currency, p.description, p.remarks,
+         p.start_date, p.expected_end_date, p.project_value, p.upfront_amount, p.due_amount, p.currency, p.description, p.remarks,
          p.created_by, p.created_at, p.updated_at, p.archived_at
   FROM project p
   JOIN client c ON c.organization_id = p.organization_id AND c.id = p.client_id
@@ -108,7 +110,9 @@ function toProject(
     workStatus: row.workStatus,
     startDate: row.startDate,
     expectedEndDate: row.expectedEndDate,
-    budget: row.budget as Project['budget'],
+    projectValue: row.projectValue as Project['projectValue'],
+    upfrontAmount: row.upfrontAmount as Project['upfrontAmount'],
+    dueAmount: row.dueAmount as Project['dueAmount'],
     currency: row.currency,
     description: row.description,
     remarks: row.remarks,
@@ -176,14 +180,16 @@ export async function insertProject(
   createdBy: string,
   input: {
     clientId: string; name: string; priority: ProjectPriority; workStatus: ProjectWorkStatus;
-    startDate: string; expectedEndDate: string | null; budget: string | null; currency: string;
-    description: string | null; remarks: string | null;
+    startDate: string; expectedEndDate: string | null; projectValue: string | null; upfrontAmount: string | null;
+    currency: string; description: string | null; remarks: string | null;
   },
 ): Promise<{ id: string }> {
   return tx.one<{ id: string }>(sql`
-    INSERT INTO project (organization_id, client_id, name, priority, work_status, start_date, expected_end_date, budget, currency, description, remarks, created_by)
+    INSERT INTO project (organization_id, client_id, name, priority, work_status, start_date, expected_end_date,
+                         project_value, upfront_amount, currency, description, remarks, created_by)
     VALUES (${organizationId}, ${input.clientId}, ${input.name}, ${input.priority}, ${input.workStatus}, ${input.startDate}::date,
-            ${input.expectedEndDate}::date, ${input.budget}::numeric, ${input.currency}, ${input.description}, ${input.remarks}, ${createdBy})
+            ${input.expectedEndDate}::date, ${input.projectValue}::numeric, ${input.upfrontAmount}::numeric, ${input.currency},
+            ${input.description}, ${input.remarks}, ${createdBy})
     RETURNING id
   `);
 }
@@ -244,7 +250,8 @@ export async function updateProjectRow(
   id: string,
   input: {
     name?: string; priority?: ProjectPriority; workStatus?: ProjectWorkStatus; startDate?: string;
-    expectedEndDate?: string | null; budget?: string | null; description?: string | null; remarks?: string | null;
+    expectedEndDate?: string | null; projectValue?: string | null; upfrontAmount?: string | null;
+    description?: string | null; remarks?: string | null;
   },
 ): Promise<void> {
   await tx.query(sql`
@@ -254,7 +261,8 @@ export async function updateProjectRow(
       work_status = COALESCE(${input.workStatus ?? null}, work_status),
       start_date = COALESCE(${input.startDate ?? null}::date, start_date),
       expected_end_date = CASE WHEN ${input.expectedEndDate !== undefined} THEN ${input.expectedEndDate ?? null}::date ELSE expected_end_date END,
-      budget = CASE WHEN ${input.budget !== undefined} THEN ${input.budget ?? null}::numeric ELSE budget END,
+      project_value = CASE WHEN ${input.projectValue !== undefined} THEN ${input.projectValue ?? null}::numeric ELSE project_value END,
+      upfront_amount = CASE WHEN ${input.upfrontAmount !== undefined} THEN ${input.upfrontAmount ?? null}::numeric ELSE upfront_amount END,
       description = CASE WHEN ${input.description !== undefined} THEN ${input.description ?? null} ELSE description END,
       remarks = CASE WHEN ${input.remarks !== undefined} THEN ${input.remarks ?? null} ELSE remarks END,
       updated_at = now()

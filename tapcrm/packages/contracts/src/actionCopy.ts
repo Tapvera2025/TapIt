@@ -39,6 +39,11 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     description:
       'Authorize, reconnect and disconnect official social platform integrations for accessible clients.',
   },
+  'social:connect-own-accounts': {
+    title: 'Connect own social accounts',
+    description:
+      'Client portal only: sign in to a social platform and choose which of the client’s own accounts the agency may publish to, or disconnect them.',
+  },
   'social:settings': {
     title: 'Manage social settings',
     description: 'Change client workspace timezones and required content approval.',

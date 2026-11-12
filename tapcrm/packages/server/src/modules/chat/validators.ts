@@ -4,6 +4,11 @@ import { isSingleEmoji, normalizeEmoji } from './emoji.js';
 
 export const listConversationsQuerySchema = z.object({
   kind: z.enum(['direct', 'group', 'project']).optional(),
+  /** `true` lists the archived conversations instead of the active ones. */
+  archived: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
 });
 
 /**
@@ -35,6 +40,11 @@ export const renameGroupSchema = z.object({
 
 export const addGroupMembersSchema = z.object({
   memberIds: z.array(z.string().uuid()).min(1).max(500),
+});
+
+/** Make a member a group admin, or back to an ordinary member (0153). */
+export const setGroupMemberRoleSchema = z.object({
+  role: z.enum(['member', 'admin']),
 });
 
 const messageBody = z.string().max(10000, 'Messages can be at most 10,000 characters');

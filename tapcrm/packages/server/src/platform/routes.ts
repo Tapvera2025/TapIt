@@ -14,6 +14,7 @@ import {
 import {
   catalogController,
   organizationModulesController,
+  changeModulesController,
   enableController,
   disableController,
 } from './modules/controller.js';
@@ -47,6 +48,7 @@ export function buildPlatformRouter(): Router {
   router.post('/organizations/:id/activate', activateController);
   router.post('/organizations/:id/suspend', suspendController);
   router.get('/organizations/:id/modules', organizationModulesController);
+  router.post('/organizations/:id/modules', changeModulesController);
   router.post('/organizations/:id/modules/:moduleKey/enable', enableController);
   router.post('/organizations/:id/modules/:moduleKey/disable', disableController);
   router.get('/organizations/:id/admin', adminController);

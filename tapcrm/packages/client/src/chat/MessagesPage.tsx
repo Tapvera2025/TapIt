@@ -29,6 +29,8 @@ function useWideScreen(): boolean {
 interface DeepLink {
   conversationId: string;
   messageId?: string | undefined;
+  /** An archived group opens in Internal Groups' Archived list. */
+  archived?: boolean | undefined;
   /** Following the same link again must still scroll to it. */
   nonce: number;
 }
@@ -47,9 +49,9 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
     { value: 'project', label: 'Project Groups', shortLabel: 'Project', badge: unread.project },
   ] as const, [unread.direct, unread.group, unread.project]);
 
-  const go = useCallback((target: { conversationId: string; messageId?: string | undefined; kind: ConversationKind }) => {
+  const go = useCallback((target: { conversationId: string; messageId?: string | undefined; kind: ConversationKind; archived?: boolean | undefined }) => {
     setTab(TAB_FOR_KIND[target.kind] ?? 'direct');
-    setDeepLink((current) => ({ conversationId: target.conversationId, messageId: target.messageId, nonce: (current?.nonce ?? 0) + 1 }));
+    setDeepLink((current) => ({ conversationId: target.conversationId, messageId: target.messageId, archived: target.archived, nonce: (current?.nonce ?? 0) + 1 }));
     // On a phone or tablet the panel covers the thread: close it to show the message.
     if (!window.matchMedia('(min-width: 1024px)').matches) setPanel(null);
   }, []);
@@ -63,7 +65,7 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
       if (!conversationId) return;
       const messageId = params.get('messageId') ?? undefined;
       void getConversation(conversationId)
-        .then((conversation) => go({ conversationId, messageId, kind: conversation.kind }))
+        .then((conversation) => go({ conversationId, messageId, kind: conversation.kind, archived: Boolean(conversation.archivedAt) }))
         .catch(() => undefined);
     };
 
@@ -148,7 +150,7 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
           {tab === 'direct' ? (
             <DirectMessagesPage currentUserId={currentUserId} {...deepLinkProps} />
           ) : tab === 'group' ? (
-            <InternalGroupsPage currentUserId={currentUserId} isSuperAdmin={isSuperAdmin} {...deepLinkProps} />
+            <InternalGroupsPage currentUserId={currentUserId} isSuperAdmin={isSuperAdmin} initialArchived={deepLink?.archived} {...deepLinkProps} />
           ) : (
             <ProjectGroupsPage currentUserId={currentUserId} canManageProjects={canManageProjects} {...deepLinkProps} />
           )}

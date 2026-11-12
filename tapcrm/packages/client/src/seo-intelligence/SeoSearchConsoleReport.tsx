@@ -11,19 +11,13 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { Button, Card, Notice } from '../ui/index.js';
-import {
-  getClientSearchConsolePerformance,
-  inspectClientSearchConsoleUrl,
-  listClientSearchConsoleProperties,
-} from './api.js';
-import { dateInZone } from './presentation.js';
+import { getSeoSearchConsoleReport, inspectSeoPage, type SeoSearchConsoleReport } from './api.js';
+import type { SeoSite } from './types.js';
 import type {
   SocialGoogleIndexInspection,
   SocialSearchConsoleDimensionRow,
   SocialSearchConsoleMetricSet,
-  SocialSearchConsolePerformance,
-  SocialSearchConsoleProperty,
-} from './types.js';
+} from '../social/types.js';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
 
@@ -46,6 +40,17 @@ function dateMinusDays(date: string, days: number): string {
   return value.toISOString().slice(0, 10);
 }
 
+/** Today's date where the website's audience is, as YYYY-MM-DD. */
+function todayIn(timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: timezone }).formatToParts(new Date());
+    const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value);
 }
@@ -64,51 +69,26 @@ function rowMainText(row: SocialSearchConsoleDimensionRow, tab: ReportTab): stri
   return row.value;
 }
 
-function useSearchConsoleProperties(clientId: string) {
-  const [properties, setProperties] = useState<SocialSearchConsoleProperty[] | null>(null);
-  const [propertyWarning, setPropertyWarning] = useState('');
-  const [propertyError, setPropertyError] = useState('');
-  const [propertyUrl, setPropertyUrl] = useState('');
-
-  useEffect(() => {
-    let current = true;
-    setProperties(null);
-    setPropertyError('');
-    void listClientSearchConsoleProperties(clientId)
-      .then((result) => {
-        if (!current) return;
-        setProperties(result.properties);
-        setPropertyWarning(result.warning ?? '');
-        setPropertyUrl((selected) => result.properties.some((item) => item.propertyUrl === selected)
-          ? selected
-          : result.properties.find((item) => item.status === 'connected')?.propertyUrl ?? result.properties[0]?.propertyUrl ?? '');
-      })
-      .catch((error: unknown) => {
-        if (current) setPropertyError(error instanceof Error ? error.message : 'Search Console properties could not be loaded.');
-      });
-    return () => { current = false; };
-  }, [clientId]);
-
-  return { properties, propertyUrl, setPropertyUrl, propertyWarning, propertyError };
-}
-
-export function SearchConsolePerformance({
-  clientId,
-  timezone,
+/**
+ * Google Search Console for one website, read live from Google: what it was
+ * found for, which pages, countries and devices, and Google's index report for
+ * a page. Moved here from Social → Analytics: it is about the website.
+ */
+export function SeoSearchConsoleReport({
+  site,
   canManageIntegrations,
   onManageConnections,
 }: {
-  clientId: string;
-  timezone: string;
+  site: SeoSite;
   canManageIntegrations: boolean;
   onManageConnections: () => void;
 }): React.JSX.Element {
-  const today = dateInZone(new Date().toISOString(), timezone);
+  const timezone = site.timezone || 'UTC';
+  const today = todayIn(timezone);
   const initialPeriod = { from: dateMinusDays(today, 27), to: today };
   const [draft, setDraft] = useState(initialPeriod);
   const [period, setPeriod] = useState(initialPeriod);
-  const { properties, propertyUrl, setPropertyUrl, propertyWarning, propertyError } = useSearchConsoleProperties(clientId);
-  const [data, setData] = useState<SocialSearchConsolePerformance | null>(null);
+  const [report, setReport] = useState<SeoSearchConsoleReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [chartMetric, setChartMetric] = useState<ChartMetric>('clicks');
@@ -118,28 +98,28 @@ export function SearchConsolePerformance({
   const [inspection, setInspection] = useState<SocialGoogleIndexInspection | null>(null);
   const [inspectionLoading, setInspectionLoading] = useState(false);
   const [inspectionError, setInspectionError] = useState('');
-
-  const selectedProperty = properties?.find((property) => property.propertyUrl === propertyUrl) ?? null;
+  const [reload, setReload] = useState(0);
+  const data = report?.performance ?? null;
 
   useEffect(() => {
     let current = true;
-    if (!propertyUrl || selectedProperty?.status !== 'connected') {
-      setData(null);
-      setLoading(false);
-      setError('');
-      return () => { current = false; };
-    }
     setLoading(true);
     setError('');
-    setData(null);
-    void getClientSearchConsolePerformance(clientId, { propertyUrl, ...period })
-      .then((result) => { if (current) setData(result); })
+    setReport(null);
+    void getSeoSearchConsoleReport(site.id, period)
+      .then((result) => { if (current) setReport(result); })
       .catch((cause: unknown) => {
         if (current) setError(cause instanceof Error ? cause.message : 'Google Search performance could not be loaded.');
       })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
-  }, [clientId, period, propertyUrl, selectedProperty?.status]);
+  }, [site.id, period, reload]);
+
+  useEffect(() => {
+    setInspection(null);
+    setInspectionError('');
+    setInspectionUrl('');
+  }, [site.id]);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -169,7 +149,7 @@ export function SearchConsolePerformance({
       x: { grid: { display: false }, ticks: { color: '#718096', maxTicksLimit: 8, maxRotation: 0, font: { size: 10 } } },
       y: {
         beginAtZero: chartMetric !== 'avgPosition',
-        reverse: false,
+        reverse: chartMetric === 'avgPosition',
         ticks: { color: '#718096', maxTicksLimit: 5, precision: chartMetric === 'avgPosition' ? 1 : 0, font: { size: 10 } },
         grid: { color: 'rgba(148,163,184,.2)' },
       },
@@ -190,13 +170,12 @@ export function SearchConsolePerformance({
   }
 
   async function inspect(): Promise<void> {
-    if (!propertyUrl || !inspectionUrl.trim()) return;
+    if (!inspectionUrl.trim()) return;
     setInspectionLoading(true);
     setInspectionError('');
     setInspection(null);
     try {
-      const result = await inspectClientSearchConsoleUrl(clientId, { propertyUrl, inspectionUrl: inspectionUrl.trim() });
-      setInspection(result);
+      setInspection(await inspectSeoPage(site.id, inspectionUrl.trim()));
     } catch (cause) {
       setInspectionError(cause instanceof Error ? cause.message : 'Google could not inspect this URL.');
     } finally {
@@ -205,48 +184,46 @@ export function SearchConsolePerformance({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="seo-panel">
       <Card className="overflow-hidden border-app-border/70 bg-gradient-to-br from-orange-50/70 via-app-surface to-sky-50/50 dark:from-orange-950/15 dark:via-app-surface dark:to-sky-950/15">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-2xl">
             <p className="text-[11px] font-bold uppercase tracking-[.18em] text-app-accent">Google Search Console</p>
-            <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-app-foreground sm:text-3xl">Search performance</h2>
-            <p className="mt-2 text-sm leading-6 text-app-muted">Organic search results for this client, reported directly by Google.</p>
+            <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-app-foreground sm:text-3xl">Search Console report</h2>
+            <p className="mt-2 text-sm leading-6 text-app-muted">
+              How {site.normalizedHost} performs in Google Search, read live from Google: clicks, appearances, average position by search term, page, country and device.
+            </p>
+            {report?.property && (
+              <p className="mt-2 text-xs text-app-muted">
+                Property <span className="font-semibold text-app-foreground">{report.property.propertyUrl}</span>
+                {report.property.account ? <> · read through {report.property.account}</> : null}
+              </p>
+            )}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[480px]">
-            <label className="grid gap-1.5 text-xs font-semibold text-app-muted">
-              Search Console property
-              <select value={propertyUrl} onChange={(event) => { setPropertyUrl(event.target.value); setInspection(null); setInspectionError(''); }} disabled={!properties?.length} className="min-w-0 rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-sm font-medium text-app-foreground outline-none focus:border-app-accent">
-                {(properties ?? []).map((property) => <option key={property.propertyUrl} value={property.propertyUrl}>{property.propertyUrl}{property.status === 'reconnect_required' ? ' · reconnect required' : ''}</option>)}
-              </select>
-            </label>
-            <div className="flex flex-wrap items-end gap-2">
-              {[7, 28, 90, 180].map((days) => (
-                <button key={days} type="button" onClick={() => applyPreset(days)} aria-pressed={period.from === dateMinusDays(today, days - 1) && period.to === today} className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${period.from === dateMinusDays(today, days - 1) && period.to === today ? 'border-app-accent bg-app-accent text-white' : 'border-app-border bg-app-surface/80 text-app-muted hover:border-app-accent/50 hover:text-app-accent'}`}>
-                  {days === 90 ? '3 months' : days === 180 ? '6 months' : `${days} days`}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap items-end gap-2">
+            {[7, 28, 90, 180].map((days) => (
+              <button key={days} type="button" onClick={() => applyPreset(days)} aria-pressed={period.from === dateMinusDays(today, days - 1) && period.to === today} className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${period.from === dateMinusDays(today, days - 1) && period.to === today ? 'border-app-accent bg-app-accent text-white' : 'border-app-border bg-app-surface/80 text-app-muted hover:border-app-accent/50 hover:text-app-accent'}`}>
+                {days === 90 ? '3 months' : days === 180 ? '6 months' : `${days} days`}
+              </button>
+            ))}
           </div>
         </div>
         <form onSubmit={(event) => { event.preventDefault(); if (draft.from > draft.to) { setError('The start date must be before the end date.'); return; } setError(''); setPeriod({ ...draft }); }} className="mt-5 flex flex-wrap items-end gap-3 border-t border-app-border/60 pt-4">
-          <label className="grid gap-1 text-[11px] font-semibold text-app-muted">From<input type="date" value={draft.from} required onChange={(event) => setDraft((value) => ({ ...value, from: event.target.value }))} className="rounded-lg border border-app-border bg-app-surface px-2.5 py-2 text-xs text-app-foreground" /></label>
-          <label className="grid gap-1 text-[11px] font-semibold text-app-muted">To<input type="date" value={draft.to} required onChange={(event) => setDraft((value) => ({ ...value, to: event.target.value }))} className="rounded-lg border border-app-border bg-app-surface px-2.5 py-2 text-xs text-app-foreground" /></label>
+          <label className="grid gap-1 text-[11px] font-semibold text-app-muted">From<input type="date" value={draft.from} max={today} required onChange={(event) => setDraft((value) => ({ ...value, from: event.target.value }))} className="rounded-lg border border-app-border bg-app-surface px-2.5 py-2 text-xs text-app-foreground" /></label>
+          <label className="grid gap-1 text-[11px] font-semibold text-app-muted">To<input type="date" value={draft.to} max={today} required onChange={(event) => setDraft((value) => ({ ...value, to: event.target.value }))} className="rounded-lg border border-app-border bg-app-surface px-2.5 py-2 text-xs text-app-foreground" /></label>
           <Button type="submit" kind="secondary" disabled={loading}>Apply dates</Button>
-          {data && <span className="ml-auto text-[11px] text-app-muted">Google data through {data.latestDataDate ?? 'no returned dates'} · fetched {new Date(data.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: timezone })}</span>}
+          <Button type="button" kind="secondary" disabled={loading} onClick={() => setReload((value) => value + 1)}>Refresh</Button>
+          {data && <span className="ml-auto text-[11px] text-app-muted">Google data through {data.latestDataDate ?? 'no returned dates'} · fetched {new Date(data.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
         </form>
       </Card>
 
-      {propertyError && <Notice error>{propertyError}</Notice>}
-      {propertyWarning && <Notice>{propertyWarning}</Notice>}
-      {properties && properties.length === 0 && (
+      {report?.problem && (
         <Card className="border-dashed">
-          <p className="text-sm font-semibold">No Search Console property is assigned to this client.</p>
-          <p className="mt-1 text-sm text-app-muted">A company integration admin can connect Google under Company connections and assign this client’s Search Console property.</p>
+          <p className="text-sm font-semibold">{report.property ? 'Google needs attention for this website' : 'No Search Console property covers this website yet'}</p>
+          <p className="mt-1 text-sm text-app-muted">{report.problem}</p>
           {canManageIntegrations && <Button kind="secondary" className="mt-4" onClick={onManageConnections}>Open company connections</Button>}
         </Card>
       )}
-      {selectedProperty?.status === 'reconnect_required' && <Notice error>The Google login for this property needs to be reconnected under Company connections before Search Console data can be read.</Notice>}
       {error && <Notice error>{error}</Notice>}
 
       {loading ? (
@@ -312,7 +289,7 @@ export function SearchConsolePerformance({
           </Card>
 
           <UrlInspectionCard
-            propertyUrl={propertyUrl}
+            propertyUrl={report?.property?.propertyUrl ?? ''}
             inspectionUrl={inspectionUrl}
             setInspectionUrl={setInspectionUrl}
             inspection={inspection}
@@ -364,7 +341,7 @@ function UrlInspectionCard({
   return (
     <Card>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-app-accent">URL inspection</p><h3 className="mt-1 font-display text-xl font-bold">Google indexing verdict</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-app-muted">Inspect a page in the selected property. Google reports the version currently in its index, not a live test.</p></div>
+        <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-app-accent">URL inspection</p><h3 className="mt-1 font-display text-xl font-bold">Google indexing verdict</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-app-muted">Inspect a page on this website. Google reports the version currently in its index, not a live test.</p></div>
         <form onSubmit={(event) => { event.preventDefault(); onInspect(); }} className="flex w-full flex-col gap-2 sm:flex-row lg:max-w-2xl">
           <input type="url" value={inspectionUrl} onChange={(event) => setInspectionUrl(event.target.value)} placeholder="https://example.com/page" required aria-label="URL to inspect" className="min-w-0 flex-1 rounded-xl border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent" />
           <Button type="submit" disabled={loading || !propertyUrl}>{loading ? 'Inspecting…' : 'Inspect URL'}</Button>
@@ -407,7 +384,7 @@ function UrlInspectionCard({
           {inspection.ampResult && <InspectionEnhancement title="AMP" verdict={inspection.ampResult.verdict} issues={inspection.ampResult.issues ?? []} absent="No AMP result details were returned." footnote={inspection.ampResult.ampUrl ?? 'AMP version'} />}
         </div>
       )}
-      {!inspection && !loading && !error && <div className="mt-5 rounded-2xl border border-dashed border-app-border p-6 text-center text-xs text-app-muted">Enter a URL in this Search Console property to see Google’s indexed-page report.</div>}
+      {!inspection && !loading && !error && <div className="mt-5 rounded-2xl border border-dashed border-app-border p-6 text-center text-xs text-app-muted">Enter the address of a page on this website to see Google’s indexed-page report.</div>}
     </Card>
   );
 }
