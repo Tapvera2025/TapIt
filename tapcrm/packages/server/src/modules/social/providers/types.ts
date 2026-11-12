@@ -37,6 +37,10 @@ export interface ProviderAccount {
 export interface DiscoveredAccount extends ProviderAccount {
   credentials: OAuthCredential;
   capabilities: ProviderCapabilities;
+  /** A token of the account's own that outlives the sign-in: a Meta Page token. A
+   * company connection keeps it on the location, so the Page keeps publishing after the
+   * login's user token expires. Absent where the sign-in's own token is the only one. */
+  locationCredentials?: OAuthCredential;
 }
 
 /** The platform user who granted access, so a reconnect of the same user is recognised. */

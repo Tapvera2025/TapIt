@@ -249,7 +249,7 @@ describe('jobRequisitionPolicy', () => {
   it('denies HR user for a requisition in a different department', async () => {
     const ctx = hrCtx();
     await expect(
-      authorize(ctx, 'recruitment:view-requisitions', requisitionResource({ departmentId: 'dept-other' })),
+      authorize(ctx, 'recruitment:view-requisitions', requisitionResource({ departmentId: 'dept-other', createdBy: 'user-elsewhere' })),
     ).rejects.toThrow(AuthorizationError);
   });
 
@@ -302,7 +302,7 @@ describe('candidatePolicy', () => {
   it('denies HR user for a candidate in a different department', async () => {
     const ctx = hrCtx();
     await expect(
-      authorize(ctx, 'recruitment:view-candidates', candidateResource({ requisitionDepartmentId: 'dept-other' })),
+      authorize(ctx, 'recruitment:view-candidates', candidateResource({ requisitionDepartmentId: 'dept-other', createdBy: 'user-elsewhere' })),
     ).rejects.toThrow(AuthorizationError);
   });
 
@@ -401,7 +401,7 @@ describe('jobOfferPolicy', () => {
   it('denies HR user for offer in a different department', async () => {
     const ctx = hrCtx();
     await expect(
-      authorize(ctx, 'recruitment:view-offers', offerResource({ requisitionDepartmentId: 'dept-other' })),
+      authorize(ctx, 'recruitment:view-offers', offerResource({ requisitionDepartmentId: 'dept-other', createdBy: 'user-elsewhere' })),
     ).rejects.toThrow(AuthorizationError);
   });
 
@@ -508,7 +508,7 @@ describe('candidatePolicy — the interviewer of a round', () => {
   }
   // A round is authorized as its candidate, with the round's interviewer named.
   const round = (interviewer: string | null, overrides: Record<string, unknown> = {}) =>
-    candidateResource({ requisitionDepartmentId: 'dept-eng', interviewerIds: interviewer ? [interviewer] : [], ...overrides });
+    candidateResource({ requisitionDepartmentId: 'dept-eng', createdBy: 'user-elsewhere', interviewerIds: interviewer ? [interviewer] : [], ...overrides });
 
   it('lets the assigned interviewer submit feedback at participant scope', async () => {
     await expect(authorize(interviewerCtx(), 'recruitment:submit-round-feedback', round('user-interviewer-1'))).resolves.not.toThrow();

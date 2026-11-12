@@ -4,7 +4,7 @@ import {
   latestRankObservations,
   publicWebsiteUrl,
 } from './seo-dashboard-model.js';
-import { SEO_TABS, seoTabForSection, moveTabIndex } from './seo-navigation.js';
+import { SEO_TABS, seoTabForSection, moveTabIndex, sectionFromPath, isProjectSection } from './seo-navigation.js';
 import type { SeoGscMetrics, SeoSerpObservation } from './types.js';
 
 describe('SEO dashboard meaning', () => {
@@ -70,10 +70,15 @@ describe('SEO dashboard meaning', () => {
     expect(publicWebsiteUrl('https://example.com/page')).toBe('https://example.com/page');
   });
   it('keeps all existing SEO tools reachable through five tabs', () => {
-    expect(SEO_TABS).toHaveLength(6);
+    expect(SEO_TABS).toHaveLength(8);
     expect(
       new Set(SEO_TABS.flatMap((tab) => tab.sections.map((section) => section.id))).size,
-    ).toBe(16);
+    ).toBe(21);
+    expect(seoTabForSection('keyword-search').id).toBe('keyword-search');
+    expect(seoTabForSection('project-blogs').id).toBe('projects');
+    expect(seoTabForSection('search-console').id).toBe('visibility');
+    expect(isProjectSection('project-backlinks')).toBe(true);
+    expect(isProjectSection('keywords')).toBe(false);
     expect(seoTabForSection('performance').id).toBe('website');
     expect(seoTabForSection('crawl').id).toBe('settings');
     expect(seoTabForSection('backlinks').id).toBe('visibility');
@@ -81,5 +86,17 @@ describe('SEO dashboard meaning', () => {
     expect(moveTabIndex(0, 'ArrowLeft', 5)).toBe(4);
     expect(moveTabIndex(2, 'Home', 5)).toBe(0);
     expect(moveTabIndex(2, 'End', 5)).toBe(4);
+  });
+
+  it('opens the area a deep link names', () => {
+    expect(sectionFromPath('/company/seo-intelligence')).toBeNull();
+    expect(sectionFromPath('/company/seo-intelligence/projects/0b9c6c43-8a0e-4f5d-9d8e-111111111111')).toEqual({
+      section: 'project-keywords',
+      id: '0b9c6c43-8a0e-4f5d-9d8e-111111111111',
+    });
+    expect(sectionFromPath('/company/seo-intelligence/search-console')).toEqual({ section: 'search-console', id: null });
+    expect(sectionFromPath('/company/seo-intelligence/keyword-search')).toEqual({ section: 'keyword-search', id: null });
+    expect(sectionFromPath('/company/seo-intelligence/rank-tracking')).toEqual({ section: 'rank-tracking', id: null });
+    expect(sectionFromPath('/company/seo-intelligence/nonsense')).toBeNull();
   });
 });

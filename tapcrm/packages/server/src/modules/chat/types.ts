@@ -32,10 +32,18 @@ export type ReactionEmoji = string;
 /** Coarse presence derived from live-status attendance: green / orange / grey dot. */
 export type ChatPresence = 'active' | 'idle' | 'offline';
 
+/**
+ * A member's part in an Internal Group (0153). 'admin' helps run the group;
+ * the creator is not a role here — it is `Conversation.createdBy`. Direct
+ * and project conversations only ever hold 'member'.
+ */
+export type GroupMemberRole = 'member' | 'admin';
+
 export interface ConversationMember {
   readonly userId: string;
   readonly fullName: string;
   readonly lastReadAt: Date | null;
+  readonly role: GroupMemberRole;
 }
 
 export interface Conversation {
@@ -49,6 +57,8 @@ export interface Conversation {
   readonly projectId: string | null;
   readonly createdBy: string;
   readonly createdAt: Date;
+  /** Set once archived: the conversation is read-only and listed under "Archived". */
+  readonly archivedAt: Date | null;
   readonly members: readonly ConversationMember[];
   readonly lastMessage: MessagePreview | null;
   readonly unreadCount: number;

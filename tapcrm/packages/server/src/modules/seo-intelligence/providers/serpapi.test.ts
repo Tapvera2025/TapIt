@@ -35,5 +35,10 @@ describe('SerpApi rank observation', () => {
     expect((await createSerpApiProvider(config).observe(input)).data?.organicRank).toBeNull();
     mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Invalid key' }), { status: 401 }));
     expect((await createSerpApiProvider(config).observe(input)).state).toBe('provider_error');
+    // An empty results page is an answer (not ranked), not a provider failure.
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: "Google hasn't returned any results for this query." }), { status: 200 }));
+    const empty = await createSerpApiProvider(config).observe(input);
+    expect(empty.state).toBe('ok');
+    expect(empty.data?.organicRank).toBeNull();
   });
 });

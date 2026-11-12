@@ -57,8 +57,14 @@ export {
   POOL_MEMBERS,
   TEAM_MEMBERS,
   DEPARTMENT_MEMBERS,
+  TEAM_ROOTS,
+  TEAM_TREE_FROM_ROOTS,
+  MEMBERS_OF_TEAMS,
+  DIRECT_REPORTS,
   MEMO_KEYS,
 } from './scope-resolver.js';
+
+export { scopeMemberIds, scopeReachesAny, scopeMemberFilter } from './scope-members.js';
 
 export type {
   AuthzContext,

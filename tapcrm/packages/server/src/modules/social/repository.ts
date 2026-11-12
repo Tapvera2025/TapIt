@@ -14,7 +14,11 @@ import { notify } from '../notifications/facade.js';
 
 const POST = sql`SELECT p.*, ARRAY(SELECT media_id FROM social_post_media pm WHERE pm.organization_id=p.organization_id AND pm.client_id=p.client_id AND pm.post_id=p.id ORDER BY position) AS shared_media_ids, u.full_name AS created_by_name FROM social_post p JOIN app_user u ON u.organization_id = p.organization_id AND u.id = p.created_by`;
 // An account's connection is either its client's own or the company's (client_id NULL).
-const ACCOUNT = sql`SELECT a.*, c.scopes, c.credentials_encrypted, c.expires_at, c.client_id AS connection_client_id, c.platform AS connection_platform FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id`;
+// A company location may hold a token of its own (a Facebook Page's).
+const ACCOUNT = sql`SELECT a.*, c.scopes, c.credentials_encrypted, c.expires_at, c.client_id AS connection_client_id, c.platform AS connection_platform, c.connected_via AS connection_origin,
+  c.external_account_id AS connection_external_account_id, loc.credentials_encrypted AS location_credentials_encrypted
+  FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id
+  LEFT JOIN social_connection_location loc ON loc.organization_id = a.organization_id AND loc.connection_id = a.connection_id AND loc.id = a.location_id`;
 const DESTINATION = sql`SELECT d.*, a.name AS account_name, a.platform, d.last_error AS error,
   ARRAY(SELECT dm.media_id FROM social_destination_media dm WHERE dm.organization_id = d.organization_id AND dm.client_id = d.client_id AND dm.destination_id = d.id ORDER BY dm.position) AS media_ids
   FROM social_post_destination d JOIN social_account a ON a.organization_id = d.organization_id AND a.client_id = d.client_id AND a.id = d.account_id`;
@@ -47,6 +51,85 @@ export async function findSettings(
     }
   );
 }
+/** Serializes everything that can give a platform account (a Facebook Page, an
+ * Instagram account, ...) to a client, so two people connecting the same one to two
+ * clients at once cannot both succeed. Taken before any row lock, in a stable order. */
+export async function lockPlatformAccounts(
+  tx: Tx,
+  organizationId: string,
+  accounts: readonly { platform: string; externalId: string }[],
+): Promise<void> {
+  const keys = [
+    ...new Set(
+      accounts.map(
+        (account) =>
+          `social-account:${organizationId}:${account.platform}:${account.externalId}`,
+      ),
+    ),
+  ].sort();
+  for (const key of keys)
+    await tx.query(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`);
+}
+
+/** The clients platform accounts already serve, other than `clientId`, keyed by
+ * `platform:externalId`. A Page serves one client at a time, however it was connected. */
+export async function platformAccountHolders(
+  tx: Tx,
+  organizationId: string,
+  accounts: readonly { platform: string; externalId: string }[],
+  clientId: string,
+): Promise<Map<string, { clientName: string; viaCompany: boolean }>> {
+  const holders = new Map<string, { clientName: string; viaCompany: boolean }>();
+  if (!accounts.length) return holders;
+  const rows = await tx.query<{
+    platform: string;
+    externalId: string;
+    clientName: string;
+    viaCompany: boolean;
+  }>(
+    sql`SELECT DISTINCT ON (a.platform, a.external_id) a.platform, a.external_id,
+        COALESCE(NULLIF(c.business_name, ''), c.client_name) AS client_name, a.location_id IS NOT NULL AS via_company
+      FROM social_account a JOIN client c ON c.organization_id = a.organization_id AND c.id = a.client_id
+      JOIN unnest(${accounts.map((item) => item.platform)}::text[], ${accounts.map((item) => item.externalId)}::text[]) AS wanted(platform, external_id)
+        ON wanted.platform = a.platform AND wanted.external_id = a.external_id
+      WHERE a.organization_id = ${organizationId} AND a.status <> 'disconnected' AND a.client_id <> ${clientId}
+      ORDER BY a.platform, a.external_id, a.connected_at`,
+  );
+  for (const row of rows)
+    holders.set(`${row.platform}:${row.externalId}`, {
+      clientName: row.clientName,
+      viaCompany: row.viaCompany,
+    });
+  return holders;
+}
+
+/** How platform accounts already serve `clientId` itself, keyed by `platform:externalId`:
+ * `client_portal` when the client connected it from the client portal, `agency` when the
+ * agency did (with a company login or a sign-in for this client). Neither side may take
+ * over the other's live account without an explicit disconnect first. */
+export async function sameClientHolders(
+  tx: Tx,
+  organizationId: string,
+  accounts: readonly { platform: string; externalId: string }[],
+  clientId: string,
+): Promise<Map<string, 'agency' | 'client_portal'>> {
+  const holders = new Map<string, 'agency' | 'client_portal'>();
+  if (!accounts.length) return holders;
+  const rows = await tx.query<{
+    platform: string;
+    externalId: string;
+    origin: 'agency' | 'client_portal';
+  }>(
+    sql`SELECT a.platform, a.external_id, c.connected_via AS origin
+      FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id
+      JOIN unnest(${accounts.map((item) => item.platform)}::text[], ${accounts.map((item) => item.externalId)}::text[]) AS wanted(platform, external_id)
+        ON wanted.platform = a.platform AND wanted.external_id = a.external_id
+      WHERE a.organization_id = ${organizationId} AND a.client_id = ${clientId} AND a.status <> 'disconnected'`,
+  );
+  for (const row of rows) holders.set(`${row.platform}:${row.externalId}`, row.origin);
+  return holders;
+}
+
 /** `clientId` is null for company-wide events, such as connecting the company's Google account. */
 export async function writeAudit(
   tx: Tx,
@@ -173,17 +256,20 @@ export async function cancelScheduledForAccount(
   clientId: string,
   accountId: string,
   reason: string,
-): Promise<void> {
+): Promise<number> {
   const pending = await tx.query<{ postId: string }>(
     sql`SELECT DISTINCT post_id FROM social_post_destination WHERE organization_id = ${organizationId} AND client_id = ${clientId} AND account_id = ${accountId} AND status = 'scheduled'`,
   );
+  let cancelled = 0;
   for (const item of pending) {
     await findPost(tx, organizationId, clientId, item.postId, true);
-    await tx.query(
-      sql`UPDATE social_post_destination SET status = 'cancelled', next_attempt_at = NULL, last_error = ${reason} WHERE organization_id = ${organizationId} AND client_id = ${clientId} AND post_id = ${item.postId} AND account_id = ${accountId} AND status = 'scheduled'`,
+    const rows = await tx.query<{ id: string }>(
+      sql`UPDATE social_post_destination SET status = 'cancelled', next_attempt_at = NULL, last_error = ${reason} WHERE organization_id = ${organizationId} AND client_id = ${clientId} AND post_id = ${item.postId} AND account_id = ${accountId} AND status = 'scheduled' RETURNING id`,
     );
+    cancelled += rows.length;
     await refreshPostStatus(tx, organizationId, clientId, item.postId);
   }
+  return cancelled;
 }
 
 export interface DueDestination {

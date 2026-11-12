@@ -123,9 +123,72 @@ WHERE organization_id = $1
   AND status = 'active'
 `;
 
+/**
+ * The roots of a principal's team reach: the team they sit in (`app_user.team_id`)
+ * AND every active team they lead (`team.lead_user_id`).
+ *
+ * PRD T-1: "a Team Lead owns a `sales-team`; each Supervisor owns a
+ * `sales-pool`". Ownership is recorded on the team, and nothing forces a lead's
+ * own `team_id` to point at the team they lead — a lead created through the
+ * Teams screen usually has no `team_id` at all. Resolving reach from
+ * membership alone left every such lead with an EMPTY team and pool scope, so
+ * "their team" showed them nothing. Leading a team is ownership, not an ascent,
+ * so P6 still holds: the tree below only ever descends from these roots.
+ *
+ * $1 = organization_id, $2 = own team id (nullable), $3 = principal id
+ */
+export const TEAM_ROOTS = `
+SELECT id
+FROM team
+WHERE organization_id = $1
+  AND (id = $2::uuid OR (lead_user_id = $3::uuid AND status = 'active'))
+`;
+
+/**
+ * Every team at or below any of the roots. UNION (not UNION ALL) so a root that
+ * is also a descendant of another root is visited once.
+ *
+ * $1 = organization_id, $2 = root team ids
+ */
+export const TEAM_TREE_FROM_ROOTS = `
+WITH RECURSIVE team_tree AS (
+  SELECT id
+  FROM team
+  WHERE organization_id = $1
+    AND id = ANY($2::uuid[])
+
+  UNION
+
+  SELECT t.id
+  FROM team t
+  JOIN team_tree tt ON t.parent_team_id = tt.id
+  WHERE t.organization_id = $1
+)
+SELECT id FROM team_tree
+`;
+
+/** Active members of any of the given teams. $1 = organization_id, $2 = team ids */
+export const MEMBERS_OF_TEAMS = `
+SELECT id
+FROM app_user
+WHERE organization_id = $1
+  AND team_id = ANY($2::uuid[])
+  AND status = 'active'
+`;
+
+/** VIS-4 — a Supervisor's direct reports. $1 = organization_id, $2 = principal id */
+export const DIRECT_REPORTS = `
+SELECT id
+FROM app_user
+WHERE organization_id = $1
+  AND reports_to = $2
+  AND status = 'active'
+`;
+
 /** Memo keys, so one request resolves each of these at most once (NF-5). */
 export const MEMO_KEYS = {
   subordinates: 'scope:subordinates',
+  teamRoots: 'scope:team-roots',
   teams: 'scope:teams',
   pools: 'scope:pools',
   poolMembers: 'scope:pool-members',

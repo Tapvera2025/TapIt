@@ -193,7 +193,7 @@ departmentMemberIds: async () => new Set<string>(),
 
     const filter = await taskPolicy.filter(hrCtx, 'tasks:view', 'department');
     expect(filter.sql).toContain('u.department_id = $1');
-    expect(filter.parameters).toEqual([hrDeptId]);
+    expect(filter.parameters[0]).toEqual(hrDeptId);
   });
 
   // 3. HR can create Tasks (authorized under tasks:assign)
@@ -365,15 +365,18 @@ departmentMemberIds: async () => new Set<string>(),
     const hrExecPos = ORGANIZATION_TEMPLATE.positions.find((p) => p.code === 'hr-executive')!;
 
     const insertedRows: Array<{ positionId: string; action: string; scope: string }> = [];
+    const registryRows: RegistryActionDefinition[] = [
+      { action: 'tasks:view', module: 'tasks', positionGrantable: true, superAdminOnly: false },
+      { action: 'tasks:assign', module: 'tasks', positionGrantable: true, superAdminOnly: false },
+      { action: 'tasks:update', module: 'tasks', positionGrantable: true, superAdminOnly: false },
+      { action: 'tasks:review', module: 'tasks', positionGrantable: true, superAdminOnly: false },
+    ];
+    const registryByModule = new Map<string, RegistryActionDefinition[]>();
+    for (const d of registryRows) registryByModule.set(d.module, [...(registryByModule.get(d.module) ?? []), d]);
     const mockTx = {
       async query<T>(fragment: { sql: string; parameters?: unknown[] }): Promise<T[]> {
         if (fragment.sql.includes('FROM registry_action')) {
-          return [
-            { action: 'tasks:view', module: 'tasks', positionGrantable: true, superAdminOnly: false },
-            { action: 'tasks:assign', module: 'tasks', positionGrantable: true, superAdminOnly: false },
-            { action: 'tasks:update', module: 'tasks', positionGrantable: true, superAdminOnly: false },
-            { action: 'tasks:review', module: 'tasks', positionGrantable: true, superAdminOnly: false },
-          ] as T[];
+          return registryRows as unknown as T[];
         }
         if (fragment.sql.includes('INSERT INTO position_policy')) {
           const [, positionId, action, scope] = fragment.parameters as [string, string, string, string];
@@ -392,6 +395,7 @@ departmentMemberIds: async () => new Set<string>(),
       ['tasks'],
       [hrPos, hrExecPos],
       new Map([['hr', 'pos-hr'], ['hr-executive', 'pos-hr-exec']]),
+      registryByModule,
     );
 
     expect(count).toBe(8); // 4 actions * 2 positions
@@ -404,13 +408,16 @@ departmentMemberIds: async () => new Set<string>(),
   // 12. No duplicate position_policy rows are created
   it('12. No duplicate position_policy rows are created on re-provisioning', async () => {
     const existingKeys = new Set<string>();
+    const registryRows: RegistryActionDefinition[] = [
+      { action: 'tasks:view', module: 'tasks', positionGrantable: true, superAdminOnly: false },
+      { action: 'tasks:assign', module: 'tasks', positionGrantable: true, superAdminOnly: false },
+    ];
+    const registryByModule = new Map<string, RegistryActionDefinition[]>();
+    for (const d of registryRows) registryByModule.set(d.module, [...(registryByModule.get(d.module) ?? []), d]);
     const mockTx = {
       async query<T>(fragment: { sql: string; parameters?: unknown[] }): Promise<T[]> {
         if (fragment.sql.includes('FROM registry_action')) {
-          return [
-            { action: 'tasks:view', module: 'tasks', positionGrantable: true, superAdminOnly: false },
-            { action: 'tasks:assign', module: 'tasks', positionGrantable: true, superAdminOnly: false },
-          ] as unknown as T[];
+          return registryRows as unknown as T[];
         }
         if (fragment.sql.includes('INSERT INTO position_policy')) {
           const [, positionId, action] = fragment.parameters as [string, string, string];
@@ -432,6 +439,7 @@ departmentMemberIds: async () => new Set<string>(),
       ['tasks'],
       [hrPos],
       new Map([['hr', 'pos-hr']]),
+      registryByModule,
     );
     expect(firstRun).toBe(2);
 
@@ -441,6 +449,7 @@ departmentMemberIds: async () => new Set<string>(),
       ['tasks'],
       [hrPos],
       new Map([['hr', 'pos-hr']]),
+      registryByModule,
     );
     expect(secondRun).toBe(0);
   });
@@ -451,13 +460,16 @@ departmentMemberIds: async () => new Set<string>(),
       ['pos-hr:tasks:view', { scope: 'own' }], // Custom override by tenant
     ]);
 
+    const registryRows: RegistryActionDefinition[] = [
+      { action: 'tasks:view', module: 'tasks', positionGrantable: true, superAdminOnly: false },
+      { action: 'tasks:assign', module: 'tasks', positionGrantable: true, superAdminOnly: false },
+    ];
+    const registryByModule = new Map<string, RegistryActionDefinition[]>();
+    for (const d of registryRows) registryByModule.set(d.module, [...(registryByModule.get(d.module) ?? []), d]);
     const mockTx = {
       async query<T>(fragment: { sql: string; parameters?: unknown[] }): Promise<T[]> {
         if (fragment.sql.includes('FROM registry_action')) {
-          return [
-            { action: 'tasks:view', module: 'tasks', positionGrantable: true, superAdminOnly: false },
-            { action: 'tasks:assign', module: 'tasks', positionGrantable: true, superAdminOnly: false },
-          ] as unknown as T[];
+          return registryRows as unknown as T[];
         }
         if (fragment.sql.includes('INSERT INTO position_policy')) {
           const [, positionId, action, scope] = fragment.parameters as [string, string, string, string];
@@ -479,6 +491,7 @@ departmentMemberIds: async () => new Set<string>(),
       ['tasks'],
       [hrPos],
       new Map([['hr', 'pos-hr']]),
+      registryByModule,
     );
 
     // tasks:view preserved custom 'own' scope

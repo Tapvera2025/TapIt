@@ -242,6 +242,11 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
   if (response.status === 403 && body.message === 'Company access is suspended') {
     redirectToIdentityLogin();
   }
+  // A module or power switched off since the identity was loaded: ask the
+  // workspace to refetch its capabilities (coalesced by the listener).
+  if (response.status === 403 && /not enabled for this organization|not authori[sz]ed|permission/i.test(body.message ?? '')) {
+    notifyIdentityBootstrapUpdated();
+  }
   if (!response.ok || !body.success || body.data === undefined) {
     throw new IdentityApiError(
       body.message ?? 'Identity request failed',

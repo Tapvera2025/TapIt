@@ -38,6 +38,8 @@ export interface PortalProject {
 }
 
 export interface PortalProfile {
+  /** The client's own CRM client id. */
+  clientId: string;
   clientName: string;
   businessName: string;
   email: string;

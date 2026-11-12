@@ -1,4 +1,4 @@
-import type { ModuleName } from '@tapcrm/contracts';
+import { REGISTRY, type ModuleName } from '@tapcrm/contracts';
 import type { Tx } from '../dal/db.js';
 import { sql } from '../dal/sql.js';
 import type { OrganizationTemplatePosition } from './template.js';
@@ -135,6 +135,25 @@ export interface RegistryActionDefinition {
   module: string;
   positionGrantable: boolean;
   superAdminOnly: boolean;
+  /** PD-1: `all-people` exists only for people-domain actions. */
+  domain?: 'people' | 'business' | 'derived';
+}
+
+/** Every registry action, grouped by module — the code is the authority (RG-I3). */
+export function registryActionsByModule(): Map<string, RegistryActionDefinition[]> {
+  const byModule = new Map<string, RegistryActionDefinition[]>();
+  for (const definition of Object.values(REGISTRY)) {
+    const list = byModule.get(definition.module) ?? [];
+    list.push({
+      action: definition.action,
+      module: definition.module,
+      positionGrantable: definition.grantPolicy.positionGrantable,
+      superAdminOnly: definition.grantPolicy.superAdminOnly,
+      domain: definition.domain,
+    });
+    byModule.set(definition.module, list);
+  }
+  return byModule;
 }
 
 export interface EmittedPolicy {
@@ -245,7 +264,13 @@ function expandAccessCell(
     const emittedScope =
       scope !== 'all-people' && SELF_SERVICE_ACTIONS.has(definition.action)
         ? 'own'
-        : scope;
+        : // PD-1: an all-people cell reaches business-domain actions (bills,
+          // reports, documents) only as far as a business scope can go. Emitting
+          // `all-people` there stored a policy the engine refuses at runtime and
+          // the position editor refuses to save.
+          scope === 'all-people' && definition.domain === 'business'
+          ? 'department'
+          : scope;
     return [{ action: definition.action, scope: emittedScope }];
   });
 }
@@ -262,20 +287,13 @@ export async function provisionDefaultPositionPolicies(
   moduleKeys: readonly string[],
   positions: readonly OrganizationTemplatePosition[],
   positionIds: ReadonlyMap<string, string>,
+  // Read the registry from code, not from the `registry_action` projection:
+  // production only runs migrations, so the projection lagged behind newly
+  // added actions and default policies for them were silently never created.
+  // Tests pass a small fixture registry instead.
+  actionsByModule: ReadonlyMap<string, readonly RegistryActionDefinition[]> = registryActionsByModule(),
 ): Promise<number> {
   const enabledModules = new Set(moduleKeys);
-  const actions = await tx.query<RegistryActionDefinition>(sql`
-    SELECT action, module, position_grantable AS "positionGrantable",
-           super_admin_only AS "superAdminOnly"
-    FROM registry_action
-    WHERE module = ANY(${[...enabledModules]}::text[])
-  `);
-  const actionsByModule = new Map<string, RegistryActionDefinition[]>();
-  for (const action of actions) {
-    const list = actionsByModule.get(action.module) ?? [];
-    list.push(action);
-    actionsByModule.set(action.module, list);
-  }
 
   let inserted = 0;
   for (const position of positions) {

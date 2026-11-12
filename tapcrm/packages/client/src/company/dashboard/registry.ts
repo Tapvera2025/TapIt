@@ -1,4 +1,5 @@
 import type { CompanyIdentity } from '../api/companyApi.js';
+import { isActionModuleEnabled } from '../module-access.js';
 import type { WidgetDef } from './widget-types.js';
 import {
   PunchStateWidget,
@@ -34,8 +35,11 @@ const has = (action: string) => (id: CompanyIdentity): boolean =>
   id.capabilities.some((item) => item.action === action);
 const hasBeyondOwn = (action: string) => (id: CompanyIdentity): boolean =>
   id.capabilities.some((item) => item.action === action && item.scope !== 'own');
+// A super-admin only passes for actions whose module is enabled; the live
+// board is additionally served by the 'live-status' module on the server.
+const moduleOn = (id: CompanyIdentity, key: string): boolean => (id.enabledModules as readonly string[]).includes(key);
 const superAdminOr = (action: string) => (id: CompanyIdentity): boolean =>
-  isSuperAdmin(id) || has(action)(id);
+  has(action)(id) || (isSuperAdmin(id) && isActionModuleEnabled(id.enabledModules, action));
 
 export const WIDGET_REGISTRY: readonly WidgetDef[] = [
   // Personal widgets are available when their underlying module capability is
@@ -45,7 +49,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'punch-state',
     title: 'Today',
     description: 'Your punch state and hours worked today.',
-    available: (id) => !isSuperAdmin(id) && has('attendance:view-live')(id),
+    available: (id) => !isSuperAdmin(id) && moduleOn(id, 'live-status') && has('attendance:view-live')(id),
     defaultLayout: { w: 6, h: 4, minW: 5, minH: 4, maxW: 12, maxH: 8 },
     component: PunchStateWidget,
   },
@@ -53,7 +57,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'break-management',
     title: 'Break management',
     description: 'Start a preset lunch, coffee, or personal break.',
-    available: (id) => !isSuperAdmin(id) && has('attendance:view-live')(id),
+    available: (id) => !isSuperAdmin(id) && moduleOn(id, 'break-management') && has('attendance:view-live')(id),
     defaultLayout: { w: 12, h: 2, minW: 6, minH: 2, maxW: 12, maxH: 4 },
     component: BreakManagementWidget,
   },
@@ -61,7 +65,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'todays-shift',
     title: "Today's shift",
     description: 'The shift you are on today.',
-    available: (id) => !isSuperAdmin(id),
+    available: (id) => !isSuperAdmin(id) && moduleOn(id, 'shifts'),
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
     component: TodaysShiftWidget,
   },
@@ -119,7 +123,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'team-live',
     title: 'Team present today',
     description: 'Live headcount by state across your team.',
-    available: (id) => !isSuperAdmin(id) && hasBeyondOwn('attendance:view-live')(id),
+    available: (id) => !isSuperAdmin(id) && moduleOn(id, 'live-status') && hasBeyondOwn('attendance:view-live')(id),
     defaultLayout: { w: 4, h: 4, minW: 3, minH: 3 },
     component: TeamLiveWidget,
   },
@@ -161,7 +165,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'admin-team-attendance',
     title: 'Team attendance',
     description: 'Employee punch state and live break timers.',
-    available: superAdminOr('attendance:view-live'),
+    available: (id) => moduleOn(id, 'live-status') && superAdminOr('attendance:view-live')(id),
     defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
     component: AdminTeamAttendanceWidget,
   },
@@ -193,7 +197,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'admin-meetings',
     title: 'Upcoming meetings',
     description: 'Meetings scheduled across the company.',
-    available: (id) => id.enabledModules.includes('meetings') && (isSuperAdmin(id) || has('meetings:view')(id) || has('meetings:host')(id)),
+    available: (id) => moduleOn(id, 'meetings') && (superAdminOr('meetings:view')(id) || superAdminOr('meetings:host')(id)),
     defaultLayout: { w: 6, h: 4, minW: 4, minH: 3 },
     component: AdminMeetingsWidget,
   },
@@ -201,9 +205,9 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'admin-pending-requests',
     title: 'Pending requests',
     description: 'Open employee, attendance, sales, and expense queues.',
-    available: (id) => isSuperAdmin(id) || [
+    available: (id) => [
       'leave:decide', 'leave:acknowledge', 'attendance:correct', 'approvals:decide', 'payables:approve-claim',
-    ].some((action) => has(action)(id)),
+    ].some((action) => superAdminOr(action)(id)),
     defaultLayout: { w: 3, h: 4, minW: 3, minH: 3 },
     component: AdminPendingRequestsWidget,
   },

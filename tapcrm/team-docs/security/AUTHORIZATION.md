@@ -17,7 +17,7 @@
 
 ## 6.4 Action Registry
 
-225 actions. Column meanings are as given in the source document:
+226 actions. Column meanings are as given in the source document:
 
 | Column | Meaning |
 | --- | --- |
@@ -36,7 +36,7 @@
 | --- | --- |
 | RG-1 | `DelegationAllowed` requires `Sensitive = no`. A sensitive action is never delegable — a delegate may hold it, but only Super Admin may hand it out. |
 | RG-2 | `SuperAdminOnly` implies `DelegationAllowed = no` (GP-2). |
-| RG-3 | `PositionGrantable = no` implies `DelegationAllowed = no` and `SuperAdminOnly = yes` (GP-1). Two actions qualify: `notepad:view-all` and `billing:set-terms`. |
+| RG-3 | `PositionGrantable = no` implies `DelegationAllowed = no` and `SuperAdminOnly = yes` (GP-1). Two actions qualify: `notepad:view-all` and `billing:set-terms`. Added later with the same shape: `chat:manage-groups`, and `social:connect-own-accounts`, which only a client principal holds (through its fixed policy set) to connect its own social accounts from the client portal. |
 | RG-4 | `ApprovalBearing` requires a non-null initiator field (GP-5). |
 | RG-5 | Every action names a resource or is explicitly `—`. There is no unspecified case. |
 | RG-6 | Every action has at least one API binding (§6.5). |
@@ -99,8 +99,8 @@
 | `ta:send` | ta | — | people | yes | no | — | yes | no | no |
 | `ta:export` | ta | — | people | yes | no | — | yes | no | no |
 | `payroll:view` | payroll | payslip | people | yes | no | — | yes | no | no |
-| `payroll:manage` | payroll | payrollRun | people | yes | no | — | yes | no | yes |
-| `payroll:manage-config` | payroll | payrollConfig | people | yes | no | — | yes | no | yes |
+| `payroll:manage` | payroll | payrollRun | people | yes | no | — | yes | no | no |
+| `payroll:manage-config` | payroll | payrollConfig | people | yes | no | — | yes | no | no |
 | `advance:view-own` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
 | `advance:request` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
 | `advance:view` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
@@ -207,6 +207,7 @@
 | `social:manage` | social | socialWorkspace | business | yes | no | — | yes | no | no |
 | `social:publish` | social | socialWorkspace | business | yes | no | — | yes | no | no |
 | `social:connect` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:connect-own-accounts` | social | socialWorkspace | business | yes | no | — | no | no | yes |
 | `social:settings` | social | socialWorkspace | business | yes | no | — | yes | no | no |
 | `social:approve` | social | socialPost | business | yes | yes | createdBy | yes | no | no |
 | `clients:view` | clients | client | business | no | no | — | yes | yes | no |
@@ -289,7 +290,7 @@
 
 ## 6.5 API Bindings
 
-635 bindings. Every action bound to at least one HTTP route. A route
+640 bindings. Every action bound to at least one HTTP route. A route
 registered at boot with no binding is a startup failure (RM-1); a binding naming
 an unregistered action fails the build (RM-2).
 
@@ -698,6 +699,10 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/projects/:id/reports/on-page-seo/search-console | `projects:manage` | id |
 | DELETE | /api/projects/:id/reports/on-page-seo/search-console | `projects:manage` | id |
 | POST | /api/projects/:id/reports/on-page-seo/search-console/sync | `projects:manage` | id |
+| GET | /api/projects/:id/reports/on-page-seo/live-settings | `projects:view` | id |
+| PUT | /api/projects/:id/reports/on-page-seo/live-settings | `projects:manage` | id |
+| POST | /api/projects/:id/reports/on-page-seo/keywords/:keywordId/live-check | `projects:manage` | id |
+| GET | /api/projects/:id/reports/on-page-seo/rankings | `projects:view` | id |
 | GET | /api/projects/:id/reports/off-page-seo/backlinks | `projects:view` | id |
 | POST | /api/projects/:id/reports/off-page-seo/backlinks | `projects:manage` | id |
 | PATCH | /api/projects/:id/reports/off-page-seo/backlinks/:backlinkId | `projects:manage` | id |
@@ -825,6 +830,11 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/social/clients/:clientId/oauth/:platform/complete | `social:connect` | clientId |
 | POST | /api/social/clients/:clientId/oauth/:platform/select | `social:connect` | clientId |
 | DELETE | /api/social/clients/:clientId/accounts/:accountId | `social:connect` | clientId |
+| GET | /api/social/portal/clients/:clientId/connections | `social:connect-own-accounts` | clientId |
+| POST | /api/social/portal/clients/:clientId/oauth/:platform/start | `social:connect-own-accounts` | clientId |
+| POST | /api/social/portal/clients/:clientId/oauth/:platform/complete | `social:connect-own-accounts` | clientId |
+| POST | /api/social/portal/clients/:clientId/oauth/:platform/select | `social:connect-own-accounts` | clientId |
+| DELETE | /api/social/portal/clients/:clientId/accounts/:accountId | `social:connect-own-accounts` | clientId |
 | GET | /api/social/clients/:clientId/posts | `social:view` | clientId |
 | GET | /api/social/clients/:clientId/posts/:postId | `social:view` | clientId |
 | POST | /api/social/clients/:clientId/posts | `social:manage` | clientId |
@@ -838,9 +848,6 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/social/clients/:clientId/settings | `social:settings` | clientId |
 | GET | /api/social/clients/:clientId/analytics | `social:view` | clientId |
 | GET | /api/social/clients/:clientId/analytics/export | `social:view` | clientId |
-| GET | /api/social/clients/:clientId/search-console/properties | `social:view` | clientId |
-| GET | /api/social/clients/:clientId/search-console/performance | `social:view` | clientId |
-| POST | /api/social/clients/:clientId/search-console/inspect | `social:view` | clientId |
 | POST | /api/social/clients/:clientId/analytics/sync | `social:manage` | clientId |
 | GET | /api/social/company-connections | `system:manage-integrations` | — |
 | POST | /api/social/company-connections/oauth/:platform/start | `system:manage-integrations` | — |
@@ -1032,10 +1039,14 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PATCH | /api/seo/findings/:findingId | `seo:update-finding` | findingId |
 | GET | /api/seo/sites/:siteId/gsc-metrics | `seo:read-search-performance` | siteId |
 | POST | /api/seo/sites/:siteId/gsc-sync | `seo:sync-search-performance` | siteId |
+| GET | /api/seo/sites/:siteId/search-console | `seo:read-search-performance` | siteId |
+| POST | /api/seo/sites/:siteId/search-console/inspect | `seo:read-search-performance` | siteId |
 | GET | /api/seo/sites/:siteId/keywords | `seo:list-keywords` | siteId |
 | GET | /api/seo/sites/:siteId/serp-observations | `seo:read-rank-tracking` | siteId |
 | GET | /api/seo/sites/:siteId/rank-status | `seo:read-rank-tracking` | siteId |
 | POST | /api/seo/sites/:siteId/rank-checks | `seo:sync-search-performance` | siteId |
+| GET | /api/seo/sites/:siteId/rank-scans | `seo:read-rank-tracking` | siteId |
+| POST | /api/seo/sites/:siteId/rank-scans | `seo:sync-search-performance` | siteId |
 | GET | /api/seo/sites/:siteId/ai-observations | `seo:read-ai-visibility` | siteId |
 | GET | /api/seo/sites/:siteId/backlinks | `seo:read-backlinks` | siteId |
 | GET | /api/seo/sites/:siteId/cwv-observations | `seo:read-cwv` | siteId |

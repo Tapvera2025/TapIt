@@ -30,7 +30,12 @@ export interface Project {
   readonly workStatus: ProjectWorkStatus;
   readonly startDate: Date;
   readonly expectedEndDate: Date | null;
-  readonly budget: Decimal | null;
+  /** What the client pays for the project, in `currency`. */
+  readonly projectValue: Decimal | null;
+  /** What the client paid at the start. */
+  readonly upfrontAmount: Decimal | null;
+  /** Still owed: project value minus upfront paid, worked out by the database (0154). Null without a project value. */
+  readonly dueAmount: Decimal | null;
   readonly currency: string;
   readonly description: string | null;
   readonly remarks: string | null;
@@ -75,7 +80,8 @@ export interface CreateProjectInput {
   readonly expectedEndDate?: string | null | undefined;
   readonly priority: ProjectPriority;
   readonly workStatus?: ProjectWorkStatus | undefined;
-  readonly budget?: string | null | undefined;
+  readonly projectValue?: string | null | undefined;
+  readonly upfrontAmount?: string | null | undefined;
   readonly description?: string | null | undefined;
   readonly remarks?: string | null | undefined;
 }
@@ -87,7 +93,8 @@ export interface UpdateProjectInput {
   readonly expectedEndDate?: string | null | undefined;
   readonly priority?: ProjectPriority | undefined;
   readonly workStatus?: ProjectWorkStatus | undefined;
-  readonly budget?: string | null | undefined;
+  readonly projectValue?: string | null | undefined;
+  readonly upfrontAmount?: string | null | undefined;
   readonly description?: string | null | undefined;
   readonly remarks?: string | null | undefined;
 }

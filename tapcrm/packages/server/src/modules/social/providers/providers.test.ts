@@ -220,6 +220,54 @@ describe('Social provider readiness and OAuth', () => {
     );
   });
 
+  it('never gives a Meta Page token the user token expiry, and heals Page tokens saved with one', async () => {
+    mockFetch(
+      response({
+        data: [
+          {
+            id: 'p1',
+            name: 'Publisher',
+            access_token: 'page-token',
+            tasks: ['CREATE_CONTENT'],
+          },
+        ],
+      }),
+    );
+    const provider = new MetaProvider('facebook', config);
+    const [page] = await provider.discoverAccounts({
+      ...credentials,
+      expiresAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(page?.credentials.accessToken).toBe('page-token');
+    expect(page?.credentials.expiresAt).toBeUndefined();
+    expect(page?.credentials.refreshToken).toBeUndefined();
+
+    const fetch = mockFetch();
+    // A Page token saved before the fix, with the user token's 60 days on it.
+    await expect(
+      provider.refreshCredentials({
+        accessToken: 'page-token',
+        scopes: ['pages_manage_posts'],
+        expiresAt: '2026-01-01T00:00:00.000Z',
+        metadata: { userAccessToken: 'user', pageId: 'p1' },
+      }),
+    ).resolves.toEqual({
+      accessToken: 'page-token',
+      scopes: ['pages_manage_posts'],
+      metadata: { userAccessToken: 'user', pageId: 'p1' },
+    });
+    // A company login's user token really does expire.
+    await expect(
+      provider.refreshCredentials({
+        accessToken: 'user',
+        scopes: [],
+        expiresAt: '2026-01-01T00:00:00.000Z',
+        metadata: { tokenType: 'user' },
+      }),
+    ).rejects.toMatchObject({ code: 'RECONNECT_REQUIRED', reconnectRequired: true });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('preserves Google refresh tokens when refresh only returns an access token', async () => {
     mockFetch(response({ access_token: 'new', expires_in: 3600 }));
     const result = await new GoogleProvider('youtube', config).refreshCredentials(

@@ -18,9 +18,6 @@ import type {
   SocialPostInput,
   SocialPostPage,
   SocialProvider,
-  SocialGoogleIndexInspection,
-  SocialSearchConsolePerformance,
-  SocialSearchConsoleProperty,
   SocialSettings,
 } from './types.js';
 
@@ -58,9 +55,18 @@ export interface SocialConnectionCandidate {
   name: string;
   profileImageUrl?: string;
   capabilities: SocialProvider['capabilities'];
+  /** Another client already uses this account (it serves one client at a time), or
+   * this client connected it itself from the client portal (`viaClientPortal`, no name). */
+  assignedTo?: {
+    clientName: string | null;
+    viaCompany: boolean;
+    viaClientPortal?: boolean;
+  } | null;
 }
 export interface SocialConnectionChoice {
   state: string;
+  /** How long the choice stays open after the platform authorized it. */
+  expiresInMinutes?: number;
   candidates: SocialConnectionCandidate[];
 }
 export const completeSocialConnection = (
@@ -88,7 +94,12 @@ export const disconnectSocialAccount = (
   accountId: string,
   revokeGrant = false,
 ) =>
-  identityRequest<{ disconnected: boolean; revocationStatus: string }>(
+  identityRequest<{
+    disconnected: boolean;
+    revocationStatus: string;
+    /** Other connections the same revoked grant served, now waiting for a reconnect. */
+    othersNeedReconnect?: number;
+  }>(
     `${workspace(clientId)}/accounts/${encodeURIComponent(accountId)}`,
     { method: 'DELETE', body: JSON.stringify({ revokeGrant }) },
   );
@@ -119,18 +130,25 @@ export const syncCompanyConnection = (connectionId: string) =>
     `${companyConnections}/${encodeURIComponent(connectionId)}/sync`,
     { method: 'POST', body: '{}' },
   );
-/** Assigns a location to a client, or unassigns it with `clientId` null. */
+/** Assigns a location to a client, or unassigns it with `clientId` null. `move` takes it
+ * from the client it is assigned to now, in one step. */
 export const assignCompanyLocation = (
   connectionId: string,
   locationId: string,
   clientId: string | null,
+  move = false,
 ) =>
   identityRequest<SocialCompanyLocation>(
     `${companyConnections}/${encodeURIComponent(connectionId)}/locations/${encodeURIComponent(locationId)}/client`,
-    { method: 'PUT', body: JSON.stringify({ clientId }) },
+    { method: 'PUT', body: JSON.stringify({ clientId, move }) },
   );
 export const disconnectCompanyConnection = (connectionId: string, revokeGrant: boolean) =>
-  identityRequest<{ disconnected: boolean; revocationStatus: string }>(
+  identityRequest<{
+    disconnected: boolean;
+    revocationStatus: string;
+    /** Other connections the same revoked grant served, now waiting for a reconnect. */
+    othersNeedReconnect?: number;
+  }>(
     `${companyConnections}/${encodeURIComponent(connectionId)}`,
     { method: 'DELETE', body: JSON.stringify({ revokeGrant }) },
   );
@@ -204,30 +222,6 @@ export const syncSocialAnalytics = (clientId: string, from: string, to: string) 
     method: 'POST',
     body: JSON.stringify({ from, to }),
   });
-
-export const listClientSearchConsoleProperties = (clientId: string) =>
-  identityRequest<{ properties: SocialSearchConsoleProperty[]; warning: string | null }>(
-    `${workspace(clientId)}/search-console/properties`,
-  );
-
-export const getClientSearchConsolePerformance = (
-  clientId: string,
-  input: { propertyUrl: string; from: string; to: string },
-) => {
-  const params = new URLSearchParams(input);
-  return identityRequest<SocialSearchConsolePerformance>(
-    `${workspace(clientId)}/search-console/performance?${params}`,
-  );
-};
-
-export const inspectClientSearchConsoleUrl = (
-  clientId: string,
-  input: { propertyUrl: string; inspectionUrl: string },
-) =>
-  identityRequest<SocialGoogleIndexInspection>(
-    `${workspace(clientId)}/search-console/inspect`,
-    { method: 'POST', body: JSON.stringify(input) },
-  );
 
 /** CSV export bypasses the JSON envelope — downloads the file as a blob. */
 export async function downloadSocialAnalyticsCsv(

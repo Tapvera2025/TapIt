@@ -25,7 +25,12 @@ import {
   siteSettingsSchema,
   keywordParams,
   updateKeywordSchema,
+  rankScanSchema,
+  searchConsoleRangeQuery,
+  searchConsoleInspectionSchema,
 } from './validators.js';
+import { listRankScans, scanSiteRank } from './rank-scan.js';
+import { getSiteSearchConsoleReport, inspectSiteUrl } from './search-console.js';
 
 const MODULE = 'seo-intelligence';
 
@@ -281,6 +286,28 @@ export function registerSeoRoutes(): void {
     },
   });
 
+  route({
+    method: 'GET',
+    path: '/api/seo/sites/:siteId/search-console',
+    action: 'seo:read-search-performance' as Action,
+    module: MODULE,
+    resourceParam: 'siteId',
+    loadResource: (ctx, siteId) => loadSiteResource(ctx, siteId),
+    handler: async ({ ctx, params, query }) =>
+      getSiteSearchConsoleReport(ctx, siteIdParam.parse(params).siteId, searchConsoleRangeQuery.parse(query)),
+  });
+
+  route({
+    method: 'POST',
+    path: '/api/seo/sites/:siteId/search-console/inspect',
+    action: 'seo:read-search-performance' as Action,
+    module: MODULE,
+    resourceParam: 'siteId',
+    loadResource: (ctx, siteId) => loadSiteResource(ctx, siteId),
+    handler: async ({ ctx, params, body }) =>
+      inspectSiteUrl(ctx, siteIdParam.parse(params).siteId, searchConsoleInspectionSchema.parse(body)),
+  });
+
   // ─── Keywords ─────────────────────────────────────────────────────────────
 
   route({
@@ -318,6 +345,27 @@ export function registerSeoRoutes(): void {
     loadResource: (ctx, id) => loadSiteResource(ctx, id),
     handler: async ({ ctx, params }) =>
       service.queueRankCheck(ctx, siteIdParam.parse(params).siteId),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/seo/sites/:siteId/rank-scans',
+    action: 'seo:read-rank-tracking' as Action,
+    module: MODULE,
+    resourceParam: 'siteId',
+    loadResource: (ctx, id) => loadSiteResource(ctx, id),
+    handler: async ({ ctx, params }) => listRankScans(ctx, siteIdParam.parse(params).siteId),
+  });
+  route({
+    method: 'POST',
+    path: '/api/seo/sites/:siteId/rank-scans',
+    action: 'seo:sync-search-performance' as Action,
+    module: MODULE,
+    status: 201,
+    resourceParam: 'siteId',
+    loadResource: (ctx, id) => loadSiteResource(ctx, id),
+    handler: async ({ ctx, params, body }) =>
+      scanSiteRank(ctx, siteIdParam.parse(params).siteId, rankScanSchema.parse(body)),
   });
 
   route({
