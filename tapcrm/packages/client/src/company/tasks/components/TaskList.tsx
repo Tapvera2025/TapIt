@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Icon } from '../../../ui/index.js';
-import { SkeletonTable } from '../../../ui/index.js';
-import type { TaskListProps, TaskStatus } from '../types/index.js';
+import { Icon } from '../../../ui/Icon.js';
+import { SkeletonTable } from '../../../ui/components.js';
+import type { Task, TaskListProps, TaskStatus } from '../types/index.js';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskStatusBadge.js';
 
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
@@ -96,6 +96,7 @@ function ExpandableTaskDescription({
 export function TaskList({
   tasks,
   loading = false,
+  isSuperAdmin = false,
   currentUserId,
   onTransitionStatus,
   onEditTask,
@@ -110,6 +111,9 @@ export function TaskList({
   const [openAssigneeTaskId, setOpenAssigneeTaskId] = useState<string | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const statusAnchorRef = useRef<HTMLElement | null>(null);
+
+  const canCancel = (task: Task): boolean =>
+    Boolean(isSuperAdmin || (currentUserId && task.createdBy === currentUserId));
   const [statusMenuOptions, setStatusMenuOptions] = useState<{
     taskId: string;
     transitions: TaskStatus[];
@@ -239,9 +243,11 @@ export function TaskList({
         // task view, the status badge must reflect the signed-in user's
         // assignment status—the same state changed by the widget.
         const displayedStatus = myAssignment?.status ?? task.status;
-        const availableTransitions = myAssignment
-          ? (VALID_TRANSITIONS[myAssignment.status] ?? [])
-          : (VALID_TRANSITIONS[displayedStatus] ?? []);
+        const availableTransitions = (
+          myAssignment
+            ? (VALID_TRANSITIONS[myAssignment.status] ?? [])
+            : (VALID_TRANSITIONS[displayedStatus] ?? [])
+        ).filter((s) => s !== 'cancelled' || canCancel(task));
         const statusCellColor = {
           pending: 'border-amber-500/30 bg-amber-500/10',
           in_progress: 'border-sky-500/30 bg-sky-500/10',
@@ -320,27 +326,25 @@ export function TaskList({
                     {task.projectName ?? 'Unknown project'}
                   </span>
                 )}
-                {(task.createdAt || task.createdByName) && (
-                  <span className="inline-flex min-h-7 w-[calc(100%_-_1.75rem)] min-w-0 max-w-[calc(100%_-_1.75rem)] flex-wrap items-center gap-1.5 overflow-hidden rounded-lg border border-app-border/80 bg-app-surface-raised px-2 py-1.5 text-app-muted sm:h-7 sm:w-auto sm:max-w-full sm:flex-nowrap sm:whitespace-nowrap sm:px-3">
+                {task.createdAt && (
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-app-border/80 bg-app-surface-raised px-3 py-1.5 text-app-muted">
                     <Icon name="calendar" className="size-3.5 shrink-0" />
                     <span>Created</span>
-                    {task.createdAt && (
-                      <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
-                        {formatDate(task.createdAt)}
-                      </time>
-                    )}
-                    {task.createdByName && (
-                      <span className="inline-flex min-w-0 max-w-full items-center gap-1 border-l border-app-border/80 pl-1.5">
-                        <span className="text-app-muted">Created by</span>
-                        <span
-                          className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border"
-                          aria-hidden="true"
-                        >
-                          {getInitials(task.createdByName)}
-                        </span>
-                        <span className="min-w-0 max-w-[10rem] truncate font-medium text-app-foreground">{task.createdByName}</span>
-                      </span>
-                    )}
+                    <time className="font-medium text-app-foreground" dateTime={task.createdAt}>
+                      {formatDate(task.createdAt)}
+                    </time>
+                  </span>
+                )}
+                {task.createdByName && (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface-raised px-3 py-1.5 text-app-muted">
+                    <span className="shrink-0 text-app-muted">Created by</span>
+                    <span
+                      className="grid size-4 shrink-0 place-items-center rounded-full bg-app-background text-[8px] font-semibold text-app-muted ring-1 ring-app-border"
+                      aria-hidden="true"
+                    >
+                      {getInitials(task.createdByName)}
+                    </span>
+                    <span className="min-w-0 max-w-[10rem] truncate font-medium text-app-foreground">{task.createdByName}</span>
                   </span>
                 )}
                 {task.dueDate && (
@@ -539,8 +543,9 @@ export function TaskList({
                         })
                         .map((assignee) => {
                           const isSelf = currentUserId === assignee.id;
-                          const assigneeTransitions =
-                            VALID_TRANSITIONS[assignee.status] ?? [];
+                          const assigneeTransitions = (
+                            VALID_TRANSITIONS[assignee.status] ?? []
+                          ).filter((s) => s !== 'cancelled' || canCancel(task));
                           return (
                             <div
                               key={assignee.id}

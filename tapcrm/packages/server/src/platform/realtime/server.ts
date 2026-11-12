@@ -10,6 +10,7 @@ import { createRequestContext } from '../dal/context.js';
 import { AUTHORIZATION_EVENTS } from '../events.js';
 import { onOutboxEvent } from '../outbox/registry.js';
 import {
+  organizationRoom,
   personalRoom,
   subjectRooms,
   viewerRooms,
@@ -109,7 +110,7 @@ async function roomsFor(identity: SocketIdentity): Promise<string[]> {
   const { principal, organizationId } = identity;
   const userId = principal?.id ?? identity.userId;
   if (!userId) throw new Error('Socket identity has no user id');
-  const rooms = [personalRoom(organizationId, userId)];
+  const rooms = [organizationRoom(organizationId), personalRoom(organizationId, userId)];
   // Notification-only callers have no policy-bearing Principal. They receive
   // only their tenant-qualified personal room.
   if (!principal) return rooms;
@@ -146,6 +147,15 @@ export function emitToUser(organizationId: string, userId: string, event: string
     io?.to(personalRoom(organizationId, userId)).emit(event, payload);
   } catch (error) {
     console.error(JSON.stringify({ level: 'warn', msg: 'realtime emit skipped', event, error: String(error) }));
+  }
+}
+
+/** Broadcast to all active sockets belonging to an organization. */
+export function emitToOrganization(organizationId: string, event: string, payload: Record<string, unknown>): void {
+  try {
+    io?.to(organizationRoom(organizationId)).emit(event, payload);
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'warn', msg: 'realtime org emit skipped', event, error: String(error) }));
   }
 }
 

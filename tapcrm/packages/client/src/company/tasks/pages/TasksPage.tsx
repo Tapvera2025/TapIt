@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Button, Notice, WorkspacePageContainer } from '../../../ui/index.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { io, type Socket } from 'socket.io-client';
+import { getIdentityAccessToken, identityApiBasePath } from '../../../identity/api/authApi.js';
+import { Button, Notice, WorkspacePageContainer } from '../../../ui/components.js';
 import { getCompanyIdentity } from '../../api/companyApi.js';
 import {
   assignTask,
@@ -11,12 +13,14 @@ import {
 import { TaskFilters } from '../components/TaskFilters.js';
 import { TaskAssignModal, TaskForm } from '../components/TaskForm.js';
 import { TaskList } from '../components/TaskList.js';
+import { TaskKanbanBoard } from '../components/TaskKanbanBoard.js';
 import type {
   CreateTaskInput,
   PaginatedTasks,
   Task,
   TaskListQuery,
   TaskStatus,
+  TaskViewMode,
   TaskViewScope,
   UpdateTaskInput,
 } from '../types/index.js';
@@ -38,6 +42,14 @@ export function TasksPage({
     propCurrentUserId,
   );
   const [viewScope, setViewScope] = useState<TaskViewScope>('my_tasks');
+  const [viewMode, setViewMode] = useState<TaskViewMode>(() => {
+    try {
+      const saved = localStorage.getItem('tapcrm:tasks-view-mode');
+      return saved === 'kanban' ? 'kanban' : 'list';
+    } catch {
+      return 'list';
+    }
+  });
 
   const [query, setQuery] = useState<TaskListQuery>(() => ({
     page: 1,
@@ -50,6 +62,7 @@ export function TasksPage({
   const [data, setData] = useState<PaginatedTasks | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const taskFetchSequence = useRef(0);
 
   // Modal states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -103,19 +116,42 @@ export function TasksPage({
     }));
   }
 
+  function handleViewModeChange(nextMode: TaskViewMode) {
+    setViewMode(nextMode);
+    try {
+      localStorage.setItem('tapcrm:tasks-view-mode', nextMode);
+    } catch {}
+    if (nextMode === 'kanban') {
+      setQuery((prev) => ({
+        ...prev,
+        status: 'all',
+        page: 1,
+        pageSize: 50,
+      }));
+    } else {
+      setQuery((prev) => ({
+        ...prev,
+        pageSize: 20,
+      }));
+    }
+  }
+
   const fetchTasks = useCallback(
-    async (overrideQuery?: TaskListQuery) => {
+    async (overrideQuery?: TaskListQuery, options?: { silent?: boolean }) => {
+      const requestSequence = ++taskFetchSequence.current;
       try {
-        setLoading(true);
+        if (!options?.silent) setLoading(true);
         setFetchError(null);
         const result = await listTasks(overrideQuery ?? query);
-        setData(result);
+        if (requestSequence === taskFetchSequence.current) setData(result);
       } catch (err) {
-        setFetchError(
-          err instanceof Error ? err.message : 'Unable to load company tasks',
-        );
+        if (requestSequence === taskFetchSequence.current) {
+          setFetchError(
+            err instanceof Error ? err.message : 'Unable to load company tasks',
+          );
+        }
       } finally {
-        setLoading(false);
+        if (requestSequence === taskFetchSequence.current) setLoading(false);
       }
     },
     [query],
@@ -124,6 +160,69 @@ export function TasksPage({
   useEffect(() => {
     void fetchTasks();
   }, [fetchTasks]);
+
+  const fetchTasksRef = useRef(fetchTasks);
+  useEffect(() => {
+    fetchTasksRef.current = fetchTasks;
+  }, [fetchTasks]);
+
+  // Real-time synchronization via Socket.IO
+  useEffect(() => {
+    const token = getIdentityAccessToken();
+    if (!token) return;
+
+    let socket: Socket | null = io({
+      path: `${identityApiBasePath()}/socket.io`,
+      auth: (send) => send({ token: getIdentityAccessToken() ?? '' }),
+      reconnectionDelayMax: 30_000,
+    });
+
+    socket.on('task:updated', (payload: { id?: string; task?: Task }) => {
+      if (payload?.task) {
+        const updatedTask = payload.task;
+        setData((prev) => {
+          if (!prev) return prev;
+          const exists = prev.items.some((t) => t.id === updatedTask.id);
+          return {
+            ...prev,
+            items: exists
+              ? prev.items.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+              : prev.items,
+          };
+        });
+      }
+      void fetchTasksRef.current(undefined, { silent: true });
+    });
+
+    socket.on('task:created', (payload: { id?: string; task?: Task }) => {
+      if (payload?.task) {
+        const newTask = payload.task;
+        setData((prev) => {
+          if (!prev) return prev;
+          if (prev.items.some((t) => t.id === newTask.id)) return prev;
+          return {
+            ...prev,
+            total: prev.total + 1,
+            items: [newTask, ...prev.items],
+          };
+        });
+      }
+      void fetchTasksRef.current(undefined, { silent: true });
+    });
+
+    socket.on('task:deleted', () => {
+      void fetchTasksRef.current(undefined, { silent: true });
+    });
+
+    socket.on('connect', () => {
+      void fetchTasksRef.current(undefined, { silent: true });
+    });
+
+    return () => {
+      socket?.close();
+      socket = null;
+    };
+  }, []);
 
   // Action handlers
   async function handleCreateTask(input: CreateTaskInput) {
@@ -153,7 +252,7 @@ export function TasksPage({
       });
 
       // Synchronize with server
-      await fetchTasks();
+      await fetchTasks(undefined, { silent: true });
     } catch (err) {
       setNotification({
         error: true,
@@ -177,7 +276,7 @@ export function TasksPage({
         };
       });
 
-      await fetchTasks();
+      await fetchTasks(undefined, { silent: true });
     } catch (err) {
       setNotification({
         error: true,
@@ -201,7 +300,7 @@ export function TasksPage({
         };
       });
 
-      await fetchTasks();
+      await fetchTasks(undefined, { silent: true });
     } catch (err) {
       setNotification({
         error: true,
@@ -216,11 +315,62 @@ export function TasksPage({
     status: TaskStatus,
     userId?: string,
   ) {
+    const targetTask = data?.items.find((t) => t.id === taskId);
+    if (status === 'cancelled' && targetTask) {
+      const canCancel = isSuperAdmin || (currentUserId && targetTask.createdBy === currentUserId);
+      if (!canCancel) {
+        setNotification({
+          error: true,
+          message: 'Only a super admin or the employee who created the task can cancel it.',
+        });
+        return;
+      }
+    }
+
+    // Match the server's default: regular employees transition their own
+    // assignment, while super admins transition the shared task status.
+    const transitionUserId = userId ?? (!isSuperAdmin ? currentUserId : undefined);
+
+    // Optimistic state update so the card stays in the destination column.
+    const previousData = data;
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        items: prev.items.map((item) => {
+          if (item.id !== taskId) return item;
+          if (transitionUserId) {
+            return {
+              ...item,
+              assignees: item.assignees.map((a) =>
+                a.id === transitionUserId ? { ...a, status } : a,
+              ),
+              status: item.assignees.length <= 1 ? status : item.status,
+            };
+          }
+          if (!isSuperAdmin) return item;
+          return {
+            ...item,
+            status,
+            assignees: item.assignees.map((a) => ({ ...a, status })),
+          };
+        }),
+      };
+    });
+
     try {
       const updated = await transitionTask(taskId, { status, userId });
-      setNotification({ message: `Task status updated to ${status}` });
+      const statusLabel =
+        status === 'in_progress'
+          ? 'In Progress'
+          : status === 'completed'
+            ? 'Completed'
+            : status === 'cancelled'
+              ? 'Cancelled'
+              : 'Pending';
+      setNotification({ message: `Task status updated to ${statusLabel}` });
 
-      // Immediate state update
+      // Immediate state update with server response
       setData((prev) => {
         if (!prev) return prev;
         return {
@@ -229,8 +379,10 @@ export function TasksPage({
         };
       });
 
-      await fetchTasks();
+      await fetchTasks(undefined, { silent: true });
     } catch (err) {
+      // Revert optimistic update on rejection
+      setData(previousData);
       setNotification({
         error: true,
         message:
@@ -245,8 +397,6 @@ export function TasksPage({
   const page = data?.page ?? 1;
   const pageSize = data?.pageSize ?? 20;
   const totalPages = data?.totalPages ?? 1;
-  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const endItem = Math.min(page * pageSize, total);
   const visibleTasks = data?.items ?? [];
   const summary = [
     { label: 'All tasks', value: total, tone: 'text-app-foreground' },
@@ -314,6 +464,8 @@ export function TasksPage({
           isSuperAdmin={isSuperAdmin}
           viewScope={viewScope}
           onViewScopeChange={handleViewScopeChange}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
         />
 
         {/* Error state with retry */}
@@ -326,51 +478,55 @@ export function TasksPage({
           </div>
         )}
 
-        {/* Task List */}
-        <TaskList
-          tasks={data?.items ?? []}
-          loading={loading && !data}
-          currentUserId={currentUserId}
-          onTransitionStatus={handleTransitionStatus}
-          onEditTask={(task) => setEditingTask(task)}
-          onAssignTask={(task) => setAssigningTask(task)}
-        />
+        {/* Task View: Kanban Board or List */}
+        {viewMode === 'kanban' ? (
+          <TaskKanbanBoard
+            tasks={data?.items ?? []}
+            loading={loading && !data}
+            isSuperAdmin={isSuperAdmin}
+            currentUserId={currentUserId}
+            onTransitionStatus={handleTransitionStatus}
+            onEditTask={(task) => setEditingTask(task)}
+            onAssignTask={(task) => setAssigningTask(task)}
+          />
+        ) : (
+          <TaskList
+            tasks={data?.items ?? []}
+            loading={loading && !data}
+            isSuperAdmin={isSuperAdmin}
+            currentUserId={currentUserId}
+            onTransitionStatus={handleTransitionStatus}
+            onEditTask={(task) => setEditingTask(task)}
+            onAssignTask={(task) => setAssigningTask(task)}
+          />
+        )}
 
         {/* Pagination Footer */}
         {data && total > 0 && (
-          <div className="flex flex-col items-center justify-between gap-3 pt-4 sm:flex-row">
-            <p className="text-xs text-app-muted">
-              Showing{' '}
-              <span className="font-semibold text-app-foreground">{startItem}</span> to{' '}
-              <span className="font-semibold text-app-foreground">{endItem}</span> of{' '}
-              <span className="font-semibold text-app-foreground">{total}</span> tasks
-            </p>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                kind="secondary"
-                disabled={page <= 1 || loading}
-                onClick={() => setQuery({ ...query, page: page - 1 })}
-                className="py-1 px-3 text-xs"
-                aria-label="Previous page"
-              >
-                Previous
-              </Button>
-              <span className="text-xs font-medium text-app-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                type="button"
-                kind="secondary"
-                disabled={page >= totalPages || loading}
-                onClick={() => setQuery({ ...query, page: page + 1 })}
-                className="py-1 px-3 text-xs"
-                aria-label="Next page"
-              >
-                Next
-              </Button>
-            </div>
+          <div className="flex items-center justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              kind="secondary"
+              disabled={page <= 1 || loading}
+              onClick={() => setQuery({ ...query, page: page - 1 })}
+              className="py-1 px-3 text-xs"
+              aria-label="Previous page"
+            >
+              Previous
+            </Button>
+            <span className="text-xs font-medium text-app-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              type="button"
+              kind="secondary"
+              disabled={page >= totalPages || loading}
+              onClick={() => setQuery({ ...query, page: page + 1 })}
+              className="py-1 px-3 text-xs"
+              aria-label="Next page"
+            >
+              Next
+            </Button>
           </div>
         )}
 

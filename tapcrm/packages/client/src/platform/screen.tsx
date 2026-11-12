@@ -173,27 +173,21 @@ function PlatformKpiCard({
   };
 
   return (
-    <article className="group relative flex h-[150px] min-h-[150px] min-w-0 flex-col overflow-hidden rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_6%,transparent),color-mix(in_srgb,var(--app-surface)_58%,transparent))] p-4 shadow-[0_12px_30px_color-mix(in_srgb,var(--app-accent)_5%,transparent)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-app-accent/45 max-[700px]:h-auto max-[700px]:min-h-[120px]">
-      <div className="pointer-events-none absolute -right-8 -top-10 size-24 rounded-full bg-app-accent/10 blur-2xl" />
-      <div className="relative flex min-w-0 items-start gap-2.5">
-        <div className="flex min-w-0 flex-1 items-start gap-2.5">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-app-accent/35 bg-transparent text-app-accent">
-            <Icon name={meta.icon} className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <p className="max-w-[14rem] whitespace-normal break-words text-xs font-semibold leading-4 text-app-foreground">
-              {meta.label}
-            </p>
-            <strong className="mt-0.5 block font-display text-2xl font-bold tracking-tight text-app-foreground">
-              {value}
-            </strong>
-            <p className="mt-0.5 max-w-[14rem] text-[11px] leading-4 text-app-muted">
-              {meta.description}
-            </p>
-          </div>
+    <article className="group relative flex min-h-[82px] min-w-0 items-center overflow-hidden rounded-xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_6%,transparent),color-mix(in_srgb,var(--app-surface)_58%,transparent))] p-2.5 shadow-[0_8px_24px_color-mix(in_srgb,var(--app-accent)_4%,transparent)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-app-accent/45 sm:min-h-[96px] sm:rounded-2xl sm:p-3.5">
+      <div className="pointer-events-none absolute -right-8 -top-10 size-16 rounded-full bg-app-accent/10 blur-xl sm:size-20" />
+      <div className="relative flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-app-accent/30 bg-app-accent/10 text-app-accent transition group-hover:scale-105 group-hover:border-app-accent/45 sm:size-10 sm:rounded-xl">
+          <Icon name={meta.icon} className="size-4 sm:size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-semibold leading-tight text-app-muted sm:text-xs" title={meta.label}>
+            {meta.label}
+          </p>
+          <strong className="mt-0.5 block font-display text-xl font-bold leading-tight tracking-tight text-app-foreground sm:text-2xl">
+            {value}
+          </strong>
         </div>
       </div>
-
     </article>
   );
 }
@@ -1072,6 +1066,9 @@ function PlatformAppearancePopover({
 
 export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
+    () => window.localStorage.getItem('tapcrm:platform-sidebar-collapsed') === 'true',
+  );
   const [activeSection, setActiveSection] = useState('platform-overview');
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -1090,6 +1087,34 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     id: string;
     invitationUrl: string;
   } | null>(null);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      'tapcrm:platform-sidebar-collapsed',
+      String(sidebarCollapsed),
+    );
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavOpen(false);
+        return;
+      }
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === 'b' &&
+        !['input', 'textarea'].includes(
+          (event.target as HTMLElement)?.tagName?.toLowerCase() || '',
+        )
+      ) {
+        event.preventDefault();
+        setSidebarCollapsed((c) => !c);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
   const [selected, setSelected] = useState<string[]>([]);
   const [formStep, setFormStep] = useState(0);
   const [form, setForm] = useState({ ...INITIAL_FORM });
@@ -1581,11 +1606,8 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     { id: 'platform-invitations', label: 'Admin Invitations', icon: 'users' },
   ] as const;
 
-  const renderPlatformNavigation = (mobile = false) => (
-    <nav
-      aria-label="Master Admin navigation"
-      className={mobile ? 'grid gap-1.5 sm:grid-cols-3' : 'grid gap-1.5'}
-    >
+  const renderPlatformNavigation = () => (
+    <nav aria-label="Master Admin navigation" className="flex flex-col gap-1.5">
       {platformNavigation.map((item) => (
         <a
           key={item.id}
@@ -1595,18 +1617,44 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             setActiveSection(item.id);
             setMobileNavOpen(false);
           }}
-          className={`group relative flex min-h-[42px] min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border px-1.5 py-1 text-[9px] font-semibold transition duration-200 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 ${activeSection === item.id ? 'border-app-accent/50 bg-[linear-gradient(110deg,color-mix(in_srgb,var(--app-accent)_24%,var(--app-surface)),color-mix(in_srgb,var(--app-accent)_8%,var(--app-background)))] text-app-foreground shadow-[0_8px_20px_color-mix(in_srgb,var(--app-accent)_14%,transparent)]' : 'border-app-border/40 bg-[color-mix(in_srgb,var(--app-foreground)_10%,var(--app-background))] text-app-muted hover:border-app-accent/25 hover:bg-app-surface hover:text-app-foreground'}`}
+          title={item.label}
+          aria-label={item.label}
+          className={`group relative flex min-h-[46px] min-w-0 items-center overflow-hidden rounded-xl border text-xs font-semibold sm:text-[13px] transition duration-200 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 ${
+            sidebarCollapsed
+              ? 'gap-3 px-3 py-2 min-[851px]:justify-center min-[851px]:gap-0 min-[851px]:p-2'
+              : 'gap-3 px-3 py-2'
+          } ${
+            activeSection === item.id
+              ? 'border-app-accent/50 bg-[linear-gradient(110deg,color-mix(in_srgb,var(--app-accent)_24%,var(--app-surface)),color-mix(in_srgb,var(--app-accent)_8%,var(--app-background)))] text-app-foreground shadow-[0_8px_20px_color-mix(in_srgb,var(--app-accent)_14%,transparent)]'
+              : 'border-transparent bg-transparent text-app-muted hover:border-app-border/40 hover:bg-app-surface hover:text-app-foreground'
+          }`}
         >
           <span
-            className={`grid size-6 shrink-0 place-items-center rounded-md border transition ${activeSection === item.id ? 'border-app-accent/40 bg-app-accent text-app-on-accent shadow-[0_7px_16px_color-mix(in_srgb,var(--app-accent)_30%,transparent)]' : 'border-app-border bg-app-surface text-app-muted group-hover:border-app-accent/30 group-hover:text-app-accent'}`}
+            className={`grid size-8 shrink-0 place-items-center rounded-lg border transition ${
+              activeSection === item.id
+                ? 'border-app-accent/40 bg-app-accent text-app-on-accent shadow-[0_4px_12px_color-mix(in_srgb,var(--app-accent)_30%,transparent)]'
+                : 'border-app-border bg-app-surface text-app-muted group-hover:border-app-accent/30 group-hover:text-app-accent'
+            }`}
           >
-            <Icon name={item.icon} className="size-2.5" />
+            <Icon name={item.icon} className="size-4" />
           </span>
-          <span className="min-w-0 flex-1 break-words leading-4">{item.label}</span>
           <span
-            className={`grid size-4 shrink-0 place-items-center rounded-full transition ${activeSection === item.id ? 'bg-app-accent/15 text-app-accent' : 'bg-app-surface text-app-muted group-hover:text-app-accent'}`}
+            className={`min-w-0 flex-1 truncate ${
+              sidebarCollapsed ? 'min-[851px]:hidden' : ''
+            }`}
           >
-            <Icon name="chevron-right" className="size-2" />
+            {item.label}
+          </span>
+          <span
+            className={`grid size-5 shrink-0 place-items-center rounded-full transition ${
+              sidebarCollapsed ? 'min-[851px]:hidden' : ''
+            } ${
+              activeSection === item.id
+                ? 'bg-app-accent/15 text-app-accent'
+                : 'text-app-muted/50 group-hover:text-app-accent'
+            }`}
+          >
+            <Icon name="chevron-right" className="size-2.5" />
           </span>
         </a>
       ))}
@@ -1614,73 +1662,167 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   );
 
   return (
-    <main className="min-h-screen bg-app-background px-[clamp(12px,2.2vw,24px)] pb-16 pt-[clamp(16px,2.5vw,24px)] text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)] max-[560px]:pb-10">
-      <header className="relative mx-auto grid w-full max-w-[1480px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2.5 rounded-xl border border-app-border bg-app-surface px-4 py-3 max-[850px]:gap-x-3 max-[700px]:grid-cols-[auto_minmax(0,1fr)] max-[700px]:items-start max-[700px]:px-3.5 max-[700px]:py-2.5 max-[560px]:rounded-lg max-[560px]:px-2.5">
-        <button
-          type="button"
-          onClick={() => setMobileNavOpen((open) => !open)}
-          className="col-start-1 row-start-1 grid size-8 shrink-0 place-items-center rounded-lg border border-app-border bg-app-background text-app-foreground transition hover:border-app-accent hover:text-app-accent min-[851px]:hidden max-[700px]:hidden"
-          aria-label={
-            mobileNavOpen ? 'Close platform navigation' : 'Open platform navigation'
-          }
-          aria-expanded={mobileNavOpen}
-          aria-controls="platform-mobile-navigation"
-        >
-          <Icon name={mobileNavOpen ? 'close' : 'menu'} className="size-4" />
-        </button>
-        <div className="col-start-2 row-start-1 flex min-w-0 items-center min-[851px]:col-start-1 max-[700px]:col-start-1">
-          <BrandLogo className="w-[145px] max-[850px]:w-[128px] max-[560px]:w-[108px]" />
-        </div>
-        <div className="col-start-1 col-span-3 row-start-2 min-w-0 min-[851px]:col-start-2 min-[851px]:col-span-1 min-[851px]:row-start-1">
-          <p className="mb-0.5 text-[8px] font-bold uppercase tracking-[0.14em] text-app-accent">
-            Master Admin
-          </p>
-          <h1 className="font-display text-[clamp(18px,2vw,23px)] leading-[1.05] tracking-[-0.045em]">
-            Platform Dashboard
-          </h1>
-          <p className="mt-0.5 text-[10px] text-app-muted sm:text-[11px]">
-            Your companies, modules and access in one place.
-          </p>
-        </div>
-
-        <div className="platform-header-actions col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-1.5 max-[700px]:col-start-2 max-[700px]:row-start-1 max-[700px]:justify-self-end max-[560px]:gap-1">
-          <ThemeToggle compact className="platform-theme-toggle" />
-          <div className="platform-appearance-anchor relative">
+    <div className="flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)]">
+      <div className="relative z-30 shrink-0 px-[clamp(12px,2.2vw,24px)] pt-[clamp(8px,1.2vw,16px)]">
+        <header className="mx-auto grid h-16 w-full max-w-[1480px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-app-border bg-app-surface/95 px-3 shadow-sm backdrop-blur-xl sm:px-5">
+          <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 sm:gap-2.5">
             <button
               type="button"
-              onClick={() => setAppearanceOpen((open) => !open)}
-              className="platform-appearance-button grid size-8 place-items-center rounded-lg border border-app-border bg-app-background text-app-muted transition hover:border-app-accent hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
-              aria-label="Appearance settings"
-              aria-expanded={appearanceOpen}
-              aria-haspopup="dialog"
+              onClick={() => setMobileNavOpen((open) => !open)}
+              className={`grid size-9 shrink-0 place-items-center rounded-xl border transition min-[851px]:hidden focus-visible:outline-2 focus-visible:outline-app-accent ${
+                mobileNavOpen
+                  ? 'border-app-accent/60 bg-app-accent/10 text-app-accent ring-1 ring-app-accent/30'
+                  : 'border-app-border bg-app-background text-app-foreground hover:border-app-accent hover:text-app-accent'
+              }`}
+              aria-label={
+                mobileNavOpen ? 'Close platform navigation' : 'Open platform navigation'
+              }
+              aria-expanded={mobileNavOpen}
+              aria-controls="platform-mobile-navigation"
             >
-              <Icon name="settings" className="size-4" />
+              <Icon name={mobileNavOpen ? 'close' : 'menu'} className="size-4" />
             </button>
-            {appearanceOpen && (
-              <PlatformAppearancePopover
-                onLogout={logout}
-                onClose={() => setAppearanceOpen(false)}
-              />
-            )}
+            <BrandLogo className="w-[132px] max-[850px]:w-[128px] max-[560px]:w-[108px]" />
           </div>
-        </div>
-      </header>
-      <div className="mx-auto mt-7 flex max-w-[1480px] items-start gap-6 max-[850px]:mt-5 max-[850px]:block">
-        <aside className="sticky top-5 hidden w-[190px] shrink-0 rounded-xl border border-app-border bg-app-surface p-2 min-[851px]:block">
-          <p className="mb-1.5 px-2 pt-1 text-[8px] font-bold uppercase tracking-[0.14em] text-app-muted">
-            Platform
-          </p>
-          {renderPlatformNavigation()}
-        </aside>
-        <div className="min-w-0 flex-1">
-          {mobileNavOpen && (
-            <div
-              id="platform-mobile-navigation"
-              className="mb-5 rounded-2xl border border-app-border bg-app-surface p-3 min-[851px]:hidden"
-            >
-              {renderPlatformNavigation(true)}
+          <div className="col-start-2 row-start-1 min-w-0 pr-1">
+            <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.12em] text-app-accent sm:text-[10px] sm:tracking-[0.15em]">
+              Master Admin
+            </p>
+            <p className="text-[11px] font-semibold leading-tight text-app-foreground sm:text-sm">Platform Dashboard</p>
+          </div>
+
+          <div className="platform-header-actions col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-1.5">
+            <div className="platform-appearance-anchor relative">
+              <button
+                type="button"
+                onClick={() => setAppearanceOpen((open) => !open)}
+                className="platform-appearance-button grid size-8 place-items-center rounded-lg border border-app-border bg-app-background text-app-muted transition hover:border-app-accent hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
+                aria-label="Appearance settings"
+                aria-expanded={appearanceOpen}
+                aria-haspopup="dialog"
+              >
+                <Icon name="settings" className="size-4" />
+              </button>
+              {appearanceOpen && (
+                <PlatformAppearancePopover
+                  onLogout={logout}
+                  onClose={() => setAppearanceOpen(false)}
+                />
+              )}
             </div>
-          )}
+          </div>
+        </header>
+      </div>
+
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden px-[clamp(12px,2.2vw,24px)]">
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(false)}
+          className={`fixed inset-x-0 bottom-0 top-16 z-40 bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out min-[851px]:hidden ${
+            mobileNavOpen
+              ? 'pointer-events-auto opacity-100'
+              : 'pointer-events-none opacity-0'
+          }`}
+          aria-label="Close navigation overlay"
+          aria-hidden={!mobileNavOpen}
+          tabIndex={mobileNavOpen ? 0 : -1}
+        />
+        <div className="mx-auto flex w-full max-w-[1480px] min-h-0 min-w-0 flex-1 items-start gap-6">
+          <aside
+            id="platform-mobile-navigation"
+            data-sidebar-collapsed={sidebarCollapsed ? 'true' : 'false'}
+            className={`platform-sidebar flex shrink-0 flex-col justify-between overflow-y-auto overflow-x-hidden border-app-border bg-app-surface shadow-sm transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] max-[850px]:fixed max-[850px]:bottom-0 max-[850px]:left-0 max-[850px]:top-16 max-[850px]:z-50 max-[850px]:w-72 max-[850px]:rounded-r-2xl max-[850px]:border-y max-[850px]:border-r max-[850px]:p-4 max-[850px]:shadow-2xl ${
+              mobileNavOpen
+                ? 'max-[850px]:translate-x-0'
+                : 'max-[850px]:-translate-x-full max-[850px]:pointer-events-none'
+            } min-[851px]:static min-[851px]:my-3 sm:min-[851px]:my-4 min-[851px]:h-[calc(100%-1.5rem)] sm:min-[851px]:h-[calc(100%-2rem)] min-[851px]:translate-x-0 min-[851px]:rounded-2xl min-[851px]:border ${
+              sidebarCollapsed
+                ? 'min-[851px]:w-[74px] min-[851px]:p-2.5'
+                : 'min-[851px]:w-[250px] xl:w-[270px] min-[851px]:p-3.5'
+            }`}
+          >
+            <div>
+              <div
+                className={`mb-3 flex shrink-0 items-center pt-1 ${
+                  sidebarCollapsed
+                    ? 'justify-between px-2.5 min-[851px]:justify-center min-[851px]:px-0'
+                    : 'justify-between px-2.5'
+                }`}
+              >
+                <p
+                  className={`truncate text-[11px] font-bold uppercase tracking-[0.14em] text-app-muted ${
+                    sidebarCollapsed ? 'min-[851px]:hidden' : ''
+                  }`}
+                >
+                  Platform
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSidebarCollapsed((c) => !c)}
+                  className="hidden size-7 place-items-center rounded-lg text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent min-[851px]:grid"
+                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  title={
+                    sidebarCollapsed
+                      ? 'Expand sidebar (Ctrl+B)'
+                      : 'Collapse sidebar (Ctrl+B)'
+                  }
+                >
+                  <Icon
+                    name={sidebarCollapsed ? 'sidebar-open' : 'sidebar-close'}
+                    className="size-4"
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileNavOpen(false)}
+                  className="grid size-7 place-items-center rounded-lg text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent min-[851px]:hidden"
+                  aria-label="Close navigation"
+                >
+                  <Icon name="close" className="size-4" />
+                </button>
+              </div>
+              {renderPlatformNavigation()}
+            </div>
+
+            <div className="mt-auto border-t border-app-border/40 pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileNavOpen(false);
+                  logout();
+                }}
+                title="Log out"
+                aria-label="Log out"
+                className={`group flex w-full items-center rounded-xl border border-rose-300/30 bg-rose-500/[0.06] text-left text-xs font-semibold sm:text-[13px] text-rose-600 transition duration-200 hover:border-rose-400/50 hover:bg-rose-500/[0.12] hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 ${
+                  sidebarCollapsed
+                    ? 'gap-3 px-3 py-2.5 min-[851px]:justify-center min-[851px]:gap-0 min-[851px]:p-2'
+                    : 'gap-3 px-3 py-2.5'
+                }`}
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-rose-300/30 bg-rose-500/10 text-rose-600 transition duration-200 group-hover:scale-105 group-hover:border-rose-400/50 group-hover:bg-rose-500/20 dark:text-rose-400">
+                  <Icon name="logout" className="size-4" />
+                </span>
+                <span
+                  className={`min-w-0 flex-1 truncate ${
+                    sidebarCollapsed ? 'min-[851px]:hidden' : ''
+                  }`}
+                >
+                  Log out
+                </span>
+                <span
+                  className={`grid size-5 shrink-0 place-items-center rounded-full text-rose-400/60 transition group-hover:translate-x-0.5 group-hover:text-rose-600 dark:group-hover:text-rose-400 ${
+                    sidebarCollapsed ? 'min-[851px]:hidden' : ''
+                  }`}
+                >
+                  <Icon name="chevron-right" className="size-2.5" />
+                </span>
+              </button>
+            </div>
+          </aside>
+          <main
+            id="main-content"
+            className="min-h-0 min-w-0 flex-1 h-full overflow-y-auto overflow-x-hidden pt-3 sm:pt-4 pr-1 pb-16 [scrollbar-gutter:stable]"
+          >
           <section id="platform-overview" className="mb-[22px] scroll-mt-5">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
               <div>
@@ -1696,7 +1838,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
 
               </div>
             </div>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-[14px] max-[700px]:grid-cols-2 max-[560px]:gap-[10px]">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 xl:grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))]">
               {Object.entries(stats).map(([k, v]) => (
                 <PlatformKpiCard key={k} statKey={k} value={v} />
               ))}
@@ -1712,28 +1854,6 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                 role="presentation"
               >
                 <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-app-border bg-app-background shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
-                  <div className="flex items-start justify-between gap-4 border-b border-app-border px-6 py-5 max-[560px]:px-4">
-                    <div>
-                      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">
-                        Provisioning
-                      </p>
-                      <h2 className="font-display text-xl tracking-[-0.04em]">
-                        {formMode === 'edit' ? 'Edit company' : 'Create company'}
-                      </h2>
-                      <p className="mt-1 text-xs text-app-muted">
-                        Complete the company details and regional setup.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="grid size-9 shrink-0 place-items-center rounded-xl border border-app-border text-xl text-app-muted transition hover:border-app-accent hover:text-app-accent disabled:opacity-50"
-                      onClick={() => setCompanyFormOpen(false)}
-                      disabled={busy}
-                      aria-label="Close company form"
-                    >
-                      ×
-                    </button>
-                  </div>
                   <form
                     id="platform-create-company"
                     onSubmit={(e) => {
@@ -1741,19 +1861,28 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                     }}
                     className="bg-[linear-gradient(145deg,var(--app-surface),var(--app-background))] p-6 max-[560px]:p-4"
                   >
-                    <div className="flex items-start justify-between gap-[15px] max-[700px]:flex-col">
+                    <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">
+                        <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">
                           Provisioning
                         </p>
-                        <h2 className="font-display text-[23px] tracking-[-0.045em]">
+                        <h2 className="font-display text-2xl tracking-[-0.04em]">
                           {formMode === 'edit' ? 'Edit Company' : 'Create Company'}
                         </h2>
+                        <p className="mt-1 text-sm text-app-muted">
+                          Set up a company workspace and invite its first administrator.
+                        </p>
                       </div>
+                      <button
+                        type="button"
+                        className="grid size-9 shrink-0 place-items-center rounded-xl border border-app-border bg-app-surface/60 text-xl text-app-muted transition hover:border-app-accent hover:bg-app-accent/10 hover:text-app-accent disabled:opacity-50"
+                        onClick={() => setCompanyFormOpen(false)}
+                        disabled={busy}
+                        aria-label="Close company form"
+                      >
+                        ×
+                      </button>
                     </div>
-                    <p className="mt-[9px] text-sm text-app-muted">
-                      Set up a company workspace and invite its first administrator.
-                    </p>
                     <div
                       className={`grid gap-[3px] border-b border-app-border pb-[17px] pt-6 min-[561px]:gap-1 max-[560px]:grid-cols-3 max-[560px]:gap-y-2.5 ${formMode === 'edit' ? 'grid-cols-6' : 'grid-cols-7'}`}
                       aria-label={`Step ${formStep + 1} of ${formMode === 'edit' ? 6 : 7}`}
@@ -2679,8 +2808,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
             )}
           </section>
-        </div>
+        </main>
       </div>
+    </div>
       {selectedCompany && (
         <CompanyDetailsDialog
           org={selectedCompany}
@@ -2779,6 +2909,6 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           }}
         />
       )}
-    </main>
+    </div>
   );
 }
