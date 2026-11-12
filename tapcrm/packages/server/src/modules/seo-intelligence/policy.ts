@@ -70,7 +70,6 @@ export async function loadFindingResource(ctx: RequestContext, findingId: string
   if (!row) return null;
   return { type: 'seo_finding' as const, id: row.id, organizationId: row.organizationId };
 }
-
 export function registerSeoPolicies(): void {
   registerContentPolicies();
   registerResourcePolicy(seoSitePolicy());

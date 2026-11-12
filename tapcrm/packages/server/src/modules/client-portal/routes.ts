@@ -1,11 +1,10 @@
 import { route } from '../../platform/http/route.js';
 import {
   getDashboard, getProfile, getProject, getProjects, getProjectDiscussion, getClientProjectDiscussions,
-  getProjectDiscussionMessages, markProjectDiscussionRead, reactToProjectDiscussionMessage,
-  removeProjectDiscussionReaction, sendProjectDiscussionMessage, uploadProjectDiscussionAttachment,
-  deleteProjectDiscussionAttachment, getProjectDiscussionMessage, editProjectDiscussionMessage,
+  getProjectDiscussionMessages, getProjectBacklinks, getProjectBlogReport, getProjectKeywordReport, getProjectScreenshotContent, getProjectScreenshots, markProjectDiscussionRead, reactToProjectDiscussionMessage,
+  removeProjectDiscussionReaction, sendProjectDiscussionMessage, getProjectFeedback, createProjectFeedback,
+  uploadProjectDiscussionAttachment, deleteProjectDiscussionAttachment, getProjectDiscussionMessage, editProjectDiscussionMessage,
   getProjectDiscussionMessageEdits, getProjectDiscussionPins,
-  getProjectBacklinks, getProjectBlogReport, getProjectKeywordReport, getProjectScreenshotContent, getProjectScreenshots, getProjectFeedback, createProjectFeedback,
 } from './service.js';
 import { editMessageSchema, listMessagesQuerySchema, reactionSchema, sendMessageSchema, uploadedBody, uploadedFileName } from '../chat/facade.js';
 import {

@@ -31,7 +31,13 @@ export function Navbar({
   settingsPath = '/company/settings',
   extraActions = null,
 }: {
-  identity: { fullName: string; email: string; accountType?: string };
+  identity: {
+    fullName: string;
+    email: string;
+    accountType?: string;
+    positionCode?: string | null;
+    positionName?: string | null;
+  };
   organizationName: string | null;
   organizationCode: string | null;
   sidebarCollapsed: boolean;
@@ -47,6 +53,9 @@ export function Navbar({
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
   const role = organizationCode?.trim() || organizationName?.slice(0, 3).toUpperCase() || 'ABP';
+  const designation = identity.accountType === 'super-admin'
+    ? 'Super Admin'
+    : identity.positionName || identity.positionCode || 'Employee';
   const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
 
   useEffect(() => {
@@ -135,13 +144,18 @@ export function Navbar({
             </button>
             {accountOpen && (
               <div
-                className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
+                className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
                 role="menu"
               >
                 <div className="border-b border-app-border px-3 py-2.5">
-                  <p className="truncate text-sm font-semibold text-app-foreground">
-                    {identity.fullName}
-                  </p>
+                  <div className="flex min-w-0 items-baseline gap-2.5">
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-app-foreground">
+                      {identity.fullName}
+                    </p>
+                    <span className="max-w-[45%] shrink-0 truncate border-l border-app-border pl-2.5 text-[11px] font-medium text-app-muted" title={designation}>
+                      {designation}
+                    </span>
+                  </div>
                   <p className="truncate text-xs text-app-muted">{identity.email}</p>
                 </div>
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5">
