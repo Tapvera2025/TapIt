@@ -124,7 +124,6 @@ export type TaskViewMode = 'list' | 'kanban';
 export interface TaskFiltersProps {
   readonly query: TaskListQuery;
   readonly onQueryChange: (nextQuery: TaskListQuery) => void;
-  readonly onCreateTask?: (() => void) | undefined;
   readonly disabled?: boolean | undefined;
   readonly isSuperAdmin?: boolean | undefined;
   readonly viewScope?: TaskViewScope | undefined;
@@ -142,9 +141,11 @@ export interface TaskListProps {
     taskId: string,
     status: TaskStatus,
     userId?: string,
+    options?: { suppressToast?: boolean },
   ) => Promise<void>;
   readonly onEditTask?: ((task: Task) => void) | undefined;
   readonly onAssignTask?: ((task: Task) => void) | undefined;
+  readonly onCreateTask?: (() => void) | undefined;
 }
 
 export type TaskKanbanBoardProps = TaskListProps;

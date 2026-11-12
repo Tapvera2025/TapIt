@@ -60,34 +60,58 @@ function ExpandableTaskDescription({
     const element = descriptionRef.current;
     if (!element || expanded) return;
 
-    const measure = () => setHasMore(element.scrollHeight > element.clientHeight + 1);
+    const measure = () => setHasMore(element.scrollWidth > element.clientWidth + 1);
     measure();
-    if (typeof ResizeObserver === 'undefined') return;
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, [description, expanded]);
 
   return (
-    <div className="mt-1">
-      <p
-        ref={descriptionRef}
-        id={`task-description-${taskId}`}
-        className={`max-w-3xl break-words text-xs leading-relaxed text-app-muted sm:text-sm ${expanded ? '' : 'line-clamp-2'} lg:line-clamp-none`}
-      >
-        {description}
-      </p>
-      {hasMore && (
-        <button
-          type="button"
-          className="mt-1 text-xs font-semibold text-app-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent lg:hidden"
-          aria-expanded={expanded}
-          aria-controls={`task-description-${taskId}`}
-          onClick={() => setExpanded((current) => !current)}
-        >
-          {expanded ? 'Less' : '… More'}
-        </button>
+    <div className="mt-1 min-w-0">
+      {expanded ? (
+        <>
+          <p
+            id={`task-description-${taskId}`}
+            className="max-w-3xl whitespace-pre-wrap break-words text-xs leading-relaxed text-app-muted sm:text-sm"
+          >
+            {description}
+          </p>
+          <button
+            type="button"
+            className="mt-1 text-[11px] font-semibold text-app-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent sm:text-xs"
+            aria-expanded="true"
+            aria-controls={`task-description-${taskId}`}
+            onClick={() => setExpanded(false)}
+          >
+            Read less
+          </button>
+        </>
+      ) : (
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <p
+            ref={descriptionRef}
+            id={`task-description-${taskId}`}
+            className="min-w-0 flex-1 truncate text-xs leading-relaxed text-app-muted sm:text-sm"
+          >
+            {description}
+          </p>
+          {hasMore && (
+            <button
+              type="button"
+              className="shrink-0 whitespace-nowrap text-[11px] font-semibold text-app-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent sm:text-xs"
+              aria-expanded="false"
+              aria-controls={`task-description-${taskId}`}
+              onClick={() => setExpanded(true)}
+            >
+              Read more
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -101,6 +125,7 @@ export function TaskList({
   onTransitionStatus,
   onEditTask,
   onAssignTask,
+  onCreateTask,
 }: TaskListProps): React.JSX.Element {
   const [transitioningTaskId, setTransitioningTaskId] = useState<string | null>(null);
   const [transitionError, setTransitionError] = useState<{
@@ -204,11 +229,23 @@ export function TaskList({
 
   if (tasks.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-app-border bg-app-surface/60 px-6 py-10 text-center">
-        <p className="text-sm font-semibold text-app-foreground">No tasks found</p>
-        <p className="mt-1 text-xs text-app-muted">
-          Try adjusting your filters or create a new task.
-        </p>
+      <div className="space-y-3">
+        {onCreateTask && (
+          <button
+            type="button"
+            onClick={onCreateTask}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-app-border bg-app-surface/60 px-4 py-2.5 text-sm font-semibold text-app-muted transition-colors hover:border-app-accent/50 hover:bg-app-accent/5 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent"
+          >
+            <span className="text-base leading-none text-app-accent" aria-hidden="true">+</span>
+            Create new task
+          </button>
+        )}
+        <div className="rounded-2xl border border-dashed border-app-border bg-app-surface/60 px-6 py-10 text-center">
+          <p className="text-sm font-semibold text-app-foreground">No tasks found</p>
+          <p className="mt-1 text-xs text-app-muted">
+            Try adjusting your filters to find tasks.
+          </p>
+        </div>
       </div>
     );
   }
@@ -234,6 +271,16 @@ export function TaskList({
 
   return (
     <div className="space-y-3 lg:space-y-3">
+      {onCreateTask && (
+        <button
+          type="button"
+          onClick={onCreateTask}
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-app-border bg-app-surface/60 px-4 py-2.5 text-sm font-semibold text-app-muted transition-colors hover:border-app-accent/50 hover:bg-app-accent/5 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent"
+        >
+          <span className="text-base leading-none text-app-accent" aria-hidden="true">+</span>
+          Create new task
+        </button>
+      )}
       {tasks.map((task) => {
         const isBusy = transitioningTaskId === task.id;
         const myAssignment = currentUserId
@@ -473,8 +520,6 @@ export function TaskList({
 
                       const displayedAssignees = sortedAssignees.slice(0, 2);
                       const remainingCount = assignees.length - 2;
-                      const completedCount = assignees.filter((a) => a.status === 'completed').length;
-
                       return (
                         <>
                           <div className="flex min-w-0 max-w-full flex-1 flex-wrap items-center gap-2 overflow-hidden">
@@ -519,9 +564,6 @@ export function TaskList({
                               </span>
                             </div>
                           </div>
-                          <span className="shrink-0 text-[11px] text-app-muted">
-                            {completedCount} of {assignees.length} complete
-                          </span>
                         </>
                       );
                     })()}
@@ -542,60 +584,14 @@ export function TaskList({
                           return 0;
                         })
                         .map((assignee) => {
-                          const isSelf = currentUserId === assignee.id;
-                          const assigneeTransitions = (
-                            VALID_TRANSITIONS[assignee.status] ?? []
-                          ).filter((s) => s !== 'cancelled' || canCancel(task));
                           return (
                             <div
                               key={assignee.id}
-                              className="inline-flex w-full max-w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-app-border/80 bg-app-surface px-2.5 py-2.5 text-xs shadow-sm"
+                              className="w-full max-w-full rounded-xl border border-app-border/80 bg-app-surface px-3 py-2.5 text-xs shadow-sm"
                             >
-                              <span className="flex min-w-0 flex-1 items-center gap-2">
-                                <span
-                                  className="grid size-8 shrink-0 place-items-center rounded-full bg-app-surface-raised text-[10px] font-semibold text-app-muted"
-                                  aria-hidden="true"
-                                >
-                                  {getInitials(assignee.fullName)}
-                                </span>
-                                <span className="max-w-40 whitespace-normal break-words font-medium text-app-foreground">
-                                  {assignee.fullName} {isSelf && '(You)'}
-                                </span>
+                              <span className="whitespace-normal break-words font-medium text-app-foreground">
+                                {assignee.fullName}
                               </span>
-                              {(() => {
-                                const assigneeUpdater = assignee.statusUpdatedByName || assignee.fullName;
-                                const isMenuOpen = openStatusMenu === `${task.id}:${assignee.id}`;
-                                return (
-                                  <div
-                                    className="relative inline-flex items-center"
-                                    title={`Status updated by ${assigneeUpdater}`}
-                                  >
-                                    {assigneeTransitions.length === 0 ? (
-                                      <TaskStatusBadge status={assignee.status} />
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        disabled={isBusy}
-                                        onClick={(event) => toggleStatusMenu(
-                                          `${task.id}:${assignee.id}`,
-                                          task.id,
-                                          assigneeTransitions,
-                                          assignee.id,
-                                          event.currentTarget,
-                                        )}
-                                        className="disabled:opacity-50"
-                                        aria-label={`Change status for ${assignee.fullName}`}
-                                        aria-expanded={isMenuOpen}
-                                      >
-                                        <TaskStatusBadge
-                                          status={assignee.status}
-                                          className="cursor-pointer hover:ring-1 hover:ring-app-accent/40"
-                                        />
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              })()}
                             </div>
                           );
                         })}
