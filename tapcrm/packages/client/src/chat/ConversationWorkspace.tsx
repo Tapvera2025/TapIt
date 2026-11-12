@@ -972,7 +972,6 @@ export function ConversationWorkspace({
                                   </button>
                                 </div>
                               )}
-                            </div>
                           </li>
                         </Fragment>
                       );
