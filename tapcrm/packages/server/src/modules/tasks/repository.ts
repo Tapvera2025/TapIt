@@ -428,7 +428,11 @@ export async function listTasksWithFilter(
     whereClauses.push(sql`t.status = ${query.status}`);
   }
   if (query.priority && query.priority !== 'all') {
-    whereClauses.push(sql`t.priority = ${query.priority}`);
+    whereClauses.push(
+      query.priority === 'high'
+        ? sql`t.priority IN ('high', 'urgent')`
+        : sql`t.priority = ${query.priority}`,
+    );
   }
 
   // Preset 2: Date presets

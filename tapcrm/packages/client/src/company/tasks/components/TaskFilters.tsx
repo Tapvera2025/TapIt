@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../../../ui/index.js';
-import { Button } from '../../../ui/index.js';
 import type { TaskFiltersProps, TaskListQuery } from '../types/index.js';
 
 type PresetGroup1 = 'all' | 'pending' | 'in_progress' | 'high' | 'completed';
@@ -8,7 +7,6 @@ type PresetGroup1 = 'all' | 'pending' | 'in_progress' | 'high' | 'completed';
 export function TaskFilters({
   query,
   onQueryChange,
-  onCreateTask,
   disabled = false,
   isSuperAdmin = false,
   viewScope = 'my_tasks',
@@ -117,7 +115,7 @@ export function TaskFilters({
 
       <div id="task-filters-panel" className={`${isMobileFiltersOpen ? 'flex' : 'hidden'} flex-col gap-2 sm:flex`}>
         {/* Row 1: Scope, Filter status presets, and Due date */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 min-w-0 w-full">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 min-w-0 w-full md:flex-nowrap">
         {isSuperAdmin && (
           <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
@@ -151,11 +149,6 @@ export function TaskFilters({
                 All Employee Tasks
               </button>
             </div>
-            {viewScope === 'all_employee_tasks' && (
-              <span className="hidden xl:inline-flex items-center rounded-md bg-app-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-app-accent">
-                Org-wide
-              </span>
-            )}
           </div>
         )}
 
@@ -164,7 +157,7 @@ export function TaskFilters({
         )}
 
         {/* Filter status presets - smooth swipeable on mobile, flex on desktop */}
-        <div className="flex min-w-0 w-full sm:w-auto sm:max-w-full items-center gap-1.5">
+        <div className="flex min-w-0 w-full sm:w-auto sm:max-w-full items-center gap-1.5 md:flex-1">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
             Filter
           </span>
@@ -215,7 +208,7 @@ export function TaskFilters({
         <span className="hidden h-5 w-px bg-app-border/70 lg:block" aria-hidden="true" />
 
         {/* Due date filter */}
-        <label className="flex items-center gap-1.5 shrink-0 text-xs">
+        <label className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
             Due date
           </span>
@@ -230,11 +223,12 @@ export function TaskFilters({
             <option value="today">Today</option>
             <option value="this_month">This Month</option>
             <option value="overdue">Overdue</option>
+            <option value="custom" disabled>From selected date</option>
           </select>
         </label>
         </div>
 
-        {/* Row 2: Sort on the left, Search Bar & Create Task aligned with Sort on the right */}
+        {/* Row 2: Sort on the left, search and view switch on the right */}
         <div className="flex flex-col gap-2 pt-2 border-t border-app-border/40 sm:flex-row sm:items-center sm:justify-between w-full">
         {/* Sort controls */}
         <div className="flex flex-wrap items-center gap-1.5 text-xs shrink-0">
@@ -256,30 +250,56 @@ export function TaskFilters({
           >
             <option value="createdAt">Created Date</option>
             <option value="dueDate">Due Date</option>
-            <option value="title">Title</option>
             <option value="priority">Priority</option>
             <option value="status">Status</option>
           </select>
-          <select
-            value={query.sortOrder ?? 'desc'}
-            disabled={disabled}
-            onChange={(e) =>
-              onQueryChange({
-                ...query,
-                sortOrder: e.target.value as 'asc' | 'desc',
-                page: 1,
-              })
-            }
-            className="h-8 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs text-app-foreground outline-none focus:border-app-accent cursor-pointer"
-            aria-label="Sort order"
-          >
-            <option value="desc">Descending (↓)</option>
-            <option value="asc">Ascending (↑)</option>
-          </select>
+          <label className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs text-app-muted focus-within:border-app-accent">
+            <Icon name="calendar" className="size-3.5 shrink-0" />
+            <input
+              type="date"
+              value={query.datePreset === 'custom' ? query.startDate?.slice(0, 10) ?? '' : ''}
+              disabled={disabled}
+              onChange={(event) => {
+                const startDate = event.target.value || undefined;
+                onQueryChange({
+                  ...query,
+                  datePreset: startDate ? 'custom' : 'all',
+                  startDate,
+                  endDate: undefined,
+                  page: 1,
+                });
+              }}
+              className="w-[7.5rem] min-w-0 bg-transparent text-xs text-app-foreground outline-none [color-scheme:light] dark:[color-scheme:dark] disabled:cursor-not-allowed"
+              aria-label="Show tasks due on or after this date"
+              title="Show tasks due on or after this date"
+            />
+          </label>
         </div>
 
-        {/* Right cluster: View Mode Toggle, Search Bar & Primary Action Button (aligned with sort on desktop/laptop) */}
+        {/* Search and view switch stay together on the right side of the toolbar. */}
         <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto shrink-0 justify-between sm:justify-end">
+          <div className="task-search-glass relative flex h-8 min-w-0 flex-1 sm:flex-initial sm:w-52 lg:w-64 items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface/75 px-2.5 shadow-xs backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/60 focus-within:ring-1 focus-within:ring-app-accent/30">
+            <Icon name="search" className="size-3.5 shrink-0 text-app-muted" />
+            <input
+              type="search"
+              disabled={disabled}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search tasks..."
+              className="min-w-0 flex-1 bg-transparent py-0 text-xs text-app-foreground outline-none placeholder:text-app-muted/80 disabled:opacity-50"
+              aria-label="Search tasks"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput('')}
+                className="grid size-5 shrink-0 place-items-center rounded-full text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none"
+                aria-label="Clear search"
+              >
+                <Icon name="close" className="size-3" />
+              </button>
+            )}
+          </div>
           {onViewModeChange && (
             <div
               role="group"
@@ -319,40 +339,6 @@ export function TaskFilters({
                 <span className="hidden md:inline">Board</span>
               </button>
             </div>
-          )}
-
-          <div className="task-search-glass relative flex h-8 min-w-0 flex-1 sm:flex-initial sm:w-52 lg:w-64 items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface/75 px-2.5 shadow-xs backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/60 focus-within:ring-1 focus-within:ring-app-accent/30">
-            <Icon name="search" className="size-3.5 shrink-0 text-app-muted" />
-            <input
-              type="search"
-              disabled={disabled}
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search tasks..."
-              className="min-w-0 flex-1 bg-transparent py-0 text-xs text-app-foreground outline-none placeholder:text-app-muted/80 disabled:opacity-50"
-              aria-label="Search tasks"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={() => setSearchInput('')}
-                className="grid size-5 shrink-0 place-items-center rounded-full text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none"
-                aria-label="Clear search"
-              >
-                <Icon name="close" className="size-3" />
-              </button>
-            )}
-          </div>
-          {onCreateTask && (
-            <Button
-              type="button"
-              kind="primary"
-              disabled={disabled}
-              onClick={onCreateTask}
-              className="!h-8 !py-0 !px-3.5 !text-xs font-semibold shrink-0 whitespace-nowrap inline-flex items-center justify-center rounded-lg"
-            >
-              <span aria-hidden="true" className="mr-1 text-sm leading-none">+</span> Create Task
-            </Button>
           )}
         </div>
         </div>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { toast } from 'react-hot-toast';
 import { getIdentityAccessToken, identityApiBasePath } from '../../../identity/api/authApi.js';
 import { Button, Notice, WorkspacePageContainer } from '../../../ui/components.js';
 import { getCompanyIdentity } from '../../api/companyApi.js';
@@ -43,17 +44,13 @@ export function TasksPage({
   );
   const [viewScope, setViewScope] = useState<TaskViewScope>('my_tasks');
   const [viewMode, setViewMode] = useState<TaskViewMode>(() => {
-    try {
-      const saved = localStorage.getItem('tapcrm:tasks-view-mode');
-      return saved === 'kanban' ? 'kanban' : 'list';
-    } catch {
-      return 'list';
-    }
+    return 'kanban';
   });
 
   const [query, setQuery] = useState<TaskListQuery>(() => ({
     page: 1,
-    pageSize: 20,
+    pageSize: 50,
+    status: 'all',
     sortBy: 'createdAt',
     sortOrder: 'desc',
     projectId: initialProjectId,
@@ -314,15 +311,13 @@ export function TasksPage({
     taskId: string,
     status: TaskStatus,
     userId?: string,
+    options?: { suppressToast?: boolean },
   ) {
     const targetTask = data?.items.find((t) => t.id === taskId);
     if (status === 'cancelled' && targetTask) {
       const canCancel = isSuperAdmin || (currentUserId && targetTask.createdBy === currentUserId);
       if (!canCancel) {
-        setNotification({
-          error: true,
-          message: 'Only a super admin or the employee who created the task can cancel it.',
-        });
+        toast.error('Only a super admin or the employee who created the task can cancel it.');
         return;
       }
     }
@@ -368,7 +363,9 @@ export function TasksPage({
             : status === 'cancelled'
               ? 'Cancelled'
               : 'Pending';
-      setNotification({ message: `Task status updated to ${statusLabel}` });
+      if (!options?.suppressToast) {
+        toast.success(`Task status updated to ${statusLabel}`);
+      }
 
       // Immediate state update with server response
       setData((prev) => {
@@ -383,11 +380,9 @@ export function TasksPage({
     } catch (err) {
       // Revert optimistic update on rejection
       setData(previousData);
-      setNotification({
-        error: true,
-        message:
-          err instanceof Error ? err.message : 'Status transition was rejected by server',
-      });
+      toast.error(
+        err instanceof Error ? err.message : 'Status transition was rejected by server',
+      );
       throw err;
     }
   }
@@ -459,7 +454,6 @@ export function TasksPage({
         <TaskFilters
           query={query}
           onQueryChange={(nextQuery) => setQuery(nextQuery)}
-          onCreateTask={() => setIsCreateOpen(true)}
           disabled={loading}
           isSuperAdmin={isSuperAdmin}
           viewScope={viewScope}
@@ -488,6 +482,7 @@ export function TasksPage({
             onTransitionStatus={handleTransitionStatus}
             onEditTask={(task) => setEditingTask(task)}
             onAssignTask={(task) => setAssigningTask(task)}
+            onCreateTask={() => setIsCreateOpen(true)}
           />
         ) : (
           <TaskList
@@ -498,6 +493,7 @@ export function TasksPage({
             onTransitionStatus={handleTransitionStatus}
             onEditTask={(task) => setEditingTask(task)}
             onAssignTask={(task) => setAssigningTask(task)}
+            onCreateTask={() => setIsCreateOpen(true)}
           />
         )}
 
