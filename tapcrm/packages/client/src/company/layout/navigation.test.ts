@@ -88,3 +88,24 @@ describe('company feature search', () => {
     expect(searchCompanyDestinations(destinations, 'logged in devices')[0]?.label).toBe('Sessions & Devices');
   });
 });
+
+describe('power-based destinations', () => {
+  it('offers Recruitment to non-HR holders of a recruitment view power', () => {
+    const labels = (input: Parameters<typeof companySearchDestinations>[0]) =>
+      companySearchDestinations(input).map((item) => item.path);
+    expect(
+      labels({ actions: new Set(['recruitment:view-candidates']), hasRecruitment: true }),
+    ).toContain('/company/recruitment');
+    expect(labels({ actions: new Set(), hasRecruitment: true })).not.toContain(
+      '/company/recruitment',
+    );
+  });
+
+  it('offers Access Explorer to access:view holders but Organization only to super-admins', () => {
+    const paths = companySearchDestinations({
+      actions: new Set(['access:view', 'org:view-structure']),
+    }).map((item) => item.path);
+    expect(paths).toContain('/company/access');
+    expect(paths).not.toContain('/company/organization/teams');
+  });
+});

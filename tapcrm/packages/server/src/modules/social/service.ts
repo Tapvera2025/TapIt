@@ -30,6 +30,7 @@ import {
   ProviderError,
   type DiscoveredAccount,
   type OAuthCredential,
+  type ProviderIdentity,
   type SocialContent,
 } from './providers/types.js';
 import { authorizeSocialActor } from './policy.js';
@@ -42,11 +43,14 @@ import {
   cancelScheduledForAccount,
   ensureClient,
   findAccounts,
+  lockPlatformAccounts,
+  platformAccountHolders,
   findMedia,
   findPost,
   findPostParts,
   findSettings,
   queryPosts,
+  sameClientHolders,
   writeAudit,
 } from './repository.js';
 import {
@@ -67,6 +71,7 @@ function accountDto(row: AccountRow): SocialAccount {
     profileImageUrl: row.profileImageUrl,
     status: row.status,
     connectionScope: row.connectionClientId === null ? 'company' : 'client',
+    connectionOrigin: row.connectionOrigin,
     capabilities: row.capabilities,
     scopes: row.scopes,
     connectedAt: row.connectedAt.toISOString(),
@@ -184,12 +189,31 @@ export async function getAccount(
   return accountDto(await getAccountConnection(ctx, clientId, accountId));
 }
 
-/** Only explicitly selected accounts from a successfully validated OAuth grant. */
+/** Only explicitly selected accounts from a successfully validated OAuth grant.
+ * `consume` runs first in the same transaction: the sign-in it uses up is only used up
+ * if the accounts are saved, so a refused selection can be corrected and sent again.
+ * `origin` says who signed in. A client-portal sign-in never takes over an account the
+ * agency manages for this client, and an agency sign-in never takes over one the client
+ * connected itself: either side disconnects first. Neither reuses the other's connection. */
 export async function saveConnectionAccounts(
   ctx: RequestContext,
   clientId: string,
   accounts: readonly DiscoveredAccount[],
+  options: {
+    consume?: (tx: Tx) => Promise<void>;
+    /** The platform user who signed in, so a later revoke can find the other
+     * connections the same grant serves. */
+    grantedBy?: ProviderIdentity | null;
+    origin?: 'agency' | 'client_portal';
+  } = {},
 ): Promise<SocialAccount[]> {
+  const origin = options.origin ?? 'agency';
+  if (origin === 'client_portal' && ctx.principal.accountType !== 'client')
+    throw new SocialValidationError(
+      'Only a client login can connect from the client portal.',
+    );
+  const signedInId = options.grantedBy?.externalAccountId ?? null;
+  const signedInName = options.grantedBy?.name ?? null;
   const encrypted = accounts.map((account) => ({
     account,
     encrypted: encryptCredentials(account.credentials, {
@@ -199,34 +223,60 @@ export async function saveConnectionAccounts(
     }),
   }));
   await db.transaction(ctx, async (tx) => {
+    await options.consume?.(tx);
     await ensureClient(tx, ctx.organizationId, clientId);
+    await lockPlatformAccounts(tx, ctx.organizationId, accounts);
+    // A Page serves one client at a time: one another client already uses stays there,
+    // whether the company connection or that client's own sign-in serves it.
+    const holders = await platformAccountHolders(
+      tx,
+      ctx.organizationId,
+      accounts,
+      clientId,
+    );
+    const own = await sameClientHolders(tx, ctx.organizationId, accounts, clientId);
+    const taken = accounts.flatMap((account) => {
+      const key = `${account.platform}:${account.externalId}`;
+      const holder = holders.get(key);
+      // A client never learns which other client holds an account.
+      if (holder && origin === 'client_portal')
+        return [
+          `${account.name} is already connected elsewhere in this CRM. Ask your agency to move it to you.`,
+        ];
+      if (holder)
+        return [
+          holder.viaCompany
+            ? `${account.name} is assigned to ${holder.clientName} through your company connection. Unassign it there first.`
+            : `${account.name} is already connected to ${holder.clientName}. Disconnect it from that client first.`,
+        ];
+      const current = own.get(key);
+      if (current === 'agency' && origin === 'client_portal')
+        return [`${account.name} is already managed for you by your agency.`];
+      if (current === 'client_portal' && origin === 'agency')
+        return [
+          `${account.name} was connected by the client from their client portal. Ask the client to reconnect it there, or disconnect it here first.`,
+        ];
+      return [];
+    });
+    if (taken.length) throw new SocialConflictError(taken.join(' '));
     for (const { account, encrypted: credentials } of encrypted) {
-      // A location the company connection already serves to ANOTHER client stays there.
-      const elsewhere = await tx.maybeOne<{ clientName: string }>(
-        sql`SELECT COALESCE(NULLIF(c.business_name, ''), c.client_name) AS client_name FROM social_account a JOIN client c ON c.organization_id = a.organization_id AND c.id = a.client_id
-          WHERE a.organization_id = ${ctx.organizationId} AND a.platform = ${account.platform} AND a.external_id = ${account.externalId}
-            AND a.location_id IS NOT NULL AND a.status <> 'disconnected' AND a.client_id <> ${clientId} LIMIT 1`,
-      );
-      if (elsewhere)
-        throw new SocialConflictError(
-          `${account.name} is assigned to ${elsewhere.clientName} through your company connection. Unassign it there first.`,
-        );
       // Reuse only this client's own connection. An account that used the company
       // connection moves to the client's sign-in; the company token is never overwritten.
       const existing = await tx.maybeOne<{ connectionId: string }>(
         sql`SELECT a.connection_id FROM social_account a JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id
           WHERE a.organization_id = ${ctx.organizationId} AND a.client_id = ${clientId} AND a.platform = ${account.platform} AND a.external_id = ${account.externalId}
-            AND c.client_id = ${clientId}
+            AND c.client_id = ${clientId} AND c.connected_via = ${origin}
           FOR UPDATE OF a`,
       );
       let connectionId = existing?.connectionId;
       if (connectionId) {
         await tx.query(
-          sql`UPDATE social_connection SET credentials_encrypted = ${credentials}, scopes = ${account.credentials.scopes}, expires_at = ${account.credentials.expiresAt ?? null}::timestamptz, status = 'connected', updated_at = now() WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND id = ${connectionId}`,
+          sql`UPDATE social_connection SET credentials_encrypted = ${credentials}, scopes = ${account.credentials.scopes}, expires_at = ${account.credentials.expiresAt ?? null}::timestamptz, status = 'connected',
+            external_account_id = ${signedInId}, external_account_name = ${signedInName}, last_error = NULL, updated_at = now() WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND id = ${connectionId}`,
         );
       } else {
         const connection = await tx.one<{ id: string }>(
-          sql`INSERT INTO social_connection(organization_id,client_id,platform,credentials_encrypted,scopes,expires_at,created_by) VALUES (${ctx.organizationId},${clientId},${account.platform},${credentials},${account.credentials.scopes},${account.credentials.expiresAt ?? null}::timestamptz,${ctx.principal.id}) RETURNING id`,
+          sql`INSERT INTO social_connection(organization_id,client_id,platform,credentials_encrypted,scopes,expires_at,created_by,external_account_id,external_account_name,connected_via) VALUES (${ctx.organizationId},${clientId},${account.platform},${credentials},${account.credentials.scopes},${account.credentials.expiresAt ?? null}::timestamptz,${ctx.principal.id},${signedInId},${signedInName},${origin}) RETURNING id`,
         );
         connectionId = connection.id;
       }
@@ -244,7 +294,7 @@ export async function saveConnectionAccounts(
         clientId,
         existing ? 'account.reconnected' : 'account.connected',
         saved.id,
-        { platform: account.platform },
+        { platform: account.platform, origin },
       );
     }
   });
@@ -256,8 +306,8 @@ export async function disconnectAccount(
   ctx: RequestContext,
   clientId: string,
   accountId: string,
-): Promise<void> {
-  await db.transaction(ctx, async (tx) => {
+): Promise<{ cancelledScheduledPosts: number }> {
+  return db.transaction(ctx, async (tx) => {
     const row = (await findAccounts(tx, ctx.organizationId, clientId, [accountId]))[0];
     if (!row) throw new SocialNotFoundError('Connected account');
     const company = row.connectionClientId === null;
@@ -269,7 +319,7 @@ export async function disconnectAccount(
     await tx.query(
       sql`UPDATE social_account SET status = 'disconnected', last_error = NULL WHERE organization_id = ${ctx.organizationId} AND client_id = ${clientId} AND id = ${accountId}`,
     );
-    await cancelScheduledForAccount(
+    const cancelledScheduledPosts = await cancelScheduledForAccount(
       tx,
       ctx.organizationId,
       clientId,
@@ -284,7 +334,9 @@ export async function disconnectAccount(
       clientId,
       company ? 'account.unassigned' : 'account.disconnected',
       accountId,
+      { origin: row.connectionOrigin, cancelledScheduledPosts },
     );
+    return { cancelledScheduledPosts };
   });
 }
 export async function getPost(
@@ -892,6 +944,20 @@ export function connectionCredentialContext(
     : { organizationId, clientId: connection.clientId, platform: connection.platform };
 }
 
+/** Which owner a company location's own token is encrypted for: that one location of
+ * that one connection. A location's id is not known before discovery inserts it, so the
+ * platform's id for it stands in, which is unique per connection. */
+export function locationCredentialContext(
+  organizationId: string,
+  location: { connectionId: string; platform: string; externalId: string },
+): CredentialContext {
+  return {
+    organizationId,
+    connectionId: `${location.connectionId}/location/${location.externalId}`,
+    platform: location.platform,
+  };
+}
+
 /** A usable token for a connection, refreshed when it is about to expire.
  * The refresh call happens outside SQL; a per-connection lease prevents two
  * workers from rotating a refresh token concurrently. The stored row is read
@@ -952,7 +1018,22 @@ export async function credentialsForAccount(
   ctx: RequestContext,
   row: AccountRow,
 ): Promise<OAuthCredential> {
-  if (!row.credentialsEncrypted || row.status !== 'connected')
+  if (row.status !== 'connected')
+    throw new ProviderError('RECONNECT_REQUIRED', `Reconnect ${row.name}.`, {
+      reconnectRequired: true,
+    });
+  // A company location's own token (a Facebook Page's) does not expire and does not
+  // depend on the login's token still being valid.
+  if (row.locationId && row.locationCredentialsEncrypted)
+    return decryptCredentials<OAuthCredential>(
+      row.locationCredentialsEncrypted,
+      locationCredentialContext(ctx.organizationId, {
+        connectionId: row.connectionId,
+        platform: row.platform,
+        externalId: row.externalId,
+      }),
+    );
+  if (!row.credentialsEncrypted)
     throw new ProviderError('RECONNECT_REQUIRED', `Reconnect ${row.name}.`, {
       reconnectRequired: true,
     });
@@ -975,7 +1056,7 @@ const COMPANY_RECONNECT_NOTICE: Record<string, { title: string; body: string }> 
   },
   facebook: {
     title: 'Reconnect your company Facebook login',
-    body: 'Facebook stopped accepting the company login. Posts to its Pages and Instagram accounts will fail until someone reconnects it.',
+    body: 'Facebook stopped accepting the company login. Its assigned Pages and Instagram accounts keep publishing with their own Page tokens, but new Pages and changes are not picked up until someone reconnects it.',
   },
   linkedin: {
     title: 'Reconnect your company LinkedIn login',
@@ -987,9 +1068,10 @@ const COMPANY_RECONNECT_NOTICE: Record<string, { title: string; body: string }> 
   },
 };
 
-/** The platform stopped accepting a connection's token. Every account it serves
- * needs the reconnect, so they all say so. Company admins hear about it once:
- * on the change, not on every failed attempt after it. */
+/** The platform stopped accepting a connection's token. Every account that publishes
+ * with that token needs the reconnect, so they all say so; an account whose company
+ * location has a token of its own (a Facebook Page's) keeps publishing with it.
+ * Company admins hear about it once: on the change, not on every failed attempt after it. */
 export async function markConnectionReconnectRequired(
   tx: Tx,
   ctx: RequestContext,
@@ -1001,7 +1083,8 @@ export async function markConnectionReconnectRequired(
     sql`UPDATE social_connection SET status = 'reconnect_required', last_error = ${reason}, updated_at = now() WHERE organization_id = ${ctx.organizationId} AND id = ${connection.id} AND status = 'connected' RETURNING id`,
   );
   await tx.query(
-    sql`UPDATE social_account SET status = 'reconnect_required', last_error = ${reason} WHERE organization_id = ${ctx.organizationId} AND connection_id = ${connection.id} AND status = 'connected'`,
+    sql`UPDATE social_account a SET status = 'reconnect_required', last_error = ${reason} WHERE a.organization_id = ${ctx.organizationId} AND a.connection_id = ${connection.id} AND a.status = 'connected'
+      AND NOT EXISTS (SELECT 1 FROM social_connection_location loc WHERE loc.organization_id = a.organization_id AND loc.connection_id = a.connection_id AND loc.id = a.location_id AND loc.credentials_encrypted IS NOT NULL)`,
   );
   const notice = COMPANY_RECONNECT_NOTICE[connection.platform];
   if (changed && connection.clientId === null && notice)
@@ -1015,6 +1098,46 @@ export async function markConnectionReconnectRequired(
       metadata: { connectionId: connection.id },
     });
 }
+/** Platforms whose sign-ins share one grant per platform user: revoking any of them
+ * removes the app for that user everywhere. Meta's is the Facebook user's. */
+const SHARED_GRANT: Partial<Record<string, readonly string[]>> = {
+  facebook: ['facebook', 'instagram'],
+  instagram: ['facebook', 'instagram'],
+};
+export function sharesGrant(platform: string): boolean {
+  return SHARED_GRANT[platform] !== undefined;
+}
+
+/** A platform grant was just revoked. Meta removes the app for that whole Facebook user,
+ * so every other connection the same user signed in — other clients' Pages, a company
+ * login and the Page tokens it read — stops working too. They are marked now, rather
+ * than discovered one failed post at a time. Returns how many were marked. */
+export async function markGrantRevoked(
+  ctx: RequestContext,
+  revoked: { platform: string; externalAccountId: string | null; connectionId: string },
+): Promise<number> {
+  const family = SHARED_GRANT[revoked.platform];
+  if (!family || !revoked.externalAccountId) return 0;
+  const message =
+    'Access for this Facebook login was removed from TapIt when another connection revoked it. Reconnect it.';
+  return db.transaction(ctx, async (tx) => {
+    const others = await tx.query<Pick<ConnectionRow, 'id' | 'clientId' | 'platform'>>(
+      sql`SELECT id, client_id, platform FROM social_connection
+        WHERE organization_id = ${ctx.organizationId} AND platform = ANY(${[...family]}::text[])
+          AND external_account_id = ${revoked.externalAccountId} AND id <> ${revoked.connectionId} AND status = 'connected'
+        ORDER BY id FOR UPDATE`,
+    );
+    for (const other of others) {
+      await markConnectionReconnectRequired(tx, ctx, other, message);
+      // Page tokens read with the revoked grant were withdrawn with it.
+      await tx.query(
+        sql`UPDATE social_account SET status = 'reconnect_required', last_error = ${message} WHERE organization_id = ${ctx.organizationId} AND connection_id = ${other.id} AND status = 'connected'`,
+      );
+    }
+    return others.length;
+  });
+}
+
 export async function markAccountError(
   ctx: RequestContext,
   row: AccountRow,
@@ -1022,6 +1145,14 @@ export async function markAccountError(
   reconnect: boolean,
 ): Promise<void> {
   await db.transaction(ctx, async (tx) => {
+    // The location's own token was refused: only this account needs the reconnect,
+    // not every other Page on the same company login.
+    if (reconnect && row.locationId && row.locationCredentialsEncrypted) {
+      await tx.query(
+        sql`UPDATE social_account SET status = 'reconnect_required', last_error = ${message.slice(0, 1000)} WHERE organization_id = ${ctx.organizationId} AND client_id = ${row.clientId} AND id = ${row.id} AND status = 'connected'`,
+      );
+      return;
+    }
     // Connection before account: the lock order every writer of both uses.
     if (reconnect)
       await markConnectionReconnectRequired(

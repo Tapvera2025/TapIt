@@ -83,9 +83,9 @@ describe('attendanceRecord policy (§8.7)', () => {
 
   it.each<[Scope, { sql: string; parameters: unknown[] }]>([
     ['own', { sql: 'u.id = $1', parameters: ['employee-1'] }],
-    ['department', { sql: 'u.department_id = $1', parameters: ['department-1'] }],
-    ['team', { sql: 'u.team_id = ANY($1::uuid[])', parameters: [['team-1', 'team-2']] }],
-    ['pool', { sql: 'u.team_id = ANY($1::uuid[])', parameters: [['team-3']] }],
+    ['department', { sql: '((u.department_id = $1) OR ((u.id = ANY($2::uuid[]))))', parameters: ['department-1', ['employee-1']] }],
+    ['team', { sql: '((u.team_id = ANY($1::uuid[])) OR ((u.id = ANY($2::uuid[]))))', parameters: [['team-1', 'team-2'], ['employee-1']] }],
+    ['pool', { sql: '((u.team_id = ANY($1::uuid[])) OR ((u.id = ANY($2::uuid[]))))', parameters: [['team-3'], ['employee-1']] }],
     ['all-people', { sql: 'TRUE', parameters: [] }],
   ])(
     'filters %s over the joined person (app_user u), as userPolicy does',

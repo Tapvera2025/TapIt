@@ -4,6 +4,7 @@ import { TEAM_LEAD_POSITION_CODES } from '../../../platform/organizations/templa
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import { enqueueOrganizationAudit } from '../repository.js';
+import { notifyUsersPermissionsChanged } from '../positions/repository.js';
 import { findDepartment } from '../departments/repository.js';
 import {
   OrganizationConflictError,
@@ -207,6 +208,22 @@ export function assertTeamMoveAllowed(input: {
     );
 }
 
+/**
+ * Users whose scope reach moves when a team's lead, parent or department
+ * changes: the old and the new lead.
+ */
+export function teamReachAffectedUsers(
+  before: { leadUserId: string | null; parentTeamId: string | null; departmentId: string },
+  next: { leadUserId: string | null; parentTeamId: string | null; departmentId: string },
+): string[] {
+  const changed =
+    before.leadUserId !== next.leadUserId ||
+    before.parentTeamId !== next.parentTeamId ||
+    before.departmentId !== next.departmentId;
+  if (!changed) return [];
+  return [...new Set([before.leadUserId, next.leadUserId].filter((id): id is string => id !== null))];
+}
+
 export async function createTeam(
   ctx: RequestContext,
   input: CreateTeamInput,
@@ -236,6 +253,7 @@ export async function createTeam(
       before: null,
       after: team,
     });
+    await notifyUsersPermissionsChanged(tx, ctx.organizationId, [team.leadUserId], 'team.lead.changed');
     return team;
   });
 }
@@ -291,6 +309,12 @@ export async function updateTeam(
       before,
       after,
     });
+    await notifyUsersPermissionsChanged(
+      tx,
+      ctx.organizationId,
+      teamReachAffectedUsers(before, next),
+      'team.lead.changed',
+    );
     return after;
   });
 }
@@ -337,6 +361,12 @@ export async function addTeamMember(
       before: { userId: input.userId, teamId: user.teamId },
       after: { userId: input.userId, teamId },
     });
+    await notifyUsersPermissionsChanged(
+      tx,
+      ctx.organizationId,
+      [input.userId, team.leadUserId, currentTeam?.leadUserId],
+      'team.member.changed',
+    );
     return after;
   });
 }

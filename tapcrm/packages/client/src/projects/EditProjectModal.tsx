@@ -9,6 +9,8 @@ import {
   type ProjectServiceKind,
   type ProjectWorkStatus,
 } from './api/projectsApi.js';
+import { ProjectAmountFields } from './ProjectAmountFields.js';
+import { projectAmountProblem } from './project-amounts.js';
 
 const PRIORITIES: ProjectPriority[] = ['low', 'medium', 'high'];
 const WORK_STATUSES: ProjectWorkStatus[] = ['new', 'ongoing', 'ended', 'expired'];
@@ -23,7 +25,8 @@ export function EditProjectModal({ project, onClose, onSaved }: { project: Proje
   const [expectedEndDate, setExpectedEndDate] = useState(project.expectedEndDate?.slice(0, 10) ?? '');
   const [priority, setPriority] = useState<ProjectPriority>(project.priority);
   const [workStatus, setWorkStatus] = useState<ProjectWorkStatus>(project.workStatus);
-  const [budget, setBudget] = useState(project.budget ?? '');
+  const [projectValue, setProjectValue] = useState(project.projectValue ?? '');
+  const [upfrontAmount, setUpfrontAmount] = useState(project.upfrontAmount ?? '');
   const [description, setDescription] = useState(project.description ?? '');
   const [remarks, setRemarks] = useState(project.remarks ?? '');
   const [saving, setSaving] = useState(false);
@@ -44,6 +47,11 @@ export function EditProjectModal({ project, onClose, onSaved }: { project: Proje
       setError('Select at least one service');
       return;
     }
+    const amountProblem = projectAmountProblem(projectValue, upfrontAmount);
+    if (amountProblem) {
+      setError(amountProblem);
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -54,7 +62,8 @@ export function EditProjectModal({ project, onClose, onSaved }: { project: Proje
         expectedEndDate: expectedEndDate || null,
         priority,
         workStatus,
-        budget: budget.trim() || null,
+        projectValue: projectValue.trim() || null,
+        upfrontAmount: upfrontAmount.trim() || null,
         description: description.trim() || null,
         remarks: remarks.trim() || null,
       });
@@ -100,7 +109,13 @@ export function EditProjectModal({ project, onClose, onSaved }: { project: Proje
           <Select label="Work status" value={workStatus} onChange={(v) => setWorkStatus(v as ProjectWorkStatus)} required options={WORK_STATUSES.map((s) => ({ value: s, label: WORK_STATUS_LABELS[s] }))} />
         </div>
 
-        <Field label={`Budget (${project.currency})`} type="number" value={budget} onChange={setBudget} />
+        <ProjectAmountFields
+          currency={project.currency}
+          projectValue={projectValue}
+          upfrontAmount={upfrontAmount}
+          onProjectValueChange={setProjectValue}
+          onUpfrontAmountChange={setUpfrontAmount}
+        />
 
         <label className="text-xs font-semibold text-app-muted">
           <span className="mb-2 block">Description</span>

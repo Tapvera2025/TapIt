@@ -1,12 +1,11 @@
-import { MATCH_NOTHING, registerResourcePolicy, type Resource, type ResourcePolicy } from '@tapcrm/authz';
+import { MATCH_NOTHING, or, registerResourcePolicy, scopeMemberFilter, scopeMemberIds, scopeReachesAny, type Resource, type ResourcePolicy } from '@tapcrm/authz';
 
 /**
- * Project resource policy. Same simplification as `client`'s (and `chat`'s):
- * the matrix grants a mix of 'own'/'dept'/'team' by position, but a project
- * has no department/team field distinct from who is actually assigned to it,
- * so every scope besides `all-people` collapses to "creator or assignee" —
- * matching `tasks:view`'s isCreator/isAssigned short-circuit, the precedent
- * this whole simplification follows.
+ * Project resource policy. A project has no department/team field; reach goes
+ * through its people (creator + assignees; there is no manager/owner column).
+ * own/participant = the principal is creator or assignee; pool/team/department
+ * = any of those people is inside the scope's people. `all-people` never
+ * matches (business domain, PD-1).
  */
 const projectPolicy: ResourcePolicy = {
   resourceType: 'project',
@@ -15,19 +14,27 @@ const projectPolicy: ResourcePolicy = {
   async check(ctx, _action, resource: Resource, scope): Promise<boolean> {
     if (resource['organizationId'] !== ctx.organizationId) return false;
     if (scope === 'all-people') return false; // PD-1: not allowed for business domain
-    if (resource['createdBy'] === ctx.principal.id) return true;
-    const assigneeIds = resource['assigneeIds'];
-    return Array.isArray(assigneeIds) && assigneeIds.includes(ctx.principal.id);
+    const assigneeIds = Array.isArray(resource['assigneeIds']) ? (resource['assigneeIds'] as string[]) : [];
+    const createdBy = resource['createdBy'];
+    if (scope === 'own' || scope === 'participant') {
+      return createdBy === ctx.principal.id || assigneeIds.includes(ctx.principal.id);
+    }
+    return scopeReachesAny(ctx, scope, [typeof createdBy === 'string' ? createdBy : null, ...assigneeIds]);
   },
 
   async filter(ctx, _action, scope) {
     if (scope === 'all-people') return MATCH_NOTHING;
-    return {
-      sql: `(p.created_by = $1 OR EXISTS (
-        SELECT 1 FROM project_assignee pa WHERE pa.organization_id = p.organization_id AND pa.project_id = p.id AND pa.user_id = $1
-      ))`,
-      parameters: [ctx.principal.id],
-    };
+    const assigneeExists = (param: string) =>
+      `EXISTS (SELECT 1 FROM project_assignee pa WHERE pa.organization_id = p.organization_id AND pa.project_id = p.id AND pa.user_id ${param})`;
+    if (scope === 'own' || scope === 'participant') {
+      return { sql: `(p.created_by = $1 OR ${assigneeExists('= $1')})`, parameters: [ctx.principal.id] };
+    }
+    const members = await scopeMemberIds(ctx, scope);
+    if (members === null || members.size === 0) return MATCH_NOTHING;
+    return or(
+      await scopeMemberFilter(ctx, scope, ['p.created_by']),
+      { sql: assigneeExists('= ANY($1::uuid[])'), parameters: [[...members]] },
+    );
   },
 
   participantFields() {

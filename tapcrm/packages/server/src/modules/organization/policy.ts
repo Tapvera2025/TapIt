@@ -1,7 +1,10 @@
 import type { Action } from '@tapcrm/contracts';
 import {
   MATCH_NOTHING,
+  or,
   registerResourcePolicy,
+  scopeMemberFilter,
+  scopeReachesAny,
   type ResourcePolicy,
   type PolicyEvaluationContext,
   type Resource,
@@ -26,6 +29,18 @@ function departmentScoped(
   table: string,
   departmentColumn = 'department_id',
 ): ResourcePolicy {
+  const ownDepartment = async (
+    ctx: PolicyEvaluationContext,
+    resource: Resource | null,
+  ): Promise<{ ok: boolean; fragment: SqlFragment }> => {
+    const departmentId = await ctx.scope.departmentId(ctx);
+    if (departmentId === null) return { ok: false, fragment: MATCH_NOTHING };
+    return {
+      ok: resource === null ? true : resource['id'] === departmentId,
+      fragment: { sql: `${table}.id = $1`, parameters: [departmentId] },
+    };
+  };
+
   const predicate = async (
     ctx: PolicyEvaluationContext,
     resource: Resource | null,
@@ -45,6 +60,12 @@ function departmentScoped(
       }
 
       case 'team': {
+        // A position belongs to a department, not a team: it has no team column
+        // to match (the old `position.team_id` predicate was invalid SQL), so a
+        // team-scoped reader gets nothing here and relies on `department`.
+        if (resourceType === 'position') return { ok: false, fragment: MATCH_NOTHING };
+        // A department row is reached by a team-scoped reader through their own department.
+        if (resourceType === 'department') return ownDepartment(ctx, resource);
         const teams = [...(await ctx.scope.teamIds(ctx))];
         if (teams.length === 0) return { ok: false, fragment: MATCH_NOTHING };
         const teamColumn = resourceType === 'team' ? 'id' : 'team_id';
@@ -61,11 +82,28 @@ function departmentScoped(
         };
       }
 
+      // org-structure rows are not people: `own` / `participant` / `pool` mean
+      // the row the principal sits in (their team / department / position).
       case 'own':
+      case 'participant':
+      case 'pool': {
+        if (resourceType === 'department') return ownDepartment(ctx, resource);
+        if (resourceType === 'position') {
+          if (scope === 'pool') return { ok: false, fragment: MATCH_NOTHING };
+          const positionId = 'positionId' in ctx.principal ? ctx.principal.positionId : null;
+          if (!positionId) return { ok: false, fragment: MATCH_NOTHING };
+          return {
+            ok: resource === null ? true : resource['id'] === positionId,
+            fragment: { sql: `${table}.id = $1`, parameters: [positionId] },
+          };
+        }
+        const teams = [...(await ctx.scope.poolIds(ctx))];
+        if (teams.length === 0) return { ok: false, fragment: MATCH_NOTHING };
         return {
-          ok: resource === null ? true : resource['id'] === ctx.principal.id,
-          fragment: { sql: `${table}.id = $1`, parameters: [ctx.principal.id] },
+          ok: resource === null ? true : typeof resource['id'] === 'string' && teams.includes(resource['id']),
+          fragment: { sql: `${table}.id = ANY($1::uuid[])`, parameters: [teams] },
         };
+      }
 
       // `all-people` reaches every employee record but only for PEOPLE-domain
       // resources. The engine has already refused it against a business-domain
@@ -156,8 +194,12 @@ export const positionPolicy: ResourcePolicy = {
   },
 };
 
+function asId(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
 /** `role_change_request` — the module's one approval-bearing resource. */
-const roleChangeRequestPolicy: ResourcePolicy = {
+export const roleChangeRequestPolicy: ResourcePolicy = {
   resourceType: 'roleChangeRequest',
   domain: 'business',
 
@@ -170,7 +212,12 @@ const roleChangeRequestPolicy: ResourcePolicy = {
           resource['requestedBy'] === ctx.principal.id ||
           resource['subjectUserId'] === ctx.principal.id
         );
+      case 'pool':
+      case 'team':
       case 'department': {
+        // People route: the subject or the requester is inside the scope.
+        if (await scopeReachesAny(ctx, scope, [asId(resource['subjectUserId']), asId(resource['requestedBy'])])) return true;
+        if (scope !== 'department') return false;
         const departmentId = await ctx.scope.departmentId(ctx);
         return departmentId !== null && resource['departmentId'] === departmentId;
       }
@@ -191,6 +238,15 @@ const roleChangeRequestPolicy: ResourcePolicy = {
           sql: '(role_change_request.requested_by = $1 OR role_change_request.subject_user_id = $1)',
           parameters: [ctx.principal.id],
         };
+      case 'pool':
+      case 'team':
+      case 'department':
+        return or(
+          await scopeMemberFilter(ctx, scope, [
+            'role_change_request.subject_user_id',
+            'role_change_request.requested_by',
+          ]),
+        );
       default:
         return MATCH_NOTHING;
     }

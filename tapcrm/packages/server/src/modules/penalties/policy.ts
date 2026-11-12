@@ -4,6 +4,7 @@ import {
   type ResourcePolicy,
 } from '@tapcrm/authz';
 import type { Scope } from '@tapcrm/contracts';
+import { withPeopleReach } from '../people-reach.js';
 
 export const makePenaltyResource = (
   id: string,
@@ -21,7 +22,7 @@ export const makePenaltyResource = (
   teamId,
 });
 
-const penaltyPolicy: ResourcePolicy = {
+const basePenaltyPolicy: ResourcePolicy = {
   resourceType: 'employeePenalty',
   domain: 'people',
   async check(ctx, _action, resource, scope: Scope) {
@@ -62,6 +63,8 @@ const penaltyPolicy: ResourcePolicy = {
   participantFields: () => [],
   initiatorField: () => null,
 };
+
+const penaltyPolicy: ResourcePolicy = withPeopleReach(basePenaltyPolicy, { subjects: ['subjectId'], columns: ['u.id'] });
 
 export function registerPenaltyPolicies(): void {
   registerResourcePolicy(penaltyPolicy);

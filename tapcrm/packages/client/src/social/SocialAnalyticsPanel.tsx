@@ -1,42 +1,33 @@
-import { useState } from 'react';
+import { Icon } from '../ui/index.js';
 import { SocialPlatformAnalyticsPanel } from './SocialPanels.js';
-import { SearchConsolePerformance } from './SearchConsolePerformance.js';
 
-type AnalyticsView = 'search' | 'social';
-
+/**
+ * Native analytics for the client's social channels. Google Search (Search
+ * Console) reporting is about a website, so it lives in the SEO dashboard:
+ * Search visibility → Search Console report.
+ */
 export function SocialAnalyticsPanel({
   clientId,
   timezone,
   canManage,
-  canManageIntegrations,
-  onManageConnections,
+  onOpenSeoDashboard,
 }: {
   clientId: string;
   timezone: string;
   canManage: boolean;
-  canManageIntegrations: boolean;
-  onManageConnections: () => void;
+  onOpenSeoDashboard?: () => void;
 }): React.JSX.Element {
-  const [view, setView] = useState<AnalyticsView>('search');
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-app-border/70 bg-app-surface p-2 shadow-sm">
-        <div className="flex items-center gap-1" role="tablist" aria-label="Analytics source">
-          {([
-            ['search', 'Google Search'],
-            ['social', 'Social channels'],
-          ] as const).map(([id, label]) => (
-            <button key={id} role="tab" aria-selected={view === id} type="button" onClick={() => setView(id)} className={`rounded-xl px-4 py-2.5 text-xs font-semibold transition ${view === id ? 'bg-app-accent text-white shadow-sm' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <p className="px-2 text-[10px] text-app-muted">{view === 'search' ? 'Search Console reporting · direct Google data' : 'Native social platform analytics'}</p>
-      </div>
-      {view === 'search' ? (
-        <SearchConsolePerformance clientId={clientId} timezone={timezone} canManageIntegrations={canManageIntegrations} onManageConnections={onManageConnections} />
-      ) : (
-        <SocialPlatformAnalyticsPanel clientId={clientId} timezone={timezone} canManage={canManage} />
+      <SocialPlatformAnalyticsPanel clientId={clientId} timezone={timezone} canManage={canManage} />
+      {onOpenSeoDashboard && (
+        <p className="flex flex-wrap items-center gap-2 px-1 text-xs text-app-muted">
+          <Icon name="search" className="size-3.5" />
+          Looking for Google Search performance? It is in the SEO dashboard, per website.
+          <button type="button" onClick={onOpenSeoDashboard} className="font-semibold text-app-accent hover:underline">
+            Open Search Console report
+          </button>
+        </p>
       )}
     </div>
   );

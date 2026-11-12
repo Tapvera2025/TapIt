@@ -55,8 +55,9 @@ export class MetaProvider implements SocialProvider {
 
   /** `companyWide`: one Facebook login lists its Pages AND their Instagram accounts. The
    * Instagram permissions are asked for but optional, so a login that declines them
-   * still connects its Pages. Its stored token is the user's; Page tokens are looked
-   * up from it when publishing. */
+   * still connects its Pages. The connection stores the user's token, to list Pages;
+   * each Page and Instagram location stores the Page's own token, which does not
+   * expire, to publish. */
   constructor(
     readonly platform: 'facebook' | 'instagram',
     private readonly config: ProviderConfig,
@@ -157,9 +158,9 @@ export class MetaProvider implements SocialProvider {
     return { externalAccountId, ...(name ? { name } : {}) };
   }
 
-  /** The token that acts as the account's Page. A client sign-in stores that Page's own
-   * token; a company sign-in stores the user's token, which can read the token of any
-   * Page the user manages. */
+  /** The token that acts as the account's Page. A client sign-in, and a company location
+   * since 0148, store that Page's own token; a company location saved before then only
+   * has the login's user token, which can read the token of any Page the user manages. */
   private async pageCredentials(
     account: ProviderAccount,
     credentials: OAuthCredential,
@@ -210,9 +211,12 @@ export class MetaProvider implements SocialProvider {
         const tasks = Array.isArray(item['tasks']) ? item['tasks'] : [];
         if (!tasks.includes('CREATE_CONTENT') && !tasks.includes('MANAGE')) continue;
         const pageId = requiredId(item['id']);
+        // A Page token read with a long-lived user token does not expire. It must not
+        // inherit the user token's ~60 days (or its refresh token): the Page would be
+        // sent to "reconnect required" when nothing about it had expired.
         const accountCredentials: OAuthCredential = {
-          ...credentials,
           accessToken: token,
+          scopes: credentials.scopes,
           metadata: { userAccessToken: credentials.accessToken, pageId },
         };
         if (this.options.companyWide) {
@@ -259,8 +263,9 @@ export class MetaProvider implements SocialProvider {
   }
 
   /** A company sign-in lists the Page and, when Instagram access was granted, the
-   * Instagram account linked to it. Neither carries a token: the company connection
-   * keeps the user's token, and the location rows keep only these details. */
+   * Instagram account linked to it. Both carry the Page's own token as their location
+   * credentials (an Instagram account publishes with its Page's token); it never
+   * includes the user's token, which only the company connection keeps. */
   private companyAccounts(
     item: Record<string, unknown>,
     pageId: string,
@@ -268,6 +273,11 @@ export class MetaProvider implements SocialProvider {
     credentials: OAuthCredential,
   ): DiscoveredAccount[] {
     const accounts: DiscoveredAccount[] = [];
+    const locationCredentials: OAuthCredential = {
+      accessToken: credentials.accessToken,
+      scopes: credentials.scopes,
+      metadata: { pageId },
+    };
     const photo = string(object(object(item['picture'])['data'])['url']);
     const pageWebsite = websiteUrl(item['website']);
     accounts.push({
@@ -276,6 +286,7 @@ export class MetaProvider implements SocialProvider {
       name: string(item['name']),
       ...(photo ? { profileImageUrl: photo } : {}),
       credentials,
+      locationCredentials,
       capabilities: { ...this.capabilities, publishText: true, publishVideo: true },
       metadata: { tasks, ...(pageWebsite ? { websiteUri: pageWebsite } : {}) },
     });
@@ -291,6 +302,7 @@ export class MetaProvider implements SocialProvider {
           ? { profileImageUrl: string(ig['profile_picture_url']) }
           : {}),
         credentials,
+        locationCredentials,
         capabilities: { ...this.capabilities, publishText: false, publishVideo: true },
         metadata: {
           pageId,
@@ -303,10 +315,20 @@ export class MetaProvider implements SocialProvider {
     return accounts;
   }
 
-  async refreshCredentials(_credentials: OAuthCredential): Promise<OAuthCredential> {
+  /** A user token cannot be refreshed without the person signing in again. A Page token
+   * does not expire, so there is nothing to refresh: Page tokens saved before this was
+   * understood carry the user token's expiry, and dropping it heals them in place. */
+  async refreshCredentials(credentials: OAuthCredential): Promise<OAuthCredential> {
+    if (
+      credentials.metadata?.['tokenType'] !== 'user' &&
+      string(credentials.metadata?.['pageId'])
+    ) {
+      const { expiresAt: _userTokenExpiry, refreshToken: _unused, ...page } = credentials;
+      return page;
+    }
     throw new ProviderError(
       'RECONNECT_REQUIRED',
-      'Meta Page tokens do not support an OAuth refresh-token grant. Reconnect to renew authorization.',
+      'The Facebook login expired. Meta does not renew it without a sign-in: reconnect it to continue.',
       { reconnectRequired: true },
     );
   }

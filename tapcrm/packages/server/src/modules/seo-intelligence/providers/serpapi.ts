@@ -70,7 +70,11 @@ export function createSerpApiProvider(config: {
       }
 
       const json = (await response.json().catch(() => ({ error: 'Invalid provider response' }))) as SerpApiResult;
-      if (json.error || !response.ok) {
+      // SerpApi answers a search with no results with an `error` string and
+      // HTTP 200. That is a real answer — the site is not there — not an outage.
+      const noResults = response.ok && typeof json.error === 'string' && /hasn't returned any results/i.test(json.error);
+      if (noResults) json.organic_results = [];
+      else if (json.error || !response.ok) {
         return {
           state: 'provider_error',
           data: null,

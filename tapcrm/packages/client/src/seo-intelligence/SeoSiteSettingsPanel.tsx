@@ -26,7 +26,7 @@ const SOURCES: Array<{
     title: 'Google searches (SerpApi)',
     unit: 'searches',
     description:
-      'Used by Google position checks and by Google AI Overview checks. Each country and device check is one search.',
+      'Used by Google position checks, Keyword search website scans and Google AI Overview checks. Each page of 10 results looked through is one search.',
   },
   {
     key: 'perplexity',

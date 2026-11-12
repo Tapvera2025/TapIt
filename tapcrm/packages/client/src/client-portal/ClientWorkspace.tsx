@@ -12,6 +12,7 @@ import { ClientProjectPage } from './pages/ClientProjectPage.js';
 import { ClientProjectsPage } from './pages/ClientProjectsPage.js';
 import { ClientMessagesPage } from './pages/ClientMessagesPage.js';
 import { ClientMeetingsPage } from './pages/ClientMeetingsPage.js';
+import { ClientSocialAccountsPage } from './pages/ClientSocialAccountsPage.js';
 import { identityApiBasePath, getIdentityAccessToken } from '../identity/api/authApi.js';
 import type { CompanySearchDestination } from '../company/layout/navigation.js';
 
@@ -43,6 +44,13 @@ const clientSearchDestinations: readonly CompanySearchDestination[] = [
     icon: 'calendar',
     category: 'Client Portal',
     keywords: ['meeting', 'call', 'google meet', 'appointment', 'book'],
+  },
+  {
+    label: 'Social accounts',
+    path: '/client/social',
+    icon: 'share',
+    category: 'Client Portal',
+    keywords: ['social', 'facebook', 'instagram', 'youtube', 'google business', 'connect', 'accounts'],
   },
   {
     label: 'Profile',
@@ -147,6 +155,8 @@ export function ClientWorkspace({
   else if (pathname === '/client/messages') page = <ClientMessagesPage />;
   else if (pathname === '/client/meetings')
     page = <ClientMeetingsPage initialProjectId={new URLSearchParams(window.location.search).get('project')} onError={handleError} />;
+  else if (pathname === '/client/social')
+    page = <ClientSocialAccountsPage onError={handleError} />;
   else if (pathname === '/client/projects')
     page = <ClientProjectsPage onNavigate={onNavigate} onError={handleError} />;
   else if (pathname === '/client/profile')

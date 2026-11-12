@@ -22,12 +22,19 @@ import {
   type ProviderIdentity,
   type SearchConsoleProperty,
 } from './providers/types.js';
-import { cancelScheduledForAccount, ensureClient, writeAudit } from './repository.js';
+import {
+  cancelScheduledForAccount,
+  ensureClient,
+  lockPlatformAccounts,
+  writeAudit,
+} from './repository.js';
 import { decryptCredentials, encryptCredentials } from './security.js';
 import {
   connectionCredentialContext,
   credentialsForConnection,
+  locationCredentialContext,
   markConnectionReconnectRequired,
+  markGrantRevoked,
 } from './service.js';
 import { emailHost, hostOf, suggestClient, type ClientCandidate } from './suggestions.js';
 import type { ConnectionRow, LocationRow } from './types.js';
@@ -115,7 +122,9 @@ function missingAssetMessage(platform: SocialCompanyAssetPlatform, name: string)
   }
 }
 
-/** Something a company sign-in manages, as discovery reports it. Never carries a token. */
+/** Something a company sign-in manages, as discovery reports it. It carries a token only
+ * where the platform gives the item one of its own (a Meta Page token), and that token is
+ * encrypted for its location before it is stored. */
 export interface CompanyAsset {
   platform: SocialCompanyAssetPlatform;
   externalId: string;
@@ -123,6 +132,7 @@ export interface CompanyAsset {
   profileImageUrl?: string | undefined;
   capabilities: Partial<Record<keyof ProviderCapabilities, boolean>>;
   metadata?: Record<string, unknown> | undefined;
+  credentials?: OAuthCredential | undefined;
 }
 
 function propertyAsset(property: SearchConsoleProperty): CompanyAsset {
@@ -163,6 +173,9 @@ export async function discoverCompanyAssets(
       ...(account.profileImageUrl ? { profileImageUrl: account.profileImageUrl } : {}),
       capabilities: account.capabilities,
       ...(account.metadata ? { metadata: account.metadata } : {}),
+      ...(account.locationCredentials
+        ? { credentials: account.locationCredentials }
+        : {}),
     }),
   );
   let warning: string | null = null;
@@ -443,7 +456,8 @@ async function getCompanyLocation(
 }
 
 /** The connection's location list becomes exactly what the platform returned now.
- * Locations it no longer returns stay as `missing`, with their assignments. */
+ * Locations it no longer returns stay as `missing`, with their assignments, and lose
+ * their own token: the platform has withdrawn it with the access. */
 async function replaceLocations(
   tx: Tx,
   ctx: RequestContext,
@@ -465,26 +479,41 @@ async function replaceLocations(
       .filter(([, enabled]) => enabled)
       .map(([name]) => name),
     metadata: location.metadata ?? {},
+    credentials_encrypted: location.credentials
+      ? encryptCredentials(
+          location.credentials,
+          locationCredentialContext(ctx.organizationId, {
+            connectionId,
+            platform: location.platform,
+            externalId: location.externalId,
+          }),
+        )
+      : null,
   }));
   if (rows.length)
     await tx.query(sql`
-      INSERT INTO social_connection_location (organization_id, connection_id, platform, external_id, name, profile_image_url, capabilities, metadata)
+      INSERT INTO social_connection_location (organization_id, connection_id, platform, external_id, name, profile_image_url, capabilities, metadata, credentials_encrypted)
       SELECT ${ctx.organizationId}, ${connectionId}, x.platform, x.external_id, x.name, x.profile_image_url,
-        ARRAY(SELECT jsonb_array_elements_text(x.capabilities)), x.metadata
+        ARRAY(SELECT jsonb_array_elements_text(x.capabilities)), x.metadata, x.credentials_encrypted
       FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
-        AS x(platform text, external_id text, name text, profile_image_url text, capabilities jsonb, metadata jsonb)
+        AS x(platform text, external_id text, name text, profile_image_url text, capabilities jsonb, metadata jsonb, credentials_encrypted text)
       ON CONFLICT (connection_id, external_id) DO UPDATE SET name = EXCLUDED.name,
         profile_image_url = EXCLUDED.profile_image_url, capabilities = EXCLUDED.capabilities,
-        metadata = EXCLUDED.metadata, status = 'available', last_seen_at = now()
+        metadata = EXCLUDED.metadata, credentials_encrypted = EXCLUDED.credentials_encrypted,
+        status = 'available', last_seen_at = now()
     `);
   await tx.query(
-    sql`UPDATE social_connection_location SET status = 'missing' WHERE organization_id = ${ctx.organizationId} AND connection_id = ${connectionId} AND status = 'available' AND NOT (external_id = ANY(${[...unique.keys()]}::text[]))`,
+    sql`UPDATE social_connection_location SET status = 'missing', credentials_encrypted = NULL WHERE organization_id = ${ctx.organizationId} AND connection_id = ${connectionId} AND status = 'available' AND NOT (external_id = ANY(${[...unique.keys()]}::text[]))`,
   );
-  // Assigned accounts follow their location's current details.
+  // Assigned accounts follow their location's current details. One that needed a
+  // reconnect because its Page token was refused works again with the fresh one.
   await tx.query(sql`
     UPDATE social_account a SET name = l.name, profile_image_url = l.profile_image_url,
       capabilities = l.capabilities, metadata = l.metadata,
+      status = CASE WHEN a.status = 'reconnect_required' AND l.status = 'available' AND l.credentials_encrypted IS NOT NULL
+        THEN 'connected' ELSE a.status END,
       last_error = CASE WHEN l.status = 'missing' THEN ${missing}
+        WHEN a.status = 'reconnect_required' AND l.status = 'available' AND l.credentials_encrypted IS NOT NULL THEN NULL
         WHEN a.last_error = ${missing} THEN NULL ELSE a.last_error END
     FROM social_connection_location l
     WHERE a.organization_id = ${ctx.organizationId} AND a.connection_id = ${connectionId}
@@ -628,12 +657,14 @@ async function unassignAccount(
 
 /** Assigns a Search Console property to one client, or unassigns it. A property
  * serves one client at a time, through whichever of the company's Google sign-ins
- * it was assigned on; assigning it again on another sign-in moves it there. */
+ * it was assigned on; assigning it again on another sign-in moves it there. `move`
+ * takes it from another client in the same step. */
 async function assignProperty(
   tx: Tx,
   ctx: RequestContext,
   location: LocationRow,
   clientId: string | null,
+  move: boolean,
 ): Promise<void> {
   const holders = await tx.query<{ id: string; clientId: string; clientName: string }>(
     sql`SELECT p.id, p.client_id, COALESCE(NULLIF(cl.business_name, ''), cl.client_name) AS client_name
@@ -653,13 +684,15 @@ async function assignProperty(
       missingAssetMessage(location.platform, location.name),
     );
   await ensureClient(tx, ctx.organizationId, clientId);
-  const elsewhere = holders.find((holder) => holder.clientId !== clientId);
-  if (elsewhere)
+  const elsewhere = holders.filter((holder) => holder.clientId !== clientId);
+  if (elsewhere.length && !move)
     throw new SocialConflictError(
-      `${location.name} is already assigned to ${elsewhere.clientName}. Unassign it there first.`,
+      `${location.name} is already assigned to ${elsewhere[0]!.clientName}. Unassign it there first.`,
     );
-  if (holders.some((holder) => holder.id === location.id)) return;
+  if (!elsewhere.length && holders.some((holder) => holder.id === location.id)) return;
   await tx.query(release);
+  for (const holder of elsewhere)
+    await writeAudit(tx, ctx, holder.clientId, 'property.unassigned', holder.id);
   await tx.query(
     sql`UPDATE social_connection_location SET client_id = ${clientId} WHERE organization_id = ${ctx.organizationId} AND id = ${location.id}`,
   );
@@ -676,22 +709,31 @@ async function assignProperty(
 /** Assigns a company location to one client, or unassigns it (`clientId` null).
  * Unassigning cancels that client's scheduled posts to the location. A location the
  * client had connected through its own sign-in moves onto the company connection,
- * keeping its post history. */
+ * keeping its post history. `move` takes a location another client has through a
+ * company login in the same transaction, so a failed move never leaves it with neither;
+ * one another client connected with its own sign-in is still theirs to disconnect. */
 export async function assignCompanyLocation(
   ctx: RequestContext,
   connectionId: string,
   locationId: string,
   clientId: string | null,
+  options: { move?: boolean } = {},
 ): Promise<SocialCompanyLocation> {
+  const move = options.move === true;
   await db.transaction(ctx, async (tx) => {
-    // Lock order: connection, location, accounts, posts — as every writer of these does.
+    // The platform account first, as a client sign-in of the same Page takes it; then
+    // connection, location, accounts, posts — as every writer of these does.
+    const identity = await tx.maybeOne<{ platform: string; externalId: string }>(
+      sql`SELECT platform, external_id FROM social_connection_location WHERE organization_id = ${ctx.organizationId} AND connection_id = ${connectionId} AND id = ${locationId}`,
+    );
+    if (identity) await lockPlatformAccounts(tx, ctx.organizationId, [identity]);
     const connection = await findConnection(tx, ctx, connectionId, 'share');
     const location = await tx.maybeOne<LocationRow>(
       sql`SELECT * FROM social_connection_location WHERE organization_id = ${ctx.organizationId} AND connection_id = ${connectionId} AND id = ${locationId} FOR UPDATE`,
     );
     if (!location) throw new SocialNotFoundError('Location');
     if (location.platform === 'search_console') {
-      await assignProperty(tx, ctx, location, clientId);
+      await assignProperty(tx, ctx, location, clientId, move);
       return;
     }
     const live = await tx.query<{
@@ -700,9 +742,12 @@ export async function assignCompanyLocation(
       locationId: string | null;
       connectionId: string;
       clientName: string;
+      origin: 'agency' | 'client_portal';
     }>(
-      sql`SELECT a.id, a.client_id, a.location_id, a.connection_id, COALESCE(NULLIF(cl.business_name, ''), cl.client_name) AS client_name
+      sql`SELECT a.id, a.client_id, a.location_id, a.connection_id, COALESCE(NULLIF(cl.business_name, ''), cl.client_name) AS client_name,
+          c.connected_via AS origin
         FROM social_account a JOIN client cl ON cl.organization_id = a.organization_id AND cl.id = a.client_id
+        JOIN social_connection c ON c.organization_id = a.organization_id AND c.id = a.connection_id
         WHERE a.organization_id = ${ctx.organizationId} AND a.platform = ${location.platform} AND a.external_id = ${location.externalId} AND a.status <> 'disconnected'
         FOR UPDATE OF a`,
     );
@@ -721,17 +766,38 @@ export async function assignCompanyLocation(
         missingAssetMessage(location.platform, location.name),
       );
     await ensureClient(tx, ctx.organizationId, clientId);
-    const elsewhere = live.find((item) => item.clientId !== clientId);
-    if (elsewhere)
+    const elsewhere = live.filter((item) => item.clientId !== clientId);
+    const blocking = elsewhere.find((item) => !move || item.locationId === null);
+    if (blocking)
       throw new SocialConflictError(
-        `${location.name} is already assigned to ${elsewhere.clientName}. Unassign it there first.`,
+        blocking.locationId === null
+          ? `${location.name} is connected to ${blocking.clientName} with that client’s own sign-in. Disconnect it there first.`
+          : `${location.name} is already assigned to ${blocking.clientName}. Unassign it there first.`,
+      );
+    for (const account of elsewhere)
+      await unassignAccount(
+        tx,
+        ctx,
+        account,
+        'Location moved to another client before publishing.',
       );
     const current = live.find((item) => item.clientId === clientId);
     if (current?.locationId === location.id) return;
+    // The client connected this account itself from the client portal. The company login
+    // does not take it over; the client (or staff, in the client's workspace) disconnects
+    // it first.
+    if (current && current.locationId === null && current.origin === 'client_portal')
+      throw new SocialConflictError(
+        `${location.name} was connected by ${current.clientName} from their client portal. Disconnect it in that client’s workspace first.`,
+      );
+    // A location with its own token (a Facebook Page) publishes even while the login
+    // itself waits for a reconnect.
+    const usable =
+      connection.status === 'connected' || location.credentialsEncrypted !== null;
     const saved = await tx.one<{ id: string }>(sql`
       INSERT INTO social_account (organization_id, client_id, connection_id, location_id, platform, external_id, name, profile_image_url, capabilities, metadata, status)
       VALUES (${ctx.organizationId}, ${clientId}, ${connectionId}, ${location.id}, ${location.platform}, ${location.externalId}, ${location.name}, ${location.profileImageUrl},
-        ${location.capabilities}, ${JSON.stringify(location.metadata)}::jsonb, ${connection.status === 'connected' ? 'connected' : 'reconnect_required'})
+        ${location.capabilities}, ${JSON.stringify(location.metadata)}::jsonb, ${usable ? 'connected' : 'reconnect_required'})
       ON CONFLICT (organization_id, client_id, platform, external_id) DO UPDATE SET connection_id = EXCLUDED.connection_id,
         location_id = EXCLUDED.location_id, name = EXCLUDED.name, profile_image_url = EXCLUDED.profile_image_url,
         capabilities = EXCLUDED.capabilities, metadata = EXCLUDED.metadata, status = EXCLUDED.status,
@@ -767,6 +833,8 @@ export async function disconnectCompanyConnection(
 ): Promise<{
   disconnected: true;
   revocationStatus: 'not_requested' | 'revoked' | 'remove_access_in_platform_settings';
+  /** Other connections the same revoked grant served, now marked for reconnect. */
+  othersNeedReconnect: number;
 }> {
   const connection = await db.transaction(ctx, (tx) =>
     findConnection(tx, ctx, connectionId),
@@ -809,6 +877,10 @@ export async function disconnectCompanyConnection(
       RETURNING l.id, r.client_id`);
     for (const property of properties)
       await writeAudit(tx, ctx, property.clientId, 'property.unassigned', property.id);
+    // The Pages' own tokens go with the login that read them.
+    await tx.query(
+      sql`UPDATE social_connection_location SET credentials_encrypted = NULL WHERE organization_id = ${ctx.organizationId} AND connection_id = ${connectionId} AND credentials_encrypted IS NOT NULL`,
+    );
     await tx.query(
       sql`UPDATE social_connection SET status = 'disconnected', credentials_encrypted = NULL, refresh_lease_until = NULL, updated_at = now() WHERE organization_id = ${ctx.organizationId} AND id = ${connectionId} AND client_id IS NULL`,
     );
@@ -817,7 +889,15 @@ export async function disconnectCompanyConnection(
       unassigned: accounts.length + properties.length,
     });
   });
-  return { disconnected: true, revocationStatus };
+  const othersNeedReconnect =
+    revocationStatus === 'revoked'
+      ? await markGrantRevoked(ctx, {
+          platform: connection.platform,
+          externalAccountId: connection.externalAccountId,
+          connectionId,
+        })
+      : 0;
+  return { disconnected: true, revocationStatus, othersNeedReconnect };
 }
 
 /** The company connections the daily refresh visits. */

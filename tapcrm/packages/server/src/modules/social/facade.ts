@@ -8,3 +8,4 @@ export {
   searchConsoleToken,
   type SearchConsolePropertyAccess,
 } from './search-console.js';
+export { inspectSearchConsoleUrl, searchConsolePerformance } from './search-console-report.js';

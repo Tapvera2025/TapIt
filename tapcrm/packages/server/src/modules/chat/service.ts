@@ -1,11 +1,18 @@
 import type { Resource } from '@tapcrm/authz';
-import type { Principal } from '@tapcrm/contracts';
+import { globalAccess, type Principal } from '@tapcrm/contracts';
 import { createJobContext, type RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { emitToUser, installConnectionListener, installTypingAuthorizer } from '../../platform/realtime/index.js';
 import { claimPendingAttachments, copyAttachments, findAttachmentConversation } from './attachments.js';
-import { ChatEditWindowClosedError, ChatNotFoundError, ChatNotSenderError, ChatValidationError } from './errors.js';
+import {
+  ChatEditWindowClosedError,
+  ChatGroupPermissionError,
+  ChatNotFoundError,
+  ChatNotSenderError,
+  ChatValidationError,
+} from './errors.js';
+import { groupActionRefusal, groupAuthority, type GroupAction, type GroupAuthority } from './group-roles.js';
 import { refreshLinkPreviews } from './link-preview.js';
 import { extractLinks } from './links.js';
 import { connectionChanged } from './presence.js';
@@ -14,6 +21,7 @@ import {
   addReaction,
   archiveConversation,
   authorizedProjectMemberIds,
+  conversationIsOpenTx,
   conversationMemberIds,
   conversationMemberIdsTx,
   createGroupConversation,
@@ -21,8 +29,9 @@ import {
   editMessageBody,
   encodeMessageCursor,
   findConversationById,
-  findConversationKind,
   findConversationKindTx,
+  findManagedConversation,
+  findMemberRole,
   findMessageById,
   findMessageRow,
   findMessageRowTx,
@@ -45,8 +54,11 @@ import {
   removeConversationMember,
   removeReaction,
   renameConversation,
+  restoreConversation,
   replaceMessageLinks,
   saveMessage as repoSaveMessage,
+  setConversationMemberRole,
+  softDeleteConversation,
   unpinMessage as repoUnpinMessage,
   unsaveMessage as repoUnsaveMessage,
   unsendMessage as repoUnsendMessage,
@@ -64,6 +76,7 @@ import type {
   Conversation,
   ConversationKind,
   ConversationResource,
+  GroupMemberRole,
   Message,
   MessageEdit,
   PinnedMessage,
@@ -139,8 +152,8 @@ export async function loadAttachmentResource(ctx: RequestContext, id: string): P
   return toResource(conversationId, ctx.organizationId, memberIds);
 }
 
-export async function listConversations(ctx: RequestContext, kind?: ConversationKind): Promise<Conversation[]> {
-  return listConversationsForUser(ctx, kind);
+export async function listConversations(ctx: RequestContext, kind?: ConversationKind, archived = false): Promise<Conversation[]> {
+  return listConversationsForUser(ctx, kind, archived);
 }
 
 export async function getUnreadSummary(ctx: RequestContext) {
@@ -197,41 +210,76 @@ export async function createInternalGroup(ctx: RequestContext, input: { name: st
 }
 
 /**
- * A group's ONLY governance route is Super Admin (per product decision:
- * simpler than a per-group delegate, and matches how this codebase already
- * treats `chat:manage-groups` — SuperAdminOnly in the registry, so `authorize`
- * never even reaches `chatConversationPolicy.check` for these actions; a
- * caller here is Super Admin by construction). Every function below still
- * refuses to touch a 'direct' or 'project' conversation — Phase 4's project
- * groups are managed by the projects module's own action, not this one.
+ * Running an Internal Group (0153). Creating one stays Super-Admin-only
+ * (`chat:manage-groups`). The creator — or any Super Admin — is the group's
+ * owner and may promote members to group admin; group-roles.ts holds the
+ * rules for who may do what. Editing and membership routes are bound to
+ * `chat:send` (membership of the group, so admins reach them) and checked
+ * here; owner-only routes stay on `chat:manage-groups` and are checked here
+ * too. Every function refuses 'direct' and 'project' conversations — project
+ * groups are run from the projects module.
  */
-async function requireGroup(ctx: RequestContext, id: string): Promise<void> {
-  const conversation = await findConversationKind(ctx, id);
-  if (!conversation) throw new ChatNotFoundError('conversation');
-  if (conversation.kind !== 'group') {
-    throw new ChatValidationError('Only an Internal Group can be managed this way', { kind: conversation.kind });
-  }
+interface ManagedGroup {
+  readonly name: string | null;
+  readonly createdBy: string;
+  readonly archived: boolean;
+  readonly authority: GroupAuthority;
 }
 
-async function notifyOtherMembers(ctx: RequestContext, conversationId: string, event: 'chat:conversation:updated', extra: Record<string, unknown> = {}): Promise<void> {
-  const memberIds = await conversationMemberIds(ctx, conversationId);
-  for (const memberId of memberIds ?? []) {
+async function loadGroup(ctx: RequestContext, id: string): Promise<ManagedGroup> {
+  const group = await findManagedConversation(ctx, id);
+  if (!group) throw new ChatNotFoundError('conversation');
+  if (group.kind !== 'group') {
+    throw new ChatValidationError('Only an Internal Group can be managed this way', { kind: group.kind });
+  }
+  const memberRole = await findMemberRole(ctx, id, ctx.principal.id);
+  return {
+    name: group.name,
+    createdBy: group.createdBy,
+    archived: group.archivedAt !== null,
+    authority: groupAuthority({
+      isSuperAdmin: globalAccess(ctx.principal),
+      isCreator: group.createdBy === ctx.principal.id,
+      memberRole,
+    }),
+  };
+}
+
+function assertGroupAction(group: ManagedGroup, action: GroupAction): void {
+  const refusal = groupActionRefusal(group.authority, action, group.archived);
+  if (!refusal) return;
+  throw refusal.forbidden ? new ChatGroupPermissionError(refusal.message) : new ChatValidationError(refusal.message);
+}
+
+/** The person a remove or role change is about: must be a current member of the group. */
+async function groupTarget(ctx: RequestContext, id: string, group: ManagedGroup, userId: string): Promise<{ isCreator: boolean; role: GroupMemberRole }> {
+  const role = await findMemberRole(ctx, id, userId);
+  if (role === null) throw new ChatValidationError('That person is not in this group', { userId });
+  return { isCreator: userId === group.createdBy, role };
+}
+
+async function notifyOtherMembers(ctx: RequestContext, conversationId: string, event: 'chat:conversation:updated', extra: Record<string, unknown> = {}, memberIds?: readonly string[]): Promise<void> {
+  for (const memberId of memberIds ?? (await conversationMemberIds(ctx, conversationId)) ?? []) {
     if (memberId === ctx.principal.id) continue;
     emitToUser(ctx.organizationId, memberId, event, { id: conversationId, ...extra });
   }
 }
 
-export async function renameGroup(ctx: RequestContext, id: string, name: string, description?: string | null): Promise<Conversation> {
-  await requireGroup(ctx, id);
-  await db.transaction(ctx, (tx) => renameConversation(tx, ctx.organizationId, id, name, description));
-  await notifyOtherMembers(ctx, id, 'chat:conversation:updated');
+async function reloadConversation(ctx: RequestContext, id: string): Promise<Conversation> {
   const conversation = await findConversationById(ctx, id);
   if (!conversation) throw new ChatNotFoundError('conversation');
   return conversation;
 }
 
+export async function renameGroup(ctx: RequestContext, id: string, name: string, description?: string | null): Promise<Conversation> {
+  assertGroupAction(await loadGroup(ctx, id), { type: 'edit' });
+  await db.transaction(ctx, (tx) => renameConversation(tx, ctx.organizationId, id, name, description));
+  await notifyOtherMembers(ctx, id, 'chat:conversation:updated');
+  return reloadConversation(ctx, id);
+}
+
 export async function addGroupMembers(ctx: RequestContext, id: string, memberIds: readonly string[]): Promise<Conversation> {
-  await requireGroup(ctx, id);
+  assertGroupAction(await loadGroup(ctx, id), { type: 'add-members' });
   await db.transaction(ctx, async (tx) => {
     const validIds = await validateEmployeeMemberIds(tx, ctx.organizationId, memberIds);
     if (validIds.length !== memberIds.length) {
@@ -243,8 +291,7 @@ export async function addGroupMembers(ctx: RequestContext, id: string, memberIds
     await notifyGroupMembersAdded(tx, ctx, { id, name: conversation?.name ?? null }, validIds);
   });
 
-  const conversation = await findConversationById(ctx, id);
-  if (!conversation) throw new ChatNotFoundError('conversation');
+  const conversation = await reloadConversation(ctx, id);
   for (const memberId of memberIds) {
     if (memberId === ctx.principal.id) continue;
     emitToUser(ctx.organizationId, memberId, 'chat:conversation:new', { id, kind: 'group' });
@@ -253,27 +300,74 @@ export async function addGroupMembers(ctx: RequestContext, id: string, memberIds
   return conversation;
 }
 
-/** The removed member is told separately (a bare id, RT-4) so their client drops the conversation from its list. */
+/**
+ * Removes ("kicks out") a member. The creator can remove anyone but
+ * themselves; an admin only ordinary members. The removed member is told
+ * separately (a bare id, RT-4) so their client drops the conversation.
+ */
 export async function removeGroupMember(ctx: RequestContext, id: string, userId: string): Promise<Conversation> {
-  await requireGroup(ctx, id);
+  const group = await loadGroup(ctx, id);
+  assertGroupAction(group, { type: 'remove-member', target: await groupTarget(ctx, id, group, userId) });
   await db.transaction(ctx, async (tx) => {
     await removeConversationMember(tx, ctx.organizationId, id, userId);
-    const conversation = await findConversationKindTx(tx, ctx.organizationId, id);
-    await notifyGroupMemberRemoved(tx, ctx, { id, name: conversation?.name ?? null }, userId);
+    await notifyGroupMemberRemoved(tx, ctx, { id, name: group.name }, userId);
   });
 
   emitToUser(ctx.organizationId, userId, 'chat:conversation:updated', { id, removed: true });
-  const conversation = await findConversationById(ctx, id);
-  if (!conversation) throw new ChatNotFoundError('conversation');
+  const conversation = await reloadConversation(ctx, id);
   await notifyOtherMembers(ctx, id, 'chat:conversation:updated');
   return conversation;
 }
 
+/** Makes a member a group admin, or back to an ordinary member. Owner only. */
+export async function setGroupMemberRole(ctx: RequestContext, id: string, userId: string, role: GroupMemberRole): Promise<Conversation> {
+  const group = await loadGroup(ctx, id);
+  const target = await groupTarget(ctx, id, group, userId);
+  assertGroupAction(group, { type: 'set-role', target });
+  if (target.role !== role) {
+    await db.transaction(ctx, (tx) => setConversationMemberRole(tx, ctx.organizationId, id, userId, role));
+    await notifyOtherMembers(ctx, id, 'chat:conversation:updated');
+  }
+  return reloadConversation(ctx, id);
+}
+
+/**
+ * Archived groups are read-only and listed under "Archived" for their
+ * members. `removed` tells clients viewing it in the active list to step out.
+ */
 export async function archiveGroup(ctx: RequestContext, id: string): Promise<{ archived: true }> {
-  await requireGroup(ctx, id);
+  assertGroupAction(await loadGroup(ctx, id), { type: 'archive' });
   await db.transaction(ctx, (tx) => archiveConversation(tx, ctx.organizationId, id));
-  await notifyOtherMembers(ctx, id, 'chat:conversation:updated', { archived: true });
+  await notifyOtherMembers(ctx, id, 'chat:conversation:updated', { archived: true, removed: true });
   return { archived: true };
+}
+
+/** Brings an archived group back to everyone's active list. */
+export async function restoreGroup(ctx: RequestContext, id: string): Promise<Conversation> {
+  assertGroupAction(await loadGroup(ctx, id), { type: 'restore' });
+  await db.transaction(ctx, (tx) => restoreConversation(tx, ctx.organizationId, id));
+  await notifyOtherMembers(ctx, id, 'chat:conversation:updated', { restored: true, removed: true });
+  return reloadConversation(ctx, id);
+}
+
+/**
+ * Deletes a group for everyone (product decision: hidden, kept on record —
+ * see 0153). Its members' clients drop it; nobody can open it again.
+ */
+export async function deleteGroup(ctx: RequestContext, id: string): Promise<{ deleted: true }> {
+  assertGroupAction(await loadGroup(ctx, id), { type: 'delete' });
+  // Read before deleting: a deleted group no longer answers with its members.
+  const memberIds = (await conversationMemberIds(ctx, id)) ?? [];
+  await db.transaction(ctx, (tx) => softDeleteConversation(tx, ctx.organizationId, id, ctx.principal.id));
+  await notifyOtherMembers(ctx, id, 'chat:conversation:updated', { deleted: true, removed: true }, memberIds);
+  return { deleted: true };
+}
+
+/** Archived (and deleted) conversations are read-only: no new messages. */
+async function assertConversationOpen(tx: Tx, organizationId: string, conversationId: string): Promise<void> {
+  const open = await conversationIsOpenTx(tx, organizationId, conversationId);
+  if (open === null) throw new ChatNotFoundError('conversation');
+  if (!open) throw new ChatValidationError('This conversation is archived. New messages cannot be sent to it.');
 }
 
 /* ------------------------------------------------------------------ *
@@ -395,6 +489,7 @@ export async function deliverMessage(
   input: DeliverInput,
   options: { claimAttachments?: boolean } = {},
 ): Promise<{ id: string; links: string[] }> {
+  await assertConversationOpen(tx, ctx.organizationId, conversationId);
   if (input.replyToMessageId) {
     const target = await findMessageRowTx(tx, ctx.organizationId, input.replyToMessageId);
     if (!target || target.conversationId !== conversationId) {
@@ -467,6 +562,7 @@ export async function forwardMessage(ctx: RequestContext, sourceMessageId: strin
 
   const links = extractLinks(source.body);
   const created = await db.transaction(ctx, async (tx) => {
+    await assertConversationOpen(tx, ctx.organizationId, targetConversationId);
     const inserted = await insertMessage(tx, ctx.organizationId, ctx.principal.id, targetConversationId, {
       body: source.body!,
       forwarded: true,

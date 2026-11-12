@@ -19,3 +19,66 @@ export function getSearchConsoleSettings(projectId: string): Promise<SearchConso
 export function linkSearchConsoleProperty(projectId: string, propertyUrl: string): Promise<unknown> { return identityRequest(path(projectId, '/search-console'), { method: 'PUT', body: JSON.stringify({ propertyUrl }) }); }
 export function unlinkSearchConsoleProperty(projectId: string): Promise<{ unlinked: true }> { return identityRequest(path(projectId, '/search-console'), { method: 'DELETE' }); }
 export function syncSearchConsoleRanks(projectId: string): Promise<SyncResult> { return identityRequest(path(projectId, '/search-console/sync'), { method: 'POST' }); }
+
+export interface ProjectLiveSettings {
+  /** The website set on the project, if any. */
+  websiteUrl: string | null;
+  /** The website live checks look for when a keyword has no target URL. */
+  effectiveHost: string | null;
+  websiteSource: 'project' | 'search-console' | null;
+  monthlyLimit: number;
+  searchDepth: 10 | 20 | 30 | 50 | 100;
+  used: number;
+  remaining: number;
+  configured: boolean;
+  provider: string;
+}
+export interface LiveTopResult {
+  position: number;
+  url: string | null;
+  title: string | null;
+}
+export interface LiveCheckOutcome {
+  source: 'live' | 'search-console';
+  status: 'found' | 'not-found' | 'failed';
+  position: number | null;
+  url: string | null;
+  title: string | null;
+  location: string;
+  engine: string;
+  device: string;
+  resultsChecked: number | null;
+  pagesRequested: number;
+  topResults: LiveTopResult[];
+  message: string | null;
+  usedFallback: boolean;
+}
+export interface ProjectRankings {
+  project: { id: string; name: string; clientName: string; businessName: string };
+  settings: ProjectLiveSettings;
+  keywords: SeoKeyword[];
+}
+export function getProjectRankings(projectId: string): Promise<ProjectRankings> {
+  return identityRequest(path(projectId, '/rankings'));
+}
+export function getProjectLiveSettings(projectId: string): Promise<ProjectLiveSettings> {
+  return identityRequest(path(projectId, '/live-settings'));
+}
+export function updateProjectLiveSettings(
+  projectId: string,
+  input: { websiteUrl?: string | null; monthlyLimit?: number; searchDepth?: ProjectLiveSettings['searchDepth'] },
+): Promise<ProjectLiveSettings> {
+  return identityRequest(path(projectId, '/live-settings'), {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+export function checkKeywordLive(
+  projectId: string,
+  keywordId: string,
+): Promise<{ keyword: SeoKeyword; outcome: LiveCheckOutcome }> {
+  return identityRequest(
+    path(projectId, `/keywords/${encodeURIComponent(keywordId)}/live-check`),
+    { method: 'POST' },
+  );
+}

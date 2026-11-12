@@ -1,0 +1,215 @@
+import { useEffect, useState } from 'react';
+import { Button, Card, Empty, Loading, Modal, Notice, Select } from '../../ui/index.js';
+import { archiveBlog, archiveKeyword, checkKeywordLive, createBlog, createKeyword, getKeywordHistory, getProjectLiveSettings, getProjectSeoReport, updateBlog, updateKeyword, updateKeywordRank, type LiveCheckOutcome, type ProjectLiveSettings } from './api/projectReportsApi.js';
+import { SearchConsoleCard } from './SearchConsoleCard.js';
+import { Pager } from './components/Pager.js';
+import { ReportKpiCard as KpiCard } from './components/ReportKpiCard.js';
+import { ClientFeedbackPlaceholder } from './components/ClientFeedbackPlaceholder.js';
+import { LiveCell, LiveSettingsModal, LiveStatusBar, OutcomeCard, keywordLocation, liveReadiness, whereLabel } from './LiveRankParts.js';
+import type { BlogInput, FetchOutcome, KeywordInput, RankHistoryEntry, ReportPeriod, SeoBlogPost, SeoKeyword, SeoReport, SeoTrend } from './types.js';
+import type { Project } from '../api/projectsApi.js';
+
+/**
+ * A project's SEO records — the keywords tracked for it and the blog content
+ * written for it. Shown in the SEO dashboard (Projects); moved out of the
+ * project's own Reports tab.
+ */
+
+const blankKeyword: KeywordInput = { keyword: '', currentRank: null, targetUrl: '', keywordLink: '', searchEngine: 'google', country: 'global', city: '', device: 'desktop', autoFetchFrequency: 'manual', priority: 'medium', category: 'seo', notes: '' };
+const blankBlog: BlogInput = { title: '', url: null, description: '', category: 'blog-post', status: 'draft', publishDate: null, wordCount: 0, targetKeywords: [], notes: '' };
+function KeywordChips({ keywords }: { keywords: string[] }): React.JSX.Element {
+  return keywords.length === 0 ? <span className="text-xs text-app-muted">—</span> : <div className="flex max-w-56 flex-wrap gap-1.5">{keywords.map((keyword) => <span key={keyword} className="max-w-full truncate rounded-full bg-app-accent/10 px-2 py-1 text-[11px] font-semibold text-app-accent" title={keyword}>{keyword}</span>)}</div>;
+}
+const trendLabel: Record<SeoTrend, string> = { improving: 'Improving', declining: 'Declining', stagnant: 'Stagnant', unclassified: 'Unclassified' };
+const trendClass: Record<SeoTrend, string> = { improving: 'bg-emerald-500/10 text-emerald-600', declining: 'bg-red-500/10 text-red-600', stagnant: 'bg-amber-500/10 text-amber-600', unclassified: 'bg-app-background text-app-muted' };
+const outcomeLabel: Record<FetchOutcome, string> = { ok: 'Fetched', 'no-data': 'No data', skipped: 'Not supported', failed: 'Failed' };
+const outcomeClass: Record<FetchOutcome, string> = { ok: 'bg-emerald-500/10 text-emerald-600', 'no-data': 'bg-amber-500/10 text-amber-600', skipped: 'bg-app-background text-app-muted', failed: 'bg-red-500/10 text-red-600' };
+/** Automatic fetching covers Google organic only, at country granularity. */
+function automatable(form: { searchEngine: string; category: string; city: string }): string | null {
+  if (form.searchEngine !== 'google') return 'Search Console covers Google only — a Bing keyword stays manual whatever frequency is set.';
+  if (form.category === 'gmb') return 'Search Console does not report GMB or local-pack rank — a GMB keyword stays manual.';
+  if (form.city.trim() !== '') return 'Search Console has no city dimension. Clear the city to have this keyword fetched at country level, or leave it and update the rank manually.';
+  return null;
+}
+
+function validateOptionalHttpUrl(raw: string, label: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+  if (value.length > 2000) return `${label} must be 2000 characters or fewer.`;
+  try {
+    const parsed = new URL(value);
+    if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) return `${label} must be a valid HTTP or HTTPS URL without credentials.`;
+  } catch {
+    return `${label} must be a valid URL beginning with http:// or https://.`;
+  }
+  return null;
+}
+
+function validateDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+/** The project's keyword tracker: Search Console link, KPIs, keywords, live checks. */
+export function ProjectKeywordTracker({ project, period, canManage }: { project: Project; period: ReportPeriod; canManage: boolean }): React.JSX.Element {
+  const [keywordSearch, setKeywordSearch] = useState(''); const [keywordCategory, setKeywordCategory] = useState('all'); const [keywordPriority, setKeywordPriority] = useState('all'); const [keywordDevice, setKeywordDevice] = useState('all'); const [keywordTrend, setKeywordTrend] = useState('all'); const [keywordPage, setKeywordPage] = useState(1);
+  const [report, setReport] = useState<SeoReport | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
+  const [keywordModal, setKeywordModal] = useState<SeoKeyword | 'new' | null>(null); const [rankModal, setRankModal] = useState<SeoKeyword | null>(null); const [historyModal, setHistoryModal] = useState<SeoKeyword | null>(null); const [archiveConfirm, setArchiveConfirm] = useState<SeoKeyword | null>(null);
+  const [live, setLive] = useState<ProjectLiveSettings | null>(null); const [showLiveSettings, setShowLiveSettings] = useState(false); const [checking, setChecking] = useState(''); const [outcome, setOutcome] = useState<{ keyword: string; outcome: LiveCheckOutcome } | null>(null);
+  async function load(): Promise<void> { setLoading(true); try { const next = await getProjectSeoReport(project.id, { period, keywordSearch: keywordSearch || undefined, keywordCategory, keywordPriority, keywordDevice, keywordTrend, keywordPage, blogPage: 1 }); setReport(next); setError(''); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load the keyword tracker.'); } finally { setLoading(false); } }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when a filter changes
+  useEffect(() => { void load(); }, [project.id, period, keywordSearch, keywordCategory, keywordPriority, keywordDevice, keywordTrend, keywordPage]);
+  useEffect(() => { let current = true; setLive(null); setOutcome(null); void getProjectLiveSettings(project.id).then((next) => { if (current) setLive(next); }).catch(() => { if (current) setLive(null); }); return () => { current = false; }; }, [project.id]);
+  async function saveFromForm(work: () => Promise<unknown>, success: string): Promise<void> { await work(); setNotice(success); setKeywordModal(null); setRankModal(null); await load(); }
+  async function checkLive(item: SeoKeyword): Promise<void> {
+    setChecking(item.id); setError(''); setNotice('');
+    try { const result = await checkKeywordLive(project.id, item.id); setOutcome({ keyword: item.keyword, outcome: result.outcome }); await load(); setLive(await getProjectLiveSettings(project.id)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'The live check could not be run.'); }
+    finally { setChecking(''); }
+  }
+  const readiness = liveReadiness(live);
+  const allowLive = canManage && Boolean(live?.configured);
+  return <div className="space-y-5">
+    {notice && <Notice>{notice}</Notice>}{error && <Notice error>{error}</Notice>}
+    {loading && !report ? <Loading /> : report && <>
+      <SearchConsoleCard projectId={project.id} onSynced={() => { void load(); }} />
+      {live && <LiveStatusBar settings={live} canManage={canManage} onSettings={() => setShowLiveSettings(true)} />}
+      {live && !readiness.ready && canManage && <p className="px-1 text-xs text-app-muted">{readiness.reason}</p>}
+      {outcome && <OutcomeCard keyword={outcome.keyword} outcome={outcome.outcome} />}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"><KpiCard label="Keywords" value={report.overview.totalKeywords} active={keywordTrend === 'all'} onClick={() => { setKeywordTrend('all'); setKeywordPage(1); }} /><KpiCard label="Improving" value={report.overview.improving} tone="positive" active={keywordTrend === 'improving'} onClick={() => { setKeywordTrend('improving'); setKeywordPage(1); }} /><KpiCard label="Declining" value={report.overview.declining} tone="negative" active={keywordTrend === 'declining'} onClick={() => { setKeywordTrend('declining'); setKeywordPage(1); }} /><KpiCard label="Stagnant" value={report.overview.stagnant} tone="warning" active={keywordTrend === 'stagnant'} onClick={() => { setKeywordTrend('stagnant'); setKeywordPage(1); }} /><KpiCard label="Unclassified" value={report.overview.unclassified} active={keywordTrend === 'unclassified'} onClick={() => { setKeywordTrend('unclassified'); setKeywordPage(1); }} /><KpiCard label="Avg. rank" value={report.overview.averageCurrentRank?.toFixed(1) ?? '—'} /></div>
+      <Card><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-display text-lg font-bold">Keyword tracker</h3><p className="mt-1 text-xs text-app-muted">Lower rank numbers are better. Showing keywords added or updated in the reporting period. “Check live” searches right now and updates the current rank.</p></div>{canManage && <Button onClick={() => setKeywordModal('new')}>Add keyword</Button>}</div><div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5"><input value={keywordSearch} onChange={(e) => { setKeywordPage(1); setKeywordSearch(e.target.value); }} placeholder="Search keywords or URLs" aria-label="Search keywords or URLs" className="rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm lg:col-span-2" /><Filter value={keywordCategory} onChange={(v) => { setKeywordPage(1); setKeywordCategory(v); }} options={[['all', 'All categories'], ['seo', 'SEO'], ['gmb', 'GMB']]} /><Filter value={keywordPriority} onChange={(v) => { setKeywordPage(1); setKeywordPriority(v); }} options={[['all', 'All priorities'], ['low', 'Low priority'], ['medium', 'Medium priority'], ['high', 'High priority']]} /><Filter value={keywordDevice} onChange={(v) => { setKeywordPage(1); setKeywordDevice(v); }} options={[['all', 'All devices'], ['desktop', 'Desktop'], ['mobile', 'Mobile']]} /><Filter value={keywordTrend} onChange={(v) => { setKeywordPage(1); setKeywordTrend(v); }} options={[['all', 'All trends'], ['improving', 'Improving'], ['declining', 'Declining'], ['stagnant', 'Stagnant'], ['unclassified', 'Unclassified']]} /></div><KeywordTable items={report.keywords.items} canManage={canManage} checking={checking} onCheckLive={allowLive ? (item) => { void checkLive(item); } : undefined} onRank={setRankModal} onEdit={setKeywordModal} onHistory={setHistoryModal} onArchive={setArchiveConfirm} />{report.keywords.total > 0 && <Pager page={report.keywords.page} totalPages={report.keywords.totalPages} onChange={setKeywordPage} />}</Card><ClientFeedbackPlaceholder projectId={project.id} area="Keyword Tracker" description="Feedback records can be linked to keyword tracking and rank work." />
+    </>}
+    {keywordModal && <KeywordModal item={keywordModal === 'new' ? null : keywordModal} onClose={() => setKeywordModal(null)} onSave={(input) => saveFromForm(() => keywordModal === 'new' ? createKeyword(project.id, input) : updateKeyword(project.id, keywordModal.id, input), keywordModal === 'new' ? 'Keyword added.' : 'Keyword updated.')} />}
+    {rankModal && <RankModal item={rankModal} onClose={() => setRankModal(null)} onSave={(rank, status) => saveFromForm(() => updateKeywordRank(project.id, rankModal.id, rank, status), 'Rank observation saved.')} />}
+    {historyModal && <HistoryModal projectId={project.id} item={historyModal} onClose={() => setHistoryModal(null)} />}
+    {archiveConfirm && <ArchiveConfirm item={archiveConfirm} kind="keyword" onClose={() => setArchiveConfirm(null)} onConfirm={() => { const item = archiveConfirm; setArchiveConfirm(null); void archiveKeyword(project.id, item.id).then(() => { setNotice('Keyword archived.'); return load(); }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'The keyword could not be archived.')); }} />}
+    {showLiveSettings && live && <LiveSettingsModal projectId={project.id} settings={live} onClose={() => setShowLiveSettings(false)} onSaved={(next) => { setLive(next); setShowLiveSettings(false); setNotice('Live-check settings saved.'); }} />}
+  </div>;
+}
+
+/** The project's blog and content links. */
+export function ProjectBlogUpdates({ project, period, canManage }: { project: Project; period: ReportPeriod; canManage: boolean }): React.JSX.Element {
+  const [blogSearch, setBlogSearch] = useState(''); const [blogStatus, setBlogStatus] = useState('all'); const [blogPage, setBlogPage] = useState(1);
+  const [report, setReport] = useState<SeoReport | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
+  const [blogModal, setBlogModal] = useState<SeoBlogPost | 'new' | null>(null); const [archiveConfirm, setArchiveConfirm] = useState<SeoBlogPost | null>(null);
+  async function load(): Promise<void> { setLoading(true); try { const next = await getProjectSeoReport(project.id, { period, blogSearch: blogSearch || undefined, blogStatus, blogPage, keywordPage: 1 }); setReport(next); setError(''); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load blog updates.'); } finally { setLoading(false); } }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when a filter changes
+  useEffect(() => { void load(); }, [project.id, period, blogSearch, blogStatus, blogPage]);
+  async function saveFromForm(work: () => Promise<unknown>, success: string): Promise<void> { await work(); setNotice(success); setBlogModal(null); await load(); }
+  return <div className="space-y-5">
+    {notice && <Notice>{notice}</Notice>}{error && <Notice error>{error}</Notice>}
+    {loading && !report ? <Loading /> : report && <>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4"><KpiCard label="Total blogs" value={report.overview.totalBlogs} active={blogStatus === 'all'} onClick={() => { setBlogStatus('all'); setBlogPage(1); }} /><KpiCard label="Published" value={report.overview.publishedBlogs} tone="positive" active={blogStatus === 'published'} onClick={() => { setBlogStatus('published'); setBlogPage(1); }} /><KpiCard label="Draft" value={report.overview.draftBlogs} tone="warning" active={blogStatus === 'draft'} onClick={() => { setBlogStatus('draft'); setBlogPage(1); }} /><KpiCard label="Archived" value={report.overview.archivedBlogs} tone="negative" active={blogStatus === 'archived'} onClick={() => { setBlogStatus('archived'); setBlogPage(1); }} /></div>
+      <Card><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-display text-lg font-bold">Blog links</h3><p className="mt-1 text-xs text-app-muted">Content published or planned for this project’s SEO work.</p></div>{canManage && <Button onClick={() => setBlogModal('new')}>Add blog</Button>}</div><div className="mb-4 flex flex-wrap gap-2"><input value={blogSearch} onChange={(e) => { setBlogPage(1); setBlogSearch(e.target.value); }} placeholder="Search blog posts or target keywords" aria-label="Search blog posts" className="min-w-56 flex-1 rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm" /></div><BlogTable items={report.blogs.items} canManage={canManage} onEdit={setBlogModal} onArchive={setArchiveConfirm} />{report.blogs.total > 0 && <Pager page={report.blogs.page} totalPages={report.blogs.totalPages} onChange={setBlogPage} />}</Card><ClientFeedbackPlaceholder projectId={project.id} area="Blog Updates" description="Feedback records can be linked to blog content and publishing work." />
+    </>}
+    {blogModal && <BlogModal item={blogModal === 'new' ? null : blogModal} onClose={() => setBlogModal(null)} onSave={(input) => saveFromForm(() => blogModal === 'new' ? createBlog(project.id, input) : updateBlog(project.id, blogModal.id, input), blogModal === 'new' ? 'Blog post added.' : 'Blog post updated.')} />}
+    {archiveConfirm && <ArchiveConfirm item={archiveConfirm} kind="blog" onClose={() => setArchiveConfirm(null)} onConfirm={() => { const item = archiveConfirm; setArchiveConfirm(null); void archiveBlog(project.id, item.id).then(() => { setNotice('Blog post moved to archive.'); return load(); }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'The blog post could not be archived.')); }} />}
+  </div>;
+}
+
+function ArchiveConfirm({ item, kind, onClose, onConfirm }: { item: SeoKeyword | SeoBlogPost; kind: 'keyword' | 'blog'; onClose: () => void; onConfirm: () => void }): React.JSX.Element {
+  const name = 'keyword' in item ? item.keyword : item.title;
+  const label = kind === 'keyword' ? 'keyword' : 'blog post';
+  return <Modal title={`Delete ${label}`} onClose={onClose}><div className="space-y-4"><p className="text-sm text-app-muted">This will hide the {label} from the table without permanently deleting it from the database.</p><p className="truncate text-sm font-semibold">{name}</p><div className="flex justify-end gap-2"><Button kind="secondary" onClick={onClose}>Cancel</Button><Button kind="danger" onClick={onConfirm}>Delete {label}</Button></div></div></Modal>;
+}
+
+function KeywordTable({ items, onRank, onEdit, onHistory, onArchive, onCheckLive, checking, canManage }: { items: SeoKeyword[]; onRank: (item: SeoKeyword) => void; onEdit: (item: SeoKeyword) => void; onHistory: (item: SeoKeyword) => void; onArchive: (item: SeoKeyword) => void; onCheckLive?: ((item: SeoKeyword) => void) | undefined; checking: string; canManage: boolean }): React.JSX.Element {
+  if (items.length === 0) return <Empty>No keywords match this report.</Empty>;
+  return <div className="overflow-x-auto rounded-xl border border-app-border shadow-sm"><table className="min-w-[1360px] w-full text-left text-sm"><thead className="sticky top-0 z-10 bg-app-surface text-xs uppercase tracking-wide text-app-muted"><tr>{['Keyword', 'Category', 'Target URL', 'Device', 'Past', 'Previous', 'Current', 'Change', 'Trend', 'Live position', 'Auto', 'Last checked', 'Actions'].map((label) => <th key={label} className="whitespace-nowrap border-b border-app-border px-4 py-3 font-bold">{label}</th>)}</tr></thead><tbody>{items.map((item, index) => <tr key={item.id} className={`${index % 2 ? 'bg-app-background/40' : ''} border-b border-app-border last:border-b-0 hover:bg-app-accent/5`}><td className="min-w-72 max-w-80 px-4 py-3 align-top font-semibold leading-6"><span className="block break-words">{item.keyword}</span><span className="mt-1 block text-xs font-normal leading-5 text-app-muted">{keywordLocation(item)} · {whereLabel(item)}</span></td><td className="px-4 py-3"><span className="rounded-md bg-app-accent/10 px-2 py-1 text-xs font-bold uppercase text-app-accent">{item.category}</span></td><td className="max-w-48 truncate px-4 py-3 text-xs text-app-muted" title={item.targetUrl ?? undefined}>{item.targetUrl || '—'}</td><td className="px-4 py-3 capitalize">{item.device}</td><td className="px-4 py-3">{item.pastRank ?? 'N/A'}</td><td className="px-4 py-3">{item.previousRank ?? 'N/A'}</td><td className="px-4 py-3 font-bold">{item.currentRank ?? 'N/A'}</td><td className={`px-4 py-3 font-bold ${item.rankChange && item.rankChange > 0 ? 'text-emerald-600' : item.rankChange && item.rankChange < 0 ? 'text-red-600' : ''}`}>{item.rankChange === null ? '—' : item.rankChange > 0 ? `+${item.rankChange}` : item.rankChange}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${trendClass[item.trend]}`}>{trendLabel[item.trend]}</span></td><td className="whitespace-nowrap px-4 py-3"><LiveCell keyword={item} /></td><td className="whitespace-nowrap px-4 py-3"><AutoCell item={item} /></td><td className="whitespace-nowrap px-4 py-3 text-xs text-app-muted">{item.lastCheckedAt ? new Date(item.lastCheckedAt).toLocaleDateString() : '—'}</td><td className="whitespace-nowrap px-4 py-3"><div className="flex gap-3 text-xs font-semibold">{onCheckLive && <button type="button" disabled={checking !== ''} className="text-app-accent hover:underline disabled:opacity-50" onClick={() => onCheckLive(item)}>{checking === item.id ? 'Checking…' : 'Check live'}</button>}{canManage && <button type="button" className="text-app-accent hover:underline" onClick={() => onRank(item)}>Rank</button>}{canManage && <button type="button" className="text-app-accent hover:underline" onClick={() => onEdit(item)}>Edit</button>}<button type="button" className="text-app-accent hover:underline" onClick={() => onHistory(item)}>History</button>{canManage && <button type="button" className="text-app-danger hover:underline" onClick={() => onArchive(item)}>Delete</button>}</div></td></tr>)}</tbody></table></div>;
+}
+function BlogTable({ items, onEdit, onArchive, canManage }: { items: SeoBlogPost[]; onEdit: (item: SeoBlogPost) => void; onArchive: (item: SeoBlogPost) => void; canManage: boolean }): React.JSX.Element { return items.length === 0 ? <Empty>No blog posts match this report.</Empty> : <div className="overflow-x-auto rounded-xl border border-app-border shadow-sm"><table className="min-w-[950px] w-full text-left text-sm"><thead className="sticky top-0 z-10 bg-app-surface text-xs uppercase tracking-wide text-app-muted"><tr>{['Title', 'Category', 'Target keywords', 'Words', 'Status', 'Publish date', 'Added by', 'Actions'].map((label) => <th key={label} className="border-b border-app-border px-4 py-3 font-bold">{label}</th>)}</tr></thead><tbody>{items.map((item, index) => <tr key={item.id} className={`${index % 2 ? 'bg-app-background/40' : ''} border-b border-app-border last:border-b-0 hover:bg-app-accent/5`}><td className="max-w-72 px-4 py-3 font-semibold">{item.title}{item.url && <a href={item.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-xs font-normal text-app-accent">{item.url}</a>}</td><td className="px-4 py-3 capitalize">{item.category.replace('-', ' ')}</td><td className="max-w-56 px-4 py-3 align-top"><KeywordChips keywords={item.targetKeywords} /></td><td className="px-4 py-3">{item.wordCount}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold capitalize ${item.status === 'published' ? 'bg-emerald-500/10 text-emerald-600' : item.status === 'archived' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600'}`}>{item.status}</span></td><td className="px-4 py-3 text-xs text-app-muted">{item.publishDate ? new Date(item.publishDate).toLocaleDateString() : '—'}</td><td className="px-4 py-3 text-xs text-app-muted">{item.createdByName ?? 'Unknown'}</td><td className="px-4 py-3">{canManage ? <div className="flex gap-3 text-xs font-semibold"><button type="button" className="text-app-accent hover:underline" onClick={() => onEdit(item)}>Edit</button><button type="button" className="text-app-danger hover:underline" onClick={() => onArchive(item)}>Delete</button></div> : <span className="text-xs text-app-muted">—</span>}</td></tr>)}</tbody></table></div>; }
+/** The keyword's fetch frequency and what automation last made of it. */
+function AutoCell({ item }: { item: SeoKeyword }): React.JSX.Element {
+  if (item.autoFetchFrequency === 'manual') return <span className="text-xs text-app-muted">Manual</span>;
+  const outcome = item.lastAutoFetchOutcome;
+  return <div className="flex flex-col gap-1">
+    <span className="text-xs font-semibold capitalize">{item.autoFetchFrequency}</span>
+    {outcome === null
+      ? <span className="text-[11px] text-app-muted">Not yet run</span>
+      : <span title={item.lastAutoFetchMessage ?? undefined} className={`w-fit cursor-help rounded-full px-2 py-0.5 text-[11px] font-semibold ${outcomeClass[outcome]}`}>{outcomeLabel[outcome]}</span>}
+  </div>;
+}
+function KeywordModal({ item, onClose, onSave }: { item: SeoKeyword | null; onClose: () => void; onSave: (input: Record<string, unknown>) => Promise<void> }): React.JSX.Element {
+  const [form, setForm] = useState<KeywordInput>(() => item ? { keyword: item.keyword, currentRank: item.currentRank, targetUrl: item.targetUrl ?? '', keywordLink: item.keywordLink ?? '', searchEngine: item.searchEngine as 'google' | 'bing', country: item.country, city: item.city ?? '', device: item.device, autoFetchFrequency: item.autoFetchFrequency as KeywordInput['autoFetchFrequency'], priority: item.priority, category: item.category, notes: item.notes ?? '' } : { ...blankKeyword });
+  const [rankStatus, setRankStatus] = useState<'available' | 'unavailable'>(() => item !== null && item.currentRank !== null ? 'available' : 'unavailable');
+  const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
+  const set = (key: keyof KeywordInput, value: string | number | null) => setForm((current) => ({ ...current, [key]: value }));
+  const unsupported = automatable(form);
+  async function submit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    const keyword = form.keyword.trim();
+    const country = form.country.trim();
+    const city = form.city.trim();
+    const notes = form.notes.trim();
+    const targetUrlError = validateOptionalHttpUrl(form.targetUrl, 'Target URL');
+    const keywordLinkError = validateOptionalHttpUrl(form.keywordLink, 'Keyword link');
+    if (!keyword) return setError('Keyword is required.');
+    if (keyword.length > 200) return setError('Keyword must be 200 characters or fewer.');
+    if (!item && rankStatus === 'available' && (!Number.isInteger(Number(form.currentRank)) || Number(form.currentRank) < 1 || Number(form.currentRank) > 100000)) return setError('Current rank must be a whole number between 1 and 100,000, or choose N/A.');
+    if (!country) return setError('Country is required.');
+    if (country.length > 100) return setError('Country must be 100 characters or fewer.');
+    if (city.length > 100) return setError('City must be 100 characters or fewer.');
+    if (notes.length > 2000) return setError('Notes must be 2,000 characters or fewer.');
+    if (targetUrlError) return setError(targetUrlError);
+    if (keywordLinkError) return setError(keywordLinkError);
+    setError(''); setSaving(true);
+    try { await onSave({ ...form, keyword, currentRank: item ? undefined : rankStatus === 'available' ? Number(form.currentRank) : null, targetUrl: form.targetUrl.trim() || null, keywordLink: form.keywordLink.trim() || null, city: city || null, country, notes: notes || null }); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save this keyword. Please review the form and try again.'); } finally { setSaving(false); }
+  }
+  return <Modal title={item ? 'Edit keyword' : 'Add keyword'} onClose={onClose} size="lg"><form onSubmit={(event) => { void submit(event); }} className="grid gap-4 md:grid-cols-2">{error && <div className="md:col-span-2"><Notice error>{error}</Notice></div>}<Input label="Keyword *" value={form.keyword} onChange={(v) => set('keyword', v)} />{!item && <div><Select label="Current rank status *" value={rankStatus} onChange={(v) => { const next = v as 'available' | 'unavailable'; setRankStatus(next); if (next === 'unavailable') set('currentRank', null); }} options={[{ value: 'available', label: 'Rank available' }, { value: 'unavailable', label: 'N/A — no rank available' }]} />{rankStatus === 'available' && <div className="mt-3"><Input label="Current rank *" type="number" value={String(form.currentRank ?? '')} onChange={(v) => set('currentRank', v === '' ? null : Number(v))} /></div>}</div>}<Input label="Target URL" value={form.targetUrl} onChange={(v) => set('targetUrl', v)} /><Input label="Keyword link" value={form.keywordLink} onChange={(v) => set('keywordLink', v)} /><Select label="Search engine" value={form.searchEngine} onChange={(v) => set('searchEngine', v)} options={[{ value: 'google', label: 'Google' }, { value: 'bing', label: 'Bing' }]} /><Input label="Country" value={form.country} onChange={(v) => set('country', v)} /><Input label="City" value={form.city} onChange={(v) => set('city', v)} /><Select label="Device" value={form.device} onChange={(v) => set('device', v)} options={[{ value: 'desktop', label: 'Desktop' }, { value: 'mobile', label: 'Mobile' }]} /><div><Select label="Fetch frequency" value={form.autoFetchFrequency} onChange={(v) => set('autoFetchFrequency', v)} options={[{ value: 'manual', label: 'Manual' }, { value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} />{form.autoFetchFrequency !== 'manual' && unsupported !== null && <p className="mt-2 text-[11px] text-amber-600">{unsupported}</p>}</div><Select label="Priority" value={form.priority} onChange={(v) => set('priority', v)} options={[{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }]} /><Select label="Category *" value={form.category} onChange={(v) => set('category', v)} options={[{ value: 'seo', label: 'SEO' }, { value: 'gmb', label: 'GMB' }]} /><Input label="Notes" value={form.notes} onChange={(v) => set('notes', v)} /><div className="md:col-span-2 flex justify-end gap-2"><Button kind="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save keyword'}</Button></div></form></Modal>;
+}
+function RankModal({ item, onClose, onSave }: { item: SeoKeyword; onClose: () => void; onSave: (rank: number | null, status: 'available' | 'unavailable') => Promise<void> }): React.JSX.Element { const [status, setStatus] = useState<'available' | 'unavailable'>(() => item.currentRank === null ? 'unavailable' : 'available'); const [rank, setRank] = useState(String(item.currentRank ?? '')); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); async function submit(): Promise<void> { if (status === 'available' && (!rank || !Number.isInteger(Number(rank)) || Number(rank) < 1 || Number(rank) > 100000)) return setError('Enter a whole-number rank between 1 and 100,000, or choose N/A.'); setError(''); setSaving(true); try { await onSave(status === 'available' ? Number(rank) : null, status); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save this rank.'); } finally { setSaving(false); } } return <Modal title={`Update rank · ${item.keyword}`} onClose={onClose}><div className="space-y-4">{error && <Notice error>{error}</Notice>}<p className="text-sm text-app-muted">Current rank: <strong className="text-app-foreground">{item.currentRank ?? 'N/A'}</strong></p><Select label="Rank status *" value={status} onChange={(v) => { const next = v as 'available' | 'unavailable'; setStatus(next); if (next === 'unavailable') setRank(''); }} options={[{ value: 'available', label: 'Rank available' }, { value: 'unavailable', label: 'N/A — no rank available' }]} />{status === 'available' && <Input label="New current rank *" type="number" value={rank} onChange={setRank} />}<div className="mt-6 flex justify-end gap-2 border-t border-app-border pt-4"><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={saving} onClick={() => { void submit(); }}>{saving ? 'Saving…' : 'Save rank'}</Button></div></div></Modal>; }
+function HistoryModal({ projectId, item, onClose }: { projectId: string; item: SeoKeyword; onClose: () => void }): React.JSX.Element { const [history, setHistory] = useState<RankHistoryEntry[] | null>(null); const [error, setError] = useState(''); useEffect(() => { void getKeywordHistory(projectId, item.id).then(setHistory).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load history.')); }, [projectId, item.id]); return <Modal title={`Rank history · ${item.keyword}`} onClose={onClose} size="lg">{error ? <Notice error>{error}</Notice> : !history ? <Loading /> : history.length === 0 ? <Empty>No rank observations yet.</Empty> : <div className="space-y-2">{history.map((entry, index) => { const previous = index > 0 ? history[index - 1] : undefined; const change = previous?.rank !== null && previous?.rank !== undefined && entry.rank !== null ? previous.rank - entry.rank : null; return <div key={entry.id} className="flex flex-wrap justify-between gap-2 rounded-lg border border-app-border px-3 py-2 text-sm"><span>{new Date(entry.observedAt).toLocaleString()} · <span className="text-app-muted">{entry.source === 'live' ? 'live check' : entry.source === 'automatic' ? 'Search Console' : 'manual'}</span>{entry.searchLocation ? <span className="ml-1 text-xs text-app-muted">· {entry.searchLocation}</span> : null}{entry.rankingUrl ? <a href={entry.rankingUrl} target="_blank" rel="noreferrer" className="ml-1 text-xs text-app-accent hover:underline">ranking page</a> : null}{entry.windowStart !== null && entry.windowEnd !== null && <span className="ml-1 text-xs text-app-muted">({entry.windowStart} → {entry.windowEnd})</span>}{entry.unavailableReason !== null && <span className="ml-1 text-xs text-amber-600">{entry.unavailableReason === 'not-ranked' ? (entry.resultsChecked ? `not in top ${entry.resultsChecked}` : 'not in results') : 'no data'}</span>}</span><span className="font-semibold">{entry.rank ?? 'Unavailable'}{entry.exactPosition !== null && <span className="ml-1 text-xs font-normal text-app-muted">avg {entry.exactPosition.toFixed(1)}</span>}{entry.impressions !== null && <span className="ml-2 text-xs font-normal text-app-muted">{entry.impressions} impr.</span>}{change !== null ? <span className="ml-2 text-xs text-app-muted">change {change > 0 ? '+' : ''}{change}</span> : null}</span></div>; })}</div>}</Modal>; }
+function BlogModal({ item, onClose, onSave }: { item: SeoBlogPost | null; onClose: () => void; onSave: (input: BlogInput) => Promise<void> }): React.JSX.Element {
+  const [form, setForm] = useState<BlogInput>(() => item ? { title: item.title, url: item.url, description: item.description ?? '', category: item.category, status: item.status, publishDate: item.publishDate?.slice(0, 10) ?? null, wordCount: item.wordCount, targetKeywords: item.targetKeywords, notes: item.notes ?? '' } : { ...blankBlog });
+  const [keywordDraft, setKeywordDraft] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const set = (key: keyof BlogInput, value: string | number | string[] | null) => setForm((current) => ({ ...current, [key]: value }));
+  async function submit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    const title = form.title.trim();
+    const url = form.url?.trim() ?? '';
+    const description = form.description.trim();
+    const notes = form.notes.trim();
+    const urlError = validateOptionalHttpUrl(url, 'URL');
+    if (!title) return setError('Title is required.');
+    if (title.length > 300) return setError('Title must be 300 characters or fewer.');
+    if (urlError) return setError(urlError);
+    if (form.status === 'published' && !form.publishDate) return setError('Publish date is required for published posts.');
+    if (form.publishDate && !validateDateOnly(form.publishDate)) return setError('Publish date must be a valid date in YYYY-MM-DD format.');
+    if (form.wordCount < 0 || !Number.isInteger(Number(form.wordCount)) || Number(form.wordCount) > 1000000) return setError('Word count must be a whole number between 0 and 1,000,000.');
+    if (description.length > 10000) return setError('Description must be 10,000 characters or fewer.');
+    if (notes.length > 5000) return setError('Notes must be 5,000 characters or fewer.');
+    const targetKeywords = [...form.targetKeywords, ...keywordDraft.split(',').map((value) => value.trim()).filter(Boolean)];
+    const uniqueKeywords = [...new Set(targetKeywords)];
+    if (uniqueKeywords.length > 100) return setError('You can add up to 100 target keywords.');
+    const longKeyword = uniqueKeywords.find((keyword) => keyword.length > 200);
+    if (longKeyword) return setError(`Target keyword “${longKeyword.slice(0, 40)}${longKeyword.length > 40 ? '…' : ''}” must be 200 characters or fewer.`);
+    const input: BlogInput = { ...form, title, url: url || null, publishDate: form.publishDate || null, description, notes, wordCount: Number(form.wordCount), targetKeywords: uniqueKeywords };
+    setError(''); setSaving(true);
+    try { await onSave(input); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save this blog post.'); } finally { setSaving(false); }
+  }
+  const categoryOptions: Array<{ value: string; label: string }> = [{ value: 'blog-post', label: 'Blog Post' }, { value: 'article', label: 'Article' }, { value: 'news', label: 'News' }, { value: 'tutorial', label: 'Tutorial' }, { value: 'case-study', label: 'Case Study' }, { value: 'other', label: 'Other' }];
+  return <Modal title={item ? 'Edit blog post' : 'Add blog post'} onClose={onClose} size="lg"><form onSubmit={(event) => { void submit(event); }} className="grid gap-4 md:grid-cols-2">{error && <div className="md:col-span-2"><Notice error>{error}</Notice></div>}<Input label="Title *" value={form.title} onChange={(v) => set('title', v)} /><Input label="URL" value={form.url ?? ''} onChange={(v) => set('url', v)} /><Select label="Category *" value={form.category} onChange={(v) => set('category', v)} options={categoryOptions} /><Select label="Status *" value={form.status} onChange={(v) => set('status', v)} options={[{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }, { value: 'archived', label: 'Archived' }]} /><Input label="Publish date" type="date" value={form.publishDate ?? ''} onChange={(v) => set('publishDate', v)} /><Input label="Word count" type="number" value={String(form.wordCount)} onChange={(v) => set('wordCount', Number(v))} /><KeywordTagsInput value={form.targetKeywords} draft={keywordDraft} onDraftChange={setKeywordDraft} onChange={(value) => set('targetKeywords', value)} /><Input label="Notes" value={form.notes} onChange={(v) => set('notes', v)} /><div className="md:col-span-2 flex justify-end gap-2"><Button kind="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save blog post'}</Button></div></form></Modal>;
+}
+
+function KeywordTagsInput({ value, draft, onDraftChange, onChange }: { value: string[]; draft: string; onDraftChange: (value: string) => void; onChange: (value: string[]) => void }): React.JSX.Element {
+  function addDraft(): void {
+    const next = draft.trim();
+    if (!next) return onDraftChange('');
+    const additions = next.split(',').map((keyword) => keyword.trim()).filter(Boolean);
+    onChange([...new Set([...value, ...additions])]);
+    onDraftChange('');
+  }
+  function updateDraft(raw: string): void {
+    const parts = raw.split(',');
+    if (parts.length === 1) return onDraftChange(raw);
+    const additions = parts.slice(0, -1).map((keyword) => keyword.trim()).filter(Boolean);
+    if (additions.length) onChange([...new Set([...value, ...additions])]);
+    onDraftChange(parts.at(-1) ?? '');
+  }
+  return <label className="text-xs font-semibold text-app-muted"><span className="mb-2 block">Target keywords</span><div className="flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-lg border border-app-border bg-app-background px-2.5 py-2 focus-within:border-app-accent"><div className="flex flex-wrap gap-1.5">{value.map((keyword) => <span key={keyword} className="inline-flex items-center gap-1 rounded-full bg-app-accent/10 px-2 py-1 text-xs font-semibold text-app-accent">{keyword}<button type="button" aria-label={`Remove ${keyword}`} className="text-app-accent/70 hover:text-app-accent" onClick={() => onChange(value.filter((entry) => entry !== keyword))}>×</button></span>)}</div><input value={draft} onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === ',' || event.key === 'Enter') { event.preventDefault(); addDraft(); } else if (event.key === 'Backspace' && !draft && value.length) onChange(value.slice(0, -1)); }} onBlur={addDraft} placeholder={value.length ? 'Add another keyword' : 'Type a keyword, then press comma'} className="min-w-32 flex-1 border-0 bg-transparent px-1 py-1 text-sm text-app-foreground outline-none" /></div><span className="mt-1 block font-normal text-app-muted">Separate keywords with commas or press Enter.</span></label>;
+}
+function Input({ label, value, onChange, type = 'text', disabled = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; disabled?: boolean }): React.JSX.Element { return <label className="text-xs font-semibold text-app-muted"><span className="mb-2 block">{label}</span><input type={type} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-60" /></label>; }
+function Filter({ value, onChange, options }: { value: string; onChange: (value: string) => void; options: Array<[string, string]> }): React.JSX.Element { return <select value={value} onChange={(e) => { onChange(e.target.value); }} className="rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm text-app-foreground">{options.map(([optionValue, label]) => <option key={optionValue} value={optionValue}>{label}</option>)}</select>; }

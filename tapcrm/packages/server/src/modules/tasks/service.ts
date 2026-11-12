@@ -374,7 +374,8 @@ export async function transitionTask(
       }
       if (updatePolicy.scope === 'team') {
         const allowedTeams = await scopeResolver.teamIds(ctx);
-        if (!assignee.teamId || !allowedTeams.has(assignee.teamId)) {
+        const teamMembers = await scopeResolver.teamMemberIds(ctx);
+        if (!teamMembers.has(targetUserId) && (!assignee.teamId || !allowedTeams.has(assignee.teamId))) {
           throw new AuthorizationError(
             'tasks:update',
             'out_of_scope',

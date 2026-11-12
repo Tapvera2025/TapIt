@@ -8,6 +8,7 @@ import type {
   Conversation,
   ConversationKind,
   ConversationMember,
+  GroupMemberRole,
   Message,
   MessageEdit,
   MessageMention,
@@ -31,6 +32,7 @@ interface ConversationRow {
   projectId: string | null;
   createdBy: string;
   createdAt: Date;
+  archivedAt: Date | null;
 }
 
 interface MemberRow {
@@ -38,6 +40,7 @@ interface MemberRow {
   userId: string;
   fullName: string;
   lastReadAt: Date | null;
+  role: GroupMemberRole;
 }
 
 interface MessageRow {
@@ -64,10 +67,15 @@ export function directPairKey(userIdA: string, userIdB: string): string {
   return [userIdA, userIdB].sort().join(':');
 }
 
-/** The ids of every current (not left) member — what `loadResource` needs for the policy check. */
+/**
+ * The ids of every current (not left) member — what `loadResource` needs for
+ * the policy check. A deleted group answers null, so every route bound to it
+ * (thread, messages, files, management) answers "not found".
+ */
 export async function conversationMemberIds(ctx: RequestContext, conversationId: string): Promise<string[] | null> {
   const conversation = await db.maybeOne<{ id: string }>(ctx, sql`
-    SELECT id FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${conversationId}
+    SELECT id FROM conversation
+    WHERE organization_id = ${ctx.organizationId} AND id = ${conversationId} AND deleted_at IS NULL
   `);
   if (!conversation) return null;
   const rows = await db.query<{ userId: string }>(ctx, sql`
@@ -80,7 +88,8 @@ export async function conversationMemberIds(ctx: RequestContext, conversationId:
 /** Active project members, filtering client accounts through the live project/client relationship. */
 export async function authorizedProjectMemberIds(ctx: RequestContext, conversationId: string): Promise<string[] | null> {
   const kind = await db.maybeOne<{ kind: ConversationKind }>(ctx, sql`
-    SELECT kind FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${conversationId}
+    SELECT kind FROM conversation
+    WHERE organization_id = ${ctx.organizationId} AND id = ${conversationId} AND deleted_at IS NULL
   `);
   if (!kind) return null;
   if (kind.kind !== 'project') {
@@ -146,7 +155,7 @@ export async function listColleagues(ctx: RequestContext, excludeUserId: string)
 async function membersFor(ctx: RequestContext, conversationIds: readonly string[]): Promise<Map<string, ConversationMember[]>> {
   if (conversationIds.length === 0) return new Map();
   const rows = await db.query<MemberRow>(ctx, sql`
-    SELECT cm.conversation_id, cm.user_id, cm.last_read_at, u.full_name
+    SELECT cm.conversation_id, cm.user_id, cm.last_read_at, cm.role, u.full_name
     FROM conversation_member cm
     JOIN app_user u ON u.organization_id = cm.organization_id AND u.id = cm.user_id
     WHERE cm.organization_id = ${ctx.organizationId}
@@ -157,7 +166,7 @@ async function membersFor(ctx: RequestContext, conversationIds: readonly string[
   const byConversation = new Map<string, ConversationMember[]>();
   for (const row of rows) {
     const list = byConversation.get(row.conversationId) ?? [];
-    list.push({ userId: row.userId, fullName: row.fullName, lastReadAt: row.lastReadAt });
+    list.push({ userId: row.userId, fullName: row.fullName, lastReadAt: row.lastReadAt, role: row.role });
     byConversation.set(row.conversationId, list);
   }
   return byConversation;
@@ -280,6 +289,7 @@ function toConversation(
     projectId: row.projectId,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
+    archivedAt: row.archivedAt,
     members: members.get(row.id) ?? [],
     lastMessage: lastMessages.get(row.id) ?? null,
     unreadCount: unread.get(row.id) ?? 0,
@@ -287,17 +297,22 @@ function toConversation(
   };
 }
 
-/** My conversations, newest activity first. `kind` narrows to one tab (e.g. 'direct'). */
-export async function listConversationsForUser(ctx: RequestContext, kind?: ConversationKind): Promise<Conversation[]> {
+/**
+ * My conversations, newest activity first. `kind` narrows to one tab (e.g.
+ * 'direct'); `archived` lists the archived ones instead of the active ones.
+ * Deleted groups are never listed.
+ */
+export async function listConversationsForUser(ctx: RequestContext, kind?: ConversationKind, archived = false): Promise<Conversation[]> {
   const rows = await db.query<ConversationRow & { lastActivityAt: Date }>(ctx, sql`
-    SELECT c.id, c.organization_id, c.kind, c.name, c.description, c.project_id, c.created_by, c.created_at,
+    SELECT c.id, c.organization_id, c.kind, c.name, c.description, c.project_id, c.created_by, c.created_at, c.archived_at,
            GREATEST(c.created_at, COALESCE((
              SELECT max(m.created_at) FROM message m
              WHERE m.organization_id = c.organization_id AND m.conversation_id = c.id
            ), c.created_at)) AS "lastActivityAt"
     FROM conversation c
     WHERE c.organization_id = ${ctx.organizationId}
-      AND c.archived_at IS NULL
+      AND c.deleted_at IS NULL
+      AND (c.archived_at IS NOT NULL) = ${archived}::boolean
       AND (${kind ?? null}::text IS NULL OR c.kind = ${kind ?? null})
       AND EXISTS (
         SELECT 1 FROM conversation_member cm
@@ -318,8 +333,8 @@ export async function listConversationsForUser(ctx: RequestContext, kind?: Conve
 
 export async function findConversationById(ctx: RequestContext, id: string): Promise<Conversation | null> {
   const row = await db.maybeOne<ConversationRow>(ctx, sql`
-    SELECT id, organization_id, kind, name, description, project_id, created_by, created_at
-    FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${id}
+    SELECT id, organization_id, kind, name, description, project_id, created_by, created_at, archived_at
+    FROM conversation WHERE organization_id = ${ctx.organizationId} AND id = ${id} AND deleted_at IS NULL
   `);
   if (!row) return null;
   const [members, lastMessages, unread, pins] = await Promise.all([
@@ -433,10 +448,14 @@ export async function addConversationMembers(tx: Tx, organizationId: string, con
   `);
 }
 
-/** Soft-remove: the row (and the history they were part of) stays; `left_at` is what `filter()`/listing checks. */
+/**
+ * Soft-remove: the row (and the history they were part of) stays; `left_at`
+ * is what `filter()`/listing checks. A group admin stops being one, so being
+ * added back later does not quietly bring the admin role with it.
+ */
 export async function removeConversationMember(tx: Tx, organizationId: string, conversationId: string, userId: string): Promise<void> {
   await tx.query(sql`
-    UPDATE conversation_member SET left_at = now()
+    UPDATE conversation_member SET left_at = now(), role = 'member'
     WHERE organization_id = ${organizationId} AND conversation_id = ${conversationId} AND user_id = ${userId} AND left_at IS NULL
   `);
 }
@@ -445,6 +464,74 @@ export async function archiveConversation(tx: Tx, organizationId: string, id: st
   await tx.query(sql`
     UPDATE conversation SET archived_at = now() WHERE organization_id = ${organizationId} AND id = ${id}
   `);
+}
+
+/** Brings an archived conversation back to the active list; it can be posted to again. */
+export async function restoreConversation(tx: Tx, organizationId: string, id: string): Promise<void> {
+  await tx.query(sql`
+    UPDATE conversation SET archived_at = NULL, updated_at = now()
+    WHERE organization_id = ${organizationId} AND id = ${id} AND deleted_at IS NULL
+  `);
+}
+
+/**
+ * Deletes a group for everyone but keeps its rows on record (0153). It is
+ * archived as well, so read paths that already skip archived conversations
+ * skip it without each having to know about deleting.
+ */
+export async function softDeleteConversation(tx: Tx, organizationId: string, id: string, deletedBy: string): Promise<void> {
+  await tx.query(sql`
+    UPDATE conversation
+    SET deleted_at = now(), deleted_by = ${deletedBy}, archived_at = COALESCE(archived_at, now()), updated_at = now()
+    WHERE organization_id = ${organizationId} AND id = ${id} AND deleted_at IS NULL
+  `);
+}
+
+/** What group management needs to decide who may do what. Null once deleted (or never existed). */
+export interface ManagedConversation {
+  kind: ConversationKind;
+  name: string | null;
+  createdBy: string;
+  archivedAt: Date | null;
+}
+
+export async function findManagedConversation(ctx: RequestContext, id: string): Promise<ManagedConversation | null> {
+  return db.maybeOne<ManagedConversation>(ctx, sql`
+    SELECT kind, name, created_by, archived_at FROM conversation
+    WHERE organization_id = ${ctx.organizationId} AND id = ${id} AND deleted_at IS NULL
+  `);
+}
+
+/** A current member's role in a conversation; null if they are not (or no longer) a member. */
+export async function findMemberRole(ctx: RequestContext, conversationId: string, userId: string): Promise<GroupMemberRole | null> {
+  const row = await db.maybeOne<{ role: GroupMemberRole }>(ctx, sql`
+    SELECT role FROM conversation_member
+    WHERE organization_id = ${ctx.organizationId} AND conversation_id = ${conversationId}
+      AND user_id = ${userId} AND left_at IS NULL
+  `);
+  return row?.role ?? null;
+}
+
+export async function setConversationMemberRole(
+  tx: Tx,
+  organizationId: string,
+  conversationId: string,
+  userId: string,
+  role: GroupMemberRole,
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE conversation_member SET role = ${role}
+    WHERE organization_id = ${organizationId} AND conversation_id = ${conversationId}
+      AND user_id = ${userId} AND left_at IS NULL
+  `);
+}
+
+/** Whether new messages may be posted: not archived (a deleted group is archived too). */
+export async function conversationIsOpenTx(tx: Tx, organizationId: string, id: string): Promise<boolean | null> {
+  const row = await tx.maybeOne<{ archivedAt: Date | null }>(sql`
+    SELECT archived_at FROM conversation WHERE organization_id = ${organizationId} AND id = ${id}
+  `);
+  return row ? row.archivedAt === null : null;
 }
 
 /* ---------------------------------- messages --------------------------------- */

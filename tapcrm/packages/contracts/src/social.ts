@@ -34,6 +34,8 @@ export interface SocialSettings {
   clientReviewEnabled: boolean;
 }
 export type SocialConnectionStatus = 'connected' | 'reconnect_required' | 'disconnected';
+/** `client_portal`: the client signed in from the client portal; `agency`: anyone else. */
+export type SocialConnectionOrigin = 'agency' | 'client_portal';
 export interface SocialAccount {
   id: string;
   clientId: string;
@@ -44,6 +46,9 @@ export interface SocialAccount {
   status: SocialConnectionStatus;
   /** `company`: assigned from the company's own platform sign-in. `client`: signed in for this client only. */
   connectionScope: 'client' | 'company';
+  /** Who signed it in: the agency (staff, or a company login), or the client itself
+   * from the client portal. Only the client may revoke a client-portal sign-in at the platform. */
+  connectionOrigin: SocialConnectionOrigin;
   capabilities: string[];
   scopes: string[];
   connectedAt: string;
@@ -351,4 +356,78 @@ export interface SocialGoogleIndexInspection {
     lastCrawlTime?: string;
     issues?: SocialGoogleIndexIssue[];
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Client portal: a client connecting its own social accounts.
+ * None of these carry tokens, scopes or another client's details.
+ * ------------------------------------------------------------------ */
+
+/** Platforms the client portal offers. LinkedIn stays an agency-only connection. */
+export const SOCIAL_PORTAL_PLATFORMS = [
+  'facebook',
+  'instagram',
+  'youtube',
+  'google_business',
+] as const;
+export type SocialPortalPlatform = (typeof SOCIAL_PORTAL_PLATFORMS)[number];
+
+export interface SocialPortalProvider {
+  platform: SocialPortalPlatform;
+  name: string;
+  /** `setup_required`: the agency has not finished the platform setup.
+   * `unavailable`: this platform cannot be connected from the client portal. */
+  status: 'ready' | 'setup_required' | 'unavailable';
+  message: string;
+  /** What the client needs before signing in, in plain words. */
+  requirements: string[];
+}
+
+export interface SocialPortalAccount {
+  id: string;
+  platform: SocialPlatform;
+  name: string;
+  profileImageUrl: string | null;
+  status: SocialConnectionStatus;
+  /** `client`: the client connected it from the portal and may disconnect it.
+   * `agency`: the agency manages it; the client can see it but not change it. */
+  managedBy: 'client' | 'agency';
+  connectedAt: string;
+  /** The latest problem with the client's own account; never shown for agency accounts. */
+  lastError: string | null;
+}
+
+export interface SocialPortalOverview {
+  clientId: string;
+  providers: SocialPortalProvider[];
+  accounts: SocialPortalAccount[];
+}
+
+/** One account the platform authorized, and whether the client may choose it.
+ * `available`: new. `reconnect`: already connected by this client; choosing it renews it.
+ * `managed_by_agency`: the agency already manages it for this client.
+ * `unavailable`: it serves a different client in this CRM; the agency has to move it. */
+export interface SocialPortalCandidate {
+  platform: SocialPlatform;
+  externalId: string;
+  name: string;
+  profileImageUrl: string | null;
+  availability: 'available' | 'reconnect' | 'managed_by_agency' | 'unavailable';
+}
+
+export interface SocialPortalConnectionChoice {
+  state: string;
+  platform: SocialPortalPlatform;
+  /** How long the choice stays open after the platform authorized it. */
+  expiresInMinutes: number;
+  candidates: SocialPortalCandidate[];
+}
+
+export interface SocialPortalDisconnectResult {
+  disconnected: true;
+  revocationStatus: 'not_requested' | 'revoked' | 'remove_access_in_platform_settings';
+  /** Other connections the same revoked platform login served, now waiting for a reconnect. */
+  othersNeedReconnect: number;
+  /** Scheduled posts for this account that were cancelled. */
+  cancelledScheduledPosts: number;
 }

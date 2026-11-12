@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 241   Bindings: 744
+ * Actions: 242   Bindings: 754
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -232,6 +232,7 @@ export type Action =
   | 'shifts:view'
   | 'social:approve'
   | 'social:connect'
+  | 'social:connect-own-accounts'
   | 'social:manage'
   | 'social:publish'
   | 'social:settings'
@@ -475,6 +476,7 @@ export const ACTIONS: readonly Action[] = [
   'shifts:view',
   'social:approve',
   'social:connect',
+  'social:connect-own-accounts',
   'social:manage',
   'social:publish',
   'social:settings',
@@ -2453,7 +2455,7 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
-      superAdminOnly: true,
+      superAdminOnly: false,
     },
     description: "",
   },
@@ -2468,7 +2470,7 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     grantPolicy: {
       positionGrantable: true,
       delegationAllowed: false,
-      superAdminOnly: true,
+      superAdminOnly: false,
     },
     description: "",
   },
@@ -3687,6 +3689,21 @@ export const REGISTRY: Readonly<Record<Action, ActionDefinition<Action>>> = {
     },
     description: "",
   },
+  'social:connect-own-accounts': {
+    action: 'social:connect-own-accounts',
+    module: 'social',
+    resource: 'socialWorkspace',
+    domain: 'business',
+    sensitive: true,
+    approvalBearing: false,
+    initiatorField: null,
+    grantPolicy: {
+      positionGrantable: false,
+      delegationAllowed: false,
+      superAdminOnly: true,
+    },
+    description: "",
+  },
   'social:manage': {
     action: 'social:manage',
     module: 'social',
@@ -4517,6 +4534,10 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PUT', path: '/api/projects/:id/reports/on-page-seo/search-console', action: 'projects:manage', resourceParam: 'id' },
   { method: 'DELETE', path: '/api/projects/:id/reports/on-page-seo/search-console', action: 'projects:manage', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/search-console/sync', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/on-page-seo/live-settings', action: 'projects:view', resourceParam: 'id' },
+  { method: 'PUT', path: '/api/projects/:id/reports/on-page-seo/live-settings', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'POST', path: '/api/projects/:id/reports/on-page-seo/keywords/:keywordId/live-check', action: 'projects:manage', resourceParam: 'id' },
+  { method: 'GET', path: '/api/projects/:id/reports/on-page-seo/rankings', action: 'projects:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/projects/:id/reports/off-page-seo/backlinks', action: 'projects:view', resourceParam: 'id' },
   { method: 'POST', path: '/api/projects/:id/reports/off-page-seo/backlinks', action: 'projects:manage', resourceParam: 'id' },
   { method: 'PATCH', path: '/api/projects/:id/reports/off-page-seo/backlinks/:backlinkId', action: 'projects:manage', resourceParam: 'id' },
@@ -4644,6 +4665,11 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'POST', path: '/api/social/clients/:clientId/oauth/:platform/complete', action: 'social:connect', resourceParam: 'clientId' },
   { method: 'POST', path: '/api/social/clients/:clientId/oauth/:platform/select', action: 'social:connect', resourceParam: 'clientId' },
   { method: 'DELETE', path: '/api/social/clients/:clientId/accounts/:accountId', action: 'social:connect', resourceParam: 'clientId' },
+  { method: 'GET', path: '/api/social/portal/clients/:clientId/connections', action: 'social:connect-own-accounts', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/portal/clients/:clientId/oauth/:platform/start', action: 'social:connect-own-accounts', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/portal/clients/:clientId/oauth/:platform/complete', action: 'social:connect-own-accounts', resourceParam: 'clientId' },
+  { method: 'POST', path: '/api/social/portal/clients/:clientId/oauth/:platform/select', action: 'social:connect-own-accounts', resourceParam: 'clientId' },
+  { method: 'DELETE', path: '/api/social/portal/clients/:clientId/accounts/:accountId', action: 'social:connect-own-accounts', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/social/clients/:clientId/posts', action: 'social:view', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/social/clients/:clientId/posts/:postId', action: 'social:view', resourceParam: 'clientId' },
   { method: 'POST', path: '/api/social/clients/:clientId/posts', action: 'social:manage', resourceParam: 'clientId' },
@@ -4657,9 +4683,6 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PUT', path: '/api/social/clients/:clientId/settings', action: 'social:settings', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/social/clients/:clientId/analytics', action: 'social:view', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/social/clients/:clientId/analytics/export', action: 'social:view', resourceParam: 'clientId' },
-  { method: 'GET', path: '/api/social/clients/:clientId/search-console/properties', action: 'social:view', resourceParam: 'clientId' },
-  { method: 'GET', path: '/api/social/clients/:clientId/search-console/performance', action: 'social:view', resourceParam: 'clientId' },
-  { method: 'POST', path: '/api/social/clients/:clientId/search-console/inspect', action: 'social:view', resourceParam: 'clientId' },
   { method: 'POST', path: '/api/social/clients/:clientId/analytics/sync', action: 'social:manage', resourceParam: 'clientId' },
   { method: 'GET', path: '/api/social/company-connections', action: 'system:manage-integrations', resourceParam: null },
   { method: 'POST', path: '/api/social/company-connections/oauth/:platform/start', action: 'system:manage-integrations', resourceParam: null },
@@ -4851,10 +4874,14 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'PATCH', path: '/api/seo/findings/:findingId', action: 'seo:update-finding', resourceParam: 'findingId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/gsc-metrics', action: 'seo:read-search-performance', resourceParam: 'siteId' },
   { method: 'POST', path: '/api/seo/sites/:siteId/gsc-sync', action: 'seo:sync-search-performance', resourceParam: 'siteId' },
+  { method: 'GET', path: '/api/seo/sites/:siteId/search-console', action: 'seo:read-search-performance', resourceParam: 'siteId' },
+  { method: 'POST', path: '/api/seo/sites/:siteId/search-console/inspect', action: 'seo:read-search-performance', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/keywords', action: 'seo:list-keywords', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/serp-observations', action: 'seo:read-rank-tracking', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/rank-status', action: 'seo:read-rank-tracking', resourceParam: 'siteId' },
   { method: 'POST', path: '/api/seo/sites/:siteId/rank-checks', action: 'seo:sync-search-performance', resourceParam: 'siteId' },
+  { method: 'GET', path: '/api/seo/sites/:siteId/rank-scans', action: 'seo:read-rank-tracking', resourceParam: 'siteId' },
+  { method: 'POST', path: '/api/seo/sites/:siteId/rank-scans', action: 'seo:sync-search-performance', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/ai-observations', action: 'seo:read-ai-visibility', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/backlinks', action: 'seo:read-backlinks', resourceParam: 'siteId' },
   { method: 'GET', path: '/api/seo/sites/:siteId/cwv-observations', action: 'seo:read-cwv', resourceParam: 'siteId' },

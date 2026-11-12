@@ -1,6 +1,10 @@
 import {
   MATCH_NOTHING,
+  or,
   registerResourcePolicy,
+  scopeMemberFilter,
+  scopeMemberIds,
+  scopeReachesAny,
   type PolicyEvaluationContext,
   type Resource,
   type ResourcePolicy,
@@ -30,7 +34,15 @@ import type { Action, Scope } from '@tapcrm/contracts';
  * - participant: panel member / creator of an interview, to see it
  *   (INTERVIEW_PARTICIPANT_ACTIONS); the interviewer of a candidate's round or
  *   a member of an interview's panel, for INTERVIEWER_ACTIONS
- * - department: matches requisition / record department
+ * - pool / team / department: the structural route (record department / team)
+ *   OR the people route — the record's creator (and, for an interview, its
+ *   panel) is inside the scope's people (`withPeopleRoute`). Before the people
+ *   route, pool and team matched nothing for most of these resources.
+ *
+ * `participant` is deliberately NOT widened beyond interviews and the
+ * assigned-interviewer action carve-out: the starter matrix gives every
+ * ordinary employee every recruitment action at `participant`, so letting it
+ * reach candidates/offers/joinings would hand them HR's powers.
  * - all-people: strictly disallowed for business domain per PD-1
  */
 
@@ -59,7 +71,55 @@ function isAssignedInterviewer(ctx: PolicyEvaluationContext, action: Action, res
   return INTERVIEWER_ACTIONS.has(action) && Array.isArray(interviewers) && interviewers.includes(ctx.principal.id);
 }
 
-export const jobRequisitionPolicy: ResourcePolicy = {
+/**
+ * Adds the people route to a recruitment policy for pool / team / department:
+ * the record is reachable when any of its people (creator, and for interviews
+ * the panel) is inside the scope's members. own / participant stay exactly as
+ * the structural policy defines them.
+ */
+function withPeopleRoute(
+  policy: ResourcePolicy,
+  people: (resource: Resource) => readonly (string | null | undefined)[],
+  columns: readonly string[],
+  extraFilter?: (members: readonly string[]) => SqlFragment,
+): ResourcePolicy {
+  const reaches = (scope: Scope) => scope === 'pool' || scope === 'team' || scope === 'department';
+  return {
+    ...policy,
+    async check(ctx, action, resource, scope) {
+      if (await policy.check(ctx, action, resource, scope)) return true;
+      if (!reaches(scope) || resource['organizationId'] !== ctx.organizationId) return false;
+      return scopeReachesAny(ctx, scope, people(resource));
+    },
+    async filter(ctx, action, scope) {
+      const structural = await policy.filter(ctx, action, scope);
+      if (!reaches(scope)) return structural;
+      const members = await scopeMemberIds(ctx, scope);
+      const route = or(
+        await scopeMemberFilter(ctx, scope, columns),
+        members && members.size > 0 && extraFilter ? extraFilter([...members]) : MATCH_NOTHING,
+      );
+      return or(structural, route);
+    },
+  };
+}
+
+function creatorOf(resource: Resource): (string | null)[] {
+  return [typeof resource['createdBy'] === 'string' ? resource['createdBy'] : null];
+}
+
+function panelOf(resource: Resource): (string | null)[] {
+  const ids = Array.isArray(resource['interviewerIds']) ? (resource['interviewerIds'] as unknown[]) : [];
+  const objs = Array.isArray(resource['interviewers']) ? (resource['interviewers'] as unknown[]) : [];
+  const fromObjs = objs.flatMap((i) => {
+    if (!i || typeof i !== 'object') return [];
+    const rec = i as Record<string, unknown>;
+    return [rec['userId'], rec['id']];
+  });
+  return [...creatorOf(resource), ...[...ids, ...fromObjs].filter((x): x is string => typeof x === 'string')];
+}
+
+const jobRequisitionPolicyBase: ResourcePolicy = {
   resourceType: 'jobRequisition',
   domain: 'business',
 
@@ -125,7 +185,7 @@ export const jobRequisitionPolicy: ResourcePolicy = {
   },
 };
 
-export const candidatePolicy: ResourcePolicy = {
+const candidatePolicyBase: ResourcePolicy = {
   resourceType: 'candidate',
   domain: 'business',
 
@@ -197,7 +257,7 @@ export const candidatePolicy: ResourcePolicy = {
  */
 export const INTERVIEW_PARTICIPANT_ACTIONS: ReadonlySet<Action> = new Set<Action>(['recruitment:view-interviews']);
 
-export const interviewPolicy: ResourcePolicy = {
+const interviewPolicyBase: ResourcePolicy = {
   resourceType: 'interview',
   domain: 'business',
 
@@ -280,7 +340,7 @@ export const interviewPolicy: ResourcePolicy = {
   },
 };
 
-export const jobOfferPolicy: ResourcePolicy = {
+const jobOfferPolicyBase: ResourcePolicy = {
   resourceType: 'jobOffer',
   domain: 'business',
 
@@ -338,7 +398,7 @@ export const jobOfferPolicy: ResourcePolicy = {
   },
 };
 
-export const candidateJoiningPolicy: ResourcePolicy = {
+const candidateJoiningPolicyBase: ResourcePolicy = {
   resourceType: 'candidateJoining',
   domain: 'business',
 
@@ -396,7 +456,7 @@ export const candidateJoiningPolicy: ResourcePolicy = {
   },
 };
 
-export const recruitmentApplicationLinkPolicy: ResourcePolicy = {
+const recruitmentApplicationLinkPolicyBase: ResourcePolicy = {
   resourceType: 'recruitmentApplicationLink',
   domain: 'business',
 
@@ -454,7 +514,7 @@ export const recruitmentApplicationLinkPolicy: ResourcePolicy = {
   },
 };
 
-export const candidateResumeSubmissionPolicy: ResourcePolicy = {
+const candidateResumeSubmissionPolicyBase: ResourcePolicy = {
   resourceType: 'candidateResumeSubmission',
   domain: 'business',
 
@@ -511,6 +571,24 @@ export const candidateResumeSubmissionPolicy: ResourcePolicy = {
     return null;
   },
 };
+
+export const jobRequisitionPolicy: ResourcePolicy = withPeopleRoute(jobRequisitionPolicyBase, creatorOf, ['job_requisition.created_by']);
+
+export const candidatePolicy: ResourcePolicy = withPeopleRoute(candidatePolicyBase, creatorOf, ['candidate.created_by']);
+
+export const interviewPolicy: ResourcePolicy = withPeopleRoute(interviewPolicyBase, panelOf, ['interview.created_by'], (members) => ({
+  sql: 'EXISTS (SELECT 1 FROM interview_interviewer ii WHERE ii.interview_id = interview.id AND ii.user_id = ANY($1::uuid[]))',
+  parameters: [members],
+}));
+
+export const jobOfferPolicy: ResourcePolicy = withPeopleRoute(jobOfferPolicyBase, creatorOf, ['job_offer.created_by']);
+
+export const candidateJoiningPolicy: ResourcePolicy = withPeopleRoute(candidateJoiningPolicyBase, creatorOf, ['candidate_joining.created_by']);
+
+export const recruitmentApplicationLinkPolicy: ResourcePolicy = withPeopleRoute(recruitmentApplicationLinkPolicyBase, creatorOf, ['recruitment_application_link.created_by']);
+
+// Public submissions have no creator; the reviewer is the only person on the row.
+export const candidateResumeSubmissionPolicy: ResourcePolicy = withPeopleRoute(candidateResumeSubmissionPolicyBase, (r) => [typeof r['reviewedBy'] === 'string' ? r['reviewedBy'] : null], ['candidate_resume_submission.reviewed_by']);
 
 export function registerRecruitmentPolicies(): void {
   registerResourcePolicy(jobRequisitionPolicy);

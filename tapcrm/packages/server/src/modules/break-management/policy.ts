@@ -1,4 +1,4 @@
-import { MATCH_NOTHING, registerResourcePolicy, type ResourcePolicy } from '@tapcrm/authz';
+import { MATCH_ALL, MATCH_NOTHING, registerResourcePolicy, scopeMemberFilter, scopeReachesAny, type ResourcePolicy } from '@tapcrm/authz';
 
 /**
  * Resource policies for break-management (Task 4).
@@ -25,15 +25,19 @@ export const breakPolicyResource: ResourcePolicy = {
 export const breakBreachResource: ResourcePolicy = {
   resourceType: 'breakBreach',
   domain: 'people',
+  // A breach is its employee's. HR holds all-people; a Team Lead's "team" or a
+  // Supervisor's "pool" reaches their own people only — before, every scope
+  // wider than `own` returned TRUE and showed every breach in the company.
   async check(ctx, _action, resource, scope) {
     if (resource['organizationId'] !== ctx.organizationId) return false;
-    if (scope === 'own') return resource['userId'] === ctx.principal.id;
-    // all-people / department / team — for HR reviewers
-    return true;
+    if (scope === 'all-people') return true;
+    if (scope === 'own' || scope === 'participant') return resource['userId'] === ctx.principal.id;
+    return scopeReachesAny(ctx, scope, [resource['userId'] as string | null]);
   },
   async filter(ctx, _action, scope) {
-    if (scope === 'own') return { sql: 'u.id = $1', parameters: [ctx.principal.id] };
-    return { sql: 'TRUE', parameters: [] };
+    if (scope === 'all-people') return MATCH_ALL;
+    if (scope === 'own' || scope === 'participant') return { sql: 'u.id = $1', parameters: [ctx.principal.id] };
+    return scopeMemberFilter(ctx, scope, ['u.id']);
   },
   participantFields: () => [],
   initiatorField: () => null,

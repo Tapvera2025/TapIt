@@ -39,7 +39,25 @@ export async function listDependencies(moduleIds: readonly string[]) {
   );
 }
 
-export async function getOrganizationModules(organizationId: string) {
+/** Every dependency edge in the catalogue — small, and read once per change. */
+export async function listAllDependencies() {
+  return platformDb.query<{ moduleId: string; dependsOnModuleId: string }>(
+    'organization-provisioning',
+    'resolve module dependency graph',
+    sql`SELECT module_id, depends_on_module_id FROM module_dependency`,
+  );
+}
+
+export interface OrganizationModuleRow {
+  key: string;
+  name: string;
+  isCore: boolean;
+  status: 'enabled' | 'disabled';
+  enabledAt: Date | null;
+  disabledAt: Date | null;
+}
+
+export async function getOrganizationModules(organizationId: string): Promise<OrganizationModuleRow[]> {
   return platformDb.query(
     'health-check',
     'read organization module entitlements',

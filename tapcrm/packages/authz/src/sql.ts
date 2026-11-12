@@ -53,7 +53,9 @@ export function and(...fragments: readonly SqlFragment[]): SqlFragment {
     text += index === 0 ? `(${renumbered})` : ` AND (${renumbered})`;
     parameters.push(...part.parameters);
   });
-  return { sql: text, parameters };
+  // Wrapped as ONE predicate: callers splice the result into `WHERE x AND ${f}`,
+  // and an unwrapped `(a) OR (b)` there binds as `(x AND a) OR b`.
+  return { sql: parts.length > 1 ? `(${text})` : text, parameters };
 }
 
 /** Combine fragments with OR. An empty list yields MATCH_NOTHING. */
@@ -70,5 +72,8 @@ export function or(...fragments: readonly SqlFragment[]): SqlFragment {
     text += index === 0 ? `(${renumbered})` : ` OR (${renumbered})`;
     parameters.push(...part.parameters);
   });
-  return { sql: text, parameters };
+  // Wrapped as ONE predicate. Without the outer parentheses a list query's
+  // `WHERE l.organization_id = $1 AND ${filter}` became `(org AND a) OR b`,
+  // and `b` matched rows outside the scope (and outside the other filters).
+  return { sql: parts.length > 1 ? `(${text})` : text, parameters };
 }

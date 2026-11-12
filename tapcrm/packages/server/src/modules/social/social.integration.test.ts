@@ -600,6 +600,82 @@ describe.skipIf(!enabled)('Social module through HTTP and restricted PostgreSQL'
       ).status,
     ).toBe(422);
   });
+  it('keeps a Page with one client, says so before selection, and lets a refused selection be corrected', async () => {
+    // Another client already publishes to this Page through its own sign-in.
+    const [other] = (await admin(
+      sql`INSERT INTO social_connection(organization_id,client_id,platform,credentials_encrypted,created_by) VALUES (${org},${otherClient},'facebook',NULL,${outsider}) RETURNING id`,
+    )) as { id: string }[];
+    await admin(
+      sql`INSERT INTO social_account(organization_id,client_id,connection_id,platform,external_id,name) VALUES (${org},${otherClient},${other!.id},'facebook','page-shared','Shared Page')`,
+    );
+    const page = (externalId: string, name: string) => ({
+      platform: 'facebook',
+      externalId,
+      name,
+      capabilities,
+      credentials: { accessToken: `token-${externalId}`, scopes: [] },
+    });
+    fake.exchange.mockResolvedValueOnce({ accessToken: 'user-token', scopes: [] });
+    fake.discover.mockResolvedValueOnce([
+      page('page-shared', 'Shared Page'),
+      page('page-free', 'Free Page'),
+    ]);
+    const started = await request(app)
+      .post(`${base()}/oauth/facebook/start`)
+      .set(headers())
+      .send({});
+    const state = new URL(started.body.data.authorizationUrl as string).searchParams.get(
+      'state',
+    )!;
+    const cookie = (started.headers['set-cookie'] as unknown as string[])[0]!.split(
+      ';',
+    )[0]!;
+    const complete = await request(app)
+      .post(`${base()}/oauth/facebook/complete`)
+      .set(headers())
+      .set('Cookie', cookie)
+      .send({ code: 'code', state });
+    expect(complete.status).toBe(201);
+    const candidates = complete.body.data.candidates as {
+      externalId: string;
+      assignedTo: { clientName: string; viaCompany: boolean } | null;
+    }[];
+    expect(
+      candidates.find((item) => item.externalId === 'page-shared')!.assignedTo,
+    ).toEqual({
+      clientName: otherClient,
+      viaCompany: false,
+    });
+    expect(
+      candidates.find((item) => item.externalId === 'page-free')!.assignedTo,
+    ).toBeNull();
+
+    const refused = await request(app)
+      .post(`${base()}/oauth/facebook/select`)
+      .set(headers())
+      .send({ state, accountIds: ['page-shared', 'page-free'] });
+    expect(refused.status).toBe(409);
+    expect(refused.body.message).toMatch(/Shared Page is already connected to/);
+    // Nothing was saved, and the same sign-in can still be used.
+    const corrected = await request(app)
+      .post(`${base()}/oauth/facebook/select`)
+      .set(headers())
+      .send({ state, accountIds: ['page-free'] });
+    expect(corrected.status).toBe(201);
+    const saved = corrected.body.data as { externalId: string }[];
+    expect(saved.some((item) => item.externalId === 'page-free')).toBe(true);
+    expect(saved.some((item) => item.externalId === 'page-shared')).toBe(false);
+    // ...once.
+    expect(
+      (
+        await request(app)
+          .post(`${base()}/oauth/facebook/select`)
+          .set(headers())
+          .send({ state, accountIds: ['page-free'] })
+      ).status,
+    ).toBe(422);
+  });
+
   it('validates uploaded bytes, persists media and denies cross-client reuse', async () => {
     expect(
       (

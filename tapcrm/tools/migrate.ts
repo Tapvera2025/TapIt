@@ -126,9 +126,14 @@ async function up(): Promise<void> {
       await client.query('BEGIN');
       try {
         await client.query(migration.sql);
+        if (migration.version === '0152_position_policy_sync') {
+          await syncRegistryProjection(client);
+          await narrowInvalidPeopleScopes(client);
+        }
         if (
           migration.version === '0048_intern_positions'
           || migration.version === '0088_backfill_registry_actions_and_sales_policies'
+          || migration.version === '0152_position_policy_sync'
         ) {
           const bootstrap = await import(
             '../packages/server/src/platform/organizations/bootstrap.js'
@@ -183,10 +188,91 @@ async function up(): Promise<void> {
       }
     }
 
+    // RG-I3: registry_action is a projection of the registry, "regenerated on
+    // deploy". Production only ever runs this command, so it is re-projected
+    // here on every run — not only when someone remembers `npm run seed`.
+    await client.query('BEGIN');
+    try {
+      await syncRegistryProjection(client);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    }
+
     console.log(`\n✓ Applied ${pending.length} migration(s)`);
   } finally {
     await client.end();
   }
+}
+
+interface SeedRegistryAction {
+  action: string;
+  module: string;
+  resource: string | null;
+  domain: string;
+  sensitive: boolean;
+  approvalBearing: boolean;
+  initiatorField: string | null;
+  grantPolicy: { positionGrantable: boolean; delegationAllowed: boolean; superAdminOnly: boolean };
+  description: string;
+}
+
+function registryActions(): SeedRegistryAction[] {
+  const seed = JSON.parse(readFileSync(resolve(ROOT, 'seeds/registry.seed.json'), 'utf8')) as {
+    actions: SeedRegistryAction[];
+  };
+  return seed.actions;
+}
+
+/** Upsert every registry action into `registry_action`; remove the ones the registry dropped. */
+async function syncRegistryProjection(client: pg.Client): Promise<void> {
+  const actions = registryActions();
+  for (const a of actions) {
+    await client.query(
+      `INSERT INTO registry_action
+         (action, module, resource, domain, sensitive, approval_bearing, initiator_field,
+          position_grantable, delegation_allowed, super_admin_only, description)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (action) DO UPDATE SET
+         module = EXCLUDED.module, resource = EXCLUDED.resource, domain = EXCLUDED.domain,
+         sensitive = EXCLUDED.sensitive, approval_bearing = EXCLUDED.approval_bearing,
+         initiator_field = EXCLUDED.initiator_field,
+         position_grantable = EXCLUDED.position_grantable,
+         delegation_allowed = EXCLUDED.delegation_allowed,
+         super_admin_only = EXCLUDED.super_admin_only,
+         description = EXCLUDED.description`,
+      [
+        a.action, a.module, a.resource, a.domain, a.sensitive, a.approvalBearing, a.initiatorField,
+        a.grantPolicy.positionGrantable, a.grantPolicy.delegationAllowed, a.grantPolicy.superAdminOnly,
+        a.description,
+      ],
+    );
+  }
+  await client.query('DELETE FROM registry_action WHERE action <> ALL($1::text[])', [
+    actions.map((a) => a.action),
+  ]);
+}
+
+/** PD-1: `all-people` exists only for people-domain actions; narrow the rest to `department`. */
+async function narrowInvalidPeopleScopes(client: pg.Client): Promise<void> {
+  const business = registryActions()
+    .filter((a) => a.domain === 'business')
+    .map((a) => a.action);
+  const positions = await client.query(
+    `UPDATE position_policy SET scope = 'department'
+     WHERE scope = 'all-people' AND action = ANY($1::text[])`,
+    [business],
+  );
+  const overrides = await client.query(
+    `UPDATE user_override SET scope = 'department'
+     WHERE scope = 'all-people' AND action = ANY($1::text[])`,
+    [business],
+  );
+  console.log(
+    `\n    narrowed ${positions.rowCount ?? 0} position and ${overrides.rowCount ?? 0} override ` +
+      'polic(ies) from all-people to department (PD-1)',
+  );
 }
 
 async function status(): Promise<void> {

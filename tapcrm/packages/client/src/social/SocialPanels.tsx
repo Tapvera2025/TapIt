@@ -87,14 +87,20 @@ export function ConnectedAccounts({
     setError('');
     try {
       const company = disconnect.connectionScope === 'company';
+      // A grant the client gave from their portal can only be revoked by the client.
+      const clientOwned = disconnect.connectionOrigin === 'client_portal';
       const result = await disconnectSocialAccount(
         clientId,
         disconnect.id,
-        !company && revokeGrant,
+        !company && !clientOwned && revokeGrant,
       );
       if (result.revocationStatus === 'remove_access_in_platform_settings')
         toast(
           'Local access removed. Remove the app in the platform settings to revoke the full grant.',
+        );
+      if (result.othersNeedReconnect)
+        toast(
+          `${result.othersNeedReconnect} other connection${result.othersNeedReconnect === 1 ? '' : 's'} signed in with the same login lost access too and now need${result.othersNeedReconnect === 1 ? 's' : ''} a reconnect.`,
         );
       setDisconnect(null);
       toast.success(company ? 'Unassigned from this client' : 'Account disconnected');
@@ -223,6 +229,11 @@ export function ConnectedAccounts({
                     {account.connectionScope === 'company'
                       ? ' · through a company login'
                       : ''}
+                    {account.connectionOrigin === 'client_portal' && (
+                      <span className="ml-2 inline-block rounded-full border border-app-border bg-app-surface px-2.5 py-0.5 text-[10px] font-semibold text-app-muted">
+                        Connected by client
+                      </span>
+                    )}
                   </p>
                   <p className="mt-1 text-[11px] text-app-muted">
                     Permissions:{' '}
@@ -344,17 +355,25 @@ export function ConnectedAccounts({
             Disconnect {disconnect.name}? This removes the stored connection credentials.
             Unpublished posts using this account will require attention.
           </p>
-          <label className="flex items-start gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={revokeGrant}
-              onChange={(event) => setRevokeGrant(event.target.checked)}
-            />
-            <span>
-              Also revoke platform access for this CRM app. This can disconnect other
-              accounts and client workspaces using the same grant.
-            </span>
-          </label>
+          {disconnect.connectionOrigin === 'client_portal' ? (
+            <p className="text-xs leading-5 text-app-muted">
+              The client connected this account from their portal. Disconnecting stops
+              publishing here; only the client can remove TapIt&apos;s access to their own
+              login.
+            </p>
+          ) : (
+            <label className="flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={revokeGrant}
+                onChange={(event) => setRevokeGrant(event.target.checked)}
+              />
+              <span>
+                Also revoke platform access for this CRM app. This can disconnect other
+                accounts and client workspaces using the same grant.
+              </span>
+            </label>
+          )}
           <div className="mt-5 flex flex-wrap gap-2">
             <Button
               kind="danger"
