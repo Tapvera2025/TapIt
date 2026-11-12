@@ -1,0 +1,292 @@
+{
+  "capturedAt": "2026-10-30T17:17:54.325Z",
+  "readOnly": true,
+  "checks": [
+    {
+      "actor": "QA Sales Agent Alpha 2026-10-30",
+      "path": "/api/leads/01a18dcb-4a40-7a22-9944-6cedaf88f8fc",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": "01a18dcb-4a40-7a22-9944-6cedaf88f8fc",
+          "organizationId": "01a186b3-f39a-7c42-9199-d8b1e9a739ed",
+          "leadNumber": "116",
+          "ownerId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+          "ownerName": "QA Sales Agent Alpha 2026-10-30",
+          "currentHolderId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+          "currentHolderName": "QA Sales Agent Beta 2026-10-30",
+          "territoryId": null,
+          "territoryName": null,
+          "salesTeamId": "01a18c10-20df-7d03-a92b-50ba79c5014b",
+          "salesTeamName": "QA Sales Team 2026-10-30",
+          "salesPoolId": "01a18c10-afef-7707-8ce0-cbcd19dc4688",
+          "salesPoolName": "QA Sales Pool 2026-10-30",
+          "sourceId": "01a18c13-19ed-7920-a945-40884a814f47",
+          "sourceName": "QA Outbound 2026-10-30",
+          "sourceDirection": "outbound",
+          "campaignId": null,
+          "campaignName": null,
+          "status": "assigned",
+          "routingStatus": "assigned",
+          "contactId": "01a18dcb-4a3e-730e-bb0a-89f28d1689eb",
+          "contactName": "R2 Agent Transfer Buyer 2026-10-30",
+          "companyId": null,
+          "companyName": null,
+          "phone": null,
+          "email": "qa.r2.transfer@example.test",
+          "lossReason": null,
+          "lostAt": null,
+          "previousLeadId": null,
+          "stalledAt": null,
+          "stalledReason": null,
+          "createdBy": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+          "createdAt": "2026-10-30T17:11:12.697Z",
+          "updatedAt": "2026-10-30T17:12:47.200Z",
+          "activities": [
+            {
+              "id": "01a18dcb-4a42-7f6a-8316-59e6db9a3bca",
+              "eventName": "lead.created",
+              "actorId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+              "metadata": {
+                "routingStatus": "assigned"
+              },
+              "createdAt": "2026-10-30T17:11:12.697516+00:00"
+            },
+            {
+              "id": "01a18dcb-4a43-7d53-a627-fee03ab50c96",
+              "eventName": "lead.assigned",
+              "actorId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+              "metadata": {
+                "ownerId": "01a18c18-450e-732d-8c9e-32df5e3176cf"
+              },
+              "createdAt": "2026-10-30T17:11:12.697516+00:00"
+            },
+            {
+              "id": "01a18dcc-ca3f-7676-b134-ee0bb805f233",
+              "eventName": "deal.creation_requested",
+              "actorId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+              "metadata": {
+                "reason": null,
+                "handoverId": "01a18dcb-9cb6-7f8e-89e3-e45b5d09ecf3",
+                "lossReason": null,
+                "disposition": "accepted"
+              },
+              "createdAt": "2026-10-30T17:12:51.002822+00:00"
+            }
+          ]
+        },
+        "meta": {
+          "requestId": "73386786-4437-45c5-b0f6-ea4226f3956f"
+        }
+      }
+    },
+    {
+      "actor": "QA Sales Agent Alpha 2026-10-30",
+      "path": "/api/handovers?leadId=01a18dcb-4a40-7a22-9944-6cedaf88f8fc",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": [],
+        "meta": {
+          "requestId": "e69f06d3-f6d7-4370-88e5-67ab101fba97"
+        }
+      }
+    },
+    {
+      "actor": "QA Sales Agent Alpha 2026-10-30",
+      "path": "/api/attendance/live?self=true",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "row": null,
+          "allowedMoves": []
+        },
+        "meta": {
+          "requestId": "e4b31a3a-014c-4e9d-b837-946ea9ccf7a1"
+        }
+      }
+    },
+    {
+      "actor": "QA Sales Agent Alpha 2026-10-30",
+      "path": "/api/deals/01a18dc8-456d-77fa-b065-5cacce1abc43",
+      "status": 404,
+      "body": {
+        "success": false,
+        "code": "NOT_FOUND",
+        "message": "deal not found"
+      }
+    },
+    {
+      "actor": "QA Sales Agent Beta 2026-10-30",
+      "path": "/api/leads/01a18dcb-4a40-7a22-9944-6cedaf88f8fc",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": "01a18dcb-4a40-7a22-9944-6cedaf88f8fc",
+          "organizationId": "01a186b3-f39a-7c42-9199-d8b1e9a739ed",
+          "leadNumber": "116",
+          "ownerId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+          "ownerName": "QA Sales Agent Alpha 2026-10-30",
+          "currentHolderId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+          "currentHolderName": "QA Sales Agent Beta 2026-10-30",
+          "territoryId": null,
+          "territoryName": null,
+          "salesTeamId": "01a18c10-20df-7d03-a92b-50ba79c5014b",
+          "salesTeamName": "QA Sales Team 2026-10-30",
+          "salesPoolId": "01a18c10-afef-7707-8ce0-cbcd19dc4688",
+          "salesPoolName": "QA Sales Pool 2026-10-30",
+          "sourceId": "01a18c13-19ed-7920-a945-40884a814f47",
+          "sourceName": "QA Outbound 2026-10-30",
+          "sourceDirection": "outbound",
+          "campaignId": null,
+          "campaignName": null,
+          "status": "assigned",
+          "routingStatus": "assigned",
+          "contactId": "01a18dcb-4a3e-730e-bb0a-89f28d1689eb",
+          "contactName": "R2 Agent Transfer Buyer 2026-10-30",
+          "companyId": null,
+          "companyName": null,
+          "phone": null,
+          "email": "qa.r2.transfer@example.test",
+          "lossReason": null,
+          "lostAt": null,
+          "previousLeadId": null,
+          "stalledAt": null,
+          "stalledReason": null,
+          "createdBy": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+          "createdAt": "2026-10-30T17:11:12.697Z",
+          "updatedAt": "2026-10-30T17:12:47.200Z",
+          "activities": [
+            {
+              "id": "01a18dcb-4a42-7f6a-8316-59e6db9a3bca",
+              "eventName": "lead.created",
+              "actorId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+              "metadata": {
+                "routingStatus": "assigned"
+              },
+              "createdAt": "2026-10-30T17:11:12.697516+00:00"
+            },
+            {
+              "id": "01a18dcb-4a43-7d53-a627-fee03ab50c96",
+              "eventName": "lead.assigned",
+              "actorId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+              "metadata": {
+                "ownerId": "01a18c18-450e-732d-8c9e-32df5e3176cf"
+              },
+              "createdAt": "2026-10-30T17:11:12.697516+00:00"
+            },
+            {
+              "id": "01a18dcb-9cba-74e7-b27d-3037ef6d3ee1",
+              "eventName": "handover.offered",
+              "actorId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+              "metadata": {
+                "handoverId": "01a18dcb-9cb6-7f8e-89e3-e45b5d09ecf3"
+              },
+              "createdAt": "2026-10-30T17:11:33.814426+00:00"
+            },
+            {
+              "id": "01a18dcc-bb69-79a0-bc93-1a587d734929",
+              "eventName": "handover.accepted",
+              "actorId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+              "metadata": {
+                "fromUserId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+                "handoverId": "01a18dcb-9cb6-7f8e-89e3-e45b5d09ecf3",
+                "handoverMode": "team_queue"
+              },
+              "createdAt": "2026-10-30T17:12:47.200323+00:00"
+            },
+            {
+              "id": "01a18dcc-ca3f-7676-b134-ee0bb805f233",
+              "eventName": "deal.creation_requested",
+              "actorId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+              "metadata": {
+                "reason": null,
+                "handoverId": "01a18dcb-9cb6-7f8e-89e3-e45b5d09ecf3",
+                "lossReason": null,
+                "disposition": "accepted"
+              },
+              "createdAt": "2026-10-30T17:12:51.002822+00:00"
+            },
+            {
+              "id": "01a18dcc-ca40-75d6-ad65-932864030036",
+              "eventName": "handover.disposition_recorded",
+              "actorId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+              "metadata": {
+                "handoverId": "01a18dcb-9cb6-7f8e-89e3-e45b5d09ecf3",
+                "disposition": "accepted"
+              },
+              "createdAt": "2026-10-30T17:12:51.002822+00:00"
+            }
+          ]
+        },
+        "meta": {
+          "requestId": "83ad181c-7292-454f-a8c8-e4ac542cdec9"
+        }
+      }
+    },
+    {
+      "actor": "QA Sales Agent Beta 2026-10-30",
+      "path": "/api/handovers?leadId=01a18dcb-4a40-7a22-9944-6cedaf88f8fc",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": "01a18dcb-9cb6-7f8e-89e3-e45b5d09ecf3",
+            "organizationId": "01a186b3-f39a-7c42-9199-d8b1e9a739ed",
+            "leadId": "01a18dcb-4a40-7a22-9944-6cedaf88f8fc",
+            "fromUserId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+            "fromUserName": "QA Sales Agent Alpha 2026-10-30",
+            "toUserId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+            "toUserName": "QA Sales Agent Beta 2026-10-30",
+            "status": "accepted",
+            "handoverMode": "team_queue",
+            "offeredAt": "2026-10-30T17:11:33.814Z",
+            "acceptedAt": "2026-10-30T17:12:47.200Z",
+            "declinedAt": null,
+            "expiredAt": null,
+            "disposition": "accepted",
+            "dispositionAt": "2026-10-30T17:12:51.002Z",
+            "reason": "R2 synthetic transfer queue test; no customer call.",
+            "queueClaimedAt": "2026-10-30T17:12:47.200Z",
+            "annotations": {},
+            "timeToAcceptSeconds": 73,
+            "timeToOutcomeSeconds": 4,
+            "corrections": []
+          }
+        ],
+        "meta": {
+          "requestId": "8b2a1def-7f1d-4599-ba5e-a04bce426563"
+        }
+      }
+    },
+    {
+      "actor": "QA Sales Agent Beta 2026-10-30",
+      "path": "/api/attendance/live?self=true",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "row": null,
+          "allowedMoves": []
+        },
+        "meta": {
+          "requestId": "11017819-e0a6-4255-a8ea-e7a4a27c7e46"
+        }
+      }
+    },
+    {
+      "actor": "QA Sales Agent Beta 2026-10-30",
+      "path": "/api/deals/01a18dc8-456d-77fa-b065-5cacce1abc43",
+      "status": 404,
+      "body": {
+        "success": false,
+        "code": "NOT_FOUND",
+        "message": "deal not found"
+      }
+    }
+  ]
+}

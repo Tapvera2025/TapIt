@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { loadTodayStatus, punch, type PunchKind, type LiveRow } from '../live/liveApi.js';
-import { getBreakPrompts, submitBreachExplanation, type BreakPrompt } from '../api/breaksApi.js';
+import { ATTENDANCE_UPDATED_EVENT, loadTodayStatus, notifyAttendanceUpdated, punch, type PunchKind, type LiveRow, type PunchDisabledReason } from '../live/liveApi.js';
+import { getBreakAllowance, getBreakPrompts, submitBreachExplanation, type BreakAllowance, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
-import { SkeletonTodayPage, WorkspacePageContainer } from '../../ui/components.js';
+import { exactCompletedBreakSeconds } from '../attendance/breakTime.js';
+import { Button, GlassSurface, Modal, SkeletonTodayPage, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
@@ -27,25 +28,6 @@ function fmtDateFull(date: Date): string {
 function elapsedSeconds(startIso: string | null, now: Date): number {
   if (!startIso) return 0;
   return Math.max(0, Math.floor((now.getTime() - new Date(startIso).getTime()) / 1000));
-}
-
-function exactCompletedBreakSeconds(events: AttendanceEventView[]): number {
-  const effective = events
-    .filter((event) => !event.isVoid && (event.kind === 'break-start' || event.kind === 'break-end'))
-    .sort((a, b) => Date.parse(a.occurredAt ?? a.at ?? '') - Date.parse(b.occurredAt ?? b.at ?? ''));
-  let openAt: number | null = null;
-  let total = 0;
-  for (const event of effective) {
-    const at = Date.parse(event.occurredAt ?? event.at ?? '');
-    if (!Number.isFinite(at)) continue;
-    if (event.kind === 'break-start') {
-      openAt = at;
-    } else if (openAt !== null && at >= openAt) {
-      total += Math.floor((at - openAt) / 1000);
-      openAt = null;
-    }
-  }
-  return total;
 }
 
 function fmtBreakTimer(seconds: number): string {
@@ -151,11 +133,59 @@ function IconPlay({ className = 'h-4 w-4' }: { className?: string }): React.JSX.
   );
 }
 
+// ── Punch-out confirmation ──────────────────────────────────────────────────
+
+/**
+ * A punch-out finishes the day (LS-6): there is no punching in again without a
+ * correction. Before the shift ends, the dialog says so and offers a break.
+ */
+function PunchOutConfirm({
+  shiftEndAt,
+  now,
+  canStartBreak,
+  onCancel,
+  onBreak,
+  onConfirm,
+}: {
+  shiftEndAt: string | null;
+  now: Date;
+  canStartBreak: boolean;
+  onCancel: () => void;
+  onBreak: () => void;
+  onConfirm: () => void;
+}): React.JSX.Element {
+  const early = shiftEndAt !== null && now.getTime() < Date.parse(shiftEndAt);
+  return (
+    <Modal title="Punch out for the day?" onClose={onCancel}>
+      <p className="text-sm text-app-muted">
+        {early
+          ? `Your shift ends at ${fmtTime12(shiftEndAt)}. Punching out now ends your working day, and you can't punch in again today without asking HR for a correction.`
+          : 'This ends your working day.'}
+      </p>
+      {early && canStartBreak && (
+        <p className="mt-2 text-sm text-app-muted">Stepping out for a while? Start a break instead.</p>
+      )}
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <Button kind="secondary" onClick={onCancel}>Cancel</Button>
+        {early && canStartBreak && <Button kind="secondary" onClick={onBreak}>Start break instead</Button>}
+        <Button kind={early ? 'danger' : 'primary'} onClick={onConfirm}>Punch out</Button>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Greeting Card ────────────────────────────────────────────────────────────
+
+const DISABLED_REASON_COPY: Record<PunchDisabledReason, string> = {
+  'no-shift-today': 'No shift is assigned to you today.',
+  'already-finished': "You've already finished your shift for today.",
+  'on-approved-leave': 'Approved leave for today — no punch required.',
+};
 
 function GreetingCard({
   row,
   allowedMoves,
+  disabledReason,
   fullName,
   now,
   busy,
@@ -165,6 +195,7 @@ function GreetingCard({
 }: {
   row: LiveRow | null;
   allowedMoves: readonly string[];
+  disabledReason: PunchDisabledReason | null | undefined;
   fullName: string;
   now: Date;
   busy: PunchKind | null;
@@ -177,8 +208,9 @@ function GreetingCard({
 
   const hasIn = allowedMoves.includes('in');
   const hasOut = allowedMoves.includes('out');
+  const reasonText = disabledReason && !hasIn && !hasOut ? DISABLED_REASON_COPY[disabledReason] : null;
   return (
-    <div className="today-greeting-card dashboard-glass dashboard-glass-surface relative flex flex-col overflow-visible rounded-2xl border border-app-border p-4 lg:pb-2 xl:pb-4">
+    <GlassSurface className="today-greeting-card relative flex flex-col overflow-visible rounded-2xl p-4 lg:pb-2 xl:pb-4">
       <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-app-muted">{getGreeting(hour)}</p>
@@ -192,7 +224,7 @@ function GreetingCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <StatusPill state={state} isWfh={row?.isWfh ?? false} />
+        <StatusPill state={state} isWfh={row?.isWfh ?? false} isRemote={row?.isRemote ?? false} />
         {(row?.shiftStartAt || row?.shiftEndAt) && (
           <span className="text-xs text-app-muted">
             Shift: {fmtTime12(row?.shiftStartAt ?? null)} – {fmtTime12(row?.shiftEndAt ?? null)}
@@ -201,35 +233,33 @@ function GreetingCard({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        <button
-          type="button"
+        <Button
+          kind="primary"
           disabled={busy !== null || !hasIn}
           onClick={() => hasIn && onPunch('in', 'Punch In')}
-          className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
-            hasIn
-              ? 'border-app-accent bg-app-accent text-app-on-accent hover:brightness-105'
-              : 'border-app-border/40 bg-white/40 text-app-muted/40 dark:bg-white/5 cursor-not-allowed'
-          } disabled:cursor-not-allowed`}
+          className="w-full gap-2 py-3.5 text-sm active:scale-[0.97] disabled:cursor-not-allowed"
         >
-          <IconLogIn className={`h-4 w-4 shrink-0 ${hasIn ? 'text-app-on-accent' : 'text-app-muted/40'}`} />
+          <IconLogIn className={`h-4 w-4 shrink-0 ${hasIn ? 'text-app-on-accent' : 'text-app-muted/50'}`} />
           {busy === 'in' ? 'Recording…' : 'Punch In'}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          kind="secondary"
           disabled={busy !== null || !hasOut}
           onClick={() => hasOut && onPunch('out', 'Punch Out')}
-          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold transition-all duration-150 active:scale-[0.97] ${
-            hasOut
-              ? 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
-              : 'border border-app-border bg-app-surface-raised text-app-muted/40 cursor-not-allowed'
-          } disabled:cursor-not-allowed`}
+          className="w-full gap-2 py-3.5 text-sm active:scale-[0.97] disabled:cursor-not-allowed"
         >
-          <IconLogOut className={`h-4 w-4 shrink-0 ${hasOut ? 'text-app-on-accent' : 'text-app-muted/40'}`} />
+          <IconLogOut className={`h-4 w-4 shrink-0 ${hasOut ? '' : 'text-app-muted/50'}`} />
           {busy === 'out' ? 'Recording…' : 'Punch Out'}
-        </button>
+        </Button>
       </div>
 
       {breakActionButton}
+
+      {reasonText && (
+        <p className="mt-2 rounded-lg bg-app-surface-raised px-3 py-2 text-xs text-app-muted">
+          {reasonText}
+        </p>
+      )}
 
       <div className="mt-2 h-4 min-h-4 overflow-hidden">
         {msg && (
@@ -239,18 +269,18 @@ function GreetingCard({
         )}
       </div>
 
-    </div>
+    </GlassSurface>
   );
 }
 
 // ── Status Pill ──────────────────────────────────────────────────────────────
 
-function StatusPill({ state, isWfh }: { state: string; isWfh?: boolean }): React.JSX.Element {
+function StatusPill({ state, isWfh, isRemote }: { state: string; isWfh?: boolean; isRemote?: boolean }): React.JSX.Element {
   if (state === 'WORKING') {
     return (
       <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-        {isWfh ? 'Working from Home' : 'Currently In Office'}
+        {isWfh ? 'Working from Home' : isRemote ? 'Working remotely (no WFH approval)' : 'Currently In Office'}
       </span>
     );
   }
@@ -285,27 +315,31 @@ function BreakStatusCard({
   events,
   now,
   breakActionButton,
+  breakLimitMinutes,
 }: {
   row: LiveRow | null;
   events: AttendanceEventView[];
   now: Date;
   breakActionButton: ReactNode;
+  breakLimitMinutes: number | null;
 }): React.JSX.Element {
   const isOnBreak = row?.state === 'ON_BREAK';
   const currentBreakSeconds = elapsedSeconds(isOnBreak ? (row?.since ?? null) : null, now);
-  const completedBreakSeconds = Math.max(
-    Math.max(0, row?.breakMinutes ?? 0) * 60,
-    exactCompletedBreakSeconds(events),
-  );
+  const reportedBreakSeconds = Math.max(0, row?.breakMinutes ?? 0) * 60;
+  const reportedCompletedBreakSeconds = isOnBreak
+    ? Math.max(0, reportedBreakSeconds - currentBreakSeconds)
+    : reportedBreakSeconds;
+  const completedBreakSeconds = Math.max(reportedCompletedBreakSeconds, exactCompletedBreakSeconds(events));
   const totalBreakSeconds = completedBreakSeconds + currentBreakSeconds;
-  const breakLimitSeconds = 60 * 60;
+  // Use the employee's configured daily allowance, with a one-hour fallback.
+  const effectiveLimitMinutes = breakLimitMinutes ?? 60;
+  const breakLimitSeconds = effectiveLimitMinutes * 60;
   const progress = Math.min(totalBreakSeconds / breakLimitSeconds, 1);
   const isOverLimit = totalBreakSeconds > breakLimitSeconds;
   const circumference = 2 * Math.PI * 47;
   const strokeOffset = circumference * (1 - progress);
-
   return (
-    <div className="today-break-status-card dashboard-glass dashboard-glass-surface flex flex-col rounded-2xl border border-app-border p-4 md:pt-3">
+    <GlassSurface className="today-break-status-card flex flex-col rounded-2xl p-4 md:pt-3">
       {/* Header */}
       <div className="today-break-status-header flex items-center justify-between gap-3 md:flex-col md:items-start md:justify-start md:gap-1.5">
         <p className="text-base font-bold text-app-foreground">Break Status</p>
@@ -316,7 +350,11 @@ function BreakStatusCard({
           </span>
         ) : (
           <span className="rounded-full bg-app-surface-raised px-2.5 py-1 text-xs font-medium text-app-muted">
-            {row?.state === 'WORKING' ? 'Active' : row?.state === 'FINISHED' ? 'Ended' : 'Inactive'}
+            {row?.state === 'WORKING'
+              ? 'Working'
+              : row?.state === 'FINISHED'
+                ? 'Day ended'
+                : 'Not punched in'}
           </span>
         )}
       </div>
@@ -330,7 +368,11 @@ function BreakStatusCard({
           {breakActionButton}
         </div>
 
-        <div className="today-break-timer relative order-1 grid size-28 place-items-center rounded-full sm:size-32 md:order-none md:self-center md:size-44 xl:size-[clamp(13rem,15vw,13.75rem)]">
+        <div
+          className="today-break-timer relative order-1 grid size-28 place-items-center rounded-full sm:size-32 md:order-none md:self-center md:size-44 xl:size-[clamp(13rem,15vw,13.75rem)]"
+          role="img"
+          aria-label={`Break time used ${fmtBreakTimer(totalBreakSeconds)} of ${effectiveLimitMinutes} minutes${isOverLimit ? ', over limit' : ''}`}
+        >
           <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
             <circle cx="56" cy="56" r="47" fill="none" stroke="currentColor" strokeWidth="7" className={isOverLimit ? 'text-red-500/15' : 'text-app-accent/15'} />
             <circle
@@ -350,10 +392,13 @@ function BreakStatusCard({
             <p className={`text-2xl font-bold tabular-nums tracking-tight ${isOverLimit ? 'text-red-600 dark:text-red-300' : 'text-app-foreground'}`}>
               {fmtBreakTimer(totalBreakSeconds)}
             </p>
+            <p className="mt-0.5 text-[11px] font-medium text-app-muted">
+              of {String(Math.floor(effectiveLimitMinutes / 60)).padStart(2, '0')}:{String(effectiveLimitMinutes % 60).padStart(2, '0')}
+            </p>
           </div>
         </div>
       </div>
-    </div>
+    </GlassSurface>
   );
 }
 
@@ -422,7 +467,7 @@ function TodayActivityCard({
   }, [items.length]);
 
   return (
-    <div className={`today-activity-card dashboard-glass dashboard-glass-surface flex min-h-0 flex-col rounded-2xl border border-app-border p-5${items.length > 10 ? ' today-activity-card--scrolling' : ''}`}>
+    <GlassSurface className={`today-activity-card flex min-h-0 flex-col rounded-2xl p-5${items.length > 10 ? ' today-activity-card--scrolling' : ''}`}>
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 text-base font-bold text-app-foreground">Today's Activity</p>
         <span className="shrink-0 text-[11px] font-medium text-app-muted">
@@ -470,7 +515,7 @@ function TodayActivityCard({
       {items.length > 3 && (
         <p className="mt-2 text-center text-[11px] text-app-muted">Scroll to view more activity</p>
       )}
-    </div>
+    </GlassSurface>
   );
 }
 
@@ -565,7 +610,7 @@ function buildActivityItems(
     let sub = '';
     if (kind === 'in') {
       lastInTime = atMs;
-      sub = row?.isWfh ? 'WFH' : 'Office';
+      sub = row?.isWfh ? 'WFH' : row?.isRemote ? 'Remote, no WFH approval' : 'Office';
     } else if (kind === 'break-start' && lastInTime && atMs) {
       workedBeforeBreak = Math.round((atMs - lastInTime) / 60000);
       sub = workedBeforeBreak > 0 ? `After ${fmtShortDuration(workedBeforeBreak)} of work` : '';
@@ -623,13 +668,16 @@ export function TodayPage({
   userId: string;
   organizationTimezone: string;
 }): React.JSX.Element {
-  const [status, setStatus] = useState<{ row: LiveRow | null; allowedMoves: readonly string[] } | null>(null);
+  const [status, setStatus] = useState<{ row: LiveRow | null; allowedMoves: readonly string[]; disabledReason?: PunchDisabledReason | null } | null>(null);
   const [events, setEvents] = useState<AttendanceEventView[]>([]);
   const [prompts, setPrompts] = useState<BreakPrompt[]>([]);
+  const [breakAllowance, setBreakAllowance] = useState<BreakAllowance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [punchBusy, setPunchBusy] = useState<PunchKind | null>(null);
   const [punchMessage, setPunchMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  // Punching out ends the day for good (LS-6), so it is confirmed first.
+  const [confirmingOut, setConfirmingOut] = useState(false);
   const [isTabletOrLarger, setIsTabletOrLarger] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const abort = useRef<AbortController | null>(null);
   const [version, setVersion] = useState(0);
@@ -645,6 +693,15 @@ export function TodayPage({
     const syncViewport = () => setIsTabletOrLarger(tabletAndUp.matches);
     tabletAndUp.addEventListener('change', syncViewport);
     return () => tabletAndUp.removeEventListener('change', syncViewport);
+  }, []);
+
+  useEffect(() => {
+    const refreshAfterAttendanceChange = () => {
+      setPunchMessage(null);
+      setVersion((current) => current + 1);
+    };
+    window.addEventListener(ATTENDANCE_UPDATED_EVENT, refreshAfterAttendanceChange);
+    return () => window.removeEventListener(ATTENDANCE_UPDATED_EVENT, refreshAfterAttendanceChange);
   }, []);
 
   // Load data
@@ -675,21 +732,23 @@ export function TodayPage({
       try { setPrompts(await getBreakPrompts(sig)); } catch { /* optional */ }
     })();
 
+    void (async () => {
+      try { setBreakAllowance(await getBreakAllowance(sig)); } catch { /* optional */ }
+    })();
+
     return () => { abort.current?.abort(); };
   }, [organizationTimezone, version, userId]);
-
-  const refresh = (): void => setVersion((v) => v + 1);
 
   async function handlePunch(kind: PunchKind, label: string): Promise<void> {
     setPunchBusy(kind);
     setPunchMessage(null);
     try {
       const result = await punch(kind);
+      notifyAttendanceUpdated();
       const at = fmtTime12(new Date());
       setPunchMessage(kind === 'break-start' || kind === 'break-end'
         ? null
         : { ok: true, text: result.replayed ? `${label} already recorded.` : `${label} at ${at}.` });
-      refresh();
     } catch (err) {
       setPunchMessage({ ok: false, text: err instanceof Error ? err.message : 'Failed. Try again.' });
     } finally {
@@ -714,11 +773,11 @@ export function TodayPage({
   const canBreak = allowedMoves.includes(breakAction);
   const shouldShowBreakAction = row?.state === 'WORKING' || isOnBreak;
   const breakActionButton = shouldShowBreakAction ? (
-    <button
-      type="button"
+    <Button
+      kind="secondary"
       disabled={punchBusy !== null || !canBreak}
       onClick={() => canBreak && void handlePunch(breakAction, breakAction === 'break-start' ? 'Break Start' : 'Break End')}
-      className={`today-break-action ${isTabletOrLarger ? 'w-full max-w-[14rem] px-4 py-5' : 'mt-2.5 w-full px-4 py-3.5'} flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`today-break-action ${isTabletOrLarger ? 'w-full max-w-[14rem] px-4 py-5' : 'mt-2.5 w-full px-4 py-3.5'} text-sm font-semibold active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${
         breakAction === 'break-start'
           ? 'border border-app-accent/30 bg-app-accent/10 text-app-accent hover:bg-app-accent/15'
           : 'border border-app-border bg-app-surface text-app-foreground hover:border-app-accent hover:text-app-accent'
@@ -726,7 +785,7 @@ export function TodayPage({
     >
       {breakAction === 'break-start' ? <IconCoffee className="h-4 w-4" /> : <IconSquare className="h-4 w-4" />}
       {punchBusy === 'break-start' ? 'Starting break…' : punchBusy === 'break-end' ? 'Ending break…' : breakAction === 'break-start' ? 'Start Break' : 'End Break'}
-    </button>
+    </Button>
   ) : null;
 
   return (
@@ -738,16 +797,17 @@ export function TodayPage({
               <GreetingCard
                 row={row}
                 allowedMoves={allowedMoves}
+                disabledReason={status.disabledReason ?? null}
                 fullName={fullName}
                 now={now}
                 busy={punchBusy}
                 msg={punchMessage}
-                onPunch={(kind, label) => void handlePunch(kind, label)}
+                onPunch={(kind, label) => (kind === 'out' ? setConfirmingOut(true) : void handlePunch(kind, label))}
                 breakActionButton={isTabletOrLarger ? null : breakActionButton}
               />
             </div>
             <div className="min-h-0 lg:flex-none xl:flex-[1.1]">
-              <BreakStatusCard row={row} events={events} now={now} breakActionButton={isTabletOrLarger ? breakActionButton : null} />
+              <BreakStatusCard row={row} events={events} now={now} breakActionButton={isTabletOrLarger ? breakActionButton : null} breakLimitMinutes={breakAllowance?.policy?.upperTotalMinutes ?? null} />
             </div>
           </div>
           <div className="today-attendance-activity-slot min-h-0 min-w-0 overflow-hidden">
@@ -758,6 +818,16 @@ export function TodayPage({
         {/* Break prompts (if any) */}
         {prompts.length > 0 && <BreakPromptsPanel prompts={prompts} />}
       </WorkspacePageContainer>
+      {confirmingOut && (
+        <PunchOutConfirm
+          shiftEndAt={row?.shiftEndAt ?? null}
+          now={now}
+          canStartBreak={row?.state === 'WORKING' && allowedMoves.includes('break-start')}
+          onCancel={() => setConfirmingOut(false)}
+          onBreak={() => { setConfirmingOut(false); void handlePunch('break-start', 'Break Start'); }}
+          onConfirm={() => { setConfirmingOut(false); void handlePunch('out', 'Punch Out'); }}
+        />
+      )}
     </>
   );
 }

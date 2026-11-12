@@ -25,11 +25,129 @@ export interface PayrollInputRow {
   readonly label: string;
   readonly reason: string | null;
   readonly breakBreachId: string | null;
+  /** The scheduled advance deduction this input recovers (system-written). */
+  readonly advanceDeductionId?: string;
+  /** The penalty this input deducts (system-written). */
+  readonly penaltyId?: string;
   readonly createdAt: string;
   readonly createdBy: string;
   readonly revokedAt: string | null;
   readonly revokedBy: string | null;
   readonly revocationReason: string | null;
+}
+
+/**
+ * The source keys are present only when set, so the frozen inputs of every
+ * other entry — and their fingerprints — stay exactly as they were.
+ */
+function withSources<T extends { advanceDeductionId?: string | null; penaltyId?: string | null }>(row: T): T {
+  const out = { ...row } as T & Record<string, unknown>;
+  if (out.advanceDeductionId === null || out.advanceDeductionId === undefined) delete out.advanceDeductionId;
+  if (out.penaltyId === null || out.penaltyId === undefined) delete out.penaltyId;
+  return out;
+}
+
+/** An input another module owns: an advance recovery or a penalty. */
+export type SourcedInput =
+  | {
+      readonly kind: 'advance-recovery';
+      readonly advanceDeductionId: string;
+      readonly userId: string;
+      readonly periodStart: string;
+      readonly amountPaise: string;
+      readonly label: string;
+      readonly reason: string;
+      readonly createdBy: string;
+    }
+  | {
+      readonly kind: 'penalty';
+      readonly penaltyId: string;
+      readonly userId: string;
+      readonly periodStart: string;
+      readonly amountPaise: string;
+      readonly label: string;
+      readonly reason: string;
+      readonly createdBy: string;
+    };
+
+export type InputSource =
+  | { readonly advanceDeductionId: string }
+  | { readonly penaltyId: string };
+
+const sourceCondition = (source: InputSource) =>
+  'advanceDeductionId' in source
+    ? sql`advance_deduction_id = ${source.advanceDeductionId}::uuid`
+    : sql`penalty_id = ${source.penaltyId}::uuid`;
+
+/**
+ * Revokes the source's live input, if any. Returns its id so the caller can
+ * record the change for the month's run.
+ */
+export async function revokeSourcedInput(
+  tx: Tx,
+  source: InputSource,
+  revokedBy: string,
+  reason: string,
+): Promise<{ id: string; userId: string; periodStart: string } | null> {
+  return tx.maybeOne<{ id: string; userId: string; periodStart: string }>(sql`
+    UPDATE payroll_input
+    SET revoked_at = now(), revoked_by = ${revokedBy}::uuid, revocation_reason = ${reason}
+    WHERE organization_id = current_organization_id()
+      AND ${sourceCondition(source)}
+      AND revoked_at IS NULL
+    RETURNING id, user_id AS "userId", period_start::text AS "periodStart"
+  `);
+}
+
+/**
+ * Writes the source's input for its month, replacing a live one (a changed
+ * amount or month is a revoke and a new entry, so history stays readable).
+ */
+export async function writeSourcedInput(tx: Tx, input: SourcedInput): Promise<{ id: string }> {
+  const source: InputSource =
+    input.kind === 'advance-recovery'
+      ? { advanceDeductionId: input.advanceDeductionId }
+      : { penaltyId: input.penaltyId };
+  await revokeSourcedInput(tx, source, input.createdBy, 'Replaced by an updated entry');
+  return tx.one<{ id: string }>(sql`
+    INSERT INTO payroll_input
+      (organization_id, user_id, period_start, kind, amount, label, reason,
+       advance_deduction_id, penalty_id, created_by)
+    VALUES (
+      current_organization_id(), ${input.userId}::uuid, ${input.periodStart}::date, ${input.kind},
+      (${input.amountPaise}::numeric / 100), ${input.label}, ${input.reason},
+      ${input.kind === 'advance-recovery' ? input.advanceDeductionId : null}::uuid,
+      ${input.kind === 'penalty' ? input.penaltyId : null}::uuid,
+      ${input.createdBy}::uuid
+    )
+    RETURNING id
+  `);
+}
+
+/**
+ * The advance deductions and penalties paid through these published payslips:
+ * the inputs each payslip froze (the same test the inputs list uses for
+ * "published").
+ */
+export async function settledSources(
+  tx: Tx,
+  organizationId: string,
+  payslipIds: readonly string[],
+): Promise<{ advanceDeductionIds: string[]; penaltyIds: string[] }> {
+  if (payslipIds.length === 0) return { advanceDeductionIds: [], penaltyIds: [] };
+  const rows = await tx.query<{ advanceDeductionId: string | null; penaltyId: string | null }>(sql`
+    SELECT DISTINCT i.advance_deduction_id AS "advanceDeductionId", i.penalty_id AS "penaltyId"
+    FROM payslip p
+    CROSS JOIN LATERAL jsonb_array_elements(COALESCE(p.inputs -> 'payrollInputs', '[]'::jsonb)) AS frozen(entry)
+    JOIN payroll_input i ON i.organization_id = p.organization_id AND i.id = (frozen.entry ->> 'id')::uuid
+    WHERE p.organization_id = ${organizationId}
+      AND p.id = ANY(${payslipIds}::uuid[])
+      AND (i.advance_deduction_id IS NOT NULL OR i.penalty_id IS NOT NULL)
+  `);
+  return {
+    advanceDeductionIds: rows.flatMap((r) => (r.advanceDeductionId ? [r.advanceDeductionId] : [])),
+    penaltyIds: rows.flatMap((r) => (r.penaltyId ? [r.penaltyId] : [])),
+  };
 }
 
 /**
@@ -96,6 +214,8 @@ export async function revokeManualInput(
     WHERE organization_id = ${organizationId}
       AND id = ${inputId}::uuid
       AND break_breach_id IS NULL
+      AND advance_deduction_id IS NULL
+      AND penalty_id IS NULL
       AND revoked_at IS NULL
     RETURNING id
   `);
@@ -128,6 +248,7 @@ export async function listInputs(
     SELECT i.id, i.user_id AS "userId", i.period_start::text AS "periodStart",
            i.kind, i.amount::text AS amount, i.label, i.reason,
            i.break_breach_id AS "breakBreachId",
+           i.advance_deduction_id AS "advanceDeductionId", i.penalty_id AS "penaltyId",
            i.created_at::text AS "createdAt", i.created_by AS "createdBy",
            i.revoked_at::text AS "revokedAt", i.revoked_by AS "revokedBy",
            i.revocation_reason AS "revocationReason",
@@ -173,10 +294,11 @@ export async function listActiveInputsForPeriod(
   periodStart: string,
 ): Promise<PayrollInputRow[]> {
   if (userIds.length === 0) return [];
-  return tx.query<PayrollInputRow>(sql`
+  const rows = await tx.query<PayrollInputRow>(sql`
     SELECT id, user_id AS "userId", period_start::text AS "periodStart",
            kind, amount::text AS amount, label, reason,
            break_breach_id AS "breakBreachId",
+           advance_deduction_id AS "advanceDeductionId", penalty_id AS "penaltyId",
            created_at::text AS "createdAt", created_by AS "createdBy",
            revoked_at::text AS "revokedAt", revoked_by AS "revokedBy",
            revocation_reason AS "revocationReason"
@@ -187,4 +309,26 @@ export async function listActiveInputsForPeriod(
       AND revoked_at IS NULL
     ORDER BY created_at
   `);
+  return rows.map(withSources);
+}
+
+/**
+ * The first payroll month from `from` whose payroll is not published yet — where
+ * a recovery planned now can still be taken without revising a payslip.
+ */
+export async function firstUnpublishedPeriod(
+  tx: Tx,
+  organizationId: string,
+  from: string,
+): Promise<string> {
+  const row = await tx.one<{ month: string }>(sql`
+    SELECT m::date::text AS month
+    FROM generate_series(${from}::date, ${from}::date + interval '36 months', interval '1 month') AS m
+    WHERE NOT EXISTS (
+      SELECT 1 FROM payroll_run r
+      WHERE r.organization_id = ${organizationId} AND r.period_start = m::date AND r.status = 'published')
+    ORDER BY m
+    LIMIT 1
+  `);
+  return row.month;
 }

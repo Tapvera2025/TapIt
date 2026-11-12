@@ -5,7 +5,7 @@ import {
   SearchConsoleConfigurationError,
   SearchConsoleUnavailableError,
 } from '../../../platform/integrations/google/search-console.js';
-import { googleAuthConfigured } from '../../../platform/integrations/google/token.js';
+import { searchConsoleConnected, searchConsoleToken } from '../../social/facade.js';
 import { addDays, localDateOf, type Clock } from '../../../platform/time.js';
 import { organizationTimezone } from '../../../platform/organization-time.js';
 import type { RankProvider, RankRequest, RankResult, RankWindow } from './rank-provider.js';
@@ -100,8 +100,8 @@ export async function syncProjectRanks(
   projectId: string,
   options: { readonly window: RankWindow; readonly scope: 'due' | 'all' },
 ): Promise<SyncOutcome> {
-  if (!googleAuthConfigured()) {
-    return { status: 'failed', fetched: 0, unavailable: 0, skipped: 0, message: 'Google Search Console is not configured on this server.' };
+  if (!await searchConsoleConnected(ctx)) {
+    return { status: 'failed', fetched: 0, unavailable: 0, skipped: 0, message: 'No Google login is connected. Connect one under Social → Company connections to fetch ranks from Search Console.' };
   }
 
   const link = await findSearchConsoleLink(ctx, projectId);
@@ -132,7 +132,9 @@ export async function syncProjectRanks(
   let failure: string | null = null;
   if (accepted.length > 0) {
     try {
-      fetched = await provider.fetchRanks({ propertyUrl: link.propertyUrl }, accepted, options.window);
+      // Read through the organization's own Google login for this property, never another's.
+      const accessToken = await searchConsoleToken(ctx, link.propertyUrl);
+      fetched = await provider.fetchRanks({ propertyUrl: link.propertyUrl, accessToken }, accepted, options.window);
     } catch (cause) {
       if (cause instanceof SearchConsoleUnavailableError) {
         // Transient. Record nothing and let the job runner's backoff retry;

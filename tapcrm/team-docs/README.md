@@ -30,3 +30,9 @@ the project overview remains in the repository [README](../README.md).
   changing the source document's meaning.
 - Keep cross-document links relative to this folder so files remain navigable
   when opened from an editor or repository browser.
+
+- [Manage Social Media setup and operations](setup/social-media.md)
+- [Official social platform APIs and approvals](setup/social-platforms.md)
+- [SEO Intelligence module setup](setup/seo-intelligence.md)
+- [Call Analytics (JustCall and Aircall) setup](setup/call-analytics.md)
+- [Lead Imports (CSV, Excel, Google Sheets) and assigned-lead call tracking](setup/lead-imports.md)

@@ -8,7 +8,7 @@ import {
   type AtsCriteria,
   type AtsCriteriaSettings,
 } from '@tapcrm/contracts';
-import { Button, Loading, Modal, Notice } from '../../../ui/components.js';
+import { Button, Loading, Modal, Notice } from '../../../ui/index.js';
 import { getAtsCriteria, saveAtsCriteria } from '../api/recruitmentApi.js';
 
 const MAX_PER_LIST = 30;

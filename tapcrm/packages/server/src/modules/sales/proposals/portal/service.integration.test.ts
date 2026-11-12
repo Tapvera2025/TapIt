@@ -281,11 +281,13 @@ describe.skipIf(!enabled)('sales proposals portal (PostgreSQL)', () => {
     const { commercialsId } = await createPublishedCommercials();
     const { rawToken } = await issueLink(commercialsId);
 
-    // 30 views are allowed; the 31st breaks the per-token limit.
+    // 30 views are allowed; the 31st breaks the per-token limit. Each view
+    // uses a unique IP so the per-IP cap (10) does not fire first.
     for (let i = 0; i < 30; i++) {
-      await viewProposal(rawToken, META);
+      await viewProposal(rawToken, { ...META, ip: `198.51.100.${i + 1}` });
     }
-    await expect(viewProposal(rawToken, META)).rejects.toBeInstanceOf(PortalRateLimitedError);
+    await expect(viewProposal(rawToken, { ...META, ip: '198.51.100.200' }))
+      .rejects.toBeInstanceOf(PortalRateLimitedError);
 
     const stillPublished = await asOwner(
       'confirm no mutation',

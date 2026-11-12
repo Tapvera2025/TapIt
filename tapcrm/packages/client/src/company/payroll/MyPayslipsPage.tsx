@@ -8,7 +8,7 @@ import {
   type SlipDetail,
   type SlipSummary,
 } from '../api/payrollApi.js';
-import { Button, Card, Notice, Page, SkeletonTable } from '../../ui/components.js';
+import { Button, Card, Notice, Page, SkeletonTable } from '../../ui/index.js';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);

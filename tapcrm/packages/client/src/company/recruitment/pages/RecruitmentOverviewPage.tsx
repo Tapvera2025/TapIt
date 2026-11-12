@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Notice, SkeletonPage, WorkspacePageContainer } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Card, Notice, SkeletonPage, WorkspacePageContainer } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import {
   getRecruitmentMetrics,
   listCandidates,

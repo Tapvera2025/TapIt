@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Modal, Notice } from '../../../ui/components.js';
+import { Button, Modal, Notice } from '../../../ui/index.js';
 import { listEmailTemplates, sendJoiningEmail } from '../api/recruitmentApi.js';
 import type { CandidateJoining, RecruitmentEmailTemplate, SendJoiningEmailInput } from '../types/index.js';
 

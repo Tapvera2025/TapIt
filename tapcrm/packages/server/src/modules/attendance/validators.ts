@@ -68,7 +68,8 @@ const confirmAsIsPayload = z.object({
 
 const correctionBodyBase = z.object({
   workDate: dateSchema,
-  reason:   z.string().min(20),
+  // Trim before measuring so 20 spaces no longer satisfies the policy.
+  reason:   z.string().trim().min(20),
 });
 
 export const raiseCorrectionSchema = z.discriminatedUnion('kind', [

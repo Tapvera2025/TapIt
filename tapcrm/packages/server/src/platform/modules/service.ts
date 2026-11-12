@@ -3,14 +3,20 @@ import * as repo from './repository.js';
 import { platformDb, setTenantContext } from '../dal/db.js';
 import { sql } from '../dal/sql.js';
 import { bootstrapOrganization } from '../organizations/bootstrap.js';
+import { provisionDefaultPositionPolicies } from '../organizations/policy-matrix.js';
+import { ORGANIZATION_TEMPLATE } from '../organizations/template.js';
 import { provisionAccountingFoundation } from '../../modules/finance/accounting/provisioning.js';
+import { provisionSeoRules } from '../../modules/seo-intelligence/provisioning.js';
 
 export const PLATFORM_MODULE_GROUPS = [
-  { key: 'hr', label: 'HR', moduleKeys: ['employee-directory', 'onboarding', 'live-status', 'attendance', 'break-management', 'shifts', 'biometric', 'leave', 'holidays', 'payroll', 'performance', 'recruitment'] },
-  { key: 'sales', label: 'Sales', moduleKeys: ['territories', 'leads', 'callbacks', 'handovers', 'deals', 'approvals'] },
+  // TA, advances and penalties are switched on per company like the rest of HR;
+  // enabling one provisions its position policies (bootstrapOrganization).
+  { key: 'hr', label: 'HR', moduleKeys: ['employee-directory', 'onboarding', 'live-status', 'attendance', 'break-management', 'shifts', 'biometric', 'leave', 'holidays', 'ta', 'payroll', 'advance', 'penalties', 'performance', 'recruitment'] },
+  { key: 'sales', label: 'Sales', moduleKeys: ['territories', 'leads', 'callbacks', 'handovers', 'deals', 'approvals', 'telephony', 'lead-imports'] },
   { key: 'development', label: 'Development', moduleKeys: ['handoff', 'projects', 'tasks', 'resource-planning', 'delivery'] },
-  { key: 'client', label: 'Client', moduleKeys: ['clients', 'post-closure', 'client-portal'] },
+  { key: 'client', label: 'Client', moduleKeys: ['clients', 'social', 'post-closure', 'client-portal', 'meetings'] },
   { key: 'finance', label: 'Finance', moduleKeys: ['billing-terms', 'invoicing', 'payments', 'receivables', 'payables', 'accounting'] },
+  { key: 'marketing', label: 'Marketing', moduleKeys: ['seo-intelligence'] },
 ] as const;
 
 const PLATFORM_SELECTABLE_MODULE_KEYS = PLATFORM_MODULE_GROUPS.flatMap(
@@ -92,6 +98,12 @@ export async function changeOrganizationModule(
     }
   }
   const toEnable = all.filter((item) => item.isCore || selectedIds.has(item.id));
+  const alreadyEnabled = new Set(
+    (await repo.getOrganizationModules(orgId) as { key: string; status: string }[])
+      .filter((row) => row.status === 'enabled')
+      .map((row) => row.key),
+  );
+  const newlyEnabled = toEnable.filter((item) => !alreadyEnabled.has(item.key)).map((item) => item.key);
   return platformDb.transaction(
     'organization-provisioning',
     'enable organization module and provision starter structure',
@@ -108,8 +120,29 @@ export async function changeOrganizationModule(
         `);
       }
       await bootstrapOrganization(tx, orgId, toEnable.map((item) => item.key));
+      // Bootstrap reaches the positions of the departments the module belongs
+      // to. A module every employee uses for themselves (TA, advances,
+      // penalties) must reach every position the company already has, so the
+      // newly enabled modules' defaults go to all of them. Only missing rows
+      // are added, and only for modules that were off until now.
+      if (newlyEnabled.length > 0) {
+        const existing = await tx.query<{ id: string; code: string }>(sql`
+          SELECT id, code FROM position WHERE organization_id = ${orgId} AND status = 'active'
+        `);
+        const positionIds = new Map(existing.map((row) => [row.code, row.id]));
+        await provisionDefaultPositionPolicies(
+          tx,
+          orgId,
+          newlyEnabled,
+          ORGANIZATION_TEMPLATE.positions.filter((position) => positionIds.has(position.code)),
+          positionIds,
+        );
+      }
       if (toEnable.some((item) => item.key === 'accounting')) {
         await provisionAccountingFoundation(tx, orgId);
+      }
+      if (toEnable.some((item) => item.key === 'seo-intelligence')) {
+        await provisionSeoRules(tx, orgId);
       }
       return { organizationId: orgId, moduleId: module.id, status: 'enabled' };
     },

@@ -1,0 +1,65 @@
+[
+  {
+    "actor": "qa.sales.alpha.20261030@tapcrm.local",
+    "method": "GET",
+    "path": "/api/leads/01a18c13-407a-785b-9213-2ff0e8ccc191",
+    "status": 403,
+    "code": "FORBIDDEN",
+    "message": "lead:01a18c13-407a-785b-9213-2ff0e8ccc191 is outside this principal's own scope."
+  },
+  {
+    "actor": "qa.sales.alpha.20261030@tapcrm.local",
+    "method": "GET",
+    "path": "/api/deals/01a18c1a-03cc-74f7-8697-d8fdc410a994",
+    "status": 403,
+    "code": "FORBIDDEN",
+    "message": "deal:01a18c1a-03cc-74f7-8697-d8fdc410a994 is outside this principal's own scope."
+  },
+  {
+    "actor": "qa.sales.alpha.20261030@tapcrm.local",
+    "method": "GET",
+    "path": "/api/territories",
+    "status": 403,
+    "code": "FORBIDDEN",
+    "message": "No policy grants territories:view to this principal."
+  },
+  {
+    "actor": "qa.sales.alpha.20261030@tapcrm.local",
+    "method": "GET",
+    "path": "/api/approvals/queue",
+    "status": 403,
+    "code": "FORBIDDEN",
+    "message": "approvals:decide is approval-bearing and requires a resource to check its initiator against."
+  },
+  {
+    "actor": "qa.sales.alpha.20261030@tapcrm.local",
+    "method": "GET",
+    "path": "/api/deals/wins-to-record",
+    "status": 403,
+    "code": "FORBIDDEN",
+    "message": "deals:record-win is approval-bearing and requires a resource to check its initiator against."
+  },
+  {
+    "actor": "qa.sales.alpha.20261030@tapcrm.local",
+    "method": "GET",
+    "path": "/api/leads/triage",
+    "status": 200,
+    "count": 0
+  },
+  {
+    "actor": "qa.sales.alpha.20261030@tapcrm.local",
+    "method": "POST",
+    "path": "/api/leads/01a18c2f-4fb1-7d61-a84d-2638756e0dde/reassign",
+    "status": 403,
+    "code": "FORBIDDEN",
+    "message": "Reassigning a lead to another user requires leads:reassign at pool scope or wider"
+  },
+  {
+    "actor": "qa.sales.alpha.20261030@tapcrm.local",
+    "method": "POST",
+    "path": "/api/callbacks",
+    "status": 422,
+    "code": "NOT_ELIGIBLE",
+    "message": "Some submitted data failed validation. Check the entered values and try again."
+  }
+]

@@ -45,10 +45,13 @@ const MODULE_TITLES: Partial<Record<ActionDefinition['module'], string>> = {
   'resource-planning': 'Resource planning',
   'post-closure': 'Renewals',
   'client-portal': 'Client portal',
+  meetings: 'Client meetings',
   'billing-terms': 'Billing terms',
   payables: 'Payables & expenses',
   'project-communication': 'Project conversations',
   reporting: 'Reports',
+  telephony: 'Call analytics',
+  'lead-imports': 'Lead imports',
 };
 
 export function moduleTitle(moduleName: ActionDefinition['module']): string {

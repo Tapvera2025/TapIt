@@ -57,14 +57,19 @@ const MODULES = new Set([
   'handovers',
   'deals',
   'approvals',
+  'telephony',
+  'lead-imports',
   'handoff',
   'projects',
   'tasks',
   'resource-planning',
   'delivery',
   'clients',
+  'social',
   'post-closure',
   'client-portal',
+  'meetings',
+  'seo-intelligence',
   'billing-terms',
   'invoicing',
   'payments',
@@ -114,6 +119,7 @@ const NAMESPACE_TO_MODULE: Record<string, string> = {
   status: 'live-status',
   portal: 'client-portal',
   brief: 'handoff',
+  seo: 'seo-intelligence',
 };
 
 function moduleForNamespace(ns: string): string | undefined {

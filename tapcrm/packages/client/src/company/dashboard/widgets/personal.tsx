@@ -3,19 +3,13 @@ import { io, type Socket } from 'socket.io-client';
 import { getIdentityAccessToken, identityApiBasePath } from '../../../identity/api/authApi.js';
 import { Icon } from '../../../ui/Icon.js';
 import { getMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../../../identity/api/sessionsApi.js';
-import { loadTodayStatus, punch, type PunchKind, type TodayStatus } from '../../live/liveApi.js';
+import { ATTENDANCE_UPDATED_EVENT, loadTodayStatus, notifyAttendanceUpdated, punch, type PunchKind, type TodayStatus } from '../../live/liveApi.js';
 import { getMyShiftAssignment, type ShiftAssignment } from '../../api/shiftsApi.js';
 import { listTasks, transitionTask } from '../../tasks/api/tasksApi.js';
 import type { Task, TaskStatus } from '../../tasks/types/index.js';
 import { listLeaves, getLeaveBalances, type LeaveBalanceDto, type LeaveRequestSummary } from '../../api/leaveApi.js';
 import { listHolidays, type Holiday } from '../../api/holidaysApi.js';
 import type { WidgetContext } from '../widget-types.js';
-
-const ATTENDANCE_UPDATED_EVENT = 'tapcrm:attendance-updated';
-
-function notifyAttendanceUpdated(): void {
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ATTENDANCE_UPDATED_EVENT));
-}
 
 function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }): React.JSX.Element {
   return <div className={`dashboard-widget-shell flex h-full min-h-0 w-full flex-col gap-3 overflow-x-hidden overflow-y-auto ${className}`}>{children}</div>;
@@ -119,6 +113,7 @@ export function PunchStateWidget(): React.JSX.Element {
   useEffect(() => {
     setLoading(true);
     const controller = new AbortController();
+    // A request cancelled because the widget went away is not a failure.
     loadTodayStatus(controller.signal)
       .then((s) => setStatus(s))
       .catch((err: unknown) => {
@@ -331,8 +326,12 @@ export function TodaysShiftWidget(): React.JSX.Element {
     const controller = new AbortController();
     getMyShiftAssignment(controller.signal)
       .then((s) => setShifts(s))
-      .catch(() => setShifts([]))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!controller.signal.aborted) setShifts([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => controller.abort();
   }, []);
 

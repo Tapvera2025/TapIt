@@ -7,8 +7,8 @@ import {
   Notice,
   Page,
   Select,
-} from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+} from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import { LiquidGlassTabs } from '../../recruitment/components/RecruitmentTabs.js';
 import { APP_NAVIGATE_EVENT, type AppNavigateEvent } from '../../../navigationEvent.js';
 import {

@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { route } from '../../../platform/http/route.js';
-import { checkDuplicateLeads, createLead, createSource, editSource, getCampaigns, getLead, getSources, listLeads, listStalledLeads, loadLeadResource, updateLead } from './service.js';
+import { checkDuplicateLeads, closeLeadAsLost, createLead, createSource, editSource, getCampaigns, getLead, getSources, listLeads, listStalledLeads, loadLeadResource, updateLead } from './service.js';
 import { listReengagementSegments } from './reengagement-service.js';
 import { reassign, reassignBodySchema } from './reassign.js';
+import { listLeadAssignees } from './assignees.js';
 import { closeFromTriage, listTriage, rescueFromTriage, returnToBidPool, triageCloseBodySchema, triageRescueBodySchema } from './triage.js';
-import { createLeadSchema, leadListQuerySchema, reengagementQuerySchema, sourceSchema, updateLeadSchema, updateSourceSchema } from './validators.js';
+import { closeLeadLostSchema, createLeadSchema, leadListQuerySchema, reengagementQuerySchema, sourceSchema, updateLeadSchema, updateSourceSchema } from './validators.js';
 
 const id = (value: string) => z.string().uuid().parse(value);
 
@@ -18,6 +19,8 @@ export function registerLeadRoutes(): void {
   route({ method: 'GET', path: '/api/leads/:id', action: 'leads:view', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params }) => getLead(ctx, id(params['id']!)) });
   route({ method: 'POST', path: '/api/leads', action: 'leads:create', module: 'leads', status: 201, handler: async ({ ctx, body }) => createLead(ctx, createLeadSchema.parse(body)) });
   route({ method: 'PATCH', path: '/api/leads/:id', action: 'leads:edit', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params, body }) => updateLead(ctx, id(params['id']!), updateLeadSchema.parse(body)) });
+  route({ method: 'POST', path: '/api/leads/:id/close-lost', action: 'leads:edit', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params, body }) => closeLeadAsLost(ctx, id(params['id']!), closeLeadLostSchema.parse(body)) });
+  route({ method: 'GET', path: '/api/leads/:id/assignees', action: 'leads:reassign', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params }) => ({ items: await listLeadAssignees(ctx, id(params['id']!)) }) });
   route({ method: 'POST', path: '/api/leads/:id/reassign', action: 'leads:reassign', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params, body }) => reassign(ctx, id(params['id']!), reassignBodySchema.parse(body)) });
   route({ method: 'POST', path: '/api/leads/:id/triage/rescue', action: 'leads:rescue-from-triage', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params, body }) => rescueFromTriage(ctx, id(params['id']!), triageRescueBodySchema.parse(body)) });
   route({ method: 'POST', path: '/api/leads/:id/triage/return', action: 'leads:rescue-from-triage', module: 'leads', resourceParam: 'id', loadResource: loadLeadResource, handler: async ({ ctx, params }) => returnToBidPool(ctx, id(params['id']!)) });

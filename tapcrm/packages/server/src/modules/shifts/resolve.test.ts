@@ -7,7 +7,7 @@ import {
   template,
   version,
 } from './fixtures.test-helpers.js';
-import { departmentDefaultsFor, resolveShift } from './resolve.js';
+import { DEFAULT_MAX_CLOSING_EXTENSION_MINUTES, departmentDefaultsFor, resolveShift } from './resolve.js';
 
 const DAY = fixed('day', '09:00', '18:00');
 const NIGHT = fixed('night', '20:00', '05:00');
@@ -257,7 +257,7 @@ describe('night shifts are ordinary shifts (§6.6)', () => {
     });
   });
 
-  it('the closing extension comes from the version, else the dated setting, else null', () => {
+  it('the closing extension comes from the version, else the dated setting, else the 4-hour default', () => {
     const withSetting = inputs({
       shiftList: [DAY],
       assignments: [template('day')],
@@ -273,7 +273,7 @@ describe('night shifts are ordinary shifts (§6.6)', () => {
     expect(
       resolveShift(inputs({ shiftList: [DAY], assignments: [template('day')] }), MONDAY)
         .maxClosingExtensionMinutes,
-    ).toBeNull();
+    ).toBe(DEFAULT_MAX_CLOSING_EXTENSION_MINUTES);
   });
 });
 

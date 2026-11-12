@@ -1,4 +1,4 @@
-import { Button } from '../../../ui/components.js';
+import { Button } from '../../../ui/index.js';
 import { TodoModal } from './TodoModal.js';
 
 export interface DeleteTodoModalProps {

@@ -52,7 +52,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_MIGRATOR_USER:-tapcrm_migrator} -d ${POSTGRES_DB:-tapcrm}']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_MIGRATOR_USER:-tapcrm_migrator} -d ${POSTGRES_DB:-tapcrm}',
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -180,7 +184,39 @@ services:
       REDIS_URL: redis://redis:6379
       SECURITY_COUNTER_STORE: ${SECURITY_COUNTER_STORE:-redis}
       PASSWORD_BREACH_CHECK: ${PASSWORD_BREACH_CHECK:-best-effort}
+      GOOGLE_SEARCH_CONSOLE_AUTH: ${GOOGLE_SEARCH_CONSOLE_AUTH:-off}
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${GOOGLE_SERVICE_ACCOUNT_EMAIL:-}
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REFRESH_TOKEN: ${GOOGLE_OAUTH_REFRESH_TOKEN:-}
+      GOOGLE_SEARCH_CONSOLE_ORGANIZATION: ${GOOGLE_SEARCH_CONSOLE_ORGANIZATION:-}
+      GOOGLE_SEARCH_CONSOLE_LAG_DAYS: ${GOOGLE_SEARCH_CONSOLE_LAG_DAYS:-3}
+      GOOGLE_SEARCH_CONSOLE_WINDOW_DAYS: ${GOOGLE_SEARCH_CONSOLE_WINDOW_DAYS:-7}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      CRUX_API_KEY: ${CRUX_API_KEY:-}
+      PAGESPEED_API_KEY: ${PAGESPEED_API_KEY:-}
       RESUME_OCR: ${RESUME_OCR:-true}
+      # Call Analytics: encrypts the JustCall / Aircall keys companies enter.
+      TELEPHONY_CREDENTIALS_KEY: ${TELEPHONY_CREDENTIALS_KEY:-}
+      # Empty values keep official social providers in Setup Required.
+      SOCIAL_PUBLIC_BASE_URL: ${SOCIAL_PUBLIC_BASE_URL:-}
+      SOCIAL_TOKEN_ENCRYPTION_KEY: ${SOCIAL_TOKEN_ENCRYPTION_KEY:-}
+      SOCIAL_META_CLIENT_ID: ${SOCIAL_META_CLIENT_ID:-}
+      SOCIAL_META_CLIENT_SECRET: ${SOCIAL_META_CLIENT_SECRET:-}
+      SOCIAL_META_API_VERSION: ${SOCIAL_META_API_VERSION:-v24.0}
+      SOCIAL_META_APPROVED: ${SOCIAL_META_APPROVED:-false}
+      SOCIAL_LINKEDIN_CLIENT_ID: ${SOCIAL_LINKEDIN_CLIENT_ID:-}
+      SOCIAL_LINKEDIN_CLIENT_SECRET: ${SOCIAL_LINKEDIN_CLIENT_SECRET:-}
+      SOCIAL_LINKEDIN_API_VERSION: ${SOCIAL_LINKEDIN_API_VERSION:-202609}
+      SOCIAL_LINKEDIN_APPROVED: ${SOCIAL_LINKEDIN_APPROVED:-false}
+      SOCIAL_LINKEDIN_ORGANIZATIONS_ENABLED: ${SOCIAL_LINKEDIN_ORGANIZATIONS_ENABLED:-false}
+      SOCIAL_LINKEDIN_INSIGHTS_ENABLED: ${SOCIAL_LINKEDIN_INSIGHTS_ENABLED:-false}
+      SOCIAL_GOOGLE_CLIENT_ID: ${SOCIAL_GOOGLE_CLIENT_ID:-}
+      SOCIAL_GOOGLE_CLIENT_SECRET: ${SOCIAL_GOOGLE_CLIENT_SECRET:-}
+      SOCIAL_GOOGLE_BUSINESS_APPROVED: ${SOCIAL_GOOGLE_BUSINESS_APPROVED:-false}
+      SOCIAL_YOUTUBE_APPROVED: ${SOCIAL_YOUTUBE_APPROVED:-false}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
       TRUSTED_IP_COUNTRY_HEADER: ${TRUSTED_IP_COUNTRY_HEADER:-}
       IDENTITY_DEV_BYPASS: ${IDENTITY_DEV_BYPASS:-false}
       DEV_INSTANT_PASSWORD_RESET: ${DEV_INSTANT_PASSWORD_RESET:-false}
@@ -191,6 +227,11 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      # Chat attachments: unset keeps them on local disk (TAPCRM_UPLOAD_DIR/chat)
+      # in development — MinIO is disabled above — and uses S3 in production.
+      CHAT_STORAGE_DRIVER: ${CHAT_STORAGE_DRIVER:-}
+      CHAT_ATTACHMENT_MAX_MB: ${CHAT_ATTACHMENT_MAX_MB:-25}
+      CHAT_LINK_PREVIEWS: ${CHAT_LINK_PREVIEWS:-true}
       AUDIT_ARCHIVE_ENCRYPTION_KEY: ${AUDIT_ARCHIVE_ENCRYPTION_KEY:-}
       AUDIT_ARCHIVE_KEY_ID: ${AUDIT_ARCHIVE_KEY_ID:-}
       AUDIT_ARCHIVE_KEYRING_JSON: ${AUDIT_ARCHIVE_KEYRING_JSON:-}
@@ -202,6 +243,7 @@ services:
       AUDIT_DRAIN_INTERVAL_MS: ${AUDIT_DRAIN_INTERVAL_MS:-5000}
       AUDIT_DRAIN_BATCH_SIZE: ${AUDIT_DRAIN_BATCH_SIZE:-200}
       API_PORT: ${API_PORT:-4000}
+      CONTENT_COLLAB_PORT: ${CONTENT_COLLAB_PORT:-4001}
       # Project screenshots and other local filesystem uploads live on the
       # host-mounted storage directory so container rebuilds do not remove them.
       TAPCRM_UPLOAD_DIR: /app/storage
@@ -227,10 +269,17 @@ services:
         condition: service_completed_successfully
     ports:
       - '127.0.0.1:${API_PORT:-4000}:${API_PORT:-4000}'
+      - '127.0.0.1:${CONTENT_COLLAB_PORT:-4001}:${CONTENT_COLLAB_PORT:-4001}'
     volumes:
       - ./storage:/app/storage
     healthcheck:
-      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:' + process.env.API_PORT + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:' + process.env.API_PORT + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -243,6 +292,7 @@ services:
     environment:
       VITE_HOST: 0.0.0.0
       VITE_API_PROXY_TARGET: http://server:${API_PORT:-4000}
+      VITE_CONTENT_COLLAB_URL: ${VITE_CONTENT_COLLAB_URL:-ws://localhost:${CONTENT_COLLAB_PORT:-4001}}
     depends_on:
       server:
         condition: service_healthy

@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Icon } from '../../ui/Icon.js';
+import { Icon } from '../../ui/index.js';
 import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
@@ -101,6 +101,11 @@ export function CompanySidebar({
   canViewTerritories = false,
   canViewLeads = false,
   canViewCallbacks = false,
+  canViewCalls = false,
+  canTriageSales = false,
+  canViewImports = false,
+  canTrackAssignedCalls = false,
+  canManageCalls = false,
   canViewHandovers = false,
   canViewDeals = false,
   canRecordWin = false,
@@ -109,6 +114,9 @@ export function CompanySidebar({
   canViewChat = false,
   clientMessagesUnread = 0,
   canViewClients = false,
+  canViewSocial = false,
+  canViewMeetings = false,
+  canViewSeo = false,
   canViewProjects = false,
   canViewLiveBoard = false,
   canViewAttendanceReports = false,
@@ -162,6 +170,11 @@ export function CompanySidebar({
   canViewTerritories?: boolean;
   canViewLeads?: boolean;
   canViewCallbacks?: boolean;
+  canViewCalls?: boolean;
+  canTriageSales?: boolean;
+  canViewImports?: boolean;
+  canTrackAssignedCalls?: boolean;
+  canManageCalls?: boolean;
   canViewHandovers?: boolean;
   canViewDeals?: boolean;
   canRecordWin?: boolean;
@@ -170,6 +183,10 @@ export function CompanySidebar({
   canViewChat?: boolean;
   clientMessagesUnread?: number;
   canViewClients?: boolean;
+  canViewSocial?: boolean;
+  /** Client meetings: hosts and the people who track them. */
+  canViewMeetings?: boolean;
+  canViewSeo?: boolean;
   canViewProjects?: boolean;
   canViewLiveBoard?: boolean;
   canViewAttendanceReports?: boolean;
@@ -613,7 +630,7 @@ export function CompanySidebar({
           },
         ]
       : []),
-    ...(canViewClients || canViewProjects
+    ...(canViewClients || canViewProjects || canViewSocial || canViewMeetings
       ? [
           {
             label: 'Delivery',
@@ -624,6 +641,22 @@ export function CompanySidebar({
               ...(canViewProjects
                 ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }]
                 : []),
+              ...(canViewMeetings
+                ? [{ label: 'Client meetings', path: '/company/meetings', icon: 'calendar' }]
+                : []),
+              ...(canViewSocial
+                ? [{ label: 'Manage Social Media', path: '/company/social', icon: 'share' }]
+                : []),
+            ],
+          },
+        ]
+      : []),
+    ...(canViewSeo
+      ? [
+          {
+            label: 'SEO Intelligence',
+            items: [
+              { label: 'SEO Dashboard', path: '/company/seo-intelligence', icon: 'trending-up' },
             ],
           },
         ]
@@ -631,7 +664,10 @@ export function CompanySidebar({
     ...(canViewTerritories ||
     canViewLeads ||
     canViewCallbacks ||
+    canViewCalls ||
+    canManageCalls ||
     canViewHandovers ||
+    canTriageSales ||
     canViewDeals ||
     canDecideApprovals ||
     canRecordWin ||
@@ -640,60 +676,87 @@ export function CompanySidebar({
           {
             label: 'Sales',
             items: [
-              ...(canViewTerritories
-                ? [
-                    {
-                      label: 'Territories',
-                      path: '/company/sales/territories',
-                      icon: 'map',
-                    },
-                  ]
+              {
+                label: 'Overview',
+                path: '/company/sales',
+                icon: 'chart',
+              },
+              ...(canViewLeads
+                ? [{ label: 'My Work', path: '/company/sales/my-work', icon: 'briefcase' }]
                 : []),
               ...(canViewLeads
-                ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }]
-                : []),
-              ...(canViewDeals
-                ? [{ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase' }]
-                : []),
-              ...(canDecideApprovals
                 ? [
                     {
-                      label: 'Approvals',
-                      path: '/company/sales/approvals',
-                      icon: 'check',
+                      label: 'Leads',
+                      path: '/company/sales/leads',
+                      icon: 'users',
+                      children: [
+                        { label: 'All leads', path: '/company/sales/leads' },
+                        { label: 'Bid Pool', path: '/company/sales/bid-pool' },
+                        { label: 'Stalled', path: '/company/sales/leads/stalled' },
+                        { label: 'Re-engagement', path: '/company/sales/leads/re-engagement' },
+                        ...(canTriageSales ? [{ label: 'Triage queue', path: '/company/sales/triage' }] : []),
+                        ...(canViewImports ? [{ label: 'Imported leads', path: '/company/sales/leads/imported' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canRecordWin
+              ...(canViewCallbacks || canViewHandovers || canViewCalls
                 ? [
                     {
-                      label: 'Wins to record',
-                      path: '/company/sales/wins',
-                      icon: 'check',
-                    },
-                  ]
-                : []),
-              ...(canViewCallbacks
-                ? [
-                    {
-                      label: 'Callbacks',
-                      path: '/company/sales/callbacks',
+                      label: 'Activities',
+                      path: canViewCallbacks ? '/company/sales/callbacks' : canViewHandovers ? '/company/sales/handovers' : '/company/sales/calls',
                       icon: 'calendar',
+                      children: [
+                        ...(canViewCallbacks ? [{ label: 'Callbacks', path: '/company/sales/callbacks' }] : []),
+                        ...(canViewHandovers ? [{ label: 'Handovers', path: '/company/sales/handovers' }] : []),
+                        ...(canViewCalls ? [
+                          { label: 'Calls', path: '/company/sales/calls' },
+                          { label: 'My calls', path: '/company/sales/calls/me' },
+                          { label: 'Call log', path: '/company/sales/calls/log' },
+                        ] : []),
+                        ...(canTrackAssignedCalls ? [{ label: 'Assigned lead calls', path: '/company/sales/calls/assigned-leads' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canViewHandovers
+              ...(canViewDeals || canDecideApprovals || canRecordWin
                 ? [
                     {
-                      label: 'Handovers',
-                      path: '/company/sales/handovers',
-                      icon: 'share',
+                      label: 'Deals',
+                      path: '/company/sales/deals',
+                      icon: 'briefcase',
+                      children: [
+                        ...(canViewDeals ? [{ label: 'Pipeline', path: '/company/sales/deals' }] : []),
+                        ...(canDecideApprovals ? [{ label: 'Approvals', path: '/company/sales/approvals' }] : []),
+                        ...(canRecordWin ? [{ label: 'Wins to record', path: '/company/sales/wins' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canForecast
-                ? [{ label: 'Reports', path: '/company/sales/reports', icon: 'chart' }]
+              ...(canForecast || canTriageSales
+                ? [
+                    {
+                      label: 'Performance',
+                      path: canForecast ? '/company/sales/reports' : '/company/sales/supervisor',
+                      icon: 'chart',
+                      children: [
+                        ...(canTriageSales ? [{ label: 'Team overview', path: '/company/sales/supervisor' }] : []),
+                        ...(canForecast ? [{ label: 'Reports', path: '/company/sales/reports' }] : []),
+                      ],
+                    },
+                  ]
                 : []),
+              {
+                label: 'Setup',
+                path: '/company/sales/setup',
+                icon: 'settings',
+                children: [
+                  ...(canViewTerritories ? [{ label: 'Territories & routing', path: '/company/sales/territories' }] : []),
+                  ...(canViewLeads ? [{ label: 'Lead sources', path: '/company/sales/leads' }] : []),
+                  ...(canManageCalls ? [{ label: 'Call integrations', path: '/company/sales/call-integrations' }] : []),
+                ],
+              },
             ],
           },
         ]
@@ -701,8 +764,12 @@ export function CompanySidebar({
     {
       label: 'Attendance',
       items: [
-        { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
-        { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+        ...(accountType === 'employee'
+          ? [
+              { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
+              { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+            ]
+          : []),
         ...(canViewAttendanceReports
           ? [
               {
@@ -931,7 +998,7 @@ export function CompanySidebar({
           ? [{ label: 'Access Explorer', path: '/company/access', icon: 'shield' }]
           : []),
         ...(isSuperAdmin || canViewAudit
-          ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard' }]
+          ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard-list' }]
           : []),
         ...(isSuperAdmin
           ? [{ label: 'Geofencing', path: '/company/geofencing', icon: 'pin' }]
@@ -960,6 +1027,7 @@ export function CompanySidebar({
             { label: 'Dashboard', path: '/client', icon: 'grid' },
             { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
             { label: 'Messages', path: '/client/messages', icon: 'message' },
+            { label: 'Meetings', path: '/client/meetings', icon: 'calendar' },
           ],
         },
         {
@@ -1034,7 +1102,7 @@ export function CompanySidebar({
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
         className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
-        aria-label="Company navigation"
+        aria-label={variant === 'client' ? 'Client navigation' : 'Company navigation'}
       >
         <div
           ref={activeNavIndicatorRef}
@@ -1207,10 +1275,10 @@ export function CompanySidebar({
       )}
       <div className={`mx-1 shrink-0 border-t border-sidebar-border/70 px-1 pt-4 pb-2 ${collapsed ? 'xl:mx-0 xl:px-0' : ''}`}>
         <div
-          className={`flex min-w-0 items-center gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-hover-bg/45 px-3 py-2.5 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
+          className={`sidebar-profile-card flex min-w-0 items-center gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-hover-bg/45 px-3 py-2.5 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
           title={collapsed ? `${identity.fullName} · ${roleLabel}` : undefined}
         >
-          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active-bg text-xs font-bold text-sidebar-active-fg">
+          <span className="sidebar-profile-avatar grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active-bg text-xs font-bold text-sidebar-active-fg">
             {identity.fullName.trim().slice(0, 1).toUpperCase() || '?'}
           </span>
           <span className={`min-w-0 leading-tight ${collapsed ? 'xl:hidden' : ''}`}>

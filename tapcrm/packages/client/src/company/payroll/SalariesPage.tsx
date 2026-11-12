@@ -10,7 +10,8 @@ import {
   type StructureLineKind,
   type StructureSummary,
 } from '../api/payrollApi.js';
-import { Button, Modal, Notice, Page, SkeletonTable } from '../../ui/components.js';
+import { Button, Modal, Notice, Page, SkeletonTable } from '../../ui/index.js';
+import { STATUTORY_LABELS, guessStatutory, statutoryOptions, worksOutItself, type Statutory } from './statutory.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -36,10 +37,18 @@ interface LineDraft {
   kind: StructureLineKind;
   amount: string;
   prorated: boolean;
+  statutory: Statutory;
 }
 
 let nextKey = 1;
-const draft = (label: string, kind: StructureLineKind, amount = '', prorated = true, code = ''): LineDraft => ({
+const draft = (
+  label: string,
+  kind: StructureLineKind,
+  amount = '',
+  prorated = true,
+  code = '',
+  statutory: Statutory = '',
+): LineDraft => ({
   key: nextKey++,
   label,
   code: code || codeFrom(label),
@@ -47,6 +56,7 @@ const draft = (label: string, kind: StructureLineKind, amount = '', prorated = t
   kind,
   amount,
   prorated,
+  statutory,
 });
 
 function codeFrom(label: string): string {
@@ -54,11 +64,14 @@ function codeFrom(label: string): string {
 }
 
 const STARTER_LINES = (): LineDraft[] => [
-  draft('Basic', 'earning', '', true, 'BASIC'),
+  draft('Basic', 'earning', '', true, 'BASIC', 'pf-wage'),
   draft('House rent allowance', 'earning', '', true, 'HRA'),
   draft('Special allowance', 'earning', '', true, 'SPECIAL'),
-  draft('Provident fund (employee)', 'deduction', '', false, 'PF'),
-  draft('Professional tax', 'deduction', '', false, 'PT'),
+  draft('Provident fund (employee)', 'deduction', '', false, 'PF', 'pf'),
+  draft('Professional tax', 'deduction', '', false, 'PT', 'pt'),
+  draft('ESI (employee)', 'deduction', '', false, 'ESI', 'esi'),
+  draft('Provident fund (employer)', 'employer-contribution', '', false, 'PF_ER', 'pf'),
+  draft('ESI (employer)', 'employer-contribution', '', false, 'ESI_ER', 'esi'),
 ];
 
 const KIND_LABELS: Record<StructureLineKind, string> = {
@@ -84,7 +97,17 @@ function SalaryForm({
   const [effectiveFrom, setEffectiveFrom] = useState(correcting?.effectiveFrom ?? (base ? firstOfNextMonth() : todayIso().slice(0, 8) + '01'));
   const [lines, setLines] = useState<LineDraft[]>(() =>
     source
-      ? source.lines.map((line) => ({ ...draft(line.label, line.kind, String(Number(line.amount)), line.prorated, line.code), codeTouched: true }))
+      ? source.lines.map((line) => ({
+          ...draft(
+            line.label,
+            line.kind,
+            String(Number(line.amount)),
+            line.prorated,
+            line.code,
+            (line.statutoryTags[0] as Statutory | undefined) ?? guessStatutory(line.code, line.kind),
+          ),
+          codeTouched: true,
+        }))
       : STARTER_LINES(),
   );
   const [reason, setReason] = useState('');
@@ -96,10 +119,13 @@ function SalaryForm({
       if (line.key !== key) return line;
       const next = { ...line, ...patch };
       if (patch.label !== undefined && !line.codeTouched) next.code = codeFrom(patch.label);
+      if (patch.kind !== undefined && next.statutory !== '' && !statutoryOptions(patch.kind).includes(next.statutory)) next.statutory = '';
       return next;
     }));
 
-  const filled = lines.filter((line) => line.label.trim() && line.amount.trim() !== '' && Number(line.amount) > 0);
+  const filled = lines.filter(
+    (line) => line.label.trim() && (worksOutItself(line) || (line.amount.trim() !== '' && Number(line.amount) > 0)),
+  );
   const sum = (kind: StructureLineKind) => filled.filter((l) => l.kind === kind).reduce((total, l) => total + Number(l.amount), 0);
   const earnings = sum('earning');
   const deductions = sum('deduction');
@@ -107,7 +133,11 @@ function SalaryForm({
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
-    const invalid = lines.find((line) => line.label.trim() && (line.amount.trim() === '' || Number.isNaN(Number(line.amount)) || Number(line.amount) < 0));
+    const invalid = lines.find(
+      (line) =>
+        line.label.trim() &&
+        (Number.isNaN(Number(line.amount)) || Number(line.amount) < 0 || (line.amount.trim() === '' && !worksOutItself(line))),
+    );
     if (invalid) {
       setError(`Enter a monthly amount for "${invalid.label}", or remove the line.`);
       return;
@@ -116,8 +146,9 @@ function SalaryForm({
       code: line.code || codeFrom(line.label),
       label: line.label.trim(),
       kind: line.kind,
-      amount: line.amount.trim(),
+      amount: line.amount.trim() === '' ? '0' : line.amount.trim(),
       prorated: line.prorated,
+      statutoryTags: line.statutory === '' ? [] : [line.statutory],
     }));
     setBusy(true);
     try {
@@ -142,7 +173,7 @@ function SalaryForm({
   }
 
   return (
-    <Modal title={correcting ? `Correct ${employee.fullName}'s salary` : `Salary for ${employee.fullName}`} onClose={onClose}>
+    <Modal title={correcting ? `Correct ${employee.fullName}'s salary` : `Salary for ${employee.fullName}`} onClose={onClose} size="lg">
       <form onSubmit={(e) => void submit(e)} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-app-muted">
@@ -166,11 +197,11 @@ function SalaryForm({
         </div>
 
         <div className="space-y-2">
-          <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_auto] gap-2 text-xs font-semibold text-app-muted md:grid">
-            <span>Component</span><span>Code</span><span>Type</span><span>Monthly ₹</span><span>Pro-rated</span><span />
+          <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_auto_auto] gap-2 text-xs font-semibold text-app-muted md:grid">
+            <span>Component</span><span>Code</span><span>Type</span><span>Monthly ₹</span><span>Statutory</span><span>Pro-rated</span><span />
           </div>
           {lines.map((line) => (
-            <div key={line.key} className="grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_auto] md:items-center">
+            <div key={line.key} className="grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_auto_auto] md:items-center">
               <input
                 aria-label="Component name"
                 value={line.label}
@@ -196,10 +227,19 @@ function SalaryForm({
                 aria-label="Monthly amount"
                 inputMode="decimal"
                 value={line.amount}
-                placeholder="0"
+                placeholder={worksOutItself(line) ? 'Auto' : '0'}
                 onChange={(e) => update(line.key, { amount: e.target.value.replace(/[^0-9.]/g, '') })}
                 className="w-full min-w-0 rounded-lg border border-app-border bg-app-background px-3 py-2 text-right text-sm tabular-nums outline-none focus:border-app-accent"
               />
+              <select
+                aria-label="Statutory"
+                value={line.statutory}
+                onChange={(e) => update(line.key, { statutory: e.target.value as Statutory })}
+                className="w-full min-w-0 rounded-lg border border-app-border bg-app-background px-2 py-2 text-sm outline-none focus:border-app-accent"
+              >
+                <option value="">None</option>
+                {statutoryOptions(line.kind).map((value) => <option key={value} value={value}>{STATUTORY_LABELS[value]}</option>)}
+              </select>
               <label className="flex items-center gap-1.5 text-xs text-app-muted">
                 <input type="checkbox" checked={line.prorated} onChange={(e) => update(line.key, { prorated: e.target.checked })} />
                 <span className="md:hidden">Pro-rated</span>
@@ -215,6 +255,10 @@ function SalaryForm({
             </div>
           ))}
           <Button kind="secondary" onClick={() => setLines((current) => [...current, draft('', 'earning')])}>Add component</Button>
+          <p className="text-xs text-app-muted">
+            Mark Basic (and DA) as PF wage: PF and overtime are worked out from it. Lines marked PF, PT (professional tax) or ESI
+            are calculated each month from Payroll → Settings; the amount typed here is used only when the settings leave that part out.
+          </p>
         </div>
 
         <div className="grid grid-cols-3 gap-2 rounded-xl border border-app-border p-3 text-center text-sm">

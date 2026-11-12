@@ -8,7 +8,7 @@ import {
   Notice,
   Page,
   Select,
-} from '../../ui/components.js';
+} from '../../ui/index.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../api/companyApi.js';
 import { listPenalties } from './api/penaltiesApi.js';
 import { downloadPenalties } from './api/penaltiesApi.js';
@@ -111,7 +111,7 @@ export function PenaltiesPage(): React.JSX.Element {
     <Page
       eyebrow="HR · Advances"
       title="Penalties"
-      description="Manage employee penalties and prepare them for future payroll deduction."
+      description="Manage employee penalties. Each active penalty is deducted in the payroll month you choose and marked recovered once that payslip is published."
       action={<Button onClick={() => setShowForm(true)}>+ Add Penalty</Button>}
     >
       {error && <Notice error>{error}</Notice>}

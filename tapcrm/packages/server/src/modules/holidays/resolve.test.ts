@@ -194,3 +194,28 @@ describe('week-off rules', () => {
     expect(resolveDay(cal(null),   d('2026-01-03'))).toMatchObject({ type: 'working' });
   });
 });
+
+describe('weekly off from the weekday schedule', () => {
+  it('a day the weekday schedule leaves without a shift is a week-off, not a working day', () => {
+    const cal = inputs({ scheduledWeekOffs: new Set([d('2026-10-25')]) });
+    expect(resolveDay(cal, d('2026-10-25'))).toMatchObject({
+      type: 'week-off',
+      holidayId: null,
+      holidayName: 'Weekly off',
+      subtype: 'week-off',
+      matchedBy: null,
+    });
+    expect(resolveDay(cal, d('2026-10-26'))).toMatchObject({ type: 'working' });
+  });
+
+  it('a dated holiday on the scheduled weekly off still reads as the holiday', () => {
+    const dussehra = dated('dus', '2026-10-25', { name: 'Dussehra' });
+    const cal = inputs({ holidays: [dussehra], scheduledWeekOffs: new Set([d('2026-10-25')]) });
+    expect(resolveDay(cal, d('2026-10-25'))).toMatchObject({ type: 'holiday', holidayId: 'dus' });
+  });
+
+  it('a week-off rule wins over the schedule, keeping its own name', () => {
+    const cal = inputs({ holidays: [SUNDAY], scheduledWeekOffs: new Set([d('2026-10-25')]) });
+    expect(resolveDay(cal, d('2026-10-25'))).toMatchObject({ type: 'week-off', holidayId: 'sun' });
+  });
+});

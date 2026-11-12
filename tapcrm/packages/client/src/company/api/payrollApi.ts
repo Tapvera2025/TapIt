@@ -100,7 +100,7 @@ export interface RunBlocker {
 export interface RunWarning {
   userId: string;
   fullName: string;
-  kind: 'no-salary-structure' | 'no-leaving-date';
+  kind: 'no-salary-structure' | 'no-leaving-date' | 'statutory-not-applied';
 }
 
 export interface RunDrift {
@@ -171,6 +171,8 @@ export interface SaveStructureLine {
   /** Rupees as a decimal string ("45000.50"): money never travels as a JavaScript number (PG-5). */
   amount: string;
   prorated: boolean;
+  /** What payroll settings use the line for: `pf-wage`, `pf`, `pt` or `esi`; empty for none. */
+  statutoryTags: string[];
 }
 
 export interface SaveStructureInput {
@@ -193,7 +195,7 @@ export interface PayrollConfig {
   supersedesConfigId: string | null;
 }
 
-export type PayrollInputKind = 'adjustment' | 'advance-recovery' | 'arrear' | 'bonus' | 'tds' | 'break-deduction';
+export type PayrollInputKind = 'adjustment' | 'advance-recovery' | 'arrear' | 'bonus' | 'tds' | 'break-deduction' | 'penalty';
 export type PayrollInputState = 'pending' | 'in-run' | 'published' | 'unpaid' | 'revoked';
 
 export interface PayrollInput {
@@ -207,6 +209,10 @@ export interface PayrollInput {
   label: string;
   reason: string | null;
   breakBreachId: string | null;
+  /** Set when the entry comes from an advance's recovery plan. */
+  advanceDeductionId?: string | null;
+  /** Set when the entry comes from a penalty. */
+  penaltyId?: string | null;
   createdAt: string;
   createdByName: string | null;
   revokedAt: string | null;
@@ -309,7 +315,7 @@ export function saveStructure(
       method: 'PUT',
       body: JSON.stringify({
         ...input,
-        lines: input.lines.map((line, index) => ({ ...line, statutoryTags: [], sortOrder: (index + 1) * 10 })),
+        lines: input.lines.map((line, index) => ({ ...line, sortOrder: (index + 1) * 10 })),
       }),
     },
     ['/api/payroll/structures'],
@@ -401,6 +407,7 @@ export const INPUT_KIND_LABELS: Record<PayrollInputKind, string> = {
   'advance-recovery': 'Advance recovery',
   tds: 'TDS (income tax)',
   'break-deduction': 'Break deduction',
+  penalty: 'Penalty',
 };
 
 export const BLOCKER_LABELS: Record<string, string> = {

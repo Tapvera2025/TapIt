@@ -1,4 +1,5 @@
 import { authorize, AuthorizationError, visibilityFilter, type Resource } from '@tapcrm/authz';
+import { globalAccess } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -194,7 +195,7 @@ export async function bulkAssignProjects(ctx: RequestContext, input: BulkProject
 }
 
 async function assertProjectAssignmentManager(ctx: RequestContext): Promise<void> {
-  if (ctx.principal.accountType === 'super-admin') return;
+  if (globalAccess(ctx.principal)) return;
   if (ctx.principal.accountType !== 'employee') {
     throw new AuthorizationError('projects:manage', 'not_allowed', 'Only Super Admins and Team Leads can manage project assignments.');
   }

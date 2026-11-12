@@ -1,0 +1,25 @@
+{
+  "capturedAt": "2026-10-31T07:06:02.954714+00:00",
+  "revisedProposal": {
+    "id": "01a190c5-e907-7a3b-8c08-18ca75b391c9",
+    "version": 3,
+    "state": "draft",
+    "totalMinor": "25960000",
+    "advanceMinor": "6000000"
+  },
+  "revisionApprovals": [
+    {
+      "id": "01a190c6-4189-7210-82e4-a237171ffd8b",
+      "state": "invalidated",
+      "blockedReason": "commercials_changed"
+    }
+  ],
+  "openDeal": {
+    "number": 256,
+    "lifecycle": "open",
+    "approval": "not_required",
+    "payment": "advance_confirmed"
+  },
+  "questionPersisted": 1,
+  "wonDealVersionCount": 1
+}

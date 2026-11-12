@@ -2,14 +2,24 @@ import { z } from 'zod';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { ApplicationError } from '../../errors.js';
 import { countProjectsByStatus, findProfile, findProject, findProjectDiscussion, listProjectDiscussions, listProjects } from './repository.js';
-import { findMessageById, getConversation, listMessages, markRead, reactToMessage, removeReactionFromMessage, sendMessage } from '../chat/facade.js';
-import { listBlogs, overview } from '../projects/reports/repository.js';
-import { getSeoReport } from '../projects/reports/service.js';
-import type { ReportQuery } from '../projects/reports/validators.js';
-import { listBacklinks } from '../projects/reports/off-page.js';
-import { downloadScreenshot, listScreenshots } from '../projects/reports/screenshots.js';
-import { createClientFeedback, listClientFeedback, type CreateClientFeedbackInput, type FeedbackArea } from '../projects/reports/clientFeedback.js';
-import type { Conversation, ListMessagesQuery, Message, ReactionEmoji } from '../chat/facade.js';
+import {
+  deletePendingAttachment, editMessage, findMessageById, getConversation, getMessageEdits, listMessages, listPins, markRead,
+  reactToMessage, removeReactionFromMessage, sendMessage, uploadAttachment,
+} from '../chat/facade.js';
+import {
+  createClientFeedback,
+  downloadScreenshot,
+  getSeoReport,
+  listBacklinks,
+  listBlogs,
+  listClientFeedback,
+  listScreenshots,
+  overview,
+  type CreateClientFeedbackInput,
+  type FeedbackArea,
+  type ReportQuery,
+} from '../projects/facade.js';
+import type { Conversation, ListMessagesQuery, Message, MessageEdit, PinnedMessage, ReactionEmoji } from '../chat/facade.js';
 import type { PortalBacklinkPage, PortalBlogReport, PortalDashboard, PortalKeywordReport, PortalProfile, PortalProject, PortalScreenshotPage } from './types.js';
 
 const projectIdSchema = z.string().uuid();
@@ -195,9 +205,56 @@ export async function getProjectDiscussionMessages(ctx: RequestContext, projectI
   return listMessages(ctx, conversationId, query);
 }
 
-export async function sendProjectDiscussionMessage(ctx: RequestContext, projectId: string, conversationId: string, input: { body: string; replyToMessageId?: string | null | undefined; mentionedUserIds?: readonly string[] | undefined }): Promise<Message> {
+export async function sendProjectDiscussionMessage(
+  ctx: RequestContext,
+  projectId: string,
+  conversationId: string,
+  input: { body: string; replyToMessageId?: string | null | undefined; mentionedUserIds?: readonly string[] | undefined; attachmentIds?: readonly string[] | undefined },
+): Promise<Message> {
   await requireProjectDiscussion(ctx, projectId, conversationId);
   return sendMessage(ctx, conversationId, input);
+}
+
+/** A client shares a contract, mockup or screenshot with their project team (step 1: the upload). */
+export async function uploadProjectDiscussionAttachment(ctx: RequestContext, projectId: string, conversationId: string, file: { fileName: string; body: Buffer }) {
+  await requireProjectDiscussion(ctx, projectId, conversationId);
+  return uploadAttachment(ctx, conversationId, file);
+}
+
+export async function deleteProjectDiscussionAttachment(ctx: RequestContext, projectId: string, conversationId: string, attachmentId: string): Promise<{ deleted: true }> {
+  await requireProjectDiscussion(ctx, projectId, conversationId);
+  if (!projectIdSchema.safeParse(attachmentId).success) throw notFound();
+  return deletePendingAttachment(ctx, attachmentId);
+}
+
+export async function getProjectDiscussionMessage(ctx: RequestContext, projectId: string, conversationId: string, messageId: string): Promise<Message> {
+  await requireProjectDiscussionMessage(ctx, projectId, conversationId, messageId);
+  const message = await findMessageById(ctx, messageId);
+  if (!message) throw notFound();
+  return message;
+}
+
+/** Clients may correct their own messages within the same 15-minute window as employees. */
+export async function editProjectDiscussionMessage(
+  ctx: RequestContext,
+  projectId: string,
+  conversationId: string,
+  messageId: string,
+  input: { body: string; mentionedUserIds?: readonly string[] | undefined },
+): Promise<Message> {
+  await requireProjectDiscussionMessage(ctx, projectId, conversationId, messageId);
+  return editMessage(ctx, messageId, input);
+}
+
+export async function getProjectDiscussionMessageEdits(ctx: RequestContext, projectId: string, conversationId: string, messageId: string): Promise<MessageEdit[]> {
+  await requireProjectDiscussionMessage(ctx, projectId, conversationId, messageId);
+  return getMessageEdits(ctx, messageId);
+}
+
+/** Read-only for clients: pinning is an employee action (product decision). */
+export async function getProjectDiscussionPins(ctx: RequestContext, projectId: string, conversationId: string): Promise<PinnedMessage[]> {
+  await requireProjectDiscussion(ctx, projectId, conversationId);
+  return listPins(ctx, conversationId);
 }
 
 export async function markProjectDiscussionRead(ctx: RequestContext, projectId: string, conversationId: string): Promise<{ read: true }> {
@@ -208,6 +265,7 @@ export async function markProjectDiscussionRead(ctx: RequestContext, projectId: 
 
 async function requireProjectDiscussionMessage(ctx: RequestContext, projectId: string, conversationId: string, messageId: string): Promise<void> {
   await requireProjectDiscussion(ctx, projectId, conversationId);
+  if (!projectIdSchema.safeParse(messageId).success) throw notFound();
   const message = await findMessageById(ctx, messageId);
   if (!message || message.conversationId !== conversationId) throw notFound();
 }

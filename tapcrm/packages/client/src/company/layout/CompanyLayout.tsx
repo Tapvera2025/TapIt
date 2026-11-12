@@ -3,6 +3,8 @@ import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
 import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
+import { SalesGuideFrame, SalesGuideToggle } from '../sales/guide/SalesGuide.js';
+import { salesGuideKey } from '../sales/guide/page-guidance.js';
 import type { CompanySearchDestination } from './navigation.js';
 
 export function CompanyLayout({
@@ -20,6 +22,11 @@ export function CompanyLayout({
   canViewTerritories,
   canViewLeads,
   canViewCallbacks,
+  canViewCalls,
+  canTriageSales,
+  canViewImports = false,
+  canTrackAssignedCalls = false,
+  canManageCalls,
   canViewHandovers,
   canViewDeals,
   canRecordWin,
@@ -27,6 +34,9 @@ export function CompanyLayout({
   canForecast,
   canViewChat,
   canViewClients,
+  canViewSocial,
+  canViewMeetings = false,
+  canViewSeo,
   canViewProjects,
   canViewLiveBoard,
   canViewAttendanceReports,
@@ -77,6 +87,11 @@ export function CompanyLayout({
   canViewTerritories: boolean;
   canViewLeads: boolean;
   canViewCallbacks: boolean;
+  canViewCalls: boolean;
+  canTriageSales: boolean;
+  canViewImports?: boolean;
+  canTrackAssignedCalls?: boolean;
+  canManageCalls: boolean;
   canViewHandovers: boolean;
   canViewDeals: boolean;
   canRecordWin: boolean;
@@ -84,6 +99,9 @@ export function CompanyLayout({
   canForecast: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
+  canViewSocial: boolean;
+  canViewMeetings?: boolean;
+  canViewSeo: boolean;
   canViewProjects: boolean;
   canViewLiveBoard: boolean;
   canViewAttendanceReports: boolean;
@@ -246,6 +264,7 @@ export function CompanyLayout({
           onNavigate={onNavigate}
           onLogout={onLogout}
           searchDestinations={searchDestinations}
+          extraActions={salesGuideKey(pathname) !== null ? <SalesGuideToggle /> : null}
         />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <CompanySidebar
@@ -262,6 +281,11 @@ export function CompanyLayout({
             canViewTerritories={canViewTerritories}
             canViewLeads={canViewLeads}
             canViewCallbacks={canViewCallbacks}
+            canViewCalls={canViewCalls}
+            canTriageSales={canTriageSales}
+            canViewImports={canViewImports}
+            canTrackAssignedCalls={canTrackAssignedCalls}
+            canManageCalls={canManageCalls}
             canViewHandovers={canViewHandovers}
             canViewDeals={canViewDeals}
             canRecordWin={canRecordWin}
@@ -269,6 +293,9 @@ export function CompanyLayout({
             canForecast={canForecast}
             canViewChat={canViewChat}
             canViewClients={canViewClients}
+            canViewSocial={canViewSocial}
+            canViewMeetings={canViewMeetings}
+            canViewSeo={canViewSeo}
             canViewProjects={canViewProjects}
             canViewLiveBoard={canViewLiveBoard}
             canViewAttendanceReports={canViewAttendanceReports}
@@ -327,7 +354,9 @@ export function CompanyLayout({
                   contentNeedsViewportHeight ? 'h-full min-h-full' : 'min-h-full'
                 }
               >
-                {children}
+                <SalesGuideFrame pathname={pathname} onNavigate={onNavigate}>
+                  {children}
+                </SalesGuideFrame>
               </div>
             </main>
           </div>

@@ -228,8 +228,10 @@ describe.skipIf(!enabled)('sales contracts service (PostgreSQL)', () => {
 
   it('amendment creates a new draft and marks the signed contract as amended', async () => {
     const dealId = await createDealOwned();
+    // Publish and sign the original contract FIRST — publishing a second
+    // commercials version on the same deal supersedes the first, so the
+    // amended version has to be minted after the original is signed.
     const originalCommercials = await createPublishedCommercials(dealId);
-    const amendedCommercials = await createPublishedCommercials(dealId);
     const draft = await createDraft(ctxFor(employee(AGENT, POSITION)), dealId, { commercialsId: originalCommercials });
     await markSent(ctxFor(employee(AGENT, POSITION)), draft.id, {
       signerName: 'Priya',
@@ -240,6 +242,7 @@ describe.skipIf(!enabled)('sales contracts service (PostgreSQL)', () => {
       checksum: 'd'.repeat(64),
       signerEvidence: {},
     });
+    const amendedCommercials = await createPublishedCommercials(dealId);
 
     const amendment = await amend(ctxFor(employee(HOD, HOD_POSITION)), signed.id, {
       commercialsId: amendedCommercials,

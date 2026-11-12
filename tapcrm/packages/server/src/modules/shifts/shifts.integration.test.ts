@@ -3,11 +3,12 @@ import type { Principal } from '@tapcrm/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { installAuthz } from '../../platform/authz-adapter.js';
 import { createRequestContext } from '../../platform/dal/context.js';
-import { platformDb } from '../../platform/dal/db.js';
+import { db, platformDb } from '../../platform/dal/db.js';
 import { closePools } from '../../platform/dal/pool.js';
 import { sql } from '../../platform/dal/sql.js';
 import { fixedClock, toDateOnly } from '../../platform/time.js';
 import { registerShiftPolicies } from './policy.js';
+import { insertWeekdayScheduleAssignment } from './repository.js';
 import {
   assign,
   createShift,
@@ -170,6 +171,8 @@ describe.skipIf(!enabled)('shifts (PostgreSQL)', () => {
       'department_shift_default',
       'shift_version',
       'shift',
+      'weekday_schedule_assignment',
+      'weekday_schedule',
       'position_policy',
     ]) {
       await asOwner(
@@ -376,5 +379,67 @@ describe.skipIf(!enabled)('shifts (PostgreSQL)', () => {
         VALUES (${ORG}, ${EMP}, 'template', ${night}, '2026-11-01', ${HR})`,
       ),
     ).rejects.toThrow(/exclusion|conflicting key/);
+  });
+  it('a template assigned before one already planned runs until it, instead of being refused', async () => {
+    // The first test planned DAY from 28 September; HR now backdates a template to the 26th.
+    await assign(
+      hr(),
+      { kind: 'template', userId: EMP, shiftId: day, effectiveFrom: date('2026-09-26'), effectiveTo: null },
+      clock,
+    );
+    const rows = (await asOwner('read template assignments', sql`
+      SELECT effective_from::text AS "from", effective_to::text AS "to"
+      FROM shift_assignment
+      WHERE organization_id = ${ORG} AND user_id = ${EMP} AND kind = 'template'
+      ORDER BY effective_from`)) as { from: string; to: string | null }[];
+    expect(rows[0]).toEqual({ from: '2026-09-26', to: '2026-09-28' });
+    expect(rows[1]!.from).toBe('2026-09-28');
+    // The same start date again is a clear conflict, not a database error.
+    await expect(
+      assign(hr(), { kind: 'template', userId: EMP, shiftId: day, effectiveFrom: date('2026-09-26'), effectiveTo: null }, clock),
+    ).rejects.toMatchObject({ code: 'SHIFT_ASSIGNMENT_CONFLICT' });
+  });
+
+  it('a shift with no timings yet on the start date is refused, naming the first date it has', async () => {
+    const late = (
+      await createShift(
+        hr(),
+        { code: 'LATE', name: 'Late', kind: 'fixed', version: version('12:00', '21:00', '2026-11-01') },
+        clock,
+      )
+    ).id;
+    await expect(
+      assign(hr(), { kind: 'template', userId: EMP, shiftId: late, effectiveFrom: date('2026-10-15'), effectiveTo: null }, clock),
+    ).rejects.toThrow(/no timings before 2026-11-01/);
+  });
+
+  it('re-saving a weekday schedule on the same date replaces it; a backdated one stops at the next', async () => {
+    const schedule = async (name: string, days: string) =>
+      ((await asOwner('weekday schedule', sql`
+        INSERT INTO weekday_schedule (organization_id, name, working_weekdays, created_by)
+        VALUES (${ORG}, ${name}, ${days}::smallint[], ${HR}) RETURNING id`)) as { id: string }[])[0]!.id;
+    const monSat = await schedule('Mon-Sat', '{1,2,3,4,5,6}');
+    const monFri = await schedule('Mon-Fri', '{1,2,3,4,5}');
+    const save = (scheduleId: string, effectiveFrom: string) =>
+      db.transaction(hr(), (tx) => insertWeekdayScheduleAssignment(tx, {
+        organizationId: ORG, userId: EMP, scheduleId, effectiveFrom: date(effectiveFrom), createdBy: HR,
+      }));
+    const rows = async () => asOwner('read schedule assignments', sql`
+      SELECT schedule_id AS "scheduleId", effective_from::text AS "from", effective_to::text AS "to"
+      FROM weekday_schedule_assignment WHERE organization_id = ${ORG} AND user_id = ${EMP}
+      ORDER BY effective_from`);
+
+    await save(monSat, '2026-12-01');
+    await save(monSat, '2026-12-01'); // the same save again used to fail with a 500
+    await save(monFri, '2026-12-01'); // and so did correcting the schedule for that date
+    expect(await rows()).toEqual([{ scheduleId: monFri, from: '2026-12-01', to: null }]);
+
+    await save(monSat, '2026-11-15'); // backdated: runs until the planned change
+    await save(monFri, '2027-01-10'); // a later change closes the one before it
+    expect(await rows()).toEqual([
+      { scheduleId: monSat, from: '2026-11-15', to: '2026-12-01' },
+      { scheduleId: monFri, from: '2026-12-01', to: '2027-01-10' },
+      { scheduleId: monFri, from: '2027-01-10', to: null },
+    ]);
   });
 });

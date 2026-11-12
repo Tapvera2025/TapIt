@@ -19,10 +19,16 @@ import { addDays, instantAt } from '../../platform/time.js';
  * board use, so they cannot disagree about when a day began or ended.
  */
 
-export const RULES_VERSION = 'attendance-rules/2';
+/**
+ * 3: on a half-day leave, lateness counts from the middle of the shift after a
+ * first-half leave, and an early exit to the middle of the shift before a
+ * second-half leave — the person is due only for the half they work.
+ */
+export const RULES_VERSION = 'attendance-rules/3';
 
 /** SH-4: flexible days use fixed thresholds, not settings. */
 const FLEXIBLE_HALF_DAY = 300;
+const FLEXIBLE_FULL_DAY = 480;
 
 export interface Overlay {
   readonly kind:
@@ -262,7 +268,12 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
     flags.add('remote-without-approval'); // WFH-6
   }
 
-  // 7. Shift facts, fixed shifts on working days only.
+  // 7. Shift facts, fixed shifts on working days only. On an approved half-day
+  //    leave the person is due only for the other half (§8.3), split at the
+  //    middle of the shift exactly as the half-day judgement below splits it.
+  const halfLeaveKind =
+    input.overlays.find((o) => o.kind === 'leave-first-half' || o.kind === 'leave-second-half')
+      ?.kind ?? null;
   let lateMinutes = 0;
   let earlyExitMinutes = 0;
   let overtimeMinutes = 0;
@@ -273,16 +284,19 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
     departure !== null &&
     input.dayType === 'working'
   ) {
+    const split = shiftStart + (shiftEnd - shiftStart) / 2;
+    const dueFrom = halfLeaveKind === 'leave-first-half' ? split : shiftStart;
+    const dueUntil = halfLeaveKind === 'leave-second-half' ? split : shiftEnd;
     lateMinutes = Math.max(
       0,
       toMinutes(
-        Date.parse(arrival.at) - (shiftStart + input.shift.graceMinutes * 60_000),
+        Date.parse(arrival.at) - (dueFrom + input.shift.graceMinutes * 60_000),
       ),
     );
     earlyExitMinutes = Math.max(
       0,
       toMinutes(
-        shiftEnd - input.shift.earlyExitGraceMinutes * 60_000 - Date.parse(departure.at),
+        dueUntil - input.shift.earlyExitGraceMinutes * 60_000 - Date.parse(departure.at),
       ),
     );
     const extra = workedMinutes - toMinutes(shiftEnd - shiftStart);
@@ -368,19 +382,29 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
   if (!input.closed && departure === null)
     return finish({ ...minutes, status: null, units: NO_UNITS });
 
-  // 4–6. Worked time against the day's thresholds, less confirmed deductions.
+  // 4–6. Time against the day's thresholds, less confirmed deductions.
+  //
+  // The "measured" quantity is total time on premises (worked + break),
+  // so an employee who completes the full-day minutes INCLUDING the time
+  // they spent on break still counts as present. This matches the UX
+  // promise "if he or she completes the full day quota including break
+  // minutes." Deduct-minutes policy consequences still subtract from the
+  // measurement.
   const deducted = consequences
     .filter((overlay) => overlay.consequence === 'deduct-minutes')
     .reduce((sum, overlay) => sum + (overlay.minutes ?? 0), 0);
-  const effective = Math.max(0, workedMinutes - deducted);
+  const measured = Math.max(0, workedMinutes + breakMinutes - deducted);
   const halfDay =
     input.shift.kind === 'flexible'
       ? FLEXIBLE_HALF_DAY
       : (input.shift.halfDayMinutes ?? Infinity);
-  // Reaching the half-day threshold is a fully paid present day. The separate
-  // half-day status remains available for explicit policy consequences and
-  // approved half-day leave, handled above/below this threshold calculation.
-  let present = effective >= halfDay ? 2 : 0;
+  const fullDay =
+    input.shift.kind === 'flexible'
+      ? FLEXIBLE_FULL_DAY
+      : (input.shift.fullDayMinutes ?? Infinity);
+  // Three tiers from measured time alone: full present at >= fullDay,
+  // half-day at >= halfDay (but short of fullDay), absent below halfDay.
+  let present = measured >= fullDay ? 2 : measured >= halfDay ? 1 : 0;
   if (consequences.some((overlay) => overlay.consequence === 'mark-half-day'))
     present = Math.min(present, 1);
   if (consequences.some((overlay) => overlay.consequence === 'mark-absent')) present = 0;
@@ -390,7 +414,9 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
     present === 2 ? 'present' : present === 1 ? 'half-day' : 'absent';
   return finish({
     ...minutes,
-    workedMinutes: effective,
+    // Preserve the audit `workedMinutes` (break-exclusive). The threshold
+    // decision above uses measured (break-inclusive) only for status.
+    workedMinutes: Math.max(0, workedMinutes - deducted),
     status,
     units: { ...NO_UNITS, present, absent: 2 - present },
   });

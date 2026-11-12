@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getCompanyEmployees, type CompanyEmployee } from '../company/api/companyApi.js';
-import { Button, Loading } from '../ui/components.js';
+import { Button, Loading } from '../ui/index.js';
 import {
   addGroupMembers,
   archiveGroup,
@@ -9,7 +10,9 @@ import {
   renameGroup,
   type Conversation,
 } from './api/chatApi.js';
+import { Avatar } from './Avatar.js';
 import { ConversationWorkspace } from './ConversationWorkspace.js';
+import { usePresenceMap } from './presence.js';
 import { useChat } from './useChat.js';
 
 const label = (conversation: Conversation): string => conversation.name ?? 'Group';
@@ -27,11 +30,13 @@ export function InternalGroupsPage({
   isSuperAdmin,
   initialConversationId,
   initialMessageId,
+  initialNonce,
 }: {
   currentUserId: string;
   isSuperAdmin: boolean;
   initialConversationId?: string | undefined;
   initialMessageId?: string | undefined;
+  initialNonce?: number | undefined;
 }): React.JSX.Element {
   const chat = useChat('group');
   const [showCreate, setShowCreate] = useState(false);
@@ -65,6 +70,7 @@ export function InternalGroupsPage({
         newLabel="New Group"
         initialConversationId={initialConversationId}
         initialMessageId={initialMessageId}
+        initialNonce={initialNonce ?? 0}
         {...(isSuperAdmin
           ? {
               onNewClick: openCreate,
@@ -146,7 +152,7 @@ function CreateGroupModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="ui-card flex max-h-[80vh] w-full max-w-sm flex-col p-4" onClick={(event) => event.stopPropagation()}>
         <p className="mb-3 text-sm font-semibold">New Internal Group</p>
@@ -185,7 +191,8 @@ function CreateGroupModal({
           <Button onClick={() => void submit()} disabled={saving || !name.trim() || selected.size === 0}>Create</Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -214,6 +221,7 @@ export function ManageGroupModal({
   const [name, setName] = useState(conversation.name ?? '');
   const [description, setDescription] = useState(conversation.description ?? '');
   const [addingMemberId, setAddingMemberId] = useState('');
+  const presence = usePresenceMap(true);
   const memberIds = new Set(conversation.members.map((m) => m.userId));
   const addable = colleagues.filter((c) => !memberIds.has(c.id));
   const groupActions = actions ?? {
@@ -232,7 +240,7 @@ export function ManageGroupModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="ui-card flex max-h-[80vh] w-full max-w-sm flex-col p-4" onClick={(event) => event.stopPropagation()}>
         <p className="mb-3 text-sm font-semibold">Manage “{conversation.name}”</p>
@@ -266,7 +274,10 @@ export function ManageGroupModal({
         <ul data-lenis-prevent className="mb-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {conversation.members.map((member) => (
             <li key={member.userId} className="flex items-center justify-between gap-2 py-1 text-sm">
-              <span>{member.fullName}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <Avatar name={member.fullName} seed={member.userId} presence={presence[member.userId]} size="xs" />
+                <span className="truncate">{member.fullName}</span>
+              </span>
               {member.userId !== conversation.createdBy && (
                 <button type="button" onClick={() => void run(() => groupActions.removeMember(member.userId))} className="text-xs text-app-danger hover:underline">
                   Remove
@@ -310,6 +321,7 @@ export function ManageGroupModal({
           <Button kind="secondary" onClick={onClose}>Close</Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -2,6 +2,7 @@ import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from '
 import { getCompanyIdentity, type CompanyIdentity } from './api/companyApi.js';
 import { setIdentitySessionPrincipal } from '../identity/api/authApi.js';
 import { CompanyLayout } from './layout/CompanyLayout.js';
+import { SalesGuideProvider } from './sales/guide/SalesGuide.js';
 import { DashboardPage } from './dashboard/DashboardPage.js';
 import { EmployeesPage } from './employees/EmployeesPage.js';
 import { SessionsPage } from '../identity/pages/SessionsPage.js';
@@ -19,6 +20,7 @@ import { SalariesPage } from './payroll/SalariesPage.js';
 import { PayrollSettingsPage } from './payroll/PayrollSettingsPage.js';
 import { PayrollInputsPage } from './payroll/PayrollInputsPage.js';
 import { TodayPage } from './today/TodayPage.js';
+import { BreakModeGuard } from './live/BreakModeGuard.js';
 import { LiveBoardPage } from './live/LiveBoardPage.js';
 import { AttendancePage } from './attendance/AttendancePage.js';
 import { EmployeeWisePage } from './attendance/EmployeeWisePage.js';
@@ -55,6 +57,15 @@ import {
   WinsToRecordPage,
   DeliveryBriefPage,
   ReportsPage,
+  TeamCallsPage,
+  EmployeeCallsPage,
+  CallLogPage,
+  CallIntegrationsPage,
+  AssignedLeadCallsPage,
+  ImportedLeadsPage,
+  SalesOverviewPage,
+  SalesSetupPage,
+  type CallsAccess,
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { MyInterviewsPage } from './recruitment/pages/MyInterviewsPage.js';
@@ -62,10 +73,12 @@ import { useHasAssignedInterviews } from './recruitment/useAssignedInterviews.js
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 import { MessagesPage } from '../chat/index.js';
 import { ClientsPage } from '../clients/index.js';
+import { SocialWorkspace } from '../social/SocialWorkspace.js';
+import { SeoWorkspace } from '../seo-intelligence/SeoWorkspace.js';
 import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 import { MyTodoPage } from './todo/index.js';
 import { SettingsPage } from './settings/SettingsPage.js';
-import { WorkspaceSkeleton } from '../ui/components.js';
+import { WorkspaceSkeleton } from '../ui/index.js';
 import { AdvanceRequestsPage, MyAdvancesPage } from './advance/AdvancePages.js';
 import { PenaltiesPage } from './penalties/PenaltiesPage.js';
 import { MyPenaltiesPage } from './penalties/MyPenaltiesPage.js';
@@ -73,6 +86,7 @@ import { ExpenseApprovalsPage, MyExpensesPage } from './expenses/ExpensesPages.j
 import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
 import { AccountingPage } from './finance/accounting/AccountingPage.js';
 import { companySearchDestinations } from './layout/navigation.js';
+import { MeetingsPage } from '../meetings/MeetingsPage.js';
 
 export function CompanyWorkspace({
   pathname: rawPathname,
@@ -162,12 +176,31 @@ export function CompanyWorkspace({
   const canViewCallbacks = isSuperAdmin || can('callbacks:view');
   const canViewHandovers = isSuperAdmin || can('handovers:view');
   const canViewDeals = isSuperAdmin || can('deals:view');
+  const hasMeetings = identity.enabledModules.includes('meetings');
+  const canHostMeetings = isSuperAdmin || can('meetings:host');
+  const canViewMeetings = isSuperAdmin || can('meetings:view');
   const canApproveDeals = isSuperAdmin || can('deals:approve');
   const canRecordWin = isSuperAdmin || can('deals:record-win');
   const canConfirmPayment = isSuperAdmin || can('deals:confirm-payment');
   const canDecideApprovals = isSuperAdmin || can('approvals:decide');
   const canReviewDelivery = isSuperAdmin || can('delivery:approve');
   const canForecast = isSuperAdmin || can('deals:forecast');
+  const canViewOrganization = isSuperAdmin || can('org:view-structure');
+  // Call Analytics (JustCall / Aircall): the module must be on for the company.
+  const hasTelephony = identity.enabledModules.includes('telephony');
+  const canViewCalls = hasTelephony && (isSuperAdmin || can('telephony:view'));
+  const canManageCalls = hasTelephony && (isSuperAdmin || can('telephony:manage'));
+  // Lead Imports: lead lists from files and Google Sheets, handed to Sales.
+  const hasLeadImports = identity.enabledModules.includes('lead-imports');
+  const canViewImports = hasLeadImports && (isSuperAdmin || can('lead-imports:view'));
+  const canManageImports = hasLeadImports && (isSuperAdmin || can('lead-imports:manage'));
+  const callsAccess: CallsAccess = {
+    canSeeTeam: isSuperAdmin || canBeyondOwn('telephony:view'),
+    canListen: isSuperAdmin || can('telephony:listen'),
+    canManage: canManageCalls,
+    canViewCalls,
+    canTrackAssigned: hasTelephony && canViewImports,
+  };
   const canViewAccounting =
     isSuperAdmin ||
     can('accounting:view-ledger') ||
@@ -179,6 +212,8 @@ export function CompanyWorkspace({
   const canTaxAccounting = isSuperAdmin || can('accounting:tax-export');
   const canViewChat = isSuperAdmin || can('chat:view');
   const canViewClients = isSuperAdmin || can('clients:view');
+  const canViewSocial = isSuperAdmin || can('social:view');
+  const canViewSeo = isSuperAdmin || can('seo:list-sites');
   const canViewProjects = isSuperAdmin || can('projects:view');
   const canManageLeaveTypes = can('leave:manage-types');
   const canAcknowledgeLeave = can('leave:acknowledge');
@@ -197,6 +232,7 @@ export function CompanyWorkspace({
       ['hod', 'head', 'manager', 'director'].some((hint) =>
         (identity.user.positionCode ?? '').toLowerCase().includes(hint),
       ));
+  const canViewSalesWorkspace = isSuperAdmin || canReassignLeadsFromUi || canViewTerritories || canViewLeads || canViewCallbacks || canViewCalls || canManageCalls || canViewHandovers || canViewDeals || canDecideApprovals || canRecordWin || canForecast;
   const hasRecruitment = identity.enabledModules.includes('recruitment');
   const searchDestinations = companySearchDestinations({
     actions: new Set(identity.capabilities.map((item) => item.action)),
@@ -221,14 +257,24 @@ export function CompanyWorkspace({
     '/company/my-todo': 'My Todo',
     '/company/messages': 'Messages',
     '/company/clients': 'Clients',
+    '/company/social': 'Manage Social Media',
     '/company/projects': 'Projects',
     '/company/my-notepad': 'My Notepad',
     '/company/notepad': 'My Notepad',
     '/company/employee-notes': 'Employee Notes',
     '/company/sales/territories': 'Territories',
+    '/company/sales': 'Sales Overview',
+    '/company/sales/setup': 'Sales Setup',
+    '/company/sales/my-work': 'My Work',
+    '/company/sales/bid-pool': 'Bid Pool',
+    '/company/sales/triage': 'Lead Triage',
+    '/company/sales/supervisor': 'Sales Overview',
     '/company/sales/leads': 'Leads',
     '/company/sales/leads/stalled': 'Stalled Leads',
     '/company/sales/leads/re-engagement': 'Re-engagement',
+    '/company/sales/leads/imported': 'Imported Leads',
+    '/company/meetings': 'Client meetings',
+    '/company/meetings/calendar': 'Client meetings',
     '/company/sales/callbacks': 'Callbacks',
     '/company/sales/callbacks/calendar': 'Callbacks',
     '/company/sales/callbacks/board': 'Callbacks',
@@ -242,6 +288,11 @@ export function CompanyWorkspace({
     '/company/sales/wins': 'Wins to record',
     '/company/sales/deals/delivery': 'Delivery brief',
     '/company/sales/reports': 'Reports',
+    '/company/sales/calls': 'Calls',
+    '/company/sales/calls/me': 'My Calls',
+    '/company/sales/calls/log': 'Call Log',
+    '/company/sales/calls/assigned-leads': 'Assigned Lead Calls',
+    '/company/sales/call-integrations': 'Call Integrations',
     '/company/employees': 'Employees',
     '/company/sessions': 'Sessions & Devices',
     '/company/access': 'Access Explorer',
@@ -289,7 +340,9 @@ export function CompanyWorkspace({
                 ? 'Leads'
                 : pathname.startsWith('/company/sales/deals/')
                   ? 'Deals'
-                  : 'Dashboard'));
+                  : pathname.startsWith('/company/sales/calls/')
+                    ? 'Calls'
+                    : 'Dashboard'));
 
   function renderContent(): React.JSX.Element {
     if (pathname === '/company/finance/accounting' && canViewAccounting) {
@@ -412,6 +465,58 @@ export function CompanyWorkspace({
         />
       );
     if (pathname === '/company/clients' && canViewClients) return <ClientsPage />;
+    if (
+      (pathname === '/company/social' || pathname.startsWith('/company/social/')) &&
+      canViewSocial
+    )
+      return (
+        <SocialWorkspace
+          pathname={pathname}
+          onNavigate={onNavigate}
+          canManage={isSuperAdmin || can('social:manage')}
+          canApprove={isSuperAdmin || can('social:approve')}
+          canConnect={isSuperAdmin || can('social:connect')}
+          canPublish={isSuperAdmin || can('social:publish')}
+          canSettings={isSuperAdmin || can('social:settings')}
+          canManageIntegrations={isSuperAdmin || can('system:manage-integrations')}
+        />
+      );
+    if (
+      (pathname === '/company/seo-intelligence' ||
+        pathname.startsWith('/company/seo-intelligence/')) &&
+      canViewSeo
+    )
+      return (
+        <SeoWorkspace
+          pathname={pathname}
+          onNavigate={onNavigate}
+          canManage={isSuperAdmin || can('seo:create-site')}
+          contentAccess={{
+            userId,
+            userName: fullName,
+            administrator: isSuperAdmin,
+            read: isSuperAdmin || can('seo:read-content'),
+            create: isSuperAdmin || can('seo:create-content'),
+            edit: isSuperAdmin || can('seo:edit-content'),
+            review: isSuperAdmin || can('seo:review-content'),
+            comment: isSuperAdmin || can('seo:comment-content'),
+            export: isSuperAdmin || can('seo:export-content'),
+            brand: isSuperAdmin || can('seo:manage-content-brand'),
+          }}
+        />
+      );
+    if ((pathname === '/company/meetings' || pathname === '/company/meetings/calendar') && hasMeetings && (canHostMeetings || canViewMeetings))
+      return (
+        <MeetingsPage
+          pathname={pathname}
+          currentUserId={userId}
+          organizationTimezone={organizationTimeZone}
+          canHost={canHostMeetings}
+          canView={canViewMeetings}
+          canJoin={isSuperAdmin || can('meetings:join')}
+          canActForOthers={isSuperAdmin || canBeyondOwn('meetings:host')}
+        />
+      );
     if (pathname === '/company/projects' && canViewProjects)
       return (
         <ProjectsPage
@@ -470,7 +575,7 @@ export function CompanyWorkspace({
           <DailyLateReportPage canExport={isSuperAdmin} />
         </AttendancePageBoundary>
       );
-    if (pathname === '/company/attendance/live' && canBeyondOwn('attendance:view-live'))
+    if (pathname === '/company/attendance/live' && (isSuperAdmin || canBeyondOwn('attendance:view-live')))
       return <LiveBoardPage />;
     if (pathname === '/company/attendance/corrections' && can('attendance:correct'))
       return <CorrectionsPage />;
@@ -529,6 +634,32 @@ export function CompanyWorkspace({
     }
     if (pathname === '/company/biometric' && can('biometric:manage'))
       return <BiometricPage />;
+    if (pathname === '/company/sales' && canViewSalesWorkspace) {
+      return (
+        <SalesOverviewPage
+          isManager={isSuperAdmin || canReassignLeadsFromUi}
+          userId={userId}
+          canViewLeads={canViewLeads}
+          canViewTerritories={canViewTerritories}
+          canViewCallbacks={canViewCallbacks}
+          canForecast={canForecast}
+          onNavigate={onNavigate}
+        />
+      );
+    }
+    if (pathname === '/company/sales/setup' && canViewSalesWorkspace) {
+      return (
+        <SalesSetupPage
+          canViewOrganization={canViewOrganization}
+          canViewLeads={canViewLeads}
+          canViewTerritories={canViewTerritories}
+          hasTelephony={hasTelephony}
+          canManageCalls={canManageCalls}
+          canViewTriage={canReassignLeadsFromUi}
+          onNavigate={onNavigate}
+        />
+      );
+    }
     if (
       canViewHandovers &&
       (pathname === '/company/sales/handovers' ||
@@ -594,6 +725,7 @@ export function CompanyWorkspace({
         <CallbackDetailPage
           id={callbackDetail[1]!}
           currentUserId={userId}
+          canManage={isSuperAdmin || canBeyondOwn('callbacks:edit')}
           onBack={() => onNavigate('/company/sales/callbacks')}
           onNavigate={onNavigate}
         />
@@ -609,8 +741,17 @@ export function CompanyWorkspace({
       return (
         <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />
       );
+    if (pathname === '/company/sales/leads/imported' && canViewImports)
+      return (
+        <ImportedLeadsPage
+          canManage={canManageImports}
+          canTrackCalls={hasTelephony}
+          initialImportId={new URLSearchParams(rawPathname.split('?')[1] ?? '').get('import')}
+          onNavigate={onNavigate}
+        />
+      );
     if (pathname === '/company/sales/leads' && canViewLeads)
-      return <LeadsPage onNavigate={onNavigate} />;
+      return <LeadsPage onNavigate={onNavigate} currentUserId={userId} isManager={isSuperAdmin || canReassignLeadsFromUi} canViewImports={canViewImports} canImport={canManageImports} />;
     if (pathname === '/company/sales/bid-pool' && canViewLeads)
       return <BidPoolPage onNavigate={onNavigate} />;
     if (pathname === '/company/sales/my-work' && canViewLeads)
@@ -626,9 +767,12 @@ export function CompanyWorkspace({
           id={leadDetail[1]!}
           currentUserId={userId}
           organizationTimezone={organizationTimeZone}
-          canReassign={canReassignLeadsFromUi}
+          canReassign={isSuperAdmin || canBeyondOwn('leads:reassign')}
           canTransferSourcingCredit={isSuperAdmin}
           canCreateDeal={isSuperAdmin || can('deals:create')}
+          canEditLead={isSuperAdmin || can('leads:edit')}
+          canViewCalls={canViewCalls}
+          canManageCallbacks={isSuperAdmin || canBeyondOwn('callbacks:edit')}
           onBack={() => onNavigate('/company/sales/leads')}
           onNavigate={onNavigate}
         />
@@ -669,6 +813,7 @@ export function CompanyWorkspace({
           canDecideApprovals={canDecideApprovals}
           canRecordWin={canRecordWin}
           canConfirmPayment={canConfirmPayment}
+          isManager={isSuperAdmin || canReassignLeadsFromUi}
           onBack={() => onNavigate('/company/sales/deals')}
           onNavigate={onNavigate}
         />
@@ -683,10 +828,34 @@ export function CompanyWorkspace({
     if (pathname === '/company/sales/reports' && canForecast) {
       return <ReportsPage />;
     }
+    if (pathname === '/company/sales/calls/assigned-leads' && callsAccess.canTrackAssigned)
+      return <AssignedLeadCallsPage access={callsAccess} organizationTimeZone={organizationTimeZone} onNavigate={onNavigate} />;
+    if (canViewCalls) {
+      const callEmployee = pathname.match(/^\/company\/sales\/calls\/employees\/([^/]+)$/);
+      const ownCalls = pathname === '/company/sales/calls/me' || (pathname === '/company/sales/calls' && !callsAccess.canSeeTeam);
+      if (ownCalls || callEmployee)
+        return (
+          <EmployeeCallsPage
+            employeeId={callEmployee ? callEmployee[1]! : null}
+            currentUserId={userId}
+            currentUserName={fullName}
+            access={callsAccess}
+            organizationTimeZone={organizationTimeZone}
+            onNavigate={onNavigate}
+          />
+        );
+      if (pathname === '/company/sales/calls')
+        return <TeamCallsPage access={callsAccess} organizationTimeZone={organizationTimeZone} onNavigate={onNavigate} />;
+      if (pathname === '/company/sales/calls/log')
+        return <CallLogPage access={callsAccess} organizationTimeZone={organizationTimeZone} onNavigate={onNavigate} />;
+    }
+    if (pathname === '/company/sales/call-integrations' && canManageCalls) {
+      return <CallIntegrationsPage access={callsAccess} onNavigate={onNavigate} />;
+    }
     return <DashboardPage identity={identity!} onNavigate={onNavigate} />;
   }
 
-  return (
+  const layout = (
     <CompanyLayout
       pathname={pathname}
       identity={identity.user}
@@ -702,6 +871,11 @@ export function CompanyWorkspace({
       canViewTerritories={canViewTerritories}
       canViewLeads={canViewLeads}
       canViewCallbacks={canViewCallbacks}
+      canViewCalls={canViewCalls}
+      canTriageSales={canReassignLeadsFromUi}
+      canViewImports={canViewImports}
+      canTrackAssignedCalls={Boolean(callsAccess.canTrackAssigned)}
+      canManageCalls={canManageCalls}
       canViewHandovers={canViewHandovers}
       canViewDeals={canViewDeals}
       canRecordWin={canRecordWin}
@@ -709,8 +883,11 @@ export function CompanyWorkspace({
       canForecast={canForecast}
       canViewChat={canViewChat}
       canViewClients={canViewClients}
+      canViewSocial={canViewSocial}
+      canViewMeetings={hasMeetings && (canHostMeetings || canViewMeetings)}
+      canViewSeo={canViewSeo}
       canViewProjects={canViewProjects}
-      canViewLiveBoard={canBeyondOwn('attendance:view-live')}
+      canViewLiveBoard={isSuperAdmin || canBeyondOwn('attendance:view-live')}
       canViewAttendanceReports={isHr || canBeyondOwn('attendance:view')}
       canReviewCorrections={can('attendance:correct')}
       canReviewBreaches={can('breaks:review-breach')}
@@ -743,6 +920,24 @@ export function CompanyWorkspace({
       {renderContent()}
     </CompanyLayout>
   );
+  // The sales guide follows people across Sales pages; others never see it.
+  const workspaceWithBreakMode = (
+    <>
+      {layout}
+      {!isSuperAdmin && <BreakModeGuard />}
+    </>
+  );
+  return canViewSalesWorkspace ? (
+    <SalesGuideProvider
+      userId={userId}
+      isManager={isSuperAdmin || canReassignLeadsFromUi}
+      canAddLeads={isSuperAdmin || can('leads:create')}
+      canRecordWin={canRecordWin}
+      canDecideApprovals={canDecideApprovals}
+    >
+      {workspaceWithBreakMode}
+    </SalesGuideProvider>
+  ) : workspaceWithBreakMode;
 }
 
 class AttendancePageBoundary extends Component<

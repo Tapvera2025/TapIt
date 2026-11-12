@@ -20,6 +20,9 @@ export interface LeadLike {
   readonly status: string;
   readonly routingStatus: string;
   readonly createdAt: string;
+  readonly updatedAt?: string;
+  /** When the current owner got the lead. */
+  readonly assignedAt?: string | null;
 }
 
 export interface HandoverLike {
@@ -28,8 +31,11 @@ export interface HandoverLike {
   readonly status: string;
 }
 
-const ACTIVE_CALLBACK_STATUSES = new Set(['pending', 'rescheduled']);
+// Rescheduling closes the old callback as 'rescheduled' and books a new
+// pending one, so only 'pending' is still waiting on the agent.
+const ACTIVE_CALLBACK_STATUSES = new Set(['pending']);
 const NEW_LEAD_STATUSES = new Set(['new', 'assigned']);
+const CLOSED_LEAD_STATUSES = new Set(['converted', 'closed_lost']);
 const UPCOMING_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RECENTLY_ASSIGNED_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -60,8 +66,17 @@ export function partitionCallbacks<T extends CallbackLike>(
 }
 
 export interface PartitionedLeads<T extends LeadLike> {
-  /** Owner = me, status new/assigned, created within 24h — need first-contact. */
+  /**
+   * Owner = me, given to me within 24h, and waiting on first contact: still
+   * new/assigned, or handed over mid-way and not touched since (PRD
+   * R-REASSIGN-04).
+   */
   readonly newlyAssigned: readonly T[];
+}
+
+/** When the current owner got the lead (older data has only the creation time). */
+export function assignedTime(lead: LeadLike): number {
+  return new Date(lead.assignedAt ?? lead.createdAt).getTime();
 }
 
 export function partitionLeads<T extends LeadLike>(
@@ -74,11 +89,15 @@ export function partitionLeads<T extends LeadLike>(
   const newlyAssigned: T[] = [];
   for (const lead of leads) {
     if (lead.ownerId !== userId) continue;
-    if (!NEW_LEAD_STATUSES.has(lead.status)) continue;
-    const createdAt = new Date(lead.createdAt).getTime();
-    if (createdAt >= cutoff) newlyAssigned.push(lead);
+    if (CLOSED_LEAD_STATUSES.has(lead.status)) continue;
+    const assignedAt = assignedTime(lead);
+    if (assignedAt < cutoff) continue;
+    // Any change after the hand-over (a status, a callback) means it was picked up.
+    const untouched =
+      lead.updatedAt !== undefined && new Date(lead.updatedAt).getTime() <= assignedAt;
+    if (NEW_LEAD_STATUSES.has(lead.status) || untouched) newlyAssigned.push(lead);
   }
-  newlyAssigned.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  newlyAssigned.sort((a, b) => assignedTime(b) - assignedTime(a));
   return { newlyAssigned };
 }
 
@@ -129,11 +148,13 @@ export function summarize(
   newlyAssignedCount: number,
   upcomingCount: number,
 ): readonly SectionCount[] {
+  // Same order as the page: a customer on the line first, then promises
+  // already due, then new leads, then optional new work from the pool.
   return [
-    { label: 'Live offers', count: bidPoolCount, urgent: bidPoolCount > 0 },
-    { label: 'Overdue', count: overdueCount, urgent: overdueCount > 0 },
-    { label: 'Handovers', count: handoverCount, urgent: handoverCount > 0 },
-    { label: 'Newly assigned', count: newlyAssignedCount, urgent: newlyAssignedCount > 0 },
-    { label: 'Upcoming', count: upcomingCount, urgent: false },
+    { label: 'Live calls', count: handoverCount, urgent: handoverCount > 0 },
+    { label: 'Overdue callbacks', count: overdueCount, urgent: overdueCount > 0 },
+    { label: 'New leads to call', count: newlyAssignedCount, urgent: newlyAssignedCount > 0 },
+    { label: 'Bid Pool', count: bidPoolCount, urgent: bidPoolCount > 0 },
+    { label: 'Coming up', count: upcomingCount, urgent: false },
   ];
 }

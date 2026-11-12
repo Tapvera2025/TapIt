@@ -1,0 +1,69 @@
+{
+  "capturedAt": "2026-10-30T21:24:17.349343+00:00",
+  "method": "Read-only PostgreSQL diagnostics supplementing live Chrome actions; selected synthetic QA records only",
+  "leads": [
+    {
+      "leadNumber": 115,
+      "id": "01a18dc7-df74-715e-aeac-362b8de52e58",
+      "status": "converted",
+      "requirement": "QA TEST ONLY. Nonbinding synthetic website project; no actual funds or delivery.",
+      "location": "Kolkata QA region",
+      "languagePreference": "English",
+      "intakeNotes": "R2 retention marker: browser intake, callback, proposal, payment, close, handover."
+    },
+    {
+      "leadNumber": 118,
+      "id": "01a18dd2-904e-7b0f-ae39-3a8a55470f85",
+      "status": "closed_lost",
+      "lossReason": "other",
+      "lostAt": "2026-10-30T21:20:56.436355+00:00",
+      "ownerId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+      "currentHolderId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+      "originatingAgentId": null
+    }
+  ],
+  "callbacks": [
+    {
+      "id": "01a18eae-f1f3-7951-b3e7-41e0bb407d26",
+      "leadId": "01a18dd2-904e-7b0f-ae39-3a8a55470f85",
+      "ownerId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+      "scheduledAt": "2026-10-30T22:19:52.259+00:00",
+      "status": "not_reachable",
+      "outcome": "not_reachable"
+    }
+  ],
+  "handovers": [
+    {
+      "id": "01a18dd2-a0eb-70d2-8523-e6ca1f487e41",
+      "fromUserId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+      "toUserId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+      "status": "accepted",
+      "mode": "team_queue",
+      "disposition": "callback",
+      "dispositionAt": "2026-10-30T21:19:52.292675+00:00"
+    },
+    {
+      "id": "01a18eaf-b0d8-7d57-b1f8-2bbca95916af",
+      "fromUserId": "01a18c18-4541-7c63-81c2-18bc3cafa778",
+      "toUserId": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+      "status": "accepted",
+      "mode": "team_queue",
+      "disposition": "rejected",
+      "dispositionAt": "2026-10-30T21:20:56.436355+00:00"
+    }
+  ],
+  "deals": [
+    { "dealNumber": 256, "lifecycleStatus": "open", "paymentStatus": "advance_confirmed", "paymentInitiatedBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2", "approvalStatus": "not_required", "wonAt": null },
+    { "dealNumber": 257, "lifecycleStatus": "won", "paymentStatus": "advance_confirmed", "paymentInitiatedBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2", "approvalStatus": "not_required", "wonAt": "2026-10-30T17:10:18.035+00:00" },
+    { "dealNumber": 258, "lifecycleStatus": "lost", "paymentStatus": "unpaid", "paymentInitiatedBy": null, "approvalStatus": "pending", "wonAt": null }
+  ],
+  "isolatedTenantAccountTypes": [{ "accountType": "super-admin", "count": 1 }],
+  "receipt": {
+    "reference": "QA-SIMULATED-NO-FUNDS-R3-REVERSAL",
+    "amountInr": 60000,
+    "fundsMoved": false,
+    "confirmationObservedInChrome": true,
+    "sameInitiatorReversal": "denied_by_A1",
+    "independentReversal": "not_executed"
+  }
+}

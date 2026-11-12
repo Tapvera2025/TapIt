@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { Card } from '../../../ui/components.js';
+import { Card } from '../../../ui/index.js';
 
 export interface TodoProgressProps {
   readonly totalCount: number;

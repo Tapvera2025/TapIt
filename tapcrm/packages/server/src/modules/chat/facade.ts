@@ -11,18 +11,45 @@ import {
 import { ChatValidationError } from './errors.js';
 import { notifyGroupMemberRemoved, notifyGroupMembersAdded } from './notifications.js';
 import {
+  editMessage,
+  getMessage,
+  getMessageEdits,
   getConversation,
   listMessages,
+  listPins,
   markRead,
   reactToMessage,
   removeReactionFromMessage,
   sendMessage,
 } from './service.js';
 import { findMessageById } from './repository.js';
+import { deletePendingAttachment, uploadAttachment } from './attachments.js';
 
-export { findMessageById, getConversation, listMessages, markRead, reactToMessage, removeReactionFromMessage, sendMessage };
-export { listMessagesQuerySchema, reactionSchema, sendMessageSchema } from './validators.js';
-export type { Conversation, Message, ReactionEmoji } from './types.js';
+/*
+ * The client portal's project discussion reuses these (its own authOnly
+ * routes check the client/project/conversation binding first). The "core
+ * set" for clients: read, send with files, react with any emoji, edit their
+ * own messages, see pins. Pinning, saving, scheduling, search and presence
+ * stay employee-only and are deliberately not exported here.
+ */
+export {
+  deletePendingAttachment,
+  editMessage,
+  findMessageById,
+  getConversation,
+  getMessage,
+  getMessageEdits,
+  listMessages,
+  listPins,
+  markRead,
+  reactToMessage,
+  removeReactionFromMessage,
+  sendMessage,
+  uploadAttachment,
+};
+export { editMessageSchema, listMessagesQuerySchema, reactionSchema, sendMessageSchema } from './validators.js';
+export { uploadedBody, uploadedFileName } from './routes.js';
+export type { Conversation, Message, MessageEdit, PinnedMessage, ReactionEmoji } from './types.js';
 export type { ListMessagesQuery } from './validators.js';
 
 /**

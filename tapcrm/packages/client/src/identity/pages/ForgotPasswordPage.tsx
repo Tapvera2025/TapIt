@@ -1,4 +1,4 @@
-import { BrandLogo } from '../../ui/BrandLogo.js';
+import { BrandLogo } from '../../ui/index.js';
 import { useState } from 'react';
 import { IdentityLayout } from '../components/IdentityLayout.js';
 import { devInstantPasswordReset, IdentityApiError, requestPasswordReset, type DevPasswordReset } from '../api/authApi.js';

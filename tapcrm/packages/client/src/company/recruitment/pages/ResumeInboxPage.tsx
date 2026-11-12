@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { atsScanSummary, type AtsCriteriaSettings, type AtsScanSummary } from '@tapcrm/contracts';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/components.js';
+import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import {
   getAtsCriteria,
   listRequisitions,

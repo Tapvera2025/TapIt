@@ -160,6 +160,34 @@ export const policyStore: PolicyStorePort = {
       // A client principal holds a fixed policy set, not a position (§7.1
       // `acct`). A service account never consults position policies at all
       // (SV-1) and is handled before this point in the pipeline.
+      // Client review is opt-in per existing CRM client, with no separate login.
+      // A2 still checks client ownership before these fixed policies are evaluated.
+      if (ctx.principal.accountType === 'client') {
+        const settings = await db.maybeOne<{ enabled: boolean }>(
+          asRequestContext(ctx),
+          sql`
+          SELECT client_review_enabled AS enabled FROM social_workspace_settings
+          WHERE organization_id = ${ctx.organizationId} AND client_id = ${ctx.principal.clientId}
+        `,
+        );
+        const policies: PermissionSet['policies'] = settings?.enabled
+          ? {
+              'social:view': {
+                action: 'social:view',
+                allowed: true,
+                scope: 'own',
+                source: 'client',
+              },
+              'social:approve': {
+                action: 'social:approve',
+                allowed: true,
+                scope: 'own',
+                source: 'client',
+              },
+            }
+          : {};
+        return { policies, cacheDeadline: now, resolvedAt: now } satisfies PermissionSet;
+      }
       if (ctx.principal.accountType !== 'employee') {
         return { policies: {}, cacheDeadline: now, resolvedAt: now } satisfies PermissionSet;
       }

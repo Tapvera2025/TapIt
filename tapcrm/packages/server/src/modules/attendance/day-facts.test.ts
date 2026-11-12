@@ -62,6 +62,22 @@ describe('dayFacts', () => {
     expect(facts.eligibility?.to).toBe(facts.closingCap.toISOString());
   });
 
+  it('a 4-hour extension lets a 09:00-18:00 day take punches until 22:00, never past the next start', () => {
+    const shift = { ...BASE_SHIFT, maxClosingExtensionMinutes: 240 };
+    const end = new Date('2026-01-10T12:30:00.000Z'); // 18:00 IST
+    const prev = makeDay('2026-01-09', shift, new Date('2026-01-09T03:30:00.000Z'), new Date('2026-01-09T12:30:00.000Z'));
+    const day = makeDay('2026-01-10', shift, new Date('2026-01-10T03:30:00.000Z'), end);
+    const next = makeDay('2026-01-11', shift, new Date('2026-01-11T03:30:00.000Z'), new Date('2026-01-11T12:30:00.000Z'));
+    const facts = dayFacts(prev, day, next);
+    expect(facts.closingCap.toISOString()).toBe('2026-01-10T16:30:00.000Z'); // 22:00 IST
+    const punchOut = Date.parse('2026-01-10T12:35:00.000Z'); // 18:05 IST
+    expect(punchOut).toBeLessThanOrEqual(Date.parse(facts.eligibility!.to));
+
+    // A next shift starting at 20:00 the same evening stops the day there.
+    const evening = makeDay('2026-01-11', shift, new Date('2026-01-10T14:30:00.000Z'), new Date('2026-01-10T23:30:00.000Z'));
+    expect(dayFacts(prev, day, evening).closingCap.toISOString()).toBe('2026-01-10T14:30:00.000Z');
+  });
+
   it('flexible day has null shiftEnd', () => {
     const start = new Date('2026-01-10T03:30:00.000Z');
     const end   = new Date('2026-01-10T20:30:00.000Z');

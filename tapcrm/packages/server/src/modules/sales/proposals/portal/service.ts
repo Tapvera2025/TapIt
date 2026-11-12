@@ -52,6 +52,8 @@ export class PortalRateLimitedError extends ApplicationError {
 
 /** Public card projection — only buyer-facing fields leave the service. */
 export interface PortalProposalCard {
+  readonly dealTitle: string;
+  readonly version: number;
   readonly currency: string;
   readonly subtotalMinor: string;
   readonly discountMinor: string;
@@ -141,13 +143,15 @@ function assertUsableCommercialsState(state: Commercials['state']): asserts stat
   }
 }
 
-function toCard(commercials: Commercials): PortalProposalCard {
+function toCard(commercials: Commercials, dealTitle: string): PortalProposalCard {
   if (!commercials.pdfChecksum || !commercials.publishedAt) {
     // Only reachable if a published row somehow lacks a checksum; shouldn't
     // happen because publishVersion sets both together.
     throw new PortalGoneError('not_published');
   }
   return {
+    dealTitle,
+    version: commercials.version,
     currency: commercials.currency,
     subtotalMinor: commercials.subtotalMinor.toString(),
     discountMinor: commercials.discountMinor.toString(),
@@ -191,7 +195,11 @@ export async function viewProposal(rawToken: string, meta: PortalRequestMetadata
   const commercials = await findCommercials(ctx, resolved.commercialsId);
   if (!commercials) throw new PortalGoneError('unknown');
   assertUsableCommercialsState(commercials.state);
-  return toCard(commercials);
+  const deal = await db.maybeOne<{ title: string }>(
+    ctx,
+    sql`SELECT title FROM deal WHERE organization_id = ${ctx.organizationId} AND id = ${commercials.dealId}`,
+  );
+  return toCard(commercials, deal?.title ?? '');
 }
 
 export interface AcceptProposalInput {

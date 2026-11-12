@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Button } from '../../../ui/components.js';
+import { Button } from '../../../ui/index.js';
 import { TodoModal } from './TodoModal.js';
 import type {
   CreateTodoPayload,

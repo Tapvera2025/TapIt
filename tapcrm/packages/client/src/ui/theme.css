@@ -1,0 +1,318 @@
+@layer components {
+  .ui-glass-surface,
+  .ui-card {
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+    border-radius: 1rem;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 6%, transparent), transparent 58%),
+      color-mix(in srgb, var(--app-surface) 78%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 35%, transparent),
+      0 12px 30px -24px color-mix(in srgb, var(--app-foreground) 36%, transparent);
+  }
+
+  .ui-glass-surface {
+    backdrop-filter: blur(16px) saturate(125%);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+  }
+
+  .ui-panel-surface {
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--app-surface) 92%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+  }
+
+  .dark .ui-glass-surface,
+  .dark .ui-card {
+    border-color: color-mix(in srgb, var(--theme-primary) 18%, var(--app-border));
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 12%, transparent), transparent 62%),
+      color-mix(in srgb, var(--app-surface) 90%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 14px 34px -24px rgba(2, 8, 23, 0.82);
+  }
+
+  .ui-page-header {
+    display: flex;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+    border-radius: 1.25rem;
+    background:
+      linear-gradient(120deg, color-mix(in srgb, var(--theme-primary) 7%, transparent), transparent 48%),
+      color-mix(in srgb, var(--app-surface) 76%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 35%, transparent);
+  }
+
+  .ui-page-header-copy {
+    flex: 1 1 28rem;
+    min-width: 0;
+  }
+
+  .ui-page-header-action {
+    display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .ui-page-header-action > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .dark .ui-glass-surface {
+    backdrop-filter: blur(16px) saturate(125%);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+  }
+
+  .dark .ui-panel-surface {
+    border-color: color-mix(in srgb, var(--theme-primary) 18%, var(--app-border));
+    background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .dark .ui-page-header {
+    border-color: color-mix(in srgb, var(--theme-primary) 20%, var(--app-border));
+    background:
+      linear-gradient(120deg, color-mix(in srgb, var(--theme-primary) 14%, transparent), transparent 52%),
+      color-mix(in srgb, var(--app-surface) 88%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  }
+
+  @media (max-width: 768px) {
+    .ui-page-header {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 0.875rem;
+      padding: 1rem;
+    }
+
+    .ui-page-header-action {
+      width: 100%;
+      justify-content: stretch;
+    }
+
+    .ui-page-header-action > .ui-button {
+      width: 100%;
+    }
+  }
+
+  .ui-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-color: color-mix(in srgb, var(--theme-primary) 20%, var(--app-border));
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  }
+
+  .ui-button:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+
+  .ui-button:not(:disabled):active {
+    transform: scale(0.98);
+  }
+
+  .ui-button:focus-visible {
+    outline: 2px solid var(--theme-primary);
+    outline-offset: 2px;
+  }
+
+  .ui-segmented-tabs {
+    display: flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    overflow-x: auto;
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--app-surface) 78%, var(--app-background));
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+
+  .ui-segmented-tabs.is-scrollable {
+    flex-wrap: nowrap;
+  }
+
+  .ui-segmented-tabs:not(.is-scrollable) {
+    flex-wrap: wrap;
+  }
+
+  .ui-segmented-tab {
+    display: inline-flex;
+    min-height: 2.5rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    background: transparent;
+    color: var(--app-muted);
+    font-size: 0.8125rem;
+    font-weight: 650;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .ui-segmented-tab:hover:not([aria-selected='true']) {
+    color: var(--app-foreground);
+    background: color-mix(in srgb, var(--theme-primary) 8%, transparent);
+  }
+
+  .ui-segmented-tab[aria-selected='true'] {
+    border-color: color-mix(in srgb, var(--theme-primary) 42%, transparent);
+    background: var(--app-gradient);
+    color: var(--app-on-accent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 24%, transparent), 0 5px 13px -10px color-mix(in srgb, var(--theme-primary) 85%, transparent);
+  }
+
+  .ui-segmented-tab:focus-visible {
+    outline: 2px solid var(--theme-primary);
+    outline-offset: 2px;
+  }
+
+  .ui-segmented-tabs.is-compact .ui-segmented-tab {
+    min-height: 2.25rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .ui-form-control {
+    width: 100%;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--app-surface) 82%, transparent);
+    color: var(--app-foreground);
+    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--app-foreground) 5%, transparent);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  }
+
+  .ui-form-control:focus-visible {
+    border-color: var(--theme-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-primary) 16%, transparent);
+  }
+
+  .ui-primary {
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 50%, transparent);
+    background: var(--app-gradient);
+    color: var(--app-on-accent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      0 7px 16px -10px color-mix(in srgb, var(--theme-primary) 74%, transparent);
+  }
+
+  .ui-primary:hover:not(:disabled) {
+    filter: brightness(1.06);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 9px 20px -10px color-mix(in srgb, var(--theme-primary) 82%, transparent);
+  }
+
+  .ui-progress-ring {
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 24%, var(--app-border));
+    background: color-mix(in srgb, var(--app-surface) 78%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 40%, transparent),
+      inset 0 -10px 24px color-mix(in srgb, var(--theme-primary) 6%, transparent),
+      0 14px 28px -24px color-mix(in srgb, var(--theme-primary) 60%, transparent);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-button,
+    .ui-segmented-tab,
+    .ui-form-control,
+    .ui-progress-ring circle {
+      transition: none;
+    }
+  }
+
+  .dark .ui-progress-ring {
+    border-color: color-mix(in srgb, var(--theme-primary) 30%, rgba(255, 255, 255, 0.12));
+    background: color-mix(in srgb, var(--app-surface) 84%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      inset 0 -12px 26px color-mix(in srgb, var(--theme-primary) 10%, transparent),
+      0 16px 32px -25px color-mix(in srgb, var(--theme-primary) 72%, transparent);
+  }
+}
+
+@layer utilities {
+  .ui-theme-root :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='hidden']), select, textarea):not([class~='bg-transparent']) {
+    border-color: color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+    border-radius: 0.75rem;
+    background-color: color-mix(in srgb, var(--app-surface) 82%, transparent);
+    color: var(--app-foreground);
+    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--app-foreground) 5%, transparent);
+  }
+
+  .ui-theme-root :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='hidden']), select, textarea):not([class~='bg-transparent']):focus-visible {
+    border-color: var(--theme-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-primary) 16%, transparent);
+  }
+
+  .ui-theme-root :is(input, select, textarea)[class~='bg-transparent'] {
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+  .ui-theme-root :is(div, section, article)[class~='border-app-border'][class~='bg-app-surface'][class~='rounded-xl'],
+  .ui-theme-root :is(div, section, article)[class~='border-app-border'][class~='bg-app-surface'][class~='rounded-2xl'] {
+    border-color: color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+    background-color: color-mix(in srgb, var(--app-surface) 78%, transparent);
+    background-image: linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 5%, transparent), transparent 58%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 32%, transparent),
+      0 12px 30px -24px color-mix(in srgb, var(--app-foreground) 32%, transparent);
+  }
+
+  .dark .ui-theme-root :is(div, section, article)[class~='border-app-border'][class~='bg-app-surface'][class~='rounded-xl'],
+  .dark .ui-theme-root :is(div, section, article)[class~='border-app-border'][class~='bg-app-surface'][class~='rounded-2xl'] {
+    border-color: color-mix(in srgb, var(--theme-primary) 18%, var(--app-border));
+    background-color: color-mix(in srgb, var(--app-surface) 90%, transparent);
+    background-image: linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 11%, transparent), transparent 62%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 14px 34px -24px rgba(2, 8, 23, 0.8);
+  }
+
+  .ui-theme-root button:focus-visible {
+    outline: 2px solid var(--theme-primary);
+    outline-offset: 2px;
+  }
+
+  .ui-theme-root button:disabled {
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-theme-root button {
+      transition: none;
+    }
+  }
+}

@@ -36,10 +36,20 @@ export {
   insertManualInput,
   revokeManualInput,
   listActiveInputsForPeriod,
+  writeSourcedInput,
+  revokeSourcedInput,
+  firstUnpublishedPeriod,
   type ManualInputKind,
   type ManualInputInsert,
   type PayrollInputRow,
+  type SourcedInput,
+  type InputSource,
 } from './input.js';
+
+export {
+  registerPayrollSourceSettlers,
+  type SourceSettler,
+} from './source-settlers.js';
 
 export {
   PAYROLL_EVENTS,

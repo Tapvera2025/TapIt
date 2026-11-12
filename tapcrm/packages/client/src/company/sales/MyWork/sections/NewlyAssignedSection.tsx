@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Card } from '../../../../ui/components.js';
+import { Card } from '../../../../ui/index.js';
 import { getLeads, type Lead } from '../../leads/api.js';
-import { partitionLeads, relativeTime } from '../myWork-helpers.js';
+import { assignedTime, partitionLeads, relativeTime } from '../myWork-helpers.js';
 import { MyWorkSection } from './Shell.js';
+import { MY_WORK_ANCHORS } from '../../guide/page-guidance.js';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -20,7 +21,7 @@ export function NewlyAssignedSection({
   useEffect(() => {
     let cancelled = false;
     const load = (): void => {
-      getLeads()
+      getLeads({ ownerId: userId, pageSize: 100 })
         .then((page) => {
           if (!cancelled) {
             setLeads(page.items);
@@ -46,11 +47,12 @@ export function NewlyAssignedSection({
 
   return (
     <MyWorkSection
-      title="Newly assigned"
+      id={MY_WORK_ANCHORS.newlyAssigned}
+      title="New leads to call"
       count={newlyAssigned.length}
       urgent={newlyAssigned.length > 0}
       error={error}
-      empty="No leads waiting on their first contact."
+      empty="No new leads waiting for a first call."
     >
       <Card className="p-0">
         <ul className="divide-y divide-app-border">
@@ -60,7 +62,8 @@ export function NewlyAssignedSection({
                 <p className="font-semibold">{lead.contactName}</p>
                 <p className="mt-1 text-xs text-app-muted">
                   #{lead.leadNumber} · {lead.sourceName}
-                  {lead.companyName ? ` · ${lead.companyName}` : ''} · {relativeTime(lead.createdAt)}
+                  {lead.companyName ? ` · ${lead.companyName}` : ''} · assigned{' '}
+                  {relativeTime(new Date(assignedTime(lead)).toISOString())}
                 </p>
               </div>
               <button

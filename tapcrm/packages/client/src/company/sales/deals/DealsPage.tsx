@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Field, Page, Select } from '../../../ui/components.js';
+import { Button, Card, Field, Page, Select } from '../../../ui/index.js';
 import { listDeals, type Deal, type DealListQuery } from './api.js';
 import {
   APPROVAL_LABELS,
@@ -11,7 +11,6 @@ import {
   STAGE_LABELS,
   approvalTone,
   contractTone,
-  formatCurrencyLabel,
   formatProbability,
   formatRelativeDate,
   groupByStage,
@@ -83,7 +82,7 @@ export function DealsPage({ isSalesHod, onNavigate }: DealsPageProps): React.JSX
     <Page
       eyebrow="Sales"
       title="Deals"
-      description="Pipeline of qualified leads moving toward a signed, paid, delivered close."
+      description="A deal is a qualified business opportunity moving toward a signed, paid, delivered close. A lead stays in Leads until it is ready for this pipeline."
       action={
         <div className="flex flex-wrap gap-2">
           {canKanban && (
@@ -198,7 +197,7 @@ function DealList({
               </p>
               <p className="mt-1 text-xs text-app-muted">
                 Expected close {formatRelativeDate(deal.expectedCloseAt)} · Probability{' '}
-                {formatProbability(deal)} · {formatCurrencyLabel(deal.currency)}
+                {formatProbability(deal)}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -255,7 +254,7 @@ function KanbanBoard({
                   #{deal.dealNumber} · {deal.contactName ?? '—'}
                 </p>
                 <p className="mt-1 text-xs text-app-muted">
-                  {formatCurrencyLabel(deal.currency)} · {formatProbability(deal)} ·{' '}
+                  {formatProbability(deal)} ·{' '}
                   {formatRelativeDate(deal.expectedCloseAt)}
                 </p>
               </button>

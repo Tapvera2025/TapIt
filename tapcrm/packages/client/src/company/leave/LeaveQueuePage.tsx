@@ -8,6 +8,7 @@ import {
   type LeaveQueueItem,
   type LeaveCalendarEvent,
 } from '../api/leaveApi.js';
+import { Button, GlassSurface, Page } from '../../ui/index.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
@@ -61,7 +62,7 @@ function LeaveCoverageStrip({ onDateClick }: { onDateClick: (date: string) => vo
   const maxCount = Math.max(...Object.values(countsByDate), 0);
 
   return (
-    <div className="rounded-2xl border border-app-border bg-app-surface p-4">
+    <GlassSurface className="rounded-2xl p-4">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">
           Leave coverage — {MONTHS[month - 1]} {year}
@@ -70,22 +71,22 @@ function LeaveCoverageStrip({ onDateClick }: { onDateClick: (date: string) => vo
           {maxCount > 0 && (
             <span className="mr-2 text-xs text-app-muted">{maxCount} max/day</span>
           )}
-          <button
-            type="button"
+          <Button
+            kind="secondary"
             onClick={prevMonth}
             aria-label="Previous month"
-            className="rounded border border-app-border px-1.5 py-0.5 text-xs text-app-muted hover:border-app-accent"
+            className="size-8 px-1.5 py-0.5 text-xs text-app-muted"
           >
             ‹
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            kind="secondary"
             onClick={nextMonth}
             aria-label="Next month"
-            className="rounded border border-app-border px-1.5 py-0.5 text-xs text-app-muted hover:border-app-accent"
+            className="size-8 px-1.5 py-0.5 text-xs text-app-muted"
           >
             ›
-          </button>
+          </Button>
         </div>
       </div>
       {error ? (
@@ -120,7 +121,7 @@ function LeaveCoverageStrip({ onDateClick }: { onDateClick: (date: string) => vo
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-amber-500/70" />3–4</span>
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-rose-500/70" />5+</span>
       </div>
-    </div>
+    </GlassSurface>
   );
 }
 
@@ -225,27 +226,22 @@ export function LeaveQueuePage({
     : leaves;
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">HR · Leave</p>
-        <h1 className="font-display text-2xl font-bold">Leave queue</h1>
-        <p className="text-sm text-app-muted">Review employee leave requests and manage the approval workflow.</p>
-      </header>
+    <Page eyebrow="HR · Leave" title="Leave queue" description="Review employee leave requests and manage the approval workflow.">
       {canViewScopedCoverage && (
         <LeaveCoverageStrip onDateClick={(date) => { setCoverageDate(date); setFilter('all'); }} />
       )}
 
       {coverageDate && (
-        <div className="flex items-center gap-2 rounded-xl bg-amber-500/8 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+        <GlassSurface className="flex items-center gap-2 rounded-xl bg-amber-500/8 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
           <span>Filtering by date: <strong>{coverageDate}</strong></span>
-          <button
-            type="button"
+          <Button
+            kind="secondary"
             onClick={() => setCoverageDate(null)}
-            className="ml-auto rounded border border-amber-400 px-1.5 py-0.5 text-xs hover:bg-amber-100 dark:hover:bg-amber-900/40"
+            className="ml-auto px-1.5 py-0.5 text-xs"
           >
             Clear
-          </button>
-        </div>
+          </Button>
+        </GlassSurface>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -254,14 +250,14 @@ export function LeaveQueuePage({
             'pending' as const,
             ...(canDecide ? ['approved' as const, 'all' as const] : []),
           ] as FilterStatus[]).map((f) => (
-            <button
+            <Button
               key={f}
-              type="button"
+              kind={filter === f ? 'primary' : 'secondary'}
               onClick={() => setFilter(f)}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize ${filter === f ? 'bg-app-foreground text-app-surface' : 'text-app-muted hover:text-app-foreground'}`}
+              className={`px-3 py-1.5 text-xs capitalize ${filter === f ? '' : 'text-app-muted hover:text-app-foreground'}`}
             >
               {f}
-            </button>
+            </Button>
           ))}
         </div>
         {pendingCount > 0 && (
@@ -276,17 +272,17 @@ export function LeaveQueuePage({
       {error && (
         <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-app-danger">
           <span>{error}</span>
-          <button type="button" onClick={load} className="rounded-lg border border-app-border px-3 py-1.5 text-app-foreground">
+          <Button kind="secondary" onClick={load} className="px-3 py-1.5 text-xs">
             Try again
-          </button>
+          </Button>
         </div>
       )}
       {loading && <p role="status" className="text-sm text-app-muted">Loading…</p>}
 
       {!loading && !error && displayed.length === 0 && (
-        <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">
+        <GlassSurface className="rounded-2xl p-8 text-center text-sm text-app-muted">
           {coverageDate ? `No leave requests covering ${coverageDate}.` : 'No leave requests.'}
-        </div>
+        </GlassSurface>
       )}
 
       {!loading && !error && displayed.length > 0 && (
@@ -294,7 +290,7 @@ export function LeaveQueuePage({
           {[...displayed]
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
             .map((leave) => (
-              <div key={leave.id} className="rounded-2xl border border-app-border bg-app-surface p-4">
+              <GlassSurface key={leave.id} className="rounded-2xl p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -305,7 +301,7 @@ export function LeaveQueuePage({
                     </div>
                     <p className="text-xs text-app-muted">
                       {leave.leaveTypeName} · {fmtDate(leave.fromDate)} — {fmtDate(leave.toDate)}
-                      {' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}
+                      {leave.kind === 'attendance-mode' ? ' · work from home' : <>{' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}</>}
                     </p>
                     {leave.reason && (
                       <p className="mt-1 text-xs text-app-muted">{leave.reason}</p>
@@ -314,38 +310,38 @@ export function LeaveQueuePage({
 
                   <div className="flex flex-wrap gap-2">
                     {leave.allowedActions.acknowledge && (
-                      <button
-                        type="button"
+                      <Button
+                        kind="secondary"
                         disabled={acknowledgingId === leave.id}
                         onClick={() => void handleAcknowledge(leave.id)}
-                        className="rounded-lg border border-app-border px-2.5 py-1 text-xs text-app-muted hover:border-sky-400 hover:text-sky-600 disabled:opacity-50"
+                        className="px-2.5 py-1 text-xs text-app-muted hover:text-sky-600 disabled:opacity-50"
                       >
                         {acknowledgingId === leave.id ? 'Acknowledging…' : 'Acknowledge'}
-                      </button>
+                      </Button>
                     )}
                     {(leave.allowedActions.approve || leave.allowedActions.reject) && (
-                      <button
-                        type="button"
+                      <Button
+                        kind="secondary"
                         onClick={() => { setDecideId(leave.id); setDecisionNote(''); setActionError(null); }}
-                        className="rounded-lg border border-app-border px-2.5 py-1 text-xs text-app-muted hover:border-app-accent hover:text-app-foreground"
+                        className="px-2.5 py-1 text-xs text-app-muted hover:text-app-foreground"
                       >
                         Decide
-                      </button>
+                      </Button>
                     )}
                     {leave.allowedActions.revoke && (
-                      <button
-                        type="button"
+                      <Button
+                        kind="danger"
                         onClick={() => { setDecideId(leave.id); setDecisionNote(''); setActionError(null); }}
-                        className="rounded-lg border border-app-border px-2.5 py-1 text-xs text-app-muted hover:border-rose-400 hover:text-rose-600"
+                        className="px-2.5 py-1 text-xs text-app-muted hover:text-rose-600"
                       >
                         Revoke
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
 
                 {decideId === leave.id && (
-                  <div className="mt-3 space-y-2 rounded-xl border border-app-border p-3">
+                  <GlassSurface className="mt-3 space-y-2 rounded-xl p-3">
                     <div>
                       <label className="block text-xs font-semibold text-app-muted">Note (optional)</label>
                       <input
@@ -353,55 +349,55 @@ export function LeaveQueuePage({
                         value={decisionNote}
                         onChange={(e) => setDecisionNote(e.target.value)}
                         placeholder="Add a note…"
-                        className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                        className="ui-form-control mt-1 px-3 py-1.5 text-sm"
                       />
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {leave.allowedActions.approve && (
-                        <button
-                          type="button"
+                        <Button
+                          kind="primary"
                           disabled={submitting}
                           onClick={() => void handleDecide(leave.id, 'approved')}
-                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                          className="px-3 py-1.5 text-xs disabled:opacity-50"
                         >
                           Approve
-                        </button>
+                        </Button>
                       )}
                       {leave.allowedActions.reject && (
-                        <button
-                          type="button"
+                        <Button
+                          kind="danger"
                           disabled={submitting}
                           onClick={() => void handleDecide(leave.id, 'rejected')}
-                          className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                          className="px-3 py-1.5 text-xs disabled:opacity-50"
                         >
                           Reject
-                        </button>
+                        </Button>
                       )}
                       {leave.allowedActions.revoke && (
-                        <button
-                          type="button"
+                        <Button
+                          kind="danger"
                           disabled={submitting}
                           onClick={() => void handleDecide(leave.id, 'revoked')}
-                          className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                          className="px-3 py-1.5 text-xs disabled:opacity-50"
                         >
                           Revoke
-                        </button>
+                        </Button>
                       )}
-                      <button
-                        type="button"
+                      <Button
+                        kind="secondary"
                         onClick={() => { setDecideId(null); setDecisionNote(''); }}
-                        className="rounded-lg border border-app-border px-3 py-1.5 text-xs text-app-muted hover:border-app-accent"
+                        className="px-3 py-1.5 text-xs text-app-muted"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                     {actionError && <p className="text-xs text-app-danger">{actionError}</p>}
-                  </div>
+                  </GlassSurface>
                 )}
-              </div>
+              </GlassSurface>
             ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }

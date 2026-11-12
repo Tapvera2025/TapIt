@@ -14,7 +14,8 @@ if (existsSync(envFile)) {
     let val = trimmed.slice(eq + 1).trim();
     if (val.length >= 2) {
       const first = val[0];
-      if ((first === '"' || first === "'") && val[val.length - 1] === first) val = val.slice(1, -1);
+      if ((first === '"' || first === "'") && val[val.length - 1] === first)
+        val = val.slice(1, -1);
     }
     if (!(key in process.env)) process.env[key] = val;
   }
@@ -26,12 +27,19 @@ import { closePools } from './platform/dal/pool.js';
 import { purgeAllExpiredGeofenceCoordinates } from './modules/identity/geofence/privacy.js';
 import { registerAllJobs } from './modules/index.js';
 import { startAuditDrainer, stopAuditDrainer } from './modules/audit/drainer.js';
-import { startNotificationDispatcher, stopNotificationDispatcher } from './modules/notifications/dispatcher.js';
+import {
+  startNotificationDispatcher,
+  stopNotificationDispatcher,
+} from './modules/notifications/dispatcher.js';
 import { startJobs, stopJobs } from './platform/jobs/runner.js';
 import { startEmailWorker, stopEmailWorker } from './platform/email/index.js';
 import { stopResumeOcr } from './modules/recruitment/resume-ocr/index.js';
 import { startOutboxDrainer, stopOutboxDrainer } from './platform/outbox/drainer.js';
 import { startRealtime, stopRealtime } from './platform/realtime/server.js';
+import {
+  startContentCollaboration,
+  stopContentCollaboration,
+} from './modules/seo-intelligence/content-collaboration.js';
 
 /**
  * The process starts the scoped People socket service once. It carries both
@@ -41,41 +49,79 @@ import { startRealtime, stopRealtime } from './platform/realtime/server.js';
 const config = loadConfig();
 const app = buildApp();
 const server = app.listen(config.API_PORT, () => {
-  console.log(JSON.stringify({
-    level: 'info',
-    msg: 'tapcrm api listening',
-    port: config.API_PORT,
-    basePath: config.API_BASE_PATH,
-    env: config.NODE_ENV,
-  }));
+  console.log(
+    JSON.stringify({
+      level: 'info',
+      msg: 'tapcrm api listening',
+      port: config.API_PORT,
+      basePath: config.API_BASE_PATH,
+      env: config.NODE_ENV,
+    }),
+  );
 });
 
 startAuditDrainer();
 void startRealtime(server)
   .catch((error: unknown) => {
-    console.error(JSON.stringify({ level: 'error', msg: 'realtime unavailable', error: String(error) }));
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        msg: 'realtime unavailable',
+        error: String(error),
+      }),
+    );
   })
   .finally(() => {
     // It handles its own LISTEN failure (falls back to polling), so it never rejects.
     void startOutboxDrainer();
     startNotificationDispatcher();
   });
+void startContentCollaboration().catch((error: unknown) => {
+  console.error(
+    JSON.stringify({
+      level: 'error',
+      msg: 'content collaboration unavailable',
+      error: String(error),
+    }),
+  );
+});
 
 registerAllJobs();
 startEmailWorker();
 let geofenceRetentionTimer: NodeJS.Timeout | null = null;
 void startJobs().catch((error: unknown) => {
-  console.error(JSON.stringify({ level: 'error', msg: 'background jobs unavailable; using local retention fallback', error: String(error) }));
-  geofenceRetentionTimer = setInterval(() => {
-    void purgeAllExpiredGeofenceCoordinates().catch((purgeError: unknown) => {
-      console.error(JSON.stringify({ level: 'error', msg: 'geofence coordinate purge failed', error: String(purgeError) }));
-    });
-  }, 24 * 60 * 60 * 1000);
+  console.error(
+    JSON.stringify({
+      level: 'error',
+      msg: 'background jobs unavailable; using local retention fallback',
+      error: String(error),
+    }),
+  );
+  geofenceRetentionTimer = setInterval(
+    () => {
+      void purgeAllExpiredGeofenceCoordinates().catch((purgeError: unknown) => {
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            msg: 'geofence coordinate purge failed',
+            error: String(purgeError),
+          }),
+        );
+      });
+    },
+    24 * 60 * 60 * 1000,
+  );
   geofenceRetentionTimer.unref();
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error(JSON.stringify({ level: 'fatal', msg: 'unhandled rejection', reason: String(reason) }));
+  console.error(
+    JSON.stringify({
+      level: 'fatal',
+      msg: 'unhandled rejection',
+      reason: String(reason),
+    }),
+  );
   shutdown(1);
 });
 
@@ -91,7 +137,7 @@ function shutdown(code: number): void {
   }, 15_000);
   forced.unref();
 
-  void stopRealtime().finally(() => {
+  void Promise.allSettled([stopRealtime(), stopContentCollaboration()]).finally(() => {
     server.close(() => {
       void Promise.allSettled([
         stopAuditDrainer(),

@@ -1,5 +1,5 @@
-import { BrandLogo } from '../../ui/BrandLogo.js';
-import { useState } from 'react';
+import { BrandLogo } from '../../ui/index.js';
+import { useId, useState } from 'react';
 import { IdentityLayout } from '../components/IdentityLayout.js';
 import { changeTemporaryPassword } from '../api/authApi.js';
 
@@ -82,11 +82,16 @@ function PasswordField({
   minLength?: number;
 }): React.JSX.Element {
   const [visible, setVisible] = useState(false);
+  const id = useId();
+  // The show/hide button sits outside the label so the label names only the input.
   return (
-    <label className="mt-4 block first:mt-7">
-      <span className="mb-2 block text-xs font-semibold text-app-muted">{label}</span>
+    <div className="mt-4 block first:mt-7">
+      <label htmlFor={id} className="mb-2 block text-xs font-semibold text-app-muted">
+        {label}
+      </label>
       <span className="relative block">
         <input
+          id={id}
           className="block w-full rounded-[10px] border border-app-border bg-app-background px-3.5 py-3 pr-12 text-app-foreground outline-none focus:border-app-accent focus:ring-[3px] focus:ring-app-accent/20"
           type={visible ? 'text' : 'password'}
           autoComplete={autoComplete}
@@ -119,6 +124,6 @@ function PasswordField({
           </svg>
         </button>
       </span>
-    </label>
+    </div>
   );
 }

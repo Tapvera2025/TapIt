@@ -1,4 +1,4 @@
-import { Icon } from '../../ui/Icon.js';
+import { Icon } from '../../ui/index.js';
 import { NotificationBell } from '../../notifications/NotificationBell.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { AiPetButton } from './AiPet.js';

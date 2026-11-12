@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { IdentityApiError } from '../api/authApi.js';
 import { getMySessions, revokeAllMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../api/sessionsApi.js';
-import { Icon } from '../../ui/Icon.js';
-import { WorkspacePageContainer } from '../../ui/components.js';
+import { Icon } from '../../ui/index.js';
+import { WorkspacePageContainer } from '../../ui/index.js';
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
@@ -85,7 +85,7 @@ export function SessionsPage({ onBack, onSignedOut }: { onBack: () => void; onSi
           <span aria-hidden="true" className="text-lg leading-none">←</span> Back to CRM
         </button>
 
-        <header className="page-toolbar">
+        <header className="ui-page-header">
           <div className="min-w-0 max-w-full">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-app-accent">Account security</p>
             <h1 className="mt-1 break-words font-display text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
@@ -96,7 +96,7 @@ export function SessionsPage({ onBack, onSignedOut }: { onBack: () => void; onSi
             </p>
           </div>
           {!loading && sessions.length > 0 && (
-            <div className="page-toolbar-action">
+            <div className="ui-page-header-action">
               <button type="button" onClick={() => setConfirm({ kind: 'all' })} className="w-full rounded-xl border border-app-danger/35 bg-app-danger/5 px-4 py-2.5 text-sm font-bold text-app-danger transition-colors hover:bg-app-danger/10 sm:w-auto">
                 Sign out everywhere
               </button>

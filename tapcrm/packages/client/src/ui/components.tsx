@@ -131,6 +131,28 @@ export function WorkspacePageContainer({
   );
 }
 
+/** Shared glass surface used by page cards and dashboard panels. */
+export function GlassSurface({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return <div className={`ui-glass-surface ${className}`}>{children}</div>;
+}
+
+/** Shared app surface for panes that contain fixed dialogs or overlays. */
+export function PanelSurface({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return <div className={`ui-panel-surface ${className}`}>{children}</div>;
+}
+
 export function Page({
   eyebrow,
   title,
@@ -149,8 +171,8 @@ export function Page({
   const recruitmentHeader = variant === 'recruitment';
   return (
     <WorkspacePageContainer>
-        <header className={recruitmentHeader ? 'recruitment-page-header' : 'page-toolbar'}>
-          <div className={recruitmentHeader ? 'flex min-w-0 items-start gap-3' : 'min-w-0'}>
+        <header className={recruitmentHeader ? 'recruitment-page-header' : 'ui-page-header'}>
+          <div className={recruitmentHeader ? 'flex min-w-0 items-start gap-3' : 'ui-page-header-copy min-w-0'}>
             {recruitmentHeader && <span className="recruitment-page-header-icon"><Icon name="briefcase" className="size-5" /></span>}
             <div className="min-w-0">
             {eyebrow && (
@@ -166,7 +188,7 @@ export function Page({
             )}
             </div>
           </div>
-          {action && <div className={recruitmentHeader ? 'recruitment-page-header-actions' : 'page-toolbar-action'}>{action}</div>}
+          {action && <div className={recruitmentHeader ? 'recruitment-page-header-actions' : 'ui-page-header-action'}>{action}</div>}
         </header>
         <div className="mt-6 space-y-5">{children}</div>
     </WorkspacePageContainer>
@@ -176,11 +198,14 @@ export function Page({
 export function Card({
   children,
   className = '',
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  /** Lets a page point at the card (e.g. the sales guide scrolling to it). */
+  id?: string | undefined;
 }): React.JSX.Element {
-  return <section className={`ui-card p-5 ${className}`}>{children}</section>;
+  return <section id={id} className={`ui-card p-5 ${className}`}>{children}</section>;
 }
 
 export function Skeleton({ className = '' }: { className?: string }): React.JSX.Element {
@@ -474,12 +499,91 @@ export function Button({
     <button
       type="button"
       {...props}
-      className={`rounded-lg px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${styles} ${props.className ?? ''}`}
+      className={`ui-button rounded-xl px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${styles} ${props.className ?? ''}`}
     >
       {children}
     </button>
   );
 }
+
+export type SegmentedTabItem = {
+  id: string;
+  label: string;
+  icon?: ReactNode;
+  controls?: string;
+};
+
+/** Compact, keyboard-accessible tab control shared by workspace pages. */
+export function SegmentedTabs({
+  items,
+  value,
+  onChange,
+  ariaLabel,
+  density = 'regular',
+  scrollable = false,
+  className = '',
+}: {
+  items: readonly SegmentedTabItem[];
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  density?: 'regular' | 'compact';
+  scrollable?: boolean;
+  className?: string;
+}): React.JSX.Element {
+  const tabListRef = useRef<HTMLDivElement>(null);
+  const select = (index: number, focus: boolean) => {
+    const item = items[index];
+    if (!item) return;
+    onChange(item.id);
+    if (focus) {
+      const tab = tabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index];
+      tab?.focus();
+    }
+  };
+
+  return (
+    <div
+      ref={tabListRef}
+      className={`ui-segmented-tabs ${density === 'compact' ? 'is-compact' : ''} ${scrollable ? 'is-scrollable' : ''} ${className}`.trim()}
+      role="tablist"
+      aria-label={ariaLabel}
+      aria-orientation="horizontal"
+    >
+      {items.map((item) => {
+        const selected = value === item.id;
+        return (
+          <button
+            key={item.id}
+            id={item.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            aria-controls={item.controls}
+            tabIndex={selected ? 0 : -1}
+            className="ui-segmented-tab"
+            onClick={() => onChange(item.id)}
+            onKeyDown={(event) => {
+              const currentIndex = items.findIndex((candidate) => candidate.id === item.id);
+              let nextIndex: number | null = null;
+              if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % items.length;
+              if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + items.length) % items.length;
+              if (event.key === 'Home') nextIndex = 0;
+              if (event.key === 'End') nextIndex = items.length - 1;
+              if (nextIndex === null) return;
+              event.preventDefault();
+              select(nextIndex, true);
+            }}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Field({
   label,
   value,
@@ -490,6 +594,7 @@ export function Field({
   disabled = false,
   error,
   hint,
+  min,
 }: {
   label: string;
   value: string;
@@ -501,16 +606,19 @@ export function Field({
   error?: string | undefined;
   /** A line under the input, e.g. where an automatically filled value came from. */
   hint?: ReactNode;
+  /** The earliest value a date or time input offers. */
+  min?: string;
 }): React.JSX.Element {
   const input = (
     <input
       required={required}
       disabled={disabled}
       type={type}
+      min={min}
       value={value}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
+      className="ui-form-control w-full px-3 py-2.5 text-sm outline-none"
     />
   );
   const message = error && <span className="mt-1 block font-normal text-app-danger" role="alert">{error}</span>;
@@ -543,6 +651,7 @@ export function Select({
   required = false,
   disabled = false,
   error,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -551,6 +660,8 @@ export function Select({
   required?: boolean;
   disabled?: boolean;
   error?: string | undefined;
+  /** The empty option's text, e.g. "All teams" for a filter. Defaults to "Select <label>". */
+  placeholder?: string;
 }): React.JSX.Element {
   return (
     <label className="text-xs font-semibold text-app-muted">
@@ -560,9 +671,9 @@ export function Select({
         disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
+        className="ui-form-control w-full px-3 py-2.5 text-sm outline-none disabled:opacity-50"
       >
-        <option value="">Select {label.toLowerCase()}</option>
+        <option value="">{placeholder ?? `Select ${label.toLowerCase()}`}</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -617,7 +728,7 @@ export function SearchableSelect({
           setQuery(event.target.value);
           setOpen(true);
         }}
-        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
+        className="ui-form-control w-full px-3 py-2.5 text-sm outline-none disabled:opacity-50"
       />
       {open && !disabled && (
         <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-app-border bg-app-surface shadow-xl">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Empty, Loading, Modal, Notice, Page } from '../../../ui/components.js';
+import { Button, Empty, Loading, Modal, Notice, Page } from '../../../ui/index.js';
 import {
   createEmailTemplate,
   deleteEmailTemplate,

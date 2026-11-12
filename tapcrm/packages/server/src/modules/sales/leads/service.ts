@@ -9,13 +9,15 @@ import { listTerritoriesForRouting } from '../territories/repository.js';
 import { getRoutingConfiguration } from '../territories/service.js';
 import { routeLead } from '../territories/router.js';
 import { readPresenceToday } from '../../live-status/facade.js';
-import { normalizeLeadEmail, normalizeLeadPhone } from './normalization.js';
+import { normalizeLeadEmail, normalizeLeadPhone, toContactE164 } from './normalization.js';
 import { leadPolicy } from './policy.js';
 import { LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from './errors.js';
 import { canViewInternalHandoverState } from '../handover/policy.js';
-import { findCampaign, findDuplicatesTx, findLead, findLeadTx, findSource, findSourceTx, insertActivity, insertAudit, insertLead, insertSource, listCampaigns, listLeads as listRows, listSources, loadLeadResource as loadResource, updateLeadRow, updateSource } from './repository.js';
+import { findCampaign, findDuplicatesTx, findLead, findLeadTx, findSource, findSourceTx, insertActivity, insertAudit, insertLead, insertSource, linkLeadCompany, listCampaigns, listLeads as listRows, listSources, loadLeadResource as loadResource, updateLeadRow, updateSource, upsertContactForLead } from './repository.js';
+import { findOrInsertCompanyByName } from '../intake/repository.js';
 import type { Campaign, Lead, LeadCreateResult, LeadResource, LeadSource, PaginatedLeads } from './types.js';
-import type { CreateLeadInput, LeadListQuery, SourceInput, UpdateLeadInput, UpdateSourceInput } from './validators.js';
+import type { CloseLeadLostInput, CreateLeadInput, LeadListQuery, SourceInput, UpdateLeadInput, UpdateSourceInput } from './validators.js';
+import { cancelOpenCallbacksInTransaction, closeLeadAsLostInTransaction, isTerminalLeadStatus } from './lifecycle.js';
 
 const LIFECYCLE_TRANSITIONS: Record<string, readonly string[]> = {
   new: ['assigned'], assigned: ['contacted'], contacted: ['discovery'], discovery: ['proposal_sent'],
@@ -102,14 +104,53 @@ export async function createLead(ctx: RequestContext, input: CreateLeadInput): P
   const ownerId = decision.type === 'SKIPPED' ? decision.ownerId : decision.type === 'ASSIGNED' ? decision.agentId : null;
   const routingStatus = ownerId ? 'assigned' as const : 'unrouted' as const;
   const status = ownerId && input.status === 'new' ? 'assigned' as const : input.status;
-  const resource = { type: 'lead' as const, id: 'new', organizationId: ctx.organizationId, ownerId, currentHolderId: ownerId, salesTeamId: decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.salesTeamId : null, salesPoolId: null, departmentId: null };
-  if (ownerId && !outbound) await assertManageScope(ctx, resource);
+  // The router, not the person typing, picks the owner of an inbound enquiry,
+  // so recording one needs only `leads:create` (checked by the route). Asking
+  // whether the creator could edit a lead owned by whoever routing picked made
+  // the Add lead form fail for everyone but Super Admin whenever an agent was
+  // free.
   return db.transaction(ctx, async (tx) => {
     const visibility = await visibilityFilter(ctx, 'leads:view', 'lead');
     const phone = normalizeLeadPhone(input.phone);
     const email = normalizeLeadEmail(input.email);
     const duplicates = await findDuplicatesTx(tx, ctx.organizationId, visibility, phone, email);
-    const id = await insertLead(tx, ctx.organizationId, { sourceId: source.id, campaignId: campaign?.id ?? null, previousLeadId: input.previousLeadId ?? null, ownerId, currentHolderId: ownerId, territoryId: decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.territoryId : null, salesTeamId: decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.salesTeamId : null, salesPoolId: null, status, routingStatus, contactName: input.contactName, companyName: input.companyName ?? null, phone: input.phone ?? null, email: input.email ?? null, phoneNormalized: phone, emailNormalized: email, createdBy: ctx.principal.id });
+    // Manual capture now creates/links a canonical contact so Deal
+    // conversion can resolve `deal.contact_id` without a fixture.
+    const contactId = await upsertContactForLead(tx, ctx.organizationId, {
+      fullName: input.contactName,
+      phoneE164: toContactE164(input.phone ?? null),
+      phoneRaw: input.phone ?? null,
+      email,
+      createdBy: ctx.principal.id,
+    });
+    // Link a company record the way website and ad leads do, so the deal made
+    // from this lead keeps its company.
+    const companyId = await findOrInsertCompanyByName(tx, ctx.organizationId, input.companyName ?? null, ctx.principal.id);
+    const territoryId = decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.territoryId : null;
+    let salesTeamId = decision.type === 'ASSIGNED' || decision.type === 'UNROUTED' ? decision.salesTeamId : null;
+    let salesPoolId: string | null = null;
+    // Preserve the owning agent's team context on outbound (SKIPPED) leads so
+    // a later "queue for sales team" handover has a team to route into. The
+    // pool is the agent's immediate team; the parent team (if any) is the
+    // Sales Team.
+    // An unrouted enquiry (nobody free to take it) stays with the creator's
+    // pool and team, so their supervisor and team lead see it waiting.
+    const homeUserId = ownerId ?? (salesTeamId === null ? ctx.principal.id : null);
+    if (homeUserId) {
+      const owner = await tx.maybeOne<{ teamId: string | null; parentTeamId: string | null }>(sql`
+        SELECT u.team_id AS "teamId", t.parent_team_id AS "parentTeamId"
+          FROM app_user u
+          LEFT JOIN team t ON t.organization_id = u.organization_id AND t.id = u.team_id
+         WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${homeUserId}
+      `);
+      if (owner?.teamId) {
+        salesPoolId = owner.teamId;
+        salesTeamId = owner.parentTeamId ?? owner.teamId;
+      }
+    }
+    const resolvedTerritoryId = territoryId;
+    const resolvedTeamId = salesTeamId;
+    const id = await insertLead(tx, ctx.organizationId, { sourceId: source.id, campaignId: campaign?.id ?? null, previousLeadId: input.previousLeadId ?? null, ownerId, currentHolderId: ownerId, territoryId: resolvedTerritoryId, salesTeamId: resolvedTeamId, salesPoolId, status, routingStatus, contactName: input.contactName, companyName: input.companyName ?? null, phone: input.phone ?? null, email: input.email ?? null, phoneNormalized: phone, emailNormalized: email, contactId, companyId, requirement: input.requirement ?? null, location: input.location ?? null, languagePreference: input.languagePreference ?? null, intakeNotes: input.notes ?? null, createdBy: ctx.principal.id });
     await insertActivity(tx, ctx.organizationId, id, 'lead.created', ctx.principal.id, { routingStatus });
     if (ownerId) await insertActivity(tx, ctx.organizationId, id, 'lead.assigned', ctx.principal.id, { ownerId });
     if (input.previousLeadId) await insertActivity(tx, ctx.organizationId, id, 'lead.reengaged', ctx.principal.id, { previousLeadId: input.previousLeadId });
@@ -143,8 +184,29 @@ export async function getLead(ctx: RequestContext, id: string): Promise<Lead> {
   if (canViewInternalHandoverState(ctx.principal.id, globalAccess(ctx.principal), lead.ownerId, lead.currentHolderId, hasAcceptedHandover)) return lead;
   return { ...lead, activities: lead.activities.filter((activity) => !activity.eventName.startsWith('handover.')) };
 }
-export async function updateLead(ctx: RequestContext, id: string, input: UpdateLeadInput): Promise<Lead> { const before = await getLead(ctx, id); const resource = await loadResource(ctx, id) as LeadResource | null; if (!resource) throw new LeadNotFoundError(); await assertManageScope(ctx, resource); if (input.status) { assertLifecycleTransition(before.status, input.status); if (input.status === 'assigned' && !resource.ownerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot be marked assigned'); } return db.transaction(ctx, async (tx) => { await updateLeadRow(tx, ctx.organizationId, id, input, before, { phone: normalizeLeadPhone(input.phone === undefined ? before.phone : input.phone), email: normalizeLeadEmail(input.email === undefined ? before.email : input.email) }); const updated = await findLeadTx(tx, ctx.organizationId, id); if (!updated) throw new LeadNotFoundError(); if (input.status && input.status !== before.status) await insertActivity(tx, ctx.organizationId, id, input.status === 'nurture' ? 'lead.nurtured' : 'lead.status_changed', ctx.principal.id, { from: before.status, to: input.status }); await insertAudit(tx, ctx, 'lead.updated', id, { status: before.status }, { status: updated.status }); return updated; }); }
+export async function updateLead(ctx: RequestContext, id: string, input: UpdateLeadInput): Promise<Lead> { const before = await getLead(ctx, id); const resource = await loadResource(ctx, id) as LeadResource | null; if (!resource) throw new LeadNotFoundError(); await assertManageScope(ctx, resource); if (input.status) { assertLifecycleTransition(before.status, input.status); if (input.status === 'assigned' && !resource.ownerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot be marked assigned'); } return db.transaction(ctx, async (tx) => { await updateLeadRow(tx, ctx.organizationId, id, input, before, { phone: normalizeLeadPhone(input.phone === undefined ? before.phone : input.phone), email: normalizeLeadEmail(input.email === undefined ? before.email : input.email) }); if (input.companyName !== undefined && input.companyName !== before.companyName) await linkLeadCompany(tx, ctx.organizationId, id, await findOrInsertCompanyByName(tx, ctx.organizationId, input.companyName, ctx.principal.id)); const updated = await findLeadTx(tx, ctx.organizationId, id); if (!updated) throw new LeadNotFoundError(); if (input.status && input.status !== before.status) await insertActivity(tx, ctx.organizationId, id, input.status === 'nurture' ? 'lead.nurtured' : 'lead.status_changed', ctx.principal.id, { from: before.status, to: input.status }); await insertAudit(tx, ctx, 'lead.updated', id, { status: before.status }, { status: updated.status }); return updated; }); }
 export const loadLeadResource = loadResource;
+
+/**
+ * "Mark as lost" on the lead page (PRD R-LEAD-04). Closes the lead with its
+ * reason, cancels its open callback and records the note on the timeline.
+ */
+export async function closeLeadAsLost(ctx: RequestContext, id: string, input: CloseLeadLostInput): Promise<Lead> {
+  const before = await getLead(ctx, id);
+  const resource = await loadResource(ctx, id) as LeadResource | null;
+  if (!resource) throw new LeadNotFoundError();
+  await assertManageScope(ctx, resource);
+  if (isTerminalLeadStatus(before.status)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'This lead is already converted or closed');
+  return db.transaction(ctx, async (tx) => {
+    if (!await closeLeadAsLostInTransaction(tx, ctx.organizationId, id, input.lossReason)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'This lead is already converted or closed');
+    await cancelOpenCallbacksInTransaction(tx, ctx, id, 'lead_closed_lost');
+    await insertActivity(tx, ctx.organizationId, id, 'lead.closed_lost', ctx.principal.id, { from: before.status, lossReason: input.lossReason, note: input.note ?? null });
+    await insertAudit(tx, ctx, 'lead.closed_lost', id, { status: before.status }, { status: 'closed_lost', lossReason: input.lossReason, note: input.note ?? null });
+    const updated = await findLeadTx(tx, ctx.organizationId, id);
+    if (!updated) throw new LeadNotFoundError();
+    return updated;
+  });
+}
 
 /**
  * Live duplicate check for the Add-Lead drawer (R1 plan step 1.12).

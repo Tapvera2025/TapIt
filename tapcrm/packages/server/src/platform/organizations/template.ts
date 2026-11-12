@@ -17,6 +17,8 @@ const HR_MODULES = [
   'holidays',
   'ta',
   'payroll',
+  'advance',
+  'penalties',
   'performance',
   'recruitment',
 ] as const;
@@ -27,6 +29,8 @@ const SALES_MODULES = [
   'handovers',
   'deals',
   'approvals',
+  'telephony',
+  'lead-imports',
 ] as const;
 const DEVELOPMENT_MODULES = [
   'handoff',

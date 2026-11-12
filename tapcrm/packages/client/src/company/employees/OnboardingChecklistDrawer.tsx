@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { OnboardingStepDto, OnboardingWorkflowDto } from '@tapcrm/contracts';
 import { completeOnboardingStep, listOnboardingWorkflows } from '../api/onboardingApi.js';
-import { SkeletonListItem } from '../../ui/components.js';
+import { SkeletonListItem } from '../../ui/index.js';
 
 interface OnboardingChecklistDrawerProps {
   isOpen: boolean;

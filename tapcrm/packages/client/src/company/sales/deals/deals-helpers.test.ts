@@ -119,9 +119,9 @@ describe('formatProbability', () => {
   });
 
   it('falls back to stage defaults', () => {
-    expect(formatProbability(makeDeal({ dealStage: 'discovery' }))).toBe('10%');
-    expect(formatProbability(makeDeal({ dealStage: 'proposal' }))).toBe('25%');
-    expect(formatProbability(makeDeal({ dealStage: 'closing' }))).toBe('75%');
+    expect(formatProbability(makeDeal({ dealStage: 'discovery' }))).toBe('20%');
+    expect(formatProbability(makeDeal({ dealStage: 'proposal' }))).toBe('40%');
+    expect(formatProbability(makeDeal({ dealStage: 'closing' }))).toBe('85%');
   });
 
   it('is 100% for closed-won and 0% for closed-non-won', () => {

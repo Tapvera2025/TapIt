@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Page } from '../../../ui/components.js';
+import { Button, Card, Page } from '../../../ui/index.js';
 import { listPendingApprovals, type ApprovalRequest } from './api.js';
 import { getDeal, type Deal } from '../deals/api.js';
 import { ApprovalCard } from './ApprovalCard.js';

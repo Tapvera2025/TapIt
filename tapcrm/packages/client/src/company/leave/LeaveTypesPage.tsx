@@ -5,8 +5,8 @@ import {
   updateLeaveType,
   type LeaveTypeDto,
 } from '../api/leaveApi.js';
-import { suggestNextCode } from '../../ui/code-suggest.js';
-import { SkeletonTable } from '../../ui/components.js';
+import { suggestNextCode } from '../../ui/index.js';
+import { SkeletonTable } from '../../ui/index.js';
 
 type FormMode = null | 'create' | LeaveTypeDto;
 

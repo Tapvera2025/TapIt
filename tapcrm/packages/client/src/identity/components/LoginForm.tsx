@@ -1,4 +1,4 @@
-import { BrandLogo } from '../../ui/BrandLogo.js';
+import { BrandLogo } from '../../ui/index.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
 import { useState } from 'react';
 import {

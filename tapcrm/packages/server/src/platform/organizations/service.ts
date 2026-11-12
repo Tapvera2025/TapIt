@@ -12,6 +12,7 @@ import * as organizationRepo from './repository.js';
 import type { OrganizationProfileUpdate } from './repository.js';
 import { normalizeIdentityEmail } from '../../modules/identity/repository.js';
 import { provisionAccountingFoundation } from '../../modules/finance/accounting/provisioning.js';
+import { provisionSeoRules } from '../../modules/seo-intelligence/provisioning.js';
 
 export async function createOrganization(
   input: {
@@ -131,6 +132,9 @@ export async function createOrganization(
         );
         if (toEnable.some((module) => module.key === 'accounting')) {
           await provisionAccountingFoundation(tx, org.id);
+        }
+        if (toEnable.some((module) => module.key === 'seo-intelligence')) {
+          await provisionSeoRules(tx, org.id);
         }
         const invitation = await createInvitationRecord(tx, {
           organizationId: org.id,

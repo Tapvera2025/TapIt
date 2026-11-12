@@ -59,6 +59,7 @@ export const NOTIFICATION_TYPES = {
   CHAT_GROUP_ADDED: 'chat.group_added',
   CHAT_GROUP_REMOVED: 'chat.group_removed',
   CHAT_MENTION: 'chat.mention',
+  CHAT_SCHEDULED_FAILED: 'chat.scheduled_failed',
 
   // recruitment (see modules/recruitment/notifications.ts)
   RECRUITMENT_INTERVIEW_ASSIGNED: 'recruitment.interview_assigned',
@@ -66,6 +67,10 @@ export const NOTIFICATION_TYPES = {
 
   // sales
   LEAD_REASSIGNED: 'lead.reassigned',
+  LEAD_ASSIGNED: 'lead.assigned',
+
+  // social (modules/social/service.ts)
+  SOCIAL_CONNECTION_RECONNECT_REQUIRED: 'social.connection_reconnect_required',
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];

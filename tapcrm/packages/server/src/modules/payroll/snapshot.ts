@@ -17,6 +17,8 @@ export interface FrozenEmployeeInputs {
   readonly days: FrozenDay[];
   readonly structureSegments: FrozenStructureSegment[];
   readonly payrollInputs: PayrollInputRow[];
+  /** The calculation the inputs were frozen for (`PAYROLL_ENGINE_VERSION`). */
+  readonly engineVersion?: string;
   readonly configSnapshot: {
     id: string;
     effectiveFrom: string;
@@ -36,7 +38,7 @@ function toFrozenInput(row: PayrollInputRow): FrozenInput {
     amountStr: row.amount,
     label: row.label,
     direction,
-    sourceId: row.breakBreachId,
+    sourceId: row.breakBreachId ?? row.advanceDeductionId ?? row.penaltyId ?? null,
   };
 }
 

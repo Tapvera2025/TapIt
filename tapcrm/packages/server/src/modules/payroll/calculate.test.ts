@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computePayslip, type ComputePayslipInput, type FrozenDay } from './calculate.js';
+import { computePayslip, statutoryUnmarked, type ComputePayslipInput, type FrozenDay } from './calculate.js';
 import { rupeesToPaise, roundToRupee, prorateAndRound, paiseToRupees } from './money.js';
 import { buildRunPostingIntent, buildRevisionPostingIntent } from './posting.js';
 
@@ -348,5 +348,148 @@ describe('revision posting mapper', () => {
     const cr = result.lines.find(l => l.side === 'credit');
     expect(dr?.role).toBe('salary-expense');
     expect(cr?.role).toBe('salary-payable');
+  });
+});
+
+describe('computePayslip — statutory lines from the accepted settings (PY-4)', () => {
+  // The October test structure: Basic 20,000 (PF wage), HRA 8,000, Special 6,400, Conveyance 1,600 fixed;
+  // PF 1,800 (employee and employer) and PT 200 as structure amounts.
+  const OCT_SEGMENT = {
+    structureId: 'struct-oct',
+    currency: 'INR',
+    effectiveFrom: '2026-10-01',
+    effectiveTo: null,
+    lines: [
+      { code: 'BASIC', label: 'Basic', kind: 'earning' as const, amountStr: '20000', prorated: true, statutoryTags: ['pf-wage'], sortOrder: 1 },
+      { code: 'HRA', label: 'HRA', kind: 'earning' as const, amountStr: '8000', prorated: true, statutoryTags: [], sortOrder: 2 },
+      { code: 'SPECIAL', label: 'Special', kind: 'earning' as const, amountStr: '6400', prorated: true, statutoryTags: [], sortOrder: 3 },
+      { code: 'CONVEYANCE', label: 'Conveyance', kind: 'earning' as const, amountStr: '1600', prorated: false, statutoryTags: [], sortOrder: 4 },
+      { code: 'PF', label: 'PF', kind: 'deduction' as const, amountStr: '1800', prorated: true, statutoryTags: ['pf'], sortOrder: 10 },
+      { code: 'PT', label: 'PT', kind: 'deduction' as const, amountStr: '200', prorated: false, statutoryTags: ['pt'], sortOrder: 11 },
+      { code: 'ESI', label: 'ESI', kind: 'deduction' as const, amountStr: '0', prorated: false, statutoryTags: ['esi'], sortOrder: 12 },
+      { code: 'PF-ER', label: 'PF (employer)', kind: 'employer-contribution' as const, amountStr: '1800', prorated: true, statutoryTags: ['pf'], sortOrder: 20 },
+    ],
+  };
+  const october = (absentDays: number) =>
+    Array.from({ length: 31 }, (_, i) =>
+      makeDay(`2026-10-${String(i + 1).padStart(2, '0')}`, i < absentDays ? { p: 0, ab: 2 } : { p: 2 }));
+  const slip = (settings: Record<string, unknown>, absentDays: number) => {
+    const result = computePayslip({
+      userId: 'u', periodStart: '2026-10-01', periodEnd: '2026-10-31', employmentFrom: '2026-01-01', employmentTo: null,
+      days: october(absentDays), structureSegments: [OCT_SEGMENT], inputs: [],
+      config: { schemaVersion: 'v1', settings },
+    });
+    return Object.fromEntries(result.lines.map((line) => [line.code, Number(line.amountPaise) / 100]));
+  };
+  const SETTINGS = {
+    pf: { employeeRate: 0.12, employerRate: 0.12, wageCeiling: 15000 },
+    professionalTax: { monthly: 200 },
+    esi: { enabled: false },
+  };
+
+  it('PF is 12% of earned basic capped at ₹15,000: ₹1,800 even after 2.5 days of loss of pay', () => {
+    expect(slip(SETTINGS, 0)).toMatchObject({ BASIC: 20000, PF: 1800, 'PF-ER': 1800, PT: 200 });
+    // Two days absent and a half day: 5 of 62 units lost. Basic 20,000 × 57/62 = 18,387 > 15,000.
+    const lop = computePayslip({
+      userId: 'u', periodStart: '2026-10-01', periodEnd: '2026-10-31', employmentFrom: '2026-01-01', employmentTo: null,
+      days: october(0).map((day, i) => (i < 2 ? { ...day, presentUnits: 0, absentUnits: 2 } : i === 2 ? { ...day, presentUnits: 1, absentUnits: 1 } : day)),
+      structureSegments: [OCT_SEGMENT], inputs: [], config: { schemaVersion: 'v1', settings: SETTINGS },
+    });
+    const lines = Object.fromEntries(lop.lines.map((line) => [line.code, Number(line.amountPaise) / 100]));
+    expect([lines['BASIC'], lines['PF'], lines['PF-ER']]).toEqual([18387, 1800, 1800]);
+  });
+
+  it('below the ceiling PF follows the earned basic', () => {
+    // 15 days absent: basic 20,000 × 32/62 = 10,323 → PF 1,239.
+    expect(slip(SETTINGS, 15)).toMatchObject({ BASIC: 10323, PF: 1239, 'PF-ER': 1239 });
+  });
+
+  it('ESI off drops the ESI line; on, it is 0.75% of gross within the ₹21,000 limit', () => {
+    expect(slip(SETTINGS, 0)['ESI']).toBeUndefined();
+    const withEsi = slip({ ...SETTINGS, esi: { enabled: true } }, 15);
+    // Gross: 10,323 + 4,129 + 3,303 + 1,600 = 19,355 → 0.75% = 145.16 → ₹145.
+    expect(withEsi['ESI']).toBe(145);
+    expect(slip({ ...SETTINGS, esi: { enabled: true } }, 0)['ESI']).toBeUndefined(); // gross 36,000 > 21,000
+  });
+
+  it('months accepted without statutory settings keep the structure amounts', () => {
+    expect(slip({ notes: 'no statutory settings' }, 15)).toMatchObject({ PF: 929, PT: 200, ESI: 0 });
+  });
+});
+
+describe('computePayslip — overtime and holiday work (paid only when the settings say so)', () => {
+  const SEG = {
+    structureId: 's', currency: 'INR', effectiveFrom: '2026-10-01', effectiveTo: null,
+    lines: [
+      { code: 'BASIC', label: 'Basic', kind: 'earning' as const, amountStr: '20000', prorated: true, statutoryTags: ['pf-wage'], sortOrder: 1 },
+      { code: 'HRA', label: 'HRA', kind: 'earning' as const, amountStr: '8000', prorated: true, statutoryTags: [], sortOrder: 2 },
+    ],
+  };
+  const days = Array.from({ length: 31 }, (_, i) => {
+    const day = makeDay(`2026-10-${String(i + 1).padStart(2, '0')}`, { p: 2 });
+    if (i === 6 || i === 7) return { ...day, overtimeMinutes: 120 }; // 7 and 8 Oct: two hours each
+    if (i === 17) return { ...day, presentUnits: 0, holidayUnits: 2, holidayWorkedMinutes: 360 }; // a Sunday worked
+    return day;
+  });
+  const slip = (settings: Record<string, unknown>) =>
+    Object.fromEntries(computePayslip({
+      userId: 'u', periodStart: '2026-10-01', periodEnd: '2026-10-31', employmentFrom: '2026-01-01', employmentTo: null,
+      days, structureSegments: [SEG], inputs: [], config: { schemaVersion: 'v1', settings },
+    }).lines.map((line) => [line.code, Number(line.amountPaise) / 100]));
+
+  it('nothing extra unless switched on', () => {
+    expect(slip({})).toEqual({ BASIC: 20000, HRA: 8000 });
+  });
+  it('overtime at twice the ordinary rate: basic / (26 × 8) per hour', () => {
+    // 20,000 / 208 = 96.15 an hour; 4 hours × 2 = ₹769.23 → ₹769.
+    expect(slip({ overtime: { enabled: true } })).toMatchObject({ OVERTIME: 769 });
+  });
+  it('work on a holiday or weekly off at its own multiplier', () => {
+    // 6 hours × 96.15 × 2 = ₹1,153.85 → ₹1,154; at 1.5 → ₹865.38 → ₹865.
+    expect(slip({ holidayWork: { enabled: true } })['HOLIDAY-WORK']).toBe(1154);
+    expect(slip({ holidayWork: { enabled: true, multiplier: 1.5 } })['HOLIDAY-WORK']).toBe(865);
+  });
+});
+
+describe('statutory settings with unmarked salary lines', () => {
+  const settings = { pf: { employeeRate: 0.12, employerRate: 0.12, wageCeiling: 15000 }, professionalTax: { monthly: 200 } };
+  const marked = {
+    ...BASIC_SEGMENT,
+    lines: [
+      { ...BASIC_SEGMENT.lines[0]!, statutoryTags: ['pf-wage'] },
+      BASIC_SEGMENT.lines[1]!,
+      { code: 'PF', label: 'PF', kind: 'deduction' as const, amountStr: '0', prorated: false, statutoryTags: ['pf'], sortOrder: 3 },
+    ],
+  };
+
+  it('is reported when the settings define PF, PT or ESI and no line is marked', () => {
+    expect(statutoryUnmarked([BASIC_SEGMENT], settings)).toBe(true);
+  });
+
+  it('is not reported once a line is marked, or when the settings define none of them', () => {
+    expect(statutoryUnmarked([marked], settings)).toBe(false);
+    expect(statutoryUnmarked([BASIC_SEGMENT], { overtime: { enabled: true } })).toBe(false);
+    expect(statutoryUnmarked([], settings)).toBe(false);
+  });
+
+  it('a marked line is worked out from the settings, an unmarked one keeps its typed amount', () => {
+    const fixedPf = {
+      ...BASIC_SEGMENT,
+      lines: [...BASIC_SEGMENT.lines, { code: 'PF', label: 'PF', kind: 'deduction' as const, amountStr: '1800', prorated: false, statutoryTags: [], sortOrder: 3 }],
+    };
+    const base: ComputePayslipInput = {
+      userId: 'u', periodStart: '2025-01-01', periodEnd: '2025-01-31', employmentFrom: '2024-01-01', employmentTo: null,
+      days: JAN_2025_DAYS, structureSegments: [fixedPf], inputs: [], config: { schemaVersion: 'v1', settings },
+    };
+    expect(computePayslip(base).lines.find((l) => l.code === 'PF')!.amountPaise).toBe(180000n);
+    // Marked: 12% of the ₹15,000 ceiling (basic is ₹30,000).
+    const result = computePayslip({ ...base, structureSegments: [marked] });
+    expect(result.lines.find((l) => l.code === 'PF')!.amountPaise).toBe(180000n);
+    const halfMonth = computePayslip({
+      ...base,
+      structureSegments: [{ ...marked, lines: marked.lines.map((l) => (l.code === 'BASIC' ? { ...l, amountStr: '10000' } : l)) }],
+    });
+    // Marked PF follows the earned basic: 12% of ₹10,000.
+    expect(halfMonth.lines.find((l) => l.code === 'PF')!.amountPaise).toBe(120000n);
   });
 });

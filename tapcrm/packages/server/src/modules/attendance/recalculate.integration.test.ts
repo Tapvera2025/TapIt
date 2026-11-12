@@ -10,6 +10,7 @@ import { sql } from '../../platform/dal/sql.js';
 import { startJobs, stopJobs } from '../../platform/jobs/runner.js';
 import { drainOrganization } from '../../platform/outbox/drainer.js';
 import { retriedUntilDelivered } from '../../platform/outbox/registry.js';
+import { RULES_VERSION } from './calculate.js';
 import { appendEvent, type AppendEventInput } from './facade.js';
 import { registerAttendanceJobs, type AttendanceJobs } from './jobs.js';
 import { recalculateRecord, sweepRefreshRequests, sweepStale } from './recalculate.js';
@@ -294,7 +295,7 @@ describe.skipIf(!enabled)(
         lateMinutes: 15,
         earlyExitMinutes: 0,
         overtimeMinutes: 0,
-        rulesVersion: 'attendance-rules/1',
+        rulesVersion: RULES_VERSION,
         calculationVersion: 1,
       });
       expect(day.flags).toEqual(['late', 'remote-without-approval']);

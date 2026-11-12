@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ErrorMessage, Loading, Page, WorkspacePageContainer } from '../../ui/components.js';
+import { ErrorMessage, Loading, Page, WorkspacePageContainer } from '../../ui/index.js';
 import { getPortalProfile, type PortalProfile } from '../api/portalApi.js';
 import { ProfileCard } from '../../ui/profile/ProfileComponents.js';
 
