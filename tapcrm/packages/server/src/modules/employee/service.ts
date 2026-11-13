@@ -11,7 +11,11 @@ import {
   sendEmployeeInvitation,
 } from '../identity/facade.js';
 import { clearOverridesForPositionChange } from '../access-management/facade.js';
-import { repairReportingLinesAfterMove, validateManagerAssignment } from '../organization/facade.js';
+import {
+  notifyUsersPermissionsChanged,
+  repairReportingLinesAfterMove,
+  validateManagerAssignment,
+} from '../organization/facade.js';
 import { changedDays } from './employment.js';
 import { recordEmploymentChanged } from './events.js';
 import {
@@ -465,6 +469,14 @@ export async function updateEmployee(
     const clearedLines = changes.teamId !== undefined
       ? await repairReportingLinesAfterMove(tx, ctx.organizationId, userId)
       : [];
+    if (changes.teamId !== undefined) {
+      await notifyUsersPermissionsChanged(
+        tx,
+        ctx.organizationId,
+        [userId, ...clearedLines.map((line) => line.userId)],
+        'employee.placement.changed',
+      );
+    }
 
     const changed = changedDays(before, after);
     if (changed !== null) {
@@ -568,6 +580,12 @@ export async function changePlacement(
         reason: input.reason ?? null,
       },
     });
+    await notifyUsersPermissionsChanged(
+      tx,
+      ctx.organizationId,
+      [userId, ...clearedLines.map((line) => line.userId)],
+      'employee.placement.changed',
+    );
     const profile = (await findEmployeeProfile(tx, ctx.organizationId, userId))!;
     await notifyPlacementChanged(tx, ctx, userId, current, profile);
     return { ...profile, reportingLinesCleared: clearedLines, overridesCleared };
@@ -612,6 +630,7 @@ export async function setEmployeeStatus(
       before: { status: current.status },
       after: { status: next, reason: input.reason },
     });
+    await notifyUsersPermissionsChanged(tx, ctx.organizationId, [userId], 'employee.status.changed');
     return (await findEmployeeProfile(tx, ctx.organizationId, userId))!;
   });
 }

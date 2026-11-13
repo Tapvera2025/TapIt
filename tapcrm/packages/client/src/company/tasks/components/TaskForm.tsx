@@ -225,7 +225,12 @@ export function TaskForm({
             <select
               disabled={isBusy}
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e) => {
+                setProjectId(e.target.value);
+                // Assignees from the previous project must not remain selected
+                // after switching project context.
+                setAssigneeIds([]);
+              }}
               className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
             >
               <option value="">No project</option>

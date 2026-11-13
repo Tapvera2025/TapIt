@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getCompanyEmployees, type CompanyEmployee } from '../company/api/companyApi.js';
-import { Button, Loading } from '../ui/index.js';
+import { Button, Loading, SegmentedTabs } from '../ui/index.js';
 import {
   addGroupMembers,
   archiveGroup,
@@ -12,37 +12,90 @@ import {
 } from './api/chatApi.js';
 import { Avatar } from './Avatar.js';
 import { ConversationWorkspace } from './ConversationWorkspace.js';
+import { GroupSettingsModal } from './GroupSettingsModal.js';
+import { groupAuthorityFor } from './groupPermissions.js';
 import { usePresenceMap } from './presence.js';
 import { useChat } from './useChat.js';
 
 const label = (conversation: Conversation): string => conversation.name ?? 'Group';
 
-/**
- * Internal Groups — Phase 3 of the messaging build. Creating and managing a
- * group's name/membership is Super-Admin-only (`chat:manage-groups`,
- * enforced server-side); any member the Super Admin adds can read and post
- * exactly like a Direct Message, via the same `chat:view`/`chat:send` every
- * employee position already holds. Non-admins therefore see the list and
- * thread below with no "New" button and no "Manage" panel.
- */
-export function InternalGroupsPage({
-  currentUserId,
-  isSuperAdmin,
-  initialConversationId,
-  initialMessageId,
-  initialNonce,
-}: {
+type GroupView = 'active' | 'archived';
+const VIEW_TABS = [
+  { id: 'active', label: 'Active' },
+  { id: 'archived', label: 'Archived' },
+] as const;
+
+interface GroupsPageProps {
   currentUserId: string;
   isSuperAdmin: boolean;
   initialConversationId?: string | undefined;
   initialMessageId?: string | undefined;
   initialNonce?: number | undefined;
+  /** Whether the deep-linked group is archived, so the right list opens. */
+  initialArchived?: boolean | undefined;
+}
+
+/**
+ * Internal Groups. Creating a group is Super-Admin-only (`chat:manage-groups`).
+ * Running one is shared: the creator (or any Super Admin) can make members
+ * group admins, remove people, archive, restore and delete it; admins can
+ * edit it, add people and remove ordinary members (server rules:
+ * chat/group-roles.ts). Archived groups are listed under "Archived" for their
+ * members, read-only.
+ */
+export function InternalGroupsPage(props: GroupsPageProps): React.JSX.Element {
+  const { initialConversationId, initialArchived, initialNonce } = props;
+  const linkView: GroupView = initialArchived ? 'archived' : 'active';
+  const [view, setView] = useState<GroupView>(linkView);
+  // A deep link opens its group once; after switching lists by hand it is not reopened.
+  const [followLink, setFollowLink] = useState(true);
+
+  useEffect(() => {
+    if (!initialConversationId) return;
+    setView(initialArchived ? 'archived' : 'active');
+    setFollowLink(true);
+  }, [initialConversationId, initialArchived, initialNonce]);
+
+  const showLink = followLink && view === linkView;
+  return (
+    <GroupsInbox
+      key={view}
+      {...props}
+      initialConversationId={showLink ? initialConversationId : undefined}
+      initialMessageId={showLink ? props.initialMessageId : undefined}
+      archived={view === 'archived'}
+      onViewChange={(next) => {
+        setFollowLink(false);
+        setView(next);
+      }}
+    />
+  );
+}
+
+function GroupsInbox({
+  currentUserId,
+  isSuperAdmin,
+  initialConversationId,
+  initialMessageId,
+  initialNonce,
+  archived,
+  onViewChange,
+}: GroupsPageProps & {
+  archived: boolean;
+  onViewChange: (view: GroupView) => void;
 }): React.JSX.Element {
-  const chat = useChat('group');
+  const chat = useChat('group', { archived });
   const [showCreate, setShowCreate] = useState(false);
-  const [managingId, setManagingId] = useState<string | null>(null);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
   const [colleagues, setColleagues] = useState<CompanyEmployee[]>([]);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(''), 4_000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const loadColleagues = (): void => {
     if (colleagues.length > 0) return;
@@ -56,7 +109,8 @@ export function InternalGroupsPage({
     loadColleagues();
   };
 
-  const managingConversation = chat.conversations.find((c) => c.id === managingId) ?? null;
+  const settingsConversation = chat.conversations.find((c) => c.id === settingsId) ?? null;
+  const canCreate = isSuperAdmin && !archived;
 
   return (
     <>
@@ -65,22 +119,39 @@ export function InternalGroupsPage({
         kind="group"
         currentUserId={currentUserId}
         title="Internal Groups"
-        emptyHint={isSuperAdmin ? 'No groups yet. Create one with "New Group".' : 'You have not been added to any internal group yet.'}
+        emptyHint={
+          archived
+            ? 'No archived groups.'
+            : isSuperAdmin
+              ? 'No groups yet. Create one with "New Group".'
+              : 'You have not been added to any internal group yet.'
+        }
         conversationLabel={label}
         newLabel="New Group"
         initialConversationId={initialConversationId}
         initialMessageId={initialMessageId}
         initialNonce={initialNonce ?? 0}
-        {...(isSuperAdmin
-          ? {
-              onNewClick: openCreate,
-              headerExtra: (conversation: Conversation) => (
-                <Button kind="secondary" onClick={() => { setManagingId(conversation.id); loadColleagues(); }} className="!px-3 !py-1.5 !text-xs">
-                  Manage
-                </Button>
-              ),
-            }
-          : {})}
+        listToolbar={
+          <SegmentedTabs
+            items={VIEW_TABS}
+            value={archived ? 'archived' : 'active'}
+            onChange={(next) => onViewChange(next as GroupView)}
+            ariaLabel="Show active or archived groups"
+            density="compact"
+          />
+        }
+        headerExtra={(conversation: Conversation) => (
+          <Button
+            kind="secondary"
+            onClick={() => setSettingsId(conversation.id)}
+            className="!px-3 !py-1.5 !text-xs"
+          >
+            {groupAuthorityFor(conversation, currentUserId, isSuperAdmin) === 'member'
+              ? 'Group info'
+              : 'Manage'}
+          </Button>
+        )}
+        {...(canCreate ? { onNewClick: openCreate } : {})}
       />
 
       {showCreate && (
@@ -100,12 +171,19 @@ export function InternalGroupsPage({
         />
       )}
 
-      {managingConversation && (
-        <ManageGroupModal
-          conversation={managingConversation}
-          colleagues={colleagues}
-          onClose={() => setManagingId(null)}
-          onRefresh={() => void chat.refreshConversations()}
+      {settingsConversation && (
+        <GroupSettingsModal
+          conversation={settingsConversation}
+          currentUserId={currentUserId}
+          authority={groupAuthorityFor(settingsConversation, currentUserId, isSuperAdmin)}
+          onClose={() => setSettingsId(null)}
+          onChanged={() => void chat.refreshConversations()}
+          onLeftView={(message) => {
+            setSettingsId(null);
+            chat.setActiveId(null);
+            setNotice(message);
+            void chat.refreshConversations();
+          }}
           onError={setError}
         />
       )}
@@ -113,6 +191,11 @@ export function InternalGroupsPage({
       {(error || chat.error) && (
         <p role="alert" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-[#d86b6b]/30 bg-app-surface px-4 py-2 text-sm text-app-danger shadow-lg">
           {error || chat.error}
+        </p>
+      )}
+      {notice && !(error || chat.error) && (
+        <p role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-app-accent/30 bg-app-surface px-4 py-2 text-sm text-app-foreground shadow-lg">
+          {notice}
         </p>
       )}
     </>

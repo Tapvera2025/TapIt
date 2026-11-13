@@ -8,6 +8,7 @@ import {
 } from '@tapcrm/authz';
 import type { DateOnly, Scope } from '@tapcrm/contracts';
 import { daysBetween } from '../../platform/time.js';
+import { withPeopleReach } from '../people-reach.js';
 
 /**
  * `attendanceRecord` resource policy — mirrors `userPolicy` (§8.7).
@@ -26,7 +27,7 @@ import { daysBetween } from '../../platform/time.js';
  * that answers "which department did this row belong to when it was
  * computed?", a different question.
  */
-export const attendanceRecordPolicy: ResourcePolicy = {
+const baseAttendanceRecordPolicy: ResourcePolicy = {
   resourceType: 'attendanceRecord',
   domain: 'people',
   async check(ctx, _action, resource, scope: Scope) {
@@ -73,9 +74,11 @@ export const attendanceRecordPolicy: ResourcePolicy = {
   },
 };
 
+export const attendanceRecordPolicy: ResourcePolicy = withPeopleReach(baseAttendanceRecordPolicy, { subjects: ['userId'], columns: ['u.id'] });
+
 export const CORRECTION_LOOKBACK_DAYS = 60;
 
-export const attendanceCorrectionPolicy: ResourcePolicy = {
+const baseAttendanceCorrectionPolicy: ResourcePolicy = {
   resourceType: 'attendanceCorrection',
   domain: 'people',
   async check(ctx, _action, resource, scope: Scope) {
@@ -121,6 +124,8 @@ export const attendanceCorrectionPolicy: ResourcePolicy = {
   participantFields() { return []; },
   initiatorField() { return 'requestedBy'; },
 };
+
+export const attendanceCorrectionPolicy: ResourcePolicy = withPeopleReach(baseAttendanceCorrectionPolicy, { subjects: ['userId'], columns: ['u.id'] });
 
 export function registerAttendancePolicies(): void {
   registerResourcePolicy(attendanceRecordPolicy);

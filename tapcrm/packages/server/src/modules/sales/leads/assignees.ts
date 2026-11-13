@@ -70,10 +70,15 @@ export async function listLeadAssignees(ctx: RequestContext, leadId: string): Pr
     const policy = await effectivePolicy(ctx, 'leads:reassign');
     const scope = policy?.allowed ? policy.scope : null;
     const authz = { ...ctx, scope: scopeResolver };
-    if (scope === 'pool') reach = sql`u.team_id = ANY(${[...(await scopeResolver.poolIds(authz))]}::uuid[])`;
-    else if (scope === 'team') reach = sql`u.team_id = ANY(${[...(await scopeResolver.teamIds(authz))]}::uuid[])`;
-    else if (scope === 'department') reach = sql`u.department_id = ${await scopeResolver.departmentId(authz)}`;
-    else reach = sql`u.id = ${ctx.principal.id}`;
+    if (scope === 'pool') {
+      reach = sql`(u.team_id = ANY(${[...(await scopeResolver.poolIds(authz))]}::uuid[]) OR u.id = ANY(${[...(await scopeResolver.poolMemberIds(authz))]}::uuid[]) OR u.id = ${ctx.principal.id})`;
+    } else if (scope === 'team') {
+      reach = sql`(u.team_id = ANY(${[...(await scopeResolver.teamIds(authz))]}::uuid[]) OR u.id = ANY(${[...(await scopeResolver.teamMemberIds(authz))]}::uuid[]) OR u.id = ${ctx.principal.id})`;
+    } else if (scope === 'department') {
+      reach = sql`u.department_id = ${await scopeResolver.departmentId(authz)}`;
+    } else {
+      reach = sql`u.id = ${ctx.principal.id}`;
+    }
   }
 
   const people = await db.query<{ id: string; fullName: string; positionCode: string; poolName: string | null }>(ctx, sql`

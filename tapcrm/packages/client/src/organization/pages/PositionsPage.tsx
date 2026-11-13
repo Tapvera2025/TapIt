@@ -15,9 +15,15 @@ import {
   type PositionPlacement,
 } from '../components/PositionHierarchy.js';
 import {
+  HIGHEST_POSITION_LEVEL,
+  LOWEST_POSITION_LEVEL,
   availableParents,
   flattenPositions,
+  positionsBelowNewLevel,
+  positionsBySeniority,
+  suggestParentForLevel,
 } from '../components/position-hierarchy-model.js';
+import { PositionLevelGuide } from '../components/PositionLevelGuide.js';
 import {
   PositionPolicyEditor,
   PositionPolicyFooter,
@@ -50,7 +56,13 @@ type PositionForm = {
   name: string;
   organizationalLevel: string;
   parentPositionId: string;
+  /**
+   * Whether "Reports to" was set by the person (or by Add above/beside/below).
+   * Until then it follows the level: the closest position ranked above it.
+   */
+  parentChosen: boolean;
   status: string;
+  /** Also move the parent's lower-ranked direct reports under the new position. */
   adoptLowerPositions: boolean;
   insertAboveId: string | null;
 };
@@ -60,12 +72,15 @@ const blank: PositionForm = {
   departmentId: '',
   code: '',
   name: '',
-  organizationalLevel: '1',
+  organizationalLevel: '',
   parentPositionId: '',
+  parentChosen: false,
   status: 'active',
   adoptLowerPositions: false,
   insertAboveId: null,
 };
+
+const levelRangeMessage = `Enter a whole number from ${LOWEST_POSITION_LEVEL} to ${HIGHEST_POSITION_LEVEL}.`;
 
 type PendingPositionUpdate = {
   position: OrganizationPosition;
@@ -154,6 +169,38 @@ export function PositionsPage(): React.JSX.Element {
     () => flattenPositions(ladder?.positions ?? []),
     [ladder],
   );
+  const departmentName =
+    departments.find((item) => item.id === departmentId)?.name ?? 'Department';
+
+  // Where the position in the form would sit, worked out from what is entered.
+  const enteredLevel = parseLevel(form.organizationalLevel);
+  const firstPosition =
+    !editing && !flatPositions.some((position) => position.status === 'active');
+  const selectedParent =
+    flatPositions.find((position) => position.id === form.parentPositionId) ?? null;
+  const insertAbove = editing
+    ? null
+    : (flatPositions.find((position) => position.id === form.insertAboveId) ?? null);
+  /** The chosen parent's lower-ranked direct reports, which may move under the new one. */
+  const lowerSiblings =
+    editing || insertAbove || !selectedParent || enteredLevel === null
+      ? []
+      : positionsBelowNewLevel(flatPositions, selectedParent.id, enteredLevel).movable;
+  /** The positions that move under the new one when it is saved. */
+  const moving: OrganizationPosition[] =
+    editing || firstPosition || enteredLevel === null
+      ? []
+      : insertAbove
+        ? insertAbove.organizationalLevel < enteredLevel
+          ? [insertAbove]
+          : []
+        : selectedParent
+          ? form.adoptLowerPositions
+            ? lowerSiblings
+            : []
+          : // Reporting to the Super Admin: it takes over as the department's top.
+            positionsBelowNewLevel(flatPositions, null, enteredLevel).movable;
+  const placementErrors = placementProblems();
 
   function startCreate(
     reference?: OrganizationPosition,
@@ -171,15 +218,18 @@ export function PositionsPage(): React.JSX.Element {
         ? reference
         : flatPositions.find((position) => position.id === reference?.parentPositionId);
 
-    const level = reference
-      ? placement === 'below'
-        ? Math.max(1, reference.organizationalLevel - 1)
+    // A plain "Add position" starts with no level, so it is chosen while the
+    // level guide shows where the department's other positions sit.
+    const level = !reference
+      ? ''
+      : placement === 'below'
+        ? Math.max(LOWEST_POSITION_LEVEL, reference.organizationalLevel - 1)
         : placement === 'beside'
           ? reference.organizationalLevel
-          : Math.min(parent!.organizationalLevel - 1, reference.organizationalLevel + 1)
-      : flatPositions.length === 0
-        ? 100
-        : 1;
+          : parent
+            ? Math.min(parent.organizationalLevel - 1, reference.organizationalLevel + 1)
+            : // Above the department's top: it becomes the new top.
+              Math.min(HIGHEST_POSITION_LEVEL, reference.organizationalLevel + 10);
 
     const allCodes = flatPositions.map((position) => position.code);
     const seed = lastCodeByDept[departmentId];
@@ -188,12 +238,54 @@ export function PositionsPage(): React.JSX.Element {
       ...blank,
       departmentId,
       parentPositionId: parent?.id ?? '',
+      parentChosen: Boolean(reference),
       organizationalLevel: String(level),
       insertAboveId: placement === 'above' ? (reference?.id ?? null) : null,
       code: suggestNextCode(allCodes, seed),
     });
 
     setOpen(true);
+  }
+  /** Conflicts between the level and who the position reports to, shown as they are typed. */
+  function placementProblems(): PositionFieldErrors {
+    if (enteredLevel === null) return {};
+    const level = enteredLevel;
+    if (selectedParent && level >= selectedParent.organizationalLevel)
+      return {
+        organizationalLevel:
+          `${selectedParent.name} is at level ${selectedParent.organizationalLevel}. A position needs a lower ` +
+          `level than the one it reports to: use ${selectedParent.organizationalLevel - 1} or lower, or change who it reports to.`,
+      };
+    if (insertAbove && level <= insertAbove.organizationalLevel)
+      return {
+        organizationalLevel: `To sit above ${insertAbove.name}, use a level higher than ${insertAbove.organizationalLevel}.`,
+      };
+    if (!selectedParent && !firstPosition) {
+      if (editing) {
+        if (editing.parentPositionId !== null)
+          return { parentPositionId: 'Choose who this position reports to.' };
+      } else if (moving.length === 0) {
+        const top = positionsBySeniority(flatPositions).find(
+          (position) => position.parentPositionId === null,
+        );
+        return {
+          parentPositionId: !top
+            ? 'Choose who this position reports to.'
+            : top.isSeeded && top.organizationalLevel < level
+              ? `${top.name} is a built-in top position and cannot move under another one. Choose who this position reports to.`
+              : `${top.name} (level ${top.organizationalLevel}) is already the top of ${departmentName}. Choose who this ` +
+                `position reports to, or use a level above ${top.organizationalLevel} to make it the new top.`,
+        };
+      }
+    }
+    const child = editing?.children?.find((item) => item.organizationalLevel >= level);
+    if (child)
+      return {
+        organizationalLevel:
+          `${child.name} (level ${child.organizationalLevel}) reports to this position, ` +
+          `so this one needs a level above ${child.organizationalLevel}.`,
+      };
+    return {};
   }
   function startEdit(position: OrganizationPosition) {
     setEditing(position);
@@ -204,6 +296,7 @@ export function PositionsPage(): React.JSX.Element {
       name: position.name,
       organizationalLevel: String(position.organizationalLevel),
       parentPositionId: position.parentPositionId ?? '',
+      parentChosen: true,
       status: position.status,
       adoptLowerPositions: false,
       insertAboveId: null,
@@ -222,6 +315,39 @@ export function PositionsPage(): React.JSX.Element {
     });
     setFormError('');
   }
+  function clearPlacementErrors() {
+    setFieldErrors((current) => {
+      if (!current.organizationalLevel && !current.parentPositionId) return current;
+      const next = { ...current };
+      delete next.organizationalLevel;
+      delete next.parentPositionId;
+      return next;
+    });
+    setFormError('');
+  }
+  function changeLevel(value: string) {
+    setForm((current) => {
+      const next = { ...current, organizationalLevel: value };
+      const level = parseLevel(value);
+      if (!editing && !current.parentChosen && !current.insertAboveId && level !== null) {
+        const parentPositionId = suggestParentForLevel(flatPositions, level)?.id ?? '';
+        if (parentPositionId !== current.parentPositionId)
+          return { ...next, parentPositionId, adoptLowerPositions: false };
+      }
+      return next;
+    });
+    clearPlacementErrors();
+  }
+  function changeParent(value: string) {
+    setForm((current) => ({
+      ...current,
+      parentPositionId: value,
+      parentChosen: true,
+      insertAboveId: null,
+      adoptLowerPositions: false,
+    }));
+    clearPlacementErrors();
+  }
   function payload(confirmImpact = false): Record<string, unknown> {
     return {
       departmentId: form.departmentId,
@@ -230,9 +356,8 @@ export function PositionsPage(): React.JSX.Element {
       organizationalLevel: Number(form.organizationalLevel),
       parentPositionId: form.parentPositionId || null,
       status: form.status,
-      ...(editing ? {} : { adoptLowerPositions: form.adoptLowerPositions }),
-      ...(!editing && form.insertAboveId
-        ? { adoptPositionIds: [form.insertAboveId] }
+      ...(!editing && moving.length > 0
+        ? { adoptPositionIds: moving.map((position) => position.id) }
         : {}),
       confirmImpact,
     };
@@ -244,15 +369,8 @@ export function PositionsPage(): React.JSX.Element {
     else if (!editing && !/^[a-z0-9][a-z0-9-]*$/.test(form.code.trim()))
       nextErrors.code = 'Code can use only lowercase letters, numbers, and hyphens.';
     if (!form.name.trim()) nextErrors.name = 'Position name is required.';
-    if (
-      !form.organizationalLevel ||
-      Number(form.organizationalLevel) < 1 ||
-      !Number.isInteger(Number(form.organizationalLevel))
-    )
-      nextErrors.organizationalLevel =
-        'Organizational level must be a whole number of at least 1.';
-    if (!editing && !form.parentPositionId)
-      nextErrors.parentPositionId = 'Parent position is required.';
+    if (enteredLevel === null) nextErrors.organizationalLevel = levelRangeMessage;
+    Object.assign(nextErrors, placementErrors);
     setFieldErrors(nextErrors);
     setFormError('');
     if (Object.keys(nextErrors).length > 0) return;
@@ -393,7 +511,7 @@ export function PositionsPage(): React.JSX.Element {
       const persisted = await organizationApi.positionPolicies(position.id);
       if (request !== policyRequest.current) return;
       const byAction = new Map(persisted.map((policy) => [policy.action, policy]));
-      const loaded = ACTIONS.map((action) => {
+      const baseline = ACTIONS.map((action) => {
         const definition = REGISTRY[action];
         return (
           byAction.get(action) ?? {
@@ -405,8 +523,17 @@ export function PositionsPage(): React.JSX.Element {
           }
         );
       });
+      // A stored scope the power cannot hold (an old default put "Everyone in
+      // the company" on business powers) is shown as the widest one it can,
+      // and counts as a change, so saving repairs it instead of failing.
+      const loaded = baseline.map((policy) => {
+        const allowedScopes: readonly string[] = actionScopes(REGISTRY[policy.action as Action]);
+        if (allowedScopes.includes(policy.scope)) return policy;
+        const repaired = allowedScopes.includes('department') ? 'department' : (allowedScopes[0] ?? 'own');
+        return { ...policy, scope: repaired as PositionPolicy['scope'] };
+      });
       setPolicies(loaded);
-      setPolicyBaseline(loaded);
+      setPolicyBaseline(baseline);
     } catch (cause) {
       if (request === policyRequest.current) setPolicyError(cause);
     } finally {
@@ -463,8 +590,6 @@ export function PositionsPage(): React.JSX.Element {
     }
   }
   const policyChanges = countPolicyChanges(policies, policyBaseline);
-  const departmentName =
-    departments.find((item) => item.id === departmentId)?.name ?? 'Department';
   return (
     <WorkspacePageContainer>
       {message && (
@@ -576,75 +701,62 @@ export function PositionsPage(): React.JSX.Element {
               label="Organizational level"
               type="number"
               value={form.organizationalLevel}
-              onChange={(value) => updateFormField('organizationalLevel', value)}
-              error={fieldErrors.organizationalLevel}
+              onChange={changeLevel}
+              placeholder={`${LOWEST_POSITION_LEVEL}–${HIGHEST_POSITION_LEVEL}`}
+              error={
+                fieldErrors.organizationalLevel ??
+                (form.organizationalLevel.trim() !== '' && enteredLevel === null
+                  ? levelRangeMessage
+                  : placementErrors.organizationalLevel)
+              }
+              hint="Higher level = more senior."
               required
             />
             <Select
-              label="Parent position"
+              label="Reports to"
               value={form.parentPositionId}
-              onChange={(value) => {
-                updateFormField('parentPositionId', value);
-                setForm((current) => ({
-                  ...current,
-                  parentPositionId: value,
-                  insertAboveId: null,
-                }));
-              }}
+              onChange={changeParent}
+              placeholder={
+                !editing || editing.parentPositionId === null
+                  ? `Super Admin (top of ${departmentName})`
+                  : 'Choose who this position reports to'
+              }
               options={availableParents(flatPositions, editing).map((item) => ({
                 value: item.id,
-                label: `${item.name} · L${item.organizationalLevel}`,
+                label: `${item.name} · Level ${item.organizationalLevel}`,
               }))}
-              required={
-                flatPositions.length > 0 &&
-                !form.adoptLowerPositions &&
-                (!editing || editing.parentPositionId !== null)
-              }
-              disabled={!editing && flatPositions.length === 0}
-              error={fieldErrors.parentPositionId}
+              error={fieldErrors.parentPositionId ?? placementErrors.parentPositionId}
             />
-            <p className="text-xs text-app-muted md:col-span-2">
-              Levels range from 1 to 100. A parent must have a higher level than the
-              positions below it.
-              {form.parentPositionId &&
-                ` Selected parent: level ${flatPositions.find((item) => item.id === form.parentPositionId)?.organizationalLevel ?? '—'}.`}
-            </p>
-            {!editing && flatPositions.length === 0 && (
-              <p className="text-xs text-app-muted md:col-span-2">
-                This is the department&apos;s first position. It becomes the top of the
-                department (for example its head) and reports to the Super Admin; later
-                positions are created beneath it.
-              </p>
-            )}
-            {!editing && flatPositions.length > 0 && (
+            <PositionLevelGuide
+              departmentName={departmentName}
+              positions={flatPositions}
+              editing={editing}
+              name={form.name}
+              level={enteredLevel}
+              parent={selectedParent}
+              parentSuggested={!form.parentChosen && !editing}
+              moving={moving}
+            />
+            {lowerSiblings.length > 0 && (
               <label className="flex items-start gap-2 text-xs text-app-muted md:col-span-2">
                 <input
                   type="checkbox"
                   checked={form.adoptLowerPositions}
-                  disabled={Boolean(form.insertAboveId)}
                   onChange={(event) =>
                     setForm({ ...form, adoptLowerPositions: event.target.checked })
                   }
                   className="mt-0.5"
                 />
                 <span>
-                  {form.parentPositionId
-                    ? "Also move the parent's lower-level positions under this one (insert a new level). Leave unticked to add it beside them; nothing else moves."
-                    : 'Place this as the new top of the hierarchy — all current root positions will become its direct reports.'}
+                  Also move {lowerSiblings.map((position) => position.name).join(', ')}{' '}
+                  under this position.{' '}
+                  {lowerSiblings.length === 1 ? 'It reports' : 'They report'} to{' '}
+                  {selectedParent?.name} now and{' '}
+                  {lowerSiblings.length === 1 ? 'ranks' : 'rank'} below level{' '}
+                  {enteredLevel}. Leave unticked to add this position alongside{' '}
+                  {lowerSiblings.length === 1 ? 'it' : 'them'}.
                 </span>
               </label>
-            )}
-            {form.insertAboveId && (
-              <p className="text-xs text-app-muted md:col-span-2">
-                This new position will become the direct parent of{' '}
-                <strong>
-                  {
-                    flatPositions.find((position) => position.id === form.insertAboveId)
-                      ?.name
-                  }
-                </strong>
-                . You can review the change before it is saved.
-              </p>
             )}
             <Select
               label="Status"
@@ -777,6 +889,16 @@ export function PositionsPage(): React.JSX.Element {
     </WorkspacePageContainer>
   );
 }
+/** The level typed into the form, or null unless it is a whole number from 1 to 100. */
+function parseLevel(value: string): number | null {
+  if (value.trim() === '') return null;
+  const level = Number(value);
+  return Number.isInteger(level) &&
+    level >= LOWEST_POSITION_LEVEL &&
+    level <= HIGHEST_POSITION_LEVEL
+    ? level
+    : null;
+}
 function nameOfParent(
   id: string | null,
   positions: readonly OrganizationPosition[],
@@ -849,10 +971,14 @@ function ImpactPreview({
             key={change.positionId}
             className="rounded-lg border border-app-border p-3 text-sm"
           >
-            Position <strong>{positionName(change.positionId, positionNames)}</strong>{' '}
-            will be re-parented from{' '}
-            <strong>{positionName(change.currentParentPositionId, positionNames)}</strong>{' '}
-            to{' '}
+            <strong>{positionName(change.positionId, positionNames)}</strong> will move
+            from under{' '}
+            <strong>
+              {change.currentParentPositionId === null
+                ? 'Super Admin'
+                : positionName(change.currentParentPositionId, positionNames)}
+            </strong>{' '}
+            to under{' '}
             <strong>
               {change.proposedParentPositionId
                 ? positionName(change.proposedParentPositionId, positionNames)

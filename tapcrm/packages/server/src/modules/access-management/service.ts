@@ -19,7 +19,12 @@ import { scopeResolver } from '../../platform/authz-adapter.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { userResource } from '../identity/facade.js';
-import { findTeam, repairReportingLinesAfterMove, validateManagerAssignment } from '../organization/facade.js';
+import {
+  findTeam,
+  notifyUsersPermissionsChanged,
+  repairReportingLinesAfterMove,
+  validateManagerAssignment,
+} from '../organization/facade.js';
 import { assertDelegationAllowed } from './delegation.js';
 import { ACCESS_ERROR_CODES, AccessNotFoundError, AccessValidationError } from './errors.js';
 import {
@@ -606,6 +611,7 @@ export async function grantOverride(
       },
       reason,
     });
+    await notifyUsersPermissionsChanged(tx, ctx.organizationId, [input.userId], 'access.override.granted');
     return created;
   });
 }
@@ -635,6 +641,7 @@ export async function revokeOverride(
       after: null,
       reason: revoked.reason,
     });
+    await notifyUsersPermissionsChanged(tx, ctx.organizationId, [revoked.userId], 'access.override.revoked');
     return { id: revoked.id, revoked: true as const };
   });
 }
@@ -909,6 +916,12 @@ export async function decideRoleChange(
       reason,
     });
     await notifyRoleChangeDecided(tx, ctx, request, true, reason);
+    await notifyUsersPermissionsChanged(
+      tx,
+      ctx.organizationId,
+      [request.subjectUserId, ...clearedLines.map((line) => line.userId)],
+      'access.role_change.approved',
+    );
     return { id: requestId, status };
   });
 }

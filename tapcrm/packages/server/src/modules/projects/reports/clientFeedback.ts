@@ -4,6 +4,7 @@ import { db, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { ProjectNotFoundError } from '../errors.js';
 import { findProjectById } from '../repository.js';
+import { notifyClientFeedbackReceived } from '../notifications.js';
 
 export const FEEDBACK_AREAS = ['keyword-tracker', 'blog-updates', 'off-page-seo', 'screenshots'] as const;
 export type FeedbackArea = (typeof FEEDBACK_AREAS)[number];
@@ -26,7 +27,30 @@ export async function insertClientFeedback(tx: Tx, ctx: RequestContext, projectI
 }
 
 export async function createClientFeedback(ctx: RequestContext, projectId: string, input: CreateClientFeedbackInput): Promise<ClientFeedback> {
-  if (!await findProjectById(ctx, projectId)) throw new ProjectNotFoundError();
-  const id = await db.transaction(ctx, (tx) => insertClientFeedback(tx, ctx, projectId, input));
+  const project = await findProjectById(ctx, projectId);
+  if (!project) throw new ProjectNotFoundError();
+  const id = await db.transaction(ctx, async (tx) => {
+    const feedbackId = await insertClientFeedback(tx, ctx, projectId, input);
+    const assignees = await tx.query<{ userId: string }>(sql`
+      SELECT pa.user_id AS "userId"
+      FROM project_assignee pa
+      JOIN app_user u
+        ON u.organization_id = pa.organization_id
+       AND u.id = pa.user_id
+       AND u.status = 'active'
+       AND u.account_type = 'employee'
+      WHERE pa.organization_id = ${ctx.organizationId} AND pa.project_id = ${projectId}
+    `);
+    await notifyClientFeedbackReceived(
+      tx,
+      ctx,
+      { id: project.id, name: project.name },
+      assignees.map(({ userId }) => userId),
+      input.area,
+      feedbackId,
+      input.note,
+    );
+    return feedbackId;
+  });
   return db.one<ClientFeedback>(ctx, sql`${feedbackSelect} WHERE f.organization_id = ${ctx.organizationId} AND f.id = ${id}`);
 }

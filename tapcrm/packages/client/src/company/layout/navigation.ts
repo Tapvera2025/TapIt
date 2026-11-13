@@ -3,6 +3,7 @@ export interface CompanyNavSubItem {
   path: string;
 }
 import type { Action } from '@tapcrm/contracts';
+import { hasRecruitmentViewAction, isActionModuleEnabled } from '../module-access.js';
 
 export interface CompanyNavItem {
   label: string;
@@ -114,37 +115,6 @@ export const companyNavigation: CompanyNavGroup[] = [
     ],
   },
   {
-    label: 'People',
-    items: [
-      {
-        label: 'Employees',
-        path: '/company/employees',
-        icon: 'users',
-        requiredAction: 'users:view',
-      },
-      {
-        label: 'Employee Notes',
-        path: '/company/employee-notes',
-        icon: 'notepad',
-        requiredAction: 'notepad:view-all',
-      },
-      {
-        label: 'Recruitment',
-        path: '/company/recruitment',
-        icon: 'briefcase',
-        children: [
-          { label: 'Overview', path: '/company/recruitment' },
-          { label: 'Requisitions', path: '/company/recruitment/requisitions' },
-          { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
-          { label: 'Candidates', path: '/company/recruitment/candidates' },
-          { label: 'Interviews', path: '/company/recruitment/interviews' },
-          { label: 'Offers', path: '/company/recruitment/offers' },
-          { label: 'Joining', path: '/company/recruitment/joining' },
-        ],
-      },
-    ],
-  },
-  {
     label: 'Sales',
     items: [
       {
@@ -160,13 +130,13 @@ export const companyNavigation: CompanyNavGroup[] = [
         requiredAction: 'leads:view',
       },
       {
-        label: 'Bid Pool',
+        label: 'Lead Pool',
         path: '/company/sales/bid-pool',
         icon: 'inbox',
         requiredAction: 'leads:view',
       },
       {
-        label: 'Leads',
+        label: 'Lead Management',
         path: '/company/sales/leads',
         icon: 'users',
         requiredAction: 'leads:view',
@@ -208,7 +178,7 @@ export const companyNavigation: CompanyNavGroup[] = [
         requiredAction: 'territories:view',
       },
       {
-        label: 'Leads',
+        label: 'Lead Management',
         path: '/company/sales/leads',
         icon: 'users',
         requiredAction: 'leads:view',
@@ -238,7 +208,7 @@ export const companyNavigation: CompanyNavGroup[] = [
         ],
       },
       {
-        label: 'Imported leads',
+        label: 'Imported Leads',
         path: '/company/sales/leads/imported',
         icon: 'upload',
         requiredAction: 'lead-imports:view',
@@ -254,6 +224,12 @@ export const companyNavigation: CompanyNavGroup[] = [
   {
     label: 'Organization',
     items: [
+      {
+        label: 'Employees',
+        path: '/company/employees',
+        icon: 'users',
+        requiredAction: 'users:view',
+      },
       {
         label: 'Overview',
         path: '/company/organization',
@@ -296,6 +272,33 @@ export const companyNavigation: CompanyNavGroup[] = [
         icon: 'hierarchy',
         requiredAction: 'org:view-structure',
       },
+    ],
+  },
+  {
+    label: 'Employee Activities',
+    items: [
+      {
+        label: 'Employee Notes',
+        path: '/company/employee-notes',
+        icon: 'notepad',
+        requiredAction: 'notepad:view-all',
+      },
+    ],
+  },
+  {
+    label: 'Recruitment',
+    items: [
+      {
+        label: 'Overview',
+        path: '/company/recruitment',
+        icon: 'grid',
+      },
+      { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'clipboard-list' },
+      { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'inbox' },
+      { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'users' },
+      { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'calendar' },
+      { label: 'Offers', path: '/company/recruitment/offers', icon: 'file-text' },
+      { label: 'Joining', path: '/company/recruitment/joining', icon: 'user-plus' },
     ],
   },
   {
@@ -558,8 +561,23 @@ export function navigationScreensByAction(): ReadonlyMap<
  * the workspace navigation. Capability checks happen before results are
  * returned; route authorization remains authoritative at the server/router.
  */
+/**
+ * Routes whose server module differs from (or is not implied by) the actions
+ * they require. Used to hide destinations of switched-off modules.
+ */
+const MODULE_BY_PATH: Readonly<Record<string, string>> = {
+  '/company/attendance/live': 'live-status',
+  '/company/payroll/cycle': 'payroll',
+  '/company/payroll/my-payslips': 'payroll',
+  '/company/attendance/today': 'attendance',
+  '/company/attendance/my': 'attendance',
+  '/company/leave/my': 'leave',
+  '/company/holidays': 'holidays',
+};
+
 export function companySearchDestinations({
   actions,
+  enabledModules,
   isSuperAdmin = false,
   isHr = false,
   hasRecruitment = false,
@@ -567,6 +585,8 @@ export function companySearchDestinations({
   accountType = 'employee',
 }: {
   actions: ReadonlySet<Action>;
+  /** Modules enabled for the company; omitted means every module is offered. */
+  enabledModules?: readonly string[];
   isSuperAdmin?: boolean;
   isHr?: boolean;
   hasRecruitment?: boolean;
@@ -575,6 +595,11 @@ export function companySearchDestinations({
 }): CompanySearchDestination[] {
   const destinations: CompanySearchDestination[] = [];
   const seen = new Set<string>();
+  const moduleOn = (key: string): boolean => !enabledModules || enabledModules.includes(key);
+  // Super-admins hold every action of every enabled module, so a super-admin
+  // shortcut must still respect the owning module of the required actions.
+  const actionModuleOn = (action: Action): boolean =>
+    !enabledModules || isActionModuleEnabled(enabledModules, action);
 
   const addDestination = (destination: CompanySearchDestination): void => {
     if (seen.has(destination.path)) return;
@@ -601,8 +626,21 @@ export function companySearchDestinations({
       ) {
         continue;
       }
-      if (item.label === 'Recruitment' && (!isHr || !hasRecruitment)) continue;
-      if ((item.label === 'Access Explorer' || item.label === 'Geofencing') && !isSuperAdmin) continue;
+      if (group.label === 'Recruitment' && (!hasRecruitment || !(isHr || hasRecruitmentViewAction(actions)))) continue;
+      // Access Explorer follows its access:view requirement below. The Organization
+      // workspace edits as well as reads, so its routes stay super-admin only.
+      if (item.label === 'Geofencing' && !isSuperAdmin) continue;
+      if (item.path.startsWith('/company/organization') && !isSuperAdmin) continue;
+      const pathModule = MODULE_BY_PATH[item.path];
+      if (pathModule && !moduleOn(pathModule)) continue;
+      if (item.requiredAction && !actionModuleOn(item.requiredAction)) continue;
+      if (
+        item.requiredAnyAction &&
+        item.requiredAnyAction.length > 0 &&
+        !item.requiredAnyAction.some(actionModuleOn)
+      ) {
+        continue;
+      }
       if (item.requiredAction && !isSuperAdmin && !actions.has(item.requiredAction))
         continue;
       if (
@@ -637,6 +675,9 @@ export function companySearchDestinations({
     destination: Omit<CompanySearchDestination, 'keywords'> & { keywords?: readonly string[] },
     requiredActions: readonly Action[] = [],
   ): void => {
+    if (requiredActions.length > 0 && !requiredActions.some(actionModuleOn)) return;
+    const pathModule = MODULE_BY_PATH[destination.path];
+    if (pathModule && !moduleOn(pathModule)) return;
     if (!isSuperAdmin && requiredActions.length > 0 && !requiredActions.some((action) => actions.has(action))) return;
     addDestination({
       ...destination,

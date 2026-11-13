@@ -5,6 +5,7 @@ import type { Scope } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
+import { withPeopleReach } from '../people-reach.js';
 
 export const makeLeaveTypeResource = (id: string, organizationId: string) =>
   ({ type: 'leaveType' as const, id, organizationId });
@@ -27,7 +28,7 @@ const leaveTypePolicy: ResourcePolicy = {
   initiatorField: () => null,
 };
 
-const leaveRequestPolicy: ResourcePolicy = {
+const baseLeaveRequestPolicy: ResourcePolicy = {
   resourceType: 'leaveRequest',
   domain: 'people',
   async check(ctx: PolicyEvaluationContext, action: Action, resource) {
@@ -87,6 +88,8 @@ const leaveRequestPolicy: ResourcePolicy = {
   initiatorField: (action) =>
     action === 'leave:acknowledge' || action === 'leave:decide' ? 'requestedBy' : null,
 };
+
+const leaveRequestPolicy: ResourcePolicy = withPeopleReach(baseLeaveRequestPolicy, { subjects: ['userId'], columns: ['user_id'] });
 
 export function registerLeavePolicies(): void {
   registerResourcePolicy(leaveTypePolicy);

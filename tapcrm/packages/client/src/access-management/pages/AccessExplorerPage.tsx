@@ -176,9 +176,10 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
     void Promise.all([
       getOverrideOverview().then((result) => setOverrides(result.overrides)),
       selectedUserId
-        ? getDelegationOptions(selectedUserId).then((result) =>
-            setDelegationOptions(result.options),
-          )
+        ? getDelegationOptions(selectedUserId)
+            .then((result) => setDelegationOptions(result.options))
+            // Granting needs access:delegate; viewers without it still see overrides.
+            .catch(() => setDelegationOptions([]))
         : Promise.resolve(),
     ])
       .catch(setError)

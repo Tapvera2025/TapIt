@@ -59,7 +59,7 @@ const toProject = (row: ProjectRow): PortalProject => ({
 
 export async function findProfile(ctx: RequestContext, clientId: string): Promise<PortalProfile | null> {
   return db.maybeOne<PortalProfile>(ctx, sql`
-    SELECT c.client_name, c.business_name, c.email, c.region, c.timezone, o.name AS "organizationName"
+    SELECT c.id AS "clientId", c.client_name, c.business_name, c.email, c.region, c.timezone, o.name AS "organizationName"
     FROM client c
     JOIN organization o ON o.id = c.organization_id
     WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${clientId} AND c.status = 'active'

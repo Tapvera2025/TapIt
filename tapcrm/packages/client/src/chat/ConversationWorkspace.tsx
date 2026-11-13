@@ -87,6 +87,7 @@ export function ConversationWorkspace({
   onNewClick,
   newLabel = 'New',
   headerExtra,
+  listToolbar,
   hideList = false,
   initialConversationId,
   initialMessageId,
@@ -105,6 +106,8 @@ export function ConversationWorkspace({
   onNewClick?: () => void;
   newLabel?: string;
   headerExtra?: (conversation: Conversation) => ReactNode;
+  /** Shown under the list's title, e.g. Internal Groups' Active / Archived switch. */
+  listToolbar?: ReactNode;
   /** A project's Discussions tab has exactly one conversation to show — no list needed. */
   hideList?: boolean;
   /** A deep link (notification, search result, saved message): open this conversation. */
@@ -628,6 +631,7 @@ export function ConversationWorkspace({
             <p className="text-sm font-semibold">{title}</p>
             {onNewClick && <Button onClick={onNewClick} className="!px-3 !py-1.5 !text-xs">{newLabel}</Button>}
           </div>
+          {listToolbar && <div className="px-4 pb-3">{listToolbar}</div>}
           <div className="mx-4 h-px shrink-0 bg-app-border/70" />
           <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {chat.conversations.length === 0 && (
@@ -912,6 +916,8 @@ export function ConversationWorkspace({
                                 )}
                               </div>
 
+                          </div>
+
                               {openActionsFor === message.id && actionMenuPosition && createPortal(
                                 <>
                                   <div
@@ -1023,7 +1029,6 @@ export function ConversationWorkspace({
                                   </button>
                                 </div>
                               )}
-                            </div>
                           </li>
                         </Fragment>
                       );
@@ -1070,7 +1075,13 @@ export function ConversationWorkspace({
               />
             )}
 
-            {activeConversation && (
+            {activeConversation?.archivedAt && (
+              <p className="mx-3 mb-3 rounded-xl border border-app-border bg-app-surface-raised px-4 py-3 text-center text-sm text-app-muted sm:mx-4">
+                This group is archived. You can read it, but no new messages can be sent.
+              </p>
+            )}
+
+            {activeConversation && !activeConversation.archivedAt && (
               <Composer
                 conversation={activeConversation}
                 kind={kind}

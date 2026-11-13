@@ -134,6 +134,13 @@ describe('One Facebook login for Pages and their Instagram accounts', () => {
       publishVideo: true,
     });
     expect(JSON.stringify(accounts.map((item) => item.metadata))).not.toContain('token');
+    // Each keeps the Page's own token for its location: never the user's, never an expiry.
+    for (const account of accounts)
+      expect(account.locationCredentials).toEqual({
+        accessToken: 'page-token-101',
+        scopes: userToken.scopes,
+        metadata: { pageId: '101' },
+      });
   });
 
   it('leaves out Instagram accounts when the login declined Instagram access', async () => {

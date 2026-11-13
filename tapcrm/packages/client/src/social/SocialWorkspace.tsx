@@ -55,6 +55,7 @@ interface AccountSelection {
   clientId: string;
   platform: SocialPlatform;
   state: string;
+  expiresInMinutes?: number;
   candidates: SocialConnectionCandidate[];
 }
 
@@ -67,6 +68,7 @@ export function SocialWorkspace({
   canPublish,
   canSettings,
   canManageIntegrations,
+  canViewSeo = false,
 }: {
   pathname: string;
   onNavigate: (path: string) => void;
@@ -77,6 +79,8 @@ export function SocialWorkspace({
   canSettings: boolean;
   /** Connect the company's own logins and assign what they manage to clients. */
   canManageIntegrations: boolean;
+  /** Can open the SEO dashboard, where Google Search reporting lives. */
+  canViewSeo?: boolean;
 }): React.JSX.Element {
   const sectionPart =
     pathname.replace(/^\/company\/social\/?/, '').split('/')[0] || 'overview';
@@ -301,13 +305,17 @@ export function SocialWorkspace({
     }
   }
 
+  // Accounts another client already uses cannot be chosen: each serves one client.
+  const available = (accountSelection?.candidates ?? []).filter(
+    (candidate) => !candidate.assignedTo,
+  );
   const title = sections.find((item) => item.id === section)?.label ?? 'Overview';
   return (
     <Page
       eyebrow="Manage Social Media"
       title={title}
       description={section === 'analytics'
-        ? 'Google Search performance, indexing status and native social analytics for this client.'
+        ? 'Native analytics for this client’s social channels.'
         : 'Plan, review and publish content for every client from one workspace.'}
       action={
         canManage && section !== 'create' && section !== 'connections' && section !== 'analytics' ? (
@@ -451,8 +459,7 @@ export function SocialWorkspace({
               clientId={client.id}
               timezone={settings.timezone}
               canManage={canManage}
-              canManageIntegrations={canManageIntegrations}
-              onManageConnections={() => navigate('connections')}
+              {...(canViewSeo ? { onOpenSeoDashboard: () => onNavigate('/company/seo-intelligence/search-console') } : {})}
             />
           )}
           {section === 'settings' && (
@@ -499,7 +506,8 @@ export function SocialWorkspace({
               <strong className="text-app-foreground">
                 {client?.businessName || client?.clientName || 'this client'}
               </strong>
-              . This authorization expires after 10 minutes.
+              . This authorization expires after{' '}
+              {accountSelection.expiresInMinutes ?? 10} minutes.
             </p>
             {selectionError && <Notice error>{selectionError}</Notice>}
             {accountSelection.candidates.length ? (
@@ -514,21 +522,21 @@ export function SocialWorkspace({
                 />
                 <div className="flex items-center justify-between pb-1">
                   <span className="text-xs text-app-muted">
-                    {selectedExternalIds.length} of {accountSelection.candidates.length} selected
+                    {selectedExternalIds.length} of {available.length} selected
                   </span>
                   <button
                     type="button"
-                    disabled={connecting}
+                    disabled={connecting || !available.length}
                     className="text-xs font-medium text-app-accent hover:underline disabled:opacity-50"
                     onClick={() =>
                       setSelectedExternalIds(
-                        selectedExternalIds.length === accountSelection.candidates.length
+                        selectedExternalIds.length === available.length
                           ? []
-                          : accountSelection.candidates.map((c) => c.externalId),
+                          : available.map((c) => c.externalId),
                       )
                     }
                   >
-                    {selectedExternalIds.length === accountSelection.candidates.length
+                    {selectedExternalIds.length === available.length && available.length
                       ? 'Deselect all'
                       : 'Select all'}
                   </button>
@@ -542,11 +550,11 @@ export function SocialWorkspace({
                   .map((candidate) => (
                   <label
                     key={candidate.externalId}
-                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-app-border p-3"
+                    className={`flex items-center gap-3 rounded-xl border border-app-border p-3 ${candidate.assignedTo ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                   >
                     <input
                       type="checkbox"
-                      disabled={connecting}
+                      disabled={connecting || Boolean(candidate.assignedTo)}
                       checked={selectedExternalIds.includes(candidate.externalId)}
                       onChange={(event) =>
                         setSelectedExternalIds((current) =>
@@ -562,7 +570,13 @@ export function SocialWorkspace({
                         {candidate.name}
                       </span>
                       <span className="text-xs text-app-muted">
-                        {candidate.externalId}
+                        {candidate.assignedTo
+                          ? candidate.assignedTo.viaClientPortal
+                            ? 'Connected by this client from their portal'
+                            : candidate.assignedTo.viaCompany
+                              ? `Assigned to ${candidate.assignedTo.clientName ?? 'another client'} through a company login`
+                              : `Already connected to ${candidate.assignedTo.clientName ?? 'another client'}`
+                          : candidate.externalId}
                       </span>
                     </span>
                   </label>

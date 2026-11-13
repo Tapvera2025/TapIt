@@ -695,7 +695,8 @@ describe('Task policy authorization', () => {
       expect(filter.sql).toContain('u.team_id = ANY($1::uuid[])');
       expect(filter.sql).toContain('t.created_by');
       expect(filter.sql).toContain('task_assignee');
-      expect(filter.parameters).toEqual([['team-A', 'team-B', 'team-C']]);
+      // Team columns first, then the people route (the caller is always in scope).
+      expect(filter.parameters).toEqual([['team-A', 'team-B', 'team-C'], [ctx.principal.id]]);
     });
 
     it('TEST 7 (empty teams): generates MATCH_NOTHING when user has no teamIds', async () => {
@@ -704,7 +705,10 @@ describe('Task policy authorization', () => {
         resolvedTeamIds: [],
       });
       const filter = await taskPolicy.filter(ctx, 'tasks:view', 'team');
-      expect(filter).toEqual(MATCH_NOTHING);
+      // No team to reach: never TRUE, and no team predicate. The caller's own
+      // tasks stay visible because the caller is always in their own scope.
+      expect(filter.sql).not.toContain('team_id');
+      expect(filter.parameters).toEqual([[ctx.principal.id]]);
     });
 
     it('TEST 3: generates a department scope SQL filter referencing creator and assignee departments', async () => {
@@ -717,7 +721,7 @@ describe('Task policy authorization', () => {
       expect(filter.sql).toContain('u.department_id = $1');
       expect(filter.sql).toContain('t.created_by');
       expect(filter.sql).toContain('task_assignee');
-      expect(filter.parameters).toEqual(['dept-A']);
+      expect(filter.parameters).toEqual(['dept-A', [ctx.principal.id]]);
     });
 
     it('TEST 8 (missing department in filter): generates MATCH_NOTHING when user has no departmentId', async () => {
@@ -726,7 +730,8 @@ describe('Task policy authorization', () => {
         resolvedDepartmentId: null,
       });
       const filter = await taskPolicy.filter(ctx, 'tasks:view', 'department');
-      expect(filter).toEqual(MATCH_NOTHING);
+      expect(filter.sql).not.toContain('department_id');
+      expect(filter.parameters).toEqual([[ctx.principal.id]]);
     });
 
     it('TEST 5: generates a pool scope SQL filter when pool members and pool IDs are present', async () => {

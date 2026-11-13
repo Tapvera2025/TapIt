@@ -11,6 +11,7 @@ const account = (id: string, platform: SocialAccount['platform']): SocialAccount
   profileImageUrl: null,
   status: 'connected',
   connectionScope: 'company',
+  connectionOrigin: 'agency',
   capabilities: [],
   scopes: [],
   connectedAt: '2026-11-01T00:00:00Z',

@@ -394,6 +394,269 @@ describe.skipIf(!enabled)(
       expect(detail.body.data.status).toBe('published');
     });
 
+    it('keeps publishing to Pages with their own tokens after the Facebook login expires', async () => {
+      // The Page's own token, as Meta discovery hands it to a company login. The
+      // Instagram account publishes with its Page's token.
+      const withPageToken = (item: ReturnType<typeof asset>, pageId: string) => ({
+        ...item,
+        locationCredentials: {
+          accessToken: `own-page-token-${pageId}`,
+          scopes: [],
+          metadata: { pageId },
+        },
+      });
+      const pages = () => [
+        withPageToken(
+          asset('facebook', '101', 'Acme Dental Clinic', { tasks: ['CREATE_CONTENT'] }),
+          '101',
+        ),
+        withPageToken(
+          asset('instagram', '17841', 'Acme Dental', {
+            pageId: '101',
+            username: 'acmedental',
+          }),
+          '101',
+        ),
+        withPageToken(
+          asset('facebook', '102', 'Zen Yoga', { tasks: ['CREATE_CONTENT'] }),
+          '102',
+        ),
+        withPageToken(
+          asset('facebook', '103', 'Corner Bakery', { tasks: ['CREATE_CONTENT'] }),
+          '103',
+        ),
+      ];
+      fake.discover.mockResolvedValueOnce(pages());
+      const refreshed = await request(app)
+        .post(`${company}/${metaConnection}/sync`)
+        .set(headers())
+        .send({});
+      expect(refreshed.status).toBe(201);
+      const sealed = await adminQuery<{
+        externalId: string;
+        credentialsEncrypted: string | null;
+      }>(
+        sql`SELECT external_id, credentials_encrypted FROM social_connection_location WHERE connection_id = ${metaConnection} ORDER BY external_id`,
+      );
+      expect(sealed.every((row) => row.credentialsEncrypted?.startsWith('v1.'))).toBe(
+        true,
+      );
+      expect(JSON.stringify(sealed)).not.toContain('own-page-token');
+
+      // Meta stops accepting the login's user token (its ~60 days are up).
+      fake.discover.mockRejectedValueOnce(
+        new ProviderError('CONNECTION_REVOKED', 'Authorization expired', {
+          reconnectRequired: true,
+        }),
+      );
+      expect(
+        (
+          await request(app)
+            .post(`${company}/${metaConnection}/sync`)
+            .set(headers())
+            .send({})
+        ).status,
+      ).toBe(422);
+      const [login] = await adminQuery<{ status: string }>(
+        sql`SELECT status FROM social_connection WHERE id = ${metaConnection}`,
+      );
+      expect(login!.status).toBe('reconnect_required');
+      const accounts = await clientAccounts(acme);
+      expect(accounts.map((item) => item.status)).toEqual(['connected', 'connected']);
+
+      // The Page still publishes, with its own token rather than the expired one.
+      const facebook = accounts.find((item) => item.platform === 'facebook')!;
+      const instagram = accounts.find((item) => item.platform === 'instagram')!;
+      const post = async (accountId: string, caption: string) => {
+        const created = await request(app)
+          .post(`${workspace(acme)}/posts`)
+          .set(headers(owner))
+          .send({ caption, accountIds: [accountId], mediaIds: [], intent: 'draft' });
+        expect(created.status).toBe(201);
+        expect(
+          (
+            await request(app)
+              .post(`${workspace(acme)}/posts/${created.body.data.id}/publish`)
+              .set(headers(owner))
+              .send({})
+          ).status,
+        ).toBe(201);
+        await runPublishingSweep(jobCtx());
+      };
+      fake.publish.mockClear();
+      fake.publish.mockResolvedValueOnce({ externalPostId: 'fb-post-1' });
+      await post(facebook.id, 'Still posting');
+      expect(fake.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          account: expect.objectContaining({ platform: 'facebook', externalId: '101' }),
+          credentials: expect.objectContaining({ accessToken: 'own-page-token-101' }),
+        }),
+      );
+
+      // A Page token refused by Meta needs a reconnect for that account only.
+      fake.publish.mockRejectedValueOnce(
+        new ProviderError('CONNECTION_REVOKED', 'Authorization expired', {
+          reconnectRequired: true,
+        }),
+      );
+      await post(instagram.id, 'Refused');
+      const after = await clientAccounts(acme);
+      expect(after.find((item) => item.platform === 'instagram')!.status).toBe(
+        'reconnect_required',
+      );
+      expect(after.find((item) => item.platform === 'facebook')!.status).toBe(
+        'connected',
+      );
+
+      // Signing in again heals the login and everything that waited for it.
+      const healed = await connect({
+        platform: 'facebook',
+        sub: '5550001',
+        name: 'Riya at Agency A',
+        token: 'meta-user-token-2',
+        assets: pages(),
+      });
+      expect(healed.status).toBe(201);
+      expect(healed.body.data).toMatchObject({ id: metaConnection, status: 'connected' });
+      expect((await clientAccounts(acme)).map((item) => item.status)).toEqual([
+        'connected',
+        'connected',
+      ]);
+    });
+
+    it('flags every connection of a Facebook login when one of them revokes its grant', async () => {
+      // A client sign-in made with the same Facebook user as the company login.
+      fake.exchange.mockResolvedValueOnce({
+        accessToken: 'riya-user-token',
+        scopes: [],
+        metadata: { tokenType: 'user' },
+      });
+      fake.discover.mockResolvedValueOnce([
+        asset('facebook', '999', 'Zen Studio', { tasks: ['CREATE_CONTENT'] }),
+      ]);
+      fake.identity.mockResolvedValueOnce({
+        externalAccountId: '5550001',
+        name: 'Riya at Agency A',
+      });
+      const started = await request(app)
+        .post(`${workspace(zen)}/oauth/facebook/start`)
+        .set(headers())
+        .send({});
+      expect(started.status).toBe(201);
+      const state = new URL(
+        started.body.data.authorizationUrl as string,
+      ).searchParams.get('state')!;
+      const cookie = (started.headers['set-cookie'] as unknown as string[])[0]!.split(
+        ';',
+      )[0]!;
+      expect(
+        (
+          await request(app)
+            .post(`${workspace(zen)}/oauth/facebook/complete`)
+            .set(headers())
+            .set('Cookie', cookie)
+            .send({ code: 'code', state })
+        ).status,
+      ).toBe(201);
+      const selected = await request(app)
+        .post(`${workspace(zen)}/oauth/facebook/select`)
+        .set(headers())
+        .send({ state, accountIds: ['999'] });
+      expect(selected.status).toBe(201);
+      const studio = (selected.body.data as { id: string; externalId: string }[]).find(
+        (item) => item.externalId === '999',
+      )!;
+      const [recorded] = await adminQuery<{ externalAccountId: string | null }>(
+        sql`SELECT c.external_account_id FROM social_account a JOIN social_connection c ON c.id = a.connection_id WHERE a.id = ${studio.id}`,
+      );
+      expect(recorded!.externalAccountId).toBe('5550001');
+
+      // Revoking removes the app for the whole Facebook user at Meta.
+      fake.revoke.mockResolvedValueOnce(undefined);
+      const revoked = await request(app)
+        .delete(`${workspace(zen)}/accounts/${studio.id}`)
+        .set(headers())
+        .send({ revokeGrant: true });
+      expect(revoked.status).toBe(200);
+      expect(revoked.body.data).toMatchObject({
+        revocationStatus: 'revoked',
+        othersNeedReconnect: 1,
+      });
+      const [login] = await adminQuery<{ status: string }>(
+        sql`SELECT status FROM social_connection WHERE id = ${metaConnection}`,
+      );
+      expect(login!.status).toBe('reconnect_required');
+      // Pages publishing with their own tokens too: those were read with the same grant.
+      expect((await clientAccounts(acme)).map((item) => item.status)).toEqual([
+        'reconnect_required',
+        'reconnect_required',
+      ]);
+
+      const healed = await connect({
+        platform: 'facebook',
+        sub: '5550001',
+        name: 'Riya at Agency A',
+        token: 'meta-user-token-3',
+        assets: [
+          asset('facebook', '101', 'Acme Dental Clinic', { tasks: ['CREATE_CONTENT'] }),
+          asset('instagram', '17841', 'Acme Dental', {
+            pageId: '101',
+            username: 'acmedental',
+          }),
+          asset('facebook', '102', 'Zen Yoga', { tasks: ['CREATE_CONTENT'] }),
+          asset('facebook', '103', 'Corner Bakery', { tasks: ['CREATE_CONTENT'] }),
+        ],
+      });
+      expect(healed.status).toBe(201);
+      expect((await clientAccounts(acme)).map((item) => item.status)).toEqual([
+        'connected',
+        'connected',
+      ]);
+    });
+
+    it('moves a Page between clients in one step, and never takes a client’s own sign-in', async () => {
+      const listed = await locations(metaConnection);
+      const page = (externalId: string) =>
+        listed.find((item) => item.externalId === externalId)!;
+      const bakery = page('103');
+      expect((await assign(metaConnection, bakery.id, acme)).status).toBe(200);
+      // Without asking for a move, the Page stays where it is.
+      expect((await assign(metaConnection, bakery.id, zen)).status).toBe(409);
+      const moved = await request(app)
+        .put(`${company}/${metaConnection}/locations/${bakery.id}/client`)
+        .set(headers())
+        .send({ clientId: zen, move: true });
+      expect(moved.status).toBe(200);
+      expect(moved.body.data.assignment).toMatchObject({
+        clientId: zen,
+        via: 'company_connection',
+      });
+      expect(
+        (await clientAccounts(acme)).find((item) => item.externalId === '103')!.status,
+      ).toBe('disconnected');
+      expect(
+        (await clientAccounts(zen)).find((item) => item.externalId === '103')!.status,
+      ).toBe('connected');
+      expect((await assign(metaConnection, bakery.id, null)).status).toBe(200);
+
+      // Zen connected the Zen Yoga Page with its own sign-in: a move cannot take it.
+      const [own] = await adminQuery<{ id: string }>(
+        sql`INSERT INTO social_connection(organization_id,client_id,platform,credentials_encrypted,created_by) VALUES (${org},${zen},'facebook',NULL,${owner}) RETURNING id`,
+      );
+      const [ownAccount] = await adminQuery<{ id: string }>(
+        sql`INSERT INTO social_account(organization_id,client_id,connection_id,platform,external_id,name) VALUES (${org},${zen},${own!.id},'facebook','102','Zen Yoga') RETURNING id`,
+      );
+      const refused = await request(app)
+        .put(`${company}/${metaConnection}/locations/${page('102').id}/client`)
+        .set(headers())
+        .send({ clientId: acme, move: true });
+      expect(refused.status).toBe(409);
+      expect(refused.body.message).toMatch(/own sign-in/);
+      await adminQuery(
+        sql`UPDATE social_account SET status = 'disconnected' WHERE id = ${ownAccount!.id}`,
+      );
+    });
+
     let googleConnection = '';
     it('lists Search Console properties from a Google login and assigns each to one client', async () => {
       fake.properties.mockResolvedValueOnce([
@@ -439,10 +702,12 @@ describe.skipIf(!enabled)(
         via: 'company_connection',
       });
       // A property is read, never published to: it is not a client account.
-      expect((await clientAccounts(acme)).map((item) => item.platform).sort()).toEqual([
-        'facebook',
-        'instagram',
-      ]);
+      expect(
+        (await clientAccounts(acme))
+          .filter((item) => item.status !== 'disconnected')
+          .map((item) => item.platform)
+          .sort(),
+      ).toEqual(['facebook', 'instagram']);
       // One client per property.
       expect((await assign(googleConnection, domain.id, zen)).status).toBe(409);
       const logins = (await request(app).get(company).set(headers())).body.data as {

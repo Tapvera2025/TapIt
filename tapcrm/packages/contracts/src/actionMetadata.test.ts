@@ -15,7 +15,7 @@ import {
 
 describe('canonical action presentation metadata', () => {
   it('provides catalogue presentation data for every registered action', () => {
-    expect(ACTIONS).toHaveLength(241);
+    expect(ACTIONS).toHaveLength(242);
     for (const action of ACTIONS) {
       const definition = REGISTRY[action];
       expect(actionDescription(definition)).not.toBe('');
@@ -41,6 +41,8 @@ describe('canonical action presentation metadata', () => {
     expect(protectedCapabilityReason(REGISTRY['leads:view'])).toBeNull();
     expect(isPositionPolicyGrantable(REGISTRY['access:decide-role-change'])).toBe(false);
     expect(isPositionPolicyGrantable(REGISTRY['billing:set-terms'])).toBe(false);
+    // Held only through the fixed client-principal policy set, never by a Position.
+    expect(isPositionPolicyGrantable(REGISTRY['social:connect-own-accounts'])).toBe(false);
     expect(isPositionPolicyGrantable(REGISTRY['users:view'])).toBe(true);
 
     for (const action of ACTIONS) {

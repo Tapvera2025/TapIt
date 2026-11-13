@@ -6,6 +6,22 @@ export const SEO_TABS = [
     sections: [{ id: 'overview', label: 'Overview' }],
   },
   {
+    id: 'keyword-search',
+    label: 'Keyword search',
+    icon: 'compass',
+    sections: [{ id: 'keyword-search', label: 'Keyword search' }],
+  },
+  {
+    id: 'projects',
+    label: 'Projects',
+    icon: 'briefcase',
+    sections: [
+      { id: 'project-keywords', label: 'Keywords & rankings' },
+      { id: 'project-blogs', label: 'Blog links' },
+      { id: 'project-backlinks', label: 'Backlinks & off-page' },
+    ],
+  },
+  {
     id: 'website',
     label: 'Website health',
     icon: 'shield',
@@ -21,6 +37,7 @@ export const SEO_TABS = [
     icon: 'search',
     sections: [
       { id: 'search-performance', label: 'Google traffic' },
+      { id: 'search-console', label: 'Search Console report' },
       { id: 'keywords', label: 'Search terms' },
       { id: 'rank-tracking', label: 'Google positions' },
       { id: 'ai-visibility', label: 'AI mentions' },
@@ -57,6 +74,29 @@ export const SEO_TABS = [
   },
 ] as const;
 export type SeoSection = (typeof SEO_TABS)[number]['sections'][number]['id'];
+/** Areas that do not belong to one website: they work without a website selected. */
+export const SITE_INDEPENDENT_SECTIONS: readonly SeoSection[] = [
+  'sites',
+  'rules',
+  'keyword-search',
+  'project-keywords',
+  'project-blogs',
+  'project-backlinks',
+];
+export function isProjectSection(section: SeoSection): boolean {
+  return section === 'project-keywords' || section === 'project-blogs' || section === 'project-backlinks';
+}
+/** The SEO dashboard area a deep link names: /company/seo-intelligence/<area>[/<id>]. */
+export function sectionFromPath(pathname: string): { section: SeoSection; id: string | null } | null {
+  const parts = pathname.replace(/^\/company\/seo-intelligence\/?/, '').split('/').filter(Boolean);
+  const [area, id] = parts;
+  if (!area) return null;
+  if (area === 'projects') return { section: 'project-keywords', id: id ?? null };
+  if (area === 'keyword-search') return { section: 'keyword-search', id: null };
+  if (area === 'search-console') return { section: 'search-console', id: null };
+  const known = SEO_TABS.flatMap((tab) => tab.sections.map((item) => item.id as string));
+  return known.includes(area) ? { section: area as SeoSection, id: null } : null;
+}
 export function seoTabForSection(section: SeoSection) {
   return (
     SEO_TABS.find((tab) => tab.sections.some((item) => item.id === section)) ??

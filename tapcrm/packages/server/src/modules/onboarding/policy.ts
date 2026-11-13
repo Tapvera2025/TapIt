@@ -7,8 +7,9 @@ import {
   type SqlFragment,
 } from '@tapcrm/authz';
 import type { Action, Scope } from '@tapcrm/contracts';
+import { withPeopleReach } from '../people-reach.js';
 
-export const onboardingWorkflowPolicy: ResourcePolicy = {
+const baseOnboardingWorkflowPolicy: ResourcePolicy = {
   resourceType: 'onboardingWorkflow',
   domain: 'people',
 
@@ -82,6 +83,11 @@ export const onboardingWorkflowPolicy: ResourcePolicy = {
     return null;
   },
 };
+
+export const onboardingWorkflowPolicy: ResourcePolicy = withPeopleReach(baseOnboardingWorkflowPolicy, {
+  subjects: ['employeeId'],
+  columns: ['w.employee_id'],
+});
 
 export function registerOnboardingPolicies(): void {
   registerResourcePolicy(onboardingWorkflowPolicy);

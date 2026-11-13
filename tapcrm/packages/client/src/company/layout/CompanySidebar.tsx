@@ -73,7 +73,7 @@ const GROUP_ICONS: Record<string, string> = {
   Overview: 'grid',
   Communication: 'message',
   Organization: 'building',
-  People: 'users',
+  'Employee Activities': 'users',
   Delivery: 'briefcase',
   Sales: 'dollar-sign',
   Attendance: 'clock',
@@ -137,8 +137,11 @@ export function CompanySidebar({
   canViewExpenses = false,
   canApproveExpenses = false,
   isHr = false,
+  canViewRecruitment = false,
+  canViewAccessExplorer = false,
   hasRecruitment = false,
   hasInterviews = false,
+  enabledModules,
   onNavigate,
   onLogout,
   open,
@@ -207,7 +210,13 @@ export function CompanySidebar({
   canViewExpenses?: boolean;
   canApproveExpenses?: boolean;
   isHr?: boolean;
+  /** A held recruitment view power opens Recruitment for non-HR users. */
+  canViewRecruitment?: boolean;
+  /** A held access:view power opens Access Explorer for non-super-admins. */
+  canViewAccessExplorer?: boolean;
   hasRecruitment?: boolean;
+  /** Modules enabled for the company; omitted means every module is offered. */
+  enabledModules?: readonly string[];
   /** Shown only while this user has interviews (assigned rounds or panels). */
   hasInterviews?: boolean;
   onNavigate: (path: string) => void;
@@ -220,7 +229,8 @@ export function CompanySidebar({
   onResize?: (width: number) => void;
 }): React.JSX.Element {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
-    Organization: pathname.startsWith('/company/organization'),
+    Organization: pathname.startsWith('/company/organization') || pathname === '/company/employees',
+    Recruitment: pathname.startsWith('/company/recruitment'),
   }));
 
   const toggleSection = (label: string) => {
@@ -234,9 +244,16 @@ export function CompanySidebar({
     });
   };
 
-  const [recruitmentOpen, setRecruitmentOpen] = useState(
-    pathname.startsWith('/company/recruitment'),
-  );
+  const toggleNavItem = (label: string) => {
+    setExpandedItems((prev) => ({
+      ...prev,
+      [label]: !(prev[label] ?? true),
+    }));
+  };
+
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(() => ({
+    Recruitment: pathname.startsWith('/company/recruitment'),
+  }));
   const prevPathnameRef = useRef(pathname);
   const navigationRef = useRef<HTMLElement>(null);
   const activeNavIndicatorRef = useRef<HTMLDivElement>(null);
@@ -259,10 +276,6 @@ export function CompanySidebar({
   const [isDraggingSidebarPill, setIsDraggingSidebarPill] = useState(false);
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
-  const roleLabel = identity.accountType === 'super-admin'
-    ? 'Super Admin'
-    : identity.positionName || identity.positionCode || 'Employee';
-
   const restoreActiveSidebarPill = () => {
     const navigation = navigationRef.current;
     const indicator = activeNavIndicatorRef.current;
@@ -388,7 +401,7 @@ export function CompanySidebar({
           const rect = entry.button.getBoundingClientRect();
           const dx = centerX - (rect.left + rect.width / 2);
           const dy = centerY - (rect.top + rect.height / 2);
-          return { path, label: entry.label, distance: dx * dx + dy * dy };
+          return { path, label: entry.label, button: entry.button, distance: dx * dx + dy * dy };
         })
         .sort((a, b) => a.distance - b.distance)[0];
 
@@ -397,10 +410,24 @@ export function CompanySidebar({
         window.setTimeout(() => {
           suppressSidebarClickRef.current = false;
         }, 600);
-        if (nearest.label === 'Recruitment') setRecruitmentOpen(true);
+        if (nearest.label === 'Recruitment') {
+          setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
+        }
         onNavigate(nearest.path);
         onClose();
-        syncActiveSidebarPill();
+        // Snap to the released item immediately. The route state updates
+        // asynchronously, so syncing from aria-current here can briefly read
+        // the old item and leave the pill visually stranded between rows.
+        const targetRect = nearest.button.getBoundingClientRect();
+        const navRect = navigation.getBoundingClientRect();
+        indicator.style.setProperty('--sidebar-pill-top', `${targetRect.top - navRect.top + navigation.scrollTop}px`);
+        indicator.style.setProperty('--sidebar-pill-left', `${targetRect.left - navRect.left + navigation.scrollLeft}px`);
+        indicator.style.setProperty('--sidebar-pill-width', `${targetRect.width}px`);
+        indicator.style.setProperty('--sidebar-pill-height', `${targetRect.height}px`);
+        indicator.style.opacity = '1';
+        setIsActiveNavMoving(true);
+        if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
         if (nearest.path === pathname) shouldRestore = true;
       } else {
         shouldRestore = true;
@@ -426,7 +453,7 @@ export function CompanySidebar({
     const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
     const isRecruitment = pathname.startsWith('/company/recruitment');
     if (!wasRecruitment && isRecruitment) {
-      setRecruitmentOpen(true);
+      setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
     }
     if (pathname.startsWith('/company/organization')) {
       setOpenSections((prev) => (prev['Organization'] ? prev : { ...prev, Organization: true }));
@@ -498,6 +525,8 @@ export function CompanySidebar({
   );
 
   const isSuperAdmin = accountType === 'super-admin';
+  // Module-backed items disappear when the company has the module switched off.
+  const moduleOn = (key: string): boolean => !enabledModules || enabledModules.includes(key);
   const { activePet } = useAiPet();
   const { accent } = useTheme();
   const { total: unreadMessages } = useChatUnread();
@@ -554,78 +583,71 @@ export function CompanySidebar({
         myNotepadNavItem,
       ],
     },
-    ...(isSuperAdmin
+    ...(isSuperAdmin || canViewEmployees
       ? [
           {
             label: 'Organization',
             items: [
-              { label: 'Overview', path: '/company/organization', icon: 'grid' },
-              {
-                label: 'Departments',
-                path: '/company/organization/departments',
-                icon: 'building',
-              },
-              { label: 'Teams', path: '/company/organization/teams', icon: 'users' },
-              {
-                label: 'Positions',
-                path: '/company/organization/positions',
-                icon: 'briefcase',
-              },
-              {
-                label: 'Designations',
-                path: '/company/organization/designations',
-                icon: 'briefcase',
-              },
-              {
-                label: 'Reporting',
-                path: '/company/organization/reporting',
-                icon: 'users',
-              },
-              {
-                label: 'Org Chart',
-                path: '/company/organization/org-chart',
-                icon: 'hierarchy',
-              },
+              ...(canViewEmployees || isSuperAdmin
+                ? [{ label: 'Employees', path: '/company/employees', icon: 'users' }]
+                : []),
+              ...(isSuperAdmin
+                ? [
+                    { label: 'Overview', path: '/company/organization', icon: 'grid' },
+                    {
+                      label: 'Departments',
+                      path: '/company/organization/departments',
+                      icon: 'building',
+                    },
+                    { label: 'Teams', path: '/company/organization/teams', icon: 'users' },
+                    {
+                      label: 'Positions',
+                      path: '/company/organization/positions',
+                      icon: 'briefcase',
+                    },
+                    {
+                      label: 'Designations',
+                      path: '/company/organization/designations',
+                      icon: 'briefcase',
+                    },
+                    {
+                      label: 'Reporting',
+                      path: '/company/organization/reporting',
+                      icon: 'users',
+                    },
+                    {
+                      label: 'Org Chart',
+                      path: '/company/organization/org-chart',
+                      icon: 'hierarchy',
+                    },
+                  ]
+                : []),
             ],
           },
         ]
       : []),
-    ...(isHr || canViewEmployees || isSuperAdmin
+    ...(isSuperAdmin
       ? [
           {
-            label: 'People',
+            label: 'Employee Activities',
             items: [
-              { label: 'Employees', path: '/company/employees', icon: 'users' },
-              ...(isSuperAdmin
-                ? [
-                    {
-                      label: 'Employee Notes',
-                      path: '/company/employee-notes',
-                      icon: 'notepad',
-                    },
-                  ]
-                : []),
-              ...(isHr && hasRecruitment
-                ? [
-                    {
-                      label: 'Recruitment',
-                      path: '/company/recruitment',
-                      icon: 'briefcase',
-                      children: [
-                        { label: 'Overview', path: '/company/recruitment' },
-                        {
-                          label: 'Requisitions',
-                          path: '/company/recruitment/requisitions',
-                        },
-                        { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
-                        { label: 'Candidates', path: '/company/recruitment/candidates' },
-                        { label: 'Interviews', path: '/company/recruitment/interviews' },
-                        { label: 'Offers', path: '/company/recruitment/offers' },
-                        { label: 'Joining', path: '/company/recruitment/joining' },
-                      ],
-                    },
-                  ]
-                : []),
+              { label: 'Employee Notes', path: '/company/employee-notes', icon: 'notepad' },
+            ],
+          },
+        ]
+      : []),
+    ...((isHr || canViewRecruitment) && hasRecruitment
+      ? [
+          {
+            label: 'Recruitment',
+            items: [
+              { label: 'Overview', path: '/company/recruitment', icon: 'grid' },
+              { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'clipboard-list' },
+              { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'inbox' },
+              { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'users' },
+              { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'calendar' },
+              { label: 'Offers', path: '/company/recruitment/offers', icon: 'file-text' },
+              { label: 'Joining', path: '/company/recruitment/joining', icon: 'user-plus' },
             ],
           },
         ]
@@ -687,16 +709,16 @@ export function CompanySidebar({
               ...(canViewLeads
                 ? [
                     {
-                      label: 'Leads',
+                      label: 'Lead Management',
                       path: '/company/sales/leads',
                       icon: 'users',
                       children: [
-                        { label: 'All leads', path: '/company/sales/leads' },
-                        { label: 'Bid Pool', path: '/company/sales/bid-pool' },
-                        { label: 'Stalled', path: '/company/sales/leads/stalled' },
-                        { label: 'Re-engagement', path: '/company/sales/leads/re-engagement' },
-                        ...(canTriageSales ? [{ label: 'Triage queue', path: '/company/sales/triage' }] : []),
-                        ...(canViewImports ? [{ label: 'Imported leads', path: '/company/sales/leads/imported' }] : []),
+                        { label: 'All Leads', path: '/company/sales/leads' },
+                        { label: 'Lead Pool', path: '/company/sales/bid-pool' },
+                        { label: 'Inactive Leads', path: '/company/sales/leads/stalled' },
+                        { label: 'Follow-up Required', path: '/company/sales/leads/re-engagement' },
+                        ...(canTriageSales ? [{ label: 'Needs Review', path: '/company/sales/triage' }] : []),
+                        ...(canViewImports ? [{ label: 'Imported Leads', path: '/company/sales/leads/imported' }] : []),
                       ],
                     },
                   ]
@@ -764,13 +786,13 @@ export function CompanySidebar({
     {
       label: 'Attendance',
       items: [
-        ...(accountType === 'employee'
+        ...(accountType === 'employee' && moduleOn('attendance')
           ? [
               { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
               { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
             ]
           : []),
-        ...(canViewAttendanceReports
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Employee Wise',
@@ -779,7 +801,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewAttendanceReports
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Attendance Report',
@@ -788,7 +810,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewAttendanceReports
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Daily Late Report',
@@ -797,7 +819,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewLiveBoard
+        ...(canViewLiveBoard && moduleOn('live-status')
           ? [
               {
                 label: 'Workforce Board',
@@ -841,7 +863,7 @@ export function CompanySidebar({
     {
       label: 'Shifts & Leave',
       items: [
-        { label: 'My Leave', path: '/company/leave/my', icon: 'sun' },
+        ...(moduleOn('leave') ? [{ label: 'My Leave', path: '/company/leave/my', icon: 'sun' }] : []),
         ...(canUseLeaveQueue
           ? [{ label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox' }]
           : []),
@@ -851,7 +873,7 @@ export function CompanySidebar({
         ...(canManageLeaveTypes
           ? [{ label: 'Leave Types', path: '/company/leave/types', icon: 'settings' }]
           : []),
-        { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
+        ...(moduleOn('holidays') ? [{ label: 'Holidays', path: '/company/holidays', icon: 'flag' }] : []),
         ...(canManageShifts
           ? [
               { label: 'Shifts', path: '/company/shifts', icon: 'layers' },
@@ -940,7 +962,9 @@ export function CompanySidebar({
     {
       label: 'Payroll',
       items: [
-        { label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text' },
+        ...(moduleOn('payroll')
+          ? [{ label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text' }]
+          : []),
         ...(canManagePayroll
           ? [
               {
@@ -994,13 +1018,13 @@ export function CompanySidebar({
       label: 'Identity & Access',
       items: [
         { label: 'Sessions & Devices', path: '/company/sessions', icon: 'monitor' },
-        ...(isSuperAdmin
+        ...(isSuperAdmin || canViewAccessExplorer
           ? [{ label: 'Access Explorer', path: '/company/access', icon: 'shield' }]
           : []),
         ...(isSuperAdmin || canViewAudit
           ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard-list' }]
           : []),
-        ...(isSuperAdmin
+        ...(isSuperAdmin && moduleOn('attendance')
           ? [{ label: 'Geofencing', path: '/company/geofencing', icon: 'pin' }]
           : []),
         ...(accountType === 'employee' && canRequestRoleChange
@@ -1028,6 +1052,7 @@ export function CompanySidebar({
             { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
             { label: 'Messages', path: '/client/messages', icon: 'message' },
             { label: 'Meetings', path: '/client/meetings', icon: 'calendar' },
+            { label: 'Social accounts', path: '/client/social', icon: 'share' },
           ],
         },
         {
@@ -1035,7 +1060,7 @@ export function CompanySidebar({
           items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
         },
       ]
-    : navigation;
+    : navigation.filter((group) => group.items.length > 0);
 
   return (
     <aside
@@ -1115,10 +1140,23 @@ export function CompanySidebar({
           const activeChild = group.items.some(
             (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
           );
+          // A nested destination owns the selection surface when it is active.
+          // Do not also mark an ancestor item as current, otherwise the shared
+          // desktop pill and the nested row both render as selected.
+          const hasActiveNestedDestination = group.items.some((item) =>
+            item.children?.some(
+              (sub) => pathname === sub.path || pathname.startsWith(`${sub.path}/`),
+            ),
+          );
+          const hasExactDestination = group.items.some(
+            (item) => pathname === item.path || item.children?.some((sub) => pathname === sub.path),
+          );
           const isOpen =
             openSections[group.label] ??
             (group.label === 'Organization'
-              ? pathname.startsWith('/company/organization')
+              ? pathname.startsWith('/company/organization') || pathname === '/company/employees'
+              : group.label === 'Recruitment'
+                ? pathname.startsWith('/company/recruitment')
               : true);
           return (
             <div
@@ -1144,14 +1182,16 @@ export function CompanySidebar({
               {isOpen && (
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
-                    const isRecruitmentItem = item.label === 'Recruitment';
                     const isRootRoute = variant === 'client'
                       ? item.path === '/client'
                       : item.path === '/company/organization';
                     const isActive = pathname === item.path ||
                       (!isRootRoute && pathname.startsWith(`${item.path}/`));
+                    const isTopLevelActive = isActive &&
+                      !hasActiveNestedDestination &&
+                      (!hasExactDestination || pathname === item.path);
                     const showChildren = Boolean(
-                      item.children && (isRecruitmentItem ? recruitmentOpen : true),
+                      item.children && (expandedItems[item.label] ?? true),
                     );
                     return (
                       <div key={item.path}>
@@ -1165,7 +1205,7 @@ export function CompanySidebar({
                               });
                             else navItemRefs.current.delete(item.path);
                           }}
-                          aria-current={isActive ? 'page' : undefined}
+                          aria-current={isTopLevelActive ? 'page' : undefined}
                           type="button"
                           aria-expanded={item.children ? showChildren : undefined}
                           onPointerDown={startSidebarPillDrag}
@@ -1174,13 +1214,13 @@ export function CompanySidebar({
                               suppressSidebarClickRef.current = false;
                               return;
                             }
-                            if (isRecruitmentItem) {
+                            if (item.children) {
                               if (!pathname.startsWith(item.path)) {
-                                setRecruitmentOpen(true);
+                                setExpandedItems((prev) => ({ ...prev, [item.label]: true }));
                                 onNavigate(item.path);
                                 onClose();
                               } else {
-                                setRecruitmentOpen((prev) => !prev);
+                                toggleNavItem(item.label);
                               }
                             } else {
                               onNavigate(item.path);
@@ -1188,7 +1228,7 @@ export function CompanySidebar({
                               syncActiveSidebarPill();
                             }
                           }}
-                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isTopLevelActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
                           title={collapsed ? item.label : undefined}
                         >
                           <span className="flex items-center gap-3">
@@ -1222,11 +1262,11 @@ export function CompanySidebar({
                         {showChildren && !collapsed && (
                           <div className="ml-7 mt-1 divide-y divide-sidebar-border/70 pl-2">
                             {item.children!.map((sub) => {
-                              const active =
-                                sub.path === '/company/recruitment'
-                                  ? pathname === sub.path
-                                  : pathname === sub.path ||
-                                    pathname.startsWith(`${sub.path}/`);
+                              // Child destinations are intentionally matched
+                              // exactly. A parent route such as
+                              // `/company/sales/leads` must not remain selected
+                              // when a deeper child route is active.
+                              const active = pathname === sub.path;
                               return (
                                 <button
                                   key={sub.path}
@@ -1236,7 +1276,7 @@ export function CompanySidebar({
                                     onNavigate(sub.path);
                                     onClose();
                                   }}
-                                  className={`w-full rounded-none px-3 py-2.5 text-left text-xs font-medium hover:text-sidebar-active-fg ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted'}`}
+                                  className={`w-full rounded-xl px-3 py-2.5 text-left text-xs font-medium hover:text-sidebar-active-fg ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted'}`}
                                 >
                                   {sub.label}
                                 </button>
@@ -1273,20 +1313,6 @@ export function CompanySidebar({
           <SidebarPet pet={activePet} />
         </div>
       )}
-      <div className={`mx-1 shrink-0 border-t border-sidebar-border/70 px-1 pt-4 pb-2 ${collapsed ? 'xl:mx-0 xl:px-0' : ''}`}>
-        <div
-          className={`sidebar-profile-card flex min-w-0 items-center gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-hover-bg/45 px-3 py-2.5 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
-          title={collapsed ? `${identity.fullName} · ${roleLabel}` : undefined}
-        >
-          <span className="sidebar-profile-avatar grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active-bg text-xs font-bold text-sidebar-active-fg">
-            {identity.fullName.trim().slice(0, 1).toUpperCase() || '?'}
-          </span>
-          <span className={`min-w-0 leading-tight ${collapsed ? 'xl:hidden' : ''}`}>
-            <span className="block truncate text-sm font-semibold leading-5 text-sidebar-foreground">{identity.fullName}</span>
-            <span className="mt-0.5 block truncate text-xs font-medium leading-4 text-sidebar-muted">{roleLabel}{identity.departmentName ? ` · ${identity.departmentName}` : ''}</span>
-          </span>
-        </div>
-      </div>
       <div className="shrink-0 border-t border-t-[color:var(--sidebar-border)] px-1 pt-3">
         <button
           type="button"

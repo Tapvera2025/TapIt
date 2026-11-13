@@ -100,6 +100,9 @@ const registry: RegistryActionDefinition[] = [
   },
 ];
 
+const registryByModule = new Map<string, RegistryActionDefinition[]>();
+for (const d of registry) registryByModule.set(d.module, [...(registryByModule.get(d.module) ?? []), d]);
+
 function fakeTx(
   initial: Array<{
     organizationId: string;
@@ -147,6 +150,7 @@ describe('default tenant position policies', () => {
       ['organization', 'projects'],
       [position],
       new Map([['dev-dept-head', 'position-new']]),
+      registryByModule,
     );
 
     expect(inserted).toBe(4);
@@ -199,6 +203,7 @@ describe('default tenant position policies', () => {
       ['organization'],
       [position],
       new Map([['dev-dept-head', 'position-new']]),
+      registryByModule,
     );
     const before = rows.get('org-new:position-new:org:view-structure');
     expect(before?.scope).toBe('own');
@@ -211,6 +216,7 @@ describe('default tenant position policies', () => {
       ['organization'],
       [position],
       new Map([['dev-dept-head', 'position-new']]),
+      registryByModule,
     );
     expect(rows.size).toBe(count);
   });
@@ -226,6 +232,7 @@ describe('default tenant position policies', () => {
         ['hr', 'position-hr'],
         ['dev-dept-head', 'position-manager'],
       ]),
+      registryByModule,
     );
 
     expect(rows.get('org-hr:position-hr:access:request-role-change')).toMatchObject({
@@ -246,6 +253,7 @@ describe('default tenant position policies', () => {
         ['hr', 'position-hr'],
         ['hr-executive', 'position-hr-executive'],
       ]),
+      registryByModule,
     );
 
     expect(rows.get('org-hr:position-hr:users:manage')).toMatchObject({
@@ -272,6 +280,7 @@ describe('default tenant position policies', () => {
         ['hr', 'position-hr-tasks'],
         ['hr-executive', 'position-hr-exec-tasks'],
       ]),
+      registryByModule,
     );
 
     // 6 actions each for hr and hr-executive = 12 policies
@@ -308,6 +317,7 @@ describe('default tenant position policies', () => {
         ['hr', 'position-hr-tasks'],
         ['hr-executive', 'position-hr-exec-tasks'],
       ]),
+      registryByModule,
     );
     expect(reinserted).toBe(0);
     expect(rows.size).toBe(12);
@@ -330,6 +340,7 @@ describe('default tenant position policies', () => {
       ['tasks'],
       [hrPosition],
       new Map([['hr', 'pos-hr-custom']]),
+      registryByModule,
     );
 
     // Existing customized tasks:view remains 'own', NOT overwritten with 'department'

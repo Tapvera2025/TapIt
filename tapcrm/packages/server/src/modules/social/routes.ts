@@ -15,6 +15,13 @@ import {
   startOAuth,
 } from './oauth.js';
 import {
+  completePortalConnection,
+  disconnectPortalAccount,
+  getPortalOverview,
+  selectPortalAccounts,
+  startPortalConnection,
+} from './portal.js';
+import {
   assignCompanyLocation,
   disconnectCompanyConnection,
   listCompanyConnections,
@@ -31,11 +38,6 @@ import { decryptCredentials, socialSecurityReady } from './security.js';
 import * as service from './service.js';
 import { getMedia, uploadMedia } from './media.js';
 import { exportAnalyticsCsv, getAnalytics, syncAnalytics } from './service.js';
-import {
-  getClientSearchConsolePerformance,
-  inspectClientSearchConsoleUrl,
-  listClientSearchConsoleProperties,
-} from './search-console-report.js';
 import {
   socialPostSchema,
   socialPostQuerySchema,
@@ -64,20 +66,9 @@ const oauthCompletion = z
   })
   .strict();
 const revocation = z.object({ revokeGrant: z.boolean().default(false) }).strict();
-const assignment = z.object({ clientId: z.string().uuid().nullable() }).strict();
-const searchConsolePropertyUrl = z.string().trim().min(1).max(2048);
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const searchConsolePerformanceQuery = z.object({
-  propertyUrl: searchConsolePropertyUrl,
-  from: isoDate,
-  to: isoDate,
-}).strict().refine((value) => value.from <= value.to, {
-  message: 'Choose a valid Search Console date range.',
-});
-const searchConsoleInspectionInput = z.object({
-  propertyUrl: searchConsolePropertyUrl,
-  inspectionUrl: z.string().trim().url().max(2048),
-}).strict();
+const assignment = z
+  .object({ clientId: z.string().uuid().nullable(), move: z.boolean().default(false) })
+  .strict();
 // Preparing content cannot smuggle a publish or approval command through social:manage.
 const preparePost = socialPostSchema.extend({
   intent: z.enum(['draft', 'submit']).default('draft'),
@@ -197,6 +188,7 @@ export function registerSocialRoutes(): void {
     async ({ ctx, params, body }) => {
       const { revokeGrant } = revocation.parse(body ?? {});
       let revocationStatus = 'not_requested';
+      let othersNeedReconnect = 0;
       if (revokeGrant) {
         const account = await service.getAccountConnection(
           ctx,
@@ -209,6 +201,13 @@ export function registerSocialRoutes(): void {
             'This account uses one of your company logins. Unassign it here; manage the login under Company connections.',
             422,
             'SOCIAL_COMPANY_CONNECTION',
+          );
+        // The client's own platform login: only the client may remove its access.
+        if (account.connectionOrigin === 'client_portal')
+          throw new ApplicationError(
+            'The client connected this account from their client portal. Disconnect it here; only the client can remove TapIt’s access to their own login.',
+            422,
+            'SOCIAL_CLIENT_OWNED_GRANT',
           );
         if (account.credentialsEncrypted) {
           try {
@@ -226,9 +225,18 @@ export function registerSocialRoutes(): void {
             revocationStatus = 'remove_access_in_platform_settings';
           }
         }
+        await service.disconnectAccount(ctx, clientId(params), id(params, 'accountId'));
+        // Meta removed the app for that whole Facebook user, not only this Page.
+        if (revocationStatus === 'revoked')
+          othersNeedReconnect = await service.markGrantRevoked(ctx, {
+            platform: account.connectionPlatform,
+            externalAccountId: account.connectionExternalAccountId,
+            connectionId: account.connectionId,
+          });
+        return { disconnected: true, revocationStatus, othersNeedReconnect };
       }
       await service.disconnectAccount(ctx, clientId(params), id(params, 'accountId'));
-      return { disconnected: true, revocationStatus };
+      return { disconnected: true, revocationStatus, othersNeedReconnect };
     },
   );
   workspace('GET', '/posts', 'social:view', async ({ ctx, params, query }) =>
@@ -337,14 +345,60 @@ export function registerSocialRoutes(): void {
     );
     return getAnalytics(ctx, clientId(params), {});
   });
-  workspace('GET', '/search-console/properties', 'social:view', async ({ ctx, params }) =>
-    listClientSearchConsoleProperties(ctx, clientId(params)),
+  // Google Search Console reporting lives in the SEO dashboard (per website),
+  // not in Social: see modules/seo-intelligence/search-console.ts.
+
+  // Client portal: a client connecting its own accounts. Only client principals hold
+  // social:connect-own-accounts, and the socialWorkspace check (A2 + resource policy)
+  // proves the path's client is the principal's own before any handler runs.
+  function portal(method: 'GET' | 'POST' | 'DELETE', suffix: string, handler: Handler) {
+    route({
+      method,
+      path: `/api/social/portal/clients/:clientId${suffix}`,
+      action: 'social:connect-own-accounts',
+      module: 'social',
+      resourceParam: 'clientId',
+      loadResource: loadWorkspaceResource,
+      handler,
+    });
+  }
+  portal('GET', '/connections', async ({ ctx, params }) =>
+    getPortalOverview(ctx, clientId(params)),
   );
-  workspace('GET', '/search-console/performance', 'social:view', async ({ ctx, params, query }) =>
-    getClientSearchConsolePerformance(ctx, clientId(params), searchConsolePerformanceQuery.parse(query)),
+  portal('POST', '/oauth/:platform/start', async ({ ctx, params, res }) =>
+    startPortalConnection(ctx, clientId(params), platform(params), res),
   );
-  workspace('POST', '/search-console/inspect', 'social:view', async ({ ctx, params, body }) =>
-    inspectClientSearchConsoleUrl(ctx, clientId(params), searchConsoleInspectionInput.parse(body)),
+  portal('POST', '/oauth/:platform/complete', async ({ ctx, params, body, req, res }) =>
+    completePortalConnection(
+      ctx,
+      clientId(params),
+      platform(params),
+      oauthCompletion.parse(body),
+      req,
+      res,
+    ),
+  );
+  portal('POST', '/oauth/:platform/select', async ({ ctx, params, body }) =>
+    selectPortalAccounts(
+      ctx,
+      clientId(params),
+      platform(params),
+      z
+        .object({
+          state: z.string().min(1).max(8192),
+          accountIds: z.array(z.string().min(1).max(300)).min(1).max(100),
+        })
+        .strict()
+        .parse(body),
+    ),
+  );
+  portal('DELETE', '/accounts/:accountId', async ({ ctx, params, body }) =>
+    disconnectPortalAccount(
+      ctx,
+      clientId(params),
+      id(params, 'accountId'),
+      revocation.parse(body ?? {}).revokeGrant,
+    ),
   );
 
   // Company-wide connections: one platform sign-in for the whole company, whose
@@ -388,13 +442,16 @@ export function registerSocialRoutes(): void {
   company(
     'PUT',
     '/:connectionId/locations/:locationId/client',
-    async ({ ctx, params, body }) =>
-      assignCompanyLocation(
+    async ({ ctx, params, body }) => {
+      const input = assignment.parse(body);
+      return assignCompanyLocation(
         ctx,
         id(params, 'connectionId'),
         id(params, 'locationId'),
-        assignment.parse(body).clientId,
-      ),
+        input.clientId,
+        { move: input.move },
+      );
+    },
   );
   company('DELETE', '/:connectionId', async ({ ctx, params, body }) =>
     disconnectCompanyConnection(
