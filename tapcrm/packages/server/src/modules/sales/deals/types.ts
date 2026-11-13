@@ -82,4 +82,10 @@ export type DealResource = Resource & {
   readonly createdBy: string | null;
   readonly closedBy: string | null;
   readonly payment: { readonly initiatedBy: string | null };
+  /**
+   * P1 — true when the caller sits in the reporting line above the deal's
+   * responsible closer or the person who closed it (the approval chain).
+   * Resolved by `toDealResource`; absent means "not resolved" and P1 denies.
+   */
+  readonly __holderInClosingChain?: boolean;
 };

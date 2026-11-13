@@ -1,21 +1,21 @@
 /**
- * Resolve the agent who should own a new callback.
+ * Resolve the person who should own a new callback.
  *
- * Callbacks route to the lead's relationship owner (`owner_id`), not to the
- * temporary `current_holder_id` (PRD §12 R-HAND-04, R1 plan step 1.18): a
- * live-call handover moves only the holder, so a supervisor finishing a
- * handover call schedules the follow-up back to the owner. A reassignment
- * moves `owner_id`, so callbacks booked after it go to the new owner.
+ * Callbacks go to whoever is working the lead (`current_holder_id`). After an
+ * accepted handover that is the receiver (a Supervisor or Team Lead), who
+ * keeps the lead and its follow-ups until a manager reassigns it; the agent
+ * who handed it over can still open the lead but no longer works it (owner
+ * decision, 13 Nov 2026, replacing PRD §12 R-HAND-04, which sent the
+ * follow-up back to the owner). A reassignment moves the owner and the holder
+ * together, so callbacks booked after it go to the new owner.
  *
- * `originating_agent_id` is sourcing credit, which a reassignment keeps by
- * default (PRD L6). It is only a fallback for a lead without an owner;
- * preferring it would send new callbacks back to an agent the lead was
- * taken away from.
+ * The owner and then `originating_agent_id` (sourcing credit) are only
+ * fallbacks for a lead nobody holds.
  */
 export function resolveCallbackAssignee(lead: {
   originatingAgentId: string | null;
   currentHolderId: string | null;
   ownerId: string | null;
 }): string | null {
-  return lead.ownerId ?? lead.originatingAgentId ?? lead.currentHolderId;
+  return lead.currentHolderId ?? lead.ownerId ?? lead.originatingAgentId;
 }

@@ -14,10 +14,13 @@ import {
 export function LeadStatusPanel({
   lead,
   canEdit,
+  lockedNote,
   onChanged,
 }: {
   lead: Lead;
   canEdit: boolean;
+  /** Why the viewer can see the status but not change it (a handed-over lead). */
+  lockedNote?: string | undefined;
   onChanged: () => Promise<void>;
 }): React.JSX.Element {
   const [nextStatus, setNextStatus] = useState('');
@@ -71,6 +74,9 @@ export function LeadStatusPanel({
         <p className="mt-3 text-xs text-app-muted">
           This lead is closed, so its status can't change.
         </p>
+      )}
+      {!closed && lockedNote && (
+        <p className="mt-3 rounded-lg bg-app-background p-3 text-xs text-app-muted">{lockedNote}</p>
       )}
       {!closed && canEdit && (
         <div className="mt-4 space-y-4">

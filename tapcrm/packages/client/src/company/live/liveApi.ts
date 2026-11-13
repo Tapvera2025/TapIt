@@ -26,6 +26,8 @@ export interface LiveRow {
   lastEventAt: string | null;
   workedMinutes: number;
   breakMinutes: number;
+  /** When the server worked out the two minute counts; older rows may not have it. */
+  minutesAsOf?: string | null;
   presenceConfidence: 'confirmed' | 'assumed';
   lastScanAt: string | null;
   likelyFinishedAt: string | null;

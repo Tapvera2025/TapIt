@@ -42,10 +42,41 @@ const AUTOSAVE_DEBOUNCE_MS = 800;
 
 interface ProposalEditorPageProps {
   readonly dealId: string;
+  /**
+   * A Super Admin publishes directly. Everyone else sends each version for
+   * approval and publishes it once approved (owner decision, 13 Nov 2026).
+   */
+  readonly isSuperAdmin?: boolean;
   readonly onBack: () => void;
 }
 
-export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps): React.JSX.Element {
+/** What the approval of one proposal version means for the person editing it. */
+function approvalNote(approvalState: string | null | undefined): { tone: 'info' | 'wait' | 'warn' | 'ok'; text: string } {
+  switch (approvalState) {
+    case 'approved':
+      return { tone: 'ok', text: 'Approved. Publish it to lock this version and share it with the client. Changing the items, price, advance or terms now cancels the approval.' };
+    case 'pending':
+    case 'escalated':
+      return { tone: 'wait', text: 'Waiting for approval. You can publish once a manager approves it. Changing the items, price, advance or terms cancels the request.' };
+    case 'returned':
+      return { tone: 'warn', text: 'Sent back for changes. Edit the proposal to answer the comments, then request approval again.' };
+    case 'rejected':
+      return { tone: 'warn', text: 'Approval was turned down. Change the proposal to answer the comments, then request approval again.' };
+    case 'invalidated':
+      return { tone: 'info', text: 'This version changed after it was sent for approval, so it needs approving again.' };
+    default:
+      return { tone: 'info', text: 'Every proposal from the sales team is approved by a manager before it goes to the client. When it is ready, request approval; once approved, publish it.' };
+  }
+}
+
+const NOTE_CLASSES: Record<'info' | 'wait' | 'warn' | 'ok', string> = {
+  info: 'bg-app-background text-app-muted',
+  wait: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  warn: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  ok: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+};
+
+export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: ProposalEditorPageProps): React.JSX.Element {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [versions, setVersions] = useState<readonly Commercials[]>([]);
   const [selected, setSelected] = useState<Commercials | null>(null);
@@ -220,17 +251,26 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
 
   async function requestApproval(): Promise<void> {
     if (!selected) return;
+    const target = selected.id;
     try {
-      await requestCommercialsApproval(selected.id);
-      setSaveError('Approval request submitted. Publishing will be enabled once an approver decides.');
+      await requestCommercialsApproval(target);
+      setSaveError(null);
+      // The version now carries its pending request; the deal shows it too.
+      const [nextDeal, nextVersions] = await Promise.all([getDeal(dealId), listCommercials(dealId)]);
+      setDeal(nextDeal);
+      setVersions(nextVersions);
+      const refreshed = nextVersions.find((v) => v.id === target);
+      if (refreshed) setSelected(refreshed);
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : 'Could not request approval.');
     }
   }
 
-  const needsApprovalForPublish = Boolean(
-    saveError && /COMMERCIALS_PUBLISH_BLOCKED|request approval/i.test(saveError),
-  );
+  const approvalState = selected?.approvalState ?? null;
+  const approvalOpen = approvalState === 'pending' || approvalState === 'escalated';
+  // A Super Admin publishes directly; the sales team publishes an approved version.
+  const mayPublish = isSuperAdmin || approvalState === 'approved';
+  const saving = saveStatus === 'saving';
 
   async function regenerateLink(): Promise<void> {
     if (!selected) return;
@@ -292,14 +332,18 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
               New draft from latest
             </Button>
           )}
-          {selected && editable && (
-            <Button disabled={!canPublish(selected, deal)} onClick={() => setPublishOpen(true)}>
+          {selected && editable && mayPublish && (
+            <Button disabled={saving || !canPublish(selected, deal)} onClick={() => setPublishOpen(true)}>
               Publish version {selected.version}
             </Button>
           )}
-          {selected && editable && needsApprovalForPublish && (
-            <Button kind="secondary" onClick={() => void requestApproval()}>
-              Request approval
+          {selected && editable && !mayPublish && (
+            <Button
+              disabled={saving || approvalOpen || selected.items.length === 0 || deal.lifecycleStatus !== 'open'}
+              title={approvalOpen ? 'Waiting for a manager to decide' : undefined}
+              onClick={() => void requestApproval()}
+            >
+              {approvalOpen ? 'Waiting for approval' : 'Request approval'}
             </Button>
           )}
         </div>
@@ -308,6 +352,11 @@ export function ProposalEditorPage({ dealId, onBack }: ProposalEditorPageProps):
       {saveError && (
         <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
           {saveError}
+        </p>
+      )}
+      {selected && editable && !isSuperAdmin && (
+        <p className={`mb-4 rounded-lg p-3 text-sm ${NOTE_CLASSES[approvalNote(approvalState).tone]}`}>
+          {approvalNote(approvalState).text}
         </p>
       )}
 
@@ -700,7 +749,8 @@ function Modal({
 function canPublish(c: Commercials, deal: Deal): boolean {
   if (!isDraftEditable(c.state)) return false;
   if (c.items.length === 0) return false;
-  if (deal.approvalStatus === 'pending' || deal.approvalStatus === 'rejected') return false;
+  // An open request is decided first (by its approver or a Super Admin).
+  if (deal.approvalStatus === 'pending') return false;
   if (deal.lifecycleStatus !== 'open') return false;
   return true;
 }

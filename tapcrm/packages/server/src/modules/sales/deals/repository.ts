@@ -1,4 +1,6 @@
-import type { SqlFragment } from '@tapcrm/authz';
+import { effectivePolicy, scopeReachesAny, type SqlFragment } from '@tapcrm/authz';
+import { globalAccess } from '@tapcrm/contracts';
+import { scopeResolver } from '../../../platform/authz-adapter.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
@@ -188,17 +190,96 @@ export async function lockDeal(tx: Tx, organizationId: string, id: string): Prom
   `);
 }
 
+/** The deal columns the authorization engine reads. */
+export interface DealResourceRow {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly responsibleCloserId: string;
+  readonly originatingAgentId: string;
+  readonly lifecycleStatus: string;
+  readonly createdBy: string | null;
+  readonly closedBy: string | null;
+  readonly paymentInitiatedBy: string | null;
+}
+
+/**
+ * P1 (PRD §4.7): a deal's commercials are readable by the closer and the
+ * approval chain. The approval chain is the closer's reporting line, the same
+ * `reports_to` walk approvals/routing.ts uses to find an approver, with the
+ * same depth limit and cycle guard. True when the caller sits above any of
+ * the given closers.
+ */
+export async function isInClosingChain(ctx: RequestContext, closerIds: readonly string[]): Promise<boolean> {
+  const ids = [...new Set(closerIds)];
+  if (ids.length === 0) return false;
+  const row = await db.one<{ inChain: boolean }>(
+    ctx,
+    sql`WITH RECURSIVE chain AS (
+          SELECT u.id, u.reports_to AS "reportsTo", 0 AS depth, ARRAY[u.id] AS path
+            FROM app_user u
+           WHERE u.organization_id = ${ctx.organizationId}
+             AND u.id = ANY(${ids}::uuid[])
+          UNION ALL
+          SELECT manager.id, manager.reports_to, chain.depth + 1, chain.path || manager.id
+            FROM app_user manager
+            JOIN chain ON chain."reportsTo" = manager.id
+           WHERE manager.organization_id = ${ctx.organizationId}
+             AND chain.depth < 10
+             AND NOT manager.id = ANY(chain.path)
+        )
+        SELECT EXISTS (
+          SELECT 1 FROM chain WHERE chain.depth > 0 AND chain.id = ${ctx.principal.id}
+        ) AS "inChain"`,
+  );
+  return row.inChain;
+}
+
+/**
+ * P1's approval chain also counts the managers who decide approvals over the
+ * closer: a Supervisor, Team Lead or Sales Head whose `approvals:decide`
+ * reach (pool, team or department) includes the closer. Every proposal from
+ * the sales team now goes to approval, and an approver has to read the price
+ * to judge it. The `reports_to` walk alone left out every manager when the
+ * reporting line was never filled in, so the deal page told the Supervisor to
+ * ask an admin while the admin's page said it was the Supervisor's move.
+ * An agent decides nothing (its cell is `participant`), so a peer agent
+ * still cannot read a colleague's closing terms.
+ */
+export async function approverReachesCloser(ctx: RequestContext, closerIds: readonly string[]): Promise<boolean> {
+  const policy = await effectivePolicy(ctx, 'approvals:decide');
+  if (!policy?.allowed) return false;
+  if (policy.scope !== 'pool' && policy.scope !== 'team' && policy.scope !== 'department') return false;
+  return scopeReachesAny({ ...ctx, scope: scopeResolver }, policy.scope, closerIds);
+}
+
+/**
+ * The deal as the authorization engine sees it. Every loader that hands a
+ * deal to the engine (the deal itself, its commercials, its contract) builds
+ * it here, so P1 always has the approval chain resolved.
+ */
+export async function toDealResource(ctx: RequestContext, row: DealResourceRow): Promise<DealResource> {
+  const closers = row.closedBy ? [row.responsibleCloserId, row.closedBy] : [row.responsibleCloserId];
+  // A closer passes P1 on their own, and P1 never applies to a Super Admin;
+  // only someone else needs the chain walk.
+  const inChain = closers.includes(ctx.principal.id) || globalAccess(ctx.principal)
+    ? false
+    : (await isInClosingChain(ctx, closers)) || (await approverReachesCloser(ctx, closers));
+  return {
+    type: 'deal' as const,
+    id: row.id,
+    organizationId: row.organizationId,
+    responsibleCloserId: row.responsibleCloserId,
+    originatingAgentId: row.originatingAgentId,
+    lifecycleStatus: row.lifecycleStatus as DealLifecycleStatus,
+    createdBy: row.createdBy,
+    closedBy: row.closedBy,
+    payment: { initiatedBy: row.paymentInitiatedBy },
+    __holderInClosingChain: inChain,
+  };
+}
+
 export async function loadDealResource(ctx: RequestContext, id: string): Promise<DealResource | null> {
-  const row = await db.maybeOne<{
-    id: string;
-    organizationId: string;
-    responsibleCloserId: string;
-    originatingAgentId: string;
-    lifecycleStatus: DealLifecycleStatus;
-    createdBy: string | null;
-    closedBy: string | null;
-    paymentInitiatedBy: string | null;
-  }>(
+  const row = await db.maybeOne<DealResourceRow>(
     ctx,
     sql`SELECT id,
                organization_id       AS "organizationId",
@@ -212,17 +293,7 @@ export async function loadDealResource(ctx: RequestContext, id: string): Promise
          WHERE organization_id = ${ctx.organizationId} AND id = ${id}`,
   );
   if (!row) return null;
-  return {
-    type: 'deal' as const,
-    id: row.id,
-    organizationId: row.organizationId,
-    responsibleCloserId: row.responsibleCloserId,
-    originatingAgentId: row.originatingAgentId,
-    lifecycleStatus: row.lifecycleStatus,
-    createdBy: row.createdBy,
-    closedBy: row.closedBy,
-    payment: { initiatedBy: row.paymentInitiatedBy },
-  };
+  return toDealResource(ctx, row);
 }
 
 export interface InsertDealInput {

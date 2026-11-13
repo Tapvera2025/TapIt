@@ -57,6 +57,11 @@ interface DealDetailPageProps {
   readonly canConfirmPayment: boolean;
   /** Sales Head or admin: may act on any deal, not only their own. */
   readonly isManager?: boolean;
+  /**
+   * Super Admin may decide any open approval, whoever it was routed to (the
+   * server allows it), including one with no eligible approver.
+   */
+  readonly isSuperAdmin?: boolean;
   readonly onBack: () => void;
   readonly onNavigate: (path: string) => void;
 }
@@ -69,6 +74,7 @@ export function DealDetailPage({
   canRecordWin,
   canConfirmPayment,
   isManager = false,
+  isSuperAdmin = false,
   onBack,
   onNavigate,
 }: DealDetailPageProps): React.JSX.Element {
@@ -126,7 +132,7 @@ export function DealDetailPage({
         try {
           const queue = await listPendingApprovals();
           const match = queue.find(
-            (a) => a.dealId === next.id && a.currentApproverId === currentUserId,
+            (a) => a.dealId === next.id && (isSuperAdmin || a.currentApproverId === currentUserId),
           );
           setMyApproval(match ?? null);
         } catch {
@@ -206,7 +212,7 @@ export function DealDetailPage({
     commercials,
     brief: brief === undefined ? undefined : brief === null ? null : { state: brief.state },
     myApproval: myApproval !== null,
-    viewer: { id: currentUserId, canConfirmPayment, canRecordWin, isManager },
+    viewer: { id: currentUserId, canConfirmPayment, canRecordWin, isManager, publishesDirectly: isSuperAdmin },
     formatWhen: (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
     access,
   };

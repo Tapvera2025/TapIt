@@ -3,6 +3,7 @@ import { ATTENDANCE_UPDATED_EVENT, loadTodayStatus, notifyAttendanceUpdated, pun
 import { getBreakAllowance, getBreakPrompts, submitBreachExplanation, type BreakAllowance, type BreakPrompt } from '../api/breaksApi.js';
 import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
 import { exactCompletedBreakSeconds } from '../attendance/breakTime.js';
+import { liveMinutes } from '../live/liveTime.js';
 import { Button, GlassSurface, Modal, SkeletonTodayPage, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
 
@@ -584,6 +585,7 @@ function BreakPromptsPanel({ prompts }: { prompts: BreakPrompt[] }): React.JSX.E
 function buildActivityItems(
   events: AttendanceEventView[],
   row: LiveRow | null,
+  nowMs: number,
 ): ActivityItem[] {
   const kindMap: Record<string, ActivityItem['kind']> = {
     in: 'in', out: 'out', 'break-start': 'break-start', 'break-end': 'break-end',
@@ -648,7 +650,7 @@ function buildActivityItems(
         id: 'current',
         time: fmtTime12(new Date()),
         label: 'Currently Working',
-        sub: `${fmtHm(row.workedMinutes)} logged`,
+        sub: `${fmtHm(liveMinutes(row, nowMs).worked)} logged`,
         kind: 'current',
       });
     }
@@ -767,7 +769,7 @@ export function TodayPage({
   }
 
   const { row, allowedMoves } = status;
-  const activityItems = buildActivityItems(events, row);
+  const activityItems = buildActivityItems(events, row, now.getTime());
   const isOnBreak = row?.state === 'ON_BREAK';
   const breakAction: Extract<PunchKind, 'break-start' | 'break-end'> = isOnBreak ? 'break-end' : 'break-start';
   const canBreak = allowedMoves.includes(breakAction);

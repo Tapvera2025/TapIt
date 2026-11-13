@@ -22,14 +22,22 @@ export interface DealViewer {
   readonly canRecordWin: boolean;
   /** Sales Head or admin: may act on any deal, not only their own. */
   readonly isManager: boolean;
+  /**
+   * A Super Admin publishes proposals directly; everyone else sends each
+   * version for approval first (owner decision, 13 Nov 2026).
+   */
+  readonly publishesDirectly?: boolean;
 }
 
 export interface DealGuideInput {
   readonly deal: Deal;
   /** Null when the check could not be loaded (or the deal is closed). */
   readonly readiness: ReadinessReport | null;
-  /** The deal's proposal versions; null while not loaded. */
-  readonly commercials: ReadonlyArray<{ readonly version: number; readonly state: CommercialsState }> | null;
+  /**
+   * The deal's proposal versions; null while not loaded. `approvalState` is
+   * the latest approval request on that version (null when none was raised).
+   */
+  readonly commercials: ReadonlyArray<{ readonly version: number; readonly state: CommercialsState; readonly approvalState?: string | null | undefined }> | null;
   /** The delivery brief; null when there is none, undefined while not loaded. */
   readonly brief: { readonly state: DeliveryBriefState } | null | undefined;
   /** True when an approval on this deal is waiting for the viewer's decision. */
@@ -92,7 +100,7 @@ export function dealSteps(input: DealGuideInput): GuideStep[] {
   return steps.map((step) => (step.key === 'won' ? { ...step, state: 'lost' } : step.state === 'done' || step.state === 'skipped' ? step : { ...step, state: 'skipped' }));
 }
 
-function latestVersion(input: DealGuideInput): { state: CommercialsState } | null {
+function latestVersion(input: DealGuideInput): { state: CommercialsState; approvalState?: string | null | undefined } | null {
   const versions = [...(input.commercials ?? [])].sort((a, b) => b.version - a.version);
   return versions[0] ?? null;
 }
@@ -138,7 +146,7 @@ export function dealGuidance(input: DealGuideInput): Guidance {
       title: 'Your approval is needed',
       short: 'Approve the proposal',
       badge: 'Waiting on you',
-      detail: 'The proposal goes beyond the salesperson’s limits on price, discount, advance or terms. Review it, then approve, send it back for changes, or reject it.',
+      detail: 'Every proposal from the sales team is approved before it is published. Review the price, discount, advance and terms, then approve, send it back for changes, or reject it.',
       waitingOn: 'You',
       actions: [primary('Decide now', focus(DEAL_ANCHORS.decision)), ...(input.access?.proposals !== false ? [secondary('Review the proposal', proposals)] : [])],
     };
@@ -168,7 +176,7 @@ export function dealGuidance(input: DealGuideInput): Guidance {
         tone: 'wait',
         title: 'Waiting for the proposal to be approved',
         short: 'Waiting for approval',
-        detail: 'It goes beyond the salesperson’s limits, so a manager has to approve it before it can be published. A request not decided within 4 business hours moves up to the approver’s manager.',
+        detail: 'A manager approves every proposal from the sales team before it can be published. A request not decided within 4 business hours moves up to the approver’s manager.',
         waitingOn: 'The approver',
         actions: [secondary('View the proposal', proposals)],
       });
@@ -181,14 +189,27 @@ export function dealGuidance(input: DealGuideInput): Guidance {
         waitingOn: yours,
         actions: [primary('Open the proposal', proposals)],
       });
-    } else if (latest?.state === 'draft') {
+    } else if (latest?.state === 'draft' && (viewer.publishesDirectly || latest.approvalState === 'approved')) {
       candidates.push({
         tone: 'act',
         title: 'Publish the proposal',
         short: 'Publish the proposal',
-        detail: deal.approvalStatus === 'approved'
-          ? 'It is approved. Publish it to lock this version, then share the link with the client.'
-          : 'Check the items, price, advance and terms, then publish it. If anything goes beyond your limits, TapIt asks you to request approval first.',
+        detail: viewer.publishesDirectly
+          ? 'Check the items, price, advance and terms, then publish it. As Super Admin you publish directly, without approval.'
+          : 'It is approved. Publish it to lock this version, then share the link with the client.',
+        waitingOn: viewer.publishesDirectly ? 'You' : yours,
+        actions: [primary('Open the proposal', proposals)],
+      });
+    } else if (latest?.state === 'draft') {
+      // Owner decision, 13 Nov 2026: every version from the sales team is
+      // approved before it is published.
+      candidates.push({
+        tone: 'act',
+        title: 'Send the proposal for approval',
+        short: 'Request approval',
+        detail: latest.approvalState === 'invalidated'
+          ? 'It changed after it was sent for approval, so it needs approving again. Request approval; once a manager approves it, publish it.'
+          : 'Check the items, price, advance and terms, then request approval. Once a manager approves it, publish it and share the link with the client.',
         waitingOn: yours,
         actions: [primary('Open the proposal', proposals)],
       });
@@ -197,7 +218,11 @@ export function dealGuidance(input: DealGuideInput): Guidance {
         tone: 'act',
         title: 'Build the proposal',
         short: 'Build the proposal',
-        detail: 'Add what you are selling, the price, the advance and the terms. Then publish it and share the link with the client.',
+        detail: viewer.publishesDirectly && !isCloser
+          ? `${closer} builds it: what is being sold, the price, the advance and the terms. As Super Admin you can also build and publish it yourself.`
+          : viewer.publishesDirectly
+            ? 'Add what you are selling, the price, the advance and the terms. Then publish it and share the link with the client.'
+            : 'Add what you are selling, the price, the advance and the terms. Then request approval; once it is approved, publish it and share the link with the client.',
         waitingOn: yours,
         actions: [primary('Build the proposal', proposals)],
       });

@@ -32,7 +32,8 @@ export interface Lead {
   intakeNotes: string | null;
 }
 export type LeadResource = Resource & Pick<Lead, 'organizationId' | 'ownerId' | 'currentHolderId' | 'salesTeamId' | 'salesPoolId'> & { departmentId: string | null };
-export interface DuplicateWarning { leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null; }
+/** `canOpen` is false for a match outside the caller's `leads:view` scope: named, not linked. */
+export interface DuplicateWarning { leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null; canOpen: boolean; }
 export interface LeadCreateResult { lead: Lead; duplicates: DuplicateWarning[]; }
 export interface PaginatedLeads { items: Lead[]; total: number; page: number; pageSize: number; totalPages: number; }
 

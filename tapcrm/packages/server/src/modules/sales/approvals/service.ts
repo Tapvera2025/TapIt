@@ -40,8 +40,8 @@ export class ApprovalNotFoundError extends ApplicationError {
 }
 
 export class ApprovalNotRequiredError extends ApplicationError {
-  constructor() {
-    super('Commercials dimensions do not require approval.', 422, 'APPROVAL_NOT_REQUIRED');
+  constructor(message = 'A Super Admin publishes proposals directly; no approval is needed.') {
+    super(message, 422, 'APPROVAL_NOT_REQUIRED');
     this.name = 'ApprovalNotRequiredError';
   }
 }
@@ -95,15 +95,23 @@ export async function requestApproval(ctx: RequestContext, commercialsId: string
   if (!commercials) {
     throw new ApplicationError('Commercials not found', 404, 'COMMERCIALS_NOT_FOUND');
   }
+  // Owner decision, 13 Nov 2026: every proposal version from the sales team
+  // is approved before it is published; a Super Admin publishes directly.
+  if (globalAccess(ctx.principal)) throw new ApprovalNotRequiredError();
+  if (commercials.state !== 'draft') {
+    throw new ApplicationError('Only a draft proposal can be sent for approval.', 409, 'APPROVAL_NOT_A_DRAFT');
+  }
+  if (commercials.approvalState === 'approved') {
+    throw new ApplicationError('This version is already approved; publish it.', 409, 'APPROVAL_ALREADY_GRANTED');
+  }
 
   const requester = await loadUserAuthority(ctx, ctx.principal.id);
   if (!requester) {
     throw new ApplicationError('Requester user record missing authority context.', 422, 'APPROVAL_NO_AUTHORITY');
   }
+  // The dimensions still say WHY a manager should look closely (what goes
+  // beyond the requester's own limits); approval is needed either way.
   const snapshot = evaluateDimensionsForRow(commercials, toActorAuthority(requester));
-  if (!snapshot.requiresApproval) {
-    throw new ApprovalNotRequiredError();
-  }
 
   const authoritySnapshot: AuthoritySnapshot = {
     totalMinor: commercials.totalMinor,

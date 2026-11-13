@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Button, Field, Modal, Notice, Select } from '../ui/index.js';
 import {
   PROJECT_SERVICES,
@@ -18,6 +18,7 @@ const WORK_STATUS_LABELS: Record<ProjectWorkStatus, string> = { new: 'New', ongo
 
 /** Editable fields only: the client and assignees have their own, narrower flows (the client is fixed at creation; the team is managed from the Assigned employees panel). */
 export function EditProjectModal({ project, onClose, onSaved }: { project: Project; onClose: () => void; onSaved: (project: Project) => void }): React.JSX.Element {
+  const formId = useId();
   const [name, setName] = useState(project.name);
   const [services, setServices] = useState<Set<ProjectServiceKind>>(new Set(project.services.map((s) => s.service)));
   const [otherLabel, setOtherLabel] = useState(project.services.find((s) => s.service === 'other')?.otherLabel ?? '');
@@ -76,8 +77,17 @@ export function EditProjectModal({ project, onClose, onSaved }: { project: Proje
   };
 
   return (
-    <Modal title={`Edit ${project.name}`} onClose={onClose}>
-      <form onSubmit={(event) => void submit(event)} className="max-h-[75vh] space-y-4 overflow-y-auto pr-1">
+    <Modal
+      title={`Edit ${project.name}`}
+      onClose={onClose}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button kind="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form={formId} disabled={saving || !name.trim()}>{saving ? 'Saving…' : 'Save changes'}</Button>
+        </div>
+      }
+    >
+      <form id={formId} onSubmit={(event) => void submit(event)} className="space-y-5">
         {error && <Notice error>{error}</Notice>}
 
         <Field label="Project name" value={name} onChange={setName} required />
@@ -125,11 +135,6 @@ export function EditProjectModal({ project, onClose, onSaved }: { project: Proje
           <span className="mb-2 block">Remarks</span>
           <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={2} className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent" />
         </label>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button kind="secondary" type="button" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={saving || !name.trim()}>{saving ? 'Saving…' : 'Save changes'}</Button>
-        </div>
       </form>
     </Modal>
   );

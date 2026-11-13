@@ -193,21 +193,21 @@ export function pageGuidance(key: SalesPageKey, viewer: SalesPageViewer): Guidan
       return page(key, {
         tone: 'info',
         title: 'Decide each request quickly',
-        detail: 'A proposal lands here when its price, discount, advance or terms go beyond the salesperson’s limits. Approve it, send it back for changes, or reject it.',
+        detail: 'Every proposal from the sales team lands here before it can be published. Check the price, discount, advance and terms, then approve it, send it back for changes, or reject it.',
         tips: ['A request not decided within 4 business hours moves up to the approver’s manager.', 'Nobody can approve their own proposal.'],
       });
     case 'wins':
       return page(key, {
         tone: 'info',
         title: 'Record the wins that are ready',
-        detail: 'Each deal here has its proposal, approval and advance in place. Open it, check the delivery brief, and record the win.',
+        detail: 'Every open deal with a published proposal is here, ready ones first. Record the win once all its checks are green; the others show what they still need.',
       });
     case 'proposal':
       return page(key, {
         tone: 'info',
         title: 'Build it, publish it, share it',
-        detail: 'Add the items, price, advance and terms, then publish. If anything goes beyond your limits, request approval first. Once published, share the link so the client can accept.',
-        tips: ['Publishing locks a version. To change it later, create a new version.'],
+        detail: 'Add the items, price, advance and terms, then request approval. Once a manager approves it, publish it and share the link so the client can accept. A Super Admin publishes directly.',
+        tips: ['Publishing locks a version. To change it later, create a new version, which needs approval again.', 'Changing an approved version cancels its approval.'],
       });
     case 'delivery':
       return page(key, {

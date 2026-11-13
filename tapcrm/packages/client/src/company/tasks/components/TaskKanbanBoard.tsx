@@ -1,7 +1,7 @@
 import { useState, type DragEvent } from 'react';
 import { Icon } from '../../../ui/Icon.js';
 import type { Task, TaskKanbanBoardProps, TaskStatus } from '../types/index.js';
-import { TaskPriorityBadge, TaskStatusBadge } from './TaskStatusBadge.js';
+import { TaskPriorityBadge } from './TaskStatusBadge.js';
 
 const VALID_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   pending: ['in_progress', 'completed', 'cancelled'],
@@ -289,9 +289,6 @@ export function TaskKanbanBoard({
               {columnTasks.map((task) => {
                 const isDraggingThis = draggedTaskId === task.id;
                 const isBusy = transitioningTaskId === task.id;
-                const myAssignment = currentUserId
-                  ? task.assignees.find((a) => a.id === currentUserId)
-                  : undefined;
                 const overdue = isOverdue(task.dueDate, column.id);
                 const hasAssignees = task.assignees.length > 0;
 

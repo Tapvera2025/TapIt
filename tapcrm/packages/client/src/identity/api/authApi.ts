@@ -73,7 +73,13 @@ export function subscribeIdentitySessionChange(listener: (detail: IdentitySessio
 }
 
 function emitSessionChange(reason: IdentitySessionChangeReason): void {
-  sessionEpoch += 1;
+  // A token refresh keeps the same account and the same permissions, so the
+  // requests already on their way stay valid; listeners are still told (the
+  // live connection reconnects with the new token). Every other change starts
+  // a new epoch, which makes in-flight responses from before it refused.
+  // Counting refreshes too made every request that was in flight while the
+  // token was renewed fail with "The signed-in account changed…".
+  if (reason !== 'refresh') sessionEpoch += 1;
   const detail = { ...getIdentitySessionSnapshot(), reason };
   for (const listener of sessionListeners) listener(detail);
   if (typeof window !== 'undefined') {
@@ -83,11 +89,28 @@ function emitSessionChange(reason: IdentitySessionChangeReason): void {
   }
 }
 
+/**
+ * Records which account the current token belongs to, once `/identity/me`
+ * says so.
+ *
+ * Only a change from one known account to another is a session change. After
+ * a sign-in or a page reload the account is not known yet; learning it for the
+ * first time leaves the session as it was. Treating that as a change bumped
+ * the session epoch while the page's first requests were still in flight, so
+ * they failed with "The signed-in account changed while the request was in
+ * progress" although the same account had sent them.
+ */
 export function setIdentitySessionPrincipal(nextPrincipalId: string, nextOrganizationId: string): void {
   if (principalId === nextPrincipalId && organizationId === nextOrganizationId) return;
+  const firstIdentification = principalId === null && organizationId === null;
   principalId = nextPrincipalId;
   organizationId = nextOrganizationId;
-  emitSessionChange('principal-changed');
+  if (!firstIdentification) emitSessionChange('principal-changed');
+}
+
+/** True when `current` is the account a request expected, or the request began before the account was known. */
+function sameAccount(expected: string | null, current: string | null): boolean {
+  return expected === null || expected === current;
 }
 
 export function invalidateIdentityPermissions(): void {
@@ -186,8 +209,34 @@ async function refreshIdentityTokens(): Promise<boolean> {
   return refreshPromise;
 }
 
+/**
+ * After a 401: get a usable access token. When another request has already
+ * renewed the token while this one was on its way, use that one instead of
+ * renewing again (a second renewal would rotate the refresh token for nothing).
+ */
+async function renewAccessToken(rejectedToken: string): Promise<boolean> {
+  const latest = getIdentityAccessToken();
+  if (latest !== null && latest !== rejectedToken) return true;
+  return refreshIdentityTokens();
+}
+
+/** Refuses a retry when the session moved on to a different sign-in or account meanwhile. */
+function assertSameAccount(
+  expectedEpoch: number,
+  expectedPrincipal: string | null,
+  expectedOrganization: string | null,
+): void {
+  if (
+    sessionEpoch !== expectedEpoch ||
+    !sameAccount(expectedPrincipal, principalId) ||
+    !sameAccount(expectedOrganization, organizationId)
+  ) {
+    throw new IdentitySessionChangedError();
+  }
+}
+
 export async function identityRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let expectedEpoch = sessionEpoch;
+  const expectedEpoch = sessionEpoch;
   const expectedPrincipal = principalId;
   const expectedOrganization = organizationId;
   const token = getIdentityAccessToken();
@@ -207,11 +256,8 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
   let response = await request(token);
   assertSession(expectedEpoch);
   if (response.status === 401) {
-    if (await refreshIdentityTokens()) {
-      if (sessionEpoch !== expectedEpoch + 1 || principalId !== expectedPrincipal || organizationId !== expectedOrganization) {
-        throw new IdentitySessionChangedError();
-      }
-      expectedEpoch = sessionEpoch;
+    if (await renewAccessToken(token)) {
+      assertSameAccount(expectedEpoch, expectedPrincipal, expectedOrganization);
       response = await request(getIdentityAccessToken()!);
       assertSession(expectedEpoch);
       if (response.status === 401) redirectToIdentityLogin();
@@ -260,7 +306,7 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
 
 /** Authenticated non-JSON response for user-facing downloads. */
 export async function identityDownload(path: string, init: RequestInit = {}): Promise<Blob> {
-  let expectedEpoch = sessionEpoch;
+  const expectedEpoch = sessionEpoch;
   const expectedPrincipal = principalId;
   const expectedOrganization = organizationId;
   const token = getIdentityAccessToken();
@@ -274,11 +320,8 @@ export async function identityDownload(path: string, init: RequestInit = {}): Pr
   });
   let response = await request(token);
   assertSession(expectedEpoch);
-  if (response.status === 401 && await refreshIdentityTokens()) {
-    if (sessionEpoch !== expectedEpoch + 1 || principalId !== expectedPrincipal || organizationId !== expectedOrganization) {
-      throw new IdentitySessionChangedError();
-    }
-    expectedEpoch = sessionEpoch;
+  if (response.status === 401 && await renewAccessToken(token)) {
+    assertSameAccount(expectedEpoch, expectedPrincipal, expectedOrganization);
     response = await request(getIdentityAccessToken()!);
     assertSession(expectedEpoch);
   }
