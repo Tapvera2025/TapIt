@@ -450,7 +450,7 @@ export async function listTasksWithFilter(
         break;
       case 'overdue':
         whereClauses.push(
-          sql`t.due_date < now() AND t.status NOT IN ('completed', 'cancelled')`,
+          sql`t.due_date < CURRENT_DATE AND t.status NOT IN ('completed', 'cancelled')`,
         );
         break;
       case 'custom':
@@ -458,7 +458,7 @@ export async function listTasksWithFilter(
           whereClauses.push(sql`t.due_date >= ${query.startDate}`);
         }
         if (query.endDate) {
-          whereClauses.push(sql`t.due_date <= ${query.endDate}`);
+          whereClauses.push(sql`t.due_date < ${query.endDate}::date + INTERVAL '1 day'`);
         }
         break;
       case 'all':
