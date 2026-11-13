@@ -29,7 +29,7 @@ function Heading({
   action?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="flex min-w-0 items-start justify-between gap-3">
+    <div className="dashboard-widget-heading flex min-w-0 items-start justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-app-accent/10 text-app-accent">
           <Icon name={icon} className="size-[18px]" />
@@ -159,13 +159,13 @@ export function AdminTeamAttendanceWidget({ ctx }: { ctx: WidgetContext }): Reac
         error ? <Empty>{error}</Empty> : <Loading rows={2} />
       ) : (
         <>
-          <div className="dashboard-team-attendance-summary grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-4 rounded-2xl border border-app-border/60 bg-app-surface/55 p-3 sm:p-4">
+          <div className="dashboard-team-attendance-summary grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4 rounded-2xl border border-app-border/60 bg-app-surface/55 p-3 sm:p-4">
             <TimerRing
               value={active}
               max={headcount}
               label="Employees active now"
               valueLabel={String(active)}
-              caption={`of ${headcount} employees`}
+              caption={headcount === 1 ? '1 employee' : `${headcount} employees`}
               className="dashboard-team-attendance-ring size-28 sm:size-32"
             />
             <div className="dashboard-team-attendance-metrics grid min-w-0 grid-cols-4 gap-2">

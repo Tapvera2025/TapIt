@@ -451,11 +451,12 @@ export function DashboardPage({
     (next: Layout[], _oldItem?: Layout, changedItem?: Layout) => {
       const cols = activeColsRef.current;
       const collisionSafe = resolveLayout(next, cols, changedItem?.i);
-      const canonical = toSavedLayout(collisionSafe, cols);
-      const nextLayout = resolveLayout(buildLayout(orderedIds, canonical, hidden, false), COLS, changedItem?.i);
-      commitPrefs(toSavedLayout(nextLayout, COLS), hidden);
+      // Persist the resolved grid directly. Rebuilding from the saved items
+      // here re-sorted anchored widgets and could move the resized widget
+      // back over its neighbours on the next render.
+      commitPrefs(toSavedLayout(collisionSafe, cols), hidden);
     },
-    [orderedIds, hidden, commitPrefs],
+    [hidden, commitPrefs],
   );
 
   const handleBreakpointChange = useCallback((breakpoint: string) => {
@@ -773,6 +774,7 @@ export function DashboardPage({
               <div
                 key={key}
                 data-mobile-widget-id={key}
+                data-widget-id={parsed?.id ?? undefined}
                 className={`mobile-dashboard-widget ${editing ? 'mobile-dashboard-widget-editing' : ''} ${mobileDragId === key ? 'mobile-dashboard-widget-dragging' : ''} ${mobileDropId === key && mobileDragId !== key ? 'mobile-dashboard-widget-drop-target' : ''}`}
                 // Mobile widgets need a definite containing height even when
                 // customization is off; the widget shells use h-full and
@@ -871,7 +873,7 @@ export function DashboardPage({
               const Component = def.component;
               const isCopy = Boolean(parsed?.instanceId);
               return (
-                <div key={item.i} className="dashboard-widget-frame">
+                <div key={item.i} className="dashboard-widget-frame" data-widget-id={parsed?.id ?? undefined}>
                   {editing && (
                     <div className="dashboard-widget-editbar">
                       <button

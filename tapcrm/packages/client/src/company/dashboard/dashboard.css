@@ -66,6 +66,8 @@
   border-radius: 1rem;
   box-shadow: var(--app-shadow);
   padding: 1rem;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   transition: box-shadow 0.15s ease;
 }
@@ -83,11 +85,14 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
+  /* The grid cell owns the widget bounds. Individual long lists opt into
+     scrolling themselves; the outer card must never render scrollbars. */
   overflow: hidden;
 }
 
 .dashboard-widget-frame {
   display: flex;
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -256,7 +261,45 @@
   box-sizing: border-box;
   container-name: dashboard-widget;
   container-type: size;
+  min-width: 0;
+  min-height: 0;
   padding: 1rem;
+}
+
+/* A resized card must remain a usable card. These rules allow text and
+   controls to reflow inside the cell while preserving a small, unobtrusive
+   scroll area only when a user deliberately chooses a shorter height. */
+.dashboard-widget-shell > *,
+.dashboard-widget-shell h1,
+.dashboard-widget-shell h2,
+.dashboard-widget-shell p,
+.dashboard-widget-shell ul {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dashboard-widget-shell button,
+.dashboard-widget-shell a {
+  max-width: 100%;
+}
+
+.dashboard-team-attendance-ring > div {
+  min-width: 0;
+}
+
+.dashboard-team-attendance-ring p:last-child {
+  white-space: nowrap;
+  font-size: clamp(0.5rem, 2cqw, 0.6875rem);
+}
+
+@container dashboard-widget (max-width: 24rem) {
+  .dashboard-widget-heading {
+    flex-wrap: wrap;
+  }
+
+  .dashboard-widget-heading > :last-child {
+    margin-left: auto;
+  }
 }
 
 @container dashboard-widget (max-height: 24rem) {
@@ -270,6 +313,10 @@
   .dashboard-team-attendance-ring {
     width: clamp(3.5rem, 20cqh, 6rem);
     height: clamp(3.5rem, 20cqh, 6rem);
+  }
+
+  .dashboard-team-attendance-metrics {
+    min-width: 0;
   }
 
   .dashboard-team-attendance-metrics {
@@ -306,6 +353,39 @@
 
   .dashboard-team-attendance-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container dashboard-widget (max-width: 40rem) {
+  .dashboard-team-attendance-summary {
+    grid-template-columns: minmax(4.5rem, 7rem) minmax(0, 1fr);
+    gap: 0.65rem;
+    padding: 0.65rem;
+  }
+
+  .dashboard-team-attendance-ring {
+    width: clamp(4.5rem, 18cqw, 7rem);
+    height: clamp(4.5rem, 18cqw, 7rem);
+  }
+
+  .dashboard-team-attendance-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .dashboard-team-attendance-metric {
+    padding: 0.45rem 0.55rem;
+  }
+}
+
+@container dashboard-widget (max-width: 22rem) {
+  .dashboard-team-attendance-summary {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+
+  .dashboard-team-attendance-metrics {
+    width: 100%;
   }
 }
 
@@ -915,6 +995,13 @@
   background: transparent;
   box-shadow: none;
   padding: 0;
+}
+
+/* Admin cards must clip their own content to the resized grid cell. The
+   edit controls remain outside this content box, so their menus can still
+   open without letting a widget paint over its neighbours. */
+.dashboard-admin-mode .dashboard-widget-content {
+  overflow: hidden;
 }
 
 .dashboard-admin-card {

@@ -7061,24 +7061,42 @@
     {
       "method": "PATCH",
       "path": "/api/chat/conversations/:id",
-      "action": "chat:manage-groups",
+      "action": "chat:send",
       "resourceParam": "id"
     },
     {
       "method": "POST",
       "path": "/api/chat/conversations/:id/members",
-      "action": "chat:manage-groups",
+      "action": "chat:send",
       "resourceParam": "id"
     },
     {
       "method": "DELETE",
       "path": "/api/chat/conversations/:id/members/:userId",
+      "action": "chat:send",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/chat/conversations/:id/members/:userId/role",
       "action": "chat:manage-groups",
       "resourceParam": "id"
     },
     {
       "method": "POST",
       "path": "/api/chat/conversations/:id/archive",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/restore",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/conversations/:id",
       "action": "chat:manage-groups",
       "resourceParam": "id"
     },

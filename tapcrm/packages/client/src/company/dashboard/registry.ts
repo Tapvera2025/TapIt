@@ -50,7 +50,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Today',
     description: 'Your punch state and hours worked today.',
     available: (id) => !isSuperAdmin(id) && moduleOn(id, 'live-status') && has('attendance:view-live')(id),
-    defaultLayout: { w: 6, h: 4, minW: 5, minH: 4, maxW: 12, maxH: 8 },
+    defaultLayout: { w: 6, h: 4, minW: 5, minH: 6, maxW: 12, maxH: 8 },
     component: PunchStateWidget,
   },
   {
@@ -74,7 +74,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'My open tasks',
     description: 'Your pending tasks, soonest due first.',
     available: () => true,
-    defaultLayout: { w: 4, h: 4, minW: 3, minH: 3 },
+    defaultLayout: { w: 4, h: 4, minW: 3, minH: 4 },
     component: MyTasksWidget,
   },
   {
@@ -82,7 +82,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'My leave',
     description: 'Available balance and pending requests.',
     available: () => true,
-    defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 4, h: 3, minW: 2, minH: 3 },
     component: MyLeaveWidget,
   },
   {
@@ -90,7 +90,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Upcoming holidays',
     description: 'Holidays coming up in the next two months.',
     available: () => true,
-    defaultLayout: { w: 4, h: 4, minW: 3, minH: 3 },
+    defaultLayout: { w: 4, h: 4, minW: 3, minH: 4 },
     component: UpcomingHolidaysWidget,
   },
   {
@@ -98,7 +98,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Sessions & devices',
     description: 'Active sessions signed in to your account.',
     available: () => true,
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 3 },
     component: MySessionsWidget,
   },
 
@@ -124,7 +124,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Team present today',
     description: 'Live headcount by state across your team.',
     available: (id) => !isSuperAdmin(id) && moduleOn(id, 'live-status') && hasBeyondOwn('attendance:view-live')(id),
-    defaultLayout: { w: 4, h: 4, minW: 3, minH: 3 },
+    defaultLayout: { w: 4, h: 4, minW: 3, minH: 4 },
     component: TeamLiveWidget,
   },
 
@@ -150,7 +150,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Department distribution',
     description: 'Employee count by department.',
     available: isSuperAdmin,
-    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 5 },
     component: OrgTeamDistributionWidget,
   },
   {
@@ -158,7 +158,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Organization readiness',
     description: 'Assignment coverage across positions, teams, and managers.',
     available: isSuperAdmin,
-    defaultLayout: { w: 3, h: 5, minW: 3, minH: 4 },
+    defaultLayout: { w: 3, h: 5, minW: 3, minH: 5 },
     component: OrgReadinessWidget,
   },
   {
@@ -166,7 +166,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Team attendance',
     description: 'Employee punch state and live break timers.',
     available: (id) => moduleOn(id, 'live-status') && superAdminOr('attendance:view-live')(id),
-    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    defaultLayout: { w: 6, h: 6, minW: 4, minH: 6, maxH: 8 },
     component: AdminTeamAttendanceWidget,
   },
   {
@@ -174,7 +174,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Recent team activity',
     description: 'Latest employee actions across the workspace.',
     available: superAdminOr('audit:view'),
-    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 5 },
     component: AdminActivityWidget,
   },
   {
