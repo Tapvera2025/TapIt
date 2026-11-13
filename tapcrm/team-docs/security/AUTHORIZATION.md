@@ -1024,10 +1024,13 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/chat/conversations/:id/read | `chat:view` | id |
 | POST | /api/chat/conversations/direct | `chat:send` | — |
 | POST | /api/chat/conversations/group | `chat:manage-groups` | — |
-| PATCH | /api/chat/conversations/:id | `chat:manage-groups` | id |
-| POST | /api/chat/conversations/:id/members | `chat:manage-groups` | id |
-| DELETE | /api/chat/conversations/:id/members/:userId | `chat:manage-groups` | id |
+| PATCH | /api/chat/conversations/:id | `chat:send` | id |
+| POST | /api/chat/conversations/:id/members | `chat:send` | id |
+| DELETE | /api/chat/conversations/:id/members/:userId | `chat:send` | id |
 | POST | /api/chat/conversations/:id/archive | `chat:manage-groups` | id |
+| POST | /api/chat/conversations/:id/restore | `chat:manage-groups` | id |
+| DELETE | /api/chat/conversations/:id | `chat:manage-groups` | id |
+| PUT | /api/chat/conversations/:id/members/:userId/role | `chat:manage-groups` | id |
 | POST | /api/chat/conversations/:id/messages | `chat:send` | id |
 | POST | /api/chat/messages/:id/forward | `chat:send` | id |
 | POST | /api/chat/messages/:id/react | `chat:send` | id |
