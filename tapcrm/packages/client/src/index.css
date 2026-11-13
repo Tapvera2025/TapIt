@@ -1316,11 +1316,6 @@
     -webkit-backdrop-filter: blur(24px) saturate(125%);
   }
 
-  .dark .workspace-sidebar .sidebar-decoration {
-    background: rgba(255, 255, 255, 0.055) !important;
-    border-color: rgba(214, 220, 231, 0.14) !important;
-  }
-
   .sidebar-profile-card {
     min-width: 0;
     padding: 0.65rem;
@@ -1600,30 +1595,6 @@
     filter: saturate(0.92);
   }
 
-  .sidebar-decoration {
-    position: relative;
-    overflow: hidden;
-    padding: 24px 16px 18px;
-    margin-top: 20px;
-    border-radius: 14px;
-    background: var(--theme-primary-soft) !important;
-    color: var(--sidebar-foreground) !important;
-    border: 1px solid var(--sidebar-border);
-  }
-
-  .sidebar-decoration-symbol {
-    position: absolute;
-    right: 0.75rem;
-    bottom: 0.55rem;
-    color: var(--theme-primary);
-    opacity: 0.38;
-    transition: color 180ms ease, opacity 180ms ease;
-    pointer-events: none;
-  }
-
-  .dark .sidebar-decoration-symbol {
-    opacity: 0.52;
-  }
 }
 
 /* Existing feature screens share these tokens while adopting the UI primitives. */

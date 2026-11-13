@@ -93,19 +93,35 @@
   }
 
   @media (max-width: 768px) {
-    .ui-page-header {
+    .ui-page-header,
+    .recruitment-page-header {
+      height: auto;
+      min-height: 0;
+      flex: none;
+      align-self: flex-start;
       align-items: stretch;
       flex-direction: column;
+      justify-content: flex-start;
       gap: 0.875rem;
       padding: 1rem;
     }
 
-    .ui-page-header-action {
+    /* The desktop copy column has a 28rem flex basis. Once the header stacks
+       on mobile that basis becomes a vertical height, creating the oversized
+       empty hero cards. Let the copy size naturally to its text instead. */
+    .ui-page-header-copy {
+      flex: 0 1 auto;
+    }
+
+    .ui-page-header-action,
+    .recruitment-page-header-actions {
+      margin-top: 0;
       width: 100%;
       justify-content: stretch;
     }
 
-    .ui-page-header-action > .ui-button {
+    .ui-page-header-action > .ui-button,
+    .recruitment-page-header-actions > .ui-button {
       width: 100%;
     }
   }
