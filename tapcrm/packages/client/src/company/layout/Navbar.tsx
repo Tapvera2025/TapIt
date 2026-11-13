@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NotificationBell } from '../../notifications/NotificationBell.js';
-import { BrandLogo } from '../../ui/BrandLogo.js';
-import { Icon } from '../../ui/Icon.js';
+import { BrandLogo } from '../../ui/index.js';
+import { Icon } from '../../ui/index.js';
 import { AiPetButton } from './AiPet.js';
 import { GlobalFeatureSearch } from './GlobalFeatureSearch.js';
 import type { CompanySearchDestination } from './navigation.js';
@@ -29,8 +29,15 @@ export function Navbar({
   onLogout,
   searchDestinations,
   settingsPath = '/company/settings',
+  extraActions = null,
 }: {
-  identity: { fullName: string; email: string; accountType?: string };
+  identity: {
+    fullName: string;
+    email: string;
+    accountType?: string;
+    positionCode?: string | null;
+    positionName?: string | null;
+  };
   organizationName: string | null;
   organizationCode: string | null;
   sidebarCollapsed: boolean;
@@ -40,10 +47,15 @@ export function Navbar({
   onLogout: () => void;
   searchDestinations: readonly CompanySearchDestination[];
   settingsPath?: string;
+  /** Page-specific buttons shown before the notification bell (e.g. the sales guide toggle). */
+  extraActions?: ReactNode;
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
   const role = organizationCode?.trim() || organizationName?.slice(0, 3).toUpperCase() || 'ABP';
+  const designation = identity.accountType === 'super-admin'
+    ? 'Super Admin'
+    : identity.positionName || identity.positionCode || 'Employee';
   const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
 
   useEffect(() => {
@@ -103,6 +115,7 @@ export function Navbar({
             destinations={searchDestinations}
             onNavigate={onNavigate}
           />
+          {extraActions}
           <NotificationBell onNavigate={onNavigate} />
           <div ref={accountRef} className="relative">
             <button
@@ -131,13 +144,18 @@ export function Navbar({
             </button>
             {accountOpen && (
               <div
-                className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
+                className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
                 role="menu"
               >
                 <div className="border-b border-app-border px-3 py-2.5">
-                  <p className="truncate text-sm font-semibold text-app-foreground">
-                    {identity.fullName}
-                  </p>
+                  <div className="flex min-w-0 items-baseline gap-2.5">
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-app-foreground">
+                      {identity.fullName}
+                    </p>
+                    <span className="max-w-[45%] shrink-0 truncate border-l border-app-border pl-2.5 text-[11px] font-medium text-app-muted" title={designation}>
+                      {designation}
+                    </span>
+                  </div>
                   <p className="truncate text-xs text-app-muted">{identity.email}</p>
                 </div>
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5">

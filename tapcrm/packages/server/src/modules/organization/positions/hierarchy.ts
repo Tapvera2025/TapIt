@@ -40,6 +40,27 @@ export function selectPositionsToAdopt(
   return adopted;
 }
 
+/**
+ * Whether a new position may report straight to the Super Admin as its
+ * department's top: only as the department's first active position, or as a
+ * new top that takes at least one of the current tops under it. Asking to take
+ * nothing under it used to slip a second, unconnected top into the department.
+ */
+export function canBecomeDepartmentTop(
+  departmentPositions: readonly PositionRecord[],
+  input: {
+    organizationalLevel: number;
+    adoptLowerPositions: boolean;
+    adoptPositionIds: readonly string[];
+  },
+): boolean {
+  if (!departmentPositions.some((position) => position.status === 'active')) return true;
+  return (
+    selectPositionsToAdopt(departmentPositions, { ...input, parentPositionId: null })
+      .length > 0
+  );
+}
+
 export function buildPositionTree(
   rows: Array<PositionRecord & { holderCount: number }>,
 ): PositionNode[] {

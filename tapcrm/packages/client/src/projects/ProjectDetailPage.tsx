@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { getChatColleagues } from '../chat/index.js';
 import { TasksPage } from '../company/tasks/index.js';
-import { Button, Card, Notice, SkeletonDetail, SkeletonMessageThread } from '../ui/components.js';
+import { Button, Card, Notice, SkeletonDetail, SkeletonMessageThread } from '../ui/index.js';
 import { getProject, setProjectTeam, type Project } from './api/projectsApi.js';
+import { ClientSocialAccessCard } from './ClientSocialAccessCard.js';
+import { isSocialProject } from './ClientSocialAccessCard.helpers.js';
 import { EditProjectModal } from './EditProjectModal.js';
 import { formatProjectDate } from './formatDate.js';
+import { formatProjectAmount } from './project-amounts.js';
 import { ProjectDiscussionTab } from './ProjectDiscussionTab.js';
 import { ProjectReportsPage } from './reports/ProjectReportsPage.js';
 import { ProjectDetailNavigation } from './ProjectDetailNavigation.js';
@@ -27,12 +30,21 @@ export function ProjectDetailPage({
   isSuperAdmin,
   canManageProjectAssignments,
   onBack,
+  onOpenSeo,
+  canViewSocial = false,
+  onOpenSocial,
 }: {
   projectId: string;
   currentUserId: string;
   isSuperAdmin: boolean;
   canManageProjectAssignments: boolean;
   onBack: () => void;
+  /** Opens this project in the SEO dashboard, where its SEO records live. */
+  onOpenSeo?: () => void;
+  /** Whether the user may see social workspaces (lists the client's connected accounts). */
+  canViewSocial?: boolean;
+  /** Opens Manage Social Media focused on the given client. */
+  onOpenSocial?: (clientId: string) => void;
 }): React.JSX.Element {
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState('');
@@ -72,6 +84,17 @@ export function ProjectDetailPage({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === 'details' && (
           <div className="p-5">
+            {isSocialProject(project) && (
+            <div className="mb-4">
+              <ClientSocialAccessCard
+                clientId={project.clientId}
+                clientName={project.clientName}
+                isSocialProject={isSocialProject(project)}
+                canViewSocial={canViewSocial}
+                {...(onOpenSocial ? { onOpenSocial: () => onOpenSocial(project.clientId) } : {})}
+              />
+            </div>
+            )}
             <Card className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field label="Client" value={project.clientName} />
               <Field label="Business" value={project.businessName} />
@@ -79,7 +102,9 @@ export function ProjectDetailPage({
               <Field label="Work status" value={STATUS_LABEL[project.workStatus]} />
               <Field label="Start date" value={formatProjectDate(project.startDate)} />
               <Field label="Expected end date" value={formatProjectDate(project.expectedEndDate)} />
-              <Field label="Budget" value={project.budget ? `${project.currency} ${project.budget}` : '—'} />
+              <Field label="Project value" value={formatProjectAmount(project.projectValue, project.currency)} />
+              <Field label="Upfront paid" value={formatProjectAmount(project.upfrontAmount, project.currency)} />
+              <Field label="Due amount" value={formatProjectAmount(project.dueAmount, project.currency)} />
               <Field label="Services" value={project.services.map((s) => (s.service === 'other' ? s.otherLabel : SERVICE_LABEL[s.service]) ?? '').join(', ') || '—'} />
             </Card>
             <Card className="mt-4">
@@ -160,6 +185,17 @@ export function ProjectDetailPage({
                 </>
               )}
             </Card>
+            {!isSocialProject(project) && (
+            <div className="mt-4">
+              <ClientSocialAccessCard
+                clientId={project.clientId}
+                clientName={project.clientName}
+                isSocialProject={isSocialProject(project)}
+                canViewSocial={canViewSocial}
+                {...(onOpenSocial ? { onOpenSocial: () => onOpenSocial(project.clientId) } : {})}
+              />
+            </div>
+            )}
           </div>
         )}
 
@@ -168,7 +204,7 @@ export function ProjectDetailPage({
         )}
 
         {tab === 'reports' && (
-          <ProjectReportsPage project={project} />
+          <ProjectReportsPage project={project} {...(onOpenSeo ? { onOpenSeo } : {})} />
         )}
       </div>
       )}

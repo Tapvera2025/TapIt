@@ -1,4 +1,4 @@
-import type { ModuleName } from '@tapcrm/contracts';
+import { REGISTRY, type ModuleName } from '@tapcrm/contracts';
 import type { Tx } from '../dal/db.js';
 import { sql } from '../dal/sql.js';
 import type { OrganizationTemplatePosition } from './template.js';
@@ -67,7 +67,8 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   biometric: [G, all, _, _, _, _, _, _, _, _, _],
   leave: [G, all, all, own, own, own, own, own, own, own, _],
   holidays: [G, all, allV, allV, allV, allV, allV, allV, allV, allV, _],
-  ta: [G, all, all, _, _, _, _, _, _, own, _],
+  // Everyone with TA sees their own statements, managers included; HR manages it.
+  ta: [G, all, all, own, own, own, own, own, own, own, _],
   payroll: [G, all, _, own, own, own, own, own, own, own, _],
   advance: [G, all, all, own, own, own, own, own, own, own, _],
   // Every employee position can see penalties recorded against itself. HR and
@@ -82,14 +83,27 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   handovers: [G, _, _, dept, _, _, team, _, pool, own, _],
   deals: [G, _, _, dept, parV, _, team, _, pool, own, _],
   approvals: [G, _, _, dept, _, _, team, _, pool, par, _],
+  // Calls follow the callbacks reach. `telephony:manage` (API keys, user
+  // mapping) is Super Admin only, so no cell emits it.
+  telephony: [G, _, _, dept, _, _, team, _, pool, own, _],
+  // Importing lists and handing them out is a Super Admin decision until the
+  // Super Admin grants it to a position (a Sales Head, say).
+  'lead-imports': [G, _, _, _, _, _, _, _, _, _, _],
   handoff: [G, _, _, par, par, par, _, _, _, _, _],
   projects: [G, _, _, _, own, dept, _, team, _, own, A],
   tasks: [G, dept, dept, _, own, dept, team, team, pool, own, _],
   'resource-planning': [G, _, _, _, ownV, dept, team, team, _, _, _],
   delivery: [G, _, _, _, par, par, _, teamV, _, _, A],
   clients: [G, _, _, dept, own, deptV, team, _, pool, own, A],
+  // Social credentials and publishing require explicit grants by the tenant administrator.
+  social: [G, _, _, _, _, _, _, _, _, _, _],
+  'seo-intelligence': [G, _, _, _, _, _, _, _, _, _, _],
   'post-closure': [G, _, _, dept, own, _, team, _, pool, own, _],
   'client-portal': [G, _, _, dept, own, _, _, _, _, _, A],
+  // Managers meet clients and oversee their people's meetings. Anyone else
+  // who meets clients is granted `meetings:host` by a Super Admin. Clients
+  // reach meetings through the portal, not through position policy.
+  meetings: [G, _, _, dept, own, dept, team, team, pool, _, _],
   'billing-terms': [G, _, _, _, _, _, _, _, _, _, _],
   invoicing: [G, _, _, _, ownV, _, _, _, _, _, A],
   payments: [G, _, _, _, ownV, _, _, _, _, _, A],
@@ -121,6 +135,25 @@ export interface RegistryActionDefinition {
   module: string;
   positionGrantable: boolean;
   superAdminOnly: boolean;
+  /** PD-1: `all-people` exists only for people-domain actions. */
+  domain?: 'people' | 'business' | 'derived';
+}
+
+/** Every registry action, grouped by module — the code is the authority (RG-I3). */
+export function registryActionsByModule(): Map<string, RegistryActionDefinition[]> {
+  const byModule = new Map<string, RegistryActionDefinition[]>();
+  for (const definition of Object.values(REGISTRY)) {
+    const list = byModule.get(definition.module) ?? [];
+    list.push({
+      action: definition.action,
+      module: definition.module,
+      positionGrantable: definition.grantPolicy.positionGrantable,
+      superAdminOnly: definition.grantPolicy.superAdminOnly,
+      domain: definition.domain,
+    });
+    byModule.set(definition.module, list);
+  }
+  return byModule;
 }
 
 export interface EmittedPolicy {
@@ -231,7 +264,13 @@ function expandAccessCell(
     const emittedScope =
       scope !== 'all-people' && SELF_SERVICE_ACTIONS.has(definition.action)
         ? 'own'
-        : scope;
+        : // PD-1: an all-people cell reaches business-domain actions (bills,
+          // reports, documents) only as far as a business scope can go. Emitting
+          // `all-people` there stored a policy the engine refuses at runtime and
+          // the position editor refuses to save.
+          scope === 'all-people' && definition.domain === 'business'
+          ? 'department'
+          : scope;
     return [{ action: definition.action, scope: emittedScope }];
   });
 }
@@ -248,20 +287,13 @@ export async function provisionDefaultPositionPolicies(
   moduleKeys: readonly string[],
   positions: readonly OrganizationTemplatePosition[],
   positionIds: ReadonlyMap<string, string>,
+  // Read the registry from code, not from the `registry_action` projection:
+  // production only runs migrations, so the projection lagged behind newly
+  // added actions and default policies for them were silently never created.
+  // Tests pass a small fixture registry instead.
+  actionsByModule: ReadonlyMap<string, readonly RegistryActionDefinition[]> = registryActionsByModule(),
 ): Promise<number> {
   const enabledModules = new Set(moduleKeys);
-  const actions = await tx.query<RegistryActionDefinition>(sql`
-    SELECT action, module, position_grantable AS "positionGrantable",
-           super_admin_only AS "superAdminOnly"
-    FROM registry_action
-    WHERE module = ANY(${[...enabledModules]}::text[])
-  `);
-  const actionsByModule = new Map<string, RegistryActionDefinition[]>();
-  for (const action of actions) {
-    const list = actionsByModule.get(action.module) ?? [];
-    list.push(action);
-    actionsByModule.set(action.module, list);
-  }
 
   let inserted = 0;
   for (const position of positions) {

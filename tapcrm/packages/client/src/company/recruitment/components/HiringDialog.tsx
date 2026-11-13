@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../../api/companyApi.js';
 import { hireCandidate } from '../api/recruitmentApi.js';
 import type { Candidate, CandidateJoining, JobOffer } from '../types/index.js';

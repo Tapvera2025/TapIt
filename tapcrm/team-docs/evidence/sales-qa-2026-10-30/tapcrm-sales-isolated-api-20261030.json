@@ -1,0 +1,1499 @@
+{
+  "recordedAt": "2026-10-30T10:29:12.480Z",
+  "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+  "organizationCode": "QASALESMVUTWNQI",
+  "method": "Authenticated local HTTP API using explicitly approved isolated QA organization; contact linkage is test setup only",
+  "checks": [
+    {
+      "name": "Verify isolated admin identity",
+      "method": "GET",
+      "path": "/api/identity/me",
+      "status": 200,
+      "data": {
+        "user": {
+          "id": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "email": "qa.sales.admin.mvutwnqi@example.test",
+          "fullName": "Isolated QA Organization Admin",
+          "accountType": "super-admin",
+          "departmentId": null,
+          "departmentCode": null,
+          "departmentName": null,
+          "positionId": null,
+          "positionCode": null,
+          "positionName": null
+        },
+        "organization": {
+          "id": "01a18c5a-2684-768a-88d8-b9db91e72325",
+          "code": "QASALESMVUTWNQI",
+          "name": "Isolated Sales QA 2026-10-30 mvutwnqi",
+          "status": "active",
+          "timezone": "Asia/Kolkata"
+        },
+        "enabledModules": [
+          "access-management",
+          "accounting",
+          "advance",
+          "approvals",
+          "attendance",
+          "audit",
+          "billing-terms",
+          "biometric",
+          "break-management",
+          "callbacks",
+          "chat",
+          "client-portal",
+          "clients",
+          "deals",
+          "delivery",
+          "employee-directory",
+          "handoff",
+          "handovers",
+          "holidays",
+          "identity",
+          "invoicing",
+          "leads",
+          "leave",
+          "live-status",
+          "notifications",
+          "onboarding",
+          "organization",
+          "payables",
+          "payments",
+          "payroll",
+          "performance",
+          "post-closure",
+          "projects",
+          "receivables",
+          "recruitment",
+          "resource-planning",
+          "seo-intelligence",
+          "shifts",
+          "social",
+          "system-administration",
+          "tasks",
+          "territories",
+          "workspace"
+        ],
+        "capabilities": [
+          {
+            "action": "access:decide-role-change",
+            "scope": "global"
+          },
+          {
+            "action": "access:delegate",
+            "scope": "global"
+          },
+          {
+            "action": "access:request-role-change",
+            "scope": "global"
+          },
+          {
+            "action": "access:view",
+            "scope": "global"
+          },
+          {
+            "action": "accounting:close-period",
+            "scope": "global"
+          },
+          {
+            "action": "accounting:manage-accounts",
+            "scope": "global"
+          },
+          {
+            "action": "accounting:post-journal",
+            "scope": "global"
+          },
+          {
+            "action": "accounting:reopen-period",
+            "scope": "global"
+          },
+          {
+            "action": "accounting:tax-export",
+            "scope": "global"
+          },
+          {
+            "action": "accounting:view-ledger",
+            "scope": "global"
+          },
+          {
+            "action": "accounting:view-statements",
+            "scope": "global"
+          },
+          {
+            "action": "accounts:manage-ownership",
+            "scope": "global"
+          },
+          {
+            "action": "accounts:view-revenue",
+            "scope": "global"
+          },
+          {
+            "action": "advance:approve",
+            "scope": "global"
+          },
+          {
+            "action": "advance:export",
+            "scope": "global"
+          },
+          {
+            "action": "advance:manage",
+            "scope": "global"
+          },
+          {
+            "action": "advance:request",
+            "scope": "global"
+          },
+          {
+            "action": "advance:view",
+            "scope": "global"
+          },
+          {
+            "action": "advance:view-own",
+            "scope": "global"
+          },
+          {
+            "action": "approvals:decide",
+            "scope": "global"
+          },
+          {
+            "action": "approvals:delegate",
+            "scope": "global"
+          },
+          {
+            "action": "attendance:correct",
+            "scope": "global"
+          },
+          {
+            "action": "attendance:export",
+            "scope": "global"
+          },
+          {
+            "action": "attendance:raise-correction",
+            "scope": "global"
+          },
+          {
+            "action": "attendance:request-correction",
+            "scope": "global"
+          },
+          {
+            "action": "attendance:view",
+            "scope": "global"
+          },
+          {
+            "action": "attendance:view-live",
+            "scope": "global"
+          },
+          {
+            "action": "audit:export",
+            "scope": "global"
+          },
+          {
+            "action": "audit:manage-holds",
+            "scope": "global"
+          },
+          {
+            "action": "audit:view",
+            "scope": "global"
+          },
+          {
+            "action": "billing:set-terms",
+            "scope": "global"
+          },
+          {
+            "action": "billing:view-terms",
+            "scope": "global"
+          },
+          {
+            "action": "biometric:manage",
+            "scope": "global"
+          },
+          {
+            "action": "breaks:explain",
+            "scope": "global"
+          },
+          {
+            "action": "breaks:manage-policy",
+            "scope": "global"
+          },
+          {
+            "action": "breaks:review-breach",
+            "scope": "global"
+          },
+          {
+            "action": "breaks:view",
+            "scope": "global"
+          },
+          {
+            "action": "callbacks:create",
+            "scope": "global"
+          },
+          {
+            "action": "callbacks:edit",
+            "scope": "global"
+          },
+          {
+            "action": "callbacks:view",
+            "scope": "global"
+          },
+          {
+            "action": "changes:assign",
+            "scope": "global"
+          },
+          {
+            "action": "changes:classify",
+            "scope": "global"
+          },
+          {
+            "action": "chat:manage-groups",
+            "scope": "global"
+          },
+          {
+            "action": "chat:send",
+            "scope": "global"
+          },
+          {
+            "action": "chat:view",
+            "scope": "global"
+          },
+          {
+            "action": "clients:manage",
+            "scope": "global"
+          },
+          {
+            "action": "clients:manage-requests",
+            "scope": "global"
+          },
+          {
+            "action": "clients:view",
+            "scope": "global"
+          },
+          {
+            "action": "deals:allow-custom-terms",
+            "scope": "global"
+          },
+          {
+            "action": "deals:approve",
+            "scope": "global"
+          },
+          {
+            "action": "deals:approve-contract",
+            "scope": "global"
+          },
+          {
+            "action": "deals:confirm-payment",
+            "scope": "global"
+          },
+          {
+            "action": "deals:create",
+            "scope": "global"
+          },
+          {
+            "action": "deals:edit",
+            "scope": "global"
+          },
+          {
+            "action": "deals:forecast",
+            "scope": "global"
+          },
+          {
+            "action": "deals:record-win",
+            "scope": "global"
+          },
+          {
+            "action": "deals:view",
+            "scope": "global"
+          },
+          {
+            "action": "deals:view-commercials",
+            "scope": "global"
+          },
+          {
+            "action": "delivery:approve",
+            "scope": "global"
+          },
+          {
+            "action": "delivery:share",
+            "scope": "global"
+          },
+          {
+            "action": "delivery:signoff",
+            "scope": "global"
+          },
+          {
+            "action": "delivery:view",
+            "scope": "global"
+          },
+          {
+            "action": "handoff:confirm",
+            "scope": "global"
+          },
+          {
+            "action": "handoff:create",
+            "scope": "global"
+          },
+          {
+            "action": "handoff:review",
+            "scope": "global"
+          },
+          {
+            "action": "handoff:view",
+            "scope": "global"
+          },
+          {
+            "action": "handovers:initiate",
+            "scope": "global"
+          },
+          {
+            "action": "handovers:receive",
+            "scope": "global"
+          },
+          {
+            "action": "handovers:record-disposition",
+            "scope": "global"
+          },
+          {
+            "action": "handovers:view",
+            "scope": "global"
+          },
+          {
+            "action": "holidays:manage",
+            "scope": "global"
+          },
+          {
+            "action": "holidays:view",
+            "scope": "global"
+          },
+          {
+            "action": "identity:manage-geofence",
+            "scope": "global"
+          },
+          {
+            "action": "identity:unlock-account",
+            "scope": "global"
+          },
+          {
+            "action": "invoicing:create",
+            "scope": "global"
+          },
+          {
+            "action": "invoicing:credit-note",
+            "scope": "global"
+          },
+          {
+            "action": "invoicing:issue",
+            "scope": "global"
+          },
+          {
+            "action": "invoicing:manage-recurring",
+            "scope": "global"
+          },
+          {
+            "action": "invoicing:manage-series",
+            "scope": "global"
+          },
+          {
+            "action": "invoicing:send",
+            "scope": "global"
+          },
+          {
+            "action": "invoicing:view",
+            "scope": "global"
+          },
+          {
+            "action": "leads:claim",
+            "scope": "global"
+          },
+          {
+            "action": "leads:create",
+            "scope": "global"
+          },
+          {
+            "action": "leads:edit",
+            "scope": "global"
+          },
+          {
+            "action": "leads:pass",
+            "scope": "global"
+          },
+          {
+            "action": "leads:reassign",
+            "scope": "global"
+          },
+          {
+            "action": "leads:reassign-with-credit",
+            "scope": "global"
+          },
+          {
+            "action": "leads:rescue-from-triage",
+            "scope": "global"
+          },
+          {
+            "action": "leads:view",
+            "scope": "global"
+          },
+          {
+            "action": "leave:acknowledge",
+            "scope": "global"
+          },
+          {
+            "action": "leave:decide",
+            "scope": "global"
+          },
+          {
+            "action": "leave:manage-types",
+            "scope": "global"
+          },
+          {
+            "action": "leave:manage-wfh-standing",
+            "scope": "global"
+          },
+          {
+            "action": "leave:request",
+            "scope": "global"
+          },
+          {
+            "action": "leave:request-wfh",
+            "scope": "global"
+          },
+          {
+            "action": "leave:view",
+            "scope": "global"
+          },
+          {
+            "action": "notepad:view-all",
+            "scope": "global"
+          },
+          {
+            "action": "notices:manage",
+            "scope": "global"
+          },
+          {
+            "action": "onboarding:manage",
+            "scope": "global"
+          },
+          {
+            "action": "org:manage-departments",
+            "scope": "global"
+          },
+          {
+            "action": "org:manage-designations",
+            "scope": "global"
+          },
+          {
+            "action": "org:manage-positions",
+            "scope": "global"
+          },
+          {
+            "action": "org:manage-teams",
+            "scope": "global"
+          },
+          {
+            "action": "org:view-designations",
+            "scope": "global"
+          },
+          {
+            "action": "org:view-people",
+            "scope": "global"
+          },
+          {
+            "action": "org:view-policies",
+            "scope": "global"
+          },
+          {
+            "action": "org:view-structure",
+            "scope": "global"
+          },
+          {
+            "action": "payables:approve-bill",
+            "scope": "global"
+          },
+          {
+            "action": "payables:approve-claim",
+            "scope": "global"
+          },
+          {
+            "action": "payables:claim",
+            "scope": "global"
+          },
+          {
+            "action": "payables:create-bill",
+            "scope": "global"
+          },
+          {
+            "action": "payables:execute-run",
+            "scope": "global"
+          },
+          {
+            "action": "payables:view",
+            "scope": "global"
+          },
+          {
+            "action": "payments:allocate",
+            "scope": "global"
+          },
+          {
+            "action": "payments:reconcile",
+            "scope": "global"
+          },
+          {
+            "action": "payments:record",
+            "scope": "global"
+          },
+          {
+            "action": "payments:refund",
+            "scope": "global"
+          },
+          {
+            "action": "payments:view",
+            "scope": "global"
+          },
+          {
+            "action": "payroll:manage",
+            "scope": "global"
+          },
+          {
+            "action": "payroll:manage-config",
+            "scope": "global"
+          },
+          {
+            "action": "payroll:view",
+            "scope": "global"
+          },
+          {
+            "action": "performance:manage",
+            "scope": "global"
+          },
+          {
+            "action": "performance:view",
+            "scope": "global"
+          },
+          {
+            "action": "performance:view-aggregates",
+            "scope": "global"
+          },
+          {
+            "action": "projects:manage",
+            "scope": "global"
+          },
+          {
+            "action": "projects:view",
+            "scope": "global"
+          },
+          {
+            "action": "projects:view-financials",
+            "scope": "global"
+          },
+          {
+            "action": "receivables:dun",
+            "scope": "global"
+          },
+          {
+            "action": "receivables:view",
+            "scope": "global"
+          },
+          {
+            "action": "receivables:write-off",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-candidate-rounds",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-candidates",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-email-templates",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-interviews",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-joining",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-links",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-offers",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-pipeline",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-requisitions",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:manage-submissions",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:send-joining-email",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:submit-round-feedback",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:view-candidate-events",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:view-candidates",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:view-interviews",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:view-joining",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:view-metrics",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:view-offers",
+            "scope": "global"
+          },
+          {
+            "action": "recruitment:view-requisitions",
+            "scope": "global"
+          },
+          {
+            "action": "renewals:view",
+            "scope": "global"
+          },
+          {
+            "action": "resources:allocate",
+            "scope": "global"
+          },
+          {
+            "action": "resources:override-allocation",
+            "scope": "global"
+          },
+          {
+            "action": "resources:view",
+            "scope": "global"
+          },
+          {
+            "action": "seo:acknowledge-alert",
+            "scope": "global"
+          },
+          {
+            "action": "seo:comment-content",
+            "scope": "global"
+          },
+          {
+            "action": "seo:create-content",
+            "scope": "global"
+          },
+          {
+            "action": "seo:create-site",
+            "scope": "global"
+          },
+          {
+            "action": "seo:edit-content",
+            "scope": "global"
+          },
+          {
+            "action": "seo:export-content",
+            "scope": "global"
+          },
+          {
+            "action": "seo:export-report",
+            "scope": "global"
+          },
+          {
+            "action": "seo:list-alerts",
+            "scope": "global"
+          },
+          {
+            "action": "seo:list-finding-groups",
+            "scope": "global"
+          },
+          {
+            "action": "seo:list-findings",
+            "scope": "global"
+          },
+          {
+            "action": "seo:list-fixes",
+            "scope": "global"
+          },
+          {
+            "action": "seo:list-keywords",
+            "scope": "global"
+          },
+          {
+            "action": "seo:list-rules",
+            "scope": "global"
+          },
+          {
+            "action": "seo:list-scans",
+            "scope": "global"
+          },
+          {
+            "action": "seo:list-sites",
+            "scope": "global"
+          },
+          {
+            "action": "seo:manage-content-brand",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-ai-visibility",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-backlinks",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-content",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-cwv",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-finding",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-findings-trend",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-rank-tracking",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-scan",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-search-performance",
+            "scope": "global"
+          },
+          {
+            "action": "seo:read-site",
+            "scope": "global"
+          },
+          {
+            "action": "seo:review-content",
+            "scope": "global"
+          },
+          {
+            "action": "seo:sync-search-performance",
+            "scope": "global"
+          },
+          {
+            "action": "seo:trigger-scan",
+            "scope": "global"
+          },
+          {
+            "action": "seo:update-finding",
+            "scope": "global"
+          },
+          {
+            "action": "seo:update-fix",
+            "scope": "global"
+          },
+          {
+            "action": "seo:update-rule",
+            "scope": "global"
+          },
+          {
+            "action": "seo:update-site",
+            "scope": "global"
+          },
+          {
+            "action": "sheets:manage",
+            "scope": "global"
+          },
+          {
+            "action": "shifts:approve",
+            "scope": "global"
+          },
+          {
+            "action": "shifts:manage",
+            "scope": "global"
+          },
+          {
+            "action": "shifts:view",
+            "scope": "global"
+          },
+          {
+            "action": "social:approve",
+            "scope": "global"
+          },
+          {
+            "action": "social:connect",
+            "scope": "global"
+          },
+          {
+            "action": "social:manage",
+            "scope": "global"
+          },
+          {
+            "action": "social:publish",
+            "scope": "global"
+          },
+          {
+            "action": "social:settings",
+            "scope": "global"
+          },
+          {
+            "action": "social:view",
+            "scope": "global"
+          },
+          {
+            "action": "status:punch",
+            "scope": "global"
+          },
+          {
+            "action": "system:manage-integrations",
+            "scope": "global"
+          },
+          {
+            "action": "system:manage-retention",
+            "scope": "global"
+          },
+          {
+            "action": "system:manage-settings",
+            "scope": "global"
+          },
+          {
+            "action": "system:manage-thresholds",
+            "scope": "global"
+          },
+          {
+            "action": "tasks:assign",
+            "scope": "global"
+          },
+          {
+            "action": "tasks:log-time",
+            "scope": "global"
+          },
+          {
+            "action": "tasks:manage-dependencies",
+            "scope": "global"
+          },
+          {
+            "action": "tasks:review",
+            "scope": "global"
+          },
+          {
+            "action": "tasks:update",
+            "scope": "global"
+          },
+          {
+            "action": "tasks:view",
+            "scope": "global"
+          },
+          {
+            "action": "territories:manage",
+            "scope": "global"
+          },
+          {
+            "action": "territories:view",
+            "scope": "global"
+          },
+          {
+            "action": "users:change-placement",
+            "scope": "global"
+          },
+          {
+            "action": "users:manage",
+            "scope": "global"
+          },
+          {
+            "action": "users:view",
+            "scope": "global"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Create synthetic outbound source",
+      "method": "POST",
+      "path": "/api/lead-sources",
+      "status": 201,
+      "data": {
+        "id": "01a18c5b-3ef5-7692-8d59-0db1baa6b201",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "name": "Isolated QA Outbound 2026-10-30",
+        "direction": "outbound",
+        "status": "active",
+        "createdAt": "2026-10-30T10:29:12.564Z",
+        "updatedAt": "2026-10-30T10:29:12.564Z"
+      }
+    },
+    {
+      "name": "Create outbound QA lead",
+      "method": "POST",
+      "path": "/api/leads",
+      "status": 201,
+      "data": {
+        "lead": {
+          "id": "01a18c5b-3f00-7374-879e-ecc29385b219",
+          "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+          "leadNumber": "114",
+          "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "ownerName": "Isolated QA Organization Admin",
+          "currentHolderId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "currentHolderName": "Isolated QA Organization Admin",
+          "territoryId": null,
+          "territoryName": null,
+          "salesTeamId": null,
+          "salesTeamName": null,
+          "salesPoolId": null,
+          "salesPoolName": null,
+          "sourceId": "01a18c5b-3ef5-7692-8d59-0db1baa6b201",
+          "sourceName": "Isolated QA Outbound 2026-10-30",
+          "sourceDirection": "outbound",
+          "campaignId": null,
+          "campaignName": null,
+          "status": "assigned",
+          "routingStatus": "assigned",
+          "contactId": null,
+          "contactName": "Isolated QA Buyer 2026-10-30",
+          "companyId": null,
+          "companyName": null,
+          "phone": null,
+          "email": "qa.buyer.qasalesmvutwnqi@example.test",
+          "lossReason": null,
+          "lostAt": null,
+          "previousLeadId": null,
+          "stalledAt": null,
+          "stalledReason": null,
+          "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "createdAt": "2026-10-30T10:29:12.573Z",
+          "updatedAt": "2026-10-30T10:29:12.573Z",
+          "activities": [
+            {
+              "id": "01a18c5b-3f01-7eef-b702-4570e5d8603d",
+              "eventName": "lead.created",
+              "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+              "metadata": {
+                "routingStatus": "assigned"
+              },
+              "createdAt": "2026-10-30T10:29:12.573541+00:00"
+            },
+            {
+              "id": "01a18c5b-3f02-7b7e-958d-47ed7218a33d",
+              "eventName": "lead.assigned",
+              "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+              "metadata": {
+                "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2"
+              },
+              "createdAt": "2026-10-30T10:29:12.573541+00:00"
+            }
+          ]
+        },
+        "duplicates": []
+      }
+    },
+    {
+      "name": "Convert manual lead without contact fixture",
+      "method": "POST",
+      "path": "/api/deals",
+      "status": 422,
+      "code": "DEAL_CONTACT_UNRESOLVED",
+      "message": "Contact could not be resolved — supply contactId or pick an originating lead that has one."
+    },
+    {
+      "name": "Convert after explicit contact fixture",
+      "method": "POST",
+      "path": "/api/deals",
+      "status": 201,
+      "data": {
+        "id": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "dealNumber": "256",
+        "originatingLeadId": "01a18c5b-3f00-7374-879e-ecc29385b219",
+        "directEntryReason": null,
+        "contactId": "01a18c5b-3f23-7483-b0a6-02de30527582",
+        "contactName": "Isolated QA Buyer 2026-10-30",
+        "companyId": null,
+        "companyName": null,
+        "serviceRequested": "Website Development",
+        "title": "Isolated QA Closing Journey 2026-10-30",
+        "scopeSummary": "TEST ONLY. No binding offer, delivery, payment, or customer communication.",
+        "originatingAgentId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "originatingAgentName": "Isolated QA Organization Admin",
+        "responsibleCloserId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "responsibleCloserName": "Isolated QA Organization Admin",
+        "closedById": null,
+        "currency": "INR",
+        "expectedCloseAt": null,
+        "probabilityOverride": null,
+        "commercialsId": null,
+        "dealStage": "discovery",
+        "approvalStatus": "not_required",
+        "contractStatus": "not_required",
+        "paymentStatus": "unpaid",
+        "lifecycleStatus": "open",
+        "lossReason": null,
+        "lostAt": null,
+        "wonAt": null,
+        "cancelledAt": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.622Z",
+        "updatedAt": "2026-10-30T10:29:12.622Z"
+      }
+    },
+    {
+      "name": "Initial close readiness",
+      "method": "GET",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/win-readiness",
+      "status": 200,
+      "data": {
+        "canClose": false,
+        "unmet": [
+          {
+            "condition": "commercials",
+            "description": "No published commercials version exists yet.",
+            "resolver": "Publish a commercials version from the proposals studio."
+          },
+          {
+            "condition": "payment",
+            "description": "Advance not yet confirmed by Finance.",
+            "resolver": "Verify and allocate the required advance against this deal."
+          },
+          {
+            "condition": "delivery_brief",
+            "description": "No delivery brief exists yet.",
+            "resolver": "Start a delivery brief from the deal page."
+          }
+        ]
+      }
+    },
+    {
+      "name": "Create itemized proposal",
+      "method": "POST",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/commercials",
+      "status": 201,
+      "data": {
+        "id": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "dealId": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+        "version": 1,
+        "state": "draft",
+        "currency": "INR",
+        "subtotalMinor": "10000000",
+        "discountMinor": "0",
+        "taxMinor": "1800000",
+        "totalMinor": "11800000",
+        "advanceMinor": "5000000",
+        "validityAt": null,
+        "scope": "TEST ONLY. Not a binding offer. No actual funds or delivery.",
+        "exclusions": "Domain and hosting excluded",
+        "timeline": "30 test days",
+        "terms": null,
+        "pdfChecksum": null,
+        "publishedAt": null,
+        "publishedBy": null,
+        "acceptedAt": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.634Z",
+        "updatedAt": "2026-10-30T10:29:12.634Z",
+        "items": [
+          {
+            "id": "01a18c5b-3f3c-7e18-bf99-c902167f7be3",
+            "commercialsId": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+            "serviceName": "QA Website Development",
+            "description": "Synthetic QA work only",
+            "quantity": "1.0000",
+            "unitPriceMinor": "10000000",
+            "itemDiscountMinor": "0",
+            "taxCategory": "standard",
+            "taxRateBps": 1800,
+            "lineTotalMinor": "10000000",
+            "milestone": null,
+            "sortOrder": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Publish proposal",
+      "method": "POST",
+      "path": "/api/commercials/01a18c5b-3f3c-70ff-bf2c-636e2169c7a7/publish",
+      "status": 201,
+      "data": {
+        "id": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "dealId": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+        "version": 1,
+        "state": "published",
+        "currency": "INR",
+        "subtotalMinor": "10000000",
+        "discountMinor": "0",
+        "taxMinor": "1800000",
+        "totalMinor": "11800000",
+        "advanceMinor": "5000000",
+        "validityAt": null,
+        "scope": "TEST ONLY. Not a binding offer. No actual funds or delivery.",
+        "exclusions": "Domain and hosting excluded",
+        "timeline": "30 test days",
+        "terms": null,
+        "pdfChecksum": "be5ce157e5f4f90db6055f7ac49d3e21541446ef520281ae5fe462dd22dd1631",
+        "publishedAt": "2026-10-30T10:29:12.642Z",
+        "publishedBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "acceptedAt": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.634Z",
+        "updatedAt": "2026-10-30T10:29:12.642Z",
+        "items": [
+          {
+            "id": "01a18c5b-3f3c-7e18-bf99-c902167f7be3",
+            "commercialsId": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+            "serviceName": "QA Website Development",
+            "description": "Synthetic QA work only",
+            "quantity": "1.0000",
+            "unitPriceMinor": "10000000",
+            "itemDiscountMinor": "0",
+            "taxCategory": "standard",
+            "taxRateBps": 1800,
+            "lineTotalMinor": "10000000",
+            "milestone": null,
+            "sortOrder": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Start draft delivery brief",
+      "method": "POST",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/delivery-brief",
+      "status": 201,
+      "data": {
+        "id": "01a18c5b-3f4a-7775-a476-e57a2d7d26e6",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "dealId": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+        "commercialsId": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+        "state": "draft",
+        "content": {
+          "notes": "Synthetic QA brief. No actual delivery or payment."
+        },
+        "projectId": null,
+        "submittedAt": null,
+        "reviewedAt": null,
+        "reviewedBy": null,
+        "acceptedAt": null,
+        "acceptedBy": null,
+        "cancelledAt": null,
+        "cancelledReason": null,
+        "changeNotes": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.649Z",
+        "updatedAt": "2026-10-30T10:29:12.649Z"
+      }
+    },
+    {
+      "name": "Readiness with published proposal and draft brief",
+      "method": "GET",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/win-readiness",
+      "status": 200,
+      "data": {
+        "canClose": false,
+        "unmet": [
+          {
+            "condition": "payment",
+            "description": "Advance not yet confirmed by Finance.",
+            "resolver": "Verify and allocate the required advance against this deal."
+          }
+        ]
+      }
+    },
+    {
+      "name": "Reject zero advance input",
+      "method": "POST",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/confirm-payment",
+      "status": 403,
+      "code": "FORBIDDEN",
+      "message": "deals:confirm-payment: declared initiator field \"payment.initiatedBy\" is absent from deal:01a18c5b-3f2e-7c08-95e6-c2b80e650147. Denying rather than passing (SD-B).",
+      "details": {
+        "action": "deals:confirm-payment",
+        "constraint": null,
+        "remedy": "Request this capability from Super Admin or a delegate who holds it."
+      }
+    },
+    {
+      "name": "Reject advance below expected amount",
+      "method": "POST",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/confirm-payment",
+      "status": 403,
+      "code": "FORBIDDEN",
+      "message": "deals:confirm-payment: declared initiator field \"payment.initiatedBy\" is absent from deal:01a18c5b-3f2e-7c08-95e6-c2b80e650147. Denying rather than passing (SD-B).",
+      "details": {
+        "action": "deals:confirm-payment",
+        "constraint": null,
+        "remedy": "Request this capability from Super Admin or a delegate who holds it."
+      }
+    },
+    {
+      "name": "Confirm synthetic expected advance",
+      "method": "POST",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/confirm-payment",
+      "status": 403,
+      "code": "FORBIDDEN",
+      "message": "deals:confirm-payment: declared initiator field \"payment.initiatedBy\" is absent from deal:01a18c5b-3f2e-7c08-95e6-c2b80e650147. Denying rather than passing (SD-B).",
+      "details": {
+        "action": "deals:confirm-payment",
+        "constraint": null,
+        "remedy": "Request this capability from Super Admin or a delegate who holds it."
+      }
+    },
+    {
+      "name": "Readiness after advance attempt",
+      "method": "GET",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/win-readiness",
+      "status": 200,
+      "data": {
+        "canClose": false,
+        "unmet": [
+          {
+            "condition": "payment",
+            "description": "Advance not yet confirmed by Finance.",
+            "resolver": "Verify and allocate the required advance against this deal."
+          }
+        ]
+      }
+    },
+    {
+      "name": "Attempt synthetic advance reversal",
+      "method": "POST",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/confirm-payment",
+      "status": 403,
+      "code": "FORBIDDEN",
+      "message": "deals:confirm-payment: declared initiator field \"payment.initiatedBy\" is absent from deal:01a18c5b-3f2e-7c08-95e6-c2b80e650147. Denying rather than passing (SD-B).",
+      "details": {
+        "action": "deals:confirm-payment",
+        "constraint": null,
+        "remedy": "Request this capability from Super Admin or a delegate who holds it."
+      }
+    },
+    {
+      "name": "Record win through authenticated route",
+      "method": "POST",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147/record-win",
+      "status": 403,
+      "code": "FORBIDDEN",
+      "message": "deals:record-win: declared initiator field \"closedBy\" is absent from deal:01a18c5b-3f2e-7c08-95e6-c2b80e650147. Denying rather than passing (SD-B).",
+      "details": {
+        "action": "deals:record-win",
+        "constraint": null,
+        "remedy": "Request this capability from Super Admin or a delegate who holds it."
+      }
+    },
+    {
+      "name": "Final persisted deal",
+      "method": "GET",
+      "path": "/api/deals/01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+      "status": 200,
+      "data": {
+        "id": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "dealNumber": "256",
+        "originatingLeadId": "01a18c5b-3f00-7374-879e-ecc29385b219",
+        "directEntryReason": null,
+        "contactId": "01a18c5b-3f23-7483-b0a6-02de30527582",
+        "contactName": "Isolated QA Buyer 2026-10-30",
+        "companyId": null,
+        "companyName": null,
+        "serviceRequested": "Website Development",
+        "title": "Isolated QA Closing Journey 2026-10-30",
+        "scopeSummary": "TEST ONLY. No binding offer, delivery, payment, or customer communication.",
+        "originatingAgentId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "originatingAgentName": "Isolated QA Organization Admin",
+        "responsibleCloserId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "responsibleCloserName": "Isolated QA Organization Admin",
+        "closedById": null,
+        "currency": "INR",
+        "expectedCloseAt": null,
+        "probabilityOverride": null,
+        "commercialsId": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+        "dealStage": "discovery",
+        "approvalStatus": "not_required",
+        "contractStatus": "not_required",
+        "paymentStatus": "unpaid",
+        "lifecycleStatus": "open",
+        "lossReason": null,
+        "lostAt": null,
+        "wonAt": null,
+        "cancelledAt": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.622Z",
+        "updatedAt": "2026-10-30T10:29:12.642Z"
+      }
+    },
+    {
+      "name": "Admin approvals queue",
+      "method": "GET",
+      "path": "/api/approvals/queue",
+      "status": 403,
+      "code": "FORBIDDEN",
+      "message": "approvals:decide is approval-bearing and requires a resource to check its initiator against.",
+      "details": {
+        "action": "approvals:decide",
+        "constraint": null,
+        "remedy": "Request this capability from Super Admin or a delegate who holds it."
+      }
+    },
+    {
+      "name": "Admin wins queue",
+      "method": "GET",
+      "path": "/api/deals/wins-to-record",
+      "status": 403,
+      "code": "FORBIDDEN",
+      "message": "deals:record-win is approval-bearing and requires a resource to check its initiator against.",
+      "details": {
+        "action": "deals:record-win",
+        "constraint": null,
+        "remedy": "Request this capability from Super Admin or a delegate who holds it."
+      }
+    },
+    {
+      "name": "Scoped forecast",
+      "method": "GET",
+      "path": "/api/deals/forecast?period=2026-10",
+      "status": 200,
+      "data": {
+        "periodStart": "2026-10-01T00:00:00.000Z",
+        "periodEnd": "2026-11-01T00:00:00.000Z",
+        "funnel": [
+          {
+            "stage": "discovery",
+            "count": 1
+          },
+          {
+            "stage": "proposal",
+            "count": 0
+          },
+          {
+            "stage": "negotiation",
+            "count": 0
+          },
+          {
+            "stage": "closing",
+            "count": 0
+          }
+        ],
+        "lifecycle": [
+          {
+            "lifecycleStatus": "open",
+            "count": 1
+          },
+          {
+            "lifecycleStatus": "won",
+            "count": 0
+          },
+          {
+            "lifecycleStatus": "lost",
+            "count": 0
+          },
+          {
+            "lifecycleStatus": "cancelled",
+            "count": 0
+          }
+        ],
+        "lossReasons": [],
+        "winLeaderboard": [],
+        "totals": {
+          "wonCount": 0,
+          "lostCount": 0,
+          "openCount": 1,
+          "wonAmountMinor": "0"
+        }
+      }
+    },
+    {
+      "name": "Source lead after deal creation",
+      "method": "GET",
+      "path": "/api/leads/01a18c5b-3f00-7374-879e-ecc29385b219",
+      "status": 200,
+      "data": {
+        "id": "01a18c5b-3f00-7374-879e-ecc29385b219",
+        "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+        "leadNumber": "114",
+        "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "ownerName": "Isolated QA Organization Admin",
+        "currentHolderId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "currentHolderName": "Isolated QA Organization Admin",
+        "territoryId": null,
+        "territoryName": null,
+        "salesTeamId": null,
+        "salesTeamName": null,
+        "salesPoolId": null,
+        "salesPoolName": null,
+        "sourceId": "01a18c5b-3ef5-7692-8d59-0db1baa6b201",
+        "sourceName": "Isolated QA Outbound 2026-10-30",
+        "sourceDirection": "outbound",
+        "campaignId": null,
+        "campaignName": null,
+        "status": "assigned",
+        "routingStatus": "assigned",
+        "contactId": "01a18c5b-3f23-7483-b0a6-02de30527582",
+        "contactName": "Isolated QA Buyer 2026-10-30",
+        "companyId": null,
+        "companyName": null,
+        "phone": null,
+        "email": "qa.buyer.qasalesmvutwnqi@example.test",
+        "lossReason": null,
+        "lostAt": null,
+        "previousLeadId": null,
+        "stalledAt": null,
+        "stalledReason": null,
+        "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+        "createdAt": "2026-10-30T10:29:12.573Z",
+        "updatedAt": "2026-10-30T10:29:12.608Z",
+        "activities": [
+          {
+            "id": "01a18c5b-3f01-7eef-b702-4570e5d8603d",
+            "eventName": "lead.created",
+            "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "metadata": {
+              "routingStatus": "assigned"
+            },
+            "createdAt": "2026-10-30T10:29:12.573541+00:00"
+          },
+          {
+            "id": "01a18c5b-3f02-7b7e-958d-47ed7218a33d",
+            "eventName": "lead.assigned",
+            "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "metadata": {
+              "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2"
+            },
+            "createdAt": "2026-10-30T10:29:12.573541+00:00"
+          }
+        ]
+      }
+    }
+  ],
+  "records": {
+    "leadId": "01a18c5b-3f00-7374-879e-ecc29385b219",
+    "contactFixtureId": "01a18c5b-3f23-7483-b0a6-02de30527582",
+    "dealId": "01a18c5b-3f2e-7c08-95e6-c2b80e650147",
+    "dealNumber": "256",
+    "commercialsId": "01a18c5b-3f3c-70ff-bf2c-636e2169c7a7",
+    "briefId": "01a18c5b-3f4a-7775-a476-e57a2d7d26e6"
+  },
+  "login": {
+    "status": 200,
+    "passwordChangeRequired": false
+  }
+}

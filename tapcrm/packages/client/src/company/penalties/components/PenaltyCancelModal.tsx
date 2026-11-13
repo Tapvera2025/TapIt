@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Modal, Notice } from '../../../ui/components.js';
+import { Button, Modal, Notice } from '../../../ui/index.js';
 import { cancelPenalty } from '../api/penaltiesApi.js';
 import { PENALTY_LABELS, type Penalty } from '../types/index.js';
 

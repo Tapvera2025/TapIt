@@ -1,6 +1,6 @@
 import { ColorAppearanceTab } from '../../theme/ColorAppearanceTab.js';
 import { useTheme, type Theme } from '../../theme/ThemeContext.js';
-import { Card, Page } from '../../ui/components.js';
+import { Card, Page } from '../../ui/index.js';
 import { organizationApi } from '../../organization/api/organizationApi.js';
 import { useEffect, useState } from 'react';
 

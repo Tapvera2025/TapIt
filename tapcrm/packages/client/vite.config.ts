@@ -9,7 +9,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
-    host: process.env['VITE_HOST'] ?? 'localhost',
+    // 127.0.0.1 rather than "localhost": on macOS "localhost" binds IPv6 only,
+    // and browsers that try 127.0.0.1 then cannot reach the dev server.
+    host: process.env['VITE_HOST'] ?? '127.0.0.1',
     proxy: {
       [apiBasePath]: {
         target: process.env['VITE_API_PROXY_TARGET'] ?? 'http://localhost:4000',

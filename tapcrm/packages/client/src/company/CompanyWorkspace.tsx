@@ -1,7 +1,8 @@
-import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
-import { getCompanyIdentity, type CompanyIdentity } from './api/companyApi.js';
-import { setIdentitySessionPrincipal } from '../identity/api/authApi.js';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { hasRecruitmentViewAction, superAdminOr, superAdminOrBeyondOwn } from './module-access.js';
+import { useCompanyIdentity } from './useCompanyIdentity.js';
 import { CompanyLayout } from './layout/CompanyLayout.js';
+import { SalesGuideProvider } from './sales/guide/SalesGuide.js';
 import { DashboardPage } from './dashboard/DashboardPage.js';
 import { EmployeesPage } from './employees/EmployeesPage.js';
 import { SessionsPage } from '../identity/pages/SessionsPage.js';
@@ -19,6 +20,7 @@ import { SalariesPage } from './payroll/SalariesPage.js';
 import { PayrollSettingsPage } from './payroll/PayrollSettingsPage.js';
 import { PayrollInputsPage } from './payroll/PayrollInputsPage.js';
 import { TodayPage } from './today/TodayPage.js';
+import { BreakModeGuard } from './live/BreakModeGuard.js';
 import { LiveBoardPage } from './live/LiveBoardPage.js';
 import { AttendancePage } from './attendance/AttendancePage.js';
 import { EmployeeWisePage } from './attendance/EmployeeWisePage.js';
@@ -55,6 +57,15 @@ import {
   WinsToRecordPage,
   DeliveryBriefPage,
   ReportsPage,
+  TeamCallsPage,
+  EmployeeCallsPage,
+  CallLogPage,
+  CallIntegrationsPage,
+  AssignedLeadCallsPage,
+  ImportedLeadsPage,
+  SalesOverviewPage,
+  SalesSetupPage,
+  type CallsAccess,
 } from './sales/index.js';
 import { RecruitmentWorkspace } from './recruitment/index.js';
 import { MyInterviewsPage } from './recruitment/pages/MyInterviewsPage.js';
@@ -62,10 +73,12 @@ import { useHasAssignedInterviews } from './recruitment/useAssignedInterviews.js
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 import { MessagesPage } from '../chat/index.js';
 import { ClientsPage } from '../clients/index.js';
+import { SocialWorkspace } from '../social/SocialWorkspace.js';
+import { SeoWorkspace } from '../seo-intelligence/SeoWorkspace.js';
 import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
 import { MyTodoPage } from './todo/index.js';
 import { SettingsPage } from './settings/SettingsPage.js';
-import { WorkspaceSkeleton } from '../ui/components.js';
+import { WorkspaceSkeleton } from '../ui/index.js';
 import { AdvanceRequestsPage, MyAdvancesPage } from './advance/AdvancePages.js';
 import { PenaltiesPage } from './penalties/PenaltiesPage.js';
 import { MyPenaltiesPage } from './penalties/MyPenaltiesPage.js';
@@ -81,6 +94,7 @@ import { PayablesPage } from './finance/payables/PayablesPage.js';
 import { ProfitabilityPage } from './finance/profitability/ProfitabilityPage.js';
 import { CashFlowPage } from './finance/cash-flow/CashFlowPage.js';
 import { companySearchDestinations } from './layout/navigation.js';
+import { MeetingsPage } from '../meetings/MeetingsPage.js';
 
 export function CompanyWorkspace({
   pathname: rawPathname,
@@ -92,35 +106,13 @@ export function CompanyWorkspace({
   onLogout: () => void;
 }): React.JSX.Element {
   const pathname = (rawPathname.split('?')[0] ?? rawPathname).replace(/\/+$/, '') || '/';
-  const [identity, setIdentity] = useState<CompanyIdentity | null>(null);
-  const [error, setError] = useState('');
+  const { identity, error } = useCompanyIdentity();
   // "My Interviews" is in the sidebar only for people with interviews: a round
   // HR assigned to them, or a scheduled interview naming them on the panel.
   const hasInterviews = useHasAssignedInterviews(
     Boolean(identity?.enabledModules.includes('recruitment')),
     pathname,
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    void getCompanyIdentity()
-      .then((nextIdentity) => {
-        if (cancelled) return;
-        if (nextIdentity.organization) {
-          setIdentitySessionPrincipal(nextIdentity.user.id, nextIdentity.organization.id);
-        }
-        setIdentity(nextIdentity);
-      })
-      .catch((cause) => {
-        if (cancelled) return;
-        setError(
-          cause instanceof Error ? cause.message : 'Unable to load company workspace.',
-        );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   if (error) {
     return (
@@ -160,46 +152,78 @@ export function CompanyWorkspace({
   // Screens that list other people need more than the holder's own record.
   const canBeyondOwn = (action: string): boolean =>
     identity.capabilities.some((item) => item.action === action && item.scope !== 'own');
+  // Super-admins get every action of every ENABLED module; never let the
+  // super-admin shortcut bypass a module that is switched off.
+  const enabledModules: readonly string[] = identity.enabledModules;
+  const moduleOn = (key: string): boolean => enabledModules.includes(key);
+  const accessSubject = { isSuperAdmin, enabledModules, capabilities: identity.capabilities };
+  const saCan = (action: string): boolean => superAdminOr(accessSubject, action);
+  const saCanBeyondOwn = (action: string): boolean => superAdminOrBeyondOwn(accessSubject, action);
   // Navigation follows the capabilities the server resolved for this session;
   // every API call is still authorized on the server.
-  const canViewEmployees = isSuperAdmin || can('users:view');
+  const canViewEmployees = saCan('users:view');
   const canRequestRoleChange = !isSuperAdmin && can('access:request-role-change');
-  const canViewAudit = isSuperAdmin || can('audit:view');
-  const canViewTerritories = isSuperAdmin || can('territories:view');
-  const canViewLeads = isSuperAdmin || can('leads:view');
-  const canViewCallbacks = isSuperAdmin || can('callbacks:view');
-  const canViewHandovers = isSuperAdmin || can('handovers:view');
-  const canViewDeals = isSuperAdmin || can('deals:view');
-  const canApproveDeals = isSuperAdmin || can('deals:approve');
-  const canRecordWin = isSuperAdmin || can('deals:record-win');
-  const canConfirmPayment = isSuperAdmin || can('deals:confirm-payment');
-  const canDecideApprovals = isSuperAdmin || can('approvals:decide');
-  const canReviewDelivery = isSuperAdmin || can('delivery:approve');
-  const canForecast = isSuperAdmin || can('deals:forecast');
+  const canViewAudit = saCan('audit:view');
+  const canViewTerritories = saCan('territories:view');
+  const canViewLeads = saCan('leads:view');
+  const canViewCallbacks = saCan('callbacks:view');
+  const canViewHandovers = saCan('handovers:view');
+  const canViewDeals = saCan('deals:view');
+  const hasMeetings = identity.enabledModules.includes('meetings');
+  const canHostMeetings = saCan('meetings:host');
+  const canViewMeetings = saCan('meetings:view');
+  const canApproveDeals = saCan('deals:approve');
+  const canRecordWin = saCan('deals:record-win');
+  const canConfirmPayment = saCan('deals:confirm-payment');
+  const canDecideApprovals = saCan('approvals:decide');
+  const canReviewDelivery = saCan('delivery:approve');
+  const canForecast = saCan('deals:forecast');
+  // The Organization workspace edits as well as reads (its pages have no
+  // per-action guards), so its route stays super-admin only; this only feeds
+  // read-only hints.
+  const canViewOrganization = saCan('org:view-structure');
+  // Access Explorer: every tab it loads is authorized by access:view
+  // (effective, who-can, overrides, role-change-requests).
+  const canViewAccessExplorer = isSuperAdmin || saCan('access:view');
+  // Call Analytics (JustCall / Aircall): the module must be on for the company.
+  const hasTelephony = identity.enabledModules.includes('telephony');
+  const canViewCalls = hasTelephony && saCan('telephony:view');
+  const canManageCalls = hasTelephony && saCan('telephony:manage');
+  // Lead Imports: lead lists from files and Google Sheets, handed to Sales.
+  const hasLeadImports = identity.enabledModules.includes('lead-imports');
+  const canViewImports = hasLeadImports && saCan('lead-imports:view');
+  const canManageImports = hasLeadImports && saCan('lead-imports:manage');
+  const callsAccess: CallsAccess = {
+    canSeeTeam: saCanBeyondOwn('telephony:view'),
+    canListen: saCan('telephony:listen'),
+    canManage: canManageCalls,
+    canViewCalls,
+    canTrackAssigned: hasTelephony && canViewImports,
+  };
   const canViewAccounting =
-    isSuperAdmin ||
-    can('accounting:view-ledger') ||
-    can('accounting:view-statements') ||
-    can('accounting:tax-export');
-  const canManageAccountingAccounts = isSuperAdmin || can('accounting:manage-accounts');
-  const canPostAccounting = isSuperAdmin || can('accounting:post-journal');
-  const canCloseAccounting = isSuperAdmin || can('accounting:close-period');
-  const canManageAccountingPeriods = isSuperAdmin || can('accounting:manage-periods');
-  const canViewAccountingStatements = isSuperAdmin || can('accounting:view-statements');
-  const canTaxAccounting = isSuperAdmin || can('accounting:tax-export');
+    saCan('accounting:view-ledger') ||
+    saCan('accounting:view-statements') ||
+    saCan('accounting:tax-export');
+  const canManageAccountingAccounts = saCan('accounting:manage-accounts');
+  const canPostAccounting = saCan('accounting:post-journal');
+  const canCloseAccounting = saCan('accounting:close-period');
+  const canManageAccountingPeriods = saCan('accounting:manage-periods');
+  const canViewAccountingStatements = saCan('accounting:view-statements');
+  const canTaxAccounting = saCan('accounting:tax-export');
   const canViewFinanceFoundation =
-    isSuperAdmin ||
-    can('accounting:view-finance-settings') ||
-    can('accounting:manage-finance-settings');
-  const canViewBillingTerms = isSuperAdmin || can('billing:view-terms');
-  const canViewInvoicing = isSuperAdmin || can('invoicing:view');
-  const canViewReceivables = isSuperAdmin || can('receivables:view');
-  const canViewPayables = isSuperAdmin || can('payables:view');
-  const canViewProfitability = isSuperAdmin || can('projects:view-financials');
+    saCan('accounting:view-finance-settings') ||
+    saCan('accounting:manage-finance-settings');
+  const canViewBillingTerms = saCan('billing:view-terms');
+  const canViewInvoicing = saCan('invoicing:view');
+  const canViewReceivables = saCan('receivables:view');
+  const canViewPayables = saCan('payables:view');
+  const canViewProfitability = saCan('projects:view-financials');
   const canViewCashFlow = canViewAccounting;
-  const canViewChat = isSuperAdmin || can('chat:view');
-  const canViewClients = isSuperAdmin || can('clients:view');
-  const canViewProjects = isSuperAdmin || can('projects:view');
+  const canViewChat = saCan('chat:view');
+  const canViewClients = saCan('clients:view');
+  const canViewSocial = saCan('social:view');
+  const canViewSeo = saCan('seo:list-sites');
+  const canViewProjects = saCan('projects:view');
   const canManageLeaveTypes = can('leave:manage-types');
   const canAcknowledgeLeave = can('leave:acknowledge');
   const canDecideLeave = can('leave:decide');
@@ -211,15 +235,38 @@ export function CompanyWorkspace({
   const fullName = identity.user.fullName;
   const organizationTimeZone = identity.organization?.timezone ?? 'UTC';
   const canReassignLeadsFromUi =
-    isSuperAdmin ||
+    (isSuperAdmin && moduleOn('leads')) ||
     (identity.user.accountType === 'employee' &&
       (identity.user.departmentCode?.toLowerCase().includes('sales') ?? false) &&
       ['hod', 'head', 'manager', 'director'].some((hint) =>
         (identity.user.positionCode ?? '').toLowerCase().includes(hint),
       ));
+  // Sales-department managers triage leads only while the leads module is on.
+  // A granted power counts too: leads:reassign beyond own records, or the
+  // triage power itself (GET /api/leads/triage and the supervisor dashboards
+  // are authorized by leads:view).
+  const canSuperviseSales =
+    canReassignLeadsFromUi ||
+    (moduleOn('leads') &&
+      canViewLeads &&
+      (saCanBeyondOwn('leads:reassign') || saCan('leads:rescue-from-triage')));
+  const canTriageSales = canSuperviseSales && moduleOn('leads');
+  const canViewSalesWorkspace = canTriageSales || canViewTerritories || canViewLeads || canViewCallbacks || canViewCalls || canManageCalls || canViewHandovers || canViewDeals || canDecideApprovals || canRecordWin || canForecast;
   const hasRecruitment = identity.enabledModules.includes('recruitment');
+  const canViewRecruitment =
+    hasRecruitment &&
+    Boolean(isHr || hasRecruitmentViewAction(new Set(identity.capabilities.map((item) => item.action))));
+  // The server gates the live board by the 'live-status' module, although the
+  // action belongs to 'attendance'.
+  const canViewLiveBoard = moduleOn('live-status') && saCanBeyondOwn('attendance:view-live');
+  const canViewAttendanceReports =
+    moduleOn('attendance') && Boolean(isHr || canBeyondOwn('attendance:view'));
+  const canViewExpenses = moduleOn('payables') && Boolean(isHr || can('payables:claim'));
+  const canApproveExpenses =
+    moduleOn('payables') && Boolean(isHr || canBeyondOwn('payables:approve-claim'));
   const searchDestinations = companySearchDestinations({
     actions: new Set(identity.capabilities.map((item) => item.action)),
+    enabledModules,
     isSuperAdmin,
     isHr: Boolean(isHr),
     hasRecruitment,
@@ -231,8 +278,7 @@ export function CompanyWorkspace({
     (pathname === '/company/organization' ||
       pathname.startsWith('/company/organization/'));
   const isRecruitment =
-    hasRecruitment &&
-    isHr &&
+    canViewRecruitment &&
     (pathname === '/company/recruitment' || pathname.startsWith('/company/recruitment/'));
 
   const pageTitles: Record<string, string> = {
@@ -249,14 +295,24 @@ export function CompanyWorkspace({
     '/company/my-todo': 'My Todo',
     '/company/messages': 'Messages',
     '/company/clients': 'Clients',
+    '/company/social': 'Manage Social Media',
     '/company/projects': 'Projects',
     '/company/my-notepad': 'My Notepad',
     '/company/notepad': 'My Notepad',
     '/company/employee-notes': 'Employee Notes',
     '/company/sales/territories': 'Territories',
+    '/company/sales': 'Sales Overview',
+    '/company/sales/setup': 'Sales Setup',
+    '/company/sales/my-work': 'My Work',
+    '/company/sales/bid-pool': 'Bid Pool',
+    '/company/sales/triage': 'Lead Triage',
+    '/company/sales/supervisor': 'Sales Overview',
     '/company/sales/leads': 'Leads',
     '/company/sales/leads/stalled': 'Stalled Leads',
     '/company/sales/leads/re-engagement': 'Re-engagement',
+    '/company/sales/leads/imported': 'Imported Leads',
+    '/company/meetings': 'Client meetings',
+    '/company/meetings/calendar': 'Client meetings',
     '/company/sales/callbacks': 'Callbacks',
     '/company/sales/callbacks/calendar': 'Callbacks',
     '/company/sales/callbacks/board': 'Callbacks',
@@ -270,6 +326,11 @@ export function CompanyWorkspace({
     '/company/sales/wins': 'Wins to record',
     '/company/sales/deals/delivery': 'Delivery brief',
     '/company/sales/reports': 'Reports',
+    '/company/sales/calls': 'Calls',
+    '/company/sales/calls/me': 'My Calls',
+    '/company/sales/calls/log': 'Call Log',
+    '/company/sales/calls/assigned-leads': 'Assigned Lead Calls',
+    '/company/sales/call-integrations': 'Call Integrations',
     '/company/employees': 'Employees',
     '/company/sessions': 'Sessions & Devices',
     '/company/access': 'Access Explorer',
@@ -318,7 +379,9 @@ export function CompanyWorkspace({
                 ? 'Leads'
                 : pathname.startsWith('/company/sales/deals/')
                   ? 'Deals'
-                  : 'Dashboard'));
+                  : pathname.startsWith('/company/sales/calls/')
+                    ? 'Calls'
+                    : 'Dashboard'));
 
   function renderContent(): React.JSX.Element {
     if (pathname === '/company/finance/settings' && canViewFinanceFoundation) {
@@ -362,12 +425,12 @@ export function CompanyWorkspace({
     }
     if (
       pathname === '/company/expenses/mine' &&
-      (isSuperAdmin || isHr || can('payables:claim'))
+      canViewExpenses
     )
       return <MyExpensesPage />;
     if (
       pathname === '/company/expenses/approvals' &&
-      (isSuperAdmin || isHr || canBeyondOwn('payables:approve-claim'))
+      canApproveExpenses
     )
       return <ExpenseApprovalsPage />;
     if (pathname === '/company/todo' || pathname === '/company/my-todo')
@@ -391,9 +454,9 @@ export function CompanyWorkspace({
     // Links in older "interview assigned" notifications, for people outside HR.
     if (hasRecruitment && pathname === '/company/recruitment/my-interviews')
       return <MyInterviewsPage />;
-    if (pathname === '/company/access' && isSuperAdmin)
+    if (pathname === '/company/access' && canViewAccessExplorer)
       return <AccessExplorerPage key="person" />;
-    if (pathname === '/company/access/role-changes' && isSuperAdmin) {
+    if (pathname === '/company/access/role-changes' && canViewAccessExplorer) {
       return <AccessExplorerPage key="role-changes" initialTab="role-changes" />;
     }
     if (pathname === '/company/role-change-request' && canRequestRoleChange)
@@ -405,24 +468,24 @@ export function CompanyWorkspace({
       return <BreachQueuePage />;
     if (pathname === '/company/breaks/policies' && can('breaks:manage-policy'))
       return <BreakPoliciesPage />;
-    if (pathname === '/company/payroll/cycle') return <PayrollCyclePage />;
-    if (pathname === '/company/payroll/my-payslips') return <MyPayslipsPage />;
-    if (pathname === '/company/payroll/runs' && (isSuperAdmin || can('payroll:manage')))
+    if (pathname === '/company/payroll/cycle' && moduleOn('payroll')) return <PayrollCyclePage />;
+    if (pathname === '/company/payroll/my-payslips' && moduleOn('payroll')) return <MyPayslipsPage />;
+    if (pathname === '/company/payroll/runs' && saCan('payroll:manage'))
       return <RunsPage onNavigate={onNavigate} />;
     if (
       pathname === '/company/payroll/salaries' &&
-      (isSuperAdmin || can('payroll:manage'))
+      saCan('payroll:manage')
     )
       return <SalariesPage />;
-    if (pathname === '/company/payroll/inputs' && (isSuperAdmin || can('payroll:manage')))
+    if (pathname === '/company/payroll/inputs' && saCan('payroll:manage'))
       return <PayrollInputsPage />;
     if (pathname === '/company/payroll/settings' && can('payroll:manage-config'))
       return <PayrollSettingsPage />;
-    if (pathname === '/company/ta' && (isSuperAdmin || can('ta:view')))
+    if (pathname === '/company/ta' && saCan('ta:view'))
       return <TaManagementPage />;
-    if (pathname === '/company/my-ta' && (isSuperAdmin || can('ta:view-own')))
+    if (pathname === '/company/my-ta' && saCan('ta:view-own'))
       return <MyTaPage />;
-    if (pathname === '/company/settings') return <SettingsPage showCurrencyManagement={isSuperAdmin || can('system:manage-settings')} />;
+    if (pathname === '/company/settings') return <SettingsPage showCurrencyManagement={saCan('system:manage-settings')} />;
     if (pathname === '/company/sessions') {
       return (
         <SessionsPage
@@ -434,7 +497,7 @@ export function CompanyWorkspace({
     if (isEmployees) {
       return canViewEmployees ? (
         <EmployeesPage
-          canManage={isSuperAdmin || can('users:manage')}
+          canManage={saCan('users:manage')}
           isSuperAdmin={isSuperAdmin}
           canRequestRoleChange={canRequestRoleChange}
           onNavigate={onNavigate}
@@ -463,14 +526,71 @@ export function CompanyWorkspace({
         <MessagesPage
           currentUserId={userId}
           isSuperAdmin={isSuperAdmin}
-          canManageProjects={isSuperAdmin || can('projects:manage')}
+          canManageProjects={saCan('projects:manage')}
         />
       );
     if (pathname === '/company/clients' && canViewClients) return <ClientsPage />;
+    if (
+      (pathname === '/company/social' || pathname.startsWith('/company/social/')) &&
+      canViewSocial
+    )
+      return (
+        <SocialWorkspace
+          pathname={pathname}
+          onNavigate={onNavigate}
+          canManage={saCan('social:manage')}
+          canApprove={saCan('social:approve')}
+          canConnect={saCan('social:connect')}
+          canPublish={saCan('social:publish')}
+          canSettings={saCan('social:settings')}
+          canManageIntegrations={saCan('system:manage-integrations')}
+          canViewSeo={canViewSeo}
+        />
+      );
+    if (
+      (pathname === '/company/seo-intelligence' ||
+        pathname.startsWith('/company/seo-intelligence/')) &&
+      canViewSeo
+    )
+      return (
+        <SeoWorkspace
+          pathname={pathname}
+          onNavigate={onNavigate}
+          canManage={saCan('seo:create-site')}
+          canScan={saCan('seo:sync-search-performance')}
+          canViewProjects={canViewProjects}
+          canManageProjects={saCan('projects:manage')}
+          canManageIntegrations={saCan('system:manage-integrations')}
+          contentAccess={{
+            userId,
+            userName: fullName,
+            administrator: isSuperAdmin,
+            read: saCan('seo:read-content'),
+            create: saCan('seo:create-content'),
+            edit: saCan('seo:edit-content'),
+            review: saCan('seo:review-content'),
+            comment: saCan('seo:comment-content'),
+            export: saCan('seo:export-content'),
+            brand: saCan('seo:manage-content-brand'),
+          }}
+        />
+      );
+    if ((pathname === '/company/meetings' || pathname === '/company/meetings/calendar') && hasMeetings && (canHostMeetings || canViewMeetings))
+      return (
+        <MeetingsPage
+          pathname={pathname}
+          currentUserId={userId}
+          organizationTimezone={organizationTimeZone}
+          canHost={canHostMeetings}
+          canView={canViewMeetings}
+          canJoin={saCan('meetings:join')}
+          canActForOthers={saCanBeyondOwn('meetings:host')}
+        />
+      );
     if (pathname === '/company/projects' && canViewProjects)
       return (
         <ProjectsPage
-          canManageProjects={isSuperAdmin || can('projects:manage')}
+          canManageProjects={saCan('projects:manage')}
             canManageProjectAssignments={isSuperAdmin || isTeamLead}
           onOpenProject={(projectId) => onNavigate(`/company/projects/${projectId}`)}
         />
@@ -484,9 +604,12 @@ export function CompanyWorkspace({
           isSuperAdmin={isSuperAdmin}
           canManageProjectAssignments={isSuperAdmin || isTeamLead}
           onBack={() => onNavigate('/company/projects')}
+          canViewSocial={canViewSocial}
+          onOpenSocial={(clientId) => onNavigate(`/company/social?clientId=${encodeURIComponent(clientId)}`)}
+          {...(canViewSeo ? { onOpenSeo: () => onNavigate(`/company/seo-intelligence/projects/${projectDetail[1]!}`) } : {})}
         />
       );
-    if (pathname === '/company/attendance/today')
+    if (pathname === '/company/attendance/today' && moduleOn('attendance'))
       return (
         <TodayPage
           fullName={fullName}
@@ -494,13 +617,13 @@ export function CompanyWorkspace({
           organizationTimezone={organizationTimeZone}
         />
       );
-    if (pathname === '/company/attendance/my')
+    if (pathname === '/company/attendance/my' && moduleOn('attendance'))
       return (
         <AttendancePage userId={userId} organizationTimezone={organizationTimeZone} />
       );
     if (
       pathname === '/company/attendance/employee-wise' &&
-      (isHr || canBeyondOwn('attendance:view'))
+      canViewAttendanceReports
     )
       return (
         <AttendancePageBoundary>
@@ -509,7 +632,7 @@ export function CompanyWorkspace({
       );
     if (
       pathname === '/company/attendance/report' &&
-      (isHr || canBeyondOwn('attendance:view'))
+      canViewAttendanceReports
     )
       return (
         <AttendancePageBoundary>
@@ -518,45 +641,45 @@ export function CompanyWorkspace({
       );
     if (
       pathname === '/company/attendance/late' &&
-      (isHr || canBeyondOwn('attendance:view'))
+      canViewAttendanceReports
     )
       return (
         <AttendancePageBoundary>
           <DailyLateReportPage canExport={isSuperAdmin} />
         </AttendancePageBoundary>
       );
-    if (pathname === '/company/attendance/live' && canBeyondOwn('attendance:view-live'))
+    if (pathname === '/company/attendance/live' && canViewLiveBoard)
       return <LiveBoardPage />;
     if (pathname === '/company/attendance/corrections' && can('attendance:correct'))
       return <CorrectionsPage />;
     if (pathname === '/company/shifts' && can('shifts:manage')) return <ShiftsPage />;
     if (pathname === '/company/weekday-schedules' && can('shifts:manage'))
       return <WeekdaySchedulesPage />;
-    if (pathname === '/company/holidays')
-      return <HolidaysPage canManage={isSuperAdmin || can('holidays:manage')} />;
-    if (pathname === '/company/leave/my') {
+    if (pathname === '/company/holidays' && moduleOn('holidays'))
+      return <HolidaysPage canManage={saCan('holidays:manage')} />;
+    if (pathname === '/company/leave/my' && moduleOn('leave')) {
       return <LeavePage userId={userId} organizationTimeZone={organizationTimeZone} />;
     }
-    if (pathname === '/company/advance/mine' && (isSuperAdmin || can('advance:view-own')))
+    if (pathname === '/company/advance/mine' && saCan('advance:view-own'))
       return <MyAdvancesPage />;
     if (
       pathname === '/company/advance/requests' &&
-      (isSuperAdmin || canBeyondOwn('advance:view'))
+      saCanBeyondOwn('advance:view')
     )
       return <AdvanceRequestsPage />;
     // Keep old bookmarks working while the deduction schedule is now handled
     // by the payroll handoff section on Advance Requests.
     if (
       pathname === '/company/advance/deductions' &&
-      (isSuperAdmin || canBeyondOwn('advance:view'))
+      saCanBeyondOwn('advance:view')
     )
       return <AdvanceRequestsPage />;
     if (
       pathname === '/company/penalties' &&
-      (isSuperAdmin || canBeyondOwn('penalty:view'))
+      saCanBeyondOwn('penalty:view')
     )
       return <PenaltiesPage />;
-    if (pathname === '/company/my-penalties' && (isSuperAdmin || can('penalty:view-own')))
+    if (pathname === '/company/my-penalties' && saCan('penalty:view-own'))
       return <MyPenaltiesPage />;
     if (pathname === '/company/leave/queue' && canUseLeaveQueue) {
       return (
@@ -584,6 +707,32 @@ export function CompanyWorkspace({
     }
     if (pathname === '/company/biometric' && can('biometric:manage'))
       return <BiometricPage />;
+    if (pathname === '/company/sales' && canViewSalesWorkspace) {
+      return (
+        <SalesOverviewPage
+          isManager={isSuperAdmin || canSuperviseSales}
+          userId={userId}
+          canViewLeads={canViewLeads}
+          canViewTerritories={canViewTerritories}
+          canViewCallbacks={canViewCallbacks}
+          canForecast={canForecast}
+          onNavigate={onNavigate}
+        />
+      );
+    }
+    if (pathname === '/company/sales/setup' && canViewSalesWorkspace) {
+      return (
+        <SalesSetupPage
+          canViewOrganization={canViewOrganization}
+          canViewLeads={canViewLeads}
+          canViewTerritories={canViewTerritories}
+          hasTelephony={hasTelephony}
+          canManageCalls={canManageCalls}
+          canViewTriage={canSuperviseSales}
+          onNavigate={onNavigate}
+        />
+      );
+    }
     if (
       canViewHandovers &&
       (pathname === '/company/sales/handovers' ||
@@ -607,7 +756,7 @@ export function CompanyWorkspace({
     if (pathname === '/company/sales/territories' && canViewTerritories)
       return (
         <TerritoriesPage
-          canManage={isSuperAdmin || can('territories:manage')}
+          canManage={saCan('territories:manage')}
           onNavigate={onNavigate}
         />
       );
@@ -616,7 +765,7 @@ export function CompanyWorkspace({
       return (
         <TerritoryDetailsPage
           id={territoryDetail[1]!}
-          canManage={isSuperAdmin || can('territories:manage')}
+          canManage={saCan('territories:manage')}
           onBack={() => onNavigate('/company/sales/territories')}
         />
       );
@@ -649,6 +798,7 @@ export function CompanyWorkspace({
         <CallbackDetailPage
           id={callbackDetail[1]!}
           currentUserId={userId}
+          canManage={saCanBeyondOwn('callbacks:edit')}
           onBack={() => onNavigate('/company/sales/callbacks')}
           onNavigate={onNavigate}
         />
@@ -664,15 +814,24 @@ export function CompanyWorkspace({
       return (
         <ReengagementSegmentsPage onBack={() => onNavigate('/company/sales/leads')} />
       );
+    if (pathname === '/company/sales/leads/imported' && canViewImports)
+      return (
+        <ImportedLeadsPage
+          canManage={canManageImports}
+          canTrackCalls={hasTelephony}
+          initialImportId={new URLSearchParams(rawPathname.split('?')[1] ?? '').get('import')}
+          onNavigate={onNavigate}
+        />
+      );
     if (pathname === '/company/sales/leads' && canViewLeads)
-      return <LeadsPage onNavigate={onNavigate} />;
+      return <LeadsPage onNavigate={onNavigate} currentUserId={userId} isManager={isSuperAdmin || canSuperviseSales} canViewImports={canViewImports} canImport={canManageImports} />;
     if (pathname === '/company/sales/bid-pool' && canViewLeads)
       return <BidPoolPage onNavigate={onNavigate} />;
     if (pathname === '/company/sales/my-work' && canViewLeads)
       return <MyWorkPage userId={userId} onNavigate={onNavigate} />;
-    if (pathname === '/company/sales/triage' && canReassignLeadsFromUi)
+    if (pathname === '/company/sales/triage' && canSuperviseSales)
       return <TriagePage onNavigate={onNavigate} />;
-    if (pathname === '/company/sales/supervisor' && canReassignLeadsFromUi)
+    if (pathname === '/company/sales/supervisor' && canSuperviseSales)
       return <SupervisorDashboardPage />;
     const leadDetail = pathname.match(/^\/company\/sales\/leads\/([^/]+)$/);
     if (leadDetail && canViewLeads)
@@ -681,9 +840,12 @@ export function CompanyWorkspace({
           id={leadDetail[1]!}
           currentUserId={userId}
           organizationTimezone={organizationTimeZone}
-          canReassign={canReassignLeadsFromUi}
+          canReassign={saCanBeyondOwn('leads:reassign')}
           canTransferSourcingCredit={isSuperAdmin}
-          canCreateDeal={isSuperAdmin || can('deals:create')}
+          canCreateDeal={saCan('deals:create')}
+          canEditLead={saCan('leads:edit')}
+          canViewCalls={canViewCalls}
+          canManageCallbacks={saCanBeyondOwn('callbacks:edit')}
           onBack={() => onNavigate('/company/sales/leads')}
           onNavigate={onNavigate}
         />
@@ -724,6 +886,7 @@ export function CompanyWorkspace({
           canDecideApprovals={canDecideApprovals}
           canRecordWin={canRecordWin}
           canConfirmPayment={canConfirmPayment}
+          isManager={isSuperAdmin || canSuperviseSales}
           onBack={() => onNavigate('/company/sales/deals')}
           onNavigate={onNavigate}
         />
@@ -738,10 +901,34 @@ export function CompanyWorkspace({
     if (pathname === '/company/sales/reports' && canForecast) {
       return <ReportsPage />;
     }
+    if (pathname === '/company/sales/calls/assigned-leads' && callsAccess.canTrackAssigned)
+      return <AssignedLeadCallsPage access={callsAccess} organizationTimeZone={organizationTimeZone} onNavigate={onNavigate} />;
+    if (canViewCalls) {
+      const callEmployee = pathname.match(/^\/company\/sales\/calls\/employees\/([^/]+)$/);
+      const ownCalls = pathname === '/company/sales/calls/me' || (pathname === '/company/sales/calls' && !callsAccess.canSeeTeam);
+      if (ownCalls || callEmployee)
+        return (
+          <EmployeeCallsPage
+            employeeId={callEmployee ? callEmployee[1]! : null}
+            currentUserId={userId}
+            currentUserName={fullName}
+            access={callsAccess}
+            organizationTimeZone={organizationTimeZone}
+            onNavigate={onNavigate}
+          />
+        );
+      if (pathname === '/company/sales/calls')
+        return <TeamCallsPage access={callsAccess} organizationTimeZone={organizationTimeZone} onNavigate={onNavigate} />;
+      if (pathname === '/company/sales/calls/log')
+        return <CallLogPage access={callsAccess} organizationTimeZone={organizationTimeZone} onNavigate={onNavigate} />;
+    }
+    if (pathname === '/company/sales/call-integrations' && canManageCalls) {
+      return <CallIntegrationsPage access={callsAccess} onNavigate={onNavigate} />;
+    }
     return <DashboardPage identity={identity!} onNavigate={onNavigate} />;
   }
 
-  return (
+  const layout = (
     <CompanyLayout
       pathname={pathname}
       identity={identity.user}
@@ -757,6 +944,11 @@ export function CompanyWorkspace({
       canViewTerritories={canViewTerritories}
       canViewLeads={canViewLeads}
       canViewCallbacks={canViewCallbacks}
+      canViewCalls={canViewCalls}
+      canTriageSales={canTriageSales}
+      canViewImports={canViewImports}
+      canTrackAssignedCalls={Boolean(callsAccess.canTrackAssigned)}
+      canManageCalls={canManageCalls}
       canViewHandovers={canViewHandovers}
       canViewDeals={canViewDeals}
       canRecordWin={canRecordWin}
@@ -764,15 +956,18 @@ export function CompanyWorkspace({
       canForecast={canForecast}
       canViewChat={canViewChat}
       canViewClients={canViewClients}
+      canViewSocial={canViewSocial}
+      canViewMeetings={hasMeetings && (canHostMeetings || canViewMeetings)}
+      canViewSeo={canViewSeo}
       canViewProjects={canViewProjects}
-      canViewLiveBoard={canBeyondOwn('attendance:view-live')}
-      canViewAttendanceReports={isHr || canBeyondOwn('attendance:view')}
+      canViewLiveBoard={canViewLiveBoard}
+      canViewAttendanceReports={canViewAttendanceReports}
       canReviewCorrections={can('attendance:correct')}
       canReviewBreaches={can('breaks:review-breach')}
       canManageBreakPolicies={can('breaks:manage-policy')}
       canManageShifts={can('shifts:manage')}
-      canManagePayroll={isSuperAdmin || can('payroll:manage')}
-      canManagePayrollConfig={isSuperAdmin || can('payroll:manage-config')}
+      canManagePayroll={saCan('payroll:manage')}
+      canManagePayrollConfig={saCan('payroll:manage-config')}
       canViewAccounting={canViewAccounting}
       canViewFinanceFoundation={canViewFinanceFoundation}
       canViewBillingTerms={canViewBillingTerms}
@@ -781,22 +976,25 @@ export function CompanyWorkspace({
       canViewPayables={canViewPayables}
       canViewProfitability={canViewProfitability}
       canViewCashFlow={canViewCashFlow}
-      canViewTa={isSuperAdmin || can('ta:view') || can('ta:view-own')}
-      canManageTa={isSuperAdmin || can('ta:manage')}
+      canViewTa={saCan('ta:view') || can('ta:view-own')}
+      canManageTa={saCan('ta:manage')}
       canManageBiometric={can('biometric:manage')}
       canViewAdvances={
-        isSuperAdmin || can('advance:view-own') || canBeyondOwn('advance:view')
+        saCan('advance:view-own') || canBeyondOwn('advance:view')
       }
-      canManageAdvances={isSuperAdmin || canBeyondOwn('advance:manage')}
+      canManageAdvances={saCanBeyondOwn('advance:manage')}
       canViewPenalties={
-        isSuperAdmin || can('penalty:view-own') || canBeyondOwn('penalty:view')
+        saCan('penalty:view-own') || canBeyondOwn('penalty:view')
       }
-      canManagePenalties={isSuperAdmin || canBeyondOwn('penalty:manage')}
-      canViewExpenses={isSuperAdmin || isHr || can('payables:claim')}
-      canApproveExpenses={isSuperAdmin || isHr || canBeyondOwn('payables:approve-claim')}
+      canManagePenalties={saCanBeyondOwn('penalty:manage')}
+      canViewExpenses={canViewExpenses}
+      canApproveExpenses={canApproveExpenses}
       isHr={Boolean(isHr)}
+      canViewRecruitment={canViewRecruitment}
+      canViewAccessExplorer={canViewAccessExplorer}
       hasRecruitment={hasRecruitment}
       hasInterviews={hasRecruitment && hasInterviews}
+      enabledModules={enabledModules}
       title={title}
       onNavigate={onNavigate}
       onLogout={onLogout}
@@ -805,6 +1003,24 @@ export function CompanyWorkspace({
       {renderContent()}
     </CompanyLayout>
   );
+  // The sales guide follows people across Sales pages; others never see it.
+  const workspaceWithBreakMode = (
+    <>
+      {layout}
+      {!isSuperAdmin && <BreakModeGuard />}
+    </>
+  );
+  return canViewSalesWorkspace ? (
+    <SalesGuideProvider
+      userId={userId}
+      isManager={isSuperAdmin || canSuperviseSales}
+      canAddLeads={saCan('leads:create')}
+      canRecordWin={canRecordWin}
+      canDecideApprovals={canDecideApprovals}
+    >
+      {workspaceWithBreakMode}
+    </SalesGuideProvider>
+  ) : workspaceWithBreakMode;
 }
 
 class AttendancePageBoundary extends Component<

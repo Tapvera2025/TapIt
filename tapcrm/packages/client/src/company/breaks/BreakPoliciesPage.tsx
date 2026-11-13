@@ -5,7 +5,7 @@ import {
   assignBreakPolicy,
   type BreakPolicyRow,
 } from '../api/breaksApi.js';
-import { SkeletonTable } from '../../ui/components.js';
+import { SkeletonTable } from '../../ui/index.js';
 
 /** Break policies and assignments take effect from tomorrow at the earliest (future-dated). */
 function tomorrow(): string {

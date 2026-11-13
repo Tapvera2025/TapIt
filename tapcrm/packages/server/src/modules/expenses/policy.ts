@@ -1,9 +1,10 @@
 import { MATCH_NOTHING, registerResourcePolicy, type ResourcePolicy } from '@tapcrm/authz';
 import type { Scope } from '@tapcrm/contracts';
+import { withPeopleReach } from '../people-reach.js';
 
 export const makeExpenseResource = (id: string, organizationId: string, claimedBy: string, departmentId: string | null = null, teamId: string | null = null) => ({ type: 'expenseClaim' as const, id, organizationId, subjectId: claimedBy, userId: claimedBy, claimedBy, departmentId, teamId });
 
-const policy: ResourcePolicy = {
+const basePolicy: ResourcePolicy = {
   resourceType: 'expenseClaim', domain: 'people',
   async check(ctx, action, resource, scope: Scope) {
     if (resource['organizationId'] !== ctx.organizationId) return false;
@@ -23,5 +24,8 @@ const policy: ResourcePolicy = {
   participantFields: () => ['claimedBy', 'reviewedBy'],
   initiatorField: () => 'claimedBy',
 };
+
+// The approve check above already decides by scope word and keeps the claimant out; leave it as is.
+const policy = withPeopleReach(basePolicy, { subjects: ['claimedBy'], columns: ['u.id'], keepCheckFor: (action) => action === 'payables:approve-claim' });
 
 export function registerExpensePolicies(): void { registerResourcePolicy(policy); }

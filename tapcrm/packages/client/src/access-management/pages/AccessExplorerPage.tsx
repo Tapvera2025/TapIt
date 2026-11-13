@@ -41,7 +41,7 @@ import {
   Notice,
   Page,
   Select,
-} from '../../ui/components.js';
+} from '../../ui/index.js';
 import { LiquidMessagesTabBar } from '../../chat/LiquidMessagesTabBar.js';
 
 type ExplorerTab = 'person' | 'capability' | 'overrides' | 'role-changes';
@@ -176,9 +176,10 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
     void Promise.all([
       getOverrideOverview().then((result) => setOverrides(result.overrides)),
       selectedUserId
-        ? getDelegationOptions(selectedUserId).then((result) =>
-            setDelegationOptions(result.options),
-          )
+        ? getDelegationOptions(selectedUserId)
+            .then((result) => setDelegationOptions(result.options))
+            // Granting needs access:delegate; viewers without it still see overrides.
+            .catch(() => setDelegationOptions([]))
         : Promise.resolve(),
     ])
       .catch(setError)

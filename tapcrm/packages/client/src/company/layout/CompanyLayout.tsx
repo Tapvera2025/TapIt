@@ -3,6 +3,8 @@ import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
 import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
+import { SalesGuideFrame, SalesGuideToggle } from '../sales/guide/SalesGuide.js';
+import { salesGuideKey } from '../sales/guide/page-guidance.js';
 import type { CompanySearchDestination } from './navigation.js';
 
 export function CompanyLayout({
@@ -20,6 +22,11 @@ export function CompanyLayout({
   canViewTerritories,
   canViewLeads,
   canViewCallbacks,
+  canViewCalls,
+  canTriageSales,
+  canViewImports = false,
+  canTrackAssignedCalls = false,
+  canManageCalls,
   canViewHandovers,
   canViewDeals,
   canRecordWin,
@@ -27,6 +34,9 @@ export function CompanyLayout({
   canForecast,
   canViewChat,
   canViewClients,
+  canViewSocial,
+  canViewMeetings = false,
+  canViewSeo,
   canViewProjects,
   canViewLiveBoard,
   canViewAttendanceReports,
@@ -54,8 +64,11 @@ export function CompanyLayout({
   canViewExpenses,
   canApproveExpenses,
   isHr,
+  canViewRecruitment,
+  canViewAccessExplorer,
   hasRecruitment,
   hasInterviews,
+  enabledModules,
   title: _title,
   onNavigate,
   onLogout,
@@ -84,6 +97,11 @@ export function CompanyLayout({
   canViewTerritories: boolean;
   canViewLeads: boolean;
   canViewCallbacks: boolean;
+  canViewCalls: boolean;
+  canTriageSales: boolean;
+  canViewImports?: boolean;
+  canTrackAssignedCalls?: boolean;
+  canManageCalls: boolean;
   canViewHandovers: boolean;
   canViewDeals: boolean;
   canRecordWin: boolean;
@@ -91,6 +109,9 @@ export function CompanyLayout({
   canForecast: boolean;
   canViewChat: boolean;
   canViewClients: boolean;
+  canViewSocial: boolean;
+  canViewMeetings?: boolean;
+  canViewSeo: boolean;
   canViewProjects: boolean;
   canViewLiveBoard: boolean;
   canViewAttendanceReports: boolean;
@@ -118,7 +139,13 @@ export function CompanyLayout({
   canViewExpenses: boolean;
   canApproveExpenses: boolean;
   isHr: boolean;
+  /** Recruitment workspace reachable: HR, or a held recruitment view power. */
+  canViewRecruitment?: boolean;
+  /** Access Explorer reachable: super-admin, or a held access:view power. */
+  canViewAccessExplorer?: boolean;
   hasRecruitment: boolean;
+  /** Modules enabled for the company; omitted means every module is offered. */
+  enabledModules?: readonly string[];
   /** This user has interviews (rounds or panels): show "My Interviews". */
   hasInterviews: boolean;
   title: string;
@@ -225,6 +252,32 @@ export function CompanyLayout({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!sidebarOpen || window.innerWidth >= 1280) return;
+
+    const main = mainScrollRef.current;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousMainOverflowY = main?.style.overflowY ?? '';
+    const previousMainOverscrollBehavior = main?.style.overscrollBehavior ?? '';
+
+    // The page scrolls inside <main>, not on the document. Lock both layers
+    // while the mobile drawer is open so the dimmed content cannot move under
+    // the fixed navbar or shift its position during a swipe.
+    document.body.style.overflow = 'hidden';
+    if (main) {
+      main.style.overflowY = 'hidden';
+      main.style.overscrollBehavior = 'none';
+    }
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      if (main) {
+        main.style.overflowY = previousMainOverflowY;
+        main.style.overscrollBehavior = previousMainOverscrollBehavior;
+      }
+    };
+  }, [sidebarOpen]);
+
   const toggleSidebar = () => {
     if (window.innerWidth >= 1280) {
       setSidebarCollapsed((collapsed) => !collapsed);
@@ -245,7 +298,7 @@ export function CompanyLayout({
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
-          className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+          className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] appearance-none border-0 outline-none bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out focus:outline-none focus-visible:outline-none focus:ring-0 active:outline-none active:ring-0 xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
           aria-label="Close navigation overlay"
           aria-hidden={!sidebarOpen}
           tabIndex={sidebarOpen ? 0 : -1}
@@ -260,6 +313,7 @@ export function CompanyLayout({
           onNavigate={onNavigate}
           onLogout={onLogout}
           searchDestinations={searchDestinations}
+          extraActions={salesGuideKey(pathname) !== null ? <SalesGuideToggle /> : null}
         />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <CompanySidebar
@@ -276,6 +330,11 @@ export function CompanyLayout({
             canViewTerritories={canViewTerritories}
             canViewLeads={canViewLeads}
             canViewCallbacks={canViewCallbacks}
+            canViewCalls={canViewCalls}
+            canTriageSales={canTriageSales}
+            canViewImports={canViewImports}
+            canTrackAssignedCalls={canTrackAssignedCalls}
+            canManageCalls={canManageCalls}
             canViewHandovers={canViewHandovers}
             canViewDeals={canViewDeals}
             canRecordWin={canRecordWin}
@@ -283,6 +342,9 @@ export function CompanyLayout({
             canForecast={canForecast}
             canViewChat={canViewChat}
             canViewClients={canViewClients}
+            canViewSocial={canViewSocial}
+            canViewMeetings={canViewMeetings}
+            canViewSeo={canViewSeo}
             canViewProjects={canViewProjects}
             canViewLiveBoard={canViewLiveBoard}
             canViewAttendanceReports={canViewAttendanceReports}
@@ -310,8 +372,11 @@ export function CompanyLayout({
             canViewExpenses={canViewExpenses}
             canApproveExpenses={canApproveExpenses}
             isHr={isHr}
+            {...(canViewRecruitment !== undefined ? { canViewRecruitment } : {})}
+            {...(canViewAccessExplorer !== undefined ? { canViewAccessExplorer } : {})}
             hasRecruitment={hasRecruitment}
             hasInterviews={hasInterviews}
+            {...(enabledModules ? { enabledModules } : {})}
             onNavigate={onNavigate}
             onLogout={onLogout}
             open={sidebarOpen}
@@ -348,7 +413,9 @@ export function CompanyLayout({
                   contentNeedsViewportHeight ? 'h-full min-h-full' : 'min-h-full'
                 }
               >
-                {children}
+                <SalesGuideFrame pathname={pathname} onNavigate={onNavigate}>
+                  {children}
+                </SalesGuideFrame>
               </div>
             </main>
           </div>

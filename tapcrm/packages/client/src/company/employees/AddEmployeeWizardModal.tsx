@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   getCompanyLadder,
@@ -10,6 +10,7 @@ import {
   type CompanyTeam,
 } from '../api/companyApi.js';
 import type { ShiftTemplate, WeekdaySchedule } from '../api/shiftsApi.js';
+import { missingScheduleNotice } from './schedule-notice.js';
 import { createEmployee, getNextEmployeeId, type CreateEmployeeInput } from '../api/employeesApi.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 import { ConfirmDiscardModal, ConfirmCancelButton } from '../../ui/ConfirmDiscardModal.js';
@@ -95,6 +96,18 @@ interface EmployeeWizardDraftData {
 }
 
 const DRAFT_KEY = 'tapcrm.employee_wizard_draft';
+
+/** The form's contents as a draft stores them, without when it was saved or which step was open. */
+type DraftFields = Omit<EmployeeWizardDraftData, 'step' | 'savedAt'>;
+
+/** Filled in for every new form, so they say nothing about whether anything was entered. */
+const PREFILLED_FIELDS = new Set<keyof DraftFields>(['employeeId', 'phoneCountryCode', 'emergencyContactCountryCode']);
+
+function hasEnteredDetails(fields: DraftFields): boolean {
+  return (Object.entries(fields) as Array<[keyof DraftFields, unknown]>).some(([key, value]) =>
+    PREFILLED_FIELDS.has(key) ? false : Array.isArray(value) ? value.length > 0 : value !== '',
+  );
+}
 
 function sanitizeNameInput(value: string): string {
   return value.replace(/[^a-zA-Z\s'.-]/g, '');
@@ -209,10 +222,17 @@ export function AddEmployeeWizardModal({
   weekdaySchedules,
 }: AddEmployeeWizardModalProps): React.JSX.Element | null {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const scheduleNotice = missingScheduleNotice(shifts.length, weekdaySchedules.length);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
+  /** The form as last saved to (or restored from) the draft; null when there is no draft. */
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  /** Set while a restored draft is being applied, so its values become the saved baseline. */
+  const [baselinePending, setBaselinePending] = useState(false);
+  /** Keeps the employee-ID generator from overwriting the ID a restored draft brings. */
+  const restoringDraftRef = useRef(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<WizardFieldErrors>({});
 
@@ -320,10 +340,10 @@ export function AddEmployeeWizardModal({
           if (typeof data.shiftId === 'string') setShiftId(data.shiftId);
           if (typeof data.weekdayScheduleId === 'string') setWeekdayScheduleId(data.weekdayScheduleId);
           if (Array.isArray(data.skillsList)) {
-            setSkillsList(data.skillsList as Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>);
+            setSkillsList(data.skillsList);
           }
           if (Array.isArray(data.qualificationsList)) {
-            setQualificationsList(data.qualificationsList as Array<{ institution: string; degree: string; fieldOfStudy: string; passingYear: string; grade: string }>);
+            setQualificationsList(data.qualificationsList);
           }
           if (typeof data.step === 'number' && [1, 2, 3, 4, 5].includes(data.step)) {
             setStep(data.step as 1 | 2 | 3 | 4 | 5);
@@ -333,6 +353,8 @@ export function AddEmployeeWizardModal({
             : '';
           setDraftNotice(`Restored saved draft${savedTime ? ` from ${savedTime}` : ''}.`);
           setHasDraft(true);
+          restoringDraftRef.current = typeof data.employeeId === 'string' && data.employeeId !== '';
+          setBaselinePending(true);
           return;
         }
       }
@@ -343,7 +365,7 @@ export function AddEmployeeWizardModal({
 
   // Pre-load next sequence on mount if no employeeId
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || restoringDraftRef.current) return;
     if (!employeeId) {
       void handleAutoGenerateEmployeeId();
     }
@@ -415,6 +437,32 @@ export function AddEmployeeWizardModal({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Closing asks first only when something would be lost: details not yet in
+  // the saved draft, or (with no draft) anything entered at all. A skill or
+  // qualification typed but not yet added is never part of a draft, so it
+  // counts too. The password is deliberately never stored in a draft and is
+  // not counted, so saving a draft on the last step still closes cleanly.
+  const currentFields = draftFields();
+  const currentSnapshot = JSON.stringify(currentFields);
+  const typedButNotAdded = [newSkillName, institution, degree, fieldOfStudy, passingYear, grade].some(
+    (value) => value.trim() !== '',
+  );
+  const hasUnsavedChanges =
+    typedButNotAdded ||
+    (savedSnapshot === null ? hasEnteredDetails(currentFields) : currentSnapshot !== savedSnapshot);
+  const discardTitle = hasDraft ? 'Discard your latest changes?' : 'Discard employee onboarding?';
+  const discardDescription = hasDraft
+    ? 'Your saved draft is kept, but changes made since you last saved it will be lost.'
+    : 'The details you entered will be lost. Use "Save as Draft" first to keep them.';
+
+  // A restored draft is the saved baseline once its values are in the form.
+  useEffect(() => {
+    if (!baselinePending) return;
+    setSavedSnapshot(currentSnapshot);
+    setBaselinePending(false);
+    restoringDraftRef.current = false;
+  }, [baselinePending, currentSnapshot]);
 
   if (!isOpen) return null;
 
@@ -657,8 +705,8 @@ export function AddEmployeeWizardModal({
     return true;
   }
 
-  function handleSaveDraft(): void {
-    const draftData: EmployeeWizardDraftData = {
+  function draftFields(): DraftFields {
+    return {
       fullName: fullName.trim(),
       email: email.trim(),
       employeeId: employeeId.trim(),
@@ -692,12 +740,16 @@ export function AddEmployeeWizardModal({
         passingYear: q.passingYear.trim(),
         grade: q.grade.trim(),
       })),
-      step,
-      savedAt: new Date().toISOString(),
     };
+  }
+
+  function handleSaveDraft(): void {
+    const fields = draftFields();
+    const draftData: EmployeeWizardDraftData = { ...fields, step, savedAt: new Date().toISOString() };
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
       setHasDraft(true);
+      setSavedSnapshot(JSON.stringify(fields));
       setDraftNotice('Draft saved successfully.');
     } catch {
       setError('Unable to save draft.');
@@ -708,10 +760,16 @@ export function AddEmployeeWizardModal({
     try {
       localStorage.removeItem(DRAFT_KEY);
       setHasDraft(false);
+      setSavedSnapshot(null);
       setDraftNotice(null);
     } catch {
       // Ignore
     }
+  }
+
+  function requestClose(): void {
+    if (hasUnsavedChanges) setShowDiscardConfirm(true);
+    else onClose();
   }
 
   function handleNext(): void {
@@ -918,7 +976,7 @@ export function AddEmployeeWizardModal({
       aria-modal="true"
       className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
     >
-      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={() => setShowDiscardConfirm(true)} />
+      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={requestClose} />
 
       <dialog
         open
@@ -932,8 +990,9 @@ export function AddEmployeeWizardModal({
           </div>
           <ConfirmCancelButton
             onDiscard={onClose}
-            title="Discard employee onboarding?"
-            description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+            needsConfirmation={hasUnsavedChanges}
+            title={discardTitle}
+            description={discardDescription}
             discardText="Discard"
             continueText="Continue"
             aria-label="Close modal"
@@ -977,6 +1036,15 @@ export function AddEmployeeWizardModal({
             </div>
           ))}
         </div>
+
+        {scheduleNotice && (
+          <div
+            className="shrink-0 mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200"
+            role="status"
+          >
+            {scheduleNotice}
+          </div>
+        )}
 
         {error && (
           <div className="shrink-0 mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-500">
@@ -1827,8 +1895,9 @@ export function AddEmployeeWizardModal({
           <div className="flex items-center gap-2">
             <ConfirmCancelButton
               onDiscard={onClose}
-              title="Discard employee onboarding?"
-              description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+              needsConfirmation={hasUnsavedChanges}
+              title={discardTitle}
+              description={discardDescription}
               discardText="Discard"
               continueText="Continue"
               className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent hover:text-red-500 transition-colors"
@@ -1883,8 +1952,8 @@ export function AddEmployeeWizardModal({
           onClose();
         }}
         onContinue={() => setShowDiscardConfirm(false)}
-        title="Discard employee onboarding?"
-        description="Are you sure you want to cancel? Any unsaved onboarding details will be discarded."
+        title={discardTitle}
+        description={discardDescription}
         discardText="Discard"
         continueText="Continue"
       />

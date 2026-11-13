@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { WorkspacePageContainer } from '../../ui/components.js';
+import { WorkspacePageContainer } from '../../ui/index.js';
 import { organizationApi } from '../api/organizationApi.js';
 import { Card, ErrorMessage, SkeletonPage } from '../components/OrganizationUi.js';
 import type {

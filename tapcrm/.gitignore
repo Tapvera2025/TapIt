@@ -1,6 +1,8 @@
 node_modules/
 dist/
 /storage/
+# Local uploads when the API runs from its package (npm run dev:api), e.g. chat files.
+/packages/server/storage/
 *.tsbuildinfo
 coverage/
 .vitest/
@@ -22,3 +24,6 @@ npm-debug.log*
 /.cache/
 /UI/
 
+# Local runtime state and database snapshots are not source artifacts.
+/dump.rdb
+/.superpowers/brainstorm/**/state/

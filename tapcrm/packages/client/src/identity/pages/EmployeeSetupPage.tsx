@@ -1,4 +1,4 @@
-import { BrandLogo } from '../../ui/BrandLogo.js';
+import { BrandLogo } from '../../ui/index.js';
 import { useEffect, useState } from 'react';
 import { IdentityLayout } from '../components/IdentityLayout.js';
 import {

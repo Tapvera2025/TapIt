@@ -16,17 +16,23 @@ import { z } from 'zod';
  * an empty value counts as unset, and anything unrecognised is a startup error.
  */
 const envBoolean = (fallback: boolean) =>
-  z.preprocess((value) => {
-    if (typeof value !== 'string') return value;
-    const normalised = value.trim().toLowerCase();
-    if (normalised === '') return undefined;
-    if (['true', '1', 'yes', 'on'].includes(normalised)) return true;
-    if (['false', '0', 'no', 'off'].includes(normalised)) return false;
-    return value;
-  }, z.boolean({ invalid_type_error: 'must be true or false' }).default(fallback));
+  z.preprocess(
+    (value) => {
+      if (typeof value !== 'string') return value;
+      const normalised = value.trim().toLowerCase();
+      if (normalised === '') return undefined;
+      if (['true', '1', 'yes', 'on'].includes(normalised)) return true;
+      if (['false', '0', 'no', 'off'].includes(normalised)) return false;
+      return value;
+    },
+    z.boolean({ invalid_type_error: 'must be true or false' }).default(fallback),
+  );
 
 const optionalEnvString = (schema: z.ZodOptional<z.ZodString>) =>
-  z.preprocess((value) => typeof value === 'string' && value.trim() === '' ? undefined : value, schema);
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    schema,
+  );
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -66,7 +72,7 @@ const schema = z.object({
 
   S3_ENDPOINT: z.string().url().optional(),
   /** The storage address browsers reach, for signed download links; defaults to S3_ENDPOINT. */
-  S3_PUBLIC_ENDPOINT: z.string().url().optional(),
+  S3_PUBLIC_ENDPOINT: optionalEnvString(z.string().url().optional()),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string().default('tapcrm-files'),
   // FS-6 — statutory artifacts go to a write-once bucket with object lock.
@@ -74,6 +80,25 @@ const schema = z.object({
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_FORCE_PATH_STYLE: envBoolean(true),
+  // Where chat attachments (and cached link-preview images) are kept:
+  //   s3     the S3-compatible store above — AWS S3, Cloudflare R2 or MinIO.
+  //          Downloads are short-lived signed links straight to the store.
+  //   local  files under TAPCRM_UPLOAD_DIR/chat, streamed by the API. For a
+  //          laptop without an object store; refused in production.
+  // Unset: `s3` in production, `local` everywhere else.
+  CHAT_STORAGE_DRIVER: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.enum(['s3', 'local']).optional(),
+  ),
+  // Largest single chat attachment, in MiB. Keep it under the reverse proxy's
+  // request limit (client nginx allows 50 MiB).
+  CHAT_ATTACHMENT_MAX_MB: z.coerce.number().int().min(1).max(45).default(25),
+  // Link previews fetch the pages people paste into chat. Set false on servers
+  // that must not make outbound requests; links then show without a card.
+  CHAT_LINK_PREVIEWS: envBoolean(true),
+  // Development/testing only: let link previews fetch private-network and
+  // loopback addresses (normally refused as SSRF). Refused in production.
+  CHAT_LINK_PREVIEW_ALLOW_PRIVATE_NETWORKS: envBoolean(false),
   AUDIT_ARCHIVE_ENCRYPTION_KEY: z.string().optional(),
   AUDIT_ARCHIVE_KEY_ID: optionalEnvString(z.string().trim().min(1).optional()),
   // JSON object of historical archive key IDs to base64-encoded 32-byte keys.
@@ -102,13 +127,14 @@ const schema = z.object({
   NOTIFICATION_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(100).default(2_000),
 
   API_PORT: z.coerce.number().int().positive().default(4000),
+  CONTENT_COLLAB_PORT: z.coerce.number().int().positive().default(4001),
   API_BASE_PATH: z.string().default('/api'),
   TAPCRM_UPLOAD_DIR: z.string().trim().min(1).default('storage'),
   // Not enforced today: there is no CORS middleware, and the web app reaches the
   // API same-origin through its dev proxy. Emailed links use CLIENT_ORIGIN.
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   CLIENT_ORIGIN: z.string().url().default('http://localhost:5173'),
-  // 
+  //
   EMAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
@@ -138,10 +164,17 @@ const schema = z.object({
   GOOGLE_SEARCH_CONSOLE_AUTH: z.enum(['off', 'service-account', 'oauth']).default('off'),
   GOOGLE_SERVICE_ACCOUNT_EMAIL: optionalEnvString(z.string().trim().email().optional()),
   // The PEM from the service-account key file. Newlines may be written as \n.
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: optionalEnvString(z.string().trim().min(1).optional()),
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: optionalEnvString(
+    z.string().trim().min(1).optional(),
+  ),
   GOOGLE_OAUTH_CLIENT_ID: optionalEnvString(z.string().trim().min(1).optional()),
   GOOGLE_OAUTH_CLIENT_SECRET: optionalEnvString(z.string().trim().min(1).optional()),
   GOOGLE_OAUTH_REFRESH_TOKEN: optionalEnvString(z.string().trim().min(1).optional()),
+  // The ONE organization (by its code) that reads Search Console through the
+  // shared login above — the deployment's own company. Every other organization
+  // connects its own Google login under Social → Company connections, so no
+  // customer can read another's properties. Unset: nobody uses the shared login.
+  GOOGLE_SEARCH_CONSOLE_ORGANIZATION: optionalEnvString(z.string().trim().min(1).max(64).optional()),
   // Search Console data is incomplete for the last few days. Observations are
   // taken from a window ending this many days back.
   GOOGLE_SEARCH_CONSOLE_LAG_DAYS: z.coerce.number().int().min(1).max(30).default(3),
@@ -149,6 +182,25 @@ const schema = z.object({
   // impressions goes missing — so the default averages a week, which is how
   // the Search Console UI is normally read.
   GOOGLE_SEARCH_CONSOLE_WINDOW_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+  // Client meetings: how TapCRM reaches people's Google Calendars to read
+  // their busy times and create events with Meet links.
+  //   off              meetings still work; hosts paste a meeting link
+  //   oauth            each person connects their own Google Calendar
+  //                    (personal Gmail or Workspace). Uses GOOGLE_OAUTH_CLIENT_*
+  //                    and MEETINGS_TOKEN_ENCRYPTION_KEY; the consent screen
+  //                    must be published (and verified for outside accounts)
+  //                    or Google expires connections every 7 days
+  //   service-account  Google Workspace domain-wide delegation: an admin
+  //                    authorizes the service account once for the calendar
+  //                    scopes, and nobody connects anything. People's TapCRM
+  //                    email must be their Workspace address.
+  MEETINGS_GOOGLE_AUTH: z.enum(['off', 'oauth', 'service-account']).default('off'),
+  // 32 random bytes, hex or base64, sealing stored Google refresh tokens.
+  MEETINGS_TOKEN_ENCRYPTION_KEY: optionalEnvString(z.string().trim().min(1).optional()),
+  // Google endpoints. Only a test or staging stand-in changes these.
+  GOOGLE_API_BASE_URL: z.string().url().default('https://www.googleapis.com'),
+  GOOGLE_TOKEN_URL: z.string().url().default('https://oauth2.googleapis.com/token'),
+  GOOGLE_AUTHORIZE_URL: z.string().url().default('https://accounts.google.com/o/oauth2/v2/auth'),
 });
 
 export type Config = z.infer<typeof schema>;
@@ -169,13 +221,41 @@ function configurationProblems(config: Config): string[] {
     keys.filter((key) => config[key] === undefined).map(String);
 
   if (config.GOOGLE_SEARCH_CONSOLE_AUTH === 'service-account') {
-    const absent = missing(['GOOGLE_SERVICE_ACCOUNT_EMAIL', 'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY']);
+    const absent = missing([
+      'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+      'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
+    ]);
     if (absent.length > 0) {
-      problems.push(`GOOGLE_SEARCH_CONSOLE_AUTH=service-account requires ${absent.join(' and ')}`);
+      problems.push(
+        `GOOGLE_SEARCH_CONSOLE_AUTH=service-account requires ${absent.join(' and ')}`,
+      );
+    }
+  }
+  if (config.MEETINGS_GOOGLE_AUTH === 'oauth') {
+    const absent = missing([
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+      'MEETINGS_TOKEN_ENCRYPTION_KEY',
+    ]);
+    if (absent.length > 0) {
+      problems.push(`MEETINGS_GOOGLE_AUTH=oauth requires ${absent.join(', ')}`);
+    }
+  }
+  if (config.MEETINGS_GOOGLE_AUTH === 'service-account') {
+    const absent = missing([
+      'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+      'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
+    ]);
+    if (absent.length > 0) {
+      problems.push(`MEETINGS_GOOGLE_AUTH=service-account requires ${absent.join(' and ')}`);
     }
   }
   if (config.GOOGLE_SEARCH_CONSOLE_AUTH === 'oauth') {
-    const absent = missing(['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_OAUTH_REFRESH_TOKEN']);
+    const absent = missing([
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+      'GOOGLE_OAUTH_REFRESH_TOKEN',
+    ]);
     if (absent.length > 0) {
       problems.push(`GOOGLE_SEARCH_CONSOLE_AUTH=oauth requires ${absent.join(', ')}`);
     }
@@ -202,13 +282,29 @@ function productionProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
     problems.push('CLIENT_ORIGIN must be set; it is the base of every emailed link');
   }
   if (config.DEV_INSTANT_PASSWORD_RESET) {
-    problems.push('DEV_INSTANT_PASSWORD_RESET shows new admin passwords on the login page; it is for local development only');
+    problems.push(
+      'DEV_INSTANT_PASSWORD_RESET shows new admin passwords on the login page; it is for local development only',
+    );
   }
   if (config.SECURITY_COUNTER_STORE === 'memory') {
-    problems.push('SECURITY_COUNTER_STORE=memory is single-process; use redis (ID-9, SE-5)');
+    problems.push(
+      'SECURITY_COUNTER_STORE=memory is single-process; use redis (ID-9, SE-5)',
+    );
+  }
+  if (config.CHAT_STORAGE_DRIVER === 'local') {
+    problems.push(
+      'CHAT_STORAGE_DRIVER=local keeps chat files on one server\'s disk; use s3 (S3, Cloudflare R2 or MinIO) in production',
+    );
+  }
+  if (config.CHAT_LINK_PREVIEW_ALLOW_PRIVATE_NETWORKS) {
+    problems.push(
+      'CHAT_LINK_PREVIEW_ALLOW_PRIVATE_NETWORKS lets chat links reach internal addresses (SSRF); it is for local testing only',
+    );
   }
   if (!config.AUDIT_ARCHIVE_ENCRYPTION_KEY || !config.AUDIT_ARCHIVE_KEY_ID) {
-    problems.push('AUDIT_ARCHIVE_ENCRYPTION_KEY and AUDIT_ARCHIVE_KEY_ID must be managed separately in production');
+    problems.push(
+      'AUDIT_ARCHIVE_ENCRYPTION_KEY and AUDIT_ARCHIVE_KEY_ID must be managed separately in production',
+    );
   }
   return problems;
 }
@@ -248,9 +344,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
  * the setting has a safe default, so it is read without requiring every secret.
  * An invalid value still fails the boot through `loadConfig()`.
  */
-export function passwordBreachCheckMode(env: NodeJS.ProcessEnv = process.env): Config['PASSWORD_BREACH_CHECK'] {
+export function passwordBreachCheckMode(
+  env: NodeJS.ProcessEnv = process.env,
+): Config['PASSWORD_BREACH_CHECK'] {
   if (cached) return cached.PASSWORD_BREACH_CHECK;
-  const parsed = schema.shape.PASSWORD_BREACH_CHECK.safeParse(env['PASSWORD_BREACH_CHECK']);
+  const parsed = schema.shape.PASSWORD_BREACH_CHECK.safeParse(
+    env['PASSWORD_BREACH_CHECK'],
+  );
   return parsed.success ? parsed.data : 'best-effort';
 }
 
@@ -267,6 +367,11 @@ export function resumeOcrEnabled(env: NodeJS.ProcessEnv = process.env): boolean 
 /** Test-only. */
 export function __resetConfig(): void {
   cached = null;
+}
+
+/** Where chat files are stored: explicit setting, else `s3` in production and `local` elsewhere. */
+export function chatStorageDriver(config: Config = loadConfig()): 's3' | 'local' {
+  return config.CHAT_STORAGE_DRIVER ?? (config.NODE_ENV === 'production' ? 's3' : 'local');
 }
 
 /**

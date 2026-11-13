@@ -6,11 +6,12 @@ import { createRequestContext, type RequestContext } from '../../platform/dal/co
 import { platformDb } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { dispatchOrganization } from '../notifications/facade.js';
-import { ChatNotFoundError, ChatNotSenderError, ChatValidationError } from './errors.js';
+import { ChatGroupPermissionError, ChatNotFoundError, ChatNotSenderError, ChatValidationError } from './errors.js';
 import {
   addGroupMembers,
   archiveGroup,
   createInternalGroup,
+  deleteGroup,
   forwardMessage,
   getConversation,
   listConversations,
@@ -22,7 +23,9 @@ import {
   removeGroupMember,
   removeReactionFromMessage,
   renameGroup,
+  restoreGroup,
   sendMessage,
+  setGroupMemberRole,
   startDirectConversation,
   unsendMessage,
 } from './service.js';
@@ -73,6 +76,7 @@ describe.skipIf(!enabled)('chat engine (PostgreSQL)', () => {
 
   const asAlice = () => ctxFor(orgA, alice);
   const asBob = () => ctxFor(orgA, bob);
+  const asCarol = () => ctxFor(orgA, carol);
   const asOutsider = () => ctxFor(orgB, outsider);
 
   async function addUser(organizationId: string, id: string, email: string, employeeId: string, departmentId: string, positionId: string): Promise<void> {
@@ -312,6 +316,73 @@ describe.skipIf(!enabled)('chat engine (PostgreSQL)', () => {
 
       const [row] = await asOwner<{ n: string }>('read', sql`SELECT count(*)::text AS n FROM conversation WHERE id = ${group.id}`);
       expect(row?.n).toBe('1');
+    });
+
+    it('the creator makes an admin, who adds people and removes ordinary members but not admins or the creator', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Admin Room', memberIds: [bob, carol] });
+      const promoted = await setGroupMemberRole(asAlice(), group.id, bob, 'admin');
+      expect(promoted.members.find((m) => m.userId === bob)?.role).toBe('admin');
+
+      await removeGroupMember(asBob(), group.id, carol);
+      const back = await addGroupMembers(asBob(), group.id, [carol]);
+      expect(back.members.find((m) => m.userId === carol)?.role).toBe('member');
+      await renameGroup(asBob(), group.id, 'Admin Room 2');
+
+      await setGroupMemberRole(asAlice(), group.id, carol, 'admin');
+      await expect(removeGroupMember(asBob(), group.id, carol)).rejects.toThrow(ChatGroupPermissionError);
+      await expect(removeGroupMember(asBob(), group.id, alice)).rejects.toThrow(ChatValidationError);
+      await expect(setGroupMemberRole(asBob(), group.id, carol, 'member')).rejects.toThrow(ChatGroupPermissionError);
+      await expect(archiveGroup(asBob(), group.id)).rejects.toThrow(ChatGroupPermissionError);
+      await expect(deleteGroup(asBob(), group.id)).rejects.toThrow(ChatGroupPermissionError);
+    });
+
+    it('an ordinary member can neither edit the group nor remove people', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Members Only', memberIds: [bob, carol] });
+      await expect(renameGroup(asCarol(), group.id, 'Mine now')).rejects.toThrow(ChatGroupPermissionError);
+      await expect(removeGroupMember(asCarol(), group.id, bob)).rejects.toThrow(ChatGroupPermissionError);
+      await expect(addGroupMembers(asCarol(), group.id, [bob])).rejects.toThrow(ChatGroupPermissionError);
+    });
+
+    it('a removed admin comes back as an ordinary member', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Demotion Room', memberIds: [bob] });
+      await setGroupMemberRole(asAlice(), group.id, bob, 'admin');
+      await removeGroupMember(asAlice(), group.id, bob);
+      const rejoined = await addGroupMembers(asAlice(), group.id, [bob]);
+      expect(rejoined.members.find((m) => m.userId === bob)?.role).toBe('member');
+    });
+
+    it('an archived group is listed under archived, is read-only, and can be restored', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Archive Shelf', memberIds: [bob] });
+      await archiveGroup(asAlice(), group.id);
+
+      expect((await listConversations(asBob(), 'group', true)).some((c) => c.id === group.id)).toBe(true);
+      expect((await listConversations(asBob(), 'group')).some((c) => c.id === group.id)).toBe(false);
+      await expect(sendMessage(asBob(), group.id, { body: 'still there?' })).rejects.toThrow(ChatValidationError);
+      await expect(renameGroup(asAlice(), group.id, 'Renamed')).rejects.toThrow(ChatValidationError);
+
+      const restored = await restoreGroup(asAlice(), group.id);
+      expect(restored.archivedAt).toBeNull();
+      expect((await listConversations(asBob(), 'group')).some((c) => c.id === group.id)).toBe(true);
+      await sendMessage(asBob(), group.id, { body: 'back again' });
+    });
+
+    it('deleting a group hides it from everyone but keeps it on record', async () => {
+      const group = await createInternalGroup(asAlice(), { name: 'Shredder', memberIds: [bob] });
+      await sendMessage(asBob(), group.id, { body: 'for the record' });
+      await deleteGroup(asAlice(), group.id);
+
+      expect((await listConversations(asBob(), 'group')).some((c) => c.id === group.id)).toBe(false);
+      expect((await listConversations(asBob(), 'group', true)).some((c) => c.id === group.id)).toBe(false);
+      expect(await loadConversationResource(asBob(), group.id)).toBeNull();
+      await expect(getConversation(asAlice(), group.id)).rejects.toThrow(ChatNotFoundError);
+
+      const [row] = await asOwner<{ deletedBy: string | null; messages: string }>(
+        'read',
+        sql`SELECT deleted_by AS "deletedBy", (SELECT count(*)::text FROM message WHERE conversation_id = ${group.id}) AS messages
+            FROM conversation WHERE id = ${group.id}`,
+      );
+      expect(row?.deletedBy).toBe(alice);
+      expect(row?.messages).toBe('1');
     });
 
     it('refuses to manage a direct conversation or a project conversation through the group governance path', async () => {

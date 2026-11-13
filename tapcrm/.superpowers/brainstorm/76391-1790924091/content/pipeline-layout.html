@@ -1,0 +1,82 @@
+<h2>Interview Pipeline — How should HR see candidates moving through rounds?</h2>
+<p class="subtitle">Pick the layout that feels most natural for tracking multiple candidates across multiple rounds</p>
+
+<div class="options" style="margin-top:24px;">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Kanban Board — Columns per Round</h3>
+      <p>Each round is a column. Candidates are cards that move left to right as they progress. HR sees everyone at a glance.</p>
+      <div style="margin-top:14px;overflow-x:auto;">
+        <div style="display:flex;gap:10px;min-width:600px;">
+          <div style="flex:1;min-width:130px;background:#1e1e2e;border-radius:10px;padding:10px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6366f1;margin-bottom:8px;">HR Screening</div>
+            <div style="background:#2a2a3e;border-radius:8px;padding:8px;margin-bottom:6px;font-size:12px;">
+              <div style="font-weight:600;">Aarav Sharma</div>
+              <div style="opacity:.6;font-size:11px;">Applied 2 days ago</div>
+            </div>
+            <div style="background:#2a2a3e;border-radius:8px;padding:8px;font-size:12px;">
+              <div style="font-weight:600;">Priya Patel</div>
+              <div style="opacity:.6;font-size:11px;">Applied 1 day ago</div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:130px;background:#1e1e2e;border-radius:10px;padding:10px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#f59e0b;margin-bottom:8px;">Technical Round</div>
+            <div style="background:#2a2a3e;border-radius:8px;padding:8px;font-size:12px;">
+              <div style="font-weight:600;">Rohan Mehta</div>
+              <div style="opacity:.6;font-size:11px;">Interviewer: Tech Lead</div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:130px;background:#1e1e2e;border-radius:10px;padding:10px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#10b981;margin-bottom:8px;">Managerial</div>
+            <div style="background:#2a2a3e;border-radius:8px;padding:8px;font-size:12px;opacity:.5;font-style:italic;text-align:center;">Empty</div>
+          </div>
+          <div style="flex:1;min-width:130px;background:#1e1e2e;border-radius:10px;padding:10px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#ec4899;margin-bottom:8px;">Final HR</div>
+            <div style="background:#2a2a3e;border-radius:8px;padding:8px;font-size:12px;opacity:.5;font-style:italic;text-align:center;">Empty</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;opacity:.65;">Best for: visual overview, drag-and-drop potential, seeing bottlenecks</div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Candidate List — Row per Candidate, Round Badge</h3>
+      <p>Each candidate is a row. Their current round, assigned interviewer, and status shown inline. HR clicks into a candidate to see their full round history.</p>
+      <div style="margin-top:14px;border:1px solid #333;border-radius:10px;overflow:hidden;font-size:12px;">
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr;padding:8px 12px;background:#1a1a2e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.6;gap:8px;">
+          <span>Candidate</span><span>Job Post</span><span>Current Round</span><span>Interviewer</span><span>Status</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr;padding:10px 12px;border-top:1px solid #2a2a3a;gap:8px;align-items:center;">
+          <div><div style="font-weight:600;">Aarav Sharma</div><div style="opacity:.55;font-size:11px;">aarav@example.com</div></div>
+          <div style="opacity:.8;">Sr. Frontend Eng</div>
+          <div><span style="background:#6366f1;color:white;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">Technical</span></div>
+          <div style="opacity:.8;">Tech Lead</div>
+          <div><span style="background:#f59e0b22;color:#f59e0b;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">Pending</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr;padding:10px 12px;border-top:1px solid #2a2a3a;gap:8px;align-items:center;">
+          <div><div style="font-weight:600;">Priya Patel</div><div style="opacity:.55;font-size:11px;">priya@example.com</div></div>
+          <div style="opacity:.8;">Sr. Frontend Eng</div>
+          <div><span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">HR Screening</span></div>
+          <div style="opacity:.8;">— HR</div>
+          <div><span style="background:#6366f122;color:#6366f1;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">Scheduled</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr;padding:10px 12px;border-top:1px solid #2a2a3a;gap:8px;align-items:center;">
+          <div><div style="font-weight:600;">Rohan Mehta</div><div style="opacity:.55;font-size:11px;">rohan@example.com</div></div>
+          <div style="opacity:.8;">People Ops Lead</div>
+          <div><span style="background:#ec489922;color:#ec4899;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">Final HR</span></div>
+          <div style="opacity:.8;">HR Manager</div>
+          <div><span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">Completed</span></div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;opacity:.65;">Best for: detailed info, filtering/searching, familiar table UX</div>
+    </div>
+  </div>
+
+</div>
+
+<p style="margin-top:20px;font-size:13px;opacity:.7;">These aren't mutually exclusive — we could have both (toggle between views). But pick the <strong>default</strong> view HR sees first.</p>

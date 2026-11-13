@@ -21,6 +21,12 @@ export const DASHBOARD_WIDGET_IDS = [
   'org-dept-coverage',
   'org-team-distribution',
   'org-readiness',
+  'admin-team-attendance',
+  'admin-activity',
+  'admin-sales-calls',
+  'admin-callbacks',
+  'admin-meetings',
+  'admin-pending-requests',
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number];
@@ -28,6 +34,8 @@ export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number];
 /** A single widget's placement on the responsive grid. */
 export interface DashboardLayoutItem {
   readonly i: DashboardWidgetId;
+  /** Present when this is an additional instance of a widget type. */
+  readonly instanceId?: string;
   readonly x: number;
   readonly y: number;
   readonly w: number;

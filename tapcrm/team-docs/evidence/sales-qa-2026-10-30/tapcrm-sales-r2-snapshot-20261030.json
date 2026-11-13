@@ -1,0 +1,346 @@
+{
+  "capturedAt": "2026-10-30T17:17:20.615Z",
+  "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+  "readOnly": true,
+  "checks": [
+    {
+      "path": "/api/leads/01a18dc7-df74-715e-aeac-362b8de52e58",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": "01a18dc7-df74-715e-aeac-362b8de52e58",
+          "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+          "leadNumber": "115",
+          "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "ownerName": "Isolated QA Organization Admin",
+          "currentHolderId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "currentHolderName": "Isolated QA Organization Admin",
+          "territoryId": null,
+          "territoryName": null,
+          "salesTeamId": null,
+          "salesTeamName": null,
+          "salesPoolId": null,
+          "salesPoolName": null,
+          "sourceId": "01a18c5b-3ef5-7692-8d59-0db1baa6b201",
+          "sourceName": "Isolated QA Outbound 2026-10-30",
+          "sourceDirection": "outbound",
+          "campaignId": null,
+          "campaignName": null,
+          "status": "converted",
+          "routingStatus": "assigned",
+          "contactId": "01a18dc7-df6f-7900-84ff-87de3377242f",
+          "contactName": "R2 Browser Buyer 2026-10-30",
+          "companyId": null,
+          "companyName": "R2 Synthetic Buyer Ltd",
+          "phone": "+12025550182",
+          "email": "qa.r2.buyer.20261030@example.test",
+          "lossReason": null,
+          "lostAt": null,
+          "previousLeadId": null,
+          "stalledAt": null,
+          "stalledReason": null,
+          "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "createdAt": "2026-10-30T17:07:28.747Z",
+          "updatedAt": "2026-10-30T17:07:54.859Z",
+          "activities": [
+            {
+              "id": "01a18dc7-df78-7783-badf-cb2670d27bc9",
+              "eventName": "lead.created",
+              "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+              "metadata": {
+                "routingStatus": "assigned"
+              },
+              "createdAt": "2026-10-30T17:07:28.747087+00:00"
+            },
+            {
+              "id": "01a18dc7-df79-7498-a1c4-ba9e636dbb20",
+              "eventName": "lead.assigned",
+              "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+              "metadata": {
+                "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2"
+              },
+              "createdAt": "2026-10-30T17:07:28.747087+00:00"
+            },
+            {
+              "id": "01a18dc8-02b0-73ee-a04a-6a38facd5106",
+              "eventName": "callback.scheduled",
+              "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+              "metadata": {
+                "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+                "callbackId": "01a18dc8-02ac-7615-bdb0-cfccdab19ac7",
+                "scheduledAt": "2026-10-31T05:00:00.000Z"
+              },
+              "createdAt": "2026-10-30T17:07:37.771153+00:00"
+            },
+            {
+              "id": "01a18dc8-0e19-7690-a2b1-069ca2c16e69",
+              "eventName": "callback.rescheduled",
+              "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+              "metadata": {
+                "callbackId": "01a18dc8-02ac-7615-bdb0-cfccdab19ac7",
+                "scheduledAt": "2026-10-30T12:37:00.000Z",
+                "nextCallbackId": "01a18dc8-0e18-702f-a8a7-5068de18ad95"
+              },
+              "createdAt": "2026-10-30T17:07:40.692338+00:00"
+            },
+            {
+              "id": "01a18dc8-1b3d-7573-a285-8abdfae9aae9",
+              "eventName": "callback.completed",
+              "actorId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+              "metadata": {
+                "outcome": "connected",
+                "callbackId": "01a18dc8-0e18-702f-a8a7-5068de18ad95"
+              },
+              "createdAt": "2026-10-30T17:07:44.059549+00:00"
+            }
+          ]
+        },
+        "meta": {
+          "requestId": "bff76670-c47d-4221-92be-ae428fa54520"
+        }
+      }
+    },
+    {
+      "path": "/api/deals/01a18dc8-456d-77fa-b065-5cacce1abc43",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": "01a18dc8-456d-77fa-b065-5cacce1abc43",
+          "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+          "dealNumber": "257",
+          "originatingLeadId": "01a18dc7-df74-715e-aeac-362b8de52e58",
+          "directEntryReason": null,
+          "contactId": "01a18dc7-df6f-7900-84ff-87de3377242f",
+          "contactName": "R2 Browser Buyer 2026-10-30",
+          "companyId": null,
+          "companyName": null,
+          "serviceRequested": "Synthetic website development",
+          "title": "R2 Synthetic Buyer Ltd — R2 Browser Buyer 2026-10-30",
+          "scopeSummary": "QA TEST ONLY. Nonbinding synthetic project for browser workflow verification; no actual funds, contract, or delivery.",
+          "originatingAgentId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "originatingAgentName": "Isolated QA Organization Admin",
+          "responsibleCloserId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "responsibleCloserName": "Isolated QA Organization Admin",
+          "closedById": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "currency": "INR",
+          "expectedCloseAt": "2026-11-05T00:00:00.000Z",
+          "probabilityOverride": null,
+          "commercialsId": "01a18dc8-80fc-7586-b07c-4fb8347aab51",
+          "dealStage": "closed",
+          "approvalStatus": "not_required",
+          "contractStatus": "not_required",
+          "paymentStatus": "advance_confirmed",
+          "lifecycleStatus": "won",
+          "lossReason": null,
+          "lostAt": null,
+          "wonAt": "2026-10-30T17:10:18.035Z",
+          "cancelledAt": null,
+          "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "createdAt": "2026-10-30T17:07:54.859Z",
+          "updatedAt": "2026-10-30T17:10:18.036Z"
+        },
+        "meta": {
+          "requestId": "5a88048e-d556-47b0-95fd-23f880a07253"
+        }
+      }
+    },
+    {
+      "path": "/api/deals/01a18dc8-456d-77fa-b065-5cacce1abc43/delivery-brief",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": "01a18dc9-750e-7bc4-a3ad-98a31a5a5f74",
+          "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+          "dealId": "01a18dc8-456d-77fa-b065-5cacce1abc43",
+          "commercialsId": "01a18dc8-80fc-7586-b07c-4fb8347aab51",
+          "state": "submitted",
+          "content": {
+            "notes": "Fresh R2 browser acceptance and handover test.",
+            "exclusions": "All real work and financial commitments excluded.",
+            "deliverables": "Dummy website design and handover checklist for test.",
+            "dependencies": "Test fixtures and isolated QA workspace.",
+            "promisedDates": "QA TEST ONLY timeline: 12 days. No real delivery commitment.",
+            "agreedServices": "QA TEST ONLY synthetic website; no actual service obligation.",
+            "customerAssets": "Dummy brand materials only.",
+            "accessReadiness": "No customer credentials required.",
+            "customerContacts": "R2 Browser Buyer; qa.r2.buyer.20261030@example.test",
+            "paymentReadiness": "Simulated advance INR25000; no actual funds.",
+            "outstandingQuestions": "QA reviewer scope clarification resolved."
+          },
+          "projectId": null,
+          "submittedAt": "2026-10-30T17:09:25.806Z",
+          "reviewedAt": "2026-10-30T17:09:31.858Z",
+          "reviewedBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "acceptedAt": null,
+          "acceptedBy": null,
+          "cancelledAt": null,
+          "cancelledReason": null,
+          "changeNotes": null,
+          "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "createdAt": "2026-10-30T17:09:12.589Z",
+          "updatedAt": "2026-10-30T17:09:39.154Z"
+        },
+        "meta": {
+          "requestId": "f7f1e526-a475-4fb9-9e64-620831ba2a71"
+        }
+      }
+    },
+    {
+      "path": "/api/deals/01a18dc8-456d-77fa-b065-5cacce1abc43/commercials",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": "01a18dc8-80fc-7586-b07c-4fb8347aab51",
+            "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+            "dealId": "01a18dc8-456d-77fa-b065-5cacce1abc43",
+            "version": 1,
+            "state": "accepted",
+            "currency": "INR",
+            "subtotalMinor": "10000000",
+            "discountMinor": "0",
+            "taxMinor": "1800000",
+            "totalMinor": "11800000",
+            "advanceMinor": "2500000",
+            "validityAt": "2026-11-15T00:00:00.000Z",
+            "scope": "QA TEST ONLY. Nonbinding proposal for an isolated local test; no actual contract or funds.",
+            "exclusions": "All real services and obligations excluded.",
+            "timeline": "Test milestone only: 10 days.",
+            "terms": null,
+            "pdfChecksum": "e2956c5eb19b76df0aa42853d8cc193714c4d1e588d43fa2102de38380f4b87c",
+            "publishedAt": "2026-10-30T17:08:26.141Z",
+            "publishedBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "acceptedAt": "2026-10-30T17:08:42.897Z",
+            "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "createdAt": "2026-10-30T17:08:10.106Z",
+            "updatedAt": "2026-10-30T17:08:42.897Z",
+            "items": [
+              {
+                "id": "01a18dc8-a5f7-78ed-9b5d-31d717936910",
+                "commercialsId": "01a18dc8-80fc-7586-b07c-4fb8347aab51",
+                "serviceName": "QA TEST ONLY Website",
+                "description": "Synthetic browser proposal; no services to be delivered",
+                "quantity": "1.0000",
+                "unitPriceMinor": "10000000",
+                "itemDiscountMinor": "0",
+                "taxCategory": "standard",
+                "taxRateBps": 1800,
+                "lineTotalMinor": "10000000",
+                "milestone": null,
+                "sortOrder": 0
+              }
+            ]
+          }
+        ],
+        "meta": {
+          "requestId": "d3def59c-ab6a-41d5-9bda-e556204e1a5d"
+        }
+      }
+    },
+    {
+      "path": "/api/callbacks?leadId=01a18dc7-df74-715e-aeac-362b8de52e58",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": "01a18dc8-0e18-702f-a8a7-5068de18ad95",
+            "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+            "leadId": "01a18dc7-df74-715e-aeac-362b8de52e58",
+            "leadNumber": "115",
+            "leadContactName": "R2 Browser Buyer 2026-10-30",
+            "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "ownerName": "Isolated QA Organization Admin",
+            "scheduledAt": "2026-10-30T12:37:00.000Z",
+            "reason": "R2 initial browser callback",
+            "status": "completed",
+            "outcome": "connected",
+            "parentCallbackId": "01a18dc8-02ac-7615-bdb0-cfccdab19ac7",
+            "organizationTimezone": "Asia/Kolkata",
+            "reminders": [],
+            "completedAt": "2026-10-30T17:07:44.059Z",
+            "missedAt": null,
+            "cancelledAt": null,
+            "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "createdAt": "2026-10-30T17:07:40.692Z",
+            "updatedAt": "2026-10-30T17:07:44.059Z"
+          },
+          {
+            "id": "01a18dc8-02ac-7615-bdb0-cfccdab19ac7",
+            "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+            "leadId": "01a18dc7-df74-715e-aeac-362b8de52e58",
+            "leadNumber": "115",
+            "leadContactName": "R2 Browser Buyer 2026-10-30",
+            "ownerId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "ownerName": "Isolated QA Organization Admin",
+            "scheduledAt": "2026-10-31T05:00:00.000Z",
+            "reason": "R2 initial browser callback",
+            "status": "rescheduled",
+            "outcome": null,
+            "parentCallbackId": null,
+            "organizationTimezone": "Asia/Kolkata",
+            "reminders": [],
+            "completedAt": null,
+            "missedAt": null,
+            "cancelledAt": null,
+            "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+            "createdAt": "2026-10-30T17:07:37.771Z",
+            "updatedAt": "2026-10-30T17:07:40.692Z"
+          }
+        ],
+        "meta": {
+          "requestId": "d3d46954-9cbc-4a17-a47e-874ac9122415"
+        }
+      }
+    },
+    {
+      "path": "/api/deals/01a18dce-0984-70cb-adb5-9c77d01f84aa",
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": "01a18dce-0984-70cb-adb5-9c77d01f84aa",
+          "organizationId": "01a18c5a-2684-768a-88d8-b9db91e72325",
+          "dealNumber": "258",
+          "originatingLeadId": "01a18dcd-ac8a-706f-ac89-3c8a2a1bcf46",
+          "directEntryReason": null,
+          "contactId": "01a18dcd-ac87-7883-998b-ee791dbeb18e",
+          "contactName": "R2 Approval and Loss Buyer 2026-10-30",
+          "companyId": null,
+          "companyName": null,
+          "serviceRequested": "Synthetic QA scenario",
+          "title": "R2 Approval and Loss Buyer 2026-10-30",
+          "scopeSummary": "QA TEST ONLY: no contractual or financial commitment.",
+          "originatingAgentId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "originatingAgentName": "Isolated QA Organization Admin",
+          "responsibleCloserId": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "responsibleCloserName": "Isolated QA Organization Admin",
+          "closedById": null,
+          "currency": "INR",
+          "expectedCloseAt": null,
+          "probabilityOverride": null,
+          "commercialsId": null,
+          "dealStage": "proposal",
+          "approvalStatus": "pending",
+          "contractStatus": "not_required",
+          "paymentStatus": "unpaid",
+          "lifecycleStatus": "lost",
+          "lossReason": "no_budget",
+          "lostAt": "2026-10-30T17:15:06.699Z",
+          "wonAt": null,
+          "cancelledAt": null,
+          "createdBy": "01a18c5a-2a8c-7340-8a3e-08219996fde2",
+          "createdAt": "2026-10-30T17:14:12.738Z",
+          "updatedAt": "2026-10-30T17:15:06.699Z"
+        },
+        "meta": {
+          "requestId": "cff0a242-ac1f-40cb-8a18-4833cabff83a"
+        }
+      }
+    }
+  ]
+}

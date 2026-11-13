@@ -10,7 +10,8 @@ import { weekdayOf } from '../../platform/time.js';
  *
  *   1 an active dated holiday on that date whose scope matches
  *   2 an active week-off rule in force whose recurrence hits the weekday
- *   3 a working day
+ *   3 the person's weekly off from their weekday schedule or rotation
+ *   4 a working day
  *
  * "In force on `date`" means the rule with the latest `effectiveFrom` on or
  * before it whose `effectiveTo` (exclusive) is later. Nobody outside this
@@ -58,6 +59,13 @@ export interface CalendarInputs {
    * will match against `null`).
    */
   readonly shiftIdsByDate: ReadonlyMap<DateOnly, string | null>;
+  /**
+   * Dates the person's weekday schedule or rotation gives no shift — their
+   * weekly off. Attendance already treats these as week-offs (ledger
+   * `dayTypes`); the calendar answers the same so leave, WFH and payroll
+   * agree with attendance. Optional for callers that build inputs by hand.
+   */
+  readonly scheduledWeekOffs?: ReadonlySet<DateOnly>;
 }
 
 const covers = (row: HolidayInput, date: DateOnly): boolean =>
@@ -198,6 +206,18 @@ export function resolveDay(inputs: CalendarInputs, date: DateOnly): ResolvedDay 
     };
   }
 
-  // 3. A working day.
+  // 3. The person's own weekly off from their weekday schedule or rotation.
+  if (inputs.scheduledWeekOffs?.has(date)) {
+    return {
+      date,
+      type: 'week-off',
+      holidayId: null,
+      holidayName: 'Weekly off',
+      subtype: 'week-off',
+      matchedBy: null,
+    };
+  }
+
+  // 4. A working day.
   return working(date);
 }

@@ -1,0 +1,57 @@
+{
+  "leadState": [
+    {
+      "id": "01a18c11-72b3-7e83-a907-c33745658b61",
+      "lead_number": "111",
+      "contact_name": "QA Buyer Alpha 2026-10-30",
+      "status": "new",
+      "contact_id": null,
+      "owner_id": null,
+      "current_holder_id": null,
+      "sales_team_id": "01a18c10-20df-7d03-a92b-50ba79c5014b",
+      "sales_pool_id": null,
+      "lead_outcome": "active"
+    },
+    {
+      "id": "01a18c13-407a-785b-9213-2ff0e8ccc191",
+      "lead_number": "112",
+      "contact_name": "QA Buyer Beta 2026-10-30",
+      "status": "assigned",
+      "contact_id": "01a18c19-ba49-744f-bba5-6812cdb20ba0",
+      "owner_id": "01a186b3-f897-7b1e-bf5d-87e8698970ba",
+      "current_holder_id": "01a186b3-f897-7b1e-bf5d-87e8698970ba",
+      "sales_team_id": null,
+      "sales_pool_id": null,
+      "lead_outcome": "active"
+    },
+    {
+      "id": "01a18c2f-4fb1-7d61-a84d-2638756e0dde",
+      "lead_number": "113",
+      "contact_name": "QA Agent Journey Gamma 2026-10-30",
+      "status": "assigned",
+      "contact_id": null,
+      "owner_id": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+      "current_holder_id": "01a18c18-450e-732d-8c9e-32df5e3176cf",
+      "sales_team_id": null,
+      "sales_pool_id": null,
+      "lead_outcome": "active"
+    }
+  ],
+  "dealState": [
+    {
+      "id": "01a18c1a-03cc-74f7-8697-d8fdc410a994",
+      "deal_number": "255",
+      "title": "QA Website Deal Beta 2026-10-30",
+      "deal_stage": "proposal",
+      "lifecycle_status": "open",
+      "approval_status": "not_required",
+      "contract_status": "not_required",
+      "payment_status": "unpaid"
+    }
+  ],
+  "callbackStatus": [
+    {
+      "column_default": "'scheduled'::text"
+    }
+  ]
+}

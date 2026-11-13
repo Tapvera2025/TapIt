@@ -7,14 +7,16 @@ import type {
   TeamId,
   DepartmentId,
 } from '@tapcrm/contracts';
+import { REGISTRY, isAction } from '@tapcrm/contracts';
 import {
   configureAuthz,
   MEMO_KEYS,
   SUBORDINATES_CTE,
-  TEAM_DESCENDANTS_CTE,
-  POOL_MEMBERS,
-  TEAM_MEMBERS,
   DEPARTMENT_MEMBERS,
+  TEAM_ROOTS,
+  TEAM_TREE_FROM_ROOTS,
+  MEMBERS_OF_TEAMS,
+  DIRECT_REPORTS,
   type AuthzAuditPort,
   type AuthzContext,
   type PolicyStorePort,
@@ -50,6 +52,21 @@ const asRequestContext = (ctx: AuthzContext): RequestContext => ctx as RequestCo
  * Scope resolution — TECH.md §6.5
  * ==================================================================== */
 
+/**
+ * The team the principal sits in plus every active team they lead (see
+ * TEAM_ROOTS). Memoised per request.
+ */
+async function teamRootIds(ctx: AuthzContext): Promise<ReadonlySet<TeamId>> {
+  return memoised(ctx, MEMO_KEYS.teamRoots, async () => {
+    if (ctx.principal.accountType !== 'employee') return new Set<TeamId>();
+    const rows = await db.query<{ id: string }>(asRequestContext(ctx), {
+      sql: TEAM_ROOTS,
+      parameters: [ctx.organizationId, ctx.principal.teamId, ctx.principal.id],
+    });
+    return new Set(rows.map((r) => r.id));
+  });
+}
+
 export const scopeResolver: ScopeResolverPort = {
   async subordinateIds(ctx: AuthzContext): Promise<ReadonlySet<UserId>> {
     return memoised(ctx, MEMO_KEYS.subordinates, async () => {
@@ -70,51 +87,60 @@ export const scopeResolver: ScopeResolverPort = {
 
   async teamIds(ctx: AuthzContext): Promise<ReadonlySet<TeamId>> {
     return memoised(ctx, MEMO_KEYS.teams, async () => {
-      const teamId =
-        ctx.principal.accountType === 'employee' ? ctx.principal.teamId : null;
-      if (teamId === null) return new Set<TeamId>();
-
+      const roots = [...(await teamRootIds(ctx))];
+      if (roots.length === 0) return new Set<TeamId>();
       const rows = await db.query<{ id: string }>(asRequestContext(ctx), {
-        sql: TEAM_DESCENDANTS_CTE,
-        parameters: [ctx.organizationId, teamId],
+        sql: TEAM_TREE_FROM_ROOTS,
+        parameters: [ctx.organizationId, roots],
       });
       return new Set(rows.map((r) => r.id));
     });
   },
 
   async poolIds(ctx: AuthzContext): Promise<ReadonlySet<TeamId>> {
-    return memoised(ctx, MEMO_KEYS.pools, async () => {
-      if (ctx.principal.accountType !== 'employee' || ctx.principal.teamId === null) {
-        return new Set<TeamId>();
-      }
-      // VIS-4: a Supervisor sees ONLY their own pool. No descent, no siblings.
-      return new Set<TeamId>([ctx.principal.teamId]);
-    });
+    // VIS-4: a Supervisor sees ONLY their own pool — the team they sit in or
+    // lead. No descent, no siblings.
+    return memoised(ctx, MEMO_KEYS.pools, async () => teamRootIds(ctx));
   },
 
   async poolMemberIds(ctx: AuthzContext): Promise<ReadonlySet<UserId>> {
     return memoised(ctx, MEMO_KEYS.poolMembers, async () => {
+      if (ctx.principal.accountType !== 'employee') return new Set<UserId>();
       const pools = [...(await scopeResolver.poolIds(ctx))];
-      if (pools.length === 0) return new Set<UserId>();
-
-      const rows = await db.query<{ id: string }>(asRequestContext(ctx), {
-        sql: POOL_MEMBERS,
-        parameters: [ctx.organizationId, pools],
-      });
-      return new Set(rows.map((r) => r.id));
+      const [members, reports] = await Promise.all([
+        pools.length === 0
+          ? Promise.resolve([] as { id: string }[])
+          : db.query<{ id: string }>(asRequestContext(ctx), {
+              sql: MEMBERS_OF_TEAMS,
+              parameters: [ctx.organizationId, pools],
+            }),
+        // A Supervisor's own agents report to them even before anyone has
+        // placed them in the pool.
+        db.query<{ id: string }>(asRequestContext(ctx), {
+          sql: DIRECT_REPORTS,
+          parameters: [ctx.organizationId, ctx.principal.id],
+        }),
+      ]);
+      return new Set<UserId>([ctx.principal.id, ...members.map((r) => r.id), ...reports.map((r) => r.id)]);
     });
   },
 
   async teamMemberIds(ctx: AuthzContext): Promise<ReadonlySet<UserId>> {
     return memoised(ctx, MEMO_KEYS.teamMembers, async () => {
-      const teamId =
-        ctx.principal.accountType === 'employee' ? ctx.principal.teamId : null;
-      if (teamId === null) return new Set<UserId>();
-      const rows = await db.query<{ id: string }>(asRequestContext(ctx), {
-        sql: TEAM_MEMBERS,
-        parameters: [ctx.organizationId, teamId],
-      });
-      return new Set(rows.map((r) => r.id));
+      if (ctx.principal.accountType !== 'employee') return new Set<UserId>();
+      const teams = [...(await scopeResolver.teamIds(ctx))];
+      const [members, subordinates] = await Promise.all([
+        teams.length === 0
+          ? Promise.resolve([] as { id: string }[])
+          : db.query<{ id: string }>(asRequestContext(ctx), {
+              sql: MEMBERS_OF_TEAMS,
+              parameters: [ctx.organizationId, teams],
+            }),
+        // VIS-1: team scope "walks the full reportsTo subtree", so the
+        // reporting line counts even where team placement is incomplete.
+        scopeResolver.subordinateIds(ctx),
+      ]);
+      return new Set<UserId>([ctx.principal.id, ...members.map((r) => r.id), ...subordinates]);
     });
   },
 
@@ -160,6 +186,46 @@ export const policyStore: PolicyStorePort = {
       // A client principal holds a fixed policy set, not a position (§7.1
       // `acct`). A service account never consults position policies at all
       // (SV-1) and is handled before this point in the pipeline.
+      // Client review is opt-in per existing CRM client, with no separate login.
+      // A2 still checks client ownership before these fixed policies are evaluated.
+      if (ctx.principal.accountType === 'client') {
+        const settings = await db.maybeOne<{ enabled: boolean }>(
+          asRequestContext(ctx),
+          sql`
+          SELECT client_review_enabled AS enabled FROM social_workspace_settings
+          WHERE organization_id = ${ctx.organizationId} AND client_id = ${ctx.principal.clientId}
+        `,
+        );
+        // Connecting the client's own social accounts is available to every client
+        // login (the social module must still be enabled for the organization). It
+        // is a client-only action: it never reaches a Position, and it grants no
+        // publishing, settings or company-connection power.
+        const policies: PermissionSet['policies'] = {
+          'social:connect-own-accounts': {
+            action: 'social:connect-own-accounts',
+            allowed: true,
+            scope: 'own',
+            source: 'client',
+          },
+          ...(settings?.enabled
+            ? {
+                'social:view': {
+                  action: 'social:view',
+                  allowed: true,
+                  scope: 'own',
+                  source: 'client',
+                },
+                'social:approve': {
+                  action: 'social:approve',
+                  allowed: true,
+                  scope: 'own',
+                  source: 'client',
+                },
+              }
+            : {}),
+        };
+        return { policies, cacheDeadline: now, resolvedAt: now } satisfies PermissionSet;
+      }
       if (ctx.principal.accountType !== 'employee') {
         return { policies: {}, cacheDeadline: now, resolvedAt: now } satisfies PermissionSet;
       }
@@ -193,13 +259,19 @@ export const policyStore: PolicyStorePort = {
       let earliestExpiry: Date | null = null;
 
       for (const row of rows) {
+        // A stored row for an action the registry no longer knows, or for one
+        // no position may ever hold (PositionGrantable = no: notepad:view-all,
+        // billing:set-terms, …), grants nothing. `SuperAdminOnly` actions are
+        // different — "only Super Admin may GRANT it" (AUTHORIZATION.md §6.4) —
+        // so a row the Super Admin granted is honoured.
+        if (!isAction(row.action) || !REGISTRY[row.action].grantPolicy.positionGrantable) continue;
         // §4.4: "An override REPLACES the position's policy for that action."
         // The UNION returns both; the override wins regardless of row order.
-        const existing = policies[row.action as Action];
+        const existing = policies[row.action];
         if (existing !== undefined && existing.source === 'override') continue;
 
-        policies[row.action as Action] = {
-          action: row.action as Action,
+        policies[row.action] = {
+          action: row.action,
           allowed: row.allowed,
           scope: row.scope as Scope,
           ...(row.fields ? { fields: row.fields } : {}),

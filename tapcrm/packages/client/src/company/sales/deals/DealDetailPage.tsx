@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Page, Select } from '../../../ui/components.js';
+import { Button, Card, Field, Page, Select } from '../../../ui/index.js';
 import {
   cancelDealAfterWin,
   confirmPayment,
@@ -24,23 +24,21 @@ import {
   type ApprovalVerdict,
 } from '../approvals/api.js';
 import {
-  APPROVAL_LABELS,
-  CONTRACT_LABELS,
   LIFECYCLE_LABELS,
   LOSS_REASON_LABELS,
-  PAYMENT_LABELS,
   STAGE_LABELS,
-  approvalTone,
-  contractTone,
-  formatCurrencyLabel,
   formatProbability,
   formatRelativeDate,
   lifecycleTone,
   nextStageOptions,
-  paymentTone,
-  stageTone,
   type BadgeTone,
 } from './deals-helpers.js';
+import { IdentityApiError } from '../../../identity/api/authApi.js';
+import { listCommercials, type Commercials } from '../proposals/api.js';
+import { getBriefForDeal, type DeliveryBrief } from '../delivery/api.js';
+import { DEAL_ANCHORS, dealGuidance, dealSteps } from '../guide/deal-guidance.js';
+import { cannotOpen, type GuideCommand } from '../guide/guidance.js';
+import { SalesCoach, StepTracker, useSalesGuide } from '../guide/SalesGuide.js';
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
   neutral: 'bg-app-background text-app-muted',
@@ -57,6 +55,8 @@ interface DealDetailPageProps {
   readonly canDecideApprovals: boolean;
   readonly canRecordWin: boolean;
   readonly canConfirmPayment: boolean;
+  /** Sales Head or admin: may act on any deal, not only their own. */
+  readonly isManager?: boolean;
   readonly onBack: () => void;
   readonly onNavigate: (path: string) => void;
 }
@@ -68,11 +68,16 @@ export function DealDetailPage({
   canDecideApprovals,
   canRecordWin,
   canConfirmPayment,
+  isManager = false,
   onBack,
   onNavigate,
 }: DealDetailPageProps): React.JSX.Element {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
+  const [commercials, setCommercials] = useState<readonly Commercials[] | null>(null);
+  const [brief, setBrief] = useState<DeliveryBrief | null | undefined>(undefined);
+  const [access, setAccess] = useState({ proposals: true, brief: true });
+  const guideMode = useSalesGuide()?.mode;
   const [myApproval, setMyApproval] = useState<ApprovalRequest | null>(null);
   const [decideBusy, setDecideBusy] = useState<ApprovalVerdict | null>(null);
   const [decideComment, setDecideComment] = useState('');
@@ -90,6 +95,23 @@ export function DealDetailPage({
       const next = await getDeal(id);
       setDeal(next);
       setError(null);
+      // What the guide needs to say what comes next; the page works without them.
+      // A refusal (403) means the viewer may not open that page at all.
+      let proposalsAllowed = true;
+      let briefAllowed = true;
+      const [nextCommercials, nextBrief] = await Promise.all([
+        listCommercials(id).catch((cause: unknown) => {
+          proposalsAllowed = !isRefusal(cause);
+          return null;
+        }),
+        getBriefForDeal(id).catch((cause: unknown) => {
+          briefAllowed = !isRefusal(cause);
+          return undefined;
+        }),
+      ]);
+      setCommercials(nextCommercials);
+      setBrief(nextBrief);
+      setAccess({ proposals: proposalsAllowed, brief: briefAllowed });
       if (next.lifecycleStatus === 'open') {
         try {
           const r = await getWinReadiness(id);
@@ -146,7 +168,7 @@ export function DealDetailPage({
       await reload();
       return result;
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : 'Action failed.');
+      setActionError(humanizeDealError(cause, deal?.currency ?? 'INR'));
       return null;
     } finally {
       setBusy(false);
@@ -156,7 +178,9 @@ export function DealDetailPage({
   if (error) {
     return (
       <Page eyebrow="Sales" title="Deal">
-        <p className="text-app-danger">{error}</p>
+        <SalesCoach guidance={cannotOpen('Deal', 'deal', '/company/sales/deals')} onNavigate={onNavigate} />
+        <p className="font-semibold">This deal can’t be opened.</p>
+        <p className="mt-1 text-xs text-app-muted">{error}</p>
         <Button className="mt-4" kind="secondary" onClick={onBack}>
           Back to deals
         </Button>
@@ -176,6 +200,31 @@ export function DealDetailPage({
   const isWon = deal.lifecycleStatus === 'won';
   const stageOptions = nextStageOptions(deal.dealStage);
   const canClose = Boolean(readiness?.canClose);
+  const guideInput = {
+    deal,
+    readiness,
+    commercials,
+    brief: brief === undefined ? undefined : brief === null ? null : { state: brief.state },
+    myApproval: myApproval !== null,
+    viewer: { id: currentUserId, canConfirmPayment, canRecordWin, isManager },
+    formatWhen: (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
+    access,
+  };
+  const guidance = dealGuidance(guideInput);
+
+  async function handleCommand(command: GuideCommand): Promise<void> {
+    if (!deal) return;
+    switch (command.type) {
+      case 'confirm-payment':
+        setConfirmPaymentOpen(true);
+        return;
+      case 'record-win':
+        await runAction(() => recordDealWin(deal.id));
+        return;
+      default:
+        return;
+    }
+  }
 
   return (
     <Page
@@ -186,12 +235,16 @@ export function DealDetailPage({
         <div className="flex flex-wrap gap-2">
           <Button
             kind="secondary"
+            disabled={!access.proposals}
+            title={access.proposals ? undefined : 'Your role can’t open this deal’s proposal'}
             onClick={() => onNavigate(`/company/sales/deals/${deal.id}/proposals`)}
           >
-            Proposals
+            Proposal
           </Button>
           <Button
             kind="secondary"
+            disabled={!access.brief}
+            title={access.brief ? undefined : 'Your role can’t open delivery briefs'}
             onClick={() => onNavigate(`/company/sales/deals/${deal.id}/delivery`)}
           >
             Delivery brief
@@ -202,39 +255,39 @@ export function DealDetailPage({
         </div>
       }
     >
+      <SalesCoach guidance={guidance} onCommand={handleCommand} onNavigate={onNavigate} />
       {actionError && (
-        <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+        <p className="rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
           {actionError}
         </p>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <StepTracker steps={dealSteps(guideInput)} label="What the deal needs before it can be won" />
           <div className="flex flex-wrap gap-2">
-            <Badge tone={stageTone(deal.dealStage)}>{STAGE_LABELS[deal.dealStage]}</Badge>
-            <Badge tone={lifecycleTone(deal.lifecycleStatus)}>
-              {LIFECYCLE_LABELS[deal.lifecycleStatus]}
-            </Badge>
-            <Badge tone={approvalTone(deal.approvalStatus)}>
-              Approval · {APPROVAL_LABELS[deal.approvalStatus]}
-            </Badge>
-            <Badge tone={contractTone(deal.contractStatus)}>
-              Contract · {CONTRACT_LABELS[deal.contractStatus]}
-            </Badge>
-            <Badge tone={paymentTone(deal.paymentStatus)}>
-              Payment · {PAYMENT_LABELS[deal.paymentStatus]}
-            </Badge>
+            <Badge tone={lifecycleTone(deal.lifecycleStatus)}>{LIFECYCLE_LABELS[deal.lifecycleStatus]}</Badge>
+            {isOpen && <Badge tone="neutral">Stage: {STAGE_LABELS[deal.dealStage]} · {formatProbability(deal)}</Badge>}
           </div>
+        </div>
+        {guideMode === 'closed' && (
+          <p className="mt-3 border-t border-app-border pt-3 text-sm">
+            <span className="font-semibold">Next step:</span> {guidance.title}
+          </p>
+        )}
+      </Card>
 
-          <div className="mt-6 grid gap-5 sm:grid-cols-2">
-            <Fact label="Contact">{deal.contactName ?? '—'}</Fact>
-            <Fact label="Company">{deal.companyName ?? '—'}</Fact>
-            <Fact label="Service">{deal.serviceRequested ?? '—'}</Fact>
-            <Fact label="Currency">{formatCurrencyLabel(deal.currency)} {deal.currency}</Fact>
-            <Fact label="Responsible closer">{deal.responsibleCloserName ?? '—'}</Fact>
-            <Fact label="Originating agent">{deal.originatingAgentName ?? '—'}</Fact>
-            <Fact label="Expected close">{formatRelativeDate(deal.expectedCloseAt)}</Fact>
-            <Fact label="Probability">
+      <div className="@container">
+      <div className="grid gap-5 @3xl:grid-cols-[minmax(0,1fr)_19rem]">
+        <Card className="min-w-0">
+          <div className="grid gap-5 sm:grid-cols-2">
+            {deal.contactName && <Fact label="Contact">{deal.contactName}</Fact>}
+            {deal.companyName && <Fact label="Company">{deal.companyName}</Fact>}
+            {deal.serviceRequested && <Fact label="What they are buying">{deal.serviceRequested}</Fact>}
+            <Fact label="Closing it">{deal.responsibleCloserId === currentUserId ? 'You' : deal.responsibleCloserName ?? '—'}</Fact>
+            {deal.originatingAgentId !== deal.responsibleCloserId && deal.originatingAgentName && <Fact label="Found by">{deal.originatingAgentName}</Fact>}
+            {deal.expectedCloseAt && <Fact label="Expected to close">{formatRelativeDate(deal.expectedCloseAt)}</Fact>}
+            <Fact label="Chance of winning">
               {formatProbability(deal)}
               {isOpen && (
                 <button
@@ -247,13 +300,13 @@ export function DealDetailPage({
               )}
             </Fact>
             {deal.originatingLeadId && (
-              <Fact label="Originating lead">
+              <Fact label="Came from">
                 <button
                   type="button"
                   className="font-semibold text-app-accent underline"
                   onClick={() => onNavigate(`/company/sales/leads/${deal.originatingLeadId}`)}
                 >
-                  View lead
+                  Open the lead
                 </button>
               </Fact>
             )}
@@ -288,7 +341,7 @@ export function DealDetailPage({
           )}
         </Card>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-5">
           {myApproval && (
             <DecidePanel
               busy={decideBusy}
@@ -315,10 +368,12 @@ export function DealDetailPage({
           />
         </div>
       </div>
+      </div>
 
       {confirmLost && (
         <MarkLostDialog
           busy={busy}
+          error={actionError}
           onClose={() => setConfirmLost(false)}
           onConfirm={async (reason, note) => {
             const result = await runAction(() => markDealLost(deal.id, reason, note));
@@ -330,6 +385,7 @@ export function DealDetailPage({
       {confirmCancel && (
         <CancelAfterWinDialog
           busy={busy}
+          error={actionError}
           onClose={() => setConfirmCancel(false)}
           onConfirm={async (reason) => {
             const result = await runAction(() => cancelDealAfterWin(deal.id, reason));
@@ -354,6 +410,7 @@ export function DealDetailPage({
         <ConfirmPaymentDialog
           currency={deal.currency}
           busy={busy}
+          error={actionError}
           onClose={() => setConfirmPaymentOpen(false)}
           onConfirm={async (input) => {
             const result = await runAction(() => confirmPayment(deal.id, input));
@@ -365,6 +422,7 @@ export function DealDetailPage({
       {revertPaymentOpen && (
         <RevertPaymentDialog
           busy={busy}
+          error={actionError}
           onClose={() => setRevertPaymentOpen(false)}
           onConfirm={async (reason) => {
             const result = await runAction(() => revertPaymentConfirmation(deal.id, reason));
@@ -427,6 +485,9 @@ function ActionRail({
             <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">
               Change stage
             </p>
+            <p className="mt-1 text-xs text-app-muted">
+              Keeps the forecast honest: Discovery 20%, Proposal 40%, Negotiation 60%, Closing 85%.
+            </p>
             <div className="mt-2 flex gap-2">
               <select
                 value={nextStage}
@@ -484,24 +545,13 @@ function ActionRail({
               Record win
             </p>
             {readiness ? (
-              <>
-                {readiness.canClose ? (
-                  <p className="mt-2 text-xs text-app-muted">All close conditions met.</p>
-                ) : (
-                  <ul className="mt-2 space-y-1 text-xs text-app-muted">
-                    {readiness.unmet.map((item) => (
-                      <li key={item.condition}>
-                        <span className="font-semibold capitalize text-app-foreground">
-                          {item.condition.replaceAll('_', ' ')}:
-                        </span>{' '}
-                        {item.description}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
+              <p className="mt-2 text-xs text-app-muted">
+                {readiness.canClose
+                  ? 'Everything is in place.'
+                  : `Still needed: ${readiness.unmet.map((item) => STILL_NEEDED[item.condition]).join(', ')}.`}
+              </p>
             ) : (
-              <p className="mt-2 text-xs text-app-muted">Readiness unavailable.</p>
+              <p className="mt-2 text-xs text-app-muted">Could not check whether the deal is ready.</p>
             )}
             <Button
               className="mt-3 w-full"
@@ -512,7 +562,7 @@ function ActionRail({
             </Button>
             {!canRecordWin && (
               <p className="mt-2 text-xs text-app-muted">
-                Only Sales HOD / Super Admin can record a win.
+                The Sales Head (or an admin) records the win.
               </p>
             )}
           </div>
@@ -531,7 +581,7 @@ function ActionRail({
             </Button>
           ) : (
             <p className="text-xs text-app-muted">
-              Only users with deals:approve can cancel a won deal.
+              Only a sales manager can cancel a won deal.
             </p>
           )}
         </div>
@@ -543,6 +593,18 @@ function ActionRail({
     </Card>
   );
 }
+
+/** What each unmet close condition means, in a few words. */
+const STILL_NEEDED: Record<ReadinessReport['unmet'][number]['condition'], string> = {
+  commercials: 'a published proposal',
+  approval: 'approval of the proposal',
+  contract: 'a signed contract',
+  payment: 'the advance payment',
+  delivery_brief: 'a delivery brief',
+  authority: 'the Sales Head to record it',
+  already_closed: 'nothing (already closed)',
+  already_terminal: 'nothing (already closed)',
+};
 
 const LOSS_REASONS: DealLossReason[] = [
   'not_interested',
@@ -557,10 +619,12 @@ const LOSS_REASONS: DealLossReason[] = [
 
 function MarkLostDialog({
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (reason: DealLossReason, note?: string) => Promise<void>;
 }): React.JSX.Element {
@@ -568,6 +632,11 @@ function MarkLostDialog({
   const [note, setNote] = useState('');
   return (
     <Modal title="Mark deal lost" onClose={onClose}>
+      {error && (
+        <p className="mb-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+          {error}
+        </p>
+      )}
       <Select
         label="Loss reason"
         value={reason}
@@ -595,16 +664,23 @@ function MarkLostDialog({
 
 function CancelAfterWinDialog({
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
 }): React.JSX.Element {
   const [reason, setReason] = useState('');
   return (
     <Modal title="Cancel after win" onClose={onClose}>
+      {error && (
+        <p className="mb-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+          {error}
+        </p>
+      )}
       <Field
         label="Reason (required)"
         value={reason}
@@ -669,11 +745,13 @@ function ProbabilityDialog({
 function ConfirmPaymentDialog({
   currency,
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   currency: string;
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (input: ConfirmPaymentInput) => Promise<void>;
 }): React.JSX.Element {
@@ -689,6 +767,11 @@ function ConfirmPaymentDialog({
         Record the advance Finance has already received. This flips the deal's payment status to
         "advance confirmed" and unblocks the Won readiness check. All amounts are in {currency}.
       </p>
+      {error && (
+        <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+          {error}
+        </p>
+      )}
       <div className="mt-4 grid gap-4">
         <Field
           label={`Amount received (${currency})`}
@@ -733,10 +816,12 @@ function ConfirmPaymentDialog({
 
 function RevertPaymentDialog({
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
 }): React.JSX.Element {
@@ -748,6 +833,11 @@ function RevertPaymentDialog({
         is confirmed again. Only open deals can be reverted — a confirmed advance on a Won deal
         requires cancel-after-win instead.
       </p>
+      {error && (
+        <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
+          {error}
+        </p>
+      )}
       <div className="mt-4">
         <Field label="Reason (required)" value={reason} onChange={setReason} placeholder="Why?" />
       </div>
@@ -761,6 +851,35 @@ function RevertPaymentDialog({
       </div>
     </Modal>
   );
+}
+
+function isRefusal(cause: unknown): boolean {
+  return cause instanceof IdentityApiError && cause.status === 403;
+}
+
+/**
+ * Translate server error strings that embed amounts in minor units (paise)
+ * into the currency's major unit so the user sees "₹60,000" instead of
+ * "6000000". Keeps unmatched messages untouched.
+ */
+function humanizeDealError(cause: unknown, currency: string): string {
+  const raw = cause instanceof Error ? cause.message : 'Action failed.';
+  const belowAdvance = /Confirmed amount \((\d+)\) is below the expected advance \((\d+)\)/.exec(raw);
+  if (belowAdvance) {
+    const [, actual, expected] = belowAdvance;
+    const fmt = (minor: string): string => formatMoney(BigInt(minor), currency);
+    return `Confirmed amount (${fmt(actual!)}) is below the expected advance (${fmt(expected!)}).`;
+  }
+  return raw;
+}
+
+function formatMoney(minor: bigint, currency: string): string {
+  const negative = minor < 0n;
+  const abs = negative ? -minor : minor;
+  const whole = abs / 100n;
+  const fraction = (abs % 100n).toString().padStart(2, '0');
+  const symbol = currency === 'INR' ? '₹' : `${currency} `;
+  return `${negative ? '-' : ''}${symbol}${whole.toLocaleString('en-IN')}.${fraction}`;
 }
 
 /**
@@ -825,7 +944,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">{label}</p>
-      <p className="mt-1 font-semibold capitalize">{children}</p>
+      <p className="mt-1 break-words font-semibold">{children}</p>
     </div>
   );
 }
@@ -842,10 +961,11 @@ function DecidePanel({
   onDecide: (verdict: ApprovalVerdict) => void;
 }): React.JSX.Element {
   return (
-    <Card>
-      <h2 className="font-display text-lg font-bold">Approval decision</h2>
+    <Card id={DEAL_ANCHORS.decision}>
+      <h2 className="font-display text-lg font-bold">Your approval</h2>
       <p className="mt-2 text-xs text-app-muted">
-        This request is routed to you. Returning sends it back to the salesperson for revisions.
+        This proposal goes beyond the salesperson’s limits and is waiting for you. Send it back if
+        it needs changes.
       </p>
       <div className="mt-4">
         <Field
@@ -860,7 +980,7 @@ function DecidePanel({
           {busy === 'approve' ? 'Approving…' : 'Approve'}
         </Button>
         <Button kind="secondary" disabled={busy !== null} onClick={() => onDecide('return')}>
-          {busy === 'return' ? 'Returning…' : 'Return'}
+          {busy === 'return' ? 'Sending back…' : 'Send back'}
         </Button>
         <Button kind="danger" disabled={busy !== null} onClick={() => onDecide('reject')}>
           {busy === 'reject' ? 'Rejecting…' : 'Reject'}

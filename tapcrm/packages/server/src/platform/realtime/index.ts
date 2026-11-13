@@ -12,7 +12,15 @@ export type SocketAuthenticator = (
 ) => Promise<{ userId: string; organizationId: string } | null>;
 
 export const userRoom = personalRoom;
-export { emitToUser, installTypingAuthorizer, stopRealtime } from './server.js';
+export { organizationRoom, personalRoom } from './rooms.js';
+export {
+  connectedUserIds,
+  emitToOrganization,
+  emitToUser,
+  installConnectionListener,
+  installTypingAuthorizer,
+  stopRealtime,
+} from './server.js';
 
 export async function startRealtime(server: HttpServer, authenticate: SocketAuthenticator): Promise<void> {
   installSocketPrincipalResolver(async (token, options): Promise<SocketIdentity | null> => {

@@ -3,6 +3,15 @@
 How the on-page SEO module fills in keyword ranks from Google Search Console,
 what it can and cannot cover, and how to set it up.
 
+> **Whose login reads Search Console.** Every organization reads through its
+> OWN Google logins, connected under **Social → Company connections**. The
+> project card lists only the properties those logins can read (the project's
+> client's first), a project can only be linked to one of them, and every
+> fetch uses that organization's token. The server's shared login described in
+> the setup below serves only the organization named in
+> `GOOGLE_SEARCH_CONSOLE_ORGANIZATION` — the deployment's own company. No
+> organization can list, link or read another's property.
+
 ---
 
 ## 1. What this actually reports

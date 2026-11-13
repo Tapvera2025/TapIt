@@ -17,7 +17,7 @@
 
 ## 6.4 Action Registry
 
-165 actions. Column meanings are as given in the source document:
+226 actions. Column meanings are as given in the source document:
 
 | Column | Meaning |
 | --- | --- |
@@ -36,7 +36,7 @@
 | --- | --- |
 | RG-1 | `DelegationAllowed` requires `Sensitive = no`. A sensitive action is never delegable — a delegate may hold it, but only Super Admin may hand it out. |
 | RG-2 | `SuperAdminOnly` implies `DelegationAllowed = no` (GP-2). |
-| RG-3 | `PositionGrantable = no` implies `DelegationAllowed = no` and `SuperAdminOnly = yes` (GP-1). Two actions qualify: `notepad:view-all` and `billing:set-terms`. |
+| RG-3 | `PositionGrantable = no` implies `DelegationAllowed = no` and `SuperAdminOnly = yes` (GP-1). Two actions qualify: `notepad:view-all` and `billing:set-terms`. Added later with the same shape: `chat:manage-groups`, and `social:connect-own-accounts`, which only a client principal holds (through its fixed policy set) to connect its own social accounts from the client portal. |
 | RG-4 | `ApprovalBearing` requires a non-null initiator field (GP-5). |
 | RG-5 | Every action names a resource or is explicitly `—`. There is no unspecified case. |
 | RG-6 | Every action has at least one API binding (§6.5). |
@@ -99,8 +99,8 @@
 | `ta:send` | ta | — | people | yes | no | — | yes | no | no |
 | `ta:export` | ta | — | people | yes | no | — | yes | no | no |
 | `payroll:view` | payroll | payslip | people | yes | no | — | yes | no | no |
-| `payroll:manage` | payroll | payrollRun | people | yes | no | — | yes | no | yes |
-| `payroll:manage-config` | payroll | payrollConfig | people | yes | no | — | yes | no | yes |
+| `payroll:manage` | payroll | payrollRun | people | yes | no | — | yes | no | no |
+| `payroll:manage-config` | payroll | payrollConfig | people | yes | no | — | yes | no | no |
 | `advance:view-own` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
 | `advance:request` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
 | `advance:view` | advance | employeeAdvance | people | no | no | — | yes | yes | no |
@@ -127,6 +127,14 @@
 | `callbacks:view` | callbacks | callback | business | no | no | — | yes | yes | no |
 | `callbacks:create` | callbacks | callback | business | no | no | — | yes | yes | no |
 | `callbacks:edit` | callbacks | callback | business | no | no | — | yes | yes | no |
+| `meetings:host` | meetings | meeting | business | no | no | — | yes | yes | no |
+| `meetings:view` | meetings | meeting | business | no | no | — | yes | yes | no |
+| `meetings:join` | meetings | meeting | business | yes | no | — | yes | no | no |
+| `telephony:view` | telephony | telephonyCall | business | no | no | — | yes | yes | no |
+| `telephony:listen` | telephony | telephonyCall | business | yes | no | — | yes | no | no |
+| `telephony:manage` | telephony | — | business | yes | no | — | yes | no | yes |
+| `lead-imports:view` | lead-imports | — | business | no | no | — | yes | yes | no |
+| `lead-imports:manage` | lead-imports | — | business | yes | no | — | yes | no | no |
 | `handovers:initiate` | handovers | handover | business | no | no | — | yes | yes | no |
 | `handovers:receive` | handovers | handover | business | no | no | — | yes | yes | no |
 | `handovers:record-disposition` | handovers | handover | business | no | no | — | yes | yes | no |
@@ -203,6 +211,13 @@
 | `accounting:view-finance-settings` | accounting | — | business | yes | no | — | yes | no | no |
 | `accounting:manage-finance-settings` | accounting | — | business | yes | no | — | no | no | yes |
 | `finance:manage-payment-gateways` | accounting | — | business | yes | no | — | yes | no | no |
+| `social:view` | social | socialWorkspace | business | no | no | — | yes | yes | no |
+| `social:manage` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:publish` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:connect` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:connect-own-accounts` | social | socialWorkspace | business | yes | no | — | no | no | yes |
+| `social:settings` | social | socialWorkspace | business | yes | no | — | yes | no | no |
+| `social:approve` | social | socialPost | business | yes | yes | createdBy | yes | no | no |
 | `clients:view` | clients | client | business | no | no | — | yes | yes | no |
 | `clients:manage` | clients | client | business | yes | no | — | yes | no | no |
 | `clients:manage-requests` | clients | clientRequest | business | no | no | — | yes | yes | no |
@@ -245,12 +260,45 @@
 | `recruitment:view-candidate-events` | recruitment | candidate | business | no | no | — | yes | yes | no |
 | `recruitment:manage-email-templates` | recruitment | — | business | no | no | — | yes | yes | no |
 | `recruitment:send-joining-email` | recruitment | candidateJoining | business | no | no | — | yes | yes | no |
+| `seo:list-sites` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:read-content` | seo-intelligence | seo_content_site | business | no | no | — | yes | yes | no |
+| `seo:create-content` | seo-intelligence | seo_content_site | business | no | no | — | yes | yes | no |
+| `seo:edit-content` | seo-intelligence | seo_content_site | business | no | no | — | yes | yes | no |
+| `seo:comment-content` | seo-intelligence | seo_content_document | business | no | no | — | yes | yes | no |
+| `seo:review-content` | seo-intelligence | seo_content_document | business | yes | yes | ownerId | yes | no | no |
+| `seo:export-content` | seo-intelligence | seo_content_site | business | yes | no | — | yes | no | no |
+| `seo:manage-content-brand` | seo-intelligence | seo_content_site | business | yes | no | — | yes | no | no |
+| `seo:create-site` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:read-site` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:update-site` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:list-scans` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:trigger-scan` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-scan` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:list-findings` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-finding` | seo-intelligence | seo_finding | business | no | no | — | yes | yes | no |
+| `seo:update-finding` | seo-intelligence | seo_finding | business | no | no | — | yes | yes | no |
+| `seo:read-search-performance` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:sync-search-performance` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:list-keywords` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-rank-tracking` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-ai-visibility` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-backlinks` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-cwv` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:list-fixes` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:update-fix` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:list-alerts` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:acknowledge-alert` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:list-finding-groups` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:read-findings-trend` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:export-report` | seo-intelligence | seo_site | business | no | no | — | yes | yes | no |
+| `seo:list-rules` | seo-intelligence | — | business | no | no | — | yes | yes | no |
+| `seo:update-rule` | seo-intelligence | — | business | no | no | — | yes | yes | no |
 
 ---
 
 ## 6.5 API Bindings
 
-379 bindings. Every action bound to at least one HTTP route. A route
+640 bindings. Every action bound to at least one HTTP route. A route
 registered at boot with no binding is a startup failure (RM-1); a binding naming
 an unregistered action fails the build (RM-2).
 
@@ -498,6 +546,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PATCH | /api/lead-sources/:id | `leads:edit` | — |
 | POST | /api/leads/import | `leads:create` | — |
 | PATCH | /api/leads/:id | `leads:edit` | id |
+| POST | /api/leads/:id/close-lost | `leads:edit` | id |
+| GET | /api/leads/:id/assignees | `leads:reassign` | id |
 | POST | /api/leads/:id/reassign | `leads:reassign` | id |
 | POST | /api/leads/bulk-reassign | `leads:reassign` | — |
 | POST | /api/leads/:id/reassign-with-credit | `leads:reassign-with-credit` | id |
@@ -522,6 +572,52 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/callbacks | `callbacks:create` | — |
 | PATCH | /api/callbacks/:id | `callbacks:edit` | id |
 | POST | /api/callbacks/:id/outcome | `callbacks:edit` | id |
+| GET | /api/meetings | `meetings:view` | — |
+| GET | /api/meetings/mine | `meetings:host` | — |
+| GET | /api/meetings/people | `meetings:host` | — |
+| GET | /api/meetings/clients | `meetings:host` | — |
+| GET | /api/meetings/availability | `meetings:host` | — |
+| POST | /api/meetings | `meetings:host` | — |
+| POST | /api/meetings/:id/accept | `meetings:host` | id |
+| POST | /api/meetings/:id/propose | `meetings:host` | id |
+| POST | /api/meetings/:id/decline | `meetings:host` | id |
+| POST | /api/meetings/:id/cancel | `meetings:host` | id |
+| POST | /api/meetings/:id/outcome | `meetings:host` | id |
+| PATCH | /api/meetings/:id/link | `meetings:host` | id |
+| POST | /api/meetings/:id/join | `meetings:join` | id |
+| GET | /api/meetings/calendar | `meetings:host` | — |
+| POST | /api/meetings/calendar/connect | `meetings:host` | — |
+| POST | /api/meetings/calendar/complete | `meetings:host` | — |
+| DELETE | /api/meetings/calendar | `meetings:host` | — |
+| GET | /api/telephony/overview | `telephony:view` | — |
+| GET | /api/telephony/calls | `telephony:view` | — |
+| GET | /api/telephony/calls/:id | `telephony:view` | id |
+| GET | /api/telephony/calls/:id/recording | `telephony:listen` | id |
+| GET | /api/telephony/employees | `telephony:view` | — |
+| GET | /api/telephony/connections | `telephony:manage` | — |
+| POST | /api/telephony/connections | `telephony:manage` | — |
+| PATCH | /api/telephony/connections/:id | `telephony:manage` | id |
+| POST | /api/telephony/connections/:id/test | `telephony:manage` | id |
+| POST | /api/telephony/connections/:id/sync | `telephony:manage` | id |
+| POST | /api/telephony/connections/:id/disconnect | `telephony:manage` | id |
+| GET | /api/telephony/connections/:id/runs | `telephony:manage` | id |
+| GET | /api/telephony/agents | `telephony:manage` | — |
+| PUT | /api/telephony/agents/:id/employee | `telephony:manage` | id |
+| POST | /api/telephony/agents/rematch | `telephony:manage` | — |
+| GET | /api/telephony/employee-options | `telephony:manage` | — |
+| GET | /api/lead-imports | `lead-imports:view` | — |
+| POST | /api/lead-imports | `lead-imports:manage` | — |
+| GET | /api/lead-imports/leads | `lead-imports:view` | — |
+| POST | /api/lead-imports/assign | `lead-imports:manage` | — |
+| GET | /api/lead-imports/assignees | `lead-imports:manage` | — |
+| GET | /api/lead-imports/call-tracking | `lead-imports:view` | — |
+| GET | /api/lead-imports/call-tracking/leads/:id | `lead-imports:view` | id |
+| GET | /api/lead-imports/:id | `lead-imports:view` | id |
+| POST | /api/lead-imports/:id/preview | `lead-imports:manage` | id |
+| POST | /api/lead-imports/:id/start | `lead-imports:manage` | id |
+| POST | /api/lead-imports/:id/resume | `lead-imports:manage` | id |
+| POST | /api/lead-imports/:id/discard | `lead-imports:manage` | id |
+| GET | /api/lead-imports/:id/rows | `lead-imports:view` | id |
 | POST | /api/handovers | `handovers:initiate` | — |
 | GET | /api/handovers/targets | `handovers:initiate` | — |
 | POST | /api/handovers/:id/accept | `handovers:receive` | id |
@@ -611,6 +707,10 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/projects/:id/reports/on-page-seo/search-console | `projects:manage` | id |
 | DELETE | /api/projects/:id/reports/on-page-seo/search-console | `projects:manage` | id |
 | POST | /api/projects/:id/reports/on-page-seo/search-console/sync | `projects:manage` | id |
+| GET | /api/projects/:id/reports/on-page-seo/live-settings | `projects:view` | id |
+| PUT | /api/projects/:id/reports/on-page-seo/live-settings | `projects:manage` | id |
+| POST | /api/projects/:id/reports/on-page-seo/keywords/:keywordId/live-check | `projects:manage` | id |
+| GET | /api/projects/:id/reports/on-page-seo/rankings | `projects:view` | id |
 | GET | /api/projects/:id/reports/off-page-seo/backlinks | `projects:view` | id |
 | POST | /api/projects/:id/reports/off-page-seo/backlinks | `projects:manage` | id |
 | PATCH | /api/projects/:id/reports/off-page-seo/backlinks/:backlinkId | `projects:manage` | id |
@@ -868,6 +968,40 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/billing/billable-events | `billing:view-terms` | — |
 | POST | /api/billing/billable-events | `billing:set-terms` | — |
 | POST | /api/billing/billable-events/:id/decision | `billing:set-terms` | — |
+| GET | /api/social/providers | `social:view` | — |
+| GET | /api/social/clients | `social:view` | — |
+| GET | /api/social/clients/:clientId | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/accounts | `social:view` | clientId |
+| POST | /api/social/clients/:clientId/oauth/:platform/start | `social:connect` | clientId |
+| POST | /api/social/clients/:clientId/oauth/:platform/complete | `social:connect` | clientId |
+| POST | /api/social/clients/:clientId/oauth/:platform/select | `social:connect` | clientId |
+| DELETE | /api/social/clients/:clientId/accounts/:accountId | `social:connect` | clientId |
+| GET | /api/social/portal/clients/:clientId/connections | `social:connect-own-accounts` | clientId |
+| POST | /api/social/portal/clients/:clientId/oauth/:platform/start | `social:connect-own-accounts` | clientId |
+| POST | /api/social/portal/clients/:clientId/oauth/:platform/complete | `social:connect-own-accounts` | clientId |
+| POST | /api/social/portal/clients/:clientId/oauth/:platform/select | `social:connect-own-accounts` | clientId |
+| DELETE | /api/social/portal/clients/:clientId/accounts/:accountId | `social:connect-own-accounts` | clientId |
+| GET | /api/social/clients/:clientId/posts | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/posts/:postId | `social:view` | clientId |
+| POST | /api/social/clients/:clientId/posts | `social:manage` | clientId |
+| PATCH | /api/social/clients/:clientId/posts/:postId | `social:manage` | clientId |
+| POST | /api/social/clients/:clientId/posts/:postId/actions | `social:manage` | clientId |
+| POST | /api/social/clients/:clientId/posts/:postId/publish | `social:publish` | clientId |
+| POST | /api/social/clients/:clientId/posts/:postId/review | `social:approve` | postId |
+| POST | /api/social/clients/:clientId/media | `social:manage` | clientId |
+| GET | /api/social/clients/:clientId/media/:mediaId | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/settings | `social:view` | clientId |
+| PUT | /api/social/clients/:clientId/settings | `social:settings` | clientId |
+| GET | /api/social/clients/:clientId/analytics | `social:view` | clientId |
+| GET | /api/social/clients/:clientId/analytics/export | `social:view` | clientId |
+| POST | /api/social/clients/:clientId/analytics/sync | `social:manage` | clientId |
+| GET | /api/social/company-connections | `system:manage-integrations` | — |
+| POST | /api/social/company-connections/oauth/:platform/start | `system:manage-integrations` | — |
+| POST | /api/social/company-connections/oauth/:platform/complete | `system:manage-integrations` | — |
+| GET | /api/social/company-connections/:connectionId/locations | `system:manage-integrations` | — |
+| POST | /api/social/company-connections/:connectionId/sync | `system:manage-integrations` | — |
+| PUT | /api/social/company-connections/:connectionId/locations/:locationId/client | `system:manage-integrations` | — |
+| DELETE | /api/social/company-connections/:connectionId | `system:manage-integrations` | — |
 | GET | /api/clients | `clients:view` | — |
 | GET | /api/clients/:id | `clients:view` | id |
 | POST | /api/clients | `clients:manage` | — |
@@ -899,6 +1033,24 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/chat/messages/:id/react | `chat:send` | id |
 | DELETE | /api/chat/messages/:id/react | `chat:send` | id |
 | POST | /api/chat/messages/:id/unsend | `chat:send` | id |
+| GET | /api/chat/presence | `chat:view` | — |
+| GET | /api/chat/search | `chat:view` | — |
+| GET | /api/chat/saved | `chat:view` | — |
+| GET | /api/chat/scheduled | `chat:view` | — |
+| GET | /api/chat/conversations/:id/pins | `chat:view` | id |
+| POST | /api/chat/conversations/:id/attachments | `chat:send` | id |
+| DELETE | /api/chat/attachments/:id | `chat:send` | id |
+| POST | /api/chat/conversations/:id/scheduled | `chat:send` | id |
+| PATCH | /api/chat/scheduled/:id | `chat:send` | id |
+| DELETE | /api/chat/scheduled/:id | `chat:send` | id |
+| POST | /api/chat/scheduled/:id/send-now | `chat:send` | id |
+| GET | /api/chat/messages/:id | `chat:view` | id |
+| PATCH | /api/chat/messages/:id | `chat:send` | id |
+| GET | /api/chat/messages/:id/edits | `chat:view` | id |
+| POST | /api/chat/messages/:id/pin | `chat:send` | id |
+| DELETE | /api/chat/messages/:id/pin | `chat:send` | id |
+| POST | /api/chat/messages/:id/save | `chat:view` | id |
+| DELETE | /api/chat/messages/:id/save | `chat:view` | id |
 | GET | /api/documents | `documents:view` | — |
 | GET | /api/documents/:id | `documents:view` | id |
 | POST | /api/documents | `documents:upload` | — |
@@ -1001,3 +1153,57 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PUT | /api/recruitment/requisitions/:id/ats-criteria | `recruitment:manage-requisitions` | id |
 | GET | /api/recruitment/resume-submissions/:id/ats | `recruitment:manage-submissions` | id |
 | POST | /api/recruitment/resume-submissions/:id/ats-scans | `recruitment:manage-submissions` | id |
+| GET | /api/seo/sites | `seo:list-sites` | — |
+| GET | /api/seo/sites/:siteId/content | `seo:read-content` | siteId |
+| POST | /api/seo/sites/:siteId/content | `seo:create-content` | siteId |
+| GET | /api/seo/sites/:siteId/content-members | `seo:read-content` | siteId |
+| GET | /api/seo/sites/:siteId/content-brand | `seo:read-content` | siteId |
+| PUT | /api/seo/sites/:siteId/content-brand | `seo:manage-content-brand` | siteId |
+| GET | /api/seo/sites/:siteId/content/:documentId | `seo:read-content` | siteId |
+| GET | /api/seo/sites/:siteId/content/:documentId/comments | `seo:read-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/comments | `seo:comment-content` | documentId |
+| PATCH | /api/seo/sites/:siteId/content/:documentId/comments/:threadId | `seo:comment-content` | documentId |
+| PUT | /api/seo/sites/:siteId/content/:documentId | `seo:edit-content` | siteId |
+| PUT | /api/seo/sites/:siteId/content/:documentId/body | `seo:edit-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/checkpoint | `seo:edit-content` | siteId |
+| GET | /api/seo/sites/:siteId/content/:documentId/history | `seo:read-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/restore | `seo:edit-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/workflow | `seo:edit-content` | siteId |
+| POST | /api/seo/sites/:siteId/content/:documentId/review | `seo:review-content` | documentId |
+| POST | /api/seo/sites/:siteId/content/:documentId/export | `seo:export-content` | siteId |
+| POST | /api/seo/sites | `seo:create-site` | — |
+| GET | /api/seo/sites/:siteId | `seo:read-site` | siteId |
+| PATCH | /api/seo/sites/:siteId | `seo:update-site` | siteId |
+| GET | /api/seo/sites/:siteId/settings | `seo:read-site` | siteId |
+| PATCH | /api/seo/sites/:siteId/settings | `seo:update-site` | siteId |
+| PATCH | /api/seo/sites/:siteId/keywords/:keywordId | `seo:update-site` | siteId |
+| GET | /api/seo/sites/:siteId/scans | `seo:list-scans` | siteId |
+| POST | /api/seo/sites/:siteId/scans | `seo:trigger-scan` | siteId |
+| GET | /api/seo/scans/:scanRunId | `seo:read-scan` | — |
+| GET | /api/seo/sites/:siteId/findings | `seo:list-findings` | siteId |
+| GET | /api/seo/findings/:findingId | `seo:read-finding` | findingId |
+| PATCH | /api/seo/findings/:findingId | `seo:update-finding` | findingId |
+| GET | /api/seo/sites/:siteId/gsc-metrics | `seo:read-search-performance` | siteId |
+| POST | /api/seo/sites/:siteId/gsc-sync | `seo:sync-search-performance` | siteId |
+| GET | /api/seo/sites/:siteId/search-console | `seo:read-search-performance` | siteId |
+| POST | /api/seo/sites/:siteId/search-console/inspect | `seo:read-search-performance` | siteId |
+| GET | /api/seo/sites/:siteId/keywords | `seo:list-keywords` | siteId |
+| GET | /api/seo/sites/:siteId/serp-observations | `seo:read-rank-tracking` | siteId |
+| GET | /api/seo/sites/:siteId/rank-status | `seo:read-rank-tracking` | siteId |
+| POST | /api/seo/sites/:siteId/rank-checks | `seo:sync-search-performance` | siteId |
+| GET | /api/seo/sites/:siteId/rank-scans | `seo:read-rank-tracking` | siteId |
+| POST | /api/seo/sites/:siteId/rank-scans | `seo:sync-search-performance` | siteId |
+| GET | /api/seo/sites/:siteId/ai-observations | `seo:read-ai-visibility` | siteId |
+| GET | /api/seo/sites/:siteId/backlinks | `seo:read-backlinks` | siteId |
+| GET | /api/seo/sites/:siteId/cwv-observations | `seo:read-cwv` | siteId |
+| GET | /api/seo/sites/:siteId/performance-status | `seo:read-cwv` | siteId |
+| POST | /api/seo/sites/:siteId/performance-refresh | `seo:trigger-scan` | siteId |
+| GET | /api/seo/sites/:siteId/fix-proposals | `seo:list-fixes` | siteId |
+| PATCH | /api/seo/fix-proposals/:proposalId | `seo:update-fix` | — |
+| GET | /api/seo/sites/:siteId/alerts | `seo:list-alerts` | siteId |
+| PATCH | /api/seo/alerts/:alertId | `seo:acknowledge-alert` | — |
+| GET | /api/seo/sites/:siteId/finding-groups | `seo:list-finding-groups` | siteId |
+| GET | /api/seo/sites/:siteId/findings-trend | `seo:read-findings-trend` | siteId |
+| POST | /api/seo/sites/:siteId/report | `seo:export-report` | siteId |
+| GET | /api/seo/rules | `seo:list-rules` | — |
+| PATCH | /api/seo/rules/:ruleId | `seo:update-rule` | — |

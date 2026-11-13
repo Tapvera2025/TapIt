@@ -46,6 +46,11 @@ export const updateLeaveTypeSchema = createLeaveTypeSchema.partial()
   .extend({ isActive: z.boolean().optional() });
 export type UpdateLeaveTypeBody = z.infer<typeof updateLeaveTypeSchema>;
 
+/** `kind=attendance-mode` lists WFH types for the WFH form; absence types by default. */
+export const availableTypesQuerySchema = z.object({
+  kind: z.enum(['absence', 'attendance-mode']).default('absence'),
+});
+
 export const listQuerySchema = z.object({
   userId: z.string().uuid().optional(),
   status: z.enum(['pending', 'acknowledged', 'approved', 'rejected', 'cancelled']).optional(),

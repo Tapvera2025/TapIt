@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Icon } from '../../ui/Icon.js';
+import { Icon } from '../../ui/index.js';
 import {
   DOCUMENT_TYPE_LABELS,
   VERIFICATION_DOCUMENT_TYPES,

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Card } from '../../../../ui/components.js';
+import { Card } from '../../../../ui/index.js';
 import { getAllCallbacks, type LeadCallback } from '../../leads/api.js';
 import { partitionCallbacks, relativeTime } from '../myWork-helpers.js';
 import { MyWorkSection } from './Shell.js';
+import { MY_WORK_ANCHORS } from '../../guide/page-guidance.js';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -48,11 +49,12 @@ export function DueActivitiesSection({
   return (
     <>
       <MyWorkSection
-        title="Overdue commitments"
+        id={MY_WORK_ANCHORS.callbacks}
+        title="Overdue callbacks"
         count={overdue.length}
         urgent={overdue.length > 0}
         error={error}
-        empty="You are up to date on callbacks."
+        empty="No overdue callbacks."
       >
         <Card className="p-0">
           <ul className="divide-y divide-app-border">
@@ -78,9 +80,10 @@ export function DueActivitiesSection({
       </MyWorkSection>
 
       <MyWorkSection
-        title="Upcoming actions"
+        className="order-last"
+        title="Callbacks in the next 24 hours"
         count={upcomingToday.length}
-        empty="No callbacks due in the next 24 hours."
+        empty="No callbacks in the next 24 hours."
       >
         <Card className="p-0">
           <ul className="divide-y divide-app-border">

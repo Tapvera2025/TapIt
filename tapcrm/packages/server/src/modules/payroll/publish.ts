@@ -1,4 +1,5 @@
 import type { RequestContext } from '../../platform/dal/context.js';
+import { settlePaidSources } from './source-settlers.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import type { DateOnly } from '@tapcrm/contracts';
@@ -282,6 +283,8 @@ export async function publishRun(
       UPDATE payroll_run SET status = 'published', published_at = now(), inputs_changed = false
       WHERE id = ${runId}::uuid AND organization_id = ${ctx.organizationId}
     `);
+    // Advance recoveries and penalties these payslips took are now paid.
+    await settlePaidSources(tx, ctx.organizationId, slips.map((s) => s.id));
 
     const event: RunPublished = {
       runId,

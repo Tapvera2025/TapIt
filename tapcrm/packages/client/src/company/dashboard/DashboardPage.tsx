@@ -8,6 +8,7 @@ import type { DashboardLayoutItem, DashboardPreferences, DashboardWidgetId } fro
  * The class type alone doesn't expose those, so we widen once at the import.
  */
 interface RGLModule {
+  Responsive: ComponentType<Record<string, unknown> & { width?: number }>;
   WidthProvider<P extends object>(
     Component: ComponentType<P & { width?: number }>,
   ): ComponentType<P & { measureBeforeMount?: boolean }>;
@@ -27,27 +28,35 @@ interface RGLLayoutItem {
 }
 type Layout = RGLLayoutItem;
 
-const GridLayout = GridLayoutDefault;
 const rglModule = GridLayoutDefault as unknown as RGLModule;
-import { SkeletonCard, WorkspacePageContainer } from '../../ui/components.js';
-import { Icon } from '../../ui/Icon.js';
+import { GlassSurface, SkeletonCard, WorkspacePageContainer } from '../../ui/index.js';
+import { Icon } from '../../ui/index.js';
 import type { CompanyIdentity } from '../api/companyApi.js';
 import { getDashboardPreferences, saveDashboardPreferences } from './dashboardApi.js';
+import { reflowGridLayout } from './layout-engine.js';
 import { availableWidgets, getWidget } from './registry.js';
 import type { WidgetContext } from './widget-types.js';
 import './dashboard.css';
 
-const ResponsiveGrid = rglModule.WidthProvider(GridLayout as unknown as ComponentType<Record<string, unknown> & { width?: number }>);
+const ResponsiveGrid = rglModule.WidthProvider(rglModule.Responsive);
 const COLS = 12;
 const ROW_HEIGHT = 56;
+const TABLET_COLS = 8;
+const GRID_BREAKPOINTS = { lg: 1200, md: 768 };
+const GRID_COLS = { lg: COLS, md: TABLET_COLS };
 
-/**
- * The starter view for someone who has never customized their dashboard: three
- * personal cards, always available regardless of role. Everything else lives one
- * click away behind "Customize → Add widget". Keeps a first-time dashboard from
- * looking like a wall of empty boxes.
- */
-const DEFAULT_WIDGETS: readonly DashboardWidgetId[] = ['punch-state', 'my-tasks', 'my-leave'];
+/** Curated first-visit widgets, arranged into a balanced two-column canvas. */
+const EMPLOYEE_DEFAULT_WIDGETS: readonly DashboardWidgetId[] = ['punch-state', 'my-tasks', 'my-leave'];
+const ADMIN_DEFAULT_WIDGETS: readonly DashboardWidgetId[] = [
+  'admin-pending-requests',
+  'admin-team-attendance',
+  'admin-sales-calls',
+  'admin-callbacks',
+  'admin-meetings',
+  'admin-activity',
+  'org-visible-employees',
+  'org-team-distribution',
+];
 
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() =>
@@ -63,58 +72,254 @@ function useIsMobile(): boolean {
   return mobile;
 }
 
-/** Build a grid layout for the visible widgets, using saved positions when available. */
+function layoutKey(item: Pick<DashboardLayoutItem, 'i' | 'instanceId'>): string {
+  return item.instanceId ? `${item.i}::${item.instanceId}` : item.i;
+}
+
+function parseLayoutKey(key: string): { id: DashboardWidgetId; instanceId?: string } | null {
+  const separator = key.indexOf('::');
+  const id = (separator < 0 ? key : key.slice(0, separator)) as DashboardWidgetId;
+  if (!getWidget(id)) return null;
+  const instanceId = separator < 0 ? undefined : key.slice(separator + 2);
+  return instanceId ? { id, instanceId } : { id };
+}
+
+function overlaps(a: Pick<Layout, 'x' | 'y' | 'w' | 'h'>, b: Pick<Layout, 'x' | 'y' | 'w' | 'h'>): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function firstFreePosition(
+  item: Layout,
+  placed: readonly Layout[],
+  cols: number,
+  startY: number,
+  startX = 0,
+): Pick<Layout, 'x' | 'y'> {
+  const maxY = Math.max(startY + 1000, ...placed.map((entry) => entry.y + entry.h + 100));
+  for (let y = Math.max(0, startY); y <= maxY; y += 1) {
+    const firstX = y === startY ? Math.max(0, Math.min(startX, cols - item.w)) : 0;
+    for (let x = firstX; x <= cols - item.w; x += 1) {
+      const candidate = { ...item, x, y };
+      if (!placed.some((entry) => overlaps(candidate, entry))) return { x, y };
+    }
+  }
+  return { x: 0, y: maxY + 1 };
+}
+
+/** Repack widgets into the earliest open cells without changing their sizes. */
+function resolveLayout(layout: readonly Layout[], cols: number, pinnedKey?: string): Layout[] {
+  return reflowGridLayout(layout, cols, pinnedKey);
+}
+
+function scaleLayout(layout: readonly Layout[], cols: number): Layout[] {
+  if (cols === COLS) return layout.map((item) => ({ ...item }));
+  const scaled = layout.map((item) => {
+    const parsed = parseLayoutKey(item.i);
+    const definition = parsed ? getWidget(parsed.id) : undefined;
+    const ratio = cols / COLS;
+    const minW = Math.min(cols, Math.max(1, Math.ceil((item.minW ?? 1) * ratio)));
+    const maxW = Math.max(minW, Math.min(cols, Math.ceil((item.maxW ?? COLS) * ratio)));
+    const start = Math.round(item.x * ratio);
+    const end = Math.round((item.x + item.w) * ratio);
+    const w = Math.min(maxW, Math.max(minW, end - start));
+    return {
+      ...item,
+      x: Math.min(cols - w, start),
+      w,
+      minW,
+      maxW,
+      ...(definition?.defaultLayout.resizable === false ? { isResizable: false } : {}),
+    };
+  });
+  return resolveLayout(scaled, cols);
+}
+
+function toSavedLayout(layout: readonly Layout[], cols: number): DashboardLayoutItem[] {
+  const scale = COLS / cols;
+  return layout.flatMap((item) => {
+    const parsed = parseLayoutKey(item.i);
+    if (!parsed) return [];
+    const x = Math.max(0, Math.round(item.x * scale));
+    const end = Math.min(COLS, Math.round((item.x + item.w) * scale));
+    return [{
+      i: parsed.id,
+      ...(parsed.instanceId ? { instanceId: parsed.instanceId } : {}),
+      x,
+      y: Math.max(0, item.y),
+      w: Math.max(1, end - x),
+      h: Math.max(1, item.h),
+    }];
+  });
+}
+
+/** Build a persisted 12-column layout, repairing legacy collisions on load. */
 function buildLayout(
-  visibleIds: readonly DashboardWidgetId[],
+  orderedIds: readonly DashboardWidgetId[],
   saved: readonly DashboardLayoutItem[],
+  hidden: readonly DashboardWidgetId[],
+  seedStarterGrid: boolean,
 ): Layout[] {
-  const savedById = new Map(saved.map((item) => [item.i, item]));
-  const layout: Layout[] = [];
-  let cursorY = 0;
-  let cursorX = 0;
-  for (const id of visibleIds) {
+  const savedById = new Map<DashboardWidgetId, DashboardLayoutItem[]>();
+  for (const item of saved) savedById.set(item.i, [...(savedById.get(item.i) ?? []), item]);
+  const requested: Array<{ item: Layout; anchored: boolean }> = [];
+  const halfWidth = Math.ceil(COLS / 2);
+  let starterColumn = 0;
+  let starterRowY = 0;
+  let starterRowHeight = 0;
+
+  for (const id of orderedIds) {
     const def = getWidget(id);
     if (!def) continue;
-    const savedItem = savedById.get(id);
-    if (savedItem) {
-      const minW = def.defaultLayout.minW;
-      const minH = def.defaultLayout.minH;
-      const maxW = def.defaultLayout.maxW;
-      const maxH = def.defaultLayout.maxH;
-      layout.push({
-        i: id,
-        x: savedItem.x,
-        y: savedItem.y,
-        w: Math.min(maxW ?? savedItem.w, Math.max(savedItem.w, minW)),
-        h: Math.min(maxH ?? savedItem.h, Math.max(savedItem.h, minH)),
-        minW,
-        minH,
-        ...(maxW ? { maxW } : {}),
-        ...(maxH ? { maxH } : {}),
-        isResizable: def.defaultLayout.resizable !== false,
-      });
-      continue;
+    const existing = savedById.get(id) ?? [];
+    const primary = existing.find((item) => !item.instanceId);
+    const copies = existing.filter((item) => Boolean(item.instanceId));
+    if (!hidden.includes(id)) {
+      let seed: DashboardLayoutItem | undefined;
+      if (seedStarterGrid && !primary) {
+        const limits = def.defaultLayout;
+        const minW = Math.min(COLS, Math.max(1, limits.minW));
+        const maxW = Math.max(minW, Math.min(COLS, limits.maxW ?? COLS));
+        const h = Math.max(limits.minH, limits.h);
+        const fullWidth = minW > halfWidth;
+        const w = Math.min(maxW, Math.max(minW, fullWidth ? limits.w : halfWidth));
+        if (fullWidth) {
+          if (starterColumn === 1) {
+            starterRowY += starterRowHeight;
+            starterColumn = 0;
+            starterRowHeight = 0;
+          }
+          seed = { i: id, x: 0, y: starterRowY, w, h };
+          starterRowY += h;
+        } else {
+          seed = { i: id, x: starterColumn * halfWidth, y: starterRowY, w, h };
+          if (starterColumn === 0) {
+            starterColumn = 1;
+            starterRowHeight = h;
+          } else {
+            starterRowY += Math.max(starterRowHeight, h);
+            starterColumn = 0;
+            starterRowHeight = 0;
+          }
+        }
+      }
+      const source = primary ?? seed;
+      if (source) {
+        requested.push({ item: toGridItem(source, def), anchored: Boolean(primary || seed) });
+      } else {
+        requested.push({ item: toGridItem({ i: id, x: 0, y: 0, w: def.defaultLayout.w, h: def.defaultLayout.h }, def), anchored: false });
+      }
     }
-    const { w, h, minW, minH, maxW, maxH } = def.defaultLayout;
-    if (cursorX + w > COLS) {
-      cursorX = 0;
-      cursorY += h;
+    for (const copy of copies) {
+      requested.push({ item: toGridItem(copy, def), anchored: true });
     }
-    layout.push({
-      i: id,
-      x: cursorX,
-      y: cursorY,
-      w,
-      h,
-      minW,
-      minH,
-      ...(maxW ? { maxW } : {}),
-      ...(maxH ? { maxH } : {}),
-      isResizable: def.defaultLayout.resizable !== false,
-    });
-    cursorX += w;
   }
-  return layout;
+
+  requested.sort((a, b) => {
+    if (a.anchored !== b.anchored) return a.anchored ? -1 : 1;
+    return a.item.y - b.item.y || a.item.x - b.item.x || a.item.i.localeCompare(b.item.i);
+  });
+  const placed: Layout[] = [];
+  for (const { item, anchored } of requested) {
+    const bounded = { ...item, x: Math.max(0, Math.min(COLS - item.w, item.x)), y: Math.max(0, item.y) };
+    const position = placed.some((entry) => overlaps(bounded, entry))
+      ? firstFreePosition(bounded, placed, COLS, anchored ? bounded.y : 0, anchored ? bounded.x : 0)
+      : { x: bounded.x, y: bounded.y };
+    placed.push({ ...bounded, ...position });
+  }
+  return placed;
+}
+
+function toGridItem(item: DashboardLayoutItem, definition: NonNullable<ReturnType<typeof getWidget>>): Layout {
+  const limits = definition.defaultLayout;
+  const minW = Math.min(COLS, Math.max(1, limits.minW));
+  const maxW = Math.max(minW, Math.min(COLS, limits.maxW ?? COLS));
+  const minH = Math.max(1, limits.minH);
+  const maxH = Math.max(minH, Math.min(48, limits.maxH ?? 48));
+  const w = Math.min(maxW, Math.max(minW, Math.min(COLS, item.w)));
+  const h = Math.min(maxH, Math.max(minH, Math.min(48, item.h)));
+  return {
+    i: layoutKey(item),
+    x: Math.max(0, Math.min(COLS - w, item.x)),
+    y: Math.max(0, item.y),
+    w,
+    h,
+    minW,
+    minH,
+    maxW,
+    maxH,
+    isResizable: limits.resizable !== false,
+  };
+}
+
+const SIZE_PRESETS = [
+  { id: '1x1', label: '1 × 1', width: 0.5, height: 5 },
+  { id: '2x1', label: '2 × 1', width: 1, height: 5 },
+  { id: '1x2', label: '1 × 2', width: 0.5, height: 10 },
+  { id: '2x2', label: '2 × 2', width: 1, height: 10 },
+] as const;
+
+function WidgetSettingsMenu({
+  widgetKey,
+  title,
+  description,
+  cols,
+  minW,
+  minH,
+  maxW,
+  maxH,
+  resizable,
+  onSize,
+  onDuplicate,
+  onRemove,
+}: {
+  widgetKey: string;
+  title: string;
+  description: string;
+  cols: number;
+  minW: number;
+  minH: number;
+  maxW: number;
+  maxH: number;
+  resizable: boolean;
+  onSize: (key: string, preset: '1x1' | '2x1' | '1x2' | '2x2') => void;
+  onDuplicate: (key: string) => void;
+  onRemove: (key: string) => void;
+}): React.JSX.Element {
+  return (
+    <details className="dashboard-widget-settings">
+      <summary aria-label={`Configure ${title}`} title="Configure widget">
+        <Icon name="settings" className="size-3.5" />
+      </summary>
+      <div className="dashboard-widget-settings-panel">
+        <p className="dashboard-widget-settings-title">Configure {title}</p>
+        <p className="dashboard-widget-settings-description">{description}</p>
+        <span className="dashboard-widget-settings-label">Size</span>
+        <div className="dashboard-widget-size-presets">
+          {SIZE_PRESETS.map((preset) => {
+            const width = Math.max(1, Math.floor(cols * preset.width));
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                disabled={!resizable || width < minW || width > maxW || preset.height < minH || preset.height > maxH}
+                onClick={() => onSize(widgetKey, preset.id)}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="dashboard-widget-settings-actions">
+          <button type="button" onClick={() => onDuplicate(widgetKey)}>
+            <Icon name="copy" className="size-3.5" /> Duplicate
+          </button>
+          <button type="button" className="dashboard-widget-settings-remove" onClick={() => onRemove(widgetKey)}>
+            <Icon name="close" className="size-3.5" /> Remove
+          </button>
+        </div>
+      </div>
+    </details>
+  );
 }
 
 export function DashboardPage({
@@ -124,14 +329,23 @@ export function DashboardPage({
   identity: CompanyIdentity;
   onNavigate: (path: string) => void;
 }): React.JSX.Element {
+  const isAdminDashboard = identity.user.accountType === 'super-admin';
+  const defaultWidgets = isAdminDashboard ? ADMIN_DEFAULT_WIDGETS : EMPLOYEE_DEFAULT_WIDGETS;
+  const timeZone = identity.organization?.timezone ?? 'UTC';
+  const dashboardDate = new Intl.DateTimeFormat('en', {
+    weekday: 'long', month: 'long', day: 'numeric', timeZone,
+  }).format(new Date());
   const isMobile = useIsMobile();
   const [prefs, setPrefs] = useState<DashboardPreferences | null>(null);
   const [editing, setEditing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [mobileDragId, setMobileDragId] = useState<DashboardWidgetId | null>(null);
-  const [mobileDropId, setMobileDropId] = useState<DashboardWidgetId | null>(null);
-  const mobileDragRef = useRef<{ id: DashboardWidgetId; pointerId: number } | null>(null);
-  const mobileDropRef = useRef<DashboardWidgetId | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [gridCols, setGridCols] = useState(COLS);
+  const [mobileDragId, setMobileDragId] = useState<string | null>(null);
+  const [mobileDropId, setMobileDropId] = useState<string | null>(null);
+  const mobileDragRef = useRef<{ id: string; pointerId: number } | null>(null);
+  const mobileDropRef = useRef<string | null>(null);
+  const activeColsRef = useRef(COLS);
 
   const available = useMemo(() => availableWidgets(identity), [identity]);
   const availableIds = useMemo(() => available.map((widget) => widget.id), [available]);
@@ -178,29 +392,39 @@ export function DashboardPage({
         ...availableIds.filter((id) => id === 'break-management' && !savedIds.has(id)),
       ])];
     }
-    return availableIds.filter((id) => !DEFAULT_WIDGETS.includes(id));
-  }, [prefs, hasSavedPrefs, availableIds]);
+    return availableIds.filter((id) => !defaultWidgets.includes(id));
+  }, [prefs, hasSavedPrefs, availableIds, defaultWidgets]);
 
-  const visibleIds = useMemo(
-    () => availableIds.filter((id) => !hidden.includes(id)),
-    [availableIds, hidden],
-  );
+  const orderedIds = useMemo(() => {
+    if (!isAdminDashboard) return availableIds;
+    return [
+      ...ADMIN_DEFAULT_WIDGETS.filter((id) => availableIds.includes(id)),
+      ...availableIds.filter((id) => !ADMIN_DEFAULT_WIDGETS.includes(id)),
+    ];
+  }, [availableIds, isAdminDashboard]);
   const layout = useMemo(
-    () => buildLayout(visibleIds, prefs?.layout ?? []),
-    [visibleIds, prefs?.layout],
+    () => resolveLayout(
+      buildLayout(orderedIds, prefs?.layout ?? [], hidden, (prefs?.layout.length ?? 0) === 0),
+      COLS,
+    ),
+    [orderedIds, prefs?.layout, hidden],
   );
   const mobileOrderedIds = useMemo(
-    () => [...layout].sort((a, b) => a.y - b.y || a.x - b.x).map((item) => item.i as DashboardWidgetId),
+    () => [...layout].sort((a, b) => a.y - b.y || a.x - b.x).map((item) => item.i),
     [layout],
   );
 
   const persistTimer = useRef<number | null>(null);
+  const persistSequence = useRef(0);
   const persist = useCallback(
     (nextLayout: readonly DashboardLayoutItem[], nextHidden: readonly DashboardWidgetId[]) => {
       if (persistTimer.current) window.clearTimeout(persistTimer.current);
+      const sequence = ++persistSequence.current;
       persistTimer.current = window.setTimeout(() => {
         void saveDashboardPreferences({ layout: nextLayout, hidden: nextHidden })
-          .then((saved) => setPrefs(saved))
+          .then((saved) => {
+            if (sequence === persistSequence.current) setPrefs(saved);
+          })
           .catch(() => undefined);
       }, 400);
     },
@@ -223,27 +447,25 @@ export function DashboardPage({
     [persist],
   );
 
-  const handleLayoutChange = useCallback(
-    (next: Layout[]) => {
-      const items: DashboardLayoutItem[] = next
-        .filter((item) => availableIds.includes(item.i as DashboardWidgetId))
-        .map((item) => ({ i: item.i as DashboardWidgetId, x: item.x, y: item.y, w: item.w, h: item.h }));
-      commitPrefs(items, hidden);
+  const handleGridInteractionStop = useCallback(
+    (next: Layout[], _oldItem?: Layout, changedItem?: Layout) => {
+      const cols = activeColsRef.current;
+      const collisionSafe = resolveLayout(next, cols, changedItem?.i);
+      const canonical = toSavedLayout(collisionSafe, cols);
+      const nextLayout = resolveLayout(buildLayout(orderedIds, canonical, hidden, false), COLS, changedItem?.i);
+      commitPrefs(toSavedLayout(nextLayout, COLS), hidden);
     },
-    [availableIds, hidden, commitPrefs],
+    [orderedIds, hidden, commitPrefs],
   );
 
-  const hide = useCallback(
-    (id: DashboardWidgetId) => {
-      const nextHidden = [...hidden, id];
-      const nextLayout = (prefs?.layout ?? []).filter((item) => item.i !== id);
-      commitPrefs(nextLayout, nextHidden);
-    },
-    [hidden, prefs?.layout, commitPrefs],
-  );
+  const handleBreakpointChange = useCallback((breakpoint: string) => {
+    const cols = breakpoint === 'md' ? TABLET_COLS : COLS;
+    activeColsRef.current = cols;
+    setGridCols(cols);
+  }, []);
 
   const reorderMobile = useCallback(
-    (fromId: DashboardWidgetId, toId: DashboardWidgetId) => {
+    (fromId: string, toId: string) => {
       if (fromId === toId) return;
       const nextOrder = [...mobileOrderedIds];
       const fromIndex = nextOrder.indexOf(fromId);
@@ -252,59 +474,100 @@ export function DashboardPage({
       nextOrder.splice(fromIndex, 1);
       nextOrder.splice(toIndex, 0, fromId);
       const slots = new Map(
-        mobileOrderedIds.map((id) => {
-          const item = layout.find((entry) => entry.i === id);
-          return [id, item ? { x: item.x, y: item.y } : { x: 0, y: 0 }];
+        mobileOrderedIds.map((key) => {
+          const item = layout.find((entry) => entry.i === key);
+          return [key, item ? { x: item.x, y: item.y } : { x: 0, y: 0 }];
         }),
       );
       const nextLayout = layout.map((item) => {
-        const targetId = nextOrder[mobileOrderedIds.indexOf(item.i as DashboardWidgetId)];
+        const targetId = nextOrder[mobileOrderedIds.indexOf(item.i)];
         const slot = targetId ? slots.get(targetId) : undefined;
         return slot ? { ...item, x: slot.x, y: slot.y } : item;
       });
-      commitPrefs(
-        nextLayout.map(({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h })),
-        hidden,
-      );
+      commitPrefs(toSavedLayout(resolveLayout(nextLayout, COLS), COLS), hidden);
     },
     [mobileOrderedIds, layout, commitPrefs, hidden],
   );
 
   const resizeMobileWidget = useCallback(
-    (id: DashboardWidgetId, delta: number) => {
-      const definition = getWidget(id);
+    (key: string, delta: number) => {
+      const parsed = parseLayoutKey(key);
+      const definition = parsed ? getWidget(parsed.id) : undefined;
       const minH = definition?.defaultLayout.minH ?? 2;
       const maxH = definition?.defaultLayout.maxH ?? 10;
       const nextLayout = layout.map((item) =>
-        item.i === id
+        item.i === key
           ? { ...item, h: Math.min(maxH, Math.max(minH, item.h + delta)) }
           : item,
       );
-      commitPrefs(
-        nextLayout.map(({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h })),
-        hidden,
-      );
+      commitPrefs(toSavedLayout(resolveLayout(nextLayout, COLS, key), COLS), hidden);
     },
     [layout, commitPrefs, hidden],
   );
 
   const setMobileWidgetHeight = useCallback(
-    (id: DashboardWidgetId, height: number) => {
-      const definition = getWidget(id);
+    (key: string, height: number) => {
+      const parsed = parseLayoutKey(key);
+      const definition = parsed ? getWidget(parsed.id) : undefined;
       const minH = definition?.defaultLayout.minH ?? 2;
       const maxH = definition?.defaultLayout.maxH ?? 10;
       const nextLayout = layout.map((item) =>
-        item.i === id ? { ...item, h: Math.min(maxH, Math.max(minH, height)) } : item,
+        item.i === key ? { ...item, h: Math.min(maxH, Math.max(minH, height)) } : item,
       );
-      commitPrefs(
-        nextLayout.map(({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h })),
-        hidden,
-      );
+      commitPrefs(toSavedLayout(resolveLayout(nextLayout, COLS, key), COLS), hidden);
     },
     [layout, commitPrefs, hidden],
   );
 
-  const handleMobileDragStart = (id: DashboardWidgetId, event: React.PointerEvent<HTMLButtonElement>) => {
+  const removeLayoutItem = useCallback((key: string) => {
+    const parsed = parseLayoutKey(key);
+    if (!parsed) return;
+    const saved = toSavedLayout(layout, COLS);
+    if (parsed.instanceId) {
+      const remaining = saved.filter((item) => layoutKey(item) !== key);
+      const compacted = resolveLayout(buildLayout(orderedIds, remaining, hidden, false), COLS);
+      commitPrefs(toSavedLayout(compacted, COLS), hidden);
+      return;
+    }
+    const nextHidden = [...new Set([...hidden, parsed.id])];
+    const remaining = saved.filter((item) => item.i !== parsed.id || Boolean(item.instanceId));
+    const compacted = resolveLayout(buildLayout(orderedIds, remaining, nextHidden, false), COLS);
+    commitPrefs(toSavedLayout(compacted, COLS), nextHidden);
+  }, [layout, hidden, orderedIds, commitPrefs]);
+
+  const duplicateLayoutItem = useCallback((key: string) => {
+    const source = toSavedLayout(layout, COLS).find((item) => layoutKey(item) === key);
+    if (!source) return;
+    const duplicate: DashboardLayoutItem = { ...source, instanceId: crypto.randomUUID() };
+    const nextLayout = buildLayout(orderedIds, [...toSavedLayout(layout, COLS), duplicate], hidden, false);
+    commitPrefs(toSavedLayout(resolveLayout(nextLayout, COLS), COLS), hidden);
+  }, [layout, orderedIds, hidden, commitPrefs]);
+
+  const applySizePreset = useCallback((key: string, preset: '1x1' | '2x1' | '1x2' | '2x2') => {
+    const cols = isMobile ? COLS : activeColsRef.current;
+    const activeLayout = scaleLayout(layout, cols);
+    const source = activeLayout.find((item) => item.i === key);
+    if (!source) return;
+    const halfWidth = Math.max(1, Math.floor(cols / 2));
+    const dimensions = {
+      '1x1': { w: halfWidth, h: 5 },
+      '2x1': { w: cols, h: 5 },
+      '1x2': { w: halfWidth, h: 10 },
+      '2x2': { w: cols, h: 10 },
+    }[preset];
+    const nextActive = activeLayout.map((item) => item.i === key
+      ? {
+          ...item,
+          w: Math.min(item.maxW ?? cols, Math.max(item.minW ?? 1, dimensions.w)),
+          h: Math.min(item.maxH ?? 48, Math.max(item.minH ?? 1, dimensions.h)),
+        }
+      : item);
+    const nextCanonical = toSavedLayout(resolveLayout(nextActive, cols, key), cols);
+    const compacted = buildLayout(orderedIds, nextCanonical, hidden, false);
+    commitPrefs(toSavedLayout(resolveLayout(compacted, COLS, key), COLS), hidden);
+  }, [layout, orderedIds, hidden, commitPrefs, isMobile]);
+
+  const handleMobileDragStart = (id: string, event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     mobileDragRef.current = { id, pointerId: event.pointerId };
     mobileDropRef.current = id;
@@ -313,13 +576,13 @@ export function DashboardPage({
 
   useEffect(() => {
     if (!mobileDragId) return;
-    const resolveTarget = (x: number, y: number): DashboardWidgetId | null => {
+    const resolveTarget = (x: number, y: number): string | null => {
       const value = document
         .elementFromPoint(x, y)
         ?.closest<HTMLElement>('[data-mobile-widget-id]')
         ?.dataset['mobileWidgetId'];
-      return value && availableIds.includes(value as DashboardWidgetId)
-        ? (value as DashboardWidgetId)
+      return value && layout.some((item) => item.i === value)
+        ? value
         : null;
     };
     const onMove = (event: PointerEvent) => {
@@ -346,9 +609,9 @@ export function DashboardPage({
       window.removeEventListener('pointerup', onEnd);
       window.removeEventListener('pointercancel', onEnd);
     };
-  }, [mobileDragId, availableIds, reorderMobile]);
+  }, [mobileDragId, layout, reorderMobile]);
 
-  const moveMobileBy = (id: DashboardWidgetId, delta: number) => {
+  const moveMobileBy = (id: string, delta: number) => {
     const index = mobileOrderedIds.indexOf(id);
     const target = mobileOrderedIds[index + delta];
     if (target) reorderMobile(id, target);
@@ -357,25 +620,29 @@ export function DashboardPage({
   const add = useCallback(
     (id: DashboardWidgetId) => {
       const nextHidden = hidden.filter((item) => item !== id);
-      const nextVisible = availableIds.filter((widgetId) => !nextHidden.includes(widgetId));
-      const nextLayout: DashboardLayoutItem[] = buildLayout(nextVisible, prefs?.layout ?? []).map(
-        ({ i, x, y, w, h }) => ({ i: i as DashboardWidgetId, x, y, w, h }),
-      );
+      const built = buildLayout(orderedIds, prefs?.layout ?? [], nextHidden, (prefs?.layout.length ?? 0) === 0);
+      const nextLayout = toSavedLayout(resolveLayout(built, COLS), COLS);
       commitPrefs(nextLayout, nextHidden);
       setPickerOpen(false);
     },
-    [availableIds, hidden, prefs?.layout, commitPrefs],
+    [orderedIds, hidden, prefs?.layout, commitPrefs],
   );
 
   /** Reset restores the curated default, not "show every widget". */
   const reset = useCallback(() => {
-    const nextHidden = availableIds.filter((id) => !DEFAULT_WIDGETS.includes(id));
+    const nextHidden = availableIds.filter((id) => !defaultWidgets.includes(id));
     commitPrefs([], nextHidden);
     setEditing(false);
     setPickerOpen(false);
-  }, [availableIds, commitPrefs]);
+  }, [availableIds, defaultWidgets, commitPrefs]);
 
-  const ctx: WidgetContext = { identity, userId: identity.user.id, onNavigate };
+  const ctx: WidgetContext = { identity, userId: identity.user.id, onNavigate, refreshKey };
+  const renderWidget = (Component: (props: { ctx: WidgetContext }) => React.JSX.Element): React.JSX.Element => {
+    const content = <Component ctx={ctx} />;
+    return isAdminDashboard
+      ? <GlassSurface className="dashboard-admin-card">{content}</GlassSurface>
+      : content;
+  };
   const hiddenWidgets = available.filter((widget) => hidden.includes(widget.id));
 
   if (!prefs) {
@@ -383,8 +650,8 @@ export function DashboardPage({
       <WorkspacePageContainer className="dashboard-workspace">
         <section className="dashboard-command-bar">
           <div className="min-w-0">
-            <h1>Today at a glance</h1>
-            <p>Preparing your workboard…</p>
+            <h1>{isAdminDashboard ? 'Admin dashboard' : 'Today at a glance'}</h1>
+            <p>{isAdminDashboard ? 'Preparing your operations overview…' : 'Preparing your workboard…'}</p>
           </div>
         </section>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -395,13 +662,35 @@ export function DashboardPage({
   }
 
   return (
-    <WorkspacePageContainer className="dashboard-workspace">
-      <section className="dashboard-command-bar">
+    <WorkspacePageContainer className={`dashboard-workspace ${isAdminDashboard ? 'dashboard-admin-mode' : ''}`}>
+      <section className={isAdminDashboard ? 'dashboard-admin-hero' : 'dashboard-command-bar'}>
         <div className="min-w-0">
-          <h1>Today at a glance</h1>
-          <p>{identity.user.fullName}&rsquo;s operational workboard</p>
+          {isAdminDashboard ? (
+            <>
+              <p className="dashboard-admin-eyebrow">COMPANY OPERATIONS</p>
+              <h1>Admin dashboard</h1>
+              <p>Workforce, sales and requests in one live view.</p>
+            </>
+          ) : (
+            <>
+              <h1>Today at a glance</h1>
+              <p>{identity.user.fullName}&rsquo;s operational workboard</p>
+            </>
+          )}
         </div>
         <div className="ml-auto flex w-auto flex-wrap items-center justify-end gap-2">
+            {isAdminDashboard && (
+              <>
+                <span className="dashboard-admin-date">{dashboardDate}</span>
+                <button
+                  type="button"
+                  onClick={() => setRefreshKey((version) => version + 1)}
+                  className="dashboard-admin-refresh"
+                >
+                  <Icon name="refresh" className="size-4" /> Refresh
+                </button>
+              </>
+            )}
             {editing && (
               <>
                 <button
@@ -458,7 +747,7 @@ export function DashboardPage({
         </div>
       )}
 
-      {visibleIds.length === 0 ? (
+      {layout.length === 0 ? (
         <div className="mt-5 rounded-2xl border border-app-border bg-app-surface p-6 text-center">
           <p className="text-sm text-app-muted">Your dashboard is empty.</p>
           {!isMobile && (
@@ -473,17 +762,18 @@ export function DashboardPage({
         </div>
       ) : isMobile ? (
         <div className="mt-5 space-y-4">
-          {mobileOrderedIds.map((id) => {
-            const def = getWidget(id);
+          {mobileOrderedIds.map((key) => {
+            const parsed = parseLayoutKey(key);
+            const def = parsed ? getWidget(parsed.id) : undefined;
             if (!def) return null;
             const Component = def.component;
-            const layoutItem = layout.find((item) => item.i === id);
+            const layoutItem = layout.find((item) => item.i === key);
             const widgetHeight = Math.max(160, (layoutItem?.h ?? 3) * (ROW_HEIGHT + 16) - 16);
             return (
               <div
-                key={id}
-                data-mobile-widget-id={id}
-                className={`mobile-dashboard-widget ${editing ? 'mobile-dashboard-widget-editing' : ''} ${mobileDragId === id ? 'mobile-dashboard-widget-dragging' : ''} ${mobileDropId === id && mobileDragId !== id ? 'mobile-dashboard-widget-drop-target' : ''}`}
+                key={key}
+                data-mobile-widget-id={key}
+                className={`mobile-dashboard-widget ${editing ? 'mobile-dashboard-widget-editing' : ''} ${mobileDragId === key ? 'mobile-dashboard-widget-dragging' : ''} ${mobileDropId === key && mobileDragId !== key ? 'mobile-dashboard-widget-drop-target' : ''}`}
                 style={{ height: editing && def.defaultLayout.resizable !== false ? `${widgetHeight}px` : undefined }}
               >
                 {editing && (
@@ -493,24 +783,35 @@ export function DashboardPage({
                       className="mobile-dashboard-drag-handle inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-xs font-semibold text-app-muted"
                       aria-label={`Drag to reorder ${def.title}`}
                       title="Hold and drag to reorder"
-                      onPointerDown={(event) => handleMobileDragStart(id, event)}
+                      onPointerDown={(event) => handleMobileDragStart(key, event)}
                     >
                       <Icon name="menu" className="size-4" />
                       <span>Move</span>
                     </button>
                     <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => moveMobileBy(id, -1)} disabled={mobileOrderedIds[0] === id} className="mobile-dashboard-control-button" aria-label={`Move ${def.title} up`} title="Move up">↑</button>
-                      <button type="button" onClick={() => moveMobileBy(id, 1)} disabled={mobileOrderedIds[mobileOrderedIds.length - 1] === id} className="mobile-dashboard-control-button" aria-label={`Move ${def.title} down`} title="Move down">↓</button>
+                      <button type="button" onClick={() => moveMobileBy(key, -1)} disabled={mobileOrderedIds[0] === key} className="mobile-dashboard-control-button" aria-label={`Move ${def.title} up`} title="Move up">↑</button>
+                      <button type="button" onClick={() => moveMobileBy(key, 1)} disabled={mobileOrderedIds[mobileOrderedIds.length - 1] === key} className="mobile-dashboard-control-button" aria-label={`Move ${def.title} down`} title="Move down">↓</button>
                       <span className="mx-1 h-5 w-px bg-app-border" />
                       {def.defaultLayout.resizable !== false && (
                         <>
-                          <button type="button" onClick={() => resizeMobileWidget(id, -1)} disabled={(layoutItem?.h ?? 3) <= def.defaultLayout.minH} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} shorter`} title="Shorter">−</button>
-                          <button type="button" onClick={() => resizeMobileWidget(id, 1)} disabled={(layoutItem?.h ?? 3) >= (def.defaultLayout.maxH ?? 10)} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} taller`} title="Taller">+</button>
+                          <button type="button" onClick={() => resizeMobileWidget(key, -1)} disabled={(layoutItem?.h ?? 3) <= def.defaultLayout.minH} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} shorter`} title="Shorter">−</button>
+                          <button type="button" onClick={() => resizeMobileWidget(key, 1)} disabled={(layoutItem?.h ?? 3) >= (def.defaultLayout.maxH ?? 10)} className="mobile-dashboard-control-button" aria-label={`Make ${def.title} taller`} title="Taller">+</button>
                         </>
                       )}
-                      <button type="button" onClick={() => hide(id)} className="mobile-dashboard-control-button mobile-dashboard-remove" aria-label={`Remove ${def.title}`} title="Remove widget">
-                        <Icon name="close" className="size-3.5" />
-                      </button>
+                      <WidgetSettingsMenu
+                        widgetKey={key}
+                        title={def.title}
+                        description={def.description}
+                        cols={COLS}
+                        minW={def.defaultLayout.minW}
+                        minH={def.defaultLayout.minH}
+                        maxW={def.defaultLayout.maxW ?? COLS}
+                        maxH={def.defaultLayout.maxH ?? 48}
+                        resizable={def.defaultLayout.resizable !== false}
+                        onSize={applySizePreset}
+                        onDuplicate={duplicateLayoutItem}
+                        onRemove={removeLayoutItem}
+                      />
                     </div>
                   </div>
                 )}
@@ -524,51 +825,79 @@ export function DashboardPage({
                         max={def.defaultLayout.maxH ?? 10}
                         step={1}
                         value={layoutItem?.h ?? 3}
-                        onChange={(event) => setMobileWidgetHeight(id, Number(event.currentTarget.value))}
+                        onChange={(event) => setMobileWidgetHeight(key, Number(event.currentTarget.value))}
                         aria-label={`Card height for ${def.title}`}
                       />
                     )}
                   </label>
                 )}
                 <div className={editing ? 'mobile-dashboard-widget-content' : ''}>
-                  <Component ctx={ctx} />
+                  {renderWidget(Component)}
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <div className={`dashboard-grid mt-5 ${editing ? 'editing' : ''}`}>
+        <div className={`dashboard-grid mt-5 ${editing ? 'editing' : ''}`} data-columns={gridCols}>
           <ResponsiveGrid
             className="layout"
-            layout={layout}
-            cols={COLS}
+            layouts={{ lg: layout, md: scaleLayout(layout, TABLET_COLS) }}
+            breakpoints={GRID_BREAKPOINTS}
+            cols={GRID_COLS}
             rowHeight={ROW_HEIGHT}
             margin={[16, 16]}
             containerPadding={[0, 0]}
+            compactType="vertical"
+            preventCollision={false}
+            allowOverlap={false}
+            isBounded
             isDraggable={editing}
             isResizable={editing}
-            onLayoutChange={handleLayoutChange}
-            draggableCancel=".dashboard-widget-remove, .dashboard-widget-nodrag"
+            resizeHandles={['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']}
+            onBreakpointChange={handleBreakpointChange}
+            onDragStop={handleGridInteractionStop}
+            onResizeStop={handleGridInteractionStop}
+            draggableHandle=".dashboard-widget-drag-handle"
+            draggableCancel=".dashboard-widget-settings, .dashboard-widget-nodrag"
           >
-            {visibleIds.map((id) => {
-              const def = getWidget(id);
-              if (!def) return <div key={id} />;
+            {layout.map((item) => {
+              const parsed = parseLayoutKey(item.i);
+              const def = parsed ? getWidget(parsed.id) : undefined;
+              if (!def) return <div key={item.i} />;
               const Component = def.component;
+              const isCopy = Boolean(parsed?.instanceId);
               return (
-                <div key={id} className="h-full min-h-0 min-w-0">
+                <div key={item.i} className="dashboard-widget-frame">
                   {editing && (
-                    <button
-                      type="button"
-                      aria-label={`Remove ${def.title}`}
-                      className="dashboard-widget-remove"
-                      onClick={() => hide(id)}
-                    >
-                      <Icon name="close" className="size-3.5" />
-                    </button>
+                    <div className="dashboard-widget-editbar">
+                      <button
+                        type="button"
+                        className="dashboard-widget-drag-handle"
+                        aria-label={`Drag ${def.title} widget`}
+                        title="Drag to rearrange"
+                      >
+                        <Icon name="grip" className="size-3.5" />
+                      </button>
+                      {isCopy && <span className="dashboard-widget-copy-label">Copy</span>}
+                      <WidgetSettingsMenu
+                        widgetKey={item.i}
+                        title={def.title}
+                        description={def.description}
+                        cols={gridCols}
+                        minW={def.defaultLayout.minW}
+                        minH={def.defaultLayout.minH}
+                        maxW={def.defaultLayout.maxW ?? COLS}
+                        maxH={def.defaultLayout.maxH ?? 48}
+                        resizable={def.defaultLayout.resizable !== false}
+                        onSize={applySizePreset}
+                        onDuplicate={duplicateLayoutItem}
+                        onRemove={removeLayoutItem}
+                      />
+                    </div>
                   )}
-                  <div className="dashboard-widget-content">
-                    <Component ctx={ctx} />
+                  <div className={`dashboard-widget-content ${editing ? 'dashboard-widget-content-editing' : ''}`}>
+                    {renderWidget(Component)}
                   </div>
                 </div>
               );

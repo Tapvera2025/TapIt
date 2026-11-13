@@ -1,4 +1,5 @@
 import type { CompanyIdentity } from '../api/companyApi.js';
+import { isActionModuleEnabled } from '../module-access.js';
 import type { WidgetDef } from './widget-types.js';
 import {
   PunchStateWidget,
@@ -20,12 +21,25 @@ import {
   OrgTeamDistributionWidget,
   OrgReadinessWidget,
 } from './widgets/org.js';
+import {
+  AdminTeamAttendanceWidget,
+  AdminActivityWidget,
+  AdminCallbacksWidget,
+  AdminMeetingsWidget,
+  AdminPendingRequestsWidget,
+  AdminSalesCallsWidget,
+} from './widgets/admin.js';
 
 const isSuperAdmin = (id: CompanyIdentity): boolean => id.user.accountType === 'super-admin';
 const has = (action: string) => (id: CompanyIdentity): boolean =>
   id.capabilities.some((item) => item.action === action);
 const hasBeyondOwn = (action: string) => (id: CompanyIdentity): boolean =>
   id.capabilities.some((item) => item.action === action && item.scope !== 'own');
+// A super-admin only passes for actions whose module is enabled; the live
+// board is additionally served by the 'live-status' module on the server.
+const moduleOn = (id: CompanyIdentity, key: string): boolean => (id.enabledModules as readonly string[]).includes(key);
+const superAdminOr = (action: string) => (id: CompanyIdentity): boolean =>
+  has(action)(id) || (isSuperAdmin(id) && isActionModuleEnabled(id.enabledModules, action));
 
 export const WIDGET_REGISTRY: readonly WidgetDef[] = [
   // Personal widgets are available when their underlying module capability is
@@ -35,23 +49,23 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'punch-state',
     title: 'Today',
     description: 'Your punch state and hours worked today.',
-    available: has('attendance:view-live'),
-    defaultLayout: { w: 5, h: 4, minW: 5, minH: 4, maxW: 5, maxH: 4, resizable: false },
+    available: (id) => !isSuperAdmin(id) && moduleOn(id, 'live-status') && has('attendance:view-live')(id),
+    defaultLayout: { w: 6, h: 4, minW: 5, minH: 4, maxW: 12, maxH: 8 },
     component: PunchStateWidget,
   },
   {
     id: 'break-management',
     title: 'Break management',
     description: 'Start a preset lunch, coffee, or personal break.',
-    available: has('attendance:view-live'),
-    defaultLayout: { w: 12, h: 2, minW: 12, minH: 2, maxW: 12, maxH: 2, resizable: false },
+    available: (id) => !isSuperAdmin(id) && moduleOn(id, 'break-management') && has('attendance:view-live')(id),
+    defaultLayout: { w: 12, h: 2, minW: 6, minH: 2, maxW: 12, maxH: 4 },
     component: BreakManagementWidget,
   },
   {
     id: 'todays-shift',
     title: "Today's shift",
     description: 'The shift you are on today.',
-    available: () => true,
+    available: (id) => !isSuperAdmin(id) && moduleOn(id, 'shifts'),
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
     component: TodaysShiftWidget,
   },
@@ -109,7 +123,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'team-live',
     title: 'Team present today',
     description: 'Live headcount by state across your team.',
-    available: hasBeyondOwn('attendance:view-live'),
+    available: (id) => !isSuperAdmin(id) && moduleOn(id, 'live-status') && hasBeyondOwn('attendance:view-live')(id),
     defaultLayout: { w: 4, h: 4, minW: 3, minH: 3 },
     component: TeamLiveWidget,
   },
@@ -133,10 +147,10 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
   },
   {
     id: 'org-team-distribution',
-    title: 'Team distribution',
+    title: 'Department distribution',
     description: 'Employee count by department.',
     available: isSuperAdmin,
-    defaultLayout: { w: 6, h: 4, minW: 4, minH: 3 },
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
     component: OrgTeamDistributionWidget,
   },
   {
@@ -146,6 +160,56 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     available: isSuperAdmin,
     defaultLayout: { w: 3, h: 5, minW: 3, minH: 4 },
     component: OrgReadinessWidget,
+  },
+  {
+    id: 'admin-team-attendance',
+    title: 'Team attendance',
+    description: 'Employee punch state and live break timers.',
+    available: (id) => moduleOn(id, 'live-status') && superAdminOr('attendance:view-live')(id),
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    component: AdminTeamAttendanceWidget,
+  },
+  {
+    id: 'admin-activity',
+    title: 'Recent team activity',
+    description: 'Latest employee actions across the workspace.',
+    available: superAdminOr('audit:view'),
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    component: AdminActivityWidget,
+  },
+  {
+    id: 'admin-sales-calls',
+    title: 'Sales calls today',
+    description: 'Call volume by sales team member for today.',
+    available: (id) => id.enabledModules.includes('telephony') && superAdminOr('telephony:view')(id),
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    component: AdminSalesCallsWidget,
+  },
+  {
+    id: 'admin-callbacks',
+    title: 'Upcoming calls',
+    description: 'New callbacks and scheduled follow-ups.',
+    available: superAdminOr('callbacks:view'),
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    component: AdminCallbacksWidget,
+  },
+  {
+    id: 'admin-meetings',
+    title: 'Upcoming meetings',
+    description: 'Meetings scheduled across the company.',
+    available: (id) => moduleOn(id, 'meetings') && (superAdminOr('meetings:view')(id) || superAdminOr('meetings:host')(id)),
+    defaultLayout: { w: 6, h: 4, minW: 4, minH: 3 },
+    component: AdminMeetingsWidget,
+  },
+  {
+    id: 'admin-pending-requests',
+    title: 'Pending requests',
+    description: 'Open employee, attendance, sales, and expense queues.',
+    available: (id) => [
+      'leave:decide', 'leave:acknowledge', 'attendance:correct', 'approvals:decide', 'payables:approve-claim',
+    ].some((action) => superAdminOr(action)(id)),
+    defaultLayout: { w: 3, h: 4, minW: 3, minH: 3 },
+    component: AdminPendingRequestsWidget,
   },
 ];
 

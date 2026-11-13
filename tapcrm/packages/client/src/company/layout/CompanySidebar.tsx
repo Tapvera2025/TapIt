@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Icon } from '../../ui/Icon.js';
+import { Icon } from '../../ui/index.js';
 import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
@@ -73,7 +73,7 @@ const GROUP_ICONS: Record<string, string> = {
   Overview: 'grid',
   Communication: 'message',
   Organization: 'building',
-  People: 'users',
+  'Employee Activities': 'users',
   Delivery: 'briefcase',
   Sales: 'dollar-sign',
   Attendance: 'clock',
@@ -89,7 +89,7 @@ const GROUP_ICONS: Record<string, string> = {
 export function CompanySidebar({
   variant = 'company',
   pathname,
-  identity,
+  identity: _identity,
   organizationName: _organizationName,
   accountType,
   canRequestRoleChange = false,
@@ -101,6 +101,11 @@ export function CompanySidebar({
   canViewTerritories = false,
   canViewLeads = false,
   canViewCallbacks = false,
+  canViewCalls = false,
+  canTriageSales = false,
+  canViewImports = false,
+  canTrackAssignedCalls = false,
+  canManageCalls = false,
   canViewHandovers = false,
   canViewDeals = false,
   canRecordWin = false,
@@ -109,6 +114,9 @@ export function CompanySidebar({
   canViewChat = false,
   clientMessagesUnread = 0,
   canViewClients = false,
+  canViewSocial = false,
+  canViewMeetings = false,
+  canViewSeo = false,
   canViewProjects = false,
   canViewLiveBoard = false,
   canViewAttendanceReports = false,
@@ -136,8 +144,11 @@ export function CompanySidebar({
   canViewExpenses = false,
   canApproveExpenses = false,
   isHr = false,
+  canViewRecruitment = false,
+  canViewAccessExplorer = false,
   hasRecruitment = false,
   hasInterviews = false,
+  enabledModules,
   onNavigate,
   onLogout,
   open,
@@ -169,6 +180,11 @@ export function CompanySidebar({
   canViewTerritories?: boolean;
   canViewLeads?: boolean;
   canViewCallbacks?: boolean;
+  canViewCalls?: boolean;
+  canTriageSales?: boolean;
+  canViewImports?: boolean;
+  canTrackAssignedCalls?: boolean;
+  canManageCalls?: boolean;
   canViewHandovers?: boolean;
   canViewDeals?: boolean;
   canRecordWin?: boolean;
@@ -177,6 +193,10 @@ export function CompanySidebar({
   canViewChat?: boolean;
   clientMessagesUnread?: number;
   canViewClients?: boolean;
+  canViewSocial?: boolean;
+  /** Client meetings: hosts and the people who track them. */
+  canViewMeetings?: boolean;
+  canViewSeo?: boolean;
   canViewProjects?: boolean;
   canViewLiveBoard?: boolean;
   canViewAttendanceReports?: boolean;
@@ -204,7 +224,13 @@ export function CompanySidebar({
   canViewExpenses?: boolean;
   canApproveExpenses?: boolean;
   isHr?: boolean;
+  /** A held recruitment view power opens Recruitment for non-HR users. */
+  canViewRecruitment?: boolean;
+  /** A held access:view power opens Access Explorer for non-super-admins. */
+  canViewAccessExplorer?: boolean;
   hasRecruitment?: boolean;
+  /** Modules enabled for the company; omitted means every module is offered. */
+  enabledModules?: readonly string[];
   /** Shown only while this user has interviews (assigned rounds or panels). */
   hasInterviews?: boolean;
   onNavigate: (path: string) => void;
@@ -217,7 +243,8 @@ export function CompanySidebar({
   onResize?: (width: number) => void;
 }): React.JSX.Element {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
-    Organization: pathname.startsWith('/company/organization'),
+    Organization: pathname.startsWith('/company/organization') || pathname === '/company/employees',
+    Recruitment: pathname.startsWith('/company/recruitment'),
   }));
 
   const toggleSection = (label: string) => {
@@ -229,9 +256,16 @@ export function CompanySidebar({
     });
   };
 
-  const [recruitmentOpen, setRecruitmentOpen] = useState(
-    pathname.startsWith('/company/recruitment'),
-  );
+  const toggleNavItem = (label: string) => {
+    setExpandedItems((prev) => ({
+      ...prev,
+      [label]: !(prev[label] ?? true),
+    }));
+  };
+
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(() => ({
+    Recruitment: pathname.startsWith('/company/recruitment'),
+  }));
   const prevPathnameRef = useRef(pathname);
   const navigationRef = useRef<HTMLElement>(null);
   const activeNavIndicatorRef = useRef<HTMLDivElement>(null);
@@ -254,10 +288,6 @@ export function CompanySidebar({
   const [isDraggingSidebarPill, setIsDraggingSidebarPill] = useState(false);
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
-  const roleLabel = identity.accountType === 'super-admin'
-    ? 'Super Admin'
-    : identity.positionName || identity.positionCode || 'Employee';
-
   const restoreActiveSidebarPill = () => {
     const navigation = navigationRef.current;
     const indicator = activeNavIndicatorRef.current;
@@ -410,7 +440,9 @@ export function CompanySidebar({
         window.setTimeout(() => {
           suppressSidebarClickRef.current = false;
         }, 600);
-        if (nearest.label === 'Recruitment') setRecruitmentOpen(true);
+        if (nearest.label === 'Recruitment') {
+          setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
+        }
         onNavigate(nearest.path);
         onClose();
         syncActiveSidebarPill();
@@ -439,7 +471,7 @@ export function CompanySidebar({
     const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
     const isRecruitment = pathname.startsWith('/company/recruitment');
     if (!wasRecruitment && isRecruitment) {
-      setRecruitmentOpen(true);
+      setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
     }
     if (pathname.startsWith('/company/organization')) {
       setOpenSections((prev) =>
@@ -516,6 +548,8 @@ export function CompanySidebar({
   );
 
   const isSuperAdmin = accountType === 'super-admin';
+  // Module-backed items disappear when the company has the module switched off.
+  const moduleOn = (key: string): boolean => !enabledModules || enabledModules.includes(key);
   const { activePet } = useAiPet();
   const { accent } = useTheme();
   const { total: unreadMessages } = useChatUnread();
@@ -572,75 +606,42 @@ export function CompanySidebar({
         myNotepadNavItem,
       ],
     },
-    ...(isSuperAdmin
+    ...(isSuperAdmin || canViewEmployees
       ? [
           {
             label: 'Organization',
             items: [
-              { label: 'Overview', path: '/company/organization', icon: 'grid' },
-              {
-                label: 'Departments',
-                path: '/company/organization/departments',
-                icon: 'building',
-              },
-              { label: 'Teams', path: '/company/organization/teams', icon: 'users' },
-              {
-                label: 'Positions',
-                path: '/company/organization/positions',
-                icon: 'briefcase',
-              },
-              {
-                label: 'Designations',
-                path: '/company/organization/designations',
-                icon: 'briefcase',
-              },
-              {
-                label: 'Reporting',
-                path: '/company/organization/reporting',
-                icon: 'users',
-              },
-              {
-                label: 'Org Chart',
-                path: '/company/organization/org-chart',
-                icon: 'hierarchy',
-              },
-            ],
-          },
-        ]
-      : []),
-    ...(isHr || canViewEmployees || isSuperAdmin
-      ? [
-          {
-            label: 'People',
-            items: [
-              { label: 'Employees', path: '/company/employees', icon: 'users' },
+              ...(canViewEmployees || isSuperAdmin
+                ? [{ label: 'Employees', path: '/company/employees', icon: 'users' }]
+                : []),
               ...(isSuperAdmin
                 ? [
+                    { label: 'Overview', path: '/company/organization', icon: 'grid' },
                     {
-                      label: 'Employee Notes',
-                      path: '/company/employee-notes',
-                      icon: 'notepad',
+                      label: 'Departments',
+                      path: '/company/organization/departments',
+                      icon: 'building',
                     },
-                  ]
-                : []),
-              ...(isHr && hasRecruitment
-                ? [
+                    { label: 'Teams', path: '/company/organization/teams', icon: 'users' },
                     {
-                      label: 'Recruitment',
-                      path: '/company/recruitment',
+                      label: 'Positions',
+                      path: '/company/organization/positions',
                       icon: 'briefcase',
-                      children: [
-                        { label: 'Overview', path: '/company/recruitment' },
-                        {
-                          label: 'Requisitions',
-                          path: '/company/recruitment/requisitions',
-                        },
-                        { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
-                        { label: 'Candidates', path: '/company/recruitment/candidates' },
-                        { label: 'Interviews', path: '/company/recruitment/interviews' },
-                        { label: 'Offers', path: '/company/recruitment/offers' },
-                        { label: 'Joining', path: '/company/recruitment/joining' },
-                      ],
+                    },
+                    {
+                      label: 'Designations',
+                      path: '/company/organization/designations',
+                      icon: 'briefcase',
+                    },
+                    {
+                      label: 'Reporting',
+                      path: '/company/organization/reporting',
+                      icon: 'users',
+                    },
+                    {
+                      label: 'Org Chart',
+                      path: '/company/organization/org-chart',
+                      icon: 'hierarchy',
                     },
                   ]
                 : []),
@@ -648,7 +649,33 @@ export function CompanySidebar({
           },
         ]
       : []),
-    ...(canViewClients || canViewProjects
+    ...(isSuperAdmin
+      ? [
+          {
+            label: 'Employee Activities',
+            items: [
+              { label: 'Employee Notes', path: '/company/employee-notes', icon: 'notepad' },
+            ],
+          },
+        ]
+      : []),
+    ...((isHr || canViewRecruitment) && hasRecruitment
+      ? [
+          {
+            label: 'Recruitment',
+            items: [
+              { label: 'Overview', path: '/company/recruitment', icon: 'briefcase' },
+              { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'briefcase' },
+              { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'briefcase' },
+              { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'briefcase' },
+              { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'briefcase' },
+              { label: 'Offers', path: '/company/recruitment/offers', icon: 'briefcase' },
+              { label: 'Joining', path: '/company/recruitment/joining', icon: 'briefcase' },
+            ],
+          },
+        ]
+      : []),
+    ...(canViewClients || canViewProjects || canViewSocial || canViewMeetings
       ? [
           {
             label: 'Delivery',
@@ -659,6 +686,22 @@ export function CompanySidebar({
               ...(canViewProjects
                 ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }]
                 : []),
+              ...(canViewMeetings
+                ? [{ label: 'Client meetings', path: '/company/meetings', icon: 'calendar' }]
+                : []),
+              ...(canViewSocial
+                ? [{ label: 'Manage Social Media', path: '/company/social', icon: 'share' }]
+                : []),
+            ],
+          },
+        ]
+      : []),
+    ...(canViewSeo
+      ? [
+          {
+            label: 'SEO Intelligence',
+            items: [
+              { label: 'SEO Dashboard', path: '/company/seo-intelligence', icon: 'trending-up' },
             ],
           },
         ]
@@ -666,7 +709,10 @@ export function CompanySidebar({
     ...(canViewTerritories ||
     canViewLeads ||
     canViewCallbacks ||
+    canViewCalls ||
+    canManageCalls ||
     canViewHandovers ||
+    canTriageSales ||
     canViewDeals ||
     canDecideApprovals ||
     canRecordWin ||
@@ -675,60 +721,87 @@ export function CompanySidebar({
           {
             label: 'Sales',
             items: [
-              ...(canViewTerritories
-                ? [
-                    {
-                      label: 'Territories',
-                      path: '/company/sales/territories',
-                      icon: 'map',
-                    },
-                  ]
+              {
+                label: 'Overview',
+                path: '/company/sales',
+                icon: 'chart',
+              },
+              ...(canViewLeads
+                ? [{ label: 'My Work', path: '/company/sales/my-work', icon: 'briefcase' }]
                 : []),
               ...(canViewLeads
-                ? [{ label: 'Leads', path: '/company/sales/leads', icon: 'users' }]
-                : []),
-              ...(canViewDeals
-                ? [{ label: 'Deals', path: '/company/sales/deals', icon: 'briefcase' }]
-                : []),
-              ...(canDecideApprovals
                 ? [
                     {
-                      label: 'Approvals',
-                      path: '/company/sales/approvals',
-                      icon: 'check',
+                      label: 'Lead Management',
+                      path: '/company/sales/leads',
+                      icon: 'users',
+                      children: [
+                        { label: 'All Leads', path: '/company/sales/leads' },
+                        { label: 'Lead Pool', path: '/company/sales/bid-pool' },
+                        { label: 'Inactive Leads', path: '/company/sales/leads/stalled' },
+                        { label: 'Follow-up Required', path: '/company/sales/leads/re-engagement' },
+                        ...(canTriageSales ? [{ label: 'Needs Review', path: '/company/sales/triage' }] : []),
+                        ...(canViewImports ? [{ label: 'Imported Leads', path: '/company/sales/leads/imported' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canRecordWin
+              ...(canViewCallbacks || canViewHandovers || canViewCalls
                 ? [
                     {
-                      label: 'Wins to record',
-                      path: '/company/sales/wins',
-                      icon: 'check',
-                    },
-                  ]
-                : []),
-              ...(canViewCallbacks
-                ? [
-                    {
-                      label: 'Callbacks',
-                      path: '/company/sales/callbacks',
+                      label: 'Activities',
+                      path: canViewCallbacks ? '/company/sales/callbacks' : canViewHandovers ? '/company/sales/handovers' : '/company/sales/calls',
                       icon: 'calendar',
+                      children: [
+                        ...(canViewCallbacks ? [{ label: 'Callbacks', path: '/company/sales/callbacks' }] : []),
+                        ...(canViewHandovers ? [{ label: 'Handovers', path: '/company/sales/handovers' }] : []),
+                        ...(canViewCalls ? [
+                          { label: 'Calls', path: '/company/sales/calls' },
+                          { label: 'My calls', path: '/company/sales/calls/me' },
+                          { label: 'Call log', path: '/company/sales/calls/log' },
+                        ] : []),
+                        ...(canTrackAssignedCalls ? [{ label: 'Assigned lead calls', path: '/company/sales/calls/assigned-leads' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canViewHandovers
+              ...(canViewDeals || canDecideApprovals || canRecordWin
                 ? [
                     {
-                      label: 'Handovers',
-                      path: '/company/sales/handovers',
-                      icon: 'share',
+                      label: 'Deals',
+                      path: '/company/sales/deals',
+                      icon: 'briefcase',
+                      children: [
+                        ...(canViewDeals ? [{ label: 'Pipeline', path: '/company/sales/deals' }] : []),
+                        ...(canDecideApprovals ? [{ label: 'Approvals', path: '/company/sales/approvals' }] : []),
+                        ...(canRecordWin ? [{ label: 'Wins to record', path: '/company/sales/wins' }] : []),
+                      ],
                     },
                   ]
                 : []),
-              ...(canForecast
-                ? [{ label: 'Reports', path: '/company/sales/reports', icon: 'chart' }]
+              ...(canForecast || canTriageSales
+                ? [
+                    {
+                      label: 'Performance',
+                      path: canForecast ? '/company/sales/reports' : '/company/sales/supervisor',
+                      icon: 'chart',
+                      children: [
+                        ...(canTriageSales ? [{ label: 'Team overview', path: '/company/sales/supervisor' }] : []),
+                        ...(canForecast ? [{ label: 'Reports', path: '/company/sales/reports' }] : []),
+                      ],
+                    },
+                  ]
                 : []),
+              {
+                label: 'Setup',
+                path: '/company/sales/setup',
+                icon: 'settings',
+                children: [
+                  ...(canViewTerritories ? [{ label: 'Territories & routing', path: '/company/sales/territories' }] : []),
+                  ...(canViewLeads ? [{ label: 'Lead sources', path: '/company/sales/leads' }] : []),
+                  ...(canManageCalls ? [{ label: 'Call integrations', path: '/company/sales/call-integrations' }] : []),
+                ],
+              },
             ],
           },
         ]
@@ -736,9 +809,13 @@ export function CompanySidebar({
     {
       label: 'Attendance',
       items: [
-        { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
-        { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
-        ...(canViewAttendanceReports
+        ...(accountType === 'employee' && moduleOn('attendance')
+          ? [
+              { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
+              { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+            ]
+          : []),
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Employee Wise',
@@ -747,7 +824,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewAttendanceReports
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Attendance Report',
@@ -756,7 +833,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewAttendanceReports
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Daily Late Report',
@@ -765,7 +842,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewLiveBoard
+        ...(canViewLiveBoard && moduleOn('live-status')
           ? [
               {
                 label: 'Workforce Board',
@@ -809,7 +886,7 @@ export function CompanySidebar({
     {
       label: 'Shifts & Leave',
       items: [
-        { label: 'My Leave', path: '/company/leave/my', icon: 'sun' },
+        ...(moduleOn('leave') ? [{ label: 'My Leave', path: '/company/leave/my', icon: 'sun' }] : []),
         ...(canUseLeaveQueue
           ? [{ label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox' }]
           : []),
@@ -819,7 +896,7 @@ export function CompanySidebar({
         ...(canManageLeaveTypes
           ? [{ label: 'Leave Types', path: '/company/leave/types', icon: 'settings' }]
           : []),
-        { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
+        ...(moduleOn('holidays') ? [{ label: 'Holidays', path: '/company/holidays', icon: 'flag' }] : []),
         ...(canManageShifts
           ? [
               { label: 'Shifts', path: '/company/shifts', icon: 'layers' },
@@ -908,7 +985,9 @@ export function CompanySidebar({
     {
       label: 'Payroll',
       items: [
-        { label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text' },
+        ...(moduleOn('payroll')
+          ? [{ label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text' }]
+          : []),
         ...(canManagePayroll
           ? [
               {
@@ -1086,13 +1165,13 @@ export function CompanySidebar({
       label: 'Identity & Access',
       items: [
         { label: 'Sessions & Devices', path: '/company/sessions', icon: 'monitor' },
-        ...(isSuperAdmin
+        ...(isSuperAdmin || canViewAccessExplorer
           ? [{ label: 'Access Explorer', path: '/company/access', icon: 'shield' }]
           : []),
         ...(isSuperAdmin || canViewAudit
-          ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard' }]
+          ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard-list' }]
           : []),
-        ...(isSuperAdmin
+        ...(isSuperAdmin && moduleOn('attendance')
           ? [{ label: 'Geofencing', path: '/company/geofencing', icon: 'pin' }]
           : []),
         ...(accountType === 'employee' && canRequestRoleChange
@@ -1111,27 +1190,28 @@ export function CompanySidebar({
       items: [{ label: 'Settings', path: '/company/settings', icon: 'settings' }],
     },
   ];
-  const visibleNavigation: CompanyNavGroup[] =
-    variant === 'client'
-      ? [
-          {
-            label: 'Overview',
-            items: [
-              { label: 'Dashboard', path: '/client', icon: 'grid' },
-              { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
-              { label: 'Messages', path: '/client/messages', icon: 'message' },
-            ],
-          },
-          {
-            label: 'Account',
-            items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
-          },
-        ]
-      : navigation;
+  const visibleNavigation: CompanyNavGroup[] = variant === 'client'
+    ? [
+        {
+          label: 'Overview',
+          items: [
+            { label: 'Dashboard', path: '/client', icon: 'grid' },
+            { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
+            { label: 'Messages', path: '/client/messages', icon: 'message' },
+            { label: 'Meetings', path: '/client/meetings', icon: 'calendar' },
+            { label: 'Social accounts', path: '/client/social', icon: 'share' },
+          ],
+        },
+        {
+          label: 'Account',
+          items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
+        },
+      ]
+    : navigation.filter((group) => group.items.length > 0);
 
   return (
     <aside
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-5 xl:ml-5 xl:h-[calc(100dvh-6.5rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-4 xl:ml-5 xl:h-[calc(100%-2rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
       style={
         collapsed
           ? undefined
@@ -1198,7 +1278,7 @@ export function CompanySidebar({
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
         className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
-        aria-label="Company navigation"
+        aria-label={variant === 'client' ? 'Client navigation' : 'Company navigation'}
       >
         <div
           ref={activeNavIndicatorRef}
@@ -1211,10 +1291,23 @@ export function CompanySidebar({
           const activeChild = group.items.some(
             (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
           );
+          // A nested destination owns the selection surface when it is active.
+          // Do not also mark an ancestor item as current, otherwise the shared
+          // desktop pill and the nested row both render as selected.
+          const hasActiveNestedDestination = group.items.some((item) =>
+            item.children?.some(
+              (sub) => pathname === sub.path || pathname.startsWith(`${sub.path}/`),
+            ),
+          );
+          const hasExactDestination = group.items.some(
+            (item) => pathname === item.path || item.children?.some((sub) => pathname === sub.path),
+          );
           const isOpen =
             openSections[group.label] ??
             (group.label === 'Organization'
-              ? pathname.startsWith('/company/organization')
+              ? pathname.startsWith('/company/organization') || pathname === '/company/employees'
+              : group.label === 'Recruitment'
+                ? pathname.startsWith('/company/recruitment')
               : true);
           return (
             <div
@@ -1247,16 +1340,16 @@ export function CompanySidebar({
               {isOpen && (
                 <div className="mt-2 space-y-1">
                   {group.items.map((item) => {
-                    const isRecruitmentItem = item.label === 'Recruitment';
-                    const isRootRoute =
-                      variant === 'client'
-                        ? item.path === '/client'
-                        : item.path === '/company/organization';
-                    const isActive =
-                      pathname === item.path ||
+                    const isRootRoute = variant === 'client'
+                      ? item.path === '/client'
+                      : item.path === '/company/organization';
+                    const isActive = pathname === item.path ||
                       (!isRootRoute && pathname.startsWith(`${item.path}/`));
+                    const isTopLevelActive = isActive &&
+                      !hasActiveNestedDestination &&
+                      (!hasExactDestination || pathname === item.path);
                     const showChildren = Boolean(
-                      item.children && (isRecruitmentItem ? recruitmentOpen : true),
+                      item.children && (expandedItems[item.label] ?? true),
                     );
                     return (
                       <div key={item.path}>
@@ -1270,7 +1363,7 @@ export function CompanySidebar({
                               });
                             else navItemRefs.current.delete(item.path);
                           }}
-                          aria-current={isActive ? 'page' : undefined}
+                          aria-current={isTopLevelActive ? 'page' : undefined}
                           type="button"
                           aria-expanded={item.children ? showChildren : undefined}
                           onPointerDown={startSidebarPillDrag}
@@ -1279,13 +1372,13 @@ export function CompanySidebar({
                               suppressSidebarClickRef.current = false;
                               return;
                             }
-                            if (isRecruitmentItem) {
+                            if (item.children) {
                               if (!pathname.startsWith(item.path)) {
-                                setRecruitmentOpen(true);
+                                setExpandedItems((prev) => ({ ...prev, [item.label]: true }));
                                 onNavigate(item.path);
                                 onClose();
                               } else {
-                                setRecruitmentOpen((prev) => !prev);
+                                toggleNavItem(item.label);
                               }
                             } else {
                               onNavigate(item.path);
@@ -1293,7 +1386,7 @@ export function CompanySidebar({
                               syncActiveSidebarPill();
                             }
                           }}
-                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isTopLevelActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
                           title={collapsed ? item.label : undefined}
                         >
                           <span className="flex items-center gap-3">
@@ -1338,11 +1431,11 @@ export function CompanySidebar({
                         {showChildren && !collapsed && (
                           <div className="ml-7 mt-1 divide-y divide-sidebar-border/70 pl-2">
                             {item.children!.map((sub) => {
-                              const active =
-                                sub.path === '/company/recruitment'
-                                  ? pathname === sub.path
-                                  : pathname === sub.path ||
-                                    pathname.startsWith(`${sub.path}/`);
+                              // Child destinations are intentionally matched
+                              // exactly. A parent route such as
+                              // `/company/sales/leads` must not remain selected
+                              // when a deeper child route is active.
+                              const active = pathname === sub.path;
                               return (
                                 <button
                                   key={sub.path}
@@ -1352,7 +1445,7 @@ export function CompanySidebar({
                                     onNavigate(sub.path);
                                     onClose();
                                   }}
-                                  className={`w-full rounded-none px-3 py-2.5 text-left text-xs font-medium hover:text-sidebar-active-fg ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted'}`}
+                                  className={`w-full rounded-xl px-3 py-2.5 text-left text-xs font-medium hover:text-sidebar-active-fg ${active ? 'text-sidebar-foreground font-semibold' : 'text-sidebar-nav-muted'}`}
                                 >
                                   {sub.label}
                                 </button>
@@ -1389,20 +1482,6 @@ export function CompanySidebar({
           <SidebarPet pet={activePet} />
         </div>
       )}
-      <div className={`mx-1 shrink-0 border-t border-sidebar-border/70 px-1 pt-4 pb-2 ${collapsed ? 'xl:mx-0 xl:px-0' : ''}`}>
-        <div
-          className={`flex min-w-0 items-center gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-hover-bg/45 px-3 py-2.5 ${collapsed ? 'xl:justify-center xl:px-2' : ''}`}
-          title={collapsed ? `${identity.fullName} · ${roleLabel}` : undefined}
-        >
-          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active-bg text-xs font-bold text-sidebar-active-fg">
-            {identity.fullName.trim().slice(0, 1).toUpperCase() || '?'}
-          </span>
-          <span className={`min-w-0 leading-tight ${collapsed ? 'xl:hidden' : ''}`}>
-            <span className="block truncate text-sm font-semibold leading-5 text-sidebar-foreground">{identity.fullName}</span>
-            <span className="mt-0.5 block truncate text-xs font-medium leading-4 text-sidebar-muted">{roleLabel}{identity.departmentName ? ` · ${identity.departmentName}` : ''}</span>
-          </span>
-        </div>
-      </div>
       <div className="shrink-0 border-t border-t-[color:var(--sidebar-border)] px-1 pt-3">
         <button
           type="button"

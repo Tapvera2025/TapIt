@@ -63,14 +63,20 @@ export async function listLeaveTypes(tx: Tx): Promise<LeaveTypeRow[]> {
   `);
 }
 
-/** Types employees can select for an ordinary absence request. */
-export async function listAvailableAbsenceTypes(tx: Tx): Promise<LeaveTypeRow[]> {
+/**
+ * Types employees can select: absence types for an ordinary leave request,
+ * attendance-mode types for a WFH request.
+ */
+export async function listAvailableTypes(
+  tx: Tx,
+  kind: 'absence' | 'attendance-mode',
+): Promise<LeaveTypeRow[]> {
   return tx.query<LeaveTypeRow>(sql`
     SELECT id, organization_id AS "organizationId", code, name, kind,
            accrual_days AS "accrualDays", enforcement, paid_leave AS "paidLeave",
            is_active AS "isActive"
     FROM leave_type
-    WHERE is_active = TRUE AND kind = 'absence'
+    WHERE is_active = TRUE AND kind = ${kind}
     ORDER BY name, id
   `);
 }

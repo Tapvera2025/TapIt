@@ -77,4 +77,9 @@ export type DealResource = Resource & {
   readonly responsibleCloserId: string;
   readonly originatingAgentId: string;
   readonly lifecycleStatus: DealLifecycleStatus;
+  // Initiator fields read by segregation-of-duties (REGISTRY['deals:*']).
+  // `null` means no prior initiator; SoD allows the current actor through.
+  readonly createdBy: string | null;
+  readonly closedBy: string | null;
+  readonly payment: { readonly initiatedBy: string | null };
 };

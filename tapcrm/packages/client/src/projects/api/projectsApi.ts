@@ -32,7 +32,12 @@ export interface Project {
   workStatus: ProjectWorkStatus;
   startDate: string;
   expectedEndDate: string | null;
-  budget: string | null;
+  /** What the client pays for the project, in `currency` (a decimal string). */
+  projectValue: string | null;
+  /** What the client paid at the start. */
+  upfrontAmount: string | null;
+  /** Still owed: project value minus upfront paid, worked out by the server. */
+  dueAmount: string | null;
   currency: string;
   description: string | null;
   remarks: string | null;
@@ -67,7 +72,8 @@ export interface CreateProjectInput {
   expectedEndDate?: string | null;
   priority: ProjectPriority;
   workStatus?: ProjectWorkStatus;
-  budget?: string | null;
+  projectValue?: string | null;
+  upfrontAmount?: string | null;
   description?: string | null;
   remarks?: string | null;
 }

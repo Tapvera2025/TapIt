@@ -51,6 +51,20 @@ export function ChatUnreadProvider({ enabled, children }: { enabled: boolean; ch
     socket.on('connect_error', () => {
       retry = setTimeout(() => socket?.connect(), 5_000);
     });
+    // Closed by the server when the access token expires: socket.io does not
+    // retry that itself. Fetching refreshes the token; then reconnect, so the
+    // badge stays live and colleagues keep seeing this person as online.
+    socket.on('disconnect', (reason) => {
+      if (reason !== 'io server disconnect') return;
+      retry = setTimeout(() => {
+        void getChatUnreadSummary()
+          .then((next) => {
+            if (!cancelled) setSummary(next);
+          })
+          .catch(() => undefined)
+          .finally(() => socket?.connect());
+      }, 1_000);
+    });
 
     const onFocus = (): void => refresh();
     const onUnreadChanged = (event: Event): void => {

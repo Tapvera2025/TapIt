@@ -73,7 +73,8 @@ export interface RankProvider {
    * Called outside any transaction (TX-2).
    */
   fetchRanks(
-    target: { readonly propertyUrl: string },
+    /** `accessToken` reads `propertyUrl` through the organization's own Google login. */
+    target: { readonly propertyUrl: string; readonly accessToken: string },
     requests: readonly RankRequest[],
     window: RankWindow,
   ): Promise<RankResult[]>;

@@ -1,0 +1,3504 @@
+diff --git a/tapcrm/migrations/0141_user_status_remote.sql b/tapcrm/migrations/0141_user_status_remote.sql
+new file mode 100644
+index 0000000..3ca6a4c
+--- /dev/null
++++ b/tapcrm/migrations/0141_user_status_remote.sql
+@@ -0,0 +1,13 @@
++-- =====================================================================
++-- 0141 — Live status: punches from outside the office without WFH
++--
++-- A web or mobile punch-in without approved WFH is flagged
++-- `remote-without-approval` when the day is calculated, but the live board
++-- and the Today page only knew `is_wfh`, so they called such a person
++-- "In Office" all day. The projector now records the same rule on the row:
++-- the day's arrival came from the web or the app and there is no WFH
++-- approval. Rows are rebuilt by the projector on the next event or sweep.
++-- =====================================================================
++
++ALTER TABLE user_status
++  ADD COLUMN is_remote boolean NOT NULL DEFAULT false;
+diff --git a/tapcrm/migrations/0142_payroll_advance_penalty_inputs.sql b/tapcrm/migrations/0142_payroll_advance_penalty_inputs.sql
+new file mode 100644
+index 0000000..72e2505
+--- /dev/null
++++ b/tapcrm/migrations/0142_payroll_advance_penalty_inputs.sql
+@@ -0,0 +1,79 @@
++-- =====================================================================
++-- 0142 — Advance recoveries and penalties reach the payslip
++--
++-- Advances (0070) and penalties (0072) were recorded "for future payroll
++-- deduction" and never reached a run: HR had to export them and type each
++-- one into Bonuses & Deductions by hand, so they were easy to miss. Each
++-- scheduled advance deduction and each active penalty now owns one payroll
++-- input for its payroll month, written and revoked by its own module the way
++-- break deductions are (0063). Publishing the payslip marks the deduction
++-- completed and the penalty recovered.
++--
++-- An approved advance is recovered in full from the salary of the month it
++-- was given for (`planned_by = 'approval'`). HR can spread it with its own
++-- schedule, which replaces that default plan while it is still unpaid.
++--
++-- Backfill: only deductions HR scheduled and active penalties, for months
++-- with no published payroll and no hand-typed advance recovery already in
++-- place — nothing is charged twice and no published payslip changes.
++-- Travelling allowance stays out of payroll (0081 made it a dashboard-only
++-- statement on purpose).
++-- =====================================================================
++
++ALTER TABLE employee_advance_deduction
++  ADD COLUMN planned_by text NOT NULL DEFAULT 'hr' CHECK (planned_by IN ('hr', 'approval'));
++
++ALTER TABLE payroll_input
++  ADD COLUMN advance_deduction_id uuid REFERENCES employee_advance_deduction (id),
++  ADD COLUMN penalty_id uuid REFERENCES employee_penalty (id);
++
++ALTER TABLE payroll_input DROP CONSTRAINT IF EXISTS payroll_input_kind_check;
++ALTER TABLE payroll_input
++  ADD CONSTRAINT payroll_input_kind_check
++  CHECK (kind IN ('break-deduction', 'adjustment', 'advance-recovery', 'arrear', 'bonus', 'tds', 'penalty'));
++ALTER TABLE payroll_input
++  ADD CONSTRAINT payroll_input_penalty_source_check CHECK ((kind = 'penalty') = (penalty_id IS NOT NULL));
++ALTER TABLE payroll_input
++  ADD CONSTRAINT payroll_input_advance_source_check
++  CHECK (advance_deduction_id IS NULL OR kind = 'advance-recovery');
++
++-- One live charge per source; revoked history is kept.
++CREATE UNIQUE INDEX uq_payroll_input_active_advance_deduction
++  ON payroll_input (organization_id, advance_deduction_id)
++  WHERE advance_deduction_id IS NOT NULL AND revoked_at IS NULL;
++CREATE UNIQUE INDEX uq_payroll_input_active_penalty
++  ON payroll_input (organization_id, penalty_id)
++  WHERE penalty_id IS NOT NULL AND revoked_at IS NULL;
++
++INSERT INTO payroll_input
++  (organization_id, user_id, period_start, kind, amount, label, reason, advance_deduction_id, created_by)
++SELECT d.organization_id, d.employee_id, d.payroll_period, 'advance-recovery',
++       (d.scheduled_amount_paise - d.deducted_amount_paise) / 100.0,
++       'Salary advance recovery',
++       'Advance of ' || to_char(a.requested_for_period, 'Mon YYYY') || ', scheduled recovery',
++       d.id, a.approved_by
++FROM employee_advance_deduction d
++JOIN employee_advance a ON a.organization_id = d.organization_id AND a.id = d.advance_id
++WHERE a.status = 'approved'
++  AND d.status IN ('pending', 'partial')
++  AND d.scheduled_amount_paise > d.deducted_amount_paise
++  AND NOT EXISTS (
++    SELECT 1 FROM payroll_run r
++    WHERE r.organization_id = d.organization_id AND r.period_start = d.payroll_period AND r.status = 'published')
++  AND NOT EXISTS (
++    SELECT 1 FROM payroll_input i
++    WHERE i.organization_id = d.organization_id AND i.user_id = d.employee_id
++      AND i.period_start = d.payroll_period AND i.kind = 'advance-recovery' AND i.revoked_at IS NULL);
++
++INSERT INTO payroll_input
++  (organization_id, user_id, period_start, kind, amount, label, reason, penalty_id, created_by)
++SELECT p.organization_id, p.employee_id, p.payroll_period, 'penalty', p.amount_paise / 100.0,
++       'Penalty: ' || replace(p.penalty_type, '_', ' '),
++       COALESCE(NULLIF(btrim(p.remarks), ''), 'Penalty for ' || replace(p.penalty_type, '_', ' ')),
++       p.id, p.created_by
++FROM employee_penalty p
++WHERE p.status = 'active'
++  AND p.payroll_status = 'pending'
++  AND NOT EXISTS (
++    SELECT 1 FROM payroll_run r
++    WHERE r.organization_id = p.organization_id AND r.period_start = p.payroll_period AND r.status = 'published');
+diff --git a/tapcrm/packages/client/src/company/advance/AdvancePages.tsx b/tapcrm/packages/client/src/company/advance/AdvancePages.tsx
+index a920916..8a9d5c8 100644
+--- a/tapcrm/packages/client/src/company/advance/AdvancePages.tsx
++++ b/tapcrm/packages/client/src/company/advance/AdvancePages.tsx
+@@ -450,7 +450,7 @@ function AdminAdvances(): React.JSX.Element {
+             <option value="">Select employee</option>
+             {employees.map((employee) => (
+               <option key={employee.id} value={employee.id}>
+-                {employee.fullName} · {employee.employeeId ?? employee.id}
++                {employee.fullName}{employee.employeeId ? ` · ${employee.employeeId}` : employee.email ? ` · ${employee.email}` : ''}
+               </option>
+             ))}
+           </select>
+@@ -637,10 +637,11 @@ function AdminAdvances(): React.JSX.Element {
+       <Card>
+         <div className="flex flex-wrap items-start justify-between gap-3">
+           <div>
+-            <h2 className="text-lg font-bold">Approved advances · Payroll handoff</h2>
++            <h2 className="text-lg font-bold">Approved advances · Payroll recovery</h2>
+             <p className="mt-1 text-sm text-app-muted">
+-              Approved advances are available here for payroll processing. No separate
+-              deduction schedule is required.
++              An approved advance is recovered automatically from the salary of its advance
++              month. It appears under Payroll › Bonuses &amp; Deductions and is marked recovered
++              when that payslip is published.
+             </p>
+           </div>
+           <div className="flex flex-wrap gap-2">
+diff --git a/tapcrm/packages/client/src/company/api/leaveApi.ts b/tapcrm/packages/client/src/company/api/leaveApi.ts
+index c11bf77..a8b9326 100644
+--- a/tapcrm/packages/client/src/company/api/leaveApi.ts
++++ b/tapcrm/packages/client/src/company/api/leaveApi.ts
+@@ -70,9 +70,12 @@ export function listLeaveTypes(): Promise<LeaveTypeDto[]> {
+   return peopleRead<LeaveTypeDto[]>('/api/leaves/types', { staleMs: 120_000 });
+ }
+ 
+-/** Employee-safe catalogue: only active absence types that can be requested. */
+-export function listAvailableLeaveTypes(): Promise<LeaveTypeDto[]> {
+-  return peopleRead<LeaveTypeDto[]>('/api/leaves/types/available', { staleMs: 0 });
++/**
++ * Employee-safe catalogue of active types that can be requested: absence types
++ * for a leave request, attendance-mode types for a WFH request.
++ */
++export function listAvailableLeaveTypes(kind: 'absence' | 'attendance-mode' = 'absence'): Promise<LeaveTypeDto[]> {
++  return peopleRead<LeaveTypeDto[]>(`/api/leaves/types/available?kind=${kind}`, { staleMs: 0 });
+ }
+ 
+ export function createLeaveType(body: {
+diff --git a/tapcrm/packages/client/src/company/api/payrollApi.ts b/tapcrm/packages/client/src/company/api/payrollApi.ts
+index b021224..a94b5de 100644
+--- a/tapcrm/packages/client/src/company/api/payrollApi.ts
++++ b/tapcrm/packages/client/src/company/api/payrollApi.ts
+@@ -193,7 +193,7 @@ export interface PayrollConfig {
+   supersedesConfigId: string | null;
+ }
+ 
+-export type PayrollInputKind = 'adjustment' | 'advance-recovery' | 'arrear' | 'bonus' | 'tds' | 'break-deduction';
++export type PayrollInputKind = 'adjustment' | 'advance-recovery' | 'arrear' | 'bonus' | 'tds' | 'break-deduction' | 'penalty';
+ export type PayrollInputState = 'pending' | 'in-run' | 'published' | 'unpaid' | 'revoked';
+ 
+ export interface PayrollInput {
+@@ -207,6 +207,10 @@ export interface PayrollInput {
+   label: string;
+   reason: string | null;
+   breakBreachId: string | null;
++  /** Set when the entry comes from an advance's recovery plan. */
++  advanceDeductionId?: string | null;
++  /** Set when the entry comes from a penalty. */
++  penaltyId?: string | null;
+   createdAt: string;
+   createdByName: string | null;
+   revokedAt: string | null;
+@@ -401,6 +405,7 @@ export const INPUT_KIND_LABELS: Record<PayrollInputKind, string> = {
+   'advance-recovery': 'Advance recovery',
+   tds: 'TDS (income tax)',
+   'break-deduction': 'Break deduction',
++  penalty: 'Penalty',
+ };
+ 
+ export const BLOCKER_LABELS: Record<string, string> = {
+diff --git a/tapcrm/packages/client/src/company/attendance/AttendancePage.tsx b/tapcrm/packages/client/src/company/attendance/AttendancePage.tsx
+index 8f86283..9231545 100644
+--- a/tapcrm/packages/client/src/company/attendance/AttendancePage.tsx
++++ b/tapcrm/packages/client/src/company/attendance/AttendancePage.tsx
+@@ -132,8 +132,10 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
+ 
+   useEffect(() => { loadMyCorrections(); }, []);
+   const [correctionKind, setCorrectionKind] = useState<'add-event' | 'replace-event' | 'void-event'>('add-event');
+-  const [correctionEventKind, setCorrectionEventKind] = useState<'in' | 'out' | 'break-start' | 'break-end'>('in');
++  const [correctionEventKind, setCorrectionEventKind] = useState<'in' | 'out' | 'break-start' | 'break-end' | 'in-out'>('in');
+   const [correctionAt, setCorrectionAt] = useState('');
++  // Second time for the 'Check-in and check-out' choice: both punches were missed.
++  const [correctionOutAt, setCorrectionOutAt] = useState('');
+   const [correctionReason, setCorrectionReason] = useState('');
+   const [correctionTargetId, setCorrectionTargetId] = useState('');
+   const [submitting, setSubmitting] = useState(false);
+@@ -273,6 +275,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
+       } else if (correctionKind === 'replace-event') {
+         if (!correctionTargetId) { setCorrectionError('Select event to change.'); setSubmitting(false); return; }
+         if (!correctionAt) { setCorrectionError('Select the new date/time.'); setSubmitting(false); return; }
++        if (correctionEventKind === 'in-out') { setCorrectionError('Choose which event the change is for.'); setSubmitting(false); return; }
+         body = { workDate: selectedDate, reason: correctionReason, kind: 'replace-event', payload: { targetEventId: correctionTargetId, kind: correctionEventKind, at: organizationLocalToIso(correctionAt, organizationTimezone) } };
+       } else {
+         if (!correctionAt) { setCorrectionError('Select date/time for the event.'); setSubmitting(false); return; }
+@@ -280,7 +283,16 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
+         // browser interprets in the user's local tz. Convert it to the ORG's
+         // local wall-clock so an operator in a different browser tz still
+         // records the event at the time they typed.
+-        body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: correctionEventKind, at: organizationLocalToIso(correctionAt, organizationTimezone) } };
++        if (correctionEventKind === 'in-out') {
++          if (!correctionOutAt) { setCorrectionError('Select the check-out time too.'); setSubmitting(false); return; }
++          if (correctionOutAt <= correctionAt) { setCorrectionError('The check-out must be after the check-in.'); setSubmitting(false); return; }
++          // Two requests, check-in first: the server reads the pending check-in
++          // with the check-out, so HR can approve them in either order.
++          await requestAttendanceCorrection({ workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: 'in', at: organizationLocalToIso(correctionAt, organizationTimezone) } });
++          body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: 'out', at: organizationLocalToIso(correctionOutAt, organizationTimezone) } };
++        } else {
++          body = { workDate: selectedDate, reason: correctionReason, kind: 'add-event', payload: { kind: correctionEventKind, at: organizationLocalToIso(correctionAt, organizationTimezone) } };
++        }
+       }
+       await requestAttendanceCorrection(body);
+       setCorrectionNotice('Correction requested. HR will review it; you can follow it below.');
+@@ -288,6 +300,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
+       setShowCorrectionForm(false);
+       setCorrectionReason('');
+       setCorrectionAt('');
++      setCorrectionOutAt('');
+       setDetail(null);
+       setDetailLoading(true);
+       void (async () => {
+@@ -441,12 +454,13 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
+                   >
+                     <option value="in">Check-in</option>
+                     <option value="out">Check-out</option>
++                    <option value="in-out">Check-in and check-out</option>
+                     <option value="break-start">Break start</option>
+                     <option value="break-end">Break end</option>
+                   </select>
+                 </div>
+                 <div>
+-                  <label className="block text-xs font-semibold text-app-muted">Date & time</label>
++                  <label className="block text-xs font-semibold text-app-muted">{correctionEventKind === 'in-out' ? 'Check-in date & time' : 'Date & time'}</label>
+                   <input
+                     type="datetime-local"
+                     value={correctionAt}
+@@ -454,6 +468,17 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
+                     className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
+                   />
+                 </div>
++                {correctionEventKind === 'in-out' && (
++                  <div className="sm:col-start-2">
++                    <label className="block text-xs font-semibold text-app-muted">Check-out date & time</label>
++                    <input
++                      type="datetime-local"
++                      value={correctionOutAt}
++                      onChange={(e) => setCorrectionOutAt(e.target.value)}
++                      className="mt-1 w-full rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-sm"
++                    />
++                  </div>
++                )}
+               </div>
+             )}
+ 
+diff --git a/tapcrm/packages/client/src/company/attendance/AttendanceReportPage.tsx b/tapcrm/packages/client/src/company/attendance/AttendanceReportPage.tsx
+index 458cc13..52b1782 100644
+--- a/tapcrm/packages/client/src/company/attendance/AttendanceReportPage.tsx
++++ b/tapcrm/packages/client/src/company/attendance/AttendanceReportPage.tsx
+@@ -23,7 +23,7 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
+     <Card><div className="flex flex-wrap items-end gap-3"><div className="flex gap-2"><Button kind={mode === 'daily' ? 'primary' : 'secondary'} onClick={() => { setMode('daily'); setPage(1); }}>Daily</Button><Button kind={mode === 'monthly' ? 'primary' : 'secondary'} onClick={() => { setMode('monthly'); setPage(1); }}>Monthly</Button></div>{mode === 'daily' ? <label className="text-xs font-semibold text-app-muted"><span className="mb-2 block">Date</span><input type="date" value={date} onChange={(event) => { if (validDateOnly(event.target.value)) { setDate(event.target.value); setPage(1); } }} className="rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm" /></label> : <><Select label="Month" value={month} onChange={(value) => { setMonth(value); setPage(1); }} options={months} /><Select label="Year" value={year} onChange={(value) => { setYear(value); setPage(1); }} options={years.map((value) => ({ value, label: value }))} /></>}<Select label="Shift" value={shiftId} onChange={(value) => { setShiftId(value); setPage(1); }} options={shifts.map((item) => ({ value: item.id, label: item.name }))} />{canExport && <><Select label="Export format" value={format} onChange={(value) => setFormat(value as 'csv' | 'xlsx')} options={[{ value: 'csv', label: 'CSV' }, { value: 'xlsx', label: 'XLSX' }]} /><Button disabled={exporting} onClick={() => void exportReport()}>{exporting ? 'Exporting…' : 'Export'}</Button></>}</div></Card>
+     {!loading && !error && <Card className="mt-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">At-a-glance status</h2><p className="text-sm text-app-muted">{mode === 'daily' ? date : `${month}/${year}`} · {total} employees</p></div><AttendanceLegend /></div><div className="mt-4"><AttendanceKpis items={mode === 'daily' ? [{ label: 'Present', value: dailyRows.filter((row) => row.status === 'present' || row.arrivalAt).length, tone: 'border-emerald-200 dark:border-emerald-800' }, { label: 'WFH', value: dailyRows.filter((row) => row.isWfh).length, tone: 'border-sky-200 dark:border-sky-800' }, { label: 'Late', value: dailyRows.filter((row) => row.lateMinutes > 0).length, tone: 'border-amber-200 dark:border-amber-800' }, { label: 'No punch', value: dailyRows.filter((row) => !row.arrivalAt).length, tone: 'border-app-border' }] : [{ label: 'Employees', value: total }, { label: 'Present units', value: monthlyRows.reduce((sum, row) => sum + row.presentUnits, 0), tone: 'border-emerald-200 dark:border-emerald-800' }, { label: 'Absent units', value: monthlyRows.reduce((sum, row) => sum + row.absentUnits, 0), tone: 'border-rose-200 dark:border-rose-800' }, { label: 'WFH days', value: monthlyRows.reduce((sum, row) => sum + row.wfhDays, 0), tone: 'border-sky-200 dark:border-sky-800' }]} /></div></Card>}
+     {error && <Notice error>{error}</Notice>}{loading && <Loading />}{!loading && !error && ((mode === 'daily' && dailyRows.length === 0) || (mode === 'monthly' && monthlyRows.length === 0)) && <Empty>{mode === 'daily' ? 'No employees or attendance data are available for this date and visibility scope.' : 'No attendance data are available for this month and shift selection.'}</Empty>}
+-    {!loading && !error && mode === 'daily' && dailyRows.length > 0 && <Card className="overflow-x-auto p-0"><table className="w-full min-w-[1100px] text-sm"><thead><tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted">{['Employee', 'Email/ID', 'Department', 'Team', 'Position', 'Designation', 'Shift', 'Punch in', 'Punch out', 'Worked', 'Break', 'Late', 'Overtime', 'WFH', 'Status'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead><tbody>{dailyRows.map((row) => <tr key={row.id} className="border-b border-app-border last:border-0"><td className="px-3 py-3 font-semibold">{row.fullName}</td><td className="px-3 py-3">{row.employeeId ?? '—'}</td><td className="px-3 py-3">{row.departmentName ?? '—'}</td><td className="px-3 py-3">{row.teamName ?? '—'}</td><td className="px-3 py-3">{row.positionName ?? '—'}</td><td className="px-3 py-3">{row.designationName ?? '—'}</td><td className="px-3 py-3">{row.shift?.kind ?? '—'}</td><td className="px-3 py-3">{time(row.arrivalAt)}</td><td className="px-3 py-3">{time(row.departureAt)}</td><td className="px-3 py-3">{duration(row.workedMinutes)}</td><td className="px-3 py-3">{duration(row.breakMinutes)}</td><td className="px-3 py-3">{row.lateMinutes}m</td><td className="px-3 py-3">{row.overtimeMinutes}m</td><td className="px-3 py-3">{row.isWfh ? 'Yes' : 'No'}</td><td className="px-3 py-3 font-semibold">{dailyStatus(row)}</td></tr>)}</tbody></table><Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} /></Card>}
++    {!loading && !error && mode === 'daily' && dailyRows.length > 0 && <Card className="overflow-x-auto p-0"><table className="w-full min-w-[1100px] text-sm"><thead><tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted">{['Employee', 'Email/ID', 'Department', 'Team', 'Position', 'Designation', 'Shift', 'Punch in', 'Punch out', 'Worked', 'Break', 'Late', 'Overtime', 'Work mode', 'Status'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead><tbody>{dailyRows.map((row) => <tr key={row.id} className="border-b border-app-border last:border-0"><td className="px-3 py-3 font-semibold">{row.fullName}</td><td className="px-3 py-3">{row.employeeId ?? '—'}</td><td className="px-3 py-3">{row.departmentName ?? '—'}</td><td className="px-3 py-3">{row.teamName ?? '—'}</td><td className="px-3 py-3">{row.positionName ?? '—'}</td><td className="px-3 py-3">{row.designationName ?? '—'}</td><td className="px-3 py-3">{row.shift?.kind ?? '—'}</td><td className="px-3 py-3">{time(row.arrivalAt)}</td><td className="px-3 py-3">{time(row.departureAt)}</td><td className="px-3 py-3">{duration(row.workedMinutes)}</td><td className="px-3 py-3">{duration(row.breakMinutes)}</td><td className="px-3 py-3">{row.lateMinutes}m</td><td className="px-3 py-3">{row.overtimeMinutes}m</td><td className="px-3 py-3">{!row.arrivalAt ? '—' : row.isWfh ? 'WFH' : row.flags.includes('remote-without-approval') ? <span className="font-semibold text-amber-700 dark:text-amber-300">Remote (not approved)</span> : 'Office'}</td><td className="px-3 py-3 font-semibold">{dailyStatus(row)}</td></tr>)}</tbody></table><Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} /></Card>}
+     {!loading && !error && mode === 'monthly' && monthlyRows.length > 0 && <Card className="overflow-hidden p-0"><div className="overflow-x-auto"><table className="min-w-[1200px] w-full text-sm"><thead><tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted"><th className="sticky left-0 z-10 min-w-52 bg-app-surface-raised px-4 py-3">Employee</th><th className="min-w-28 px-3 py-3">Shift</th>{dates.map((item) => <th key={item} className="min-w-12 px-2 py-3 text-center">{Number(item.slice(8))}</th>)}</tr></thead><tbody>{monthlyRows.map((row) => { const records = new Map(row.records.map((record) => [record.date, record])); return <tr key={row.id} className="border-b border-app-border"><td className="sticky left-0 z-10 bg-app-surface px-4 py-3"><p className="font-semibold">{row.fullName}</p><p className="text-xs text-app-muted">{row.employeeId ?? '—'} · {row.departmentName ?? '—'}</p></td><td className="px-3 py-3 text-xs text-app-muted">{row.shift?.kind ?? 'Multiple/—'}</td>{dates.map((item) => <td key={item} className="px-1 py-2 text-center text-xs font-bold">{code(records.get(item))}</td>)}</tr>; })}</tbody></table></div><div className="overflow-x-auto border-t border-app-border"><table className="w-full min-w-[1000px] text-sm"><thead><tr className="text-left text-xs text-app-muted"><th className="px-4 py-3">Employee totals</th><th className="px-3 py-3">Present</th><th className="px-3 py-3">Leave</th><th className="px-3 py-3">Absent</th><th className="px-3 py-3">Holiday</th><th className="px-3 py-3">WFH</th><th className="px-3 py-3">Late</th><th className="px-3 py-3">Worked</th><th className="px-3 py-3">Break</th><th className="px-3 py-3">Overtime</th></tr></thead><tbody>{monthlyRows.map((row) => <tr key={row.id} className="border-t border-app-border"><td className="px-4 py-2 font-semibold">{row.fullName}</td><td className="px-3 py-2">{row.presentUnits}</td><td className="px-3 py-2">{row.paidLeaveUnits + row.unpaidLeaveUnits}</td><td className="px-3 py-2">{row.absentUnits}</td><td className="px-3 py-2">{row.holidayUnits}</td><td className="px-3 py-2">{row.wfhDays}</td><td className="px-3 py-2">{row.lateDays} / {row.lateMinutes}m</td><td className="px-3 py-2">{duration(row.workedMinutes)}</td><td className="px-3 py-2">{duration(row.breakMinutes)}</td><td className="px-3 py-2">{row.overtimeMinutes}m</td></tr>)}</tbody></table></div><Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} /></Card>}
+   </Page>;
+ }
+diff --git a/tapcrm/packages/client/src/company/employees/EditEmployeeModal.tsx b/tapcrm/packages/client/src/company/employees/EditEmployeeModal.tsx
+index 5acda10..abe1753 100644
+--- a/tapcrm/packages/client/src/company/employees/EditEmployeeModal.tsx
++++ b/tapcrm/packages/client/src/company/employees/EditEmployeeModal.tsx
+@@ -67,6 +67,12 @@ function TextInput({
+   );
+ }
+ 
++/** Today in the user's own calendar — the UTC date is still yesterday before 05:30 in India. */
++function localToday(): string {
++  const now = new Date();
++  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
++}
++
+ function Choice({
+   label,
+   value,
+@@ -120,6 +126,8 @@ export function EditEmployeeModal({
+   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
+   const [tab, setTab] = useState<Tab>('profile');
+   const [error, setError] = useState<string | null>(null);
++  // The Shift tab holds two forms; each shows only its own error.
++  const [weekdayError, setWeekdayError] = useState<string | null>(null);
+   const [notice, setNotice] = useState<string | null>(null);
+   const [busy, setBusy] = useState(false);
+ 
+@@ -147,9 +155,9 @@ export function EditEmployeeModal({
+   const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
+   const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
+   const [selectedShiftId, setSelectedShiftId] = useState('');
+-  const [shiftEffectiveFrom, setShiftEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
++  const [shiftEffectiveFrom, setShiftEffectiveFrom] = useState(localToday());
+   const [weekdayScheduleId, setWeekdayScheduleId] = useState('');
+-  const [weekdayScheduleEffectiveFrom, setWeekdayScheduleEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
++  const [weekdayScheduleEffectiveFrom, setWeekdayScheduleEffectiveFrom] = useState(localToday());
+ 
+   // Account
+   const [statusReason, setStatusReason] = useState('');
+@@ -186,7 +194,7 @@ export function EditEmployeeModal({
+     getEmployeeWeekdaySchedule(userId)
+       .then((assignment) => {
+         setWeekdayScheduleId(assignment?.scheduleId ?? '');
+-        setWeekdayScheduleEffectiveFrom(assignment?.effectiveFrom ?? new Date().toISOString().slice(0, 10));
++        setWeekdayScheduleEffectiveFrom(assignment?.effectiveFrom ?? localToday());
+       })
+       .catch(() => undefined);
+   }, [userId]);
+@@ -324,7 +332,7 @@ export function EditEmployeeModal({
+     event.preventDefault();
+     if (!weekdayScheduleId || !weekdayScheduleEffectiveFrom) return;
+     setBusy(true);
+-    setError(null);
++    setWeekdayError(null);
+     setNotice(null);
+     try {
+       await updateEmployee(userId, {
+@@ -334,7 +342,7 @@ export function EditEmployeeModal({
+       const schedule = weekdaySchedules.find((item) => item.id === weekdayScheduleId);
+       onSaved(`Weekday schedule changed to ${schedule?.name ?? 'selected schedule'} effective ${weekdayScheduleEffectiveFrom}.`);
+     } catch (err) {
+-      setError(errorText(err, 'Unable to save the weekday schedule.'));
++      setWeekdayError(errorText(err, 'Unable to save the weekday schedule.'));
+     } finally {
+       setBusy(false);
+     }
+@@ -359,7 +367,7 @@ export function EditEmployeeModal({
+                 type="button"
+                 role="tab"
+                 aria-selected={tab === item.key}
+-                onClick={() => { setTab(item.key); setError(null); setNotice(null); }}
++                onClick={() => { setTab(item.key); setError(null); setWeekdayError(null); setNotice(null); }}
+                 className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold ${tab === item.key ? 'bg-app-accent text-app-on-accent' : 'text-app-muted hover:text-app-foreground'}`}
+               >
+                 {item.label}
+@@ -535,7 +543,7 @@ export function EditEmployeeModal({
+                   required
+                 />
+               </div>
+-              {error && <div className="md:col-span-2"><Notice error>{error}</Notice></div>}
++              {weekdayError && <div className="md:col-span-2"><Notice error>{weekdayError}</Notice></div>}
+               <div className="flex justify-end gap-2 md:col-span-2">
+                 <Button kind="secondary" onClick={onClose}>Close</Button>
+                 <Button type="submit" disabled={busy || !weekdayScheduleId}>{busy ? 'Saving…' : 'Save weekday schedule'}</Button>
+diff --git a/tapcrm/packages/client/src/company/leave/LeavePage.tsx b/tapcrm/packages/client/src/company/leave/LeavePage.tsx
+index 4455232..3bc2d8d 100644
+--- a/tapcrm/packages/client/src/company/leave/LeavePage.tsx
++++ b/tapcrm/packages/client/src/company/leave/LeavePage.tsx
+@@ -139,7 +139,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
+     setFormError(null);
+     try {
+       const kind = mode === 'wfh' ? 'attendance-mode' : 'absence';
+-      setLeaveTypes((await listAvailableLeaveTypes()).filter((type) => type.isActive && type.kind === kind));
++      setLeaveTypes((await listAvailableLeaveTypes(kind)).filter((type) => type.isActive && type.kind === kind));
+     } catch (cause) {
+       setFormError(cause instanceof Error ? cause.message : 'Unable to load leave types.');
+     } finally {
+@@ -402,7 +402,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
+                     <p className="font-semibold">{leave.leaveTypeName}</p>
+                     <p className="text-xs text-app-muted">
+                       {fmtDate(leave.fromDate)} — {fmtDate(leave.toDate)}
+-                      {' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}
++                      {leave.kind === 'attendance-mode' ? ' · work from home' : <>{' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}</>}
+                     </p>
+                     {leave.reason && <p className="mt-1 text-xs text-app-muted">{leave.reason}</p>}
+                   </div>
+diff --git a/tapcrm/packages/client/src/company/leave/LeaveQueuePage.tsx b/tapcrm/packages/client/src/company/leave/LeaveQueuePage.tsx
+index aa325de..107a373 100644
+--- a/tapcrm/packages/client/src/company/leave/LeaveQueuePage.tsx
++++ b/tapcrm/packages/client/src/company/leave/LeaveQueuePage.tsx
+@@ -301,7 +301,7 @@ export function LeaveQueuePage({
+                     </div>
+                     <p className="text-xs text-app-muted">
+                       {leave.leaveTypeName} · {fmtDate(leave.fromDate)} — {fmtDate(leave.toDate)}
+-                      {' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}
++                      {leave.kind === 'attendance-mode' ? ' · work from home' : <>{' · '}{leave.daysConsumed} day{leave.daysConsumed !== 1 ? 's' : ''}</>}
+                     </p>
+                     {leave.reason && (
+                       <p className="mt-1 text-xs text-app-muted">{leave.reason}</p>
+diff --git a/tapcrm/packages/client/src/company/live/LiveBoardPage.tsx b/tapcrm/packages/client/src/company/live/LiveBoardPage.tsx
+index 431b273..d0d0bbd 100644
+--- a/tapcrm/packages/client/src/company/live/LiveBoardPage.tsx
++++ b/tapcrm/packages/client/src/company/live/LiveBoardPage.tsx
+@@ -964,6 +964,11 @@ export function LiveBoardPage(): React.JSX.Element {
+                                   WFH
+                                 </span>
+                               )}
++                              {row.isRemote && (
++                                <span title="Punched in from the web or the app without approved WFH" className="rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
++                                  Remote
++                                </span>
++                              )}
+                             </div>
+                             <span className="text-[11px] text-app-muted block">{empCode}</span>
+                           </div>
+@@ -1021,6 +1026,11 @@ export function LiveBoardPage(): React.JSX.Element {
+                               WFH
+                             </span>
+                           )}
++                          {row.isRemote && (
++                            <span title="Punched in from the web or the app without approved WFH" className="rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
++                              Remote
++                            </span>
++                          )}
+                         </div>
+                         <p className="text-[11px] text-app-muted truncate">
+                           {empCode} • {row.departmentName ?? '—'}
+@@ -1139,7 +1149,7 @@ export function LiveBoardPage(): React.JSX.Element {
+               <div>
+                 <span className="text-[11px] text-app-muted block">Work Mode</span>
+                 <span className="font-semibold text-app-foreground mt-1 inline-block">
+-                  {selectedEmployee.isWfh ? '🏠 Remote / WFH' : '🏢 Office'}
++                  {selectedEmployee.isWfh ? '🏠 WFH (approved)' : selectedEmployee.isRemote ? '🌐 Remote, no WFH approval' : '🏢 Office'}
+                 </span>
+               </div>
+               <div>
+diff --git a/tapcrm/packages/client/src/company/live/liveApi.ts b/tapcrm/packages/client/src/company/live/liveApi.ts
+index 39234e9..63cd00c 100644
+--- a/tapcrm/packages/client/src/company/live/liveApi.ts
++++ b/tapcrm/packages/client/src/company/live/liveApi.ts
+@@ -30,6 +30,8 @@ export interface LiveRow {
+   lastScanAt: string | null;
+   likelyFinishedAt: string | null;
+   isWfh: boolean;
++  /** Punched in from the web or the app without approved WFH. */
++  isRemote?: boolean;
+   dayGroup: 'leave' | 'holiday' | null;
+   shiftStartAt: string | null;
+   shiftEndAt: string | null;
+diff --git a/tapcrm/packages/client/src/company/payroll/PayrollInputsPage.tsx b/tapcrm/packages/client/src/company/payroll/PayrollInputsPage.tsx
+index 7e71c3d..468225a 100644
+--- a/tapcrm/packages/client/src/company/payroll/PayrollInputsPage.tsx
++++ b/tapcrm/packages/client/src/company/payroll/PayrollInputsPage.tsx
+@@ -20,9 +20,9 @@ function errorText(err: unknown, fallback: string): string {
+   return err instanceof Error ? err.message : fallback;
+ }
+ 
+-type ManualKind = Exclude<PayrollInputKind, 'break-deduction'>;
++type ManualKind = Exclude<PayrollInputKind, 'break-deduction' | 'penalty'>;
+ const MANUAL_KINDS: ManualKind[] = ['bonus', 'arrear', 'adjustment', 'advance-recovery', 'tds'];
+-const DEDUCTION_KINDS = new Set<PayrollInputKind>(['advance-recovery', 'tds', 'break-deduction']);
++const DEDUCTION_KINDS = new Set<PayrollInputKind>(['advance-recovery', 'tds', 'break-deduction', 'penalty']);
+ 
+ const STATE_LABELS: Record<PayrollInputState, { label: string; className: string }> = {
+   pending: { label: 'Waiting for the run', className: 'bg-app-background text-app-muted' },
+@@ -187,7 +187,7 @@ export function PayrollInputsPage(): React.JSX.Element {
+     <Page
+       eyebrow="Payroll"
+       title="Bonuses & deductions"
+-      description="One-off amounts for a month: bonuses, arrears and additions are paid; advance recoveries and TDS are deducted. Break deductions arrive here from the break queue."
++      description="One-off amounts for a month: bonuses, arrears and additions are paid; advance recoveries and TDS are deducted. Break deductions arrive here from the break queue, advance recoveries from approved advances, and penalties from the Penalties page; change those where they come from."
+       action={<Button onClick={() => { setNotice(null); setAdding(true); }}>Add entry</Button>}
+     >
+       <div className="mt-6 flex flex-wrap items-end gap-4">
+@@ -252,7 +252,8 @@ export function PayrollInputsPage(): React.JSX.Element {
+                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state.className}`}>{state.label}</span>
+                     </td>
+                     <td className="px-4 py-3 text-right">
+-                      {input.kind !== 'break-deduction' && input.state !== 'revoked' && input.state !== 'published' && (
++                      {/* Break deductions, advance recoveries and penalties are changed where they come from. */}
++                      {input.kind !== 'break-deduction' && !input.advanceDeductionId && !input.penaltyId && input.state !== 'revoked' && input.state !== 'published' && (
+                         <Button kind="secondary" onClick={() => { setRevokeReason(''); setRevoking(input); }}>Withdraw</Button>
+                       )}
+                     </td>
+diff --git a/tapcrm/packages/client/src/company/payroll/PayrollSettingsPage.tsx b/tapcrm/packages/client/src/company/payroll/PayrollSettingsPage.tsx
+index f3ed378..ac11e55 100644
+--- a/tapcrm/packages/client/src/company/payroll/PayrollSettingsPage.tsx
++++ b/tapcrm/packages/client/src/company/payroll/PayrollSettingsPage.tsx
+@@ -17,6 +17,37 @@ function thisMonth(): string {
+   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+ }
+ 
++/** One line per statutory rule the settings carry; empty when none are set. */
++function statutorySummary(settings: Record<string, unknown>): string[] {
++  const out: string[] = [];
++  const pf = settings['pf'] as { employeeRate?: number; employerRate?: number; wageCeiling?: number } | undefined;
++  if (pf && typeof pf.employeeRate === 'number' && typeof pf.employerRate === 'number')
++    out.push(`PF ${+(pf.employeeRate * 100).toFixed(3)}% employee, ${+(pf.employerRate * 100).toFixed(3)}% employer${typeof pf.wageCeiling === 'number' && pf.wageCeiling > 0 ? `, wage capped at ₹${pf.wageCeiling.toLocaleString('en-IN')}` : ''}`);
++  const pt = settings['professionalTax'] as { monthly?: number } | undefined;
++  if (pt && typeof pt.monthly === 'number') out.push(`Professional tax ₹${pt.monthly.toLocaleString('en-IN')} a month`);
++  const esi = settings['esi'] as { enabled?: boolean; employeeRate?: number; employerRate?: number; wageLimit?: number } | undefined;
++  if (esi && typeof esi.enabled === 'boolean')
++    out.push(esi.enabled
++      ? `ESI ${+((esi.employeeRate ?? 0.0075) * 100).toFixed(3)}% employee, ${+((esi.employerRate ?? 0.0325) * 100).toFixed(3)}% employer, up to ₹${(esi.wageLimit ?? 21000).toLocaleString('en-IN')} gross`
++      : 'ESI off');
++  const ot = settings['overtime'] as { enabled?: boolean; multiplier?: number } | undefined;
++  const hw = settings['holidayWork'] as { enabled?: boolean; multiplier?: number } | undefined;
++  const rate = settings['ordinaryRate'] as { workingDaysPerMonth?: number; hoursPerDay?: number } | undefined;
++  const ordinary = `basic ÷ (${rate?.workingDaysPerMonth ?? 26} days × ${rate?.hoursPerDay ?? 8} h)`;
++  if (ot?.enabled) out.push(`Overtime paid at ${ot.multiplier ?? 2}× the hourly rate (${ordinary})`);
++  if (hw?.enabled) out.push(`Work on holidays and weekly offs paid at ${hw.multiplier ?? 2}× the hourly rate`);
++  return out;
++}
++
++const percent = (value: string): number | null => {
++  const n = Number(value);
++  return value.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 100 ? n / 100 : null;
++};
++const rupees = (value: string): number | null => {
++  const n = Number(value);
++  return value.trim() !== '' && Number.isFinite(n) && n >= 0 ? n : null;
++};
++
+ const STATUS_LABELS: Record<PayrollConfig['status'], string> = {
+   active: 'In use',
+   superseded: 'Replaced',
+@@ -33,6 +64,23 @@ export function PayrollSettingsPage(): React.JSX.Element {
+   const [approval, setApproval] = useState('');
+   const [payDay, setPayDay] = useState('');
+   const [notes, setNotes] = useState('');
++  // Statutory rules (PY-4). Left off, the salary structure's own PF/PT/ESI amounts apply.
++  const [pfOn, setPfOn] = useState(true);
++  const [pfEmployee, setPfEmployee] = useState('12');
++  const [pfEmployer, setPfEmployer] = useState('12');
++  const [pfCeiling, setPfCeiling] = useState('15000');
++  const [ptMonthly, setPtMonthly] = useState(''); // PT differs by state: blank keeps the salary line's amount
++  const [esiOn, setEsiOn] = useState(false);
++  const [esiEmployee, setEsiEmployee] = useState('0.75');
++  const [esiEmployer, setEsiEmployer] = useState('3.25');
++  const [esiLimit, setEsiLimit] = useState('21000');
++  // Overtime and holiday work are unpaid unless switched on.
++  const [otOn, setOtOn] = useState(false);
++  const [otMultiplier, setOtMultiplier] = useState('2');
++  const [holidayOn, setHolidayOn] = useState(false);
++  const [holidayMultiplier, setHolidayMultiplier] = useState('2');
++  const [daysPerMonth, setDaysPerMonth] = useState('26');
++  const [hoursPerDay, setHoursPerDay] = useState('8');
+   const [busy, setBusy] = useState(false);
+ 
+   const load = useCallback(async (): Promise<void> => {
+@@ -63,6 +111,24 @@ export function PayrollSettingsPage(): React.JSX.Element {
+       const settings: Record<string, unknown> = { currency: 'INR' };
+       if (payDay.trim()) settings['payDay'] = Number(payDay);
+       if (notes.trim()) settings['notes'] = notes.trim();
++      if (pfOn) {
++        const employeeRate = percent(pfEmployee);
++        const employerRate = percent(pfEmployer);
++        if (employeeRate === null || employerRate === null) throw new Error('Enter the PF rates as percentages, for example 12.');
++        settings['pf'] = { employeeRate, employerRate, ...(rupees(pfCeiling) ? { wageCeiling: rupees(pfCeiling) } : {}) };
++      }
++      if (ptMonthly.trim()) {
++        const monthly = rupees(ptMonthly);
++        if (monthly === null) throw new Error('Enter professional tax as a monthly amount in rupees.');
++        settings['professionalTax'] = { monthly };
++      }
++      if (otOn) settings['overtime'] = { enabled: true, multiplier: rupees(otMultiplier) ?? 2 };
++      if (holidayOn) settings['holidayWork'] = { enabled: true, multiplier: rupees(holidayMultiplier) ?? 2 };
++      if (otOn || holidayOn)
++        settings['ordinaryRate'] = { workingDaysPerMonth: rupees(daysPerMonth) ?? 26, hoursPerDay: rupees(hoursPerDay) ?? 8 };
++      settings['esi'] = esiOn
++        ? { enabled: true, employeeRate: percent(esiEmployee) ?? 0.0075, employerRate: percent(esiEmployer) ?? 0.0325, wageLimit: rupees(esiLimit) ?? 21000 }
++        : { enabled: false };
+       await acceptConfig({
+         effectiveFrom,
+         caHrApproval: approval.trim(),
+@@ -103,6 +169,13 @@ export function PayrollSettingsPage(): React.JSX.Element {
+           <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">In use</p>
+           <p className="mt-1 text-lg font-semibold">From {formatMonth(inUse.effectiveFrom)}</p>
+           <p className="text-sm text-app-muted">Approved by {inUse.caHrApproval}</p>
++          {statutorySummary(inUse.settings).length > 0 ? (
++            <ul className="mt-2 space-y-0.5 text-sm">
++              {statutorySummary(inUse.settings).map((line) => <li key={line}>{line}</li>)}
++            </ul>
++          ) : (
++            <p className="mt-2 text-sm text-app-muted">No statutory rules set: PF, PT and ESI come from each salary structure as entered. Overtime and holiday work are not paid.</p>
++          )}
+         </Card>
+       )}
+       {showForm && (
+@@ -147,6 +220,156 @@ export function PayrollSettingsPage(): React.JSX.Element {
+                 className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
+               />
+             </label>
++            <fieldset className="grid gap-4 rounded-xl border border-app-border p-4 md:col-span-2 md:grid-cols-3">
++              <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-app-muted">Statutory deductions</legend>
++              <p className="text-xs text-app-muted md:col-span-3">
++                Applied to salary lines tagged PF, PT or ESI. PF is taken on the earned PF wage (lines tagged PF wage), capped at the ceiling.
++              </p>
++              <label className="flex items-center gap-2 text-sm md:col-span-3">
++                <input type="checkbox" checked={pfOn} onChange={(e) => setPfOn(e.target.checked)} />
++                Calculate PF from these rates
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">PF employee rate (%)</span>
++                <input
++                  inputMode="decimal"
++                  value={pfEmployee}
++                  placeholder="12"
++                  disabled={!pfOn}
++                  onChange={(e) => setPfEmployee(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">PF employer rate (%)</span>
++                <input
++                  inputMode="decimal"
++                  value={pfEmployer}
++                  placeholder="12"
++                  disabled={!pfOn}
++                  onChange={(e) => setPfEmployer(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">PF wage ceiling (₹, blank for none)</span>
++                <input
++                  inputMode="decimal"
++                  value={pfCeiling}
++                  placeholder="15000"
++                  disabled={!pfOn}
++                  onChange={(e) => setPfCeiling(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">Professional tax per month (₹, blank to use the salary line)</span>
++                <input
++                  inputMode="decimal"
++                  value={ptMonthly}
++                  placeholder="200"
++                  onChange={(e) => setPtMonthly(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <label className="flex items-center gap-2 text-sm md:col-span-3">
++                <input type="checkbox" checked={esiOn} onChange={(e) => setEsiOn(e.target.checked)} />
++                Deduct ESI
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">ESI employee rate (%)</span>
++                <input
++                  inputMode="decimal"
++                  value={esiEmployee}
++                  placeholder="0.75"
++                  disabled={!esiOn}
++                  onChange={(e) => setEsiEmployee(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">ESI employer rate (%)</span>
++                <input
++                  inputMode="decimal"
++                  value={esiEmployer}
++                  placeholder="3.25"
++                  disabled={!esiOn}
++                  onChange={(e) => setEsiEmployer(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">ESI applies up to gross (₹)</span>
++                <input
++                  inputMode="decimal"
++                  value={esiLimit}
++                  placeholder="21000"
++                  disabled={!esiOn}
++                  onChange={(e) => setEsiLimit(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++            </fieldset>
++            <fieldset className="grid gap-4 rounded-xl border border-app-border p-4 md:col-span-2 md:grid-cols-3">
++              <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-app-muted">Overtime and holiday work</legend>
++              <p className="text-xs text-app-muted md:col-span-3">
++                The hourly rate is the basic wage (lines tagged PF wage) over working days × hours. Overtime counts only confirmed overtime on working days.
++              </p>
++              <label className="flex items-center gap-2 text-sm">
++                <input type="checkbox" checked={otOn} onChange={(e) => setOtOn(e.target.checked)} />
++                Pay overtime
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">Overtime multiplier</span>
++                <input
++                  inputMode="decimal"
++                  value={otMultiplier}
++                  placeholder="2"
++                  disabled={!otOn}
++                  onChange={(e) => setOtMultiplier(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <span className="hidden md:block" />
++              <label className="flex items-center gap-2 text-sm">
++                <input type="checkbox" checked={holidayOn} onChange={(e) => setHolidayOn(e.target.checked)} />
++                Pay work on holidays and weekly offs
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">Holiday work multiplier</span>
++                <input
++                  inputMode="decimal"
++                  value={holidayMultiplier}
++                  placeholder="2"
++                  disabled={!holidayOn}
++                  onChange={(e) => setHolidayMultiplier(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <span className="hidden md:block" />
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">Working days a month (hourly rate)</span>
++                <input
++                  inputMode="decimal"
++                  value={daysPerMonth}
++                  placeholder="26"
++                  disabled={!otOn && !holidayOn}
++                  onChange={(e) => setDaysPerMonth(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++              <label className="text-xs font-semibold text-app-muted">
++                <span className="mb-2 block">Hours a day (hourly rate)</span>
++                <input
++                  inputMode="decimal"
++                  value={hoursPerDay}
++                  placeholder="8"
++                  disabled={!otOn && !holidayOn}
++                  onChange={(e) => setHoursPerDay(e.target.value)}
++                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent disabled:opacity-50"
++                />
++              </label>
++            </fieldset>
+             {replacing && (
+               <div className="md:col-span-2">
+                 <Notice>Settings for {formatMonth(effectiveFrom)} are already accepted. Saving replaces them; the earlier version stays on record.</Notice>
+@@ -182,6 +405,7 @@ export function PayrollSettingsPage(): React.JSX.Element {
+                   <td className="px-4 py-3 text-xs">
+                     {typeof config.settings['notes'] === 'string' ? config.settings['notes'] : '—'}
+                     {typeof config.settings['payDay'] === 'number' && <span className="block">Pay day: {String(config.settings['payDay'])}</span>}
++                    {statutorySummary(config.settings).map((line) => <span key={line} className="block">{line}</span>)}
+                   </td>
+                   <td className="px-4 py-3 text-xs">{config.acceptedByName ?? '—'}, {formatDate(config.acceptedAt)}</td>
+                   <td className="px-4 py-3 text-xs">{STATUS_LABELS[config.status]}</td>
+diff --git a/tapcrm/packages/client/src/company/penalties/PenaltiesPage.tsx b/tapcrm/packages/client/src/company/penalties/PenaltiesPage.tsx
+index 2fdb4df..e2750f9 100644
+--- a/tapcrm/packages/client/src/company/penalties/PenaltiesPage.tsx
++++ b/tapcrm/packages/client/src/company/penalties/PenaltiesPage.tsx
+@@ -111,7 +111,7 @@ export function PenaltiesPage(): React.JSX.Element {
+     <Page
+       eyebrow="HR · Advances"
+       title="Penalties"
+-      description="Manage employee penalties and prepare them for future payroll deduction."
++      description="Manage employee penalties. Each active penalty is deducted in the payroll month you choose and marked recovered once that payslip is published."
+       action={<Button onClick={() => setShowForm(true)}>+ Add Penalty</Button>}
+     >
+       {error && <Notice error>{error}</Notice>}
+diff --git a/tapcrm/packages/client/src/company/today/TodayPage.tsx b/tapcrm/packages/client/src/company/today/TodayPage.tsx
+index a3c7b37..ebcb124 100644
+--- a/tapcrm/packages/client/src/company/today/TodayPage.tsx
++++ b/tapcrm/packages/client/src/company/today/TodayPage.tsx
+@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
+ import { loadTodayStatus, punch, type PunchKind, type LiveRow, type PunchDisabledReason } from '../live/liveApi.js';
+ import { getBreakAllowance, getBreakPrompts, submitBreachExplanation, type BreakAllowance, type BreakPrompt } from '../api/breaksApi.js';
+ import { getAttendanceDayDetail, type AttendanceEventView } from '../attendance/attendanceApi.js';
+-import { Button, GlassSurface, SkeletonTodayPage, WorkspacePageContainer } from '../../ui/index.js';
++import { Button, GlassSurface, Modal, SkeletonTodayPage, WorkspacePageContainer } from '../../ui/index.js';
+ import { organizationToday } from '../organizationDate.js';
+ 
+ // ── Formatters ───────────────────────────────────────────────────────────────
+@@ -151,6 +151,47 @@ function IconPlay({ className = 'h-4 w-4' }: { className?: string }): React.JSX.
+   );
+ }
+ 
++// ── Punch-out confirmation ──────────────────────────────────────────────────
++
++/**
++ * A punch-out finishes the day (LS-6): there is no punching in again without a
++ * correction. Before the shift ends, the dialog says so and offers a break.
++ */
++function PunchOutConfirm({
++  shiftEndAt,
++  now,
++  canStartBreak,
++  onCancel,
++  onBreak,
++  onConfirm,
++}: {
++  shiftEndAt: string | null;
++  now: Date;
++  canStartBreak: boolean;
++  onCancel: () => void;
++  onBreak: () => void;
++  onConfirm: () => void;
++}): React.JSX.Element {
++  const early = shiftEndAt !== null && now.getTime() < Date.parse(shiftEndAt);
++  return (
++    <Modal title="Punch out for the day?" onClose={onCancel}>
++      <p className="text-sm text-app-muted">
++        {early
++          ? `Your shift ends at ${fmtTime12(shiftEndAt)}. Punching out now ends your working day, and you can't punch in again today without asking HR for a correction.`
++          : 'This ends your working day.'}
++      </p>
++      {early && canStartBreak && (
++        <p className="mt-2 text-sm text-app-muted">Stepping out for a while? Start a break instead.</p>
++      )}
++      <div className="mt-5 flex flex-wrap justify-end gap-2">
++        <Button kind="secondary" onClick={onCancel}>Cancel</Button>
++        {early && canStartBreak && <Button kind="secondary" onClick={onBreak}>Start break instead</Button>}
++        <Button kind={early ? 'danger' : 'primary'} onClick={onConfirm}>Punch out</Button>
++      </div>
++    </Modal>
++  );
++}
++
+ // ── Greeting Card ────────────────────────────────────────────────────────────
+ 
+ const DISABLED_REASON_COPY: Record<PunchDisabledReason, string> = {
+@@ -201,7 +242,7 @@ function GreetingCard({
+       </div>
+ 
+       <div className="mt-3 flex flex-wrap items-center gap-3">
+-        <StatusPill state={state} isWfh={row?.isWfh ?? false} />
++        <StatusPill state={state} isWfh={row?.isWfh ?? false} isRemote={row?.isRemote ?? false} />
+         {(row?.shiftStartAt || row?.shiftEndAt) && (
+           <span className="text-xs text-app-muted">
+             Shift: {fmtTime12(row?.shiftStartAt ?? null)} – {fmtTime12(row?.shiftEndAt ?? null)}
+@@ -252,12 +293,12 @@ function GreetingCard({
+ 
+ // ── Status Pill ──────────────────────────────────────────────────────────────
+ 
+-function StatusPill({ state, isWfh }: { state: string; isWfh?: boolean }): React.JSX.Element {
++function StatusPill({ state, isWfh, isRemote }: { state: string; isWfh?: boolean; isRemote?: boolean }): React.JSX.Element {
+   if (state === 'WORKING') {
+     return (
+       <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+-        {isWfh ? 'Working from Home' : 'Currently In Office'}
++        {isWfh ? 'Working from Home' : isRemote ? 'Working remotely (no WFH approval)' : 'Currently In Office'}
+       </span>
+     );
+   }
+@@ -586,7 +627,7 @@ function buildActivityItems(
+     let sub = '';
+     if (kind === 'in') {
+       lastInTime = atMs;
+-      sub = row?.isWfh ? 'WFH' : 'Office';
++      sub = row?.isWfh ? 'WFH' : row?.isRemote ? 'Remote, no WFH approval' : 'Office';
+     } else if (kind === 'break-start' && lastInTime && atMs) {
+       workedBeforeBreak = Math.round((atMs - lastInTime) / 60000);
+       sub = workedBeforeBreak > 0 ? `After ${fmtShortDuration(workedBeforeBreak)} of work` : '';
+@@ -652,6 +693,8 @@ export function TodayPage({
+   const [now, setNow] = useState(() => new Date());
+   const [punchBusy, setPunchBusy] = useState<PunchKind | null>(null);
+   const [punchMessage, setPunchMessage] = useState<{ ok: boolean; text: string } | null>(null);
++  // Punching out ends the day for good (LS-6), so it is confirmed first.
++  const [confirmingOut, setConfirmingOut] = useState(false);
+   const [isTabletOrLarger, setIsTabletOrLarger] = useState(() => window.matchMedia('(min-width: 768px)').matches);
+   const abort = useRef<AbortController | null>(null);
+   const [version, setVersion] = useState(0);
+@@ -769,7 +812,7 @@ export function TodayPage({
+                 now={now}
+                 busy={punchBusy}
+                 msg={punchMessage}
+-                onPunch={(kind, label) => void handlePunch(kind, label)}
++                onPunch={(kind, label) => (kind === 'out' ? setConfirmingOut(true) : void handlePunch(kind, label))}
+                 breakActionButton={isTabletOrLarger ? null : breakActionButton}
+               />
+             </div>
+@@ -785,6 +828,16 @@ export function TodayPage({
+         {/* Break prompts (if any) */}
+         {prompts.length > 0 && <BreakPromptsPanel prompts={prompts} />}
+       </WorkspacePageContainer>
++      {confirmingOut && (
++        <PunchOutConfirm
++          shiftEndAt={row?.shiftEndAt ?? null}
++          now={now}
++          canStartBreak={row?.state === 'WORKING' && allowedMoves.includes('break-start')}
++          onCancel={() => setConfirmingOut(false)}
++          onBreak={() => { setConfirmingOut(false); void handlePunch('break-start', 'Break Start'); }}
++          onConfirm={() => { setConfirmingOut(false); void handlePunch('out', 'Punch Out'); }}
++        />
++      )}
+     </>
+   );
+ }
+diff --git a/tapcrm/packages/server/src/modules/advance/index.ts b/tapcrm/packages/server/src/modules/advance/index.ts
+index 4831ade..c659a00 100644
+--- a/tapcrm/packages/server/src/modules/advance/index.ts
++++ b/tapcrm/packages/server/src/modules/advance/index.ts
+@@ -1,2 +1,3 @@
+ export { registerAdvancePolicies } from './policy.js';
+ export { registerAdvanceRoutes } from './routes.js';
++export { registerAdvancePayrollPorts } from './payroll.js';
+diff --git a/tapcrm/packages/server/src/modules/advance/payroll.integration.test.ts b/tapcrm/packages/server/src/modules/advance/payroll.integration.test.ts
+new file mode 100644
+index 0000000..ad108ae
+--- /dev/null
++++ b/tapcrm/packages/server/src/modules/advance/payroll.integration.test.ts
+@@ -0,0 +1,102 @@
++/**
++ * Advance recoveries and penalties reach the payslip (migration 0142).
++ *
++ *   TAPCRM_INTEGRATION_DB=1 MIGRATION_DATABASE_URL=… DATABASE_URL=… npx vitest run <file>
++ */
++import { randomUUID } from 'node:crypto';
++import { afterAll, describe, expect, it } from 'vitest';
++import { db, platformDb } from '../../platform/dal/db.js';
++import { closePools } from '../../platform/dal/pool.js';
++import { sql } from '../../platform/dal/sql.js';
++import { createTestContext } from '../../platform/test-helpers.js';
++import { chargePenalty, registerPenaltyPayrollPorts, releasePenalty } from '../penalties/payroll.js';
++import { planDefaultRecovery, registerAdvancePayrollPorts, scheduleRecovery } from './payroll.js';
++
++const enabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
++const seed = <T>(reason: string, fragment: ReturnType<typeof sql>) =>
++  platformDb.query<T>('seed', reason, fragment);
++
++async function setup() {
++  const orgId = (await seed<{ id: string }>('org', sql`
++    INSERT INTO organization (code, name)
++    VALUES ('AP' || replace(gen_random_uuid()::text, '-', ''), 'Advance payroll test') RETURNING id`))[0]!.id;
++  const departmentId = (await seed<{ id: string }>('department', sql`
++    INSERT INTO department (organization_id, code, name, kind)
++    VALUES (${orgId}, 'OPS', 'Operations', 'support') RETURNING id`))[0]!.id;
++  const positionId = (await seed<{ id: string }>('position', sql`
++    INSERT INTO position (organization_id, department_id, code, name, organizational_level)
++    VALUES (${orgId}, ${departmentId}, 'STAFF', 'Staff', 10) RETURNING id`))[0]!.id;
++  const [hr, emp] = await Promise.all(['HR', 'EMP'].map(async (code) => (await seed<{ id: string }>(`user ${code}`, sql`
++    INSERT INTO app_user (organization_id, employee_id, email, full_name, account_type, department_id, position_id)
++    VALUES (${orgId}, ${code}, ${`${code.toLowerCase()}-${randomUUID()}@test.invalid`}, ${code}, 'employee',
++            ${departmentId}, ${positionId})
++    RETURNING id`))[0]!.id));
++  const advanceId = (await seed<{ id: string }>('advance', sql`
++    INSERT INTO employee_advance (organization_id, employee_id, requested_amount_paise, approved_amount_paise,
++      currency, requested_for_period, reason, status, source, approved_at, approved_by, created_by)
++    VALUES (${orgId}, ${emp}, 1000000, 1000000, 'INR', '2026-10-01', 'Medical bills', 'approved', 'manual',
++      now(), ${hr}, ${hr}) RETURNING id`))[0]!.id;
++  return { orgId, hr: hr!, emp: emp!, advanceId, ctx: createTestContext(orgId, hr!) };
++}
++
++const inputs = (orgId: string) => seed<{ kind: string; amount: string; periodStart: string; revoked: boolean; advanceDeductionId: string | null; penaltyId: string | null }>('read inputs', sql`
++  SELECT kind, amount::text AS amount, period_start::text AS period_start, revoked_at IS NOT NULL AS revoked,
++         advance_deduction_id, penalty_id
++  FROM payroll_input WHERE organization_id = ${orgId} ORDER BY created_at, id`);
++const deductions = (orgId: string) => seed<{ id: string; payrollPeriod: string; scheduledAmountPaise: string; status: string; plannedBy: string }>('read deductions', sql`
++  SELECT id, payroll_period::text AS payroll_period, scheduled_amount_paise::text AS scheduled_amount_paise, status, planned_by
++  FROM employee_advance_deduction WHERE organization_id = ${orgId} ORDER BY payroll_period`);
++
++describe.skipIf(!enabled)('advances and penalties in payroll (PostgreSQL)', () => {
++  afterAll(closePools);
++  registerAdvancePayrollPorts();
++  registerPenaltyPayrollPorts();
++
++  it('an approved advance is recovered from its month; an HR schedule replaces that plan', async () => {
++    const { orgId, emp, advanceId, ctx } = await setup();
++    const advance = { id: advanceId, employeeId: emp, approvedAmountPaise: '1000000', requestedForPeriod: '2026-10-01' };
++    await db.transaction(ctx, (tx) => planDefaultRecovery(tx, ctx, advance));
++    expect(await deductions(orgId)).toMatchObject([
++      { payrollPeriod: '2026-10-01', scheduledAmountPaise: '1000000', status: 'pending', plannedBy: 'approval' },
++    ]);
++    expect(await inputs(orgId)).toMatchObject([
++      { kind: 'advance-recovery', amount: '10000.0000', periodStart: '2026-10-01', revoked: false },
++    ]);
++
++    // HR spreads it: 2,500 in October (takes over the default row) and 2,500 in November.
++    await db.transaction(ctx, (tx) => scheduleRecovery(tx, ctx, advance, '2026-10-01', '250000'));
++    await db.transaction(ctx, (tx) => scheduleRecovery(tx, ctx, advance, '2026-11-01', '250000'));
++    expect(await deductions(orgId)).toMatchObject([
++      { payrollPeriod: '2026-10-01', scheduledAmountPaise: '250000', status: 'pending', plannedBy: 'hr' },
++      { payrollPeriod: '2026-11-01', scheduledAmountPaise: '250000', status: 'pending', plannedBy: 'hr' },
++    ]);
++    const live = (await inputs(orgId)).filter((row) => !row.revoked);
++    expect(live.map((row) => [row.periodStart, row.amount])).toEqual([
++      ['2026-10-01', '2500.0000'],
++      ['2026-11-01', '2500.0000'],
++    ]);
++    await expect(db.transaction(ctx, (tx) => scheduleRecovery(tx, ctx, advance, '2026-11-01', '100000')))
++      .rejects.toThrow(/already scheduled/);
++    await expect(db.transaction(ctx, (tx) => scheduleRecovery(tx, ctx, advance, '2026-12-01', '600000')))
++      .rejects.toThrow(/cannot exceed the approved balance/);
++  });
++
++  it('a penalty is deducted in its month and withdrawn when cancelled', async () => {
++    const { orgId, hr, emp, ctx } = await setup();
++    const penaltyIds = await Promise.all([1, 2].map(async (n) => (await seed<{ id: string }>('penalty', sql`
++      INSERT INTO employee_penalty (organization_id, employee_id, penalty_type, amount_paise, penalty_date,
++        payroll_period, remarks, created_by)
++      VALUES (${orgId}, ${emp}, 'late_arrival', ${n * 50000}, '2026-10-15', '2026-10-01', 'Late again', ${hr})
++      RETURNING id`))[0]!.id));
++    for (const [n, id] of penaltyIds.entries())
++      await db.transaction(ctx, (tx) => chargePenalty(tx, {
++        id, employeeId: emp, payrollPeriod: '2026-10-01', amountPaise: String((n + 1) * 50000),
++        penaltyType: 'late_arrival', remarks: 'Late again',
++      }, hr));
++    await db.transaction(ctx, (tx) => releasePenalty(tx, penaltyIds[1]!, hr, 'Raised by mistake'));
++    expect((await inputs(orgId)).map((row) => [row.kind, row.amount, row.revoked])).toEqual([
++      ['penalty', '500.0000', false],
++      ['penalty', '1000.0000', true],
++    ]);
++  });
++});
+diff --git a/tapcrm/packages/server/src/modules/advance/payroll.ts b/tapcrm/packages/server/src/modules/advance/payroll.ts
+new file mode 100644
+index 0000000..0aea439
+--- /dev/null
++++ b/tapcrm/packages/server/src/modules/advance/payroll.ts
+@@ -0,0 +1,182 @@
++import type { RequestContext } from '../../platform/dal/context.js';
++import type { Tx } from '../../platform/dal/db.js';
++import { sql } from '../../platform/dal/sql.js';
++import * as PayrollFacade from '../payroll/facade.js';
++import { AdvanceError } from './errors.js';
++
++/**
++ * How advances reach the payslip (migration 0142). Every live deduction owns
++ * one payroll input for its month; publishing the payslip marks it completed.
++ *
++ *   approval      → the whole approved amount, recovered from the salary of the
++ *                   month the advance was given for (or the first month after
++ *                   it whose payroll is still open)
++ *   HR schedule   → replaces that default plan while it is unpaid, one input
++ *                   per scheduled month
++ */
++
++const monthLabel = (period: string): string =>
++  new Date(`${period}T00:00:00Z`).toLocaleString('en-IN', {
++    month: 'short',
++    year: 'numeric',
++    timeZone: 'UTC',
++  });
++
++interface DeductionCharge {
++  readonly id: string;
++  readonly employeeId: string;
++  readonly payrollPeriod: string;
++  readonly amountPaise: string;
++  readonly requestedForPeriod: string;
++}
++
++async function charge(tx: Tx, deduction: DeductionCharge, createdBy: string): Promise<void> {
++  await PayrollFacade.writeSourcedInput(tx, {
++    kind: 'advance-recovery',
++    advanceDeductionId: deduction.id,
++    userId: deduction.employeeId,
++    periodStart: deduction.payrollPeriod,
++    amountPaise: deduction.amountPaise,
++    label: 'Salary advance recovery',
++    reason: `Advance of ${monthLabel(deduction.requestedForPeriod)}`,
++    createdBy,
++  });
++}
++
++/** On approval: recover the whole advance from its month's salary. */
++export async function planDefaultRecovery(
++  tx: Tx,
++  ctx: RequestContext,
++  advance: {
++    readonly id: string;
++    readonly employeeId: string;
++    readonly approvedAmountPaise: string;
++    readonly requestedForPeriod: string;
++  },
++): Promise<void> {
++  const period = await PayrollFacade.firstUnpublishedPeriod(
++    tx,
++    ctx.organizationId,
++    advance.requestedForPeriod,
++  );
++  const row = await tx.one<{ id: string }>(sql`
++    INSERT INTO employee_advance_deduction
++      (organization_id, advance_id, employee_id, payroll_period, scheduled_amount_paise, planned_by)
++    VALUES (${ctx.organizationId}, ${advance.id}, ${advance.employeeId}, ${period}::date,
++            ${advance.approvedAmountPaise}, 'approval')
++    RETURNING id
++  `);
++  await charge(
++    tx,
++    {
++      id: row.id,
++      employeeId: advance.employeeId,
++      payrollPeriod: period,
++      amountPaise: advance.approvedAmountPaise,
++      requestedForPeriod: advance.requestedForPeriod,
++    },
++    ctx.principal.id,
++  );
++}
++
++/**
++ * HR schedules part of an advance for a month. The approval's default plan,
++ * while still unpaid, gives way: the default row for this month becomes HR's,
++ * any other default is cancelled. Returns the deduction's id.
++ */
++export async function scheduleRecovery(
++  tx: Tx,
++  ctx: RequestContext,
++  advance: {
++    readonly id: string;
++    readonly employeeId: string;
++    readonly approvedAmountPaise: string;
++    readonly requestedForPeriod: string;
++  },
++  payrollPeriod: string,
++  amountPaise: string,
++): Promise<string> {
++  const cancelled = await tx.query<{ id: string }>(sql`
++    UPDATE employee_advance_deduction
++    SET status = 'cancelled', updated_at = now()
++    WHERE organization_id = ${ctx.organizationId} AND advance_id = ${advance.id}
++      AND planned_by = 'approval' AND status = 'pending' AND deducted_amount_paise = 0
++      AND payroll_period <> ${payrollPeriod}::date
++    RETURNING id
++  `);
++  for (const row of cancelled)
++    await PayrollFacade.revokeSourcedInput(
++      tx,
++      { advanceDeductionId: row.id },
++      ctx.principal.id,
++      'Replaced by the HR recovery schedule',
++    );
++
++  const sameMonth = await tx.maybeOne<{ id: string; plannedBy: string; status: string }>(sql`
++    SELECT id, planned_by, status FROM employee_advance_deduction
++    WHERE organization_id = ${ctx.organizationId} AND advance_id = ${advance.id}
++      AND payroll_period = ${payrollPeriod}::date
++    FOR UPDATE
++  `);
++  if (sameMonth !== null && !(sameMonth.plannedBy === 'approval' && sameMonth.status === 'pending'))
++    throw new AdvanceError(
++      sameMonth.status === 'cancelled'
++        ? 'A recovery for this month was cancelled earlier. Choose another month.'
++        : 'A recovery is already scheduled for this month.',
++    );
++
++  const used = await tx.one<{ amount: string }>(sql`
++    SELECT COALESCE(SUM(scheduled_amount_paise), 0)::text AS amount
++    FROM employee_advance_deduction
++    WHERE organization_id = ${ctx.organizationId} AND advance_id = ${advance.id}
++      AND status <> 'cancelled' AND id IS DISTINCT FROM ${sameMonth?.id ?? null}::uuid
++  `);
++  if (BigInt(used.amount) + BigInt(amountPaise) > BigInt(advance.approvedAmountPaise))
++    throw new AdvanceError('Scheduled deductions cannot exceed the approved balance.');
++
++  const id =
++    sameMonth !== null
++      ? (
++          await tx.one<{ id: string }>(sql`
++            UPDATE employee_advance_deduction
++            SET scheduled_amount_paise = ${amountPaise}, planned_by = 'hr', updated_at = now()
++            WHERE id = ${sameMonth.id}
++            RETURNING id
++          `)
++        ).id
++      : (
++          await tx.one<{ id: string }>(sql`
++            INSERT INTO employee_advance_deduction
++              (organization_id, advance_id, employee_id, payroll_period, scheduled_amount_paise)
++            VALUES (${ctx.organizationId}, ${advance.id}, ${advance.employeeId}, ${payrollPeriod}::date,
++                    ${amountPaise})
++            RETURNING id
++          `)
++        ).id;
++  await charge(
++    tx,
++    {
++      id,
++      employeeId: advance.employeeId,
++      payrollPeriod,
++      amountPaise,
++      requestedForPeriod: advance.requestedForPeriod,
++    },
++    ctx.principal.id,
++  );
++  return id;
++}
++
++/** Payroll published a payslip that took these recoveries. */
++async function settleDeductions(tx: Tx, ids: readonly string[]): Promise<void> {
++  await tx.query(sql`
++    UPDATE employee_advance_deduction
++    SET deducted_amount_paise = scheduled_amount_paise, status = 'completed',
++        deducted_at = now(), updated_at = now()
++    WHERE id = ANY(${ids}::uuid[]) AND status IN ('pending', 'partial')
++  `);
++}
++
++export function registerAdvancePayrollPorts(): void {
++  PayrollFacade.registerPayrollSourceSettlers({ advanceDeductions: settleDeductions });
++}
+diff --git a/tapcrm/packages/server/src/modules/advance/service.ts b/tapcrm/packages/server/src/modules/advance/service.ts
+index e09a15d..fae018f 100644
+--- a/tapcrm/packages/server/src/modules/advance/service.ts
++++ b/tapcrm/packages/server/src/modules/advance/service.ts
+@@ -5,6 +5,7 @@ import { notify } from '../notifications/facade.js';
+ import { xlsxBuffer } from '../attendance/facade.js';
+ import { writeAdvanceAudit } from './audit.js';
+ import { AdvanceError } from './errors.js';
++import { planDefaultRecovery, scheduleRecovery } from './payroll.js';
+ import { getCurrencySettings } from '../organization/facade.js';
+ import type { AdvanceRow, DeductionRow } from './types.js';
+ import type {
+@@ -109,8 +110,9 @@ export async function approveAdvance(
+       requestedAmountPaise: string;
+       employeeId: string;
+       currency: string;
++      requestedForPeriod: string;
+     }>(
+-      sql`SELECT requested_amount_paise::text AS "requestedAmountPaise", employee_id AS "employeeId", currency FROM employee_advance WHERE organization_id=${ctx.organizationId} AND id=${id} AND status='pending' FOR UPDATE`,
++      sql`SELECT requested_amount_paise::text AS "requestedAmountPaise", employee_id AS "employeeId", currency, requested_for_period::text AS "requestedForPeriod" FROM employee_advance WHERE organization_id=${ctx.organizationId} AND id=${id} AND status='pending' FOR UPDATE`,
+     );
+     if (!current) throw new AdvanceError('Only a pending advance can be approved.');
+     if (BigInt(body.approvedAmountPaise) > BigInt(current.requestedAmountPaise))
+@@ -118,6 +120,13 @@ export async function approveAdvance(
+     await tx.query(
+       sql`UPDATE employee_advance SET status='approved', approved_amount_paise=${body.approvedAmountPaise}, approved_at=now(), approved_by=${ctx.principal.id}, approval_note=${body.approvalNote ?? null}, updated_at=now() WHERE organization_id=${ctx.organizationId} AND id=${id} AND status='pending'`,
+     );
++    // Recovered from the salary of the advance's month unless HR schedules otherwise.
++    await planDefaultRecovery(tx, ctx, {
++      id,
++      employeeId: current.employeeId,
++      approvedAmountPaise: String(body.approvedAmountPaise),
++      requestedForPeriod: current.requestedForPeriod,
++    });
+     await writeAdvanceAudit(tx, ctx, 'advance.approved', 'employeeAdvance', id, {
+       requestedAmountPaise: current.requestedAmountPaise,
+       approvedAmountPaise: body.approvedAmountPaise,
+@@ -181,6 +190,12 @@ export async function createManualAdvance(
+     const row = await tx.one<{ id: string }>(
+       sql`INSERT INTO employee_advance (organization_id, employee_id, requested_amount_paise, approved_amount_paise, currency, requested_for_period, reason, status, source, approved_at, approved_by, created_by) VALUES (${ctx.organizationId}, ${body.employeeId}, ${body.amountPaise}, ${body.amountPaise}, ${body.currency}, ${body.requestedForPeriod}::date, ${body.reason}, 'approved', 'manual', now(), ${ctx.principal.id}, ${ctx.principal.id}) RETURNING id`,
+     );
++    await planDefaultRecovery(tx, ctx, {
++      id: row.id,
++      employeeId: body.employeeId,
++      approvedAmountPaise: String(body.amountPaise),
++      requestedForPeriod: body.requestedForPeriod,
++    });
+     await writeAdvanceAudit(
+       tx,
+       ctx,
+@@ -235,20 +250,18 @@ export async function createDeduction(
+   body: DeductionBody,
+ ): Promise<void> {
+   await db.transaction(ctx, async (tx) => {
+-    const advance = await tx.one<{ employeeId: string; approvedAmountPaise: string }>(
+-      sql`SELECT employee_id AS "employeeId", approved_amount_paise::text AS "approvedAmountPaise" FROM employee_advance WHERE organization_id=${ctx.organizationId} AND id=${advanceId} AND status='approved' FOR UPDATE`,
++    const advance = await tx.maybeOne<{ employeeId: string; approvedAmountPaise: string; requestedForPeriod: string }>(
++      sql`SELECT employee_id AS "employeeId", approved_amount_paise::text AS "approvedAmountPaise", requested_for_period::text AS "requestedForPeriod" FROM employee_advance WHERE organization_id=${ctx.organizationId} AND id=${advanceId} AND status='approved' FOR UPDATE`,
+     );
+-    const used = await tx.one<{ amount: string }>(
+-      sql`SELECT COALESCE(SUM(scheduled_amount_paise),0)::text AS amount FROM employee_advance_deduction WHERE organization_id=${ctx.organizationId} AND advance_id=${advanceId} AND status <> 'cancelled'`,
+-    );
+-    if (
+-      BigInt(used.amount) + BigInt(body.scheduledAmountPaise) >
+-      BigInt(advance.approvedAmountPaise)
+-    )
+-      throw new AdvanceError('Scheduled deductions cannot exceed the approved balance.');
+-    const row = await tx.one<{ id: string }>(
+-      sql`INSERT INTO employee_advance_deduction (organization_id, advance_id, employee_id, payroll_period, scheduled_amount_paise) VALUES (${ctx.organizationId}, ${advanceId}, ${advance.employeeId}, ${body.payrollPeriod}::date, ${body.scheduledAmountPaise}) RETURNING id`,
++    if (!advance) throw new AdvanceError('Only an approved advance can be scheduled for recovery.');
++    const deductionId = await scheduleRecovery(
++      tx,
++      ctx,
++      { id: advanceId, ...advance },
++      body.payrollPeriod,
++      String(body.scheduledAmountPaise),
+     );
++    const row = { id: deductionId };
+     await writeAdvanceAudit(
+       tx,
+       ctx,
+diff --git a/tapcrm/packages/server/src/modules/attendance/calculate.test.ts b/tapcrm/packages/server/src/modules/attendance/calculate.test.ts
+index 59cc1ce..0b433aa 100644
+--- a/tapcrm/packages/server/src/modules/attendance/calculate.test.ts
++++ b/tapcrm/packages/server/src/modules/attendance/calculate.test.ts
+@@ -118,6 +118,22 @@ describe('§8.3 worked examples — status and units (present / paid leave / unp
+     expect([r.status, ...units(r)]).toEqual(['half-day-leave', 1, 1, 0, 0, 0]);
+   });
+ 
++  it('first-half leave, in at 13:30 for the afternoon → not late: the day is due from 13:30', () => {
++    // DAY is 09:00–18:00, so the halves split at 13:30; grace is 10 minutes.
++    const onTime = day({ events: workday('13:30:00', '18:00:00'), overlays: [overlay('leave-first-half')] });
++    expect([onTime.lateMinutes, onTime.earlyExitMinutes, onTime.flags.includes('late')]).toEqual([0, 0, false]);
++    const late = day({ events: workday('14:00:00', '18:00:00'), overlays: [overlay('leave-first-half')] });
++    expect(late.lateMinutes).toBe(20);
++  });
++
++  it('second-half leave, out at 13:30 after the morning → no early exit: the day is due until 13:30', () => {
++    const r = day({ events: workday('09:00:00', '13:30:00'), overlays: [overlay('leave-second-half')] });
++    expect([r.status, r.lateMinutes, r.earlyExitMinutes, r.flags.includes('early-exit')])
++      .toEqual(['half-day-leave', 0, 0, false]);
++    const early = day({ events: workday('09:00:00', '12:30:00'), overlays: [overlay('leave-second-half')] });
++    expect(early.earlyExitMinutes).toBe(60);
++  });
++
+   it('first-half unpaid leave, no punch → half-day-leave, absent for the other half', () => {
+     const r = day({ overlays: [overlay('leave-first-half', { paid: false })] });
+     expect([r.status, ...units(r)]).toEqual(['half-day-leave', 0, 0, 1, 1, 0]);
+diff --git a/tapcrm/packages/server/src/modules/attendance/calculate.ts b/tapcrm/packages/server/src/modules/attendance/calculate.ts
+index 69f9fd6..86bbe1f 100644
+--- a/tapcrm/packages/server/src/modules/attendance/calculate.ts
++++ b/tapcrm/packages/server/src/modules/attendance/calculate.ts
+@@ -19,7 +19,12 @@ import { addDays, instantAt } from '../../platform/time.js';
+  * board use, so they cannot disagree about when a day began or ended.
+  */
+ 
+-export const RULES_VERSION = 'attendance-rules/2';
++/**
++ * 3: on a half-day leave, lateness counts from the middle of the shift after a
++ * first-half leave, and an early exit to the middle of the shift before a
++ * second-half leave — the person is due only for the half they work.
++ */
++export const RULES_VERSION = 'attendance-rules/3';
+ 
+ /** SH-4: flexible days use fixed thresholds, not settings. */
+ const FLEXIBLE_HALF_DAY = 300;
+@@ -263,7 +268,12 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
+     flags.add('remote-without-approval'); // WFH-6
+   }
+ 
+-  // 7. Shift facts, fixed shifts on working days only.
++  // 7. Shift facts, fixed shifts on working days only. On an approved half-day
++  //    leave the person is due only for the other half (§8.3), split at the
++  //    middle of the shift exactly as the half-day judgement below splits it.
++  const halfLeaveKind =
++    input.overlays.find((o) => o.kind === 'leave-first-half' || o.kind === 'leave-second-half')
++      ?.kind ?? null;
+   let lateMinutes = 0;
+   let earlyExitMinutes = 0;
+   let overtimeMinutes = 0;
+@@ -274,16 +284,19 @@ export function calculate(input: CalculationInput): CalculatedAttendance {
+     departure !== null &&
+     input.dayType === 'working'
+   ) {
++    const split = shiftStart + (shiftEnd - shiftStart) / 2;
++    const dueFrom = halfLeaveKind === 'leave-first-half' ? split : shiftStart;
++    const dueUntil = halfLeaveKind === 'leave-second-half' ? split : shiftEnd;
+     lateMinutes = Math.max(
+       0,
+       toMinutes(
+-        Date.parse(arrival.at) - (shiftStart + input.shift.graceMinutes * 60_000),
++        Date.parse(arrival.at) - (dueFrom + input.shift.graceMinutes * 60_000),
+       ),
+     );
+     earlyExitMinutes = Math.max(
+       0,
+       toMinutes(
+-        shiftEnd - input.shift.earlyExitGraceMinutes * 60_000 - Date.parse(departure.at),
++        dueUntil - input.shift.earlyExitGraceMinutes * 60_000 - Date.parse(departure.at),
+       ),
+     );
+     const extra = workedMinutes - toMinutes(shiftEnd - shiftStart);
+diff --git a/tapcrm/packages/server/src/modules/attendance/calculation-repository.ts b/tapcrm/packages/server/src/modules/attendance/calculation-repository.ts
+index ae30016..a481cf2 100644
+--- a/tapcrm/packages/server/src/modules/attendance/calculation-repository.ts
++++ b/tapcrm/packages/server/src/modules/attendance/calculation-repository.ts
+@@ -205,9 +205,9 @@ export async function staleRecords(
+   changedBefore: Date,
+   after: string | null,
+   limit: number,
+-): Promise<{ id: string; inputVersion: number }[]> {
+-  return tx.query<{ id: string; inputVersion: number }>(sql`
+-    SELECT id, input_version FROM attendance_record
++): Promise<{ id: string; inputVersion: number; rulesVersion: string | null }[]> {
++  return tx.query<{ id: string; inputVersion: number; rulesVersion: string | null }>(sql`
++    SELECT id, input_version, rules_version FROM attendance_record
+     WHERE (calculated_input_version < input_version
+            OR rules_version IS DISTINCT FROM ${RULES_VERSION})
+       AND input_changed_at < ${changedBefore}
+diff --git a/tapcrm/packages/server/src/modules/attendance/correction.integration.test.ts b/tapcrm/packages/server/src/modules/attendance/correction.integration.test.ts
+index 4a7e2fc..d00da84 100644
+--- a/tapcrm/packages/server/src/modules/attendance/correction.integration.test.ts
++++ b/tapcrm/packages/server/src/modules/attendance/correction.integration.test.ts
+@@ -374,6 +374,32 @@ describe.skipIf(!enabled)('correction workflow (PostgreSQL)', () => {
+     expect(row!.status).toBe('pending');
+   });
+ 
++  it('missed both punches: the check-out is accepted once the check-in is requested, and both approve in either order', async () => {
++    const subjectCtx = ctxAs(SUBJECT, POS_EMP);
++    const day = d('2026-08-31'); // nothing punched on this day
++    const ask = (kind: 'in' | 'out', at: string) => requestCorrection(subjectCtx, {
++      kind: 'add-event', workDate: day,
++      reason: 'Device was down all day, I was in office from morning to evening',
++      payload: { kind, at: ist(at).toISOString() },
++    }, CLOCK_NOW);
++
++    // A check-out alone has nothing before it: refused, with a message that says why.
++    await expect(ask('out', '2026-08-31T18:30:00')).rejects.toThrow(/has no check-in before it/);
++    const first = await ask('in', '2026-08-31T09:30:00');
++    const second = await ask('out', '2026-08-31T18:30:00');
++
++    const hr2 = ctxAs(HR2, POS_HR2);
++    await approveCorrection(hr2, second.correctionId, {}, CLOCK_NOW); // out first
++    await approveCorrection(hr2, first.correctionId, {}, CLOCK_NOW);
++
++    const events = await asOwner('read paired events', sql`
++      SELECT e.kind FROM attendance_event e
++      WHERE e.correction_id IN (${first.correctionId}, ${second.correctionId}) AND e.is_void = false
++      ORDER BY e.occurred_at
++    `) as { kind: string }[];
++    expect(events.map((e) => e.kind)).toEqual(['in', 'out']);
++  });
++
+   // ── Case 7: void increments input_version and writes outbox ─────────────
+ 
+   it('void-only approval bumps input_version and writes recalc-requested outbox', async () => {
+diff --git a/tapcrm/packages/server/src/modules/attendance/correction.ts b/tapcrm/packages/server/src/modules/attendance/correction.ts
+index 6b07cc4..587d3ca 100644
+--- a/tapcrm/packages/server/src/modules/attendance/correction.ts
++++ b/tapcrm/packages/server/src/modules/attendance/correction.ts
+@@ -199,7 +199,6 @@ async function checkReadability(
+       evidence: e.evidence,
+       assignmentReason: (e.reason ?? 'midpoint'),
+     }));
+-
+   const proposed: AttendanceEventInput = {
+     id: 'proposed',
+     kind,
+@@ -208,13 +207,29 @@ async function checkReadability(
+     evidence: 'confirmed',
+     assignmentReason: 'correction',
+   };
+-  provisional.push(proposed);
+-
+-  const reading = readDay(provisional, eligibility);
++  if (!readDay([...provisional, proposed], eligibility).notApplied.has('proposed')) return;
++
++  // Not readable against the day's punches alone. Punches already requested
++  // for the day may complete it — someone who missed both punches asks for the
++  // check-in and then the check-out. They can only make a request acceptable,
++  // never refuse one that stands on its own.
++  const pending = (await repo.pendingAddedEvents(tx, userId, workDate)).map(
++    (row): AttendanceEventInput => ({
++      id: `pending-${row.id}`,
++      kind: row.kind,
++      at: new Date(row.at).toISOString(),
++      source: 'correction',
++      evidence: 'confirmed',
++      assignmentReason: 'correction',
++    }),
++  );
++  const reading = readDay([...provisional, ...pending, proposed], eligibility);
+   if (reading.notApplied.has('proposed'))
+     throw new AttendanceUnprocessableError(
+       ATTENDANCE_ERROR_CODES.CORRECTION_NOT_READABLE,
+-      'The proposed correction event is not readable in the day\'s context.',
++      kind === 'out' || kind === 'break-end'
++        ? `This ${kind === 'out' ? 'check-out' : 'break end'} has no ${kind === 'out' ? 'check-in' : 'break start'} before it on this day. Request the missing ${kind === 'out' ? 'check-in' : 'break start'} as well.`
++        : 'This punch does not fit the punches already on this day. Check its time against the day\'s other punches.',
+     );
+ }
+ 
+diff --git a/tapcrm/packages/server/src/modules/attendance/payroll-snapshot.ts b/tapcrm/packages/server/src/modules/attendance/payroll-snapshot.ts
+index 15a3af7..82736e1 100644
+--- a/tapcrm/packages/server/src/modules/attendance/payroll-snapshot.ts
++++ b/tapcrm/packages/server/src/modules/attendance/payroll-snapshot.ts
+@@ -86,7 +86,9 @@ export async function snapshotPeriod(
+            worked_minutes AS "workedMinutes",
+            break_minutes AS "breakMinutes",
+            COALESCE(night_minutes, 0) AS "nightMinutes",
+-           COALESCE(overtime_minutes, 0) AS "overtimeMinutes",
++           -- Overtime resting on an assumed departure is recorded but never credited (§8.2 step 7).
++           CASE WHEN 'overtime-unconfirmed' = ANY(flags) THEN 0 ELSE COALESCE(overtime_minutes, 0) END
++             AS "overtimeMinutes",
+            input_version AS "inputVersion",
+            calculated_input_version AS "calculatedInputVersion",
+            calculation_version AS "calculationVersion",
+diff --git a/tapcrm/packages/server/src/modules/attendance/recalculate.integration.test.ts b/tapcrm/packages/server/src/modules/attendance/recalculate.integration.test.ts
+index a8eeb53..623993d 100644
+--- a/tapcrm/packages/server/src/modules/attendance/recalculate.integration.test.ts
++++ b/tapcrm/packages/server/src/modules/attendance/recalculate.integration.test.ts
+@@ -10,6 +10,7 @@ import { sql } from '../../platform/dal/sql.js';
+ import { startJobs, stopJobs } from '../../platform/jobs/runner.js';
+ import { drainOrganization } from '../../platform/outbox/drainer.js';
+ import { retriedUntilDelivered } from '../../platform/outbox/registry.js';
++import { RULES_VERSION } from './calculate.js';
+ import { appendEvent, type AppendEventInput } from './facade.js';
+ import { registerAttendanceJobs, type AttendanceJobs } from './jobs.js';
+ import { recalculateRecord, sweepRefreshRequests, sweepStale } from './recalculate.js';
+@@ -294,7 +295,7 @@ describe.skipIf(!enabled)(
+         lateMinutes: 15,
+         earlyExitMinutes: 0,
+         overtimeMinutes: 0,
+-        rulesVersion: 'attendance-rules/1',
++        rulesVersion: RULES_VERSION,
+         calculationVersion: 1,
+       });
+       expect(day.flags).toEqual(['late', 'remote-without-approval']);
+diff --git a/tapcrm/packages/server/src/modules/attendance/recalculate.ts b/tapcrm/packages/server/src/modules/attendance/recalculate.ts
+index 23e577c..4c2605d 100644
+--- a/tapcrm/packages/server/src/modules/attendance/recalculate.ts
++++ b/tapcrm/packages/server/src/modules/attendance/recalculate.ts
+@@ -299,11 +299,13 @@ export async function sweepStale(
+     const offers: Offer<{ recordId: string }>[] = [];
+     let flagged = 0;
+     for (const row of rows) {
+-      const decision = await queue.nextGeneration(
+-        tx,
+-        recalculationKey(row.id, row.inputVersion),
+-        now,
+-      );
++      // A day calculated by older rules has the same inputs as before, so its
++      // usual key is already done. Keying it by the rules too lets a rules
++      // change actually recalculate the days it affects.
++      const key = row.rulesVersion === null || row.rulesVersion === RULES_VERSION
++        ? recalculationKey(row.id, row.inputVersion)
++        : `${recalculationKey(row.id, row.inputVersion)}:${RULES_VERSION}`;
++      const decision = await queue.nextGeneration(tx, key, now);
+       if (decision.kind === 'run')
+         offers.push({ key: decision.key, payload: { recordId: row.id } });
+       if (decision.kind === 'exhausted') {
+diff --git a/tapcrm/packages/server/src/modules/attendance/repository.ts b/tapcrm/packages/server/src/modules/attendance/repository.ts
+index e2266b5..e4b67ce 100644
+--- a/tapcrm/packages/server/src/modules/attendance/repository.ts
++++ b/tapcrm/packages/server/src/modules/attendance/repository.ts
+@@ -1084,6 +1084,27 @@ export async function findCorrectionById(
+   `);
+ }
+ 
++/**
++ * Punches already asked for on the day and still waiting for a decision. A
++ * person who missed both punches asks for the check-in and the check-out; the
++ * second request is read together with the first instead of being refused.
++ */
++export async function pendingAddedEvents(
++  tx: Tx,
++  userId: string,
++  workDate: DateOnly,
++): Promise<{ id: string; kind: 'in' | 'out' | 'break-start' | 'break-end'; at: string }[]> {
++  return tx.query(sql`
++    SELECT id, payload->>'kind' AS kind, payload->>'at' AS at
++    FROM attendance_correction
++    WHERE user_id = ${userId}
++      AND work_date = ${workDate}
++      AND status = 'pending'
++      AND kind = 'add-event'
++    ORDER BY payload->>'at', id
++  `);
++}
++
+ export async function findCorrectionForUpdate(
+   tx: Tx,
+   id: string,
+diff --git a/tapcrm/packages/server/src/modules/break-management/evaluation.integration.test.ts b/tapcrm/packages/server/src/modules/break-management/evaluation.integration.test.ts
+index 8c7ac8c..3dffb2c 100644
+--- a/tapcrm/packages/server/src/modules/break-management/evaluation.integration.test.ts
++++ b/tapcrm/packages/server/src/modules/break-management/evaluation.integration.test.ts
+@@ -170,6 +170,21 @@ describe.skipIf(!enabled)('break evaluation consequences (PostgreSQL)', () => {
+     expect(await notificationsFor(userId, 'breaks.explanation_required')).toHaveLength(1);
+   });
+ 
++  it('evaluating a later day first catches up the earlier stale days instead of failing', async () => {
++    const userId = await person('catch-up');
++    await policyFor(userId, 'require-explanation');
++    // Three days of the same week, none evaluated yet (as after a backfill).
++    const days = [];
++    for (const date of ['2026-09-21', '2026-09-22', '2026-09-23']) days.push(await dayWithLongBreak(userId, date));
++    // The job for the last day runs first: it used to throw "blocked-by-earlier".
++    expect(await evaluate(userId, days[2]!.recordId, 1)).toBe('evaluated');
++    const evaluated = await asOwner<{ workDate: string; breaksEvaluatedVersion: number | null }>('evaluated', sql`
++      SELECT work_date::text AS work_date, breaks_evaluated_version
++      FROM attendance_record WHERE user_id = ${userId} ORDER BY work_date
++    `);
++    expect(evaluated.map((day) => day.breaksEvaluatedVersion)).toEqual([1, 1, 1]);
++  });
++
+   it('an automatic amount rule deducts pay, and a corrected day takes the deduction back', async () => {
+     const userId = await person('amount');
+     await policyFor(userId, 'deduct-amount', { amount: '250.00', autoApply: true });
+diff --git a/tapcrm/packages/server/src/modules/break-management/evaluator.ts b/tapcrm/packages/server/src/modules/break-management/evaluator.ts
+index afcfd1c..6411011 100644
+--- a/tapcrm/packages/server/src/modules/break-management/evaluator.ts
++++ b/tapcrm/packages/server/src/modules/break-management/evaluator.ts
+@@ -144,12 +144,16 @@ async function retireAnswer(tx: Tx, existing: CurrentBreachAnswer, clock: { now(
+ // Core evaluator
+ // ---------------------------------------------------------------------------
+ 
++/** How many earlier days one evaluation may catch up on (a backfilled month and its neighbours). */
++const MAX_CATCH_UP_DAYS = 100;
++
+ export async function evaluateBreakDay(
+   tx: Tx,
+   recordId: string,
+   expectedCalculationVersion: number,
+   expectedRevision: bigint,
+   clock: { now(): Date },
++  caughtUp = 0,
+ ): Promise<EvalOutcome> {
+   // 1. Load and recheck the record (under person lock already held by caller)
+   const record = await AttFacade.loadBreakDay(tx, recordId);
+@@ -183,8 +187,35 @@ export async function evaluateBreakDay(
+   );
+ 
+   if (earliest !== null && earliest.recordId !== recordId && earliest.workDate < workDate) {
+-    // An earlier stale day must be evaluated first. Throw so the job runner retries.
+-    throw new Error(`blocked-by-earlier: ${earliest.workDate} must be evaluated before ${workDate}`);
++    // An earlier stale day must be evaluated first (window counts depend on
++    // it). Evaluate it now, oldest first, in this transaction under the
++    // person's lock — throwing here failed every later day of a backfilled or
++    // recalculated month three times, dead-lettered it with an alert, and held
++    // payroll publishing until hourly sweeps worked through it day by day.
++    if (caughtUp >= MAX_CATCH_UP_DAYS)
++      throw new Error(`blocked-by-earlier: ${earliest.workDate} must be evaluated before ${workDate}`);
++    const earlier = await AttFacade.loadBreakDay(tx, earliest.recordId);
++    if (earlier === null)
++      throw new Error(`blocked-by-earlier: ${earliest.workDate} must be evaluated before ${workDate}`);
++    await evaluateBreakDay(
++      tx,
++      earlier.recordId,
++      earlier.calculationVersion,
++      BigInt(earlier.breaksEvaluationRevision),
++      clock,
++      caughtUp + 1,
++    );
++    // Then this day, as it stands now: the earlier answer may have dirtied it.
++    const current = await AttFacade.loadBreakDay(tx, recordId);
++    if (current === null) return 'stale-payload';
++    return evaluateBreakDay(
++      tx,
++      recordId,
++      current.calculationVersion,
++      BigInt(current.breaksEvaluationRevision),
++      clock,
++      caughtUp + 1,
++    );
+   }
+ 
+   // 3. Load the day snapshot (events + overlays)
+diff --git a/tapcrm/packages/server/src/modules/employee/work-status.test.ts b/tapcrm/packages/server/src/modules/employee/work-status.test.ts
+index 3370b00..507a9d9 100644
+--- a/tapcrm/packages/server/src/modules/employee/work-status.test.ts
++++ b/tapcrm/packages/server/src/modules/employee/work-status.test.ts
+@@ -170,6 +170,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: shiftStart,
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -232,6 +233,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: new Date('2026-10-07T09:00:00Z'),
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -268,6 +270,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: new Date('2026-10-07T09:00:00Z'),
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -321,6 +324,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: shiftStart,
+       shiftEndAt: new Date('2026-10-07T18:00:00Z'),
+@@ -359,6 +363,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: shiftStart,
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -395,6 +400,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: shiftStart,
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -443,6 +449,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: 'leave',
+       shiftStartAt: new Date('2026-10-07T09:00:00Z'),
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -480,6 +487,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: new Date('2026-10-07T09:00:00Z'),
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -528,6 +536,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: new Date('2026-10-07T09:00:00Z'),
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -576,6 +585,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: new Date('2026-10-07T09:00:00Z'),
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+@@ -608,6 +618,7 @@ describe('Employee 360 Work / Live Status Backend (Phase 1)', () => {
+       lastScanDevice: null,
+       likelyFinishedAt: null,
+       isWfh: false,
++      isRemote: false,
+       dayGroup: null,
+       shiftStartAt: new Date('2026-10-07T09:00:00Z'),
+       shiftEndAt: new Date('2026-10-07T17:00:00Z'),
+diff --git a/tapcrm/packages/server/src/modules/holidays/repository.ts b/tapcrm/packages/server/src/modules/holidays/repository.ts
+index 3a6ab4d..8556e60 100644
+--- a/tapcrm/packages/server/src/modules/holidays/repository.ts
++++ b/tapcrm/packages/server/src/modules/holidays/repository.ts
+@@ -77,19 +77,23 @@ export async function loadCalendarInputs(
+           WHERE holiday_id = ANY(${holidayIds}::uuid[])
+         `);
+ 
+-  // Preload the person's shifts only if a shift-scoped holiday overlaps the
+-  // range. Otherwise a 62-day payroll batch would multiply into 62N shift
+-  // queries for nothing.
++  // One `resolveRange` for the whole range (never one per date): it gives the
++  // shift for shift-scoped holidays and the days the person's weekday schedule
++  // or rotation leaves without a shift — their weekly off, which attendance
++  // already counts as a week-off. Leave and WFH must see the same calendar.
+   const shiftIdsByDate = new Map<DateOnly, string | null>();
+-  if (scopes.some((s) => s.shiftId !== null)) {
+-    const resolved = await shifts.resolveRange(
+-      tx,
+-      userId,
+-      from,
+-      to,
+-      placements === undefined ? {} : { placements },
+-    );
+-    for (const r of resolved) shiftIdsByDate.set(r.date, r.shiftId);
++  const scheduledWeekOffs = new Set<DateOnly>();
++  const resolved = await shifts.resolveRange(
++    tx,
++    userId,
++    from,
++    to,
++    placements === undefined ? {} : { placements },
++  );
++  for (const r of resolved) {
++    shiftIdsByDate.set(r.date, r.shiftId);
++    if (r.kind === 'none' && (r.source === 'weekday-schedule' || r.source === 'rotation'))
++      scheduledWeekOffs.add(r.date);
+   }
+ 
+   return {
+@@ -98,6 +102,7 @@ export async function loadCalendarInputs(
+     holidays: holidays.map((h) => ({ ...h })),
+     scopes,
+     shiftIdsByDate,
++    scheduledWeekOffs,
+   };
+ }
+ 
+diff --git a/tapcrm/packages/server/src/modules/holidays/resolve.test.ts b/tapcrm/packages/server/src/modules/holidays/resolve.test.ts
+index 6b341cf..75f4727 100644
+--- a/tapcrm/packages/server/src/modules/holidays/resolve.test.ts
++++ b/tapcrm/packages/server/src/modules/holidays/resolve.test.ts
+@@ -194,3 +194,28 @@ describe('week-off rules', () => {
+     expect(resolveDay(cal(null),   d('2026-01-03'))).toMatchObject({ type: 'working' });
+   });
+ });
++
++describe('weekly off from the weekday schedule', () => {
++  it('a day the weekday schedule leaves without a shift is a week-off, not a working day', () => {
++    const cal = inputs({ scheduledWeekOffs: new Set([d('2026-10-25')]) });
++    expect(resolveDay(cal, d('2026-10-25'))).toMatchObject({
++      type: 'week-off',
++      holidayId: null,
++      holidayName: 'Weekly off',
++      subtype: 'week-off',
++      matchedBy: null,
++    });
++    expect(resolveDay(cal, d('2026-10-26'))).toMatchObject({ type: 'working' });
++  });
++
++  it('a dated holiday on the scheduled weekly off still reads as the holiday', () => {
++    const dussehra = dated('dus', '2026-10-25', { name: 'Dussehra' });
++    const cal = inputs({ holidays: [dussehra], scheduledWeekOffs: new Set([d('2026-10-25')]) });
++    expect(resolveDay(cal, d('2026-10-25'))).toMatchObject({ type: 'holiday', holidayId: 'dus' });
++  });
++
++  it('a week-off rule wins over the schedule, keeping its own name', () => {
++    const cal = inputs({ holidays: [SUNDAY], scheduledWeekOffs: new Set([d('2026-10-25')]) });
++    expect(resolveDay(cal, d('2026-10-25'))).toMatchObject({ type: 'week-off', holidayId: 'sun' });
++  });
++});
+diff --git a/tapcrm/packages/server/src/modules/holidays/resolve.ts b/tapcrm/packages/server/src/modules/holidays/resolve.ts
+index c9b6643..fc1ca85 100644
+--- a/tapcrm/packages/server/src/modules/holidays/resolve.ts
++++ b/tapcrm/packages/server/src/modules/holidays/resolve.ts
+@@ -10,7 +10,8 @@ import { weekdayOf } from '../../platform/time.js';
+  *
+  *   1 an active dated holiday on that date whose scope matches
+  *   2 an active week-off rule in force whose recurrence hits the weekday
+- *   3 a working day
++ *   3 the person's weekly off from their weekday schedule or rotation
++ *   4 a working day
+  *
+  * "In force on `date`" means the rule with the latest `effectiveFrom` on or
+  * before it whose `effectiveTo` (exclusive) is later. Nobody outside this
+@@ -58,6 +59,13 @@ export interface CalendarInputs {
+    * will match against `null`).
+    */
+   readonly shiftIdsByDate: ReadonlyMap<DateOnly, string | null>;
++  /**
++   * Dates the person's weekday schedule or rotation gives no shift — their
++   * weekly off. Attendance already treats these as week-offs (ledger
++   * `dayTypes`); the calendar answers the same so leave, WFH and payroll
++   * agree with attendance. Optional for callers that build inputs by hand.
++   */
++  readonly scheduledWeekOffs?: ReadonlySet<DateOnly>;
+ }
+ 
+ const covers = (row: HolidayInput, date: DateOnly): boolean =>
+@@ -198,6 +206,18 @@ export function resolveDay(inputs: CalendarInputs, date: DateOnly): ResolvedDay
+     };
+   }
+ 
+-  // 3. A working day.
++  // 3. The person's own weekly off from their weekday schedule or rotation.
++  if (inputs.scheduledWeekOffs?.has(date)) {
++    return {
++      date,
++      type: 'week-off',
++      holidayId: null,
++      holidayName: 'Weekly off',
++      subtype: 'week-off',
++      matchedBy: null,
++    };
++  }
++
++  // 4. A working day.
+   return working(date);
+ }
+diff --git a/tapcrm/packages/server/src/modules/index.ts b/tapcrm/packages/server/src/modules/index.ts
+index 5d94295..d9385e3 100644
+--- a/tapcrm/packages/server/src/modules/index.ts
++++ b/tapcrm/packages/server/src/modules/index.ts
+@@ -91,8 +91,8 @@ import { registerClientPolicies, registerClientRoutes } from './clients/index.js
+ import { registerProjectPolicies, registerProjectReportJobs, registerProjectRoutes } from './projects/index.js';
+ import { registerClientPortalRoutes } from './client-portal/index.js';
+ import { registerMyTodoRoutes } from './myTodo/routes.js';
+-import { registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
+-import { registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
++import { registerAdvancePayrollPorts, registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
++import { registerPenaltyPayrollPorts, registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
+ import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
+ import { registerTaRoutes } from './ta/routes.js';
+ import { registerAccountingJobs, registerAccountingPolicies, registerAccountingRoutes } from './finance/accounting/index.js';
+@@ -110,6 +110,8 @@ export function initializePorts(): void {
+   // addition.
+   registerPaymentReadinessPort(manualPaymentReadinessPort);
+   registerPayrollPorts();
++  registerAdvancePayrollPorts();
++  registerPenaltyPayrollPorts();
+ }
+ 
+ export function registerAllPolicies(): void {
+diff --git a/tapcrm/packages/server/src/modules/leave/leave.integration.test.ts b/tapcrm/packages/server/src/modules/leave/leave.integration.test.ts
+index dbcf757..60e2d77 100644
+--- a/tapcrm/packages/server/src/modules/leave/leave.integration.test.ts
++++ b/tapcrm/packages/server/src/modules/leave/leave.integration.test.ts
+@@ -105,13 +105,37 @@ describe.skipIf(!enabled)('leave integration', () => {
+   });
+ 
+   it('offers employees only active absence types while management retains the full list', async () => {
+-    const { ltId, empCtx } = await setup();
++    const { ltId, wfhTypeId, empCtx } = await setup();
+     expect((await listAvailableLeaveTypes(empCtx)).map((type) => type.id)).toEqual([ltId]);
++    // The WFH form asks for attendance-mode types; without them it could never be submitted.
++    expect((await listAvailableLeaveTypes(empCtx, 'attendance-mode')).map((type) => type.id)).toEqual([wfhTypeId]);
+     await db.transaction(empCtx, (tx) => repo.updateLeaveType(tx, ltId, { isActive: false }));
+     expect(await listAvailableLeaveTypes(empCtx)).toEqual([]);
+     expect((await db.transaction(empCtx, (tx) => repo.listLeaveTypes(tx))).length).toBe(2);
+   });
+ 
++  it('does not charge the weekly off from a weekday schedule as leave', async () => {
++    const { orgId, empId, mgrId, ltId, empCtx } = await setup();
++    const scheduleId = (await platformDb.query<{ id: string }>('seed', 'create mon-sat schedule',
++      sql`INSERT INTO weekday_schedule (organization_id, name, working_weekdays, created_by)
++          VALUES (${orgId}, 'Mon-Sat', ARRAY[1,2,3,4,5,6]::smallint[], ${mgrId}) RETURNING id`))[0]!.id;
++    await platformDb.query('seed', 'assign mon-sat schedule',
++      sql`INSERT INTO weekday_schedule_assignment (organization_id, user_id, schedule_id, effective_from, created_by)
++          VALUES (${orgId}, ${empId}, ${scheduleId}, '2026-01-01', ${mgrId})`);
++    // Saturday 24 to Monday 26 October: Sunday 25 is the weekly off.
++    const request = await submitLeave(empCtx, {
++      leaveTypeId: ltId, fromDate: '2026-10-24', toDate: '2026-10-26',
++      fromHalf: 'full', toHalf: 'full', reason: 'Fever',
++    });
++    expect(request.daysConsumed).toBe(2);
++    // A single-day request on the weekly off consumes nothing.
++    const sunday = await submitLeave(empCtx, {
++      leaveTypeId: ltId, fromDate: '2026-11-01', toDate: '2026-11-01',
++      fromHalf: 'full', toHalf: 'full', reason: 'Sunday',
++    });
++    expect(sunday.daysConsumed).toBe(0);
++  });
++
+   it('approval creates overlay rows and deducts balance atomically', async () => {
+     const { mgrId, ltId, empCtx, mgrCtx } = await setup();
+     const req = await submitLeave(empCtx, {
+diff --git a/tapcrm/packages/server/src/modules/leave/repository.ts b/tapcrm/packages/server/src/modules/leave/repository.ts
+index 9ddf2eb..915ee11 100644
+--- a/tapcrm/packages/server/src/modules/leave/repository.ts
++++ b/tapcrm/packages/server/src/modules/leave/repository.ts
+@@ -63,14 +63,20 @@ export async function listLeaveTypes(tx: Tx): Promise<LeaveTypeRow[]> {
+   `);
+ }
+ 
+-/** Types employees can select for an ordinary absence request. */
+-export async function listAvailableAbsenceTypes(tx: Tx): Promise<LeaveTypeRow[]> {
++/**
++ * Types employees can select: absence types for an ordinary leave request,
++ * attendance-mode types for a WFH request.
++ */
++export async function listAvailableTypes(
++  tx: Tx,
++  kind: 'absence' | 'attendance-mode',
++): Promise<LeaveTypeRow[]> {
+   return tx.query<LeaveTypeRow>(sql`
+     SELECT id, organization_id AS "organizationId", code, name, kind,
+            accrual_days AS "accrualDays", enforcement, paid_leave AS "paidLeave",
+            is_active AS "isActive"
+     FROM leave_type
+-    WHERE is_active = TRUE AND kind = 'absence'
++    WHERE is_active = TRUE AND kind = ${kind}
+     ORDER BY name, id
+   `);
+ }
+diff --git a/tapcrm/packages/server/src/modules/leave/routes.ts b/tapcrm/packages/server/src/modules/leave/routes.ts
+index 4f6551a..d7da0a5 100644
+--- a/tapcrm/packages/server/src/modules/leave/routes.ts
++++ b/tapcrm/packages/server/src/modules/leave/routes.ts
+@@ -5,7 +5,7 @@ import { route } from '../../platform/http/route.js';
+ import { sql } from '../../platform/dal/sql.js';
+ import { makeLeaveTypeResource, makeLeaveRequestResource } from './policy.js';
+ import { createLeaveType, listAvailableLeaveTypes, listLeaveTypes, updateLeaveType, cancelLeave, getBalances, getBalanceOverview, adjustBalance, getLeaveCalendar, getLeaveRequest, listLeaveRequests, listLeaveAcknowledgements, listLeaveDecisions, submitLeave, submitWfh, submitStandingWfh, acknowledgeLeave, decideLeave } from './service.js';
+-import { createLeaveTypeSchema, updateLeaveTypeSchema, adjustBalanceSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, queueListQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
++import { availableTypesQuerySchema, createLeaveTypeSchema, updateLeaveTypeSchema, adjustBalanceSchema, balanceQuerySchema, calendarQuerySchema, listQuerySchema, queueListQuerySchema, submitLeaveSchema, submitWfhSchema, submitStandingWfhSchema, decideSchema } from './validators.js';
+ 
+ async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource | null> {
+   const row = await db.maybeOne<{ id: string; organizationId: string }>(
+@@ -16,7 +16,7 @@ async function loadLeaveType(ctx: RequestContext, id: string): Promise<Resource
+ 
+ export function registerLeaveRoutes(): void {
+   route({ method: 'GET', path: '/api/leaves/types/available', action: 'leave:request', module: 'leave',
+-    handler: async ({ ctx }) => listAvailableLeaveTypes(ctx) });
++    handler: async ({ ctx, query }) => listAvailableLeaveTypes(ctx, availableTypesQuerySchema.parse(query).kind) });
+   route({ method: 'GET',  path: '/api/leaves/types', action: 'leave:manage-types', module: 'leave',
+     handler: async ({ ctx }) => listLeaveTypes(ctx) });
+   route({ method: 'POST', path: '/api/leaves/types', action: 'leave:manage-types', module: 'leave',
+diff --git a/tapcrm/packages/server/src/modules/leave/service.ts b/tapcrm/packages/server/src/modules/leave/service.ts
+index ee67117..30fb970 100644
+--- a/tapcrm/packages/server/src/modules/leave/service.ts
++++ b/tapcrm/packages/server/src/modules/leave/service.ts
+@@ -73,9 +73,12 @@ export async function listLeaveTypes(ctx: RequestContext): Promise<LeaveTypeDto[
+   return db.transaction(ctx, async (tx) => (await repo.listLeaveTypes(tx)).map(toLeaveTypeDto));
+ }
+ 
+-export async function listAvailableLeaveTypes(ctx: RequestContext): Promise<LeaveTypeDto[]> {
++export async function listAvailableLeaveTypes(
++  ctx: RequestContext,
++  kind: 'absence' | 'attendance-mode' = 'absence',
++): Promise<LeaveTypeDto[]> {
+   return db.transaction(ctx, async (tx) =>
+-    (await repo.listAvailableAbsenceTypes(tx)).map(toLeaveTypeDto));
++    (await repo.listAvailableTypes(tx, kind)).map(toLeaveTypeDto));
+ }
+ 
+ export async function createLeaveType(ctx: RequestContext, body: CreateLeaveTypeBody): Promise<LeaveTypeDto> {
+diff --git a/tapcrm/packages/server/src/modules/leave/validators.ts b/tapcrm/packages/server/src/modules/leave/validators.ts
+index b2e5193..7234f69 100644
+--- a/tapcrm/packages/server/src/modules/leave/validators.ts
++++ b/tapcrm/packages/server/src/modules/leave/validators.ts
+@@ -46,6 +46,11 @@ export const updateLeaveTypeSchema = createLeaveTypeSchema.partial()
+   .extend({ isActive: z.boolean().optional() });
+ export type UpdateLeaveTypeBody = z.infer<typeof updateLeaveTypeSchema>;
+ 
++/** `kind=attendance-mode` lists WFH types for the WFH form; absence types by default. */
++export const availableTypesQuerySchema = z.object({
++  kind: z.enum(['absence', 'attendance-mode']).default('absence'),
++});
++
+ export const listQuerySchema = z.object({
+   userId: z.string().uuid().optional(),
+   status: z.enum(['pending', 'acknowledged', 'approved', 'rejected', 'cancelled']).optional(),
+diff --git a/tapcrm/packages/server/src/modules/live-status/repository.ts b/tapcrm/packages/server/src/modules/live-status/repository.ts
+index f60d39c..2722e87 100644
+--- a/tapcrm/packages/server/src/modules/live-status/repository.ts
++++ b/tapcrm/packages/server/src/modules/live-status/repository.ts
+@@ -26,6 +26,7 @@ export interface Row {
+   lastScanDevice: string | null;
+   likelyFinishedAt: Date | null;
+   isWfh: boolean;
++  isRemote: boolean;
+   dayGroup: 'leave' | 'holiday' | null;
+   shiftStartAt: Date | null;
+   shiftEndAt: Date | null;
+@@ -50,7 +51,7 @@ export async function readRow(tx: Tx, userId: string): Promise<Row | null> {
+   return tx.maybeOne<Row>(sql`
+     SELECT user_id AS id, user_id, work_date::text AS work_date, state, since, last_event_at,
+            worked_minutes, break_minutes, presence_confidence, last_scan_at, last_scan_device,
+-           likely_finished_at, is_wfh, day_group,
++           likely_finished_at, is_wfh, is_remote, day_group,
+            shift_start_at, shift_end_at, window_start, window_end, rollover_due_at,
+            grace_minutes, flexible_target_minutes, updated_at
+     FROM user_status WHERE user_id = ${userId}
+@@ -68,13 +69,13 @@ export async function upsertRow(tx: Tx, row: UpsertRow): Promise<void> {
+     INSERT INTO user_status (
+       organization_id, user_id, work_date, state, since, last_event_at,
+       worked_minutes, break_minutes, presence_confidence, last_scan_at, last_scan_device,
+-      likely_finished_at, is_wfh, day_group,
++      likely_finished_at, is_wfh, is_remote, day_group,
+       shift_start_at, shift_end_at, window_start, window_end, rollover_due_at,
+       grace_minutes, flexible_target_minutes, updated_at
+     ) VALUES (
+       ${row.organizationId}, ${row.userId}, ${row.workDate}, ${row.state}, ${row.since}, ${row.lastEventAt},
+       ${row.workedMinutes}, ${row.breakMinutes}, ${row.presenceConfidence}, ${row.lastScanAt}, ${row.lastScanDevice},
+-      ${row.likelyFinishedAt}, ${row.isWfh}, ${row.dayGroup},
++      ${row.likelyFinishedAt}, ${row.isWfh}, ${row.isRemote}, ${row.dayGroup},
+       ${row.shiftStartAt}, ${row.shiftEndAt}, ${row.windowStart}, ${row.windowEnd}, ${row.rolloverDueAt},
+       ${row.graceMinutes}, ${row.flexibleTargetMinutes}, now()
+     )
+@@ -90,6 +91,7 @@ export async function upsertRow(tx: Tx, row: UpsertRow): Promise<void> {
+       last_scan_device = EXCLUDED.last_scan_device,
+       likely_finished_at = EXCLUDED.likely_finished_at,
+       is_wfh = EXCLUDED.is_wfh,
++      is_remote = EXCLUDED.is_remote,
+       day_group = EXCLUDED.day_group,
+       shift_start_at = EXCLUDED.shift_start_at,
+       shift_end_at = EXCLUDED.shift_end_at,
+@@ -123,7 +125,7 @@ export async function listBoard(
+   return tx.query<BoardRow>(sql`
+     SELECT r.user_id AS id, r.user_id, r.work_date::text AS work_date, r.state, r.since, r.last_event_at,
+            r.worked_minutes, r.break_minutes, r.presence_confidence, r.last_scan_at, r.last_scan_device,
+-           r.likely_finished_at, r.is_wfh, r.day_group,
++           r.likely_finished_at, r.is_wfh, r.is_remote, r.day_group,
+            r.shift_start_at, r.shift_end_at, r.window_start, r.window_end, r.rollover_due_at,
+            r.grace_minutes, r.flexible_target_minutes, r.updated_at,
+            u.full_name, u.department_id, d.name AS department_name,
+diff --git a/tapcrm/packages/server/src/modules/live-status/state.test.ts b/tapcrm/packages/server/src/modules/live-status/state.test.ts
+index 4011191..ff824f4 100644
+--- a/tapcrm/packages/server/src/modules/live-status/state.test.ts
++++ b/tapcrm/packages/server/src/modules/live-status/state.test.ts
+@@ -164,3 +164,23 @@ describe('deriveRow — presence_confidence', () => {
+     expect(row.presenceConfidence).toBe('confirmed');
+   });
+ });
++
++describe('remote punches (shown live, same rule as remote-without-approval)', () => {
++  const now = ist('2026-10-05T11:00:00');
++  it('a web punch-in without WFH approval is remote', () => {
++    const row = deriveRow({ ...daySpec, events: [event('in', '2026-10-05T09:05:00')], now });
++    expect([row.state, row.isWfh, row.isRemote]).toEqual(['WORKING', false, true]);
++  });
++  it('approved WFH is not remote', () => {
++    const row = deriveRow({ ...daySpec, isWfh: true, events: [event('in', '2026-10-05T09:05:00')], now });
++    expect([row.isWfh, row.isRemote]).toEqual([true, false]);
++  });
++  it('a device punch-in is not remote', () => {
++    const device = { ...event('in', '2026-10-05T09:05:00'), source: 'device' as const };
++    const row = deriveRow({ ...daySpec, events: [device], now });
++    expect(row.isRemote).toBe(false);
++  });
++  it('nobody in yet is not remote', () => {
++    expect(deriveRow({ ...daySpec, events: [], now }).isRemote).toBe(false);
++  });
++});
+diff --git a/tapcrm/packages/server/src/modules/live-status/state.ts b/tapcrm/packages/server/src/modules/live-status/state.ts
+index 23d2d1d..68ae880 100644
+--- a/tapcrm/packages/server/src/modules/live-status/state.ts
++++ b/tapcrm/packages/server/src/modules/live-status/state.ts
+@@ -38,6 +38,11 @@ export interface DerivedRow {
+   readonly lastScanDevice: string | null;
+   readonly likelyFinishedAt: Date | null;
+   readonly isWfh: boolean;
++  /**
++   * The day's arrival came from the web or the app without WFH approval —
++   * the calculator's `remote-without-approval` rule, shown while it happens.
++   */
++  readonly isRemote: boolean;
+   readonly dayGroup: 'leave' | 'holiday' | null;
+   readonly shiftStartAt: Date | null;
+   readonly shiftEndAt: Date | null;
+@@ -189,6 +194,13 @@ export function deriveRow(inputs: DeriveInputs): DerivedRow {
+     lastScanDevice: inputs.lastScanDevice ?? null,
+     likelyFinishedAt,
+     isWfh: inputs.isWfh,
++    isRemote:
++      !inputs.isWfh &&
++      reading.arrival !== null &&
++      events.some(
++        (e) =>
++          reading.arrival!.eventIds.includes(e.id) && (e.source === 'web' || e.source === 'mobile'),
++      ),
+     dayGroup: inputs.dayGroup,
+     shiftStartAt: shift.startAt,
+     shiftEndAt: shift.endAt,
+diff --git a/tapcrm/packages/server/src/modules/payroll/calculate.test.ts b/tapcrm/packages/server/src/modules/payroll/calculate.test.ts
+index 24a54f1..4449803 100644
+--- a/tapcrm/packages/server/src/modules/payroll/calculate.test.ts
++++ b/tapcrm/packages/server/src/modules/payroll/calculate.test.ts
+@@ -350,3 +350,103 @@ describe('revision posting mapper', () => {
+     expect(cr?.role).toBe('salary-payable');
+   });
+ });
++
++describe('computePayslip — statutory lines from the accepted settings (PY-4)', () => {
++  // The October test structure: Basic 20,000 (PF wage), HRA 8,000, Special 6,400, Conveyance 1,600 fixed;
++  // PF 1,800 (employee and employer) and PT 200 as structure amounts.
++  const OCT_SEGMENT = {
++    structureId: 'struct-oct',
++    currency: 'INR',
++    effectiveFrom: '2026-10-01',
++    effectiveTo: null,
++    lines: [
++      { code: 'BASIC', label: 'Basic', kind: 'earning' as const, amountStr: '20000', prorated: true, statutoryTags: ['pf-wage'], sortOrder: 1 },
++      { code: 'HRA', label: 'HRA', kind: 'earning' as const, amountStr: '8000', prorated: true, statutoryTags: [], sortOrder: 2 },
++      { code: 'SPECIAL', label: 'Special', kind: 'earning' as const, amountStr: '6400', prorated: true, statutoryTags: [], sortOrder: 3 },
++      { code: 'CONVEYANCE', label: 'Conveyance', kind: 'earning' as const, amountStr: '1600', prorated: false, statutoryTags: [], sortOrder: 4 },
++      { code: 'PF', label: 'PF', kind: 'deduction' as const, amountStr: '1800', prorated: true, statutoryTags: ['pf'], sortOrder: 10 },
++      { code: 'PT', label: 'PT', kind: 'deduction' as const, amountStr: '200', prorated: false, statutoryTags: ['pt'], sortOrder: 11 },
++      { code: 'ESI', label: 'ESI', kind: 'deduction' as const, amountStr: '0', prorated: false, statutoryTags: ['esi'], sortOrder: 12 },
++      { code: 'PF-ER', label: 'PF (employer)', kind: 'employer-contribution' as const, amountStr: '1800', prorated: true, statutoryTags: ['pf'], sortOrder: 20 },
++    ],
++  };
++  const october = (absentDays: number) =>
++    Array.from({ length: 31 }, (_, i) =>
++      makeDay(`2026-10-${String(i + 1).padStart(2, '0')}`, i < absentDays ? { p: 0, ab: 2 } : { p: 2 }));
++  const slip = (settings: Record<string, unknown>, absentDays: number) => {
++    const result = computePayslip({
++      userId: 'u', periodStart: '2026-10-01', periodEnd: '2026-10-31', employmentFrom: '2026-01-01', employmentTo: null,
++      days: october(absentDays), structureSegments: [OCT_SEGMENT], inputs: [],
++      config: { schemaVersion: 'v1', settings },
++    });
++    return Object.fromEntries(result.lines.map((line) => [line.code, Number(line.amountPaise) / 100]));
++  };
++  const SETTINGS = {
++    pf: { employeeRate: 0.12, employerRate: 0.12, wageCeiling: 15000 },
++    professionalTax: { monthly: 200 },
++    esi: { enabled: false },
++  };
++
++  it('PF is 12% of earned basic capped at ₹15,000: ₹1,800 even after 2.5 days of loss of pay', () => {
++    expect(slip(SETTINGS, 0)).toMatchObject({ BASIC: 20000, PF: 1800, 'PF-ER': 1800, PT: 200 });
++    // Two days absent and a half day: 5 of 62 units lost. Basic 20,000 × 57/62 = 18,387 > 15,000.
++    const lop = computePayslip({
++      userId: 'u', periodStart: '2026-10-01', periodEnd: '2026-10-31', employmentFrom: '2026-01-01', employmentTo: null,
++      days: october(0).map((day, i) => (i < 2 ? { ...day, presentUnits: 0, absentUnits: 2 } : i === 2 ? { ...day, presentUnits: 1, absentUnits: 1 } : day)),
++      structureSegments: [OCT_SEGMENT], inputs: [], config: { schemaVersion: 'v1', settings: SETTINGS },
++    });
++    const lines = Object.fromEntries(lop.lines.map((line) => [line.code, Number(line.amountPaise) / 100]));
++    expect([lines['BASIC'], lines['PF'], lines['PF-ER']]).toEqual([18387, 1800, 1800]);
++  });
++
++  it('below the ceiling PF follows the earned basic', () => {
++    // 15 days absent: basic 20,000 × 32/62 = 10,323 → PF 1,239.
++    expect(slip(SETTINGS, 15)).toMatchObject({ BASIC: 10323, PF: 1239, 'PF-ER': 1239 });
++  });
++
++  it('ESI off drops the ESI line; on, it is 0.75% of gross within the ₹21,000 limit', () => {
++    expect(slip(SETTINGS, 0)['ESI']).toBeUndefined();
++    const withEsi = slip({ ...SETTINGS, esi: { enabled: true } }, 15);
++    // Gross: 10,323 + 4,129 + 3,303 + 1,600 = 19,355 → 0.75% = 145.16 → ₹145.
++    expect(withEsi['ESI']).toBe(145);
++    expect(slip({ ...SETTINGS, esi: { enabled: true } }, 0)['ESI']).toBeUndefined(); // gross 36,000 > 21,000
++  });
++
++  it('months accepted without statutory settings keep the structure amounts', () => {
++    expect(slip({ notes: 'no statutory settings' }, 15)).toMatchObject({ PF: 929, PT: 200, ESI: 0 });
++  });
++});
++
++describe('computePayslip — overtime and holiday work (paid only when the settings say so)', () => {
++  const SEG = {
++    structureId: 's', currency: 'INR', effectiveFrom: '2026-10-01', effectiveTo: null,
++    lines: [
++      { code: 'BASIC', label: 'Basic', kind: 'earning' as const, amountStr: '20000', prorated: true, statutoryTags: ['pf-wage'], sortOrder: 1 },
++      { code: 'HRA', label: 'HRA', kind: 'earning' as const, amountStr: '8000', prorated: true, statutoryTags: [], sortOrder: 2 },
++    ],
++  };
++  const days = Array.from({ length: 31 }, (_, i) => {
++    const day = makeDay(`2026-10-${String(i + 1).padStart(2, '0')}`, { p: 2 });
++    if (i === 6 || i === 7) return { ...day, overtimeMinutes: 120 }; // 7 and 8 Oct: two hours each
++    if (i === 17) return { ...day, presentUnits: 0, holidayUnits: 2, holidayWorkedMinutes: 360 }; // a Sunday worked
++    return day;
++  });
++  const slip = (settings: Record<string, unknown>) =>
++    Object.fromEntries(computePayslip({
++      userId: 'u', periodStart: '2026-10-01', periodEnd: '2026-10-31', employmentFrom: '2026-01-01', employmentTo: null,
++      days, structureSegments: [SEG], inputs: [], config: { schemaVersion: 'v1', settings },
++    }).lines.map((line) => [line.code, Number(line.amountPaise) / 100]));
++
++  it('nothing extra unless switched on', () => {
++    expect(slip({})).toEqual({ BASIC: 20000, HRA: 8000 });
++  });
++  it('overtime at twice the ordinary rate: basic / (26 × 8) per hour', () => {
++    // 20,000 / 208 = 96.15 an hour; 4 hours × 2 = ₹769.23 → ₹769.
++    expect(slip({ overtime: { enabled: true } })).toMatchObject({ OVERTIME: 769 });
++  });
++  it('work on a holiday or weekly off at its own multiplier', () => {
++    // 6 hours × 96.15 × 2 = ₹1,153.85 → ₹1,154; at 1.5 → ₹865.38 → ₹865.
++    expect(slip({ holidayWork: { enabled: true } })['HOLIDAY-WORK']).toBe(1154);
++    expect(slip({ holidayWork: { enabled: true, multiplier: 1.5 } })['HOLIDAY-WORK']).toBe(865);
++  });
++});
+diff --git a/tapcrm/packages/server/src/modules/payroll/calculate.ts b/tapcrm/packages/server/src/modules/payroll/calculate.ts
+index 3f0e4a3..3e36cb4 100644
+--- a/tapcrm/packages/server/src/modules/payroll/calculate.ts
++++ b/tapcrm/packages/server/src/modules/payroll/calculate.ts
+@@ -2,6 +2,16 @@ import type { DateOnly } from '@tapcrm/contracts';
+ import { addDays, daysBetween } from '../../platform/time.js';
+ import { rupeesToPaise, roundToRupee, prorateAndRound } from './money.js';
+ 
++/**
++ * Which calculation produced a payslip. Frozen into each employee's inputs, so
++ * it is part of the fingerprint: a run calculated by an older engine reads as
++ * changed and is recalculated before it can be published. Published payslips
++ * are never touched; a revision recalculates with the current engine.
++ *   2: statutory lines from the accepted settings (PY-4), overtime and holiday
++ *      work when the settings pay for them, advance recoveries and penalties.
++ */
++export const PAYROLL_ENGINE_VERSION = 'payroll-engine/2';
++
+ export interface FrozenDay {
+   readonly workDate: string;
+   readonly state: 'open' | 'closed';
+@@ -12,6 +22,8 @@ export interface FrozenDay {
+   readonly holidayUnits: number;
+   readonly nightMinutes: number;
+   readonly overtimeMinutes: number;
++  /** Minutes worked on a holiday or weekly off; present only on such days. */
++  readonly holidayWorkedMinutes?: number;
+ }
+ 
+ export interface FrozenStructureSegment {
+@@ -38,7 +50,7 @@ export interface FrozenInput {
+   readonly amountStr: string;  // numeric string
+   readonly label: string;
+   readonly direction: 'earning' | 'deduction';
+-  readonly sourceId: string | null;  // break_breach_id or null
++  readonly sourceId: string | null;  // break breach, advance deduction or penalty; null for manual entries
+ }
+ 
+ export interface FrozenConfig {
+@@ -169,6 +181,12 @@ export function computePayslip(input: ComputePayslipInput): ComputePayslipResult
+     }
+   }
+ 
++  // 3b. Overtime and work on holidays, when the month's settings pay for them.
++  addExtraTimePay(lines, nonProratedSegment ?? segments[segments.length - 1], input.days, input.config.settings);
++
++  // 3c. Statutory lines from the month's accepted settings (PY-4).
++  applyStatutorySettings(lines, segments, input.config.settings);
++
+   // 4. Add payroll inputs as lines
+   for (const inp of input.inputs) {
+     const amountPaise = roundToRupee(rupeesToPaise(inp.amountStr));
+@@ -199,6 +217,193 @@ export function computePayslip(input: ComputePayslipInput): ComputePayslipResult
+   return { grossPaise, deductionsPaise, netPaise, employerContributionPaise, lines, totalUnits, paidUnits, unpaidUnits };
+ }
+ 
++// ── overtime and holiday work ────────────────────────────────────────────────
++
++/**
++ * Paid only when the month's settings switch it on:
++ *   overtime:     { enabled, multiplier? = 2 }
++ *   holidayWork:  { enabled, multiplier? = 2 }
++ *   ordinaryRate: { workingDaysPerMonth? = 26, hoursPerDay? = 8 }
++ * The hourly ordinary rate is the monthly wage of the lines tagged `pf-wage`
++ * (basic and DA) over working days × hours. Overtime is the credited overtime
++ * of working days; holiday work is the time worked on holidays and weekly offs.
++ */
++function addExtraTimePay(
++  lines: PayslipLine[],
++  segment: FrozenStructureSegment | undefined,
++  days: readonly FrozenDay[],
++  settings: Record<string, unknown>,
++): void {
++  const overtime = obj(settings['overtime']);
++  const holidayWork = obj(settings['holidayWork']);
++  const otOn = overtime?.['enabled'] === true;
++  const holidayOn = holidayWork?.['enabled'] === true;
++  if ((!otOn && !holidayOn) || segment === undefined) return;
++  const ordinary = obj(settings['ordinaryRate']);
++  const daysPerMonth = num(ordinary?.['workingDaysPerMonth']) ?? 26;
++  const hoursPerDay = num(ordinary?.['hoursPerDay']) ?? 8;
++  if (daysPerMonth <= 0 || hoursPerDay <= 0) return;
++  const wagePaise = segment.lines
++    .filter((line) => line.kind === 'earning' && line.statutoryTags.includes('pf-wage'))
++    .reduce((sum, line) => sum + rupeesToPaise(line.amountStr), 0n);
++  if (wagePaise === 0n) return;
++  // pay = wage × minutes × multiplier / (days × hours × 60), to the rupee, half up,
++  // computed exactly with the decimals scaled to thousandths.
++  const pay = (minutes: number, multiplier: number): bigint => {
++    const m = BigInt(Math.round(multiplier * 1000));
++    const d = BigInt(Math.round(daysPerMonth * 1000));
++    const h = BigInt(Math.round(hoursPerDay * 1000));
++    const numerator = wagePaise * BigInt(minutes) * m * 1000n;
++    const denominator = d * h * 60n;
++    return ((numerator + 50n * denominator) / (100n * denominator)) * 100n;
++  };
++  const rateBasis = { wagePaise: wagePaise.toString(), workingDaysPerMonth: daysPerMonth, hoursPerDay };
++  if (otOn) {
++    const minutes = days.reduce((sum, day) => sum + (day.overtimeMinutes ?? 0), 0);
++    const multiplier = num(overtime?.['multiplier']) ?? 2;
++    if (minutes > 0)
++      lines.push({
++        code: 'OVERTIME', label: 'Overtime', kind: 'earning', amountPaise: pay(minutes, multiplier),
++        basis: { overtimeMinutes: minutes, multiplier, ...rateBasis }, sortOrder: 8000,
++      });
++  }
++  if (holidayOn) {
++    const minutes = days.reduce((sum, day) => sum + (day.holidayWorkedMinutes ?? 0), 0);
++    const multiplier = num(holidayWork?.['multiplier']) ?? 2;
++    if (minutes > 0)
++      lines.push({
++        code: 'HOLIDAY-WORK', label: 'Work on holidays and weekly offs', kind: 'earning',
++        amountPaise: pay(minutes, multiplier),
++        basis: { holidayWorkedMinutes: minutes, multiplier, ...rateBasis }, sortOrder: 8001,
++      });
++  }
++}
++
++// ── statutory settings (PY-4) ────────────────────────────────────────────────
++
++/**
++ * The statutory parts of the accepted settings. Each is optional: a setting
++ * that is missing leaves the salary structure's own amount for that line, so
++ * months accepted without statutory settings calculate exactly as before.
++ *
++ *   pf:              { employeeRate, employerRate, wageCeiling? }   rates as fractions (0.12)
++ *   professionalTax: { monthly }                                     rupees per month
++ *   esi:             { enabled, employeeRate?, employerRate?, wageLimit? }
++ */
++export interface StatutorySettings {
++  readonly pf: { employeeRate: number; employerRate: number; wageCeilingPaise: bigint | null } | null;
++  readonly professionalTaxPaise: bigint | null;
++  readonly esi: { enabled: boolean; employeeRate: number; employerRate: number; wageLimitPaise: bigint } | null;
++}
++
++const num = (value: unknown): number | null =>
++  typeof value === 'number' && Number.isFinite(value) && value >= 0
++    ? value
++    : typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0
++      ? Number(value)
++      : null;
++const obj = (value: unknown): Record<string, unknown> | null =>
++  value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
++
++export function statutorySettings(settings: Record<string, unknown>): StatutorySettings {
++  const pf = obj(settings['pf']);
++  const pt = obj(settings['professionalTax']);
++  const esi = obj(settings['esi']);
++  const pfEmployee = pf ? num(pf['employeeRate']) : null;
++  const pfEmployer = pf ? num(pf['employerRate']) : null;
++  const pfCeiling = pf ? num(pf['wageCeiling']) : null;
++  const ptMonthly = pt ? num(pt['monthly']) : null;
++  return {
++    pf:
++      pfEmployee !== null && pfEmployer !== null
++        ? {
++            employeeRate: pfEmployee,
++            employerRate: pfEmployer,
++            wageCeilingPaise: pfCeiling !== null && pfCeiling > 0 ? rupeesToPaise(pfCeiling) : null,
++          }
++        : null,
++    professionalTaxPaise: ptMonthly !== null ? rupeesToPaise(ptMonthly) : null,
++    esi:
++      esi !== null && typeof esi['enabled'] === 'boolean'
++        ? {
++            enabled: esi['enabled'],
++            employeeRate: num(esi['employeeRate']) ?? 0.0075,
++            employerRate: num(esi['employerRate']) ?? 0.0325,
++            wageLimitPaise: rupeesToPaise(num(esi['wageLimit']) ?? 21000),
++          }
++        : null,
++  };
++}
++
++/** `paise × rate`, exact to six decimal places of the rate, then rounded to the rupee (PY-3). */
++function percentOf(paise: bigint, rate: number): bigint {
++  const micro = BigInt(Math.round(rate * 1_000_000));
++  // Rounded half-up to the rupee in one step: (paise × micro) / (10⁶ × 100) rupees.
++  return ((paise * micro + 50_000_000n) / 100_000_000n) * 100n;
++}
++
++/**
++ * Replaces the amounts of structure lines tagged `pf`, `pt` or `esi` with what
++ * the settings say, from the earned (already prorated) lines:
++ *   PF  — the rate of the earned `pf-wage` lines, capped at the wage ceiling;
++ *         the deduction takes the employee rate, the employer line its own
++ *   PT  — the monthly amount
++ *   ESI — the rate of gross earnings when gross is within the wage limit,
++ *         nothing (the line is dropped) above it or when ESI is off
++ */
++function applyStatutorySettings(
++  lines: PayslipLine[],
++  segments: readonly FrozenStructureSegment[],
++  settings: Record<string, unknown>,
++): void {
++  const rules = statutorySettings(settings);
++  if (rules.pf === null && rules.professionalTaxPaise === null && rules.esi === null) return;
++  const tags = new Map<string, readonly string[]>();
++  for (const segment of segments) for (const line of segment.lines) tags.set(line.code, line.statutoryTags);
++  const tagged = (line: PayslipLine, tag: string) => (tags.get(line.code) ?? []).includes(tag);
++
++  const pfWage = lines
++    .filter((line) => line.kind === 'earning' && tagged(line, 'pf-wage'))
++    .reduce((sum, line) => sum + line.amountPaise, 0n);
++  const gross = lines
++    .filter((line) => line.kind === 'earning')
++    .reduce((sum, line) => sum + line.amountPaise, 0n);
++
++  for (let i = lines.length - 1; i >= 0; i -= 1) {
++    const line = lines[i]!;
++    if (line.kind === 'earning') continue;
++    if (rules.pf !== null && tagged(line, 'pf')) {
++      const base =
++        rules.pf.wageCeilingPaise !== null && pfWage > rules.pf.wageCeilingPaise
++          ? rules.pf.wageCeilingPaise
++          : pfWage;
++      const rate = line.kind === 'deduction' ? rules.pf.employeeRate : rules.pf.employerRate;
++      lines[i] = {
++        ...line,
++        amountPaise: percentOf(base, rate),
++        basis: { statutory: 'pf', pfWagePaise: pfWage.toString(), basePaise: base.toString(), rate },
++      };
++    } else if (rules.professionalTaxPaise !== null && tagged(line, 'pt')) {
++      lines[i] = {
++        ...line,
++        amountPaise: gross > 0n ? rules.professionalTaxPaise : 0n,
++        basis: { statutory: 'pt', monthlyPaise: rules.professionalTaxPaise.toString() },
++      };
++    } else if (rules.esi !== null && tagged(line, 'esi')) {
++      if (!rules.esi.enabled || gross > rules.esi.wageLimitPaise) {
++        lines.splice(i, 1);
++        continue;
++      }
++      const rate = line.kind === 'deduction' ? rules.esi.employeeRate : rules.esi.employerRate;
++      lines[i] = {
++        ...line,
++        amountPaise: percentOf(gross, rate),
++        basis: { statutory: 'esi', grossPaise: gross.toString(), rate },
++      };
++    }
++  }
++}
++
+ // ── helpers ──────────────────────────────────────────────────────────────────
+ 
+ function countDaysInRange(from: string, to: string): number {
+diff --git a/tapcrm/packages/server/src/modules/payroll/facade.ts b/tapcrm/packages/server/src/modules/payroll/facade.ts
+index 42b8021..e034d6b 100644
+--- a/tapcrm/packages/server/src/modules/payroll/facade.ts
++++ b/tapcrm/packages/server/src/modules/payroll/facade.ts
+@@ -36,11 +36,21 @@ export {
+   insertManualInput,
+   revokeManualInput,
+   listActiveInputsForPeriod,
++  writeSourcedInput,
++  revokeSourcedInput,
++  firstUnpublishedPeriod,
+   type ManualInputKind,
+   type ManualInputInsert,
+   type PayrollInputRow,
++  type SourcedInput,
++  type InputSource,
+ } from './input.js';
+ 
++export {
++  registerPayrollSourceSettlers,
++  type SourceSettler,
++} from './source-settlers.js';
++
+ export {
+   PAYROLL_EVENTS,
+   type InputChanged,
+diff --git a/tapcrm/packages/server/src/modules/payroll/freeze.ts b/tapcrm/packages/server/src/modules/payroll/freeze.ts
+index 9a20be2..cb45d18 100644
+--- a/tapcrm/packages/server/src/modules/payroll/freeze.ts
++++ b/tapcrm/packages/server/src/modules/payroll/freeze.ts
+@@ -1,4 +1,5 @@
+ import { createHash } from 'node:crypto';
++import { PAYROLL_ENGINE_VERSION } from './calculate.js';
+ import type { DateOnly } from '@tapcrm/contracts';
+ import type { Tx } from '../../platform/dal/db.js';
+ import { sql } from '../../platform/dal/sql.js';
+@@ -111,6 +112,11 @@ export async function freezeEmployees(
+       holidayUnits: day.holidayUnits,
+       nightMinutes: day.nightMinutes,
+       overtimeMinutes: day.overtimeMinutes,
++      // Only on days worked as a holiday or weekly off, so every other day's
++      // frozen shape — and its fingerprint — is unchanged.
++      ...(day.status === 'holiday' && day.workedMinutes > 0
++        ? { holidayWorkedMinutes: day.workedMinutes }
++        : {}),
+     });
+     daysByUser.set(day.userId, list);
+   }
+@@ -133,6 +139,7 @@ export async function freezeEmployees(
+       structureSegments: segmentsByUser.get(employee.userId) ?? [],
+       payrollInputs: inputsByUser.get(employee.userId) ?? [],
+       configSnapshot,
++      engineVersion: PAYROLL_ENGINE_VERSION,
+     };
+     return {
+       userId: employee.userId,
+diff --git a/tapcrm/packages/server/src/modules/payroll/input.ts b/tapcrm/packages/server/src/modules/payroll/input.ts
+index bf692c7..3fcaa8b 100644
+--- a/tapcrm/packages/server/src/modules/payroll/input.ts
++++ b/tapcrm/packages/server/src/modules/payroll/input.ts
+@@ -25,6 +25,10 @@ export interface PayrollInputRow {
+   readonly label: string;
+   readonly reason: string | null;
+   readonly breakBreachId: string | null;
++  /** The scheduled advance deduction this input recovers (system-written). */
++  readonly advanceDeductionId?: string;
++  /** The penalty this input deducts (system-written). */
++  readonly penaltyId?: string;
+   readonly createdAt: string;
+   readonly createdBy: string;
+   readonly revokedAt: string | null;
+@@ -32,6 +36,120 @@ export interface PayrollInputRow {
+   readonly revocationReason: string | null;
+ }
+ 
++/**
++ * The source keys are present only when set, so the frozen inputs of every
++ * other entry — and their fingerprints — stay exactly as they were.
++ */
++function withSources<T extends { advanceDeductionId?: string | null; penaltyId?: string | null }>(row: T): T {
++  const out = { ...row } as T & Record<string, unknown>;
++  if (out.advanceDeductionId === null || out.advanceDeductionId === undefined) delete out.advanceDeductionId;
++  if (out.penaltyId === null || out.penaltyId === undefined) delete out.penaltyId;
++  return out;
++}
++
++/** An input another module owns: an advance recovery or a penalty. */
++export type SourcedInput =
++  | {
++      readonly kind: 'advance-recovery';
++      readonly advanceDeductionId: string;
++      readonly userId: string;
++      readonly periodStart: string;
++      readonly amountPaise: string;
++      readonly label: string;
++      readonly reason: string;
++      readonly createdBy: string;
++    }
++  | {
++      readonly kind: 'penalty';
++      readonly penaltyId: string;
++      readonly userId: string;
++      readonly periodStart: string;
++      readonly amountPaise: string;
++      readonly label: string;
++      readonly reason: string;
++      readonly createdBy: string;
++    };
++
++export type InputSource =
++  | { readonly advanceDeductionId: string }
++  | { readonly penaltyId: string };
++
++const sourceCondition = (source: InputSource) =>
++  'advanceDeductionId' in source
++    ? sql`advance_deduction_id = ${source.advanceDeductionId}::uuid`
++    : sql`penalty_id = ${source.penaltyId}::uuid`;
++
++/**
++ * Revokes the source's live input, if any. Returns its id so the caller can
++ * record the change for the month's run.
++ */
++export async function revokeSourcedInput(
++  tx: Tx,
++  source: InputSource,
++  revokedBy: string,
++  reason: string,
++): Promise<{ id: string; userId: string; periodStart: string } | null> {
++  return tx.maybeOne<{ id: string; userId: string; periodStart: string }>(sql`
++    UPDATE payroll_input
++    SET revoked_at = now(), revoked_by = ${revokedBy}::uuid, revocation_reason = ${reason}
++    WHERE organization_id = current_organization_id()
++      AND ${sourceCondition(source)}
++      AND revoked_at IS NULL
++    RETURNING id, user_id AS "userId", period_start::text AS "periodStart"
++  `);
++}
++
++/**
++ * Writes the source's input for its month, replacing a live one (a changed
++ * amount or month is a revoke and a new entry, so history stays readable).
++ */
++export async function writeSourcedInput(tx: Tx, input: SourcedInput): Promise<{ id: string }> {
++  const source: InputSource =
++    input.kind === 'advance-recovery'
++      ? { advanceDeductionId: input.advanceDeductionId }
++      : { penaltyId: input.penaltyId };
++  await revokeSourcedInput(tx, source, input.createdBy, 'Replaced by an updated entry');
++  return tx.one<{ id: string }>(sql`
++    INSERT INTO payroll_input
++      (organization_id, user_id, period_start, kind, amount, label, reason,
++       advance_deduction_id, penalty_id, created_by)
++    VALUES (
++      current_organization_id(), ${input.userId}::uuid, ${input.periodStart}::date, ${input.kind},
++      (${input.amountPaise}::numeric / 100), ${input.label}, ${input.reason},
++      ${input.kind === 'advance-recovery' ? input.advanceDeductionId : null}::uuid,
++      ${input.kind === 'penalty' ? input.penaltyId : null}::uuid,
++      ${input.createdBy}::uuid
++    )
++    RETURNING id
++  `);
++}
++
++/**
++ * The advance deductions and penalties paid through these published payslips:
++ * the inputs each payslip froze (the same test the inputs list uses for
++ * "published").
++ */
++export async function settledSources(
++  tx: Tx,
++  organizationId: string,
++  payslipIds: readonly string[],
++): Promise<{ advanceDeductionIds: string[]; penaltyIds: string[] }> {
++  if (payslipIds.length === 0) return { advanceDeductionIds: [], penaltyIds: [] };
++  const rows = await tx.query<{ advanceDeductionId: string | null; penaltyId: string | null }>(sql`
++    SELECT DISTINCT i.advance_deduction_id AS "advanceDeductionId", i.penalty_id AS "penaltyId"
++    FROM payslip p
++    CROSS JOIN LATERAL jsonb_array_elements(COALESCE(p.inputs -> 'payrollInputs', '[]'::jsonb)) AS frozen(entry)
++    JOIN payroll_input i ON i.organization_id = p.organization_id AND i.id = (frozen.entry ->> 'id')::uuid
++    WHERE p.organization_id = ${organizationId}
++      AND p.id = ANY(${payslipIds}::uuid[])
++      AND (i.advance_deduction_id IS NOT NULL OR i.penalty_id IS NOT NULL)
++  `);
++  return {
++    advanceDeductionIds: rows.flatMap((r) => (r.advanceDeductionId ? [r.advanceDeductionId] : [])),
++    penaltyIds: rows.flatMap((r) => (r.penaltyId ? [r.penaltyId] : [])),
++  };
++}
++
+ /**
+  * Payroll input repository — writes and revokes break deductions.
+  * Called by BreakDeductionWriter (registered via facade.ts).
+@@ -96,6 +214,8 @@ export async function revokeManualInput(
+     WHERE organization_id = ${organizationId}
+       AND id = ${inputId}::uuid
+       AND break_breach_id IS NULL
++      AND advance_deduction_id IS NULL
++      AND penalty_id IS NULL
+       AND revoked_at IS NULL
+     RETURNING id
+   `);
+@@ -128,6 +248,7 @@ export async function listInputs(
+     SELECT i.id, i.user_id AS "userId", i.period_start::text AS "periodStart",
+            i.kind, i.amount::text AS amount, i.label, i.reason,
+            i.break_breach_id AS "breakBreachId",
++           i.advance_deduction_id AS "advanceDeductionId", i.penalty_id AS "penaltyId",
+            i.created_at::text AS "createdAt", i.created_by AS "createdBy",
+            i.revoked_at::text AS "revokedAt", i.revoked_by AS "revokedBy",
+            i.revocation_reason AS "revocationReason",
+@@ -173,10 +294,11 @@ export async function listActiveInputsForPeriod(
+   periodStart: string,
+ ): Promise<PayrollInputRow[]> {
+   if (userIds.length === 0) return [];
+-  return tx.query<PayrollInputRow>(sql`
++  const rows = await tx.query<PayrollInputRow>(sql`
+     SELECT id, user_id AS "userId", period_start::text AS "periodStart",
+            kind, amount::text AS amount, label, reason,
+            break_breach_id AS "breakBreachId",
++           advance_deduction_id AS "advanceDeductionId", penalty_id AS "penaltyId",
+            created_at::text AS "createdAt", created_by AS "createdBy",
+            revoked_at::text AS "revokedAt", revoked_by AS "revokedBy",
+            revocation_reason AS "revocationReason"
+@@ -187,4 +309,26 @@ export async function listActiveInputsForPeriod(
+       AND revoked_at IS NULL
+     ORDER BY created_at
+   `);
++  return rows.map(withSources);
++}
++
++/**
++ * The first payroll month from `from` whose payroll is not published yet — where
++ * a recovery planned now can still be taken without revising a payslip.
++ */
++export async function firstUnpublishedPeriod(
++  tx: Tx,
++  organizationId: string,
++  from: string,
++): Promise<string> {
++  const row = await tx.one<{ month: string }>(sql`
++    SELECT m::date::text AS month
++    FROM generate_series(${from}::date, ${from}::date + interval '36 months', interval '1 month') AS m
++    WHERE NOT EXISTS (
++      SELECT 1 FROM payroll_run r
++      WHERE r.organization_id = ${organizationId} AND r.period_start = m::date AND r.status = 'published')
++    ORDER BY m
++    LIMIT 1
++  `);
++  return row.month;
+ }
+diff --git a/tapcrm/packages/server/src/modules/payroll/payroll.integration.test.ts b/tapcrm/packages/server/src/modules/payroll/payroll.integration.test.ts
+index ba9adeb..cfcaa68 100644
+--- a/tapcrm/packages/server/src/modules/payroll/payroll.integration.test.ts
++++ b/tapcrm/packages/server/src/modules/payroll/payroll.integration.test.ts
+@@ -17,6 +17,9 @@ import { resolveConfig, acceptConfig } from './config.js';
+ import { createStructure } from './structure.js';
+ import { insertManualInput, listActiveInputsForPeriod } from './input.js';
+ import { registerPayrollPolicies } from './policy.js';
++import { planDefaultRecovery, registerAdvancePayrollPorts } from '../advance/payroll.js';
++import { chargePenalty, registerPenaltyPayrollPorts } from '../penalties/payroll.js';
++import { settlePaidSources } from './source-settlers.js';
+ import type { Action, Decimal } from '@tapcrm/contracts';
+ 
+ /**
+@@ -389,3 +392,61 @@ describe.skipIf(!enabled)('published payslip immutability (PostgreSQL)', () => {
+     ).rejects.toThrow();
+   });
+ });
++
++describe.skipIf(!enabled)('advance recoveries and penalties settle when their payslip is published (PostgreSQL)', () => {
++  it('a published payslip that froze them completes the deduction and recovers the penalty', async () => {
++    registerAdvancePayrollPorts();
++    registerPenaltyPayrollPorts();
++    const ctx = makeCtx();
++    const [advance] = await platformDb.query<{ id: string }>('seed', 'advance', sql`
++      INSERT INTO employee_advance (organization_id, employee_id, requested_amount_paise, approved_amount_paise,
++        currency, requested_for_period, reason, status, source, approved_at, approved_by, created_by)
++      VALUES (${ORG}, ${EMP}, 300000, 300000, 'INR', '2025-06-01', 'Rent deposit', 'approved', 'manual', now(), ${EMP}, ${EMP})
++      RETURNING id`);
++    const [penalty] = await platformDb.query<{ id: string }>('seed', 'penalty', sql`
++      INSERT INTO employee_penalty (organization_id, employee_id, penalty_type, amount_paise, penalty_date,
++        payroll_period, remarks, created_by)
++      VALUES (${ORG}, ${EMP}, 'misconduct', 20000, '2025-06-10', '2025-06-01', 'Damaged a monitor', ${EMP})
++      RETURNING id`);
++    await db.transaction(ctx, async (tx) => {
++      await planDefaultRecovery(tx, ctx, {
++        id: advance!.id, employeeId: EMP, approvedAmountPaise: '300000', requestedForPeriod: '2025-06-01',
++      });
++      await chargePenalty(tx, {
++        id: penalty!.id, employeeId: EMP, payrollPeriod: '2025-06-01', amountPaise: '20000',
++        penaltyType: 'misconduct', remarks: 'Damaged a monitor',
++      }, EMP);
++    });
++    const live = await db.transaction(ctx, (tx) => listActiveInputsForPeriod(tx, ORG, [EMP], '2025-06-01'));
++    expect(live.map((row) => [row.kind, row.amount, row.label])).toEqual([
++      ['advance-recovery', '3000.0000', 'Salary advance recovery'],
++      ['penalty', '200.0000', 'Penalty: misconduct'],
++    ]);
++
++    const runId = randomUUID();
++    const slipId = randomUUID();
++    await db.transaction(ctx, async (tx) => {
++      await tx.query(sql`
++        INSERT INTO payroll_run (id, organization_id, period_start, period_end, config_id, created_by)
++        SELECT ${runId}::uuid, ${ORG}, '2025-06-01'::date, '2025-06-30'::date, pc.id, ${EMP}::uuid
++        FROM payroll_config pc WHERE pc.organization_id = ${ORG} LIMIT 1
++      `);
++      await tx.query(sql`
++        INSERT INTO payslip (id, organization_id, run_id, user_id, period_start, period_end,
++          gross_paise, deductions_paise, net_paise, employer_contribution_paise,
++          status, immutable, revision_number, inputs)
++        VALUES (${slipId}::uuid, ${ORG}, ${runId}::uuid, ${EMP}::uuid, '2025-06-01'::date, '2025-06-30'::date,
++          3000000, 320000, 2680000, 0, 'published', true, 0,
++          ${JSON.stringify({ payrollInputs: live })}::jsonb)
++      `);
++      await settlePaidSources(tx, ORG, [slipId]);
++    });
++    const [deduction] = await platformDb.query<{ status: string; deductedAmountPaise: string }>('seed', 'deduction', sql`
++      SELECT status, deducted_amount_paise::text AS deducted_amount_paise
++      FROM employee_advance_deduction WHERE advance_id = ${advance!.id}`);
++    expect(deduction).toEqual({ status: 'completed', deductedAmountPaise: '300000' });
++    const [settled] = await platformDb.query<{ payrollStatus: string }>('seed', 'penalty status', sql`
++      SELECT payroll_status FROM employee_penalty WHERE id = ${penalty!.id}`);
++    expect(settled!.payrollStatus).toBe('recovered');
++  });
++});
+diff --git a/tapcrm/packages/server/src/modules/payroll/publish.ts b/tapcrm/packages/server/src/modules/payroll/publish.ts
+index 2d89f99..f3a5225 100644
+--- a/tapcrm/packages/server/src/modules/payroll/publish.ts
++++ b/tapcrm/packages/server/src/modules/payroll/publish.ts
+@@ -1,4 +1,5 @@
+ import type { RequestContext } from '../../platform/dal/context.js';
++import { settlePaidSources } from './source-settlers.js';
+ import { db } from '../../platform/dal/db.js';
+ import { sql } from '../../platform/dal/sql.js';
+ import type { DateOnly } from '@tapcrm/contracts';
+@@ -282,6 +283,8 @@ export async function publishRun(
+       UPDATE payroll_run SET status = 'published', published_at = now(), inputs_changed = false
+       WHERE id = ${runId}::uuid AND organization_id = ${ctx.organizationId}
+     `);
++    // Advance recoveries and penalties these payslips took are now paid.
++    await settlePaidSources(tx, ctx.organizationId, slips.map((s) => s.id));
+ 
+     const event: RunPublished = {
+       runId,
+diff --git a/tapcrm/packages/server/src/modules/payroll/revision.ts b/tapcrm/packages/server/src/modules/payroll/revision.ts
+index 61ef169..8702d0a 100644
+--- a/tapcrm/packages/server/src/modules/payroll/revision.ts
++++ b/tapcrm/packages/server/src/modules/payroll/revision.ts
+@@ -1,4 +1,5 @@
+ import type { RequestContext } from '../../platform/dal/context.js';
++import { settlePaidSources } from './source-settlers.js';
+ import { db } from '../../platform/dal/db.js';
+ import { sql } from '../../platform/dal/sql.js';
+ import type { DateOnly } from '@tapcrm/contracts';
+@@ -198,6 +199,8 @@ export async function reviseSlip(
+           revision_number = ${newRevisionNumber}, previous_slip_id = ${input.slipId}::uuid
+       WHERE id = ${draftSlipId}::uuid AND organization_id = ${ctx.organizationId}
+     `);
++    // A revision can pay a recovery or penalty the first payslip missed.
++    await settlePaidSources(tx, ctx.organizationId, [draftSlipId]);
+ 
+     const components = (slip: {
+       grossPaise: string;
+diff --git a/tapcrm/packages/server/src/modules/payroll/snapshot.ts b/tapcrm/packages/server/src/modules/payroll/snapshot.ts
+index 210de82..92af50b 100644
+--- a/tapcrm/packages/server/src/modules/payroll/snapshot.ts
++++ b/tapcrm/packages/server/src/modules/payroll/snapshot.ts
+@@ -17,6 +17,8 @@ export interface FrozenEmployeeInputs {
+   readonly days: FrozenDay[];
+   readonly structureSegments: FrozenStructureSegment[];
+   readonly payrollInputs: PayrollInputRow[];
++  /** The calculation the inputs were frozen for (`PAYROLL_ENGINE_VERSION`). */
++  readonly engineVersion?: string;
+   readonly configSnapshot: {
+     id: string;
+     effectiveFrom: string;
+@@ -36,7 +38,7 @@ function toFrozenInput(row: PayrollInputRow): FrozenInput {
+     amountStr: row.amount,
+     label: row.label,
+     direction,
+-    sourceId: row.breakBreachId,
++    sourceId: row.breakBreachId ?? row.advanceDeductionId ?? row.penaltyId ?? null,
+   };
+ }
+ 
+diff --git a/tapcrm/packages/server/src/modules/payroll/source-settlers.ts b/tapcrm/packages/server/src/modules/payroll/source-settlers.ts
+new file mode 100644
+index 0000000..ec546e8
+--- /dev/null
++++ b/tapcrm/packages/server/src/modules/payroll/source-settlers.ts
+@@ -0,0 +1,33 @@
++import type { Tx } from '../../platform/dal/db.js';
++import { settledSources } from './input.js';
++
++/**
++ * Advance recoveries and penalties are payroll inputs their own modules write
++ * (`writeSourcedInput`). When a payslip that froze one is published, the
++ * owning module marks it paid. Each module registers its settler at boot; a
++ * module that is not loaded simply has nothing to settle.
++ */
++export type SourceSettler = (tx: Tx, ids: readonly string[]) => Promise<void>;
++
++let advanceDeductionSettler: SourceSettler | null = null;
++let penaltySettler: SourceSettler | null = null;
++
++export function registerPayrollSourceSettlers(settlers: {
++  readonly advanceDeductions?: SourceSettler;
++  readonly penalties?: SourceSettler;
++}): void {
++  if (settlers.advanceDeductions !== undefined) advanceDeductionSettler = settlers.advanceDeductions;
++  if (settlers.penalties !== undefined) penaltySettler = settlers.penalties;
++}
++
++/** Marks what these just-published payslips recovered, in the publishing transaction. */
++export async function settlePaidSources(
++  tx: Tx,
++  organizationId: string,
++  payslipIds: readonly string[],
++): Promise<void> {
++  const { advanceDeductionIds, penaltyIds } = await settledSources(tx, organizationId, payslipIds);
++  if (advanceDeductionIds.length > 0 && advanceDeductionSettler !== null)
++    await advanceDeductionSettler(tx, advanceDeductionIds);
++  if (penaltyIds.length > 0 && penaltySettler !== null) await penaltySettler(tx, penaltyIds);
++}
+diff --git a/tapcrm/packages/server/src/modules/penalties/index.ts b/tapcrm/packages/server/src/modules/penalties/index.ts
+index 7fa7170..2a716b7 100644
+--- a/tapcrm/packages/server/src/modules/penalties/index.ts
++++ b/tapcrm/packages/server/src/modules/penalties/index.ts
+@@ -1,2 +1,3 @@
+ export { registerPenaltyPolicies } from './policy.js';
+ export { registerPenaltyRoutes } from './routes.js';
++export { registerPenaltyPayrollPorts } from './payroll.js';
+diff --git a/tapcrm/packages/server/src/modules/penalties/payroll.ts b/tapcrm/packages/server/src/modules/penalties/payroll.ts
+new file mode 100644
+index 0000000..bbf5069
+--- /dev/null
++++ b/tapcrm/packages/server/src/modules/penalties/payroll.ts
+@@ -0,0 +1,53 @@
++import type { Tx } from '../../platform/dal/db.js';
++import { sql } from '../../platform/dal/sql.js';
++import * as PayrollFacade from '../payroll/facade.js';
++
++/**
++ * How a penalty reaches the payslip (migration 0142): an active penalty owns
++ * one payroll deduction in its payroll month; cancelling it withdraws the
++ * deduction; publishing the payslip that took it marks it recovered. A
++ * penalty cancelled after its payslip was published shows up as a change to
++ * that payslip, which HR revises to refund it.
++ */
++
++const typeLabel = (penaltyType: string): string => penaltyType.replace(/_/g, ' ');
++
++export async function chargePenalty(
++  tx: Tx,
++  penalty: {
++    readonly id: string;
++    readonly employeeId: string;
++    readonly payrollPeriod: string;
++    readonly amountPaise: string;
++    readonly penaltyType: string;
++    readonly remarks: string;
++  },
++  createdBy: string,
++): Promise<void> {
++  await PayrollFacade.writeSourcedInput(tx, {
++    kind: 'penalty',
++    penaltyId: penalty.id,
++    userId: penalty.employeeId,
++    periodStart: penalty.payrollPeriod,
++    amountPaise: penalty.amountPaise,
++    label: `Penalty: ${typeLabel(penalty.penaltyType)}`,
++    reason: penalty.remarks,
++    createdBy,
++  });
++}
++
++export async function releasePenalty(tx: Tx, id: string, by: string, reason: string): Promise<void> {
++  await PayrollFacade.revokeSourcedInput(tx, { penaltyId: id }, by, `Penalty cancelled: ${reason}`);
++}
++
++async function settlePenalties(tx: Tx, ids: readonly string[]): Promise<void> {
++  await tx.query(sql`
++    UPDATE employee_penalty
++    SET payroll_status = 'recovered', updated_at = now()
++    WHERE id = ANY(${ids}::uuid[]) AND status = 'active' AND payroll_status <> 'recovered'
++  `);
++}
++
++export function registerPenaltyPayrollPorts(): void {
++  PayrollFacade.registerPayrollSourceSettlers({ penalties: settlePenalties });
++}
+diff --git a/tapcrm/packages/server/src/modules/penalties/service.ts b/tapcrm/packages/server/src/modules/penalties/service.ts
+index 5393f0c..fdb2a63 100644
+--- a/tapcrm/packages/server/src/modules/penalties/service.ts
++++ b/tapcrm/packages/server/src/modules/penalties/service.ts
+@@ -6,6 +6,7 @@ import { xlsxBuffer } from '../attendance/facade.js';
+ import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
+ import { writePenaltyAudit } from './audit.js';
+ import { PenaltyError } from './errors.js';
++import { chargePenalty, releasePenalty } from './payroll.js';
+ import * as repo from './repository.js';
+ import type { PenaltyRow } from './types.js';
+ import type {
+@@ -85,6 +86,19 @@ export async function createPenalty(
+     if (!(await repo.employeeExists(tx, ctx.organizationId, body.employeeId)))
+       throw new PenaltyError('Employee must be an active employee in this organization.');
+     const id = await repo.insertPenalty(tx, ctx.organizationId, body, ctx.principal.id);
++    // Deducted in its payroll month's payslip.
++    await chargePenalty(
++      tx,
++      {
++        id,
++        employeeId: body.employeeId,
++        payrollPeriod: body.payrollPeriod,
++        amountPaise: String(body.amountPaise),
++        penaltyType: body.penaltyType,
++        remarks: body.remarks,
++      },
++      ctx.principal.id,
++    );
+     await writePenaltyAudit(tx, ctx, 'penalty.created', id, {
+       employeeId: body.employeeId,
+       penaltyType: body.penaltyType,
+@@ -132,6 +146,7 @@ export async function cancelPenalty(
+       ))
+     )
+       throw new PenaltyError('Penalty could not be cancelled.');
++    await releasePenalty(tx, id, ctx.principal.id, body.cancellationReason);
+     await writePenaltyAudit(
+       tx,
+       ctx,
+diff --git a/tapcrm/packages/server/src/modules/shifts/repository.ts b/tapcrm/packages/server/src/modules/shifts/repository.ts
+index 969b67f..bff216a 100644
+--- a/tapcrm/packages/server/src/modules/shifts/repository.ts
++++ b/tapcrm/packages/server/src/modules/shifts/repository.ts
+@@ -488,6 +488,31 @@ export async function insertWeekdayScheduleAssignment(
+     createdBy: string;
+   },
+ ): Promise<string> {
++  // Saving again for the same start date corrects that assignment. Rows are
++  // never deleted (the app role has no DELETE), so the schedule is updated in
++  // place; its end stays wherever the next change begins.
++  const sameDay = await tx.maybeOne<{ id: string }>(sql`
++    UPDATE weekday_schedule_assignment
++    SET schedule_id = ${input.scheduleId}
++    WHERE organization_id = ${input.organizationId}
++      AND user_id = ${input.userId}
++      AND effective_from = ${input.effectiveFrom}
++    RETURNING id
++  `);
++  if (sameDay !== null) return sameDay.id;
++
++  // A schedule already planned to start later keeps its date: the new one
++  // runs until then. Without this bound the new open-ended row would overlap
++  // it and the exclusion constraint would refuse the save with a 500.
++  const next = await tx.maybeOne<{ effectiveFrom: DateOnly }>(sql`
++    SELECT effective_from::text AS effective_from
++    FROM weekday_schedule_assignment
++    WHERE organization_id = ${input.organizationId}
++      AND user_id = ${input.userId}
++      AND effective_from > ${input.effectiveFrom}
++    ORDER BY effective_from
++    LIMIT 1
++  `);
+   await tx.query(sql`
+     UPDATE weekday_schedule_assignment
+     SET effective_to = ${input.effectiveFrom}
+@@ -498,9 +523,10 @@ export async function insertWeekdayScheduleAssignment(
+   `);
+   const row = await tx.one<{ id: string }>(sql`
+     INSERT INTO weekday_schedule_assignment
+-      (organization_id, user_id, schedule_id, effective_from, created_by)
++      (organization_id, user_id, schedule_id, effective_from, effective_to, created_by)
+     VALUES
+-      (${input.organizationId}, ${input.userId}, ${input.scheduleId}, ${input.effectiveFrom}, ${input.createdBy})
++      (${input.organizationId}, ${input.userId}, ${input.scheduleId}, ${input.effectiveFrom},
++       ${next?.effectiveFrom ?? null}, ${input.createdBy})
+     RETURNING id
+   `);
+   return row.id;
+@@ -611,23 +637,40 @@ type AssignmentKind = 'template' | 'rotation' | 'permanent-flexible';
+  * running is ended there. Returns the ids of any that start on or after it,
+  * which the caller refuses rather than silently rewriting.
+  */
++/**
++ * Makes room for an assignment of `kind` from `from`: the one running on that
++ * date ends there. Returns the start of the next assignment of the kind, if
++ * one is already planned, so a backdated assignment runs until it instead of
++ * being refused; and `sameDay` when one already starts on `from`.
++ */
+ export async function endAssignmentsFrom(
+   tx: Tx,
+   userId: string,
+   kind: AssignmentKind,
+   from: DateOnly,
+-): Promise<string[]> {
+-  const later = await tx.query<{ id: string }>(sql`
+-    SELECT id FROM shift_assignment
++): Promise<{ next: DateOnly | null; sameDay: string | null }> {
++  const later = await tx.query<{ id: string; effectiveFrom: DateOnly }>(sql`
++    SELECT id, effective_from::text AS effective_from FROM shift_assignment
+     WHERE user_id = ${userId} AND kind = ${kind} AND effective_from >= ${from}
++    ORDER BY effective_from
+   `);
+-  if (later.length > 0) return later.map((row) => row.id);
++  const sameDay = later.find((row) => row.effectiveFrom === from)?.id ?? null;
++  if (sameDay !== null) return { next: null, sameDay };
+   await tx.query(sql`
+     UPDATE shift_assignment SET effective_to = ${from}
+     WHERE user_id = ${userId} AND kind = ${kind} AND effective_from < ${from}
+       AND (effective_to IS NULL OR effective_to > ${from})
+   `);
+-  return [];
++  return { next: later[0]?.effectiveFrom ?? null, sameDay: null };
++}
++
++/** The first date the shift has a version — before it, the shift has no times. */
++export async function firstVersionFrom(tx: Tx, shiftId: string): Promise<DateOnly | null> {
++  const row = await tx.maybeOne<{ effectiveFrom: DateOnly }>(sql`
++    SELECT effective_from::text AS effective_from FROM shift_version
++    WHERE shift_id = ${shiftId} ORDER BY effective_from LIMIT 1
++  `);
++  return row?.effectiveFrom ?? null;
+ }
+ 
+ export async function insertAssignment(
+@@ -710,21 +753,25 @@ export async function replaceOverride(
+   `);
+ }
+ 
++/** As `endAssignmentsFrom`, for a department's default shift. */
+ export async function endDepartmentDefaultsFrom(
+   tx: Tx,
+   departmentId: string,
+   from: DateOnly,
+-): Promise<string[]> {
+-  const later = await tx.query<{ id: string }>(sql`
+-    SELECT id FROM department_shift_default WHERE department_id = ${departmentId} AND effective_from >= ${from}
+-  `);
+-  if (later.length > 0) return later.map((row) => row.id);
++): Promise<{ next: DateOnly | null; sameDay: string | null }> {
++  const later = await tx.query<{ id: string; effectiveFrom: DateOnly }>(sql`
++    SELECT id, effective_from::text AS effective_from FROM department_shift_default
++    WHERE department_id = ${departmentId} AND effective_from >= ${from}
++    ORDER BY effective_from
++  `);
++  const sameDay = later.find((row) => row.effectiveFrom === from)?.id ?? null;
++  if (sameDay !== null) return { next: null, sameDay };
+   await tx.query(sql`
+     UPDATE department_shift_default SET effective_to = ${from}
+     WHERE department_id = ${departmentId} AND effective_from < ${from}
+       AND (effective_to IS NULL OR effective_to > ${from})
+   `);
+-  return [];
++  return { next: later[0]?.effectiveFrom ?? null, sameDay: null };
+ }
+ 
+ export async function insertDepartmentDefault(
+diff --git a/tapcrm/packages/server/src/modules/shifts/service.ts b/tapcrm/packages/server/src/modules/shifts/service.ts
+index 6388f8e..ef34291 100644
+--- a/tapcrm/packages/server/src/modules/shifts/service.ts
++++ b/tapcrm/packages/server/src/modules/shifts/service.ts
+@@ -81,7 +81,7 @@ async function loadSubject(
+   return subject;
+ }
+ 
+-async function assertAssignable(tx: Tx, shiftId: string): Promise<void> {
++async function assertAssignable(tx: Tx, shiftId: string, from?: DateOnly): Promise<void> {
+   const shift = await repo.findShift(tx, shiftId);
+   if (shift === null) throw new ShiftNotFoundError('No such shift template.');
+   // SH-5: inactive templates cannot be newly assigned; existing assignments keep resolving.
+@@ -97,6 +97,21 @@ async function assertAssignable(tx: Tx, shiftId: string): Promise<void> {
+       `Shift ${shift.code} has no version yet.`,
+     );
+   }
++  // Before its first version a shift has no times: the days would resolve to
++  // "no shift", go unjudged and be paid in full. Refuse instead of failing quietly.
++  const firstVersion = from === undefined ? null : await repo.firstVersionFrom(tx, shiftId);
++  if (from !== undefined && firstVersion !== null && from < firstVersion) {
++    throw new ShiftValidationError(
++      SHIFT_ERROR_CODES.NO_VERSION,
++      `Shift ${shift.code} has no timings before ${firstVersion}. Add a version of the shift from ${from}, or assign it from ${firstVersion}.`,
++    );
++  }
++}
++
++/** A backdated assignment runs until the one already planned after it. */
++function boundedBy(effectiveTo: DateOnly | null, next: DateOnly | null): DateOnly | null {
++  if (next === null) return effectiveTo;
++  return effectiveTo === null || effectiveTo > next ? next : effectiveTo;
+ }
+ 
+ /** §6.3 "No overlap" — refuse a change that makes two consecutive shifts overlap. */
+@@ -408,19 +423,20 @@ export async function assign(
+         departmentId: body.departmentId,
+       });
+       await assertMayChangeFrom(ctx, tx, body.effectiveFrom, clock);
+-      await assertAssignable(tx, body.shiftId);
+-      const later = await repo.endDepartmentDefaultsFrom(
++      await assertAssignable(tx, body.shiftId, body.effectiveFrom);
++      const room = await repo.endDepartmentDefaultsFrom(
+         tx,
+         body.departmentId,
+         body.effectiveFrom,
+       );
+-      if (later.length > 0) {
++      if (room.sameDay !== null) {
+         throw new ShiftConflictError(
+           SHIFT_ERROR_CODES.ASSIGNMENT_CONFLICT,
+-          'A later default already exists for this department.',
+-          { ids: later },
++          `This department's default already changes on ${body.effectiveFrom}. Pick another date.`,
++          { ids: [room.sameDay] },
+         );
+       }
++      const effectiveTo = boundedBy(body.effectiveTo, room.next);
+       // A default changed under existing assignments can still meet an overlap;
+       // the resolver flags that day at read time (§5.2).
+       const id = await repo.insertDepartmentDefault(tx, {
+@@ -428,13 +444,13 @@ export async function assign(
+         departmentId: body.departmentId,
+         shiftId: body.shiftId,
+         effectiveFrom: body.effectiveFrom,
+-        effectiveTo: body.effectiveTo,
++        effectiveTo,
+         createdBy: ctx.principal.id,
+       });
+       await recordDaysChanged(tx, ctx.organizationId, {
+         departmentId: body.departmentId,
+         from: body.effectiveFrom,
+-        to: body.effectiveTo === null ? null : addDays(body.effectiveTo, -1),
++        to: effectiveTo === null ? null : addDays(effectiveTo, -1),
+         reason: 'department default',
+       });
+       return { id };
+@@ -451,7 +467,7 @@ export async function assign(
+             'A shift override names the shift.',
+           );
+         }
+-        await assertAssignable(tx, body.shiftId);
++        await assertAssignable(tx, body.shiftId, body.workDate);
+       }
+       const shiftId = body.override === 'shift' ? body.shiftId : null;
+       const inputs = await repo.loadShiftInputs(
+@@ -495,7 +511,7 @@ export async function assign(
+     let rotationId: string | null = null;
+     let rotationDays: Map<number, string | null> | undefined;
+     if (body.kind === 'template') {
+-      await assertAssignable(tx, body.shiftId);
++      await assertAssignable(tx, body.shiftId, body.effectiveFrom);
+       shiftId = body.shiftId;
+     }
+     if (body.kind === 'rotation') {
+@@ -512,7 +528,7 @@ export async function assign(
+           ]),
+         );
+         for (const id of new Set(rotationDays.values()))
+-          if (id !== null) await assertAssignable(tx, id);
++          if (id !== null) await assertAssignable(tx, id, body.effectiveFrom);
+         rotationId = await repo.insertRotation(tx, {
+           organizationId: ctx.organizationId,
+           name: body.rotation.name,
+@@ -522,14 +538,25 @@ export async function assign(
+       }
+     }
+ 
++    // Room for the assignment: the one running on the start date ends there,
++    // and one already planned later bounds this one instead of refusing it.
++    const room = await repo.endAssignmentsFrom(tx, body.userId, body.kind, body.effectiveFrom);
++    if (room.sameDay !== null) {
++      throw new ShiftConflictError(
++        SHIFT_ERROR_CODES.ASSIGNMENT_CONFLICT,
++        `This person already has an assignment of this kind starting on ${body.effectiveFrom}. Pick another date.`,
++        { ids: [room.sameDay] },
++      );
++    }
++    const effectiveTo = boundedBy(body.effectiveTo, room.next);
+     const next: AssignmentInput = {
+       kind: body.kind,
+       shiftId,
+       rotationId,
+       effectiveFrom: body.effectiveFrom,
+-      effectiveTo: body.effectiveTo,
++      effectiveTo,
+     };
+-    const lastChecked = checkRange(body.effectiveTo, body.effectiveFrom);
++    const lastChecked = checkRange(effectiveTo, body.effectiveFrom);
+     const inputs = await repo.loadShiftInputs(
+       tx,
+       body.userId,
+@@ -542,19 +569,6 @@ export async function assign(
+       lastChecked,
+     );
+ 
+-    const later = await repo.endAssignmentsFrom(
+-      tx,
+-      body.userId,
+-      body.kind,
+-      body.effectiveFrom,
+-    );
+-    if (later.length > 0) {
+-      throw new ShiftConflictError(
+-        SHIFT_ERROR_CODES.ASSIGNMENT_CONFLICT,
+-        'This person already has a later assignment of this kind. Change that one instead.',
+-        { ids: later },
+-      );
+-    }
+     const id = await repo.insertAssignment(tx, {
+       organizationId: ctx.organizationId,
+       userId: body.userId,
+@@ -562,14 +576,14 @@ export async function assign(
+       shiftId,
+       rotationId,
+       effectiveFrom: body.effectiveFrom,
+-      effectiveTo: body.effectiveTo,
++      effectiveTo,
+       reason: body.reason ?? null,
+       createdBy: ctx.principal.id,
+     });
+     await recordDaysChanged(tx, ctx.organizationId, {
+       userIds: [body.userId],
+       from: body.effectiveFrom,
+-      to: body.effectiveTo === null ? null : addDays(body.effectiveTo, -1),
++      to: effectiveTo === null ? null : addDays(effectiveTo, -1),
+       reason: `${body.kind} assignment`,
+     });
+     return { id, rotationId };
+diff --git a/tapcrm/packages/server/src/modules/shifts/shifts.integration.test.ts b/tapcrm/packages/server/src/modules/shifts/shifts.integration.test.ts
+index 3cb93d9..b26b107 100644
+--- a/tapcrm/packages/server/src/modules/shifts/shifts.integration.test.ts
++++ b/tapcrm/packages/server/src/modules/shifts/shifts.integration.test.ts
+@@ -3,11 +3,12 @@ import type { Principal } from '@tapcrm/contracts';
+ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+ import { installAuthz } from '../../platform/authz-adapter.js';
+ import { createRequestContext } from '../../platform/dal/context.js';
+-import { platformDb } from '../../platform/dal/db.js';
++import { db, platformDb } from '../../platform/dal/db.js';
+ import { closePools } from '../../platform/dal/pool.js';
+ import { sql } from '../../platform/dal/sql.js';
+ import { fixedClock, toDateOnly } from '../../platform/time.js';
+ import { registerShiftPolicies } from './policy.js';
++import { insertWeekdayScheduleAssignment } from './repository.js';
+ import {
+   assign,
+   createShift,
+@@ -170,6 +171,8 @@ describe.skipIf(!enabled)('shifts (PostgreSQL)', () => {
+       'department_shift_default',
+       'shift_version',
+       'shift',
++      'weekday_schedule_assignment',
++      'weekday_schedule',
+       'position_policy',
+     ]) {
+       await asOwner(
+@@ -377,4 +380,66 @@ describe.skipIf(!enabled)('shifts (PostgreSQL)', () => {
+       ),
+     ).rejects.toThrow(/exclusion|conflicting key/);
+   });
++  it('a template assigned before one already planned runs until it, instead of being refused', async () => {
++    // The first test planned DAY from 28 September; HR now backdates a template to the 26th.
++    await assign(
++      hr(),
++      { kind: 'template', userId: EMP, shiftId: day, effectiveFrom: date('2026-09-26'), effectiveTo: null },
++      clock,
++    );
++    const rows = (await asOwner('read template assignments', sql`
++      SELECT effective_from::text AS "from", effective_to::text AS "to"
++      FROM shift_assignment
++      WHERE organization_id = ${ORG} AND user_id = ${EMP} AND kind = 'template'
++      ORDER BY effective_from`)) as { from: string; to: string | null }[];
++    expect(rows[0]).toEqual({ from: '2026-09-26', to: '2026-09-28' });
++    expect(rows[1]!.from).toBe('2026-09-28');
++    // The same start date again is a clear conflict, not a database error.
++    await expect(
++      assign(hr(), { kind: 'template', userId: EMP, shiftId: day, effectiveFrom: date('2026-09-26'), effectiveTo: null }, clock),
++    ).rejects.toMatchObject({ code: 'SHIFT_ASSIGNMENT_CONFLICT' });
++  });
++
++  it('a shift with no timings yet on the start date is refused, naming the first date it has', async () => {
++    const late = (
++      await createShift(
++        hr(),
++        { code: 'LATE', name: 'Late', kind: 'fixed', version: version('12:00', '21:00', '2026-11-01') },
++        clock,
++      )
++    ).id;
++    await expect(
++      assign(hr(), { kind: 'template', userId: EMP, shiftId: late, effectiveFrom: date('2026-10-15'), effectiveTo: null }, clock),
++    ).rejects.toThrow(/no timings before 2026-11-01/);
++  });
++
++  it('re-saving a weekday schedule on the same date replaces it; a backdated one stops at the next', async () => {
++    const schedule = async (name: string, days: string) =>
++      ((await asOwner('weekday schedule', sql`
++        INSERT INTO weekday_schedule (organization_id, name, working_weekdays, created_by)
++        VALUES (${ORG}, ${name}, ${days}::smallint[], ${HR}) RETURNING id`)) as { id: string }[])[0]!.id;
++    const monSat = await schedule('Mon-Sat', '{1,2,3,4,5,6}');
++    const monFri = await schedule('Mon-Fri', '{1,2,3,4,5}');
++    const save = (scheduleId: string, effectiveFrom: string) =>
++      db.transaction(hr(), (tx) => insertWeekdayScheduleAssignment(tx, {
++        organizationId: ORG, userId: EMP, scheduleId, effectiveFrom: date(effectiveFrom), createdBy: HR,
++      }));
++    const rows = async () => asOwner('read schedule assignments', sql`
++      SELECT schedule_id AS "scheduleId", effective_from::text AS "from", effective_to::text AS "to"
++      FROM weekday_schedule_assignment WHERE organization_id = ${ORG} AND user_id = ${EMP}
++      ORDER BY effective_from`);
++
++    await save(monSat, '2026-12-01');
++    await save(monSat, '2026-12-01'); // the same save again used to fail with a 500
++    await save(monFri, '2026-12-01'); // and so did correcting the schedule for that date
++    expect(await rows()).toEqual([{ scheduleId: monFri, from: '2026-12-01', to: null }]);
++
++    await save(monSat, '2026-11-15'); // backdated: runs until the planned change
++    await save(monFri, '2027-01-10'); // a later change closes the one before it
++    expect(await rows()).toEqual([
++      { scheduleId: monSat, from: '2026-11-15', to: '2026-12-01' },
++      { scheduleId: monFri, from: '2026-12-01', to: '2027-01-10' },
++      { scheduleId: monFri, from: '2027-01-10', to: null },
++    ]);
++  });
+ });
+diff --git a/tapcrm/packages/server/src/platform/modules/service.ts b/tapcrm/packages/server/src/platform/modules/service.ts
+index 19c4b4f..740cd8c 100644
+--- a/tapcrm/packages/server/src/platform/modules/service.ts
++++ b/tapcrm/packages/server/src/platform/modules/service.ts
+@@ -3,11 +3,15 @@ import * as repo from './repository.js';
+ import { platformDb, setTenantContext } from '../dal/db.js';
+ import { sql } from '../dal/sql.js';
+ import { bootstrapOrganization } from '../organizations/bootstrap.js';
++import { provisionDefaultPositionPolicies } from '../organizations/policy-matrix.js';
++import { ORGANIZATION_TEMPLATE } from '../organizations/template.js';
+ import { provisionAccountingFoundation } from '../../modules/finance/accounting/provisioning.js';
+ import { provisionSeoRules } from '../../modules/seo-intelligence/provisioning.js';
+ 
+ export const PLATFORM_MODULE_GROUPS = [
+-  { key: 'hr', label: 'HR', moduleKeys: ['employee-directory', 'onboarding', 'live-status', 'attendance', 'break-management', 'shifts', 'biometric', 'leave', 'holidays', 'payroll', 'performance', 'recruitment'] },
++  // TA, advances and penalties are switched on per company like the rest of HR;
++  // enabling one provisions its position policies (bootstrapOrganization).
++  { key: 'hr', label: 'HR', moduleKeys: ['employee-directory', 'onboarding', 'live-status', 'attendance', 'break-management', 'shifts', 'biometric', 'leave', 'holidays', 'ta', 'payroll', 'advance', 'penalties', 'performance', 'recruitment'] },
+   { key: 'sales', label: 'Sales', moduleKeys: ['territories', 'leads', 'callbacks', 'handovers', 'deals', 'approvals', 'telephony', 'lead-imports'] },
+   { key: 'development', label: 'Development', moduleKeys: ['handoff', 'projects', 'tasks', 'resource-planning', 'delivery'] },
+   { key: 'client', label: 'Client', moduleKeys: ['clients', 'social', 'post-closure', 'client-portal'] },
+@@ -94,6 +98,12 @@ export async function changeOrganizationModule(
+     }
+   }
+   const toEnable = all.filter((item) => item.isCore || selectedIds.has(item.id));
++  const alreadyEnabled = new Set(
++    (await repo.getOrganizationModules(orgId) as { key: string; status: string }[])
++      .filter((row) => row.status === 'enabled')
++      .map((row) => row.key),
++  );
++  const newlyEnabled = toEnable.filter((item) => !alreadyEnabled.has(item.key)).map((item) => item.key);
+   return platformDb.transaction(
+     'organization-provisioning',
+     'enable organization module and provision starter structure',
+@@ -110,6 +120,24 @@ export async function changeOrganizationModule(
+         `);
+       }
+       await bootstrapOrganization(tx, orgId, toEnable.map((item) => item.key));
++      // Bootstrap reaches the positions of the departments the module belongs
++      // to. A module every employee uses for themselves (TA, advances,
++      // penalties) must reach every position the company already has, so the
++      // newly enabled modules' defaults go to all of them. Only missing rows
++      // are added, and only for modules that were off until now.
++      if (newlyEnabled.length > 0) {
++        const existing = await tx.query<{ id: string; code: string }>(sql`
++          SELECT id, code FROM position WHERE organization_id = ${orgId} AND status = 'active'
++        `);
++        const positionIds = new Map(existing.map((row) => [row.code, row.id]));
++        await provisionDefaultPositionPolicies(
++          tx,
++          orgId,
++          newlyEnabled,
++          ORGANIZATION_TEMPLATE.positions.filter((position) => positionIds.has(position.code)),
++          positionIds,
++        );
++      }
+       if (toEnable.some((item) => item.key === 'accounting')) {
+         await provisionAccountingFoundation(tx, orgId);
+       }
+diff --git a/tapcrm/packages/server/src/platform/organizations/policy-matrix.ts b/tapcrm/packages/server/src/platform/organizations/policy-matrix.ts
+index 7aad226..6d1699c 100644
+--- a/tapcrm/packages/server/src/platform/organizations/policy-matrix.ts
++++ b/tapcrm/packages/server/src/platform/organizations/policy-matrix.ts
+@@ -67,7 +67,8 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> =
+   biometric: [G, all, _, _, _, _, _, _, _, _, _],
+   leave: [G, all, all, own, own, own, own, own, own, own, _],
+   holidays: [G, all, allV, allV, allV, allV, allV, allV, allV, allV, _],
+-  ta: [G, all, all, _, _, _, _, _, _, own, _],
++  // Everyone with TA sees their own statements, managers included; HR manages it.
++  ta: [G, all, all, own, own, own, own, own, own, own, _],
+   payroll: [G, all, _, own, own, own, own, own, own, own, _],
+   advance: [G, all, all, own, own, own, own, own, own, own, _],
+   // Every employee position can see penalties recorded against itself. HR and
+diff --git a/tapcrm/packages/server/src/platform/organizations/template.ts b/tapcrm/packages/server/src/platform/organizations/template.ts
+index 4c42ce9..893469e 100644
+--- a/tapcrm/packages/server/src/platform/organizations/template.ts
++++ b/tapcrm/packages/server/src/platform/organizations/template.ts
+@@ -17,6 +17,8 @@ const HR_MODULES = [
+   'holidays',
+   'ta',
+   'payroll',
++  'advance',
++  'penalties',
+   'performance',
+   'recruitment',
+ ] as const;
+diff --git a/tapcrm/tools/demo-activity.ts b/tapcrm/tools/demo-activity.ts
+index b0c1153..7ee410e 100644
+--- a/tapcrm/tools/demo-activity.ts
++++ b/tapcrm/tools/demo-activity.ts
+@@ -65,14 +65,8 @@ export async function seedDemoActivity(tx: Tx, organization: { id: string; timez
+       VALUES (${organization.id}, ${userId}, 'template', ${shift.id}, ${firstDay}::date, ${marker}, ${admin.id})
+     `);
+ 
+-    const opening = await tx.maybeOne<{ id: string }>(sql`
+-      SELECT id FROM leave_balance_entry WHERE organization_id = ${organization.id} AND user_id = ${userId}
+-        AND leave_type_id = ${leaveType.id} AND kind = 'opening' AND period_year = ${Number(today.today.slice(0, 4))}
+-    `);
+-    if (!opening) await tx.query(sql`
+-      INSERT INTO leave_balance_entry (organization_id, user_id, leave_type_id, kind, units, period_year)
+-      VALUES (${organization.id}, ${userId}, ${leaveType.id}, 'opening', 12, ${Number(today.today.slice(0, 4))})
+-    `);
++    // No opening balance: DEMO-ANNUAL grants 12 days a year through its
++    // accrual (accrual_days), so an opening entry of 12 showed 24 days.
+ 
+     const approvedLeaveDay = index % 5 === 0 ? dates.workdays[2]! : null;
+     if (approvedLeaveDay) {

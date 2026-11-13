@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getClients, type Client } from '../clients/api/clientsApi.js';
 import { getChatColleagues } from '../chat/index.js';
-import { Button, Field, Loading, Modal, Notice, Select } from '../ui/components.js';
+import { Button, Field, Loading, Modal, Notice, Select } from '../ui/index.js';
 import {
   PROJECT_SERVICES,
   PROJECT_SERVICE_LABELS,
@@ -11,6 +11,8 @@ import {
   type ProjectServiceKind,
   type ProjectWorkStatus,
 } from './api/projectsApi.js';
+import { ProjectAmountFields } from './ProjectAmountFields.js';
+import { projectAmountProblem } from './project-amounts.js';
 
 const PRIORITIES: ProjectPriority[] = ['low', 'medium', 'high'];
 const WORK_STATUSES: ProjectWorkStatus[] = ['new', 'ongoing', 'ended', 'expired'];
@@ -33,7 +35,8 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
   const [expectedEndDate, setExpectedEndDate] = useState('');
   const [priority, setPriority] = useState<ProjectPriority>('medium');
   const [workStatus, setWorkStatus] = useState<ProjectWorkStatus>('new');
-  const [budget, setBudget] = useState('');
+  const [projectValue, setProjectValue] = useState('');
+  const [upfrontAmount, setUpfrontAmount] = useState('');
   const [description, setDescription] = useState('');
   const [remarks, setRemarks] = useState('');
 
@@ -73,6 +76,11 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
       setError('Select at least one service');
       return;
     }
+    const amountProblem = projectAmountProblem(projectValue, upfrontAmount);
+    if (amountProblem) {
+      setError(amountProblem);
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -85,7 +93,8 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
         expectedEndDate: expectedEndDate || null,
         priority,
         workStatus,
-        budget: budget.trim() || null,
+        projectValue: projectValue.trim() || null,
+        upfrontAmount: upfrontAmount.trim() || null,
         description: description.trim() || null,
         remarks: remarks.trim() || null,
       });
@@ -153,7 +162,13 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
             <Select label="Work status" value={workStatus} onChange={(v) => setWorkStatus(v as ProjectWorkStatus)} required options={WORK_STATUSES.map((s) => ({ value: s, label: WORK_STATUS_LABELS[s] }))} />
           </div>
 
-          <Field label={`Budget${selectedClient ? ` (${selectedClient.currency})` : ''}`} type="number" value={budget} onChange={setBudget} />
+          <ProjectAmountFields
+            currency={selectedClient?.currency ?? null}
+            projectValue={projectValue}
+            upfrontAmount={upfrontAmount}
+            onProjectValueChange={setProjectValue}
+            onUpfrontAmountChange={setUpfrontAmount}
+          />
 
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Description</span>

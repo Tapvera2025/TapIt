@@ -17,6 +17,7 @@ import {
   type PortalWorkStatus,
 } from '../api/portalApi.js';
 import { PortalLink, ProgressBar, StatusBadge } from '../components.js';
+import { ClientSocialConnectCard } from '../components/ClientSocialConnectCard.js';
 import { useClientMessages } from '../useClientMessages.js';
 
 const STATUS_ORDER: PortalWorkStatus[] = ['ongoing', 'new', 'ended', 'expired'];
@@ -168,6 +169,13 @@ export function ClientDashboardPage({
             })}
           </div>
         </section>
+
+        <ClientSocialConnectCard
+          onNavigate={onNavigate}
+          variant="dashboard"
+          hideWhenConnected
+          emphasis={data.recentProjects.some((project) => project.services.some((service) => service.service === 'smo'))}
+        />
 
         <div className="grid min-w-0 gap-4 xl:grid-cols-12">
           <Card className="min-w-0 xl:col-span-7">

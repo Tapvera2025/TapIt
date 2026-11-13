@@ -38,14 +38,14 @@ export async function assertSegregationOfDuties(
     );
   }
 
-  // No resource means no initiator to compare against. Deny: an approval
-  // decision without the item being decided is not a decision.
+  // No resource means this is collection-scope access (e.g. GET /queue or
+  // GET /wins-to-record) rather than a decision on a specific item. SoD
+  // guards *decisions*, not list browsing — and every decision route is
+  // required to supply a resource via `resourceParam` + `loadResource`
+  // (enforced in platform/http/route.ts). Returning here allows an admin
+  // to see what is pending without triggering the self-approval guard.
   if (resource === undefined) {
-    throw new AuthorizationError(
-      action,
-      'sod_unresolved',
-      `${action} is approval-bearing and requires a resource to check its initiator against.`,
-    );
+    return;
   }
 
   const initiator = readField(resource, definition.initiatorField);

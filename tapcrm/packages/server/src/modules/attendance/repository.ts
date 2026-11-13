@@ -1084,6 +1084,27 @@ export async function findCorrectionById(
   `);
 }
 
+/**
+ * Punches already asked for on the day and still waiting for a decision. A
+ * person who missed both punches asks for the check-in and the check-out; the
+ * second request is read together with the first instead of being refused.
+ */
+export async function pendingAddedEvents(
+  tx: Tx,
+  userId: string,
+  workDate: DateOnly,
+): Promise<{ id: string; kind: 'in' | 'out' | 'break-start' | 'break-end'; at: string }[]> {
+  return tx.query(sql`
+    SELECT id, payload->>'kind' AS kind, payload->>'at' AS at
+    FROM attendance_correction
+    WHERE user_id = ${userId}
+      AND work_date = ${workDate}
+      AND status = 'pending'
+      AND kind = 'add-event'
+    ORDER BY payload->>'at', id
+  `);
+}
+
 export async function findCorrectionForUpdate(
   tx: Tx,
   id: string,

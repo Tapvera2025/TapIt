@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { ParsedCandidateData } from '@tapcrm/contracts';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/components.js';
-import { Icon } from '../../../ui/Icon.js';
+import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Icon } from '../../../ui/index.js';
 import { parseCandidateResume, submitHrManualResume } from '../api/recruitmentApi.js';
 import {
   acceptSuggestion,

@@ -1,11 +1,11 @@
-import type { ReportPeriod } from '../projects/reports/period.js';
+import type { ReportPeriod } from '../projects/facade.js';
 
 export type PortalWorkStatus = 'new' | 'ongoing' | 'ended' | 'expired';
 export type PortalServiceKind = 'website' | 'seo' | 'ads' | 'smo' | 'google_marketing' | 'other';
 
 /**
  * Client-facing projections (PRD §12.3 "Visible / not visible"). These are
- * deliberately NOT the employee `Project` type: budget, remarks, priority,
+ * deliberately NOT the employee `Project` type: project value and payments, remarks, priority,
  * assignment controls/IDs and the internal discussion group are absent by
  * construction, so no future field added to `Project` can leak to a client.
  */
@@ -128,6 +128,8 @@ export interface PortalProject {
 }
 
 export interface PortalProfile {
+  /** The client's own CRM client id: the only client its portal routes may name. */
+  readonly clientId: string;
   readonly clientName: string;
   readonly businessName: string;
   readonly email: string;

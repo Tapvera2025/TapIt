@@ -1,8 +1,23 @@
 import { z } from 'zod';
+import { PROJECT_AMOUNT_PATTERN, projectAmountProblem } from './amounts.js';
 import { PROJECT_SERVICES } from './types.js';
 
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
-const money = z.union([z.string().trim().min(1), z.number()]).transform((v) => String(v));
+/** An amount in the project's currency, as a decimal string (never a float, TECH.md PG-5). */
+const amount = z
+  .union([z.string(), z.number()])
+  .transform((v) => String(v).trim())
+  .refine((v) => PROJECT_AMOUNT_PATTERN.test(v), 'Enter an amount like 50000 or 50000.50, with no commas');
+
+/** Upfront paid needs a project value and cannot exceed it (when both are in the request). */
+function checkAmounts(
+  value: { projectValue?: string | null | undefined; upfrontAmount?: string | null | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.upfrontAmount === undefined || value.projectValue === undefined) return;
+  const problem = projectAmountProblem(value.projectValue, value.upfrontAmount);
+  if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['upfrontAmount'], message: problem });
+}
 
 const serviceInputSchema = z
   .object({
@@ -25,7 +40,8 @@ export const createProjectSchema = z
     expectedEndDate: dateOnly.optional().nullable(),
     priority: z.enum(['low', 'medium', 'high']),
     workStatus: z.enum(['new', 'ongoing', 'ended', 'expired']).optional(),
-    budget: money.optional().nullable(),
+    projectValue: amount.optional().nullable(),
+    upfrontAmount: amount.optional().nullable(),
     description: z.string().trim().max(10000).optional().nullable(),
     remarks: z.string().trim().max(10000).optional().nullable(),
   })
@@ -33,6 +49,7 @@ export const createProjectSchema = z
     if (value.expectedEndDate && value.expectedEndDate < value.startDate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['expectedEndDate'], message: 'Expected end date must be on or after the start date' });
     }
+    checkAmounts({ projectValue: value.projectValue ?? null, upfrontAmount: value.upfrontAmount ?? null }, ctx);
   });
 
 export const updateProjectSchema = z
@@ -43,7 +60,8 @@ export const updateProjectSchema = z
     expectedEndDate: dateOnly.optional().nullable(),
     priority: z.enum(['low', 'medium', 'high']).optional(),
     workStatus: z.enum(['new', 'ongoing', 'ended', 'expired']).optional(),
-    budget: money.optional().nullable(),
+    projectValue: amount.optional().nullable(),
+    upfrontAmount: amount.optional().nullable(),
     description: z.string().trim().max(10000).optional().nullable(),
     remarks: z.string().trim().max(10000).optional().nullable(),
   })
@@ -51,6 +69,8 @@ export const updateProjectSchema = z
     if (value.expectedEndDate && value.startDate && value.expectedEndDate < value.startDate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['expectedEndDate'], message: 'Expected end date must be on or after the start date' });
     }
+    // Only one of the two may be in a partial update; the service checks the result against what is stored.
+    checkAmounts(value, ctx);
   });
 
 export const projectTeamSchema = z.object({

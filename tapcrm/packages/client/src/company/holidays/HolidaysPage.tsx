@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getCompanyDepartments, type CompanyDepartment } from '../api/companyApi.js';
 import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
 import { createHoliday, createHolidayBatch, listHolidays, withdrawHoliday, type Holiday } from '../api/holidaysApi.js';
-import { SkeletonTable } from '../../ui/components.js';
+import { SkeletonTable } from '../../ui/index.js';
 
 type HolidayType = 'national' | 'regional' | 'optional' | 'week-off';
 type BulkHolidayRow = { name: string; holidayDate: string; type: 'national' | 'optional' };

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Card } from '../../../../ui/components.js';
+import { Card } from '../../../../ui/index.js';
 import { getAllHandovers, type Handover } from '../../leads/api.js';
 import { partitionHandovers, relativeTime } from '../myWork-helpers.js';
 import { MyWorkSection } from './Shell.js';
+import { MY_WORK_ANCHORS } from '../../guide/page-guidance.js';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -46,11 +47,12 @@ export function HandoverOffersSection({
 
   return (
     <MyWorkSection
-      title="Handover offers"
+      id={MY_WORK_ANCHORS.handovers}
+      title="Live calls handed to you"
       count={pendingForMe.length}
       urgent={pendingForMe.length > 0}
       error={error}
-      empty="No handovers waiting for a decision."
+      empty="No live calls waiting for you."
     >
       <Card className="p-0">
         <ul className="divide-y divide-app-border">

@@ -43,6 +43,8 @@ export const SALES_MODULES = [
   'handovers',
   'deals',
   'approvals',
+  'telephony',
+  'lead-imports',
 ] as const;
 
 export const DELIVERY_MODULES = [
@@ -53,7 +55,7 @@ export const DELIVERY_MODULES = [
   'delivery',
 ] as const;
 
-export const CLIENT_MODULES = ['clients', 'post-closure', 'client-portal'] as const;
+export const CLIENT_MODULES = ['clients', 'social', 'post-closure', 'client-portal', 'seo-intelligence', 'meetings'] as const;
 
 export const FINANCE_MODULES = [
   'billing-terms',
@@ -138,6 +140,8 @@ export const MODULE_PHASE: Readonly<Record<ModuleName, number>> = {
   handovers: 3,
   deals: 3,
   approvals: 3,
+  telephony: 3,
+  'lead-imports': 3,
   // P4 — Delivery
   handoff: 4,
   projects: 4,
@@ -146,8 +150,11 @@ export const MODULE_PHASE: Readonly<Record<ModuleName, number>> = {
   delivery: 4,
   // P5 — Client and Insight
   clients: 5,
+  social: 5,
   'post-closure': 5,
   'client-portal': 5,
+  meetings: 5,
+  'seo-intelligence': 5,
   'project-communication': 5,
   documents: 5,
   reporting: 5,

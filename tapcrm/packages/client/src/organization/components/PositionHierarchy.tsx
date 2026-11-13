@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
-import { Icon } from '../../ui/Icon.js';
+import { Icon } from '../../ui/index.js';
 import { Button, Modal } from './OrganizationUi.js';
 import {
   filterPositionTree,
@@ -299,6 +299,7 @@ export function PositionHierarchy({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Find a position by name or code…"
+            className="bg-transparent"
           />
         </label>
         <label className="position-status-select">

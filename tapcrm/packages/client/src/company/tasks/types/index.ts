@@ -119,29 +119,36 @@ export interface TaskAssignModalProps {
 }
 
 export type TaskViewScope = 'my_tasks' | 'all_employee_tasks';
+export type TaskViewMode = 'list' | 'kanban';
 
 export interface TaskFiltersProps {
   readonly query: TaskListQuery;
   readonly onQueryChange: (nextQuery: TaskListQuery) => void;
-  readonly onCreateTask?: (() => void) | undefined;
   readonly disabled?: boolean | undefined;
   readonly isSuperAdmin?: boolean | undefined;
   readonly viewScope?: TaskViewScope | undefined;
   readonly onViewScopeChange?: ((scope: TaskViewScope) => void) | undefined;
+  readonly viewMode?: TaskViewMode | undefined;
+  readonly onViewModeChange?: ((mode: TaskViewMode) => void) | undefined;
 }
 
 export interface TaskListProps {
   readonly tasks: readonly Task[];
   readonly loading?: boolean | undefined;
+  readonly isSuperAdmin?: boolean | undefined;
   readonly currentUserId?: string | undefined;
   readonly onTransitionStatus: (
     taskId: string,
     status: TaskStatus,
     userId?: string,
+    options?: { suppressToast?: boolean },
   ) => Promise<void>;
   readonly onEditTask?: ((task: Task) => void) | undefined;
   readonly onAssignTask?: ((task: Task) => void) | undefined;
+  readonly onCreateTask?: (() => void) | undefined;
 }
+
+export type TaskKanbanBoardProps = TaskListProps;
 
 export interface TaskStatusBadgeProps {
   readonly status: TaskStatus;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Icon } from '../../ui/Icon.js';
+import { Icon } from '../../ui/index.js';
 import type { CompanySearchDestination } from './navigation.js';
 
 function normalize(value: string): string {

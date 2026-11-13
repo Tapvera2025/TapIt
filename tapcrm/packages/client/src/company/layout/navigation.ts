@@ -3,6 +3,7 @@ export interface CompanyNavSubItem {
   path: string;
 }
 import type { Action } from '@tapcrm/contracts';
+import { hasRecruitmentViewAction, isActionModuleEnabled } from '../module-access.js';
 
 export interface CompanyNavItem {
   label: string;
@@ -105,36 +106,11 @@ export const companyNavigation: CompanyNavGroup[] = [
         icon: 'grid',
         requiredAction: 'projects:view',
       },
-    ],
-  },
-  {
-    label: 'People',
-    items: [
       {
-        label: 'Employees',
-        path: '/company/employees',
-        icon: 'users',
-        requiredAction: 'users:view',
-      },
-      {
-        label: 'Employee Notes',
-        path: '/company/employee-notes',
-        icon: 'notepad',
-        requiredAction: 'notepad:view-all',
-      },
-      {
-        label: 'Recruitment',
-        path: '/company/recruitment',
-        icon: 'briefcase',
-        children: [
-          { label: 'Overview', path: '/company/recruitment' },
-          { label: 'Requisitions', path: '/company/recruitment/requisitions' },
-          { label: 'Resume Inbox', path: '/company/recruitment/resumes' },
-          { label: 'Candidates', path: '/company/recruitment/candidates' },
-          { label: 'Interviews', path: '/company/recruitment/interviews' },
-          { label: 'Offers', path: '/company/recruitment/offers' },
-          { label: 'Joining', path: '/company/recruitment/joining' },
-        ],
+        label: 'Client meetings',
+        path: '/company/meetings',
+        icon: 'calendar',
+        requiredAnyAction: ['meetings:host', 'meetings:view'],
       },
     ],
   },
@@ -142,13 +118,67 @@ export const companyNavigation: CompanyNavGroup[] = [
     label: 'Sales',
     items: [
       {
+        label: 'Sales Overview',
+        path: '/company/sales',
+        icon: 'chart',
+        requiredAnyAction: ['territories:view', 'leads:view', 'callbacks:view', 'handovers:view', 'deals:view', 'deals:record-win', 'approvals:decide', 'deals:forecast', 'telephony:view', 'telephony:manage'],
+      },
+      {
+        label: 'My Work',
+        path: '/company/sales/my-work',
+        icon: 'briefcase',
+        requiredAction: 'leads:view',
+      },
+      {
+        label: 'Lead Pool',
+        path: '/company/sales/bid-pool',
+        icon: 'inbox',
+        requiredAction: 'leads:view',
+      },
+      {
+        label: 'Lead Management',
+        path: '/company/sales/leads',
+        icon: 'users',
+        requiredAction: 'leads:view',
+      },
+      {
+        label: 'Deals',
+        path: '/company/sales/deals',
+        icon: 'briefcase',
+        requiredAction: 'deals:view',
+      },
+      {
+        label: 'Approvals',
+        path: '/company/sales/approvals',
+        icon: 'check',
+        requiredAction: 'approvals:decide',
+      },
+      {
+        label: 'Wins to record',
+        path: '/company/sales/wins',
+        icon: 'check',
+        requiredAction: 'deals:record-win',
+      },
+      {
+        label: 'Reports',
+        path: '/company/sales/reports',
+        icon: 'chart',
+        requiredAction: 'deals:forecast',
+      },
+      {
+        label: 'Sales Setup',
+        path: '/company/sales/setup',
+        icon: 'settings',
+        requiredAnyAction: ['territories:view', 'leads:view', 'telephony:view', 'telephony:manage'],
+      },
+      {
         label: 'Territories',
         path: '/company/sales/territories',
         icon: 'map',
         requiredAction: 'territories:view',
       },
       {
-        label: 'Leads',
+        label: 'Lead Management',
         path: '/company/sales/leads',
         icon: 'users',
         requiredAction: 'leads:view',
@@ -165,11 +195,41 @@ export const companyNavigation: CompanyNavGroup[] = [
         icon: 'share',
         requiredAction: 'handovers:view',
       },
+      {
+        label: 'Calls',
+        path: '/company/sales/calls',
+        icon: 'phone',
+        requiredAction: 'telephony:view',
+        children: [
+          { label: 'Team calls', path: '/company/sales/calls' },
+          { label: 'My calls', path: '/company/sales/calls/me' },
+          { label: 'Call log', path: '/company/sales/calls/log' },
+          { label: 'Assigned lead calls', path: '/company/sales/calls/assigned-leads' },
+        ],
+      },
+      {
+        label: 'Imported Leads',
+        path: '/company/sales/leads/imported',
+        icon: 'upload',
+        requiredAction: 'lead-imports:view',
+      },
+      {
+        label: 'Call Integrations',
+        path: '/company/sales/call-integrations',
+        icon: 'settings',
+        requiredAction: 'telephony:manage',
+      },
     ],
   },
   {
     label: 'Organization',
     items: [
+      {
+        label: 'Employees',
+        path: '/company/employees',
+        icon: 'users',
+        requiredAction: 'users:view',
+      },
       {
         label: 'Overview',
         path: '/company/organization',
@@ -215,6 +275,33 @@ export const companyNavigation: CompanyNavGroup[] = [
     ],
   },
   {
+    label: 'Employee Activities',
+    items: [
+      {
+        label: 'Employee Notes',
+        path: '/company/employee-notes',
+        icon: 'notepad',
+        requiredAction: 'notepad:view-all',
+      },
+    ],
+  },
+  {
+    label: 'Recruitment',
+    items: [
+      {
+        label: 'Overview',
+        path: '/company/recruitment',
+        icon: 'briefcase',
+      },
+      { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'briefcase' },
+      { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'briefcase' },
+      { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'briefcase' },
+      { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'briefcase' },
+      { label: 'Offers', path: '/company/recruitment/offers', icon: 'briefcase' },
+      { label: 'Joining', path: '/company/recruitment/joining', icon: 'briefcase' },
+    ],
+  },
+  {
     label: 'Identity & Access',
     items: [
       { label: 'Sessions & Devices', path: '/company/sessions', icon: 'monitor' },
@@ -233,7 +320,7 @@ export const companyNavigation: CompanyNavGroup[] = [
       {
         label: 'Audit Log',
         path: '/company/audit',
-        icon: 'clipboard',
+        icon: 'clipboard-list',
         requiredAction: 'audit:view',
       },
     ],
@@ -474,8 +561,23 @@ export function navigationScreensByAction(): ReadonlyMap<
  * the workspace navigation. Capability checks happen before results are
  * returned; route authorization remains authoritative at the server/router.
  */
+/**
+ * Routes whose server module differs from (or is not implied by) the actions
+ * they require. Used to hide destinations of switched-off modules.
+ */
+const MODULE_BY_PATH: Readonly<Record<string, string>> = {
+  '/company/attendance/live': 'live-status',
+  '/company/payroll/cycle': 'payroll',
+  '/company/payroll/my-payslips': 'payroll',
+  '/company/attendance/today': 'attendance',
+  '/company/attendance/my': 'attendance',
+  '/company/leave/my': 'leave',
+  '/company/holidays': 'holidays',
+};
+
 export function companySearchDestinations({
   actions,
+  enabledModules,
   isSuperAdmin = false,
   isHr = false,
   hasRecruitment = false,
@@ -483,6 +585,8 @@ export function companySearchDestinations({
   accountType = 'employee',
 }: {
   actions: ReadonlySet<Action>;
+  /** Modules enabled for the company; omitted means every module is offered. */
+  enabledModules?: readonly string[];
   isSuperAdmin?: boolean;
   isHr?: boolean;
   hasRecruitment?: boolean;
@@ -491,6 +595,11 @@ export function companySearchDestinations({
 }): CompanySearchDestination[] {
   const destinations: CompanySearchDestination[] = [];
   const seen = new Set<string>();
+  const moduleOn = (key: string): boolean => !enabledModules || enabledModules.includes(key);
+  // Super-admins hold every action of every enabled module, so a super-admin
+  // shortcut must still respect the owning module of the required actions.
+  const actionModuleOn = (action: Action): boolean =>
+    !enabledModules || isActionModuleEnabled(enabledModules, action);
 
   const addDestination = (destination: CompanySearchDestination): void => {
     if (seen.has(destination.path)) return;
@@ -511,8 +620,27 @@ export function companySearchDestinations({
 
   for (const group of companyNavigation) {
     for (const item of group.items) {
-      if (item.label === 'Recruitment' && (!isHr || !hasRecruitment)) continue;
-      if ((item.label === 'Access Explorer' || item.label === 'Geofencing') && !isSuperAdmin) continue;
+      if (
+        (isSuperAdmin || accountType !== 'employee') &&
+        (item.path === '/company/attendance/today' || item.path === '/company/attendance/my')
+      ) {
+        continue;
+      }
+      if (group.label === 'Recruitment' && (!hasRecruitment || !(isHr || hasRecruitmentViewAction(actions)))) continue;
+      // Access Explorer follows its access:view requirement below. The Organization
+      // workspace edits as well as reads, so its routes stay super-admin only.
+      if (item.label === 'Geofencing' && !isSuperAdmin) continue;
+      if (item.path.startsWith('/company/organization') && !isSuperAdmin) continue;
+      const pathModule = MODULE_BY_PATH[item.path];
+      if (pathModule && !moduleOn(pathModule)) continue;
+      if (item.requiredAction && !actionModuleOn(item.requiredAction)) continue;
+      if (
+        item.requiredAnyAction &&
+        item.requiredAnyAction.length > 0 &&
+        !item.requiredAnyAction.some(actionModuleOn)
+      ) {
+        continue;
+      }
       if (item.requiredAction && !isSuperAdmin && !actions.has(item.requiredAction))
         continue;
       if (
@@ -547,6 +675,9 @@ export function companySearchDestinations({
     destination: Omit<CompanySearchDestination, 'keywords'> & { keywords?: readonly string[] },
     requiredActions: readonly Action[] = [],
   ): void => {
+    if (requiredActions.length > 0 && !requiredActions.some(actionModuleOn)) return;
+    const pathModule = MODULE_BY_PATH[destination.path];
+    if (pathModule && !moduleOn(pathModule)) return;
     if (!isSuperAdmin && requiredActions.length > 0 && !requiredActions.some((action) => actions.has(action))) return;
     addDestination({
       ...destination,

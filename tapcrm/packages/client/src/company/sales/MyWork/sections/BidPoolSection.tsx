@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BidCard } from '../../BidPool/BidCard.js';
 import { useBidPool } from '../../BidPool/useBidPool.js';
 import { MyWorkSection } from './Shell.js';
+import { MY_WORK_ANCHORS } from '../../guide/page-guidance.js';
 
 /**
  * Live offers — same bid-pool cards as the standalone page, scoped
@@ -20,12 +21,13 @@ export function BidPoolSection({
   }, [cards.length, onCountChange]);
   return (
     <MyWorkSection
-      title="Live offers"
+      id={MY_WORK_ANCHORS.bidPool}
+      title="Bid Pool: leads to claim"
       count={cards.length}
       urgent={cards.length > 0}
       error={error}
-      empty={loading ? 'Loading…' : 'No live leads waiting on a claim.'}
-      actionLabel="Open bid pool"
+      empty={loading ? 'Loading…' : 'No new enquiries waiting to be claimed.'}
+      actionLabel="Open the Bid Pool"
       onAction={() => onNavigate('/company/sales/bid-pool')}
     >
       {cards.length === 0 ? null : (

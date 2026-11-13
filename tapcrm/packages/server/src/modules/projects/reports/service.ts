@@ -3,12 +3,17 @@ import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { ProjectNotFoundError, ProjectValidationError } from '../errors.js';
 import { findProjectById } from '../repository.js';
-import { SearchConsoleConfigurationError, SearchConsoleUnavailableError, listSites } from '../../../platform/integrations/google/search-console.js';
-import { googleAuthConfigured } from '../../../platform/integrations/google/token.js';
+import { listSearchConsoleProperties, searchConsoleConnected } from '../../social/facade.js';
 import { systemClock } from '../../../platform/time.js';
 import { archiveBlog, archiveKeyword, deleteSearchConsoleLink, findKeyword, findSearchConsoleLink, insertBlog, insertKeyword, keywordExists, listBlogs, listKeywords, overview, rankHistory, toReport, updateBlog, updateKeyword, updateKeywordRank, upsertSearchConsoleLink, type ReportContext } from './repository.js';
 import { observationWindow, syncProjectRanks } from './sync.js';
-import type { BlogInput, CreateKeywordInput, RankUpdateInput, ReportQuery, SearchConsoleLinkInput, UpdateKeywordInput } from './validators.js';
+import {
+  checkKeywordLiveRank,
+  getProjectSeoSettings,
+  listProjectRankings,
+  updateProjectSeoSettings,
+} from './live-rank.js';
+import type { BlogInput, CreateKeywordInput, ProjectSeoSettingsInput, RankUpdateInput, ReportQuery, SearchConsoleLinkInput, UpdateKeywordInput } from './validators.js';
 
 export async function loadProjectReportResource(ctx: RequestContext, id: string): Promise<Resource | null> { const project = await findProjectById(ctx, id); return project ? { type: 'project', id: project.id, organizationId: project.organizationId, createdBy: project.createdBy, assigneeIds: project.assignees.map((a) => a.userId) } : null; }
 function withProject(ctx: RequestContext, id: string): ReportContext { return { ...ctx, projectId: id }; }
@@ -27,39 +32,49 @@ export async function archiveSeoBlog(ctx: RequestContext, projectId: string, blo
  * ------------------------------------------------------------------ */
 
 /**
- * The project's property plus every property the configured Google account can
- * read, so the UI offers a list instead of asking someone to type an exact
- * property string.
+ * The project's property plus every property the ORGANIZATION's own Google
+ * logins can read (Social → Company connections), those assigned to the
+ * project's client first, so the UI offers a list instead of asking someone to
+ * type an exact property string. No organization sees another's properties.
  *
- * Listing properties reaches Google, which may be unconfigured or refuse the
- * credentials. That is reported as part of the payload rather than as a failed
- * request: the link itself is still readable and editable, and the card needs
- * to be able to say why the list is empty.
+ * Listing may reach Google, which may refuse the credentials. That is reported
+ * as part of the payload rather than as a failed request: the link itself is
+ * still readable and editable, and the card needs to be able to say why the
+ * list is empty.
  */
 export async function getSearchConsoleSettings(ctx: RequestContext, projectId: string) {
+  const project = await findProjectById(ctx, projectId);
+  if (!project) throw new ProjectNotFoundError();
   const link = await findSearchConsoleLink(ctx, projectId);
-  if (!googleAuthConfigured()) {
-    return { configured: false, link, properties: [], error: 'Google Search Console is not configured on this server.' };
+  if (!await searchConsoleConnected(ctx)) {
+    return { configured: false, link, properties: [], error: null };
   }
-  try {
-    const sites = await listSites();
-    return {
-      configured: true,
-      link,
-      properties: sites.map((site) => ({ propertyUrl: site.siteUrl, permissionLevel: site.permissionLevel })),
-      error: null,
-    };
-  } catch (cause) {
-    const message = cause instanceof SearchConsoleConfigurationError || cause instanceof SearchConsoleUnavailableError
-      ? cause.message
-      : 'Search Console could not be reached.';
-    return { configured: true, link, properties: [], error: message };
-  }
+  const { properties, problem } = await listSearchConsoleProperties(ctx);
+  const forClient = (clientId: string | null) => clientId === project.clientId;
+  return {
+    configured: true,
+    link,
+    properties: [...properties]
+      .sort((a, b) => Number(forClient(b.clientId)) - Number(forClient(a.clientId)))
+      .map((property) => ({
+        propertyUrl: property.propertyUrl,
+        permissionLevel: property.permissionLevel,
+        clientName: property.clientName,
+        forThisClient: forClient(property.clientId),
+        status: property.status,
+      })),
+    error: problem?.message ?? null,
+  };
 }
 
+/** Only a property one of the organization's own Google logins can read may be linked. */
 export async function linkSearchConsoleProperty(ctx: RequestContext, projectId: string, input: SearchConsoleLinkInput) {
   const scoped = withProject(ctx, projectId);
   if (!await findProjectById(ctx, projectId)) throw new ProjectNotFoundError();
+  const { properties } = await listSearchConsoleProperties(ctx);
+  if (!properties.some((property) => property.propertyUrl === input.propertyUrl)) {
+    throw new ProjectValidationError('Choose a property one of your organization’s Google logins can read. Connect the Google account that manages it under Social → Company connections.');
+  }
   const propertyType = input.propertyUrl.startsWith('sc-domain:') ? 'domain' : 'url-prefix';
   await db.transaction(scoped, (tx) => upsertSearchConsoleLink(tx, scoped, input.propertyUrl, propertyType));
   return findSearchConsoleLink(ctx, projectId);
@@ -81,4 +96,27 @@ export async function syncSearchConsoleRanks(ctx: RequestContext, projectId: str
   if (!await findProjectById(ctx, projectId)) throw new ProjectNotFoundError();
   const window = await observationWindow(ctx, systemClock);
   return syncProjectRanks(ctx, projectId, { window, scope: 'all' });
+}
+
+/* ------------------------------------------------------------------ *
+ * Live rank checks (SerpApi primary, Search Console fallback).
+ * ------------------------------------------------------------------ */
+
+export async function getProjectLiveSettings(ctx: RequestContext, projectId: string) {
+  return getProjectSeoSettings(ctx, projectId);
+}
+export async function setProjectLiveSettings(ctx: RequestContext, projectId: string, patch: ProjectSeoSettingsInput) {
+  return updateProjectSeoSettings(ctx, projectId, patch);
+}
+/** All active keywords with their latest live reading, plus the live-check settings. */
+export async function getProjectRankings(ctx: RequestContext, projectId: string) {
+  return listProjectRankings(ctx, projectId);
+}
+/** Live-check one stored keyword, then return the refreshed keyword and the outcome. */
+export async function checkSeoKeywordLive(ctx: RequestContext, projectId: string, keywordId: string) {
+  const scoped = withProject(ctx, projectId);
+  const keyword = await findKeyword(scoped, keywordId);
+  if (!keyword) throw new ProjectNotFoundError();
+  const outcome = await checkKeywordLiveRank(ctx, projectId, keyword);
+  return { keyword: await findKeyword(scoped, keywordId), outcome };
 }

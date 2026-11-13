@@ -22,7 +22,7 @@ import {
   type RunStatus,
   type RunSummary,
 } from '../api/payrollApi.js';
-import { Button, Card, Modal, Notice, Page, SkeletonDetail, SkeletonTable } from '../../ui/components.js';
+import { Button, Card, Modal, Notice, Page, SkeletonDetail, SkeletonTable } from '../../ui/index.js';
 
 const STATUS_CLASSES: Record<RunStatus, string> = {
   draft: 'bg-app-background text-app-muted',
@@ -94,6 +94,7 @@ function BlockerList({ blockers, title }: { blockers: RunBlocker[]; title: strin
 function CreatedSummary({ result, onDismiss }: { result: CreateRunResult; onDismiss: () => void }): React.JSX.Element {
   const noSalary = result.warnings.filter((w) => w.kind === 'no-salary-structure');
   const noLeaving = result.warnings.filter((w) => w.kind === 'no-leaving-date');
+  const untagged = result.warnings.filter((w) => w.kind === 'statutory-not-applied');
   return (
     <Card className="mt-6 space-y-3">
       <div className="flex items-start justify-between gap-3">
@@ -112,6 +113,13 @@ function CreatedSummary({ result, onDismiss }: { result: CreateRunResult; onDism
         <Notice error>
           {noLeaving.map((w) => w.fullName).join(', ')} {noLeaving.length === 1 ? 'is' : 'are'} deactivated but {noLeaving.length === 1 ? 'has' : 'have'} no leaving date,
           so they are paid for the whole month. Set a leaving date on the employee to stop pay on the right day.
+        </Notice>
+      )}
+      {untagged.length > 0 && (
+        <Notice error>
+          PF, ESI and professional tax from Payroll → Settings are not applied to {untagged.map((w) => w.fullName).join(', ')}:
+          no salary line is marked PF wage, PF, PT or ESI. Open their salary, check the Statutory column and save it,
+          then recalculate this run.
         </Notice>
       )}
       {result.blockers.length > 0 && (

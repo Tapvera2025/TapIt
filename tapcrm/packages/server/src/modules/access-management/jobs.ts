@@ -1,6 +1,7 @@
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { defineJob } from '../../platform/jobs/runner.js';
+import { notifyUsersPermissionsChanged } from '../organization/facade.js';
 import { markExpiredOverrides } from './repository.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,6 +40,12 @@ export function registerAccessManagementJobs(): void {
             })}::jsonb)
           `);
         }
+        await notifyUsersPermissionsChanged(
+          tx,
+          ctx.organizationId,
+          rows.map((override) => override.userId),
+          'access.override.expired',
+        );
         return rows;
       });
       return { itemsProcessed: expired.length };

@@ -15,6 +15,7 @@ export {
   catalog,
   listOrganizationModules,
   changeOrganizationModule,
+  applyOrganizationModuleChanges,
 } from './modules/service.js';
 export { createInvitation, resendInvitation } from './invitations/service.js';
 export { getStats } from './dashboard/service.js';

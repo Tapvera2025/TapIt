@@ -105,11 +105,35 @@ describe.skipIf(!enabled)('leave integration', () => {
   });
 
   it('offers employees only active absence types while management retains the full list', async () => {
-    const { ltId, empCtx } = await setup();
+    const { ltId, wfhTypeId, empCtx } = await setup();
     expect((await listAvailableLeaveTypes(empCtx)).map((type) => type.id)).toEqual([ltId]);
+    // The WFH form asks for attendance-mode types; without them it could never be submitted.
+    expect((await listAvailableLeaveTypes(empCtx, 'attendance-mode')).map((type) => type.id)).toEqual([wfhTypeId]);
     await db.transaction(empCtx, (tx) => repo.updateLeaveType(tx, ltId, { isActive: false }));
     expect(await listAvailableLeaveTypes(empCtx)).toEqual([]);
     expect((await db.transaction(empCtx, (tx) => repo.listLeaveTypes(tx))).length).toBe(2);
+  });
+
+  it('does not charge the weekly off from a weekday schedule as leave', async () => {
+    const { orgId, empId, mgrId, ltId, empCtx } = await setup();
+    const scheduleId = (await platformDb.query<{ id: string }>('seed', 'create mon-sat schedule',
+      sql`INSERT INTO weekday_schedule (organization_id, name, working_weekdays, created_by)
+          VALUES (${orgId}, 'Mon-Sat', ARRAY[1,2,3,4,5,6]::smallint[], ${mgrId}) RETURNING id`))[0]!.id;
+    await platformDb.query('seed', 'assign mon-sat schedule',
+      sql`INSERT INTO weekday_schedule_assignment (organization_id, user_id, schedule_id, effective_from, created_by)
+          VALUES (${orgId}, ${empId}, ${scheduleId}, '2026-01-01', ${mgrId})`);
+    // Saturday 24 to Monday 26 October: Sunday 25 is the weekly off.
+    const request = await submitLeave(empCtx, {
+      leaveTypeId: ltId, fromDate: '2026-10-24', toDate: '2026-10-26',
+      fromHalf: 'full', toHalf: 'full', reason: 'Fever',
+    });
+    expect(request.daysConsumed).toBe(2);
+    // A single-day request on the weekly off consumes nothing.
+    const sunday = await submitLeave(empCtx, {
+      leaveTypeId: ltId, fromDate: '2026-11-01', toDate: '2026-11-01',
+      fromHalf: 'full', toHalf: 'full', reason: 'Sunday',
+    });
+    expect(sunday.daysConsumed).toBe(0);
   });
 
   it('approval creates overlay rows and deducts balance atomically', async () => {

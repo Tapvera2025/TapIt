@@ -6,6 +6,7 @@ import {
   type ResourcePolicy,
 } from '@tapcrm/authz';
 import type { Scope } from '@tapcrm/contracts';
+import { withPeopleReach } from '../people-reach.js';
 
 /**
  * Shifts resource policies (AUTHORIZATION.md §6.4: `shift`, `shiftRequest`,
@@ -59,7 +60,7 @@ async function peopleFilter(ctx: PolicyEvaluationContext, scope: Scope) {
   return MATCH_NOTHING;
 }
 
-export const shiftPolicy: ResourcePolicy = {
+const baseShiftPolicy: ResourcePolicy = {
   resourceType: 'shift',
   domain: 'people',
   async check(ctx, _action, resource, scope) {
@@ -74,7 +75,9 @@ export const shiftPolicy: ResourcePolicy = {
   initiatorField: () => null,
 };
 
-export const shiftRequestPolicy: ResourcePolicy = {
+export const shiftPolicy: ResourcePolicy = withPeopleReach(baseShiftPolicy, { subjects: ['userId'], columns: ['u.id'] });
+
+const baseShiftRequestPolicy: ResourcePolicy = {
   resourceType: 'shiftRequest',
   domain: 'people',
   async check(ctx, _action, resource, scope) {
@@ -86,6 +89,8 @@ export const shiftRequestPolicy: ResourcePolicy = {
   // A1 / SH-7 — nobody approves a request they raised.
   initiatorField: (action) => (action === 'shifts:approve' ? 'requestedBy' : null),
 };
+
+export const shiftRequestPolicy: ResourcePolicy = withPeopleReach(baseShiftRequestPolicy, { subjects: ['userId'], columns: ['u.id'] });
 
 export function registerShiftPolicies(): void {
   registerResourcePolicy(shiftPolicy);

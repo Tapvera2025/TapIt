@@ -1,0 +1,140 @@
+[
+  {
+    "account": "qa.sales.alpha.20261030@tapcrm.local",
+    "step": "API login",
+    "status": 200,
+    "passwordChangeRequired": false
+  },
+  {
+    "account": "qa.sales.alpha.20261030@tapcrm.local",
+    "step": "/api/leads",
+    "status": 200,
+    "count": 0,
+    "keys": [
+      "items",
+      "total",
+      "page",
+      "pageSize",
+      "totalPages"
+    ]
+  },
+  {
+    "account": "qa.sales.alpha.20261030@tapcrm.local",
+    "step": "/api/bid-pool",
+    "status": 200,
+    "count": 0,
+    "keys": [
+      "items"
+    ]
+  },
+  {
+    "account": "qa.sales.alpha.20261030@tapcrm.local",
+    "step": "/api/handovers",
+    "status": 200,
+    "count": 0,
+    "keys": []
+  },
+  {
+    "account": "qa.sales.alpha.20261030@tapcrm.local",
+    "step": "/api/callbacks",
+    "status": 200,
+    "count": 0,
+    "keys": []
+  },
+  {
+    "account": "qa.sales.alpha.20261030@tapcrm.local",
+    "step": "/api/deals",
+    "status": 200,
+    "count": 0,
+    "keys": [
+      "items",
+      "total",
+      "page",
+      "pageSize",
+      "totalPages"
+    ]
+  },
+  {
+    "account": "qa.sales.alpha.20261030@tapcrm.local",
+    "step": "/api/deals/forecast",
+    "status": 200,
+    "keys": [
+      "periodStart",
+      "periodEnd",
+      "funnel",
+      "lifecycle",
+      "lossReasons",
+      "winLeaderboard",
+      "totals"
+    ]
+  },
+  {
+    "account": "qa.sales.beta.20261030@tapcrm.local",
+    "step": "API login",
+    "status": 200,
+    "passwordChangeRequired": false
+  },
+  {
+    "account": "qa.sales.beta.20261030@tapcrm.local",
+    "step": "/api/leads",
+    "status": 200,
+    "count": 0,
+    "keys": [
+      "items",
+      "total",
+      "page",
+      "pageSize",
+      "totalPages"
+    ]
+  },
+  {
+    "account": "qa.sales.beta.20261030@tapcrm.local",
+    "step": "/api/bid-pool",
+    "status": 200,
+    "count": 0,
+    "keys": [
+      "items"
+    ]
+  },
+  {
+    "account": "qa.sales.beta.20261030@tapcrm.local",
+    "step": "/api/handovers",
+    "status": 200,
+    "count": 0,
+    "keys": []
+  },
+  {
+    "account": "qa.sales.beta.20261030@tapcrm.local",
+    "step": "/api/callbacks",
+    "status": 200,
+    "count": 0,
+    "keys": []
+  },
+  {
+    "account": "qa.sales.beta.20261030@tapcrm.local",
+    "step": "/api/deals",
+    "status": 200,
+    "count": 0,
+    "keys": [
+      "items",
+      "total",
+      "page",
+      "pageSize",
+      "totalPages"
+    ]
+  },
+  {
+    "account": "qa.sales.beta.20261030@tapcrm.local",
+    "step": "/api/deals/forecast",
+    "status": 200,
+    "keys": [
+      "periodStart",
+      "periodEnd",
+      "funnel",
+      "lifecycle",
+      "lossReasons",
+      "winLeaderboard",
+      "totals"
+    ]
+  }
+]

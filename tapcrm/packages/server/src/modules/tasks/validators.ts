@@ -75,15 +75,15 @@ export const taskListQuerySchema = z
   .refine(
     (data) => {
       if (data.datePreset === 'custom') {
-        if (!data.startDate || !data.endDate) {
-          return false;
+        if (data.startDate && data.endDate) {
+          return data.startDate <= data.endDate;
         }
-        return data.startDate <= data.endDate;
+        return Boolean(data.startDate || data.endDate);
       }
       return true;
     },
     {
-      message: 'startDate must be before or equal to endDate for custom datePreset',
+      message: 'A custom date range needs at least one date, and startDate must be before or equal to endDate',
       path: ['startDate'],
     },
   );

@@ -6,7 +6,7 @@ import {
   submitBreachExplanation,
   type BreachListItem,
 } from '../api/breaksApi.js';
-import { SkeletonTable } from '../../ui/components.js';
+import { SkeletonTable } from '../../ui/index.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })

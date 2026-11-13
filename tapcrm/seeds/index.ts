@@ -110,6 +110,7 @@ for (const action of seed.actions) {
     module: action.module,
     positionGrantable: action.grantPolicy.positionGrantable,
     superAdminOnly: action.grantPolicy.superAdminOnly,
+    domain: action.domain as RegistryActionDefinition['domain'],
   };
   sharedActionsByModule.set(action.module, [
     ...(sharedActionsByModule.get(action.module) ?? []),

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Modal, Notice } from '../../../ui/components.js';
+import { Button, Modal, Notice } from '../../../ui/index.js';
 import {
   createApplicationLink,
   listApplicationLinks,

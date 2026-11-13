@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getPayrollCycle, type CycleStatus } from '../api/payrollApi.js';
-import { SkeletonMetrics } from '../../ui/components.js';
+import { SkeletonMetrics } from '../../ui/index.js';
 
 function fmtPeriod(periodStart: string): string {
   return new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })

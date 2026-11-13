@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Empty, Loading, Modal, Notice, Select } from '../../ui/components.js';
+import { Button, Card, Empty, Loading, Modal, Notice, Select } from '../../ui/index.js';
 import { createBacklink, createBacklinksBulk, deleteBacklink, getBacklinks, updateBacklink } from './api/offPageSeoApi.js';
 import type { BacklinkCategory, BulkBacklinkResult, ReportPeriod, SeoBacklink, SeoBacklinkPage } from './types.js';
 import { Pager } from './components/Pager.js';

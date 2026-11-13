@@ -496,7 +496,8 @@ export async function enqueuePermissionsChanged(
   tx: Tx,
   input: {
     organizationId: string;
-    positionId: string;
+    /** `null` when the change is not tied to one position (override, placement, team). */
+    positionId: string | null;
     holderIds: string[];
     reason: string;
   },
@@ -512,4 +513,20 @@ export async function enqueuePermissionsChanged(
       })}::jsonb
     )
   `);
+}
+
+/**
+ * Tell these users their capabilities or reach changed, outside a position
+ * edit: de-duplicates, drops blanks, and does nothing for an empty set. Call it
+ * in the same transaction as the change.
+ */
+export async function notifyUsersPermissionsChanged(
+  tx: Tx,
+  organizationId: string,
+  userIds: readonly (string | null | undefined)[],
+  reason: string,
+): Promise<void> {
+  const holderIds = [...new Set(userIds.filter((id): id is string => typeof id === 'string' && id !== ''))];
+  if (holderIds.length === 0) return;
+  await enqueuePermissionsChanged(tx, { organizationId, positionId: null, holderIds, reason });
 }

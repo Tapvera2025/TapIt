@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertPositionApprovalLimits,
   assertPositionLevel,
+  canBecomeDepartmentTop,
   selectPositionsToAdopt,
 } from './hierarchy.js';
 
@@ -113,5 +114,50 @@ describe('targeted position insertion', () => {
       adoptLowerPositions: false,
       adoptPositionIds: ['selected'],
     })).toThrow(/seeded position hierarchy/i);
+  });
+});
+
+describe('department top position', () => {
+  const currentTop = position({
+    id: 'senior-designer',
+    name: 'Senior Graphic Designer',
+    organizationalLevel: 60,
+    parentPositionId: null,
+  });
+  const noAdoption = { adoptLowerPositions: false, adoptPositionIds: [] as string[] };
+
+  it("lets a department's first position report to the Super Admin", () => {
+    expect(canBecomeDepartmentTop([], { organizationalLevel: 60, ...noAdoption })).toBe(
+      true,
+    );
+    expect(
+      canBecomeDepartmentTop([position({ parentPositionId: null, status: 'inactive' })], {
+        organizationalLevel: 10,
+        ...noAdoption,
+      }),
+    ).toBe(true);
+  });
+
+  it('lets a more senior position take over as the top, moving the current top under it', () => {
+    expect(
+      canBecomeDepartmentTop([currentTop], {
+        organizationalLevel: 80,
+        adoptLowerPositions: false,
+        adoptPositionIds: ['senior-designer'],
+      }),
+    ).toBe(true);
+  });
+
+  it('refuses a second, unconnected top that takes nothing under it', () => {
+    expect(
+      canBecomeDepartmentTop([currentTop], { organizationalLevel: 80, ...noAdoption }),
+    ).toBe(false);
+    expect(
+      canBecomeDepartmentTop([currentTop], {
+        organizationalLevel: 60,
+        adoptLowerPositions: true,
+        adoptPositionIds: [],
+      }),
+    ).toBe(false);
   });
 });

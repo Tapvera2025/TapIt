@@ -144,12 +144,16 @@ async function retireAnswer(tx: Tx, existing: CurrentBreachAnswer, clock: { now(
 // Core evaluator
 // ---------------------------------------------------------------------------
 
+/** How many earlier days one evaluation may catch up on (a backfilled month and its neighbours). */
+const MAX_CATCH_UP_DAYS = 100;
+
 export async function evaluateBreakDay(
   tx: Tx,
   recordId: string,
   expectedCalculationVersion: number,
   expectedRevision: bigint,
   clock: { now(): Date },
+  caughtUp = 0,
 ): Promise<EvalOutcome> {
   // 1. Load and recheck the record (under person lock already held by caller)
   const record = await AttFacade.loadBreakDay(tx, recordId);
@@ -183,8 +187,35 @@ export async function evaluateBreakDay(
   );
 
   if (earliest !== null && earliest.recordId !== recordId && earliest.workDate < workDate) {
-    // An earlier stale day must be evaluated first. Throw so the job runner retries.
-    throw new Error(`blocked-by-earlier: ${earliest.workDate} must be evaluated before ${workDate}`);
+    // An earlier stale day must be evaluated first (window counts depend on
+    // it). Evaluate it now, oldest first, in this transaction under the
+    // person's lock — throwing here failed every later day of a backfilled or
+    // recalculated month three times, dead-lettered it with an alert, and held
+    // payroll publishing until hourly sweeps worked through it day by day.
+    if (caughtUp >= MAX_CATCH_UP_DAYS)
+      throw new Error(`blocked-by-earlier: ${earliest.workDate} must be evaluated before ${workDate}`);
+    const earlier = await AttFacade.loadBreakDay(tx, earliest.recordId);
+    if (earlier === null)
+      throw new Error(`blocked-by-earlier: ${earliest.workDate} must be evaluated before ${workDate}`);
+    await evaluateBreakDay(
+      tx,
+      earlier.recordId,
+      earlier.calculationVersion,
+      BigInt(earlier.breaksEvaluationRevision),
+      clock,
+      caughtUp + 1,
+    );
+    // Then this day, as it stands now: the earlier answer may have dirtied it.
+    const current = await AttFacade.loadBreakDay(tx, recordId);
+    if (current === null) return 'stale-payload';
+    return evaluateBreakDay(
+      tx,
+      recordId,
+      current.calculationVersion,
+      BigInt(current.breaksEvaluationRevision),
+      clock,
+      caughtUp + 1,
+    );
   }
 
   // 3. Load the day snapshot (events + overlays)

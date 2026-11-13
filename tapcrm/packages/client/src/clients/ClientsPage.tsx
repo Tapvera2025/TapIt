@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Modal, Notice, Page, Select, SkeletonTable } from '../ui/components.js';
-import { Icon } from '../ui/Icon.js';
+import { Button, Card, Field, Modal, Notice, Page, Select, SkeletonTable } from '../ui/index.js';
+import { Icon } from '../ui/index.js';
 import {
   CLIENT_REGIONS,
   CLIENT_REGION_LABELS,

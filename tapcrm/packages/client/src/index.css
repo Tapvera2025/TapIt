@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
+@import './ui/theme.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -441,10 +442,24 @@
 @layer components {
   .ui-card {
     min-width: 0;
-    border: 1.5px solid var(--app-border);
-    border-radius: 16px;
-    background: var(--app-card-gradient);
-    box-shadow: var(--app-shadow);
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 16%, var(--app-border));
+    border-radius: 1rem;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 6%, transparent), transparent 58%),
+      color-mix(in srgb, var(--app-surface) 78%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 35%, transparent),
+      0 12px 30px -24px color-mix(in srgb, var(--app-foreground) 36%, transparent);
+  }
+
+  .dark .ui-card {
+    border-color: color-mix(in srgb, var(--theme-primary) 18%, var(--app-border));
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 12%, transparent), transparent 62%),
+      color-mix(in srgb, var(--app-surface) 90%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 14px 34px -24px rgba(2, 8, 23, 0.82);
   }
 
   .company-header {
@@ -669,6 +684,26 @@
     background: linear-gradient(105deg, rgba(255, 255, 255, 0.06), transparent 42%);
   }
 
+  /* Keep the platform drawer in the same translucent workspace style. */
+  .platform-sidebar {
+    isolation: isolate;
+    background: color-mix(in srgb, var(--sidebar-background) 76%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sidebar-border) 78%, white 22%) !important;
+    backdrop-filter: blur(24px) saturate(135%);
+    -webkit-backdrop-filter: blur(24px) saturate(135%);
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+
+  .dark .platform-sidebar {
+    background: rgba(27, 30, 36, 0.72) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
   @media (max-width: 430px) {
 
     .company-header-actions .navbar-action-button,
@@ -716,7 +751,6 @@
     pointer-events: none;
     background: linear-gradient(90deg, transparent, color-mix(in srgb, white 62%, transparent), transparent);
   }
-
   .page-toolbar {
     display: flex;
     align-items: flex-end;
@@ -790,26 +824,6 @@
   }
 
   @media (max-width: 640px) {
-    .page-toolbar {
-      align-items: stretch;
-      flex-direction: column;
-      gap: 0.875rem;
-      padding-bottom: 1rem;
-    }
-
-    .page-toolbar-action {
-      width: 100%;
-    }
-
-    .page-toolbar-action>* {
-      width: 100%;
-    }
-
-    .page-toolbar-action>.flex {
-      align-items: stretch;
-      flex-wrap: wrap;
-    }
-
     .recruitment-page-header {
       align-items: stretch;
       flex-direction: column;
@@ -871,7 +885,6 @@
       animation: none;
     }
   }
-
   .ui-primary {
     background: var(--app-gradient);
     color: var(--app-on-accent);
@@ -982,9 +995,6 @@
     overflow-y: auto;
     overscroll-behavior-y: contain;
     padding: 20px 24px 24px;
-  }
-  .ui-dialog-body:has(.task-assignee-options) {
-    overflow: visible;
   }
   .task-assignee-options {
     max-height: min(30rem, 70dvh);
@@ -1269,8 +1279,20 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  .mobile-sidebar-backdrop {
+    -webkit-tap-highlight-color: transparent;
+    tap-highlight-color: transparent;
+    box-shadow: none;
+  }
 
+  .mobile-sidebar-backdrop:active,
+  .mobile-sidebar-backdrop:focus,
+  .mobile-sidebar-backdrop:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
     .workspace-sidebar,
     .mobile-sidebar-backdrop {
       transition-duration: 0.01ms !important;
@@ -1351,7 +1373,7 @@
       inset: auto !important;
       height: calc(100dvh - 9rem) !important;
       margin: var(--company-sidebar-top-gap) 0 1.25rem 1.25rem !important;
-      border-radius: 1rem;
+      border-radius: 1.25rem;
       transform: none !important;
     }
 
@@ -1386,28 +1408,8 @@
     background: color-mix(in srgb, var(--app-surface) 72%, transparent) !important;
   }
 
-  .today-break-timer {
-    border: 1px solid color-mix(in srgb, var(--theme-primary) 24%, var(--app-border));
-    background: color-mix(in srgb, var(--app-surface) 78%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.32),
-      inset 0 -10px 24px color-mix(in srgb, var(--theme-primary) 6%, transparent),
-      0 14px 28px -24px color-mix(in srgb, var(--theme-primary) 60%, transparent);
-    backdrop-filter: blur(14px) saturate(130%);
-    -webkit-backdrop-filter: blur(14px) saturate(130%);
-  }
-
   .today-break-status-card {
     box-shadow: none !important;
-  }
-
-  .dark .today-break-timer {
-    border-color: color-mix(in srgb, var(--theme-primary) 30%, rgba(255, 255, 255, 0.12));
-    background: color-mix(in srgb, var(--app-surface) 84%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.14),
-      inset 0 -12px 26px color-mix(in srgb, var(--theme-primary) 10%, transparent),
-      0 16px 32px -25px color-mix(in srgb, var(--theme-primary) 72%, transparent);
   }
 
   .today-activity-scroll {
@@ -2038,6 +2040,18 @@ nav button[aria-current='page']::before {
   .notification-overlay-backdrop,
   .notification-panel-drawer .notification-item-button {
     transition: none;
+  }
+}
+
+/* Keep the compact mobile notification popover readable above the page. The
+   tablet/desktop drawer already has its own opaque surface treatment. */
+@media (max-width: 767px) {
+  .notification-panel:not(.notification-panel-drawer) {
+    background: var(--app-surface);
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    opacity: 1;
   }
 }
 
@@ -3073,8 +3087,10 @@ summary:active {
     position: relative !important;
   }
 
-  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]),
-  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]) {
+  /* Only static surfaces need this to anchor the sheen; popovers, menus and
+     sticky headers are already positioned and must keep their own placement. */
+  :root:not(.dark) .company-layout-shell main [class~="border-app-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]):not(.absolute):not(.fixed):not(.sticky),
+  :root:not(.dark) .company-layout-shell main [class~="border-sidebar-border"][class*="rounded"]:not(button):not(a):not(input):not(select):not(textarea):not([role="button"]):not(.absolute):not(.fixed):not(.sticky) {
     position: relative;
   }
 
@@ -3215,4 +3231,23 @@ summary:active {
   height: 0 !important;
   width: 0 !important;
   background: transparent !important;
+}
+
+/* Sales guide: the panel a guide button points at gets a brief outline. */
+@keyframes guide-flash {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--app-accent) 55%, transparent); }
+  35% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 45%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--app-accent) 0%, transparent); }
+}
+
+.guide-flash {
+  animation: guide-flash 1.8s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-flash {
+    animation: none;
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
 }

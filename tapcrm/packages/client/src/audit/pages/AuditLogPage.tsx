@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ACTIONS, actionTitle } from '@tapcrm/contracts';
-import { Button, Card, Empty, Field, Modal, Notice, Page, SearchableSelect, Select, SkeletonTable } from '../../ui/components.js';
+import { Button, Card, Empty, Field, Modal, Notice, Page, SearchableSelect, Select, SkeletonTable } from '../../ui/index.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../../company/api/companyApi.js';
 import { createLegalHold, downloadAuditExport, getAuditEntries, getAuditEntry, getAuditIntegrity, getLegalHoldTargets, getLegalHolds, releaseLegalHold, type AuditEntry, type AuditIntegrityReport, type LegalHold, type LegalHoldTarget } from '../api/auditApi.js';
 
