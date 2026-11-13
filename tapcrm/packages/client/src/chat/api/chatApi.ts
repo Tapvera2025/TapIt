@@ -16,10 +16,14 @@ export type ReactionEmoji = string;
 export type AttachmentKind = 'image' | 'pdf' | 'document' | 'spreadsheet' | 'presentation' | 'text' | 'archive';
 export type ChatPresence = 'active' | 'idle' | 'offline';
 
+/** A member's part in an Internal Group; the creator is `Conversation.createdBy`, not a role. */
+export type GroupMemberRole = 'member' | 'admin';
+
 export interface ConversationMember {
   userId: string;
   fullName: string;
   lastReadAt: string | null;
+  role?: GroupMemberRole;
 }
 
 export interface MessagePreview {
@@ -41,6 +45,8 @@ export interface Conversation {
   projectId: string | null;
   createdBy: string;
   createdAt: string;
+  /** Set once archived: read-only, listed under "Archived". */
+  archivedAt?: string | null;
   members: ConversationMember[];
   lastMessage: MessagePreview | null;
   unreadCount: number;
@@ -193,8 +199,12 @@ function pageQuery(options: { limit?: number; cursor?: string; after?: string; a
   return suffix ? `?${suffix}` : '';
 }
 
-export function getConversations(kind?: ConversationKind): Promise<Conversation[]> {
-  return identityRequest(`/api/chat/conversations${kind ? `?kind=${kind}` : ''}`);
+export function getConversations(kind?: ConversationKind, options: { archived?: boolean } = {}): Promise<Conversation[]> {
+  const query = new URLSearchParams();
+  if (kind) query.set('kind', kind);
+  if (options.archived) query.set('archived', 'true');
+  const suffix = query.toString();
+  return identityRequest(`/api/chat/conversations${suffix ? `?${suffix}` : ''}`);
 }
 
 export function getChatUnreadSummary(): Promise<ChatUnreadSummary> {
@@ -226,7 +236,11 @@ export function getChatColleagues(): Promise<{ id: string; fullName: string }[]>
   return identityRequest('/api/chat/colleagues');
 }
 
-/** Internal Groups (Phase 3) — Super-Admin-only server-side (chat:manage-groups). */
+/**
+ * Internal Groups. Creating one is Super-Admin-only. Editing it and adding or
+ * removing members is open to its creator and its admins; making admins,
+ * archiving, restoring and deleting are for the creator (or a Super Admin).
+ */
 export function createGroup(name: string, memberIds: string[], description?: string | null): Promise<Conversation> {
   return identityRequest('/api/chat/conversations/group', { method: 'POST', body: JSON.stringify({ name, memberIds, description: description ?? undefined }) });
 }
@@ -245,6 +259,22 @@ export function removeGroupMember(conversationId: string, userId: string): Promi
 
 export function archiveGroup(conversationId: string): Promise<{ archived: true }> {
   return identityRequest(`/api/chat/conversations/${enc(conversationId)}/archive`, { method: 'POST' });
+}
+
+export function setGroupMemberRole(conversationId: string, userId: string, role: GroupMemberRole): Promise<Conversation> {
+  return identityRequest(`/api/chat/conversations/${enc(conversationId)}/members/${enc(userId)}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export function restoreGroup(conversationId: string): Promise<Conversation> {
+  return identityRequest(`/api/chat/conversations/${enc(conversationId)}/restore`, { method: 'POST' });
+}
+
+/** Removes the group for everyone; its messages are kept on record server-side. */
+export function deleteGroup(conversationId: string): Promise<{ deleted: true }> {
+  return identityRequest(`/api/chat/conversations/${enc(conversationId)}`, { method: 'DELETE' });
 }
 
 /** Older call shape kept for compatibility; new code passes an OutgoingMessage. */

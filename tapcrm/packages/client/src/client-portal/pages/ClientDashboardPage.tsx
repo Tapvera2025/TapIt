@@ -4,6 +4,7 @@ import { Card, Empty, ErrorMessage, Loading, WorkspacePageContainer } from '../.
 import { Icon } from '../../ui/index.js';
 import { getPortalDashboard, PORTAL_STATUS_LABELS, type PortalDashboard, type PortalWorkStatus } from '../api/portalApi.js';
 import { PortalLink, ProgressBar, StatusBadge } from '../components.js';
+import { ClientSocialConnectCard } from '../components/ClientSocialConnectCard.js';
 import { useClientMessages } from '../useClientMessages.js';
 
 const STATUS_ORDER: PortalWorkStatus[] = ['ongoing', 'new', 'ended', 'expired'];
@@ -69,6 +70,13 @@ export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path
             })}
           </div>
         </section>
+
+        <ClientSocialConnectCard
+          onNavigate={onNavigate}
+          variant="dashboard"
+          hideWhenConnected
+          emphasis={data.recentProjects.some((project) => project.services.some((service) => service.service === 'smo'))}
+        />
 
         <div className="grid min-w-0 gap-4 xl:grid-cols-12">
           <Card className="min-w-0 xl:col-span-7">

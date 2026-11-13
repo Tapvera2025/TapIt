@@ -1,4 +1,4 @@
-import { MATCH_NOTHING, registerResourcePolicy, type PolicyEvaluationContext, type ResourcePolicy, type SqlFragment } from '@tapcrm/authz';
+import { MATCH_NOTHING, or, registerResourcePolicy, scopeMemberFilter, scopeReachesAny, type PolicyEvaluationContext, type ResourcePolicy, type SqlFragment } from '@tapcrm/authz';
 import type { Action, Scope } from '@tapcrm/contracts';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
@@ -19,6 +19,10 @@ export const meetingPolicy: ResourcePolicy<MeetingResource> = {
     if (resource.organizationId !== ctx.organizationId) return false;
     if (scope === 'own' || scope === 'participant') return resource.hostId === ctx.principal.id;
     if (scope === 'pool') return (await ctx.scope.poolMemberIds(ctx)).has(resource.hostId);
+    if (scope === 'team' || scope === 'department') {
+      // People route first: the host sits in the team tree / reporting line / department.
+      if (await scopeReachesAny(ctx, scope, [resource.hostId])) return true;
+    }
     if (scope === 'team') return resource.hostTeamId !== null && (await ctx.scope.teamIds(ctx)).has(resource.hostTeamId);
     if (scope === 'department') {
       const departmentId = await ctx.scope.departmentId(ctx);
@@ -34,15 +38,21 @@ export const meetingPolicy: ResourcePolicy<MeetingResource> = {
     }
     if (scope === 'team') {
       const ids = [...(await ctx.scope.teamIds(ctx))];
-      return ids.length
-        ? { sql: 'm.host_id IN (SELECT scope_user.id FROM app_user scope_user WHERE scope_user.organization_id = m.organization_id AND scope_user.team_id = ANY($1::uuid[]))', parameters: [ids] }
-        : MATCH_NOTHING;
+      return or(
+        await scopeMemberFilter(ctx, scope, ['m.host_id']),
+        ids.length
+          ? { sql: 'm.host_id IN (SELECT scope_user.id FROM app_user scope_user WHERE scope_user.organization_id = m.organization_id AND scope_user.team_id = ANY($1::uuid[]))', parameters: [ids] }
+          : MATCH_NOTHING,
+      );
     }
     if (scope === 'department') {
       const departmentId = await ctx.scope.departmentId(ctx);
-      return departmentId
-        ? { sql: 'm.host_id IN (SELECT scope_user.id FROM app_user scope_user WHERE scope_user.organization_id = m.organization_id AND scope_user.department_id = $1)', parameters: [departmentId] }
-        : MATCH_NOTHING;
+      return or(
+        await scopeMemberFilter(ctx, scope, ['m.host_id']),
+        departmentId
+          ? { sql: 'm.host_id IN (SELECT scope_user.id FROM app_user scope_user WHERE scope_user.organization_id = m.organization_id AND scope_user.department_id = $1)', parameters: [departmentId] }
+          : MATCH_NOTHING,
+      );
     }
     return MATCH_NOTHING;
   },

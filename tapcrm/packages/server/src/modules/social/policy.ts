@@ -2,7 +2,11 @@ import { z } from 'zod';
 import {
   authorize,
   MATCH_NOTHING,
+  or,
   registerResourcePolicy,
+  scopeMemberFilter,
+  scopeMemberIds,
+  scopeReachesAny,
   visibilityFilter,
   type Resource,
   type ResourcePolicy,
@@ -22,20 +26,36 @@ function policy(resourceType: string): ResourcePolicy {
         return false;
       if (ctx.principal.accountType === 'client')
         return resource['clientId'] === ctx.principal.clientId;
-      return (
-        resource['clientCreatedBy'] === ctx.principal.id ||
-        (Array.isArray(resource['projectAssigneeIds']) &&
-          resource['projectAssigneeIds'].includes(ctx.principal.id))
-      );
+      // Same model as the `client` policy: the client's creator and the people
+      // assigned to its projects. own/participant = the principal is one of
+      // them; pool/team/department = any of them is inside the scope's people.
+      const assignees = Array.isArray(resource['projectAssigneeIds'])
+        ? (resource['projectAssigneeIds'] as string[])
+        : [];
+      const creator = typeof resource['clientCreatedBy'] === 'string' ? resource['clientCreatedBy'] : null;
+      if (scope === 'own' || scope === 'participant')
+        return creator === ctx.principal.id || assignees.includes(ctx.principal.id);
+      return scopeReachesAny(ctx, scope, [creator, ...assignees]);
     },
     async filter(ctx, _action, scope) {
       if (scope === 'all-people') return MATCH_NOTHING;
       if (ctx.principal.accountType === 'client')
         return sql`c.id = ${ctx.principal.clientId}`;
-      return sql`(c.created_by = ${ctx.principal.id} OR EXISTS (
+      if (scope === 'own' || scope === 'participant') {
+        return sql`(c.created_by = ${ctx.principal.id} OR EXISTS (
         SELECT 1 FROM project p JOIN project_assignee pa ON pa.organization_id = p.organization_id AND pa.project_id = p.id
         WHERE p.organization_id = c.organization_id AND p.client_id = c.id AND pa.user_id = ${ctx.principal.id}
       ))`;
+      }
+      const members = await scopeMemberIds(ctx, scope);
+      if (members === null || members.size === 0) return MATCH_NOTHING;
+      return or(await scopeMemberFilter(ctx, scope, ['c.created_by']), {
+        sql: `EXISTS (
+        SELECT 1 FROM project p JOIN project_assignee pa ON pa.organization_id = p.organization_id AND pa.project_id = p.id
+        WHERE p.organization_id = c.organization_id AND p.client_id = c.id AND pa.user_id = ANY($1::uuid[])
+      )`,
+        parameters: [[...members]],
+      });
     },
     participantFields: () => ['clientCreatedBy', 'projectAssigneeIds'],
     initiatorField: (action) => (action === 'social:approve' ? 'createdBy' : null),

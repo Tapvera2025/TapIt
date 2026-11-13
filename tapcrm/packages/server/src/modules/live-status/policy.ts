@@ -21,7 +21,7 @@ import type { Scope } from '@tapcrm/contracts';
  * `repo.currentRoutingSubject`), so a lead's HTTP board and their
  * socket-pushed board agree.
  */
-export const userStatusPolicy: ResourcePolicy = {
+const baseUserStatusPolicy: ResourcePolicy = {
   resourceType: 'userStatus',
   domain: 'people',
   async check(ctx, _action, resource, scope: Scope) {
@@ -67,6 +67,12 @@ export const userStatusPolicy: ResourcePolicy = {
     return null;
   },
 };
+
+// No people route here: the live board's HTTP filter and its socket rooms must
+// reach the same people (scope-agreement.test.ts), and rooms are keyed on team
+// and department placement. Team leads still reach the teams they lead, because
+// both paths read `teamIds` / `poolIds` from the same scope resolver.
+export const userStatusPolicy: ResourcePolicy = baseUserStatusPolicy;
 
 export function registerLiveStatusPolicies(): void {
   registerResourcePolicy(userStatusPolicy);

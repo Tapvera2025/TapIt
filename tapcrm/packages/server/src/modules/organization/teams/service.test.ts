@@ -4,6 +4,7 @@ import {
   assertTeamMemberDepartmentConsistency,
   assertTeamMoveAllowed,
   isEligibleTeamLeadPosition,
+  teamReachAffectedUsers,
 } from './service.js';
 
 describe('OR-9 team and department consistency', () => {
@@ -67,5 +68,19 @@ describe('OR-9 team and department consistency', () => {
     expect(
       isEligibleTeamLeadPosition('dev-subteam', 'developer-team-manager', 'inactive'),
     ).toBe(false);
+  });
+});
+
+describe('teamReachAffectedUsers', () => {
+  const base = { leadUserId: 'a', parentTeamId: null, departmentId: 'd' };
+  it('is empty when nothing reach-relevant changed', () => {
+    expect(teamReachAffectedUsers(base, { ...base })).toEqual([]);
+  });
+  it('names the old and new lead on a lead change', () => {
+    expect(teamReachAffectedUsers(base, { ...base, leadUserId: 'b' })).toEqual(['a', 'b']);
+  });
+  it('names the lead on a parent change and skips a null lead', () => {
+    expect(teamReachAffectedUsers(base, { ...base, parentTeamId: 'p' })).toEqual(['a']);
+    expect(teamReachAffectedUsers({ ...base, leadUserId: null }, { ...base, leadUserId: null, parentTeamId: 'p' })).toEqual([]);
   });
 });

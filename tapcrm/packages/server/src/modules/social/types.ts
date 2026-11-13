@@ -11,12 +11,16 @@ import type { ProviderAccount } from './providers/types.js';
 
 export interface AccountRow extends Omit<
   SocialAccount,
-  'connectedAt' | 'lastSyncedAt' | 'connectionScope'
+  'connectedAt' | 'lastSyncedAt' | 'connectionScope' | 'connectionOrigin'
 > {
   organizationId: string;
   connectionId: string;
   /** The connection's client; null when the account uses a company-wide connection. */
   connectionClientId: string | null;
+  /** Who made the connection: the agency, or the client from the client portal. */
+  connectionOrigin: SocialAccount['connectionOrigin'];
+  /** The platform user who signed the connection in, where known. */
+  connectionExternalAccountId: string | null;
   /** The connection's platform. A company Meta sign-in (`facebook`) also serves Instagram
    * accounts, and its token is sealed for the connection's platform, not the account's. */
   connectionPlatform: SocialPlatform;
@@ -27,6 +31,9 @@ export interface AccountRow extends Omit<
   metadata: Record<string, unknown>;
   credentialsEncrypted: string | null;
   expiresAt: Date | null;
+  /** The company location's own token (a Facebook Page's), used instead of the
+   * connection's when present. */
+  locationCredentialsEncrypted: string | null;
 }
 /** A social_connection row. `clientId` is null for a company-wide connection. */
 export interface ConnectionRow {
@@ -62,6 +69,8 @@ export interface LocationRow {
   status: 'available' | 'missing';
   firstSeenAt: Date;
   lastSeenAt: Date;
+  /** The location's own token, sealed for it (Facebook Pages and Instagram accounts). */
+  credentialsEncrypted: string | null;
 }
 export interface MediaRow extends Omit<
   SocialMedia,

@@ -1,6 +1,9 @@
 import {
   MATCH_NOTHING,
+  or,
   registerResourcePolicy,
+  scopeMemberFilter,
+  scopeReachesAny,
   type PolicyEvaluationContext,
   type Resource,
   type ResourcePolicy,
@@ -32,6 +35,9 @@ export const telephonyCallPolicy: ResourcePolicy<TelephonyCallResource> = {
     if (resource.organizationId !== ctx.organizationId) return false;
     if (resource.employeeId === null) return false;
     if (scope === 'own' || scope === 'participant') return resource.employeeId === ctx.principal.id;
+    // People route: the attributed employee is inside the scope's people.
+    if (await scopeReachesAny(ctx, scope, [resource.employeeId])) return true;
+    // Structural route: the employee's team / department column.
     if (scope === 'team') return resource.teamId !== null && (await ctx.scope.teamIds(ctx)).has(resource.teamId);
     if (scope === 'pool') return resource.teamId !== null && (await ctx.scope.poolIds(ctx)).has(resource.teamId);
     if (scope === 'department') {
@@ -43,17 +49,18 @@ export const telephonyCallPolicy: ResourcePolicy<TelephonyCallResource> = {
 
   async filter(ctx: PolicyEvaluationContext, _action: Action, scope: Scope): Promise<SqlFragment> {
     if (scope === 'own' || scope === 'participant') return { sql: 'emp.id = $1', parameters: [ctx.principal.id] };
+    const people = await scopeMemberFilter(ctx, scope, ['emp.id']);
     if (scope === 'team') {
       const ids = [...(await ctx.scope.teamIds(ctx))];
-      return ids.length ? { sql: 'emp.team_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING;
+      return or(people, ids.length ? { sql: 'emp.team_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING);
     }
     if (scope === 'pool') {
       const ids = [...(await ctx.scope.poolIds(ctx))];
-      return ids.length ? { sql: 'emp.team_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING;
+      return or(people, ids.length ? { sql: 'emp.team_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING);
     }
     if (scope === 'department') {
       const departmentId = await ctx.scope.departmentId(ctx);
-      return departmentId ? { sql: 'emp.department_id = $1', parameters: [departmentId] } : MATCH_NOTHING;
+      return or(people, departmentId ? { sql: 'emp.department_id = $1', parameters: [departmentId] } : MATCH_NOTHING);
     }
     return MATCH_NOTHING;
   },

@@ -4,8 +4,9 @@ import {
   type ResourcePolicy,
 } from '@tapcrm/authz';
 import type { Scope } from '@tapcrm/contracts';
+import { withPeopleReach } from '../people-reach.js';
 
-export const userPolicy: ResourcePolicy = {
+const baseUserPolicy: ResourcePolicy = {
   resourceType: 'user',
   domain: 'people',
   async check(ctx, _action, resource, scope: Scope) {
@@ -55,6 +56,8 @@ export const userPolicy: ResourcePolicy = {
     return null;
   },
 };
+
+export const userPolicy: ResourcePolicy = withPeopleReach(baseUserPolicy, { subjects: ['id'], columns: ['u.id'] });
 
 export function registerEmployeePolicies(): void {
   registerResourcePolicy(userPolicy);

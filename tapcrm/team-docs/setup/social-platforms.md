@@ -67,7 +67,7 @@ Each provider's capability flags describe implemented operations. A configured a
 
 Create a Meta application for the CRM, configure Facebook Login for Business as required for its use case, register both callback URLs, and request only the permissions in the matrix. Test with app-role accounts before seeking Advanced Access for real client administrators. Clients must have a task that allows creating content on their Page. Instagram accounts must be professional accounts linked to that Page.
 
-The OAuth code is exchanged for a user token and then a long-lived user token. Account discovery obtains a distinct Page token. Tokens and the original user grant are server-only values encrypted together by the social service. Meta Page credentials do not have a conventional refresh-token grant: reconnect on expiry/revocation. Instagram publishing creates unpublished containers, checks processing status, then publishes exactly once. A missing permalink after publication does not erase the successful media ID.
+The OAuth code is exchanged for a user token and then a long-lived user token. Account discovery obtains a distinct Page token. Tokens and the original user grant are server-only values encrypted together by the social service. A Page token read with a long-lived user token does not expire, so a Page is never sent to reconnect for age alone (Page tokens saved earlier with the user token's ~60-day expiry drop it on first use); reconnect when Meta revokes access. The long-lived user token itself expires after about 60 days with no refresh grant: a company login then needs a sign-in to list new Pages, while its assigned Pages keep publishing with their own tokens. Instagram publishing creates unpublished containers, checks processing status, then publishes exactly once. A missing permalink after publication does not erase the successful media ID.
 
 These adapters currently retrieve stable account/post counters, not reach/impression history. No extra `read_insights` or `instagram_manage_insights` scope is requested for unavailable historical charts. Public media URLs must remain accessible through the scheduled publishing time. Rate limits vary by application/account/use case; monitor Meta usage headers and the app dashboard rather than assuming a fixed universal quota.
 
@@ -118,3 +118,49 @@ npx vitest run packages/server/src/modules/social/providers/providers.test.ts
 ```
 
 They cover provider payloads, scope/PKCE handling, token refresh, read-only account exclusion, unsupported-media validation, untrusted upload hosts, successful-ID retention, rate limits, ambiguous outcomes, genuine metric parsing, and explicit unavailable operations. These tests never publish real content. They do not prove platform approval, account eligibility, video compatibility, quota availability, or a live OAuth journey. Validate those separately with authorized test accounts after configuration and approval.
+
+## Client portal connections: provider prerequisites
+
+These checks apply before client portal connections are enabled. They do not change the company connections or the agency sign-in flows.
+
+### Meta (Facebook Pages and Instagram)
+
+- Uses the existing Facebook Login app with the same scopes as today:
+  - Pages: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`.
+  - Instagram: `pages_show_list`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`.
+- Clients outside the app's own business need Advanced Access through App Review. The app's business needs Business Verification.
+- Meta's developers blog (2026-10-09, "Retiring access verification for Tech Provider apps") announced that the separate Tech Provider access verification step is retired in favour of Business Verification and App Review. Confirm the current state in the Meta App Dashboard before enabling client connections.
+- Only professional Instagram accounts are supported. Meta's wording: "The Instagram API with Facebook Login cannot access Instagram consumer accounts." The Instagram account must be linked to a Facebook Page that the signing-in user manages.
+- Personal Facebook profiles cannot be connected.
+- The registered redirect URI is unchanged: `<SOCIAL_PUBLIC_BASE_URL>/api/social/oauth/<platform>/callback`.
+
+### YouTube
+
+- This is a separate grant from Business Profile and Search Console.
+- Scopes: `youtube.upload`, `youtube.readonly`, `yt-analytics.readonly`.
+- The client picks the Google account or Brand Account that owns the channel.
+- Publishing is video upload only.
+- Google OAuth verification of the consent screen is required for external users with these scopes.
+
+### Google Business Profile: not enabled in the client portal
+
+This is a blocker. Google's [Business Profile API policies](https://developers.google.com/my-business/content/policies) say:
+
+> "You cannot allow agencies, end-clients, or other third parties to use your Business Profile project"
+
+> "Any automatic or programmatic use of Business Profile by agencies or end-clients requires them to use their own Business Profile project."
+
+It is unclear whether one CRM-owned project may serve scheduled posting for many unrelated businesses. Until Google confirms this in writing:
+
+- The portal shows Business Profile as unavailable.
+- The portal does not request Business Profile or Search Console scopes.
+- Agency company connections are unchanged.
+
+Other Google rules to review before ever enabling it:
+
+- API access approval is per project. Apply through the Basic API Access application form. 0 QPM means not approved.
+- Notify the end-client within 48 hours of changes made on their behalf.
+- Provide a way to disassociate within seven business days after they stop using the service.
+- Do not store Business Profile API content beyond 30 days.
+
+These quotes were read on 2026-11-12. Re-check them against the live pages before any decision.

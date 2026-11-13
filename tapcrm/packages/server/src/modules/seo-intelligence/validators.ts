@@ -110,3 +110,29 @@ export const siteSettingsSchema = z.object({
 
 export const keywordParams = z.object({ siteId: uuid, keywordId: uuid });
 export const updateKeywordSchema = z.object({ tracked: z.boolean() }).strict();
+
+/** "Scan a website": one live position check for this website. */
+export const rankScanSchema = z.object({
+  keyword: z.string().trim().min(1, 'Enter a keyword to search for').max(200),
+  searchEngine: z.enum(['google', 'bing']).default('google'),
+  category: z.enum(['seo', 'gmb']).default('seo'),
+  country: z.string().trim().min(1, 'Enter a country').max(100).default('india'),
+  city: z.string().trim().max(100).optional().nullable(),
+  device: z.enum(['desktop', 'mobile']).default('desktop'),
+  depth: z.union([z.literal(10), z.literal(20), z.literal(30), z.literal(50), z.literal(100)]).default(30),
+}).strict().refine((value) => !(value.searchEngine === 'bing' && value.category === 'gmb'), {
+  message: 'The local map pack is a Google search. Choose Google for a local scan.',
+  path: ['category'],
+});
+export type RankScanInput = z.infer<typeof rankScanSchema>;
+
+export const searchConsoleRangeQuery = z.object({
+  from: isoDate,
+  to: isoDate,
+}).strict().refine((value) => value.from <= value.to, {
+  message: 'Choose a valid Search Console date range.',
+});
+
+export const searchConsoleInspectionSchema = z.object({
+  inspectionUrl: z.string().trim().url('Enter a complete page address').max(2048),
+}).strict();

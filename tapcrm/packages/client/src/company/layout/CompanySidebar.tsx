@@ -72,8 +72,11 @@ export function CompanySidebar({
   canViewExpenses = false,
   canApproveExpenses = false,
   isHr = false,
+  canViewRecruitment = false,
+  canViewAccessExplorer = false,
   hasRecruitment = false,
   hasInterviews = false,
+  enabledModules,
   onNavigate,
   onLogout,
   open,
@@ -142,7 +145,13 @@ export function CompanySidebar({
   canViewExpenses?: boolean;
   canApproveExpenses?: boolean;
   isHr?: boolean;
+  /** A held recruitment view power opens Recruitment for non-HR users. */
+  canViewRecruitment?: boolean;
+  /** A held access:view power opens Access Explorer for non-super-admins. */
+  canViewAccessExplorer?: boolean;
   hasRecruitment?: boolean;
+  /** Modules enabled for the company; omitted means every module is offered. */
+  enabledModules?: readonly string[];
   /** Shown only while this user has interviews (assigned rounds or panels). */
   hasInterviews?: boolean;
   onNavigate: (path: string) => void;
@@ -459,6 +468,8 @@ export function CompanySidebar({
   );
 
   const isSuperAdmin = accountType === 'super-admin';
+  // Module-backed items disappear when the company has the module switched off.
+  const moduleOn = (key: string): boolean => !enabledModules || enabledModules.includes(key);
   const { activePet } = useAiPet();
   const { total: unreadMessages } = useChatUnread();
 
@@ -567,7 +578,7 @@ export function CompanySidebar({
           },
         ]
       : []),
-    ...(isHr && hasRecruitment
+    ...((isHr || canViewRecruitment) && hasRecruitment
       ? [
           {
             label: 'Recruitment',
@@ -717,13 +728,13 @@ export function CompanySidebar({
     {
       label: 'Attendance',
       items: [
-        ...(accountType === 'employee'
+        ...(accountType === 'employee' && moduleOn('attendance')
           ? [
               { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
               { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
             ]
           : []),
-        ...(canViewAttendanceReports
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Employee Wise',
@@ -732,7 +743,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewAttendanceReports
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Attendance Report',
@@ -741,7 +752,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewAttendanceReports
+        ...(canViewAttendanceReports && moduleOn('attendance')
           ? [
               {
                 label: 'Daily Late Report',
@@ -750,7 +761,7 @@ export function CompanySidebar({
               },
             ]
           : []),
-        ...(canViewLiveBoard
+        ...(canViewLiveBoard && moduleOn('live-status')
           ? [
               {
                 label: 'Workforce Board',
@@ -794,7 +805,7 @@ export function CompanySidebar({
     {
       label: 'Shifts & Leave',
       items: [
-        { label: 'My Leave', path: '/company/leave/my', icon: 'sun' },
+        ...(moduleOn('leave') ? [{ label: 'My Leave', path: '/company/leave/my', icon: 'sun' }] : []),
         ...(canUseLeaveQueue
           ? [{ label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox' }]
           : []),
@@ -804,7 +815,7 @@ export function CompanySidebar({
         ...(canManageLeaveTypes
           ? [{ label: 'Leave Types', path: '/company/leave/types', icon: 'settings' }]
           : []),
-        { label: 'Holidays', path: '/company/holidays', icon: 'flag' },
+        ...(moduleOn('holidays') ? [{ label: 'Holidays', path: '/company/holidays', icon: 'flag' }] : []),
         ...(canManageShifts
           ? [
               { label: 'Shifts', path: '/company/shifts', icon: 'layers' },
@@ -893,7 +904,9 @@ export function CompanySidebar({
     {
       label: 'Payroll',
       items: [
-        { label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text' },
+        ...(moduleOn('payroll')
+          ? [{ label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text' }]
+          : []),
         ...(canManagePayroll
           ? [
               {
@@ -947,13 +960,13 @@ export function CompanySidebar({
       label: 'Identity & Access',
       items: [
         { label: 'Sessions & Devices', path: '/company/sessions', icon: 'monitor' },
-        ...(isSuperAdmin
+        ...(isSuperAdmin || canViewAccessExplorer
           ? [{ label: 'Access Explorer', path: '/company/access', icon: 'shield' }]
           : []),
         ...(isSuperAdmin || canViewAudit
           ? [{ label: 'Audit Log', path: '/company/audit', icon: 'clipboard-list' }]
           : []),
-        ...(isSuperAdmin
+        ...(isSuperAdmin && moduleOn('attendance')
           ? [{ label: 'Geofencing', path: '/company/geofencing', icon: 'pin' }]
           : []),
         ...(accountType === 'employee' && canRequestRoleChange
@@ -981,6 +994,7 @@ export function CompanySidebar({
             { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
             { label: 'Messages', path: '/client/messages', icon: 'message' },
             { label: 'Meetings', path: '/client/meetings', icon: 'calendar' },
+            { label: 'Social accounts', path: '/client/social', icon: 'share' },
           ],
         },
         {
@@ -988,7 +1002,7 @@ export function CompanySidebar({
           items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
         },
       ]
-    : navigation;
+    : navigation.filter((group) => group.items.length > 0);
 
   return (
     <aside

@@ -1,4 +1,4 @@
-import { MATCH_NOTHING, registerResourcePolicy, type PolicyEvaluationContext, type ResourcePolicy, type SqlFragment } from '@tapcrm/authz';
+import { MATCH_NOTHING, or, registerResourcePolicy, scopeMemberFilter, scopeReachesAny, type PolicyEvaluationContext, type ResourcePolicy, type SqlFragment } from '@tapcrm/authz';
 import type { Action, Scope } from '@tapcrm/contracts';
 import type { HandoverResource } from './types.js';
 
@@ -15,8 +15,13 @@ export const handoverPolicy: ResourcePolicy<HandoverResource> = {
     if (action === 'handovers:record-disposition') return resource.toUserId === ctx.principal.id && resource.status === 'accepted' && resource.disposition === null;
     if (action === 'handovers:initiate') return resource.fromUserId === ctx.principal.id;
     if (scope === 'own' || scope === 'participant') return resource.fromUserId === ctx.principal.id || resource.toUserId === ctx.principal.id;
+    // PRD §3.5.1: a handover is visible through EITHER chain — the giver's or the receiver's.
+    if (await scopeReachesAny(ctx, scope, [resource.fromUserId, resource.toUserId])) return true;
     if (scope === 'pool') return resource.salesPoolId !== null && (await ctx.scope.poolIds(ctx)).has(resource.salesPoolId);
-    if (scope === 'team') return resource.salesTeamId !== null && (await ctx.scope.teamIds(ctx)).has(resource.salesTeamId);
+    if (scope === 'team') {
+      const teams = await ctx.scope.teamIds(ctx);
+      return (resource.salesTeamId !== null && teams.has(resource.salesTeamId)) || (resource.salesPoolId !== null && teams.has(resource.salesPoolId));
+    }
     if (scope === 'department') return resource.departmentId !== null && resource.departmentId === await ctx.scope.departmentId(ctx);
     return false;
   },
@@ -25,9 +30,10 @@ export const handoverPolicy: ResourcePolicy<HandoverResource> = {
     if (action === 'handovers:record-disposition') return { sql: 'h.to_user_id = $1 AND h.status = \'accepted\' AND h.disposition IS NULL', parameters: [ctx.principal.id] };
     if (action === 'handovers:initiate') return { sql: 'h.from_user_id = $1', parameters: [ctx.principal.id] };
     if (scope === 'own' || scope === 'participant') return { sql: '(h.from_user_id = $1 OR h.to_user_id = $1)', parameters: [ctx.principal.id] };
-    if (scope === 'pool') { const ids = [...(await ctx.scope.poolIds(ctx))]; return ids.length ? { sql: 'l.sales_pool_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING; }
-    if (scope === 'team') { const ids = [...(await ctx.scope.teamIds(ctx))]; return ids.length ? { sql: 'l.sales_team_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING; }
-    if (scope === 'department') { const id = await ctx.scope.departmentId(ctx); return id ? { sql: 'team.department_id = $1', parameters: [id] } : MATCH_NOTHING; }
+    const people = await scopeMemberFilter(ctx, scope, ['h.from_user_id', 'h.to_user_id']);
+    if (scope === 'pool') { const ids = [...(await ctx.scope.poolIds(ctx))]; return or(people, ids.length ? { sql: 'l.sales_pool_id = ANY($1::uuid[])', parameters: [ids] } : MATCH_NOTHING); }
+    if (scope === 'team') { const ids = [...(await ctx.scope.teamIds(ctx))]; return or(people, ids.length ? { sql: '(l.sales_team_id = ANY($1::uuid[]) OR l.sales_pool_id = ANY($1::uuid[]))', parameters: [ids] } : MATCH_NOTHING); }
+    if (scope === 'department') { const id = await ctx.scope.departmentId(ctx); return id ? or(people, { sql: 'team.department_id = $1', parameters: [id] }) : MATCH_NOTHING; }
     return MATCH_NOTHING;
   },
   participantFields: () => ['fromUserId', 'toUserId'],

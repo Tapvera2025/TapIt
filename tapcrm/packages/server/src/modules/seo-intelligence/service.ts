@@ -567,10 +567,12 @@ export async function syncGscData(
   const site = await getSite(ctx, siteId);
 
   try {
-    const registered = await db.one<{ displayUrl: string }>(ctx, sql`
-      SELECT display_url FROM seo_sites WHERE organization_id = ${ctx.organizationId} AND id = ${site.id}
+    // Rows come back camelCased, so read the client explicitly: the website's
+    // client's own Search Console property is preferred over a related one.
+    const registered = await db.one<{ displayUrl: string; clientId: string | null }>(ctx, sql`
+      SELECT display_url, client_id FROM seo_sites WHERE organization_id = ${ctx.organizationId} AND id = ${site.id}
     `);
-    return await importGscPerformance(ctx, site.id, registered.displayUrl, startDate, endDate, site.client_id);
+    return await importGscPerformance(ctx, site.id, registered.displayUrl, startDate, endDate, registered.clientId);
   } catch (error) {
     if (error instanceof SearchConsoleConfigurationError) throw new ApplicationError(error.message, 422, 'SEO_GSC_CONFIGURATION');
     if (error instanceof SearchConsoleUnavailableError) throw new ApplicationError('Google Search Console is temporarily unavailable. Please retry the sync.', 503, 'SEO_GSC_UNAVAILABLE');

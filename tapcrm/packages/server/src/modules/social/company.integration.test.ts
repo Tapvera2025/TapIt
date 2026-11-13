@@ -691,6 +691,8 @@ describe.skipIf(!enabled)('Company-wide Google Business Profile connections', ()
     expect(disconnected.body.data).toEqual({
       disconnected: true,
       revocationStatus: 'revoked',
+      // Only a Meta grant is shared by every connection its user made.
+      othersNeedReconnect: 0,
     });
     expect(fake.revoke).toHaveBeenCalledWith(
       expect.objectContaining({ accessToken: 'company-token-3' }),

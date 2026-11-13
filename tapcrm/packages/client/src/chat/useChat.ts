@@ -189,9 +189,11 @@ export function useThreadState(fetchPage: (conversationId: string, options: { li
  * Internal Groups, Project Groups). Same shape as `useNotifications`: REST
  * is the source of truth, the socket is only "something changed, refetch"
  * (RT-4 — no message bodies travel over it). A socket event about one
- * message refetches that message only.
+ * message refetches that message only. `archived` lists the archived
+ * conversations instead of the active ones (Internal Groups' Archived view).
  */
-export function useChat(kind: ConversationKind): ChatController {
+export function useChat(kind: ConversationKind, options: { archived?: boolean } = {}): ChatController {
+  const archived = options.archived === true;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveIdState] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -215,7 +217,7 @@ export function useChat(kind: ConversationKind): ChatController {
 
   const refreshConversations = useCallback(async (): Promise<void> => {
     try {
-      const list = await getConversations(kind);
+      const list = await getConversations(kind, { archived });
       setConversations(list.map((conversation) =>
         conversation.id === activeIdRef.current ? { ...conversation, unreadCount: 0 } : conversation,
       ));
@@ -223,7 +225,7 @@ export function useChat(kind: ConversationKind): ChatController {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load conversations.');
     }
-  }, [kind]);
+  }, [archived, kind]);
 
   const markRead = useCallback((conversationId: string): void => {
     void markConversationRead(conversationId)

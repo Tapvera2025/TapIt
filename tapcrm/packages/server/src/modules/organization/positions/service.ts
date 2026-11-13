@@ -1,6 +1,8 @@
 import { MATCH_ALL, effectivePolicy, visibilityFilter } from '@tapcrm/authz';
 import {
   REGISTRY,
+  actionTitle,
+  scopeLabel,
   globalAccess,
   isPositionPolicyGrantable,
   isAction,
@@ -31,6 +33,7 @@ import {
   assertPositionApprovalLimits,
   assertPositionLevel,
   buildPositionTree,
+  canBecomeDepartmentTop,
   selectPositionsToAdopt,
 } from './hierarchy.js';
 import {
@@ -98,8 +101,18 @@ async function validatePosition(
     if (!allowRoot)
       throw new OrganizationValidationError(
         ORGANIZATION_ERROR_CODES.POSITION_CANNOT_BE_ROOT,
-        'This department already has a top position. Choose the position the new one reports to.',
+        'This department already has a top position. Choose who this position reports to, ' +
+          'or give a new position a higher level than the current top so it takes over as the top.',
       );
+    // A top position has no parent to check against, but it must still
+    // outrank the positions that report to it.
+    if (currentId !== undefined)
+      assertPositionLevel({
+        position: currentId,
+        level: input.organizationalLevel,
+        parent: null,
+        children: await findChildren(tx, ctx.organizationId, currentId, currentId),
+      });
     return;
   }
   if (input.parentPositionId === currentId)
@@ -171,6 +184,18 @@ async function validatePosition(
   }
 }
 
+async function mayReportToSuperAdmin(
+  tx: Tx,
+  ctx: RequestContext,
+  input: CreatePositionInput,
+): Promise<boolean> {
+  if (input.parentPositionId !== null) return false;
+  return canBecomeDepartmentTop(
+    await listPositionsTx(tx, ctx.organizationId, input.departmentId),
+    input,
+  );
+}
+
 export async function getPositionLadder(ctx: RequestContext, departmentCode: string) {
   const structurePolicy = await effectivePolicy(ctx, 'org:view-structure');
   const departmentFilter =
@@ -208,11 +233,7 @@ export async function createPosition(
 ): Promise<PositionRecord> {
   const moduleKeys = await enabledModuleKeys(ctx.organizationId);
   return db.transaction(ctx, async (tx) => {
-    const canCreateRoot =
-      input.parentPositionId === null &&
-      ((await listPositionsTx(tx, ctx.organizationId, input.departmentId)).length === 0 ||
-        input.adoptPositionIds.length > 0 ||
-        input.adoptLowerPositions === true);
+    const canCreateRoot = await mayReportToSuperAdmin(tx, ctx, input);
     const preview = await buildPositionInsertionPreview(tx, ctx, input);
     if (preview.positionParentChanges.length > 0 && !input.confirmImpact) {
       throw new OrganizationValidationError(
@@ -338,11 +359,7 @@ async function buildPositionInsertionPreview(
     maxDealValue: input.maxDealValue ?? null,
     maxDiscountPercent: input.maxDiscountPercent ?? null,
   };
-  const canCreateRoot =
-    input.parentPositionId === null &&
-    ((await listPositionsTx(tx, ctx.organizationId, input.departmentId)).length === 0 ||
-      input.adoptPositionIds.length > 0 ||
-      input.adoptLowerPositions === true);
+  const canCreateRoot = await mayReportToSuperAdmin(tx, ctx, input);
   await validatePosition(tx, ctx, values, undefined, canCreateRoot);
   const adopted = selectPositionsToAdopt(
     await listPositionsTx(tx, ctx.organizationId, input.departmentId),
@@ -545,7 +562,9 @@ async function preparePositionUpdate(
         : input.maxDiscountPercent,
     allowsCustomTerms: input.allowsCustomTerms ?? before.allowsCustomTerms,
   };
-  await validatePosition(tx, ctx, next, id, before.isSeeded);
+  // A department's top position may stay the top: before, every edit of a top
+  // made in the app (even a rename) was rejected because it has no parent.
+  await validatePosition(tx, ctx, next, id, before.parentPositionId === null);
   await validatePositionChildrenAgainstLimits(tx, ctx.organizationId, id, next);
   const hierarchyChanged =
     next.departmentId !== before.departmentId ||
@@ -644,7 +663,9 @@ async function validatePolicyCeiling(
   if (!isScopeDefinedForDomain(policy.scope, domain)) {
     throw new OrganizationValidationError(
       ORGANIZATION_ERROR_CODES.POSITION_POLICY_CEILING_EXCEEDED,
-      `Scope "${policy.scope}" is invalid for ${domain}-domain action "${policy.action}"`,
+      `"${actionTitle(policy.action)}" cannot reach "${scopeLabel(policy.scope)}" — ` +
+        `that choice exists only for employee records. Pick their department or narrower.`,
+      { action: policy.action, requestedScope: policy.scope },
     );
   }
   if (globalAccess(ctx.principal) || !policy.allowed) return;
@@ -697,16 +718,17 @@ export async function updatePositionPolicies(
         'Position not found',
       );
     const before = await listPositionPoliciesTx(tx, ctx.organizationId, positionId);
+    const merged = withUntouchedPolicies(before, policies);
     const after = await replacePositionPolicies(
       tx,
       ctx.organizationId,
       positionId,
-      policies,
+      merged,
     );
     const policyChanged = toPositionPolicyImpactPreview(
       position,
       before,
-      policies,
+      merged,
       [],
     ).requiresConfirmation;
     if (policyChanged) {
@@ -757,12 +779,13 @@ export async function previewPositionPolicies(
       directPositionHolderIds(tx, ctx.organizationId, positionId),
     ]);
     const scopeContext = await positionScopeDescriptionContext(tx, ctx, position);
+    const merged = withUntouchedPolicies(current, policies);
     return {
-      ...toPositionPolicyImpactPreview(position, current, policies, holderIds),
+      ...toPositionPolicyImpactPreview(position, current, merged, holderIds),
       scopeDescriptions: describePositionPolicyScopes(
         position,
         current,
-        policies,
+        merged,
         scopeContext,
       ),
     };
@@ -830,15 +853,53 @@ async function collectScopeIds(
   return [...new Set(resolved.flatMap((ids) => [...ids]))].sort();
 }
 
+/**
+ * The editor sends one row for every power it lets the Super Admin edit, and
+ * none for the powers it shows locked. Rows for actions that are not in the
+ * request are kept as they are: before, the save replaced the whole set, so a
+ * locked power the position held (granted by a migration or by the Super Admin
+ * through another path) was silently deleted the next time anyone pressed Save.
+ */
+function withUntouchedPolicies<T extends { action: string }>(
+  current: readonly { action: string; allowed: boolean; scope: string; fields: string[] | null; constraints: string[] | null }[],
+  proposed: readonly T[],
+): Array<T | { action: string; allowed: boolean; scope: string; fields: string[] | null; constraints: string[] | null }> {
+  const sent = new Set(proposed.map((policy) => policy.action));
+  return [
+    ...current
+      .filter((policy) => !sent.has(policy.action))
+      .map((policy) => ({
+        action: policy.action,
+        allowed: policy.allowed,
+        scope: policy.scope,
+        fields: policy.fields,
+        constraints: policy.constraints,
+      })),
+    ...proposed,
+  ];
+}
+
 function normalizePositionPolicies(
   input: UpdatePositionPoliciesInput,
 ): PositionPolicyInput[] {
-  return input.policies.map((policy) => ({
-    ...policy,
-    action: policy.action as Action,
-    fields: policy.fields ?? null,
-    constraints: policy.constraints ?? null,
-  }));
+  return input.policies.map((policy) => {
+    const definition = isAction(policy.action) ? REGISTRY[policy.action] : undefined;
+    const domain = definition?.domain === 'derived' ? 'people' : definition?.domain;
+    // A power that is switched OFF reaches no one, so a scope its domain does
+    // not support (`all-people` on a business power, left over from an older
+    // default) must not block saving every other power on the position.
+    const scope =
+      !policy.allowed && domain !== undefined && !isScopeDefinedForDomain(policy.scope, domain)
+        ? 'department'
+        : policy.scope;
+    return {
+      ...policy,
+      scope,
+      action: policy.action as Action,
+      fields: policy.fields ?? null,
+      constraints: policy.constraints ?? null,
+    };
+  });
 }
 
 export { loadPositionResource };

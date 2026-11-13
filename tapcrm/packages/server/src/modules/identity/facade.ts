@@ -12,6 +12,7 @@
  */
 export { IdentityConflictError, IdentityNotFoundError, IdentityValidationError } from './errors.js';
 export { hashIdentityPassword } from './password/service.js';
+export { sendWelcomePasswordSetup } from './password/welcome.js';
 export { sendEmployeeCredentials, sendEmployeeInvitation } from './notifications/invitation-email.js';
 export { userResource } from './security/unlock.js';
 export { sendBiometricDeviceAlert } from './notifications/biometric-email.js';

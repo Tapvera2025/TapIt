@@ -5,6 +5,7 @@ import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { getClientSummary } from '../clients/facade.js';
 import { addProjectConversationMembers, archiveProjectConversation, createProjectConversation, removeProjectConversationMember, renameProjectConversation } from '../chat/facade.js';
+import { projectAmountProblem } from './amounts.js';
 import { ProjectClientNotFoundError, ProjectDiscussionGroupExistsError, ProjectNotFoundError, ProjectValidationError } from './errors.js';
 import { notifyProjectAssigned } from './notifications.js';
 import {
@@ -69,7 +70,8 @@ export async function createProject(ctx: RequestContext, input: CreateProjectInp
       workStatus: input.workStatus ?? 'new',
       startDate: input.startDate,
       expectedEndDate: input.expectedEndDate ?? null,
-      budget: input.budget ?? null,
+      projectValue: input.projectValue ?? null,
+      upfrontAmount: input.upfrontAmount ?? null,
       currency: client.currency,
       description: input.description ?? null,
       remarks: input.remarks ?? null,
@@ -89,6 +91,12 @@ export async function createProject(ctx: RequestContext, input: CreateProjectInp
 export async function updateProject(ctx: RequestContext, id: string, input: UpdateProjectInput): Promise<Project> {
   const existing = await findProjectById(ctx, id);
   if (!existing) throw new ProjectNotFoundError();
+  // A partial update may change only one of the two amounts: check the pair it leaves behind.
+  const amountProblem = projectAmountProblem(
+    input.projectValue !== undefined ? input.projectValue : existing.projectValue,
+    input.upfrontAmount !== undefined ? input.upfrontAmount : existing.upfrontAmount,
+  );
+  if (amountProblem) throw new ProjectValidationError(amountProblem, { field: 'upfrontAmount' });
 
   await db.transaction(ctx, async (tx) => {
     await updateProjectRow(tx, ctx.organizationId, id, {
@@ -97,7 +105,8 @@ export async function updateProject(ctx: RequestContext, id: string, input: Upda
       ...(input.workStatus !== undefined ? { workStatus: input.workStatus } : {}),
       ...(input.startDate !== undefined ? { startDate: input.startDate } : {}),
       ...(input.expectedEndDate !== undefined ? { expectedEndDate: input.expectedEndDate } : {}),
-      ...(input.budget !== undefined ? { budget: input.budget } : {}),
+      ...(input.projectValue !== undefined ? { projectValue: input.projectValue } : {}),
+      ...(input.upfrontAmount !== undefined ? { upfrontAmount: input.upfrontAmount } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.remarks !== undefined ? { remarks: input.remarks } : {}),
     });
