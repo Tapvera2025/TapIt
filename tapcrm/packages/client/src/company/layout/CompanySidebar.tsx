@@ -392,7 +392,7 @@ export function CompanySidebar({
           const rect = entry.button.getBoundingClientRect();
           const dx = centerX - (rect.left + rect.width / 2);
           const dy = centerY - (rect.top + rect.height / 2);
-          return { path, label: entry.label, distance: dx * dx + dy * dy };
+          return { path, label: entry.label, button: entry.button, distance: dx * dx + dy * dy };
         })
         .sort((a, b) => a.distance - b.distance)[0];
 
@@ -406,7 +406,19 @@ export function CompanySidebar({
         }
         onNavigate(nearest.path);
         onClose();
-        syncActiveSidebarPill();
+        // Snap to the released item immediately. The route state updates
+        // asynchronously, so syncing from aria-current here can briefly read
+        // the old item and leave the pill visually stranded between rows.
+        const targetRect = nearest.button.getBoundingClientRect();
+        const navRect = navigation.getBoundingClientRect();
+        indicator.style.setProperty('--sidebar-pill-top', `${targetRect.top - navRect.top + navigation.scrollTop}px`);
+        indicator.style.setProperty('--sidebar-pill-left', `${targetRect.left - navRect.left + navigation.scrollLeft}px`);
+        indicator.style.setProperty('--sidebar-pill-width', `${targetRect.width}px`);
+        indicator.style.setProperty('--sidebar-pill-height', `${targetRect.height}px`);
+        indicator.style.opacity = '1';
+        setIsActiveNavMoving(true);
+        if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
         if (nearest.path === pathname) shouldRestore = true;
       } else {
         shouldRestore = true;
@@ -618,13 +630,13 @@ export function CompanySidebar({
           {
             label: 'Recruitment',
             items: [
-              { label: 'Overview', path: '/company/recruitment', icon: 'briefcase' },
-              { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'briefcase' },
-              { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'briefcase' },
-              { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'briefcase' },
-              { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'briefcase' },
-              { label: 'Offers', path: '/company/recruitment/offers', icon: 'briefcase' },
-              { label: 'Joining', path: '/company/recruitment/joining', icon: 'briefcase' },
+              { label: 'Overview', path: '/company/recruitment', icon: 'grid' },
+              { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'clipboard-list' },
+              { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'inbox' },
+              { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'users' },
+              { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'calendar' },
+              { label: 'Offers', path: '/company/recruitment/offers', icon: 'file-text' },
+              { label: 'Joining', path: '/company/recruitment/joining', icon: 'user-plus' },
             ],
           },
         ]
