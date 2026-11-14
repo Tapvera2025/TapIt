@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Icon } from '../../ui/index.js';
+import { BrandLogo, Icon } from '../../ui/index.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
 import { useChatUnread } from '../../chat/ChatUnreadContext.js';
@@ -199,6 +199,14 @@ export function CompanySidebar({
   }));
   const prevPathnameRef = useRef(pathname);
   const navigationRef = useRef<HTMLElement>(null);
+  // The page deliberately returns to the top on navigation. The sidebar is a
+  // separate, independently scrollable control and must keep its place while
+  // a user works through lower navigation groups.
+  const sidebarScrollTopRef = useRef(0);
+  const pendingSidebarScrollTopRef = useRef<{
+    pathname: string;
+    scrollTop: number;
+  } | null>(null);
   const activeNavIndicatorRef = useRef<HTMLDivElement>(null);
   const navItemRefs = useRef(
     new Map<string, { button: HTMLButtonElement; label: string }>(),
@@ -219,6 +227,23 @@ export function CompanySidebar({
   const [isDraggingSidebarPill, setIsDraggingSidebarPill] = useState(false);
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+
+  const preserveSidebarScrollForNavigation = (destination: string) => {
+    if (destination === pathname) return;
+    const navigation = navigationRef.current;
+    if (!navigation) return;
+    const scrollTop = navigation.scrollTop;
+    sidebarScrollTopRef.current = scrollTop;
+    pendingSidebarScrollTopRef.current = { pathname: destination, scrollTop };
+  };
+
+  const trackSidebarScroll = (event: React.UIEvent<HTMLElement>) => {
+    // A browser can emit a scroll event while it reflows/focuses the next
+    // route's item. Do not let that transient jump overwrite the user's last
+    // real scroll position before the restoration below runs.
+    if (pendingSidebarScrollTopRef.current !== null) return;
+    sidebarScrollTopRef.current = event.currentTarget.scrollTop;
+  };
   const restoreActiveSidebarPill = () => {
     const navigation = navigationRef.current;
     const indicator = activeNavIndicatorRef.current;
@@ -356,6 +381,7 @@ export function CompanySidebar({
         if (nearest.label === 'Recruitment') {
           setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
         }
+        preserveSidebarScrollForNavigation(nearest.path);
         onNavigate(nearest.path);
         onClose();
         // Snap to the released item immediately. The route state updates
@@ -402,6 +428,38 @@ export function CompanySidebar({
       setOpenSections((prev) => (prev['Organization'] ? prev : { ...prev, Organization: true }));
     }
     prevPathnameRef.current = pathname;
+  }, [pathname]);
+
+  useLayoutEffect(() => {
+    const navigation = navigationRef.current;
+    const pendingRestore = pendingSidebarScrollTopRef.current;
+    if (!navigation || !pendingRestore || pendingRestore.pathname !== pathname) return;
+
+    const restoreScrollPosition = () => {
+      const maxScrollTop = Math.max(0, navigation.scrollHeight - navigation.clientHeight);
+      navigation.scrollTop = Math.min(pendingRestore.scrollTop, maxScrollTop);
+    };
+
+    // Only restore after a real navigation. Section toggles and pill movement
+    // must never overwrite a user's current sidebar scroll position.
+    restoreScrollPosition();
+    let frame: number | undefined;
+    let remainingFrames = 5;
+    const settleScrollPosition = () => {
+      restoreScrollPosition();
+      remainingFrames -= 1;
+      if (remainingFrames > 0) {
+        frame = window.requestAnimationFrame(settleScrollPosition);
+      } else {
+        sidebarScrollTopRef.current = navigation.scrollTop;
+        pendingSidebarScrollTopRef.current = null;
+      }
+    };
+    frame = window.requestAnimationFrame(settleScrollPosition);
+
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+    };
   }, [pathname]);
 
   useLayoutEffect(() => {
@@ -1015,6 +1073,20 @@ export function CompanySidebar({
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
       data-sidebar-open={open ? 'true' : 'false'}
     >
+      <div className="hidden shrink-0 items-center justify-center border-b border-sidebar-border pb-4 xl:flex">
+        {collapsed ? (
+          <svg className="sidebar-brand-monogram" viewBox="30 155 530 500" role="img" aria-label="Tapvera CRM">
+            <image
+              href="/brand/tapvera-crm.png"
+              width="1981"
+              height="793"
+              style={{ clipPath: 'polygon(0 0, 29% 0, 29% 44%, 16.4% 44%, 16.4% 100%, 0 100%)' }}
+            />
+          </svg>
+        ) : (
+          <BrandLogo className="sidebar-brand-expanded" />
+        )}
+      </div>
       {!collapsed && (
         <button
           type="button"
@@ -1064,11 +1136,12 @@ export function CompanySidebar({
       </div>
       <nav
         ref={navigationRef}
+        onScroll={trackSidebarScroll}
         onPointerMove={moveSidebarPillDrag}
         onPointerUp={finishSidebarPillDrag}
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
-        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-7'}`}
+        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
         aria-label={variant === 'client' ? 'Client navigation' : 'Company navigation'}
       >
         <div
@@ -1161,12 +1234,14 @@ export function CompanySidebar({
                             if (item.children) {
                               if (!pathname.startsWith(item.path)) {
                                 setExpandedItems((prev) => ({ ...prev, [item.label]: true }));
+                                preserveSidebarScrollForNavigation(item.path);
                                 onNavigate(item.path);
                                 onClose();
                               } else {
                                 toggleNavItem(item.label);
                               }
                             } else {
+                              preserveSidebarScrollForNavigation(item.path);
                               onNavigate(item.path);
                               onClose();
                               syncActiveSidebarPill();
@@ -1217,6 +1292,7 @@ export function CompanySidebar({
                                   type="button"
                                   aria-current={active ? 'page' : undefined}
                                   onClick={() => {
+                                    preserveSidebarScrollForNavigation(sub.path);
                                     onNavigate(sub.path);
                                     onClose();
                                   }}

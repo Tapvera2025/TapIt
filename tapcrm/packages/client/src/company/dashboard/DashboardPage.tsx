@@ -36,6 +36,7 @@ import { getDashboardPreferences, saveDashboardPreferences } from './dashboardAp
 import { reflowGridLayout } from './layout-engine.js';
 import { availableWidgets, getWidget } from './registry.js';
 import type { WidgetContext } from './widget-types.js';
+import { useCompanyPageMetadata } from '../layout/CompanyNavbarContext.js';
 import './dashboard.css';
 
 const ResponsiveGrid = rglModule.WidthProvider(rglModule.Responsive);
@@ -646,6 +647,31 @@ export function DashboardPage({
   };
   const hiddenWidgets = available.filter((widget) => hidden.includes(widget.id));
 
+  const dashboardActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button
+        type="button"
+        onClick={() => {
+          setEditing((flag) => !flag);
+          setPickerOpen(false);
+        }}
+        aria-label={editing ? 'Finish dashboard customization' : 'Customize dashboard'}
+        className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+      >
+        <Icon name={editing ? 'close' : 'edit'} className="size-4" />
+        {editing ? 'Done' : 'Customize'}
+      </button>
+    </div>
+  ), [editing]);
+
+  const pageMetadata = useMemo(() => ({
+    eyebrow: 'Company operations',
+    title: isAdminDashboard ? 'Admin dashboard' : 'Today at a glance',
+    description: isAdminDashboard ? 'Workforce, sales and requests in one live view.' : `${identity.user.fullName}'s operational workboard.`,
+    extension: dashboardActions,
+  }), [isAdminDashboard, identity.user.fullName, dashboardActions]);
+  useCompanyPageMetadata(pageMetadata);
+
   if (!prefs) {
     return (
       <WorkspacePageContainer className="dashboard-workspace">
@@ -724,6 +750,10 @@ export function DashboardPage({
             </button>
         </div>
       </section>
+      <div className="hidden xl:flex items-center justify-end gap-2">
+        {isAdminDashboard && <button type="button" onClick={() => setRefreshKey((version) => version + 1)} className="dashboard-admin-refresh"><Icon name="refresh" className="size-4" /> Refresh</button>}
+        {editing && <><button type="button" onClick={() => setPickerOpen((open) => !open)} className="rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold">Add widget</button><button type="button" onClick={reset} className="rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold">Reset</button></>}
+      </div>
       {editing && pickerOpen && (
         <div className="mt-5 rounded-2xl border border-app-border bg-app-surface p-4">
           <p className="text-sm font-semibold">Add a widget</p>

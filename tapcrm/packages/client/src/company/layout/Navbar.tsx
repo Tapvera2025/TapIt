@@ -5,6 +5,8 @@ import { Icon } from '../../ui/index.js';
 import { AiPetButton } from './AiPet.js';
 import { GlobalFeatureSearch } from './GlobalFeatureSearch.js';
 import type { CompanySearchDestination } from './navigation.js';
+import { createPortal } from 'react-dom';
+import { useCompanyHeroUtility } from './CompanyNavbarContext.js';
 
 function initials(fullName: string): string {
   const value = fullName
@@ -51,11 +53,20 @@ export function Navbar({
   extraActions?: ReactNode;
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1280px)').matches);
+  const { target } = useCompanyHeroUtility();
   const accountRef = useRef<HTMLDivElement>(null);
   const designation = identity.accountType === 'super-admin'
     ? 'Super Admin'
     : identity.positionName || identity.positionCode || 'Employee';
   const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1280px)');
+    const update = () => setDesktop(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -81,8 +92,40 @@ export function Navbar({
     onNavigate(path);
   };
 
+  const controls = (
+        <div className="navbar-utility-controls ml-auto flex shrink-0 items-center gap-2.5 max-[420px]:gap-2">
+          <GlobalFeatureSearch className="company-hero-search" destinations={searchDestinations} onNavigate={onNavigate} />
+          {extraActions}
+          <NotificationBell onNavigate={onNavigate} />
+          <div ref={accountRef} className="relative">
+            <button type="button" onClick={() => setAccountOpen((open) => !open)} className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={accountOpen}>
+              <span className="text-xs font-bold text-app-accent">{initials(identity.fullName)}</span>
+            </button>
+            {accountOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg" role="menu">
+                <div className="border-b border-app-border px-3 py-2.5">
+                  <div className="flex min-w-0 items-baseline gap-2.5">
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-app-foreground">{identity.fullName}</p>
+                    <span className="max-w-[45%] shrink-0 truncate border-l border-app-border pl-2.5 text-[11px] font-medium text-app-muted" title={designation}>{designation}</span>
+                  </div>
+                  <p className="truncate text-xs text-app-muted">{identity.email}</p>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <span className="text-xs font-semibold text-app-muted">AI companion</span>
+                  <AiPetButton wrapperClassName="navbar-account-pet" className="size-8 !p-0" />
+                </div>
+                <button type="button" role="menuitem" onClick={() => navigateFromMenu(settingsPath)} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"><Icon name="settings" className="size-4" /> Settings</button>
+                <button type="button" role="menuitem" onClick={onLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10"><Icon name="logout" className="size-4" /> Log out</button>
+              </div>
+            )}
+          </div>
+        </div>
+  );
+
   return (
-    <header className="global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl xl:top-4 xl:mx-5 xl:mt-4 xl:rounded-2xl xl:border">
+    <>
+    {desktop && target && createPortal(controls, target)}
+    <header className="global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl xl:hidden">
       <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:gap-3 sm:px-5">
         <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2 lg:gap-1">
           <button
@@ -109,72 +152,10 @@ export function Navbar({
           </span>
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2.5 max-[420px]:gap-2">
-          <GlobalFeatureSearch
-            destinations={searchDestinations}
-            onNavigate={onNavigate}
-          />
-          {extraActions}
-          <NotificationBell onNavigate={onNavigate} />
-          <div ref={accountRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setAccountOpen((open) => !open)}
-              className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
-              aria-label="Open account menu"
-              aria-haspopup="menu"
-              aria-expanded={accountOpen}
-            >
-              <span className="text-xs font-bold text-app-accent">
-                {initials(identity.fullName)}
-              </span>
-            </button>
-            {accountOpen && (
-              <div
-                className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
-                role="menu"
-              >
-                <div className="border-b border-app-border px-3 py-2.5">
-                  <div className="flex min-w-0 items-baseline gap-2.5">
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-app-foreground">
-                      {identity.fullName}
-                    </p>
-                    <span className="max-w-[45%] shrink-0 truncate border-l border-app-border pl-2.5 text-[11px] font-medium text-app-muted" title={designation}>
-                      {designation}
-                    </span>
-                  </div>
-                  <p className="truncate text-xs text-app-muted">{identity.email}</p>
-                </div>
-                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                  <span className="text-xs font-semibold text-app-muted">
-                    AI companion
-                  </span>
-                  <AiPetButton
-                    wrapperClassName="navbar-account-pet"
-                    className="size-8 !p-0"
-                  />
-                </div>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => navigateFromMenu(settingsPath)}
-                  className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
-                >
-                  <Icon name="settings" className="size-4" /> Settings
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={onLogout}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10"
-                >
-                  <Icon name="logout" className="size-4" /> Log out
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        {!desktop && controls}
+        {/* The same controls move into the desktop hero without a second state owner. */}
       </div>
     </header>
+    </>
   );
 }

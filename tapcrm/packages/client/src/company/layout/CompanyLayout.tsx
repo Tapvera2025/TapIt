@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Lenis from 'lenis';
 import { CompanySidebar } from './CompanySidebar.js';
 import { Navbar } from './Navbar.js';
@@ -6,6 +6,8 @@ import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
 import { SalesGuideFrame, SalesGuideToggle } from '../sales/guide/SalesGuide.js';
 import { salesGuideKey } from '../sales/guide/page-guidance.js';
 import type { CompanySearchDestination } from './navigation.js';
+import { CompanyNavbarProvider } from './CompanyNavbarContext.js';
+import { CompanyPageHero, defaultCompanyPageMetadata } from './CompanyPageHero.js';
 
 export function CompanyLayout({
   pathname,
@@ -272,9 +274,17 @@ export function CompanyLayout({
     }
   };
 
+  const initialPage = useMemo(() => defaultCompanyPageMetadata({
+    pathname,
+    title: _title,
+    fullName: identity.fullName,
+    isSuperAdmin: accountType === 'super-admin',
+  }), [pathname, _title, identity.fullName, accountType]);
+
   return (
     <ChatUnreadProvider enabled={canViewChat}>
-      <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
+      <CompanyNavbarProvider initialPage={initialPage}>
+        <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
         <a
           href="#main-content"
           className="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-app-surface p-3 focus:translate-y-0"
@@ -393,13 +403,15 @@ export function CompanyLayout({
                 }
               >
                 <SalesGuideFrame pathname={pathname} onNavigate={onNavigate}>
+                  <CompanyPageHero />
                   {children}
                 </SalesGuideFrame>
               </div>
             </main>
           </div>
         </div>
-      </div>
+        </div>
+      </CompanyNavbarProvider>
     </ChatUnreadProvider>
   );
 }

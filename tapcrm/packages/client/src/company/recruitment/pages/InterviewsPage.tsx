@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listInterviews, listRequisitions, updateInterviewStatus } from '../api/recruitmentApi.js';
 import { InterviewFeedbackModal } from '../components/InterviewFeedbackModal.js';
 import { InterviewScheduleModal } from '../components/InterviewScheduleModal.js';
 import { InterviewStageBadge, InterviewStatusBadge } from '../components/StatusBadge.js';
+import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type {
   Candidate,
   Interview,
@@ -33,6 +34,15 @@ export function InterviewsPage({
   const [showScheduleModal, setShowScheduleModal] = useState(Boolean(preselectedCandidate));
   const [feedbackInterview, setFeedbackInterview] = useState<Interview | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+
+  const heroActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button type="button" onClick={() => setShowScheduleModal(true)} className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold">
+        + Schedule Interview
+      </button>
+    </div>
+  ), []);
+  useRecruitmentHeroActions(heroActions);
 
   async function load() {
     setLoading(true);
@@ -82,7 +92,7 @@ export function InterviewsPage({
         <button
           type="button"
           onClick={() => setShowScheduleModal(true)}
-          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto"
+          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto xl:hidden"
         >
           + Schedule Interview
         </button>

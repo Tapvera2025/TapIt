@@ -1033,6 +1033,39 @@
   flex: 1 1 auto;
 }
 
+@media (min-width: 1280px) {
+  .dashboard-grid .react-grid-item {
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+  }
+
+  .dashboard-admin-mode .dashboard-grid .react-grid-item {
+    padding: 0;
+  }
+
+  .dashboard-admin-card {
+    border-radius: 1.25rem;
+  }
+
+  .dashboard-break-heading,
+  .dashboard-break-presets {
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .dashboard-break-preset {
+    min-height: 3.5rem;
+  }
+
+  .dashboard-punch-actions {
+    gap: 0.5rem;
+  }
+
+  .dashboard-task-progress {
+    padding: 1rem;
+  }
+}
+
 .dashboard-admin-mode .mobile-dashboard-widget {
   overflow: visible;
   border: 0;

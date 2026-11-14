@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listRequisitions, softDeleteCandidate } from '../api/recruitmentApi.js';
 import { CandidateDetailModal } from '../components/CandidateDetailModal.js';
 import { CandidateFormModal } from '../components/CandidateFormModal.js';
 import { CandidateStatusBadge } from '../components/StatusBadge.js';
+import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type {
   Candidate,
   CandidateFilter,
@@ -35,6 +36,15 @@ export function CandidatesPage({
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const heroActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button type="button" onClick={() => setShowAddModal(true)} className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold">
+        + Add Candidate
+      </button>
+    </div>
+  ), []);
+  useRecruitmentHeroActions(heroActions);
 
   async function load() {
     setLoading(true);
@@ -98,7 +108,7 @@ export function CandidatesPage({
         <button
           type="button"
           onClick={() => setShowAddModal(true)}
-          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto"
+          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto xl:hidden"
         >
           + Add Candidate
         </button>
