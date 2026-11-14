@@ -61,6 +61,7 @@ export const NOTIFICATION_TYPES = {
   CHAT_GROUP_REMOVED: 'chat.group_removed',
   CHAT_MENTION: 'chat.mention',
   CHAT_SCHEDULED_FAILED: 'chat.scheduled_failed',
+  CHAT_BACK_FROM_BREAK: 'chat.back_from_break',
 
   // recruitment (see modules/recruitment/notifications.ts)
   RECRUITMENT_INTERVIEW_ASSIGNED: 'recruitment.interview_assigned',

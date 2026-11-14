@@ -7138,6 +7138,24 @@
     },
     {
       "method": "GET",
+      "path": "/api/chat/conversations/:id/back-from-break",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/chat/conversations/:id/back-from-break",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/conversations/:id/back-from-break",
+      "action": "chat:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
       "path": "/api/chat/search",
       "action": "chat:view",
       "resourceParam": null

@@ -17,6 +17,7 @@ import { sql } from '../../platform/dal/sql.js';
 import { OPERATIONAL_TZ } from '../../platform/time.js';
 import { dispatchOrganization } from '../notifications/facade.js';
 import { cleanupPendingAttachments, deletePendingAttachment, uploadAttachment } from './attachments.js';
+import { cancelBreakReturnWatch, deliverBreakReturns, getBreakReturnWatch, watchBreakReturn } from './break-return.js';
 import { ChatEditWindowClosedError, ChatNotSenderError, ChatValidationError } from './errors.js';
 import { buildChatFileRouter } from './file-routes.js';
 import { localChatPath } from './file-storage.js';
@@ -51,7 +52,8 @@ import { reactionSchema } from './validators.js';
 /**
  * Rich messaging (0133–0140) against REAL PostgreSQL through the runtime
  * role: attachments, search, editing, link previews, pins, any-emoji
- * reactions, saved messages, scheduled sending and presence.
+ * reactions, saved messages, scheduled sending, presence and "Tell me when
+ * they're back" (0159).
  *
  * Opt-in like the other integration suites:
  *   TAPCRM_INTEGRATION_DB=1 MIGRATION_DATABASE_URL=... DATABASE_URL=... \
@@ -164,7 +166,7 @@ describe.skipIf(!enabled)('chat rich messaging (PostgreSQL)', () => {
   afterAll(async () => {
     const orgs = [orgA, orgB];
     for (const table of [
-      'notification_delivery', 'notification', 'notification_outbox',
+      'notification_delivery', 'notification', 'notification_outbox', 'chat_break_return_watch',
       'message_attachment', 'scheduled_message', 'message_star', 'message_pin', 'message_edit', 'message_link',
       'chat_link_preview', 'message_mention', 'message_reaction', 'message', 'conversation_member', 'conversation',
       'user_status', 'identity_email_directory', 'app_user', 'position', 'department',
@@ -581,6 +583,113 @@ describe.skipIf(!enabled)('chat rich messaging (PostgreSQL)', () => {
       expect(presence[bob]).toBe('idle');
       expect(presence[carol]).toBe('offline');
       expect(presence[outsider]).toBeUndefined();
+    });
+  });
+
+  /* ------------------------------------------ "Tell me when they're back" */
+
+  describe("tell me when they're back (0159)", () => {
+    const setState = async (userId: string, state: 'WORKING' | 'ON_BREAK' | 'FINISHED'): Promise<void> => {
+      await asOwner('set status', sql`
+        INSERT INTO user_status (organization_id, user_id, work_date, state, window_start, window_end, rollover_due_at)
+        VALUES (${orgA}, ${userId}, (now() AT TIME ZONE ${OPERATIONAL_TZ})::date, ${state}, now(), now() + interval '1 day', now() + interval '1 day')
+        ON CONFLICT (organization_id, user_id) DO UPDATE SET state = EXCLUDED.state
+      `);
+    };
+    const statusChanged = (userId: string) => ({
+      id: randomUUID(),
+      organizationId: orgA,
+      name: 'live-status.status-changed',
+      payload: { userId },
+      enqueuedAt: new Date(),
+    });
+    const noticesFor = async (userId: string): Promise<{ title: string; body: string; link: string | null }[]> => {
+      await dispatchOrganization(orgA);
+      return asOwner<{ title: string; body: string; link: string | null }>('read', sql`
+        SELECT title, body, link FROM notification
+         WHERE recipient_id = ${userId} AND type = 'chat.back_from_break'
+         ORDER BY created_at
+      `);
+    };
+    const bobName = 'Bob Mehta';
+
+    it('is refused when the other person is not on a break, and outside direct messages', async () => {
+      const dm = await startDirectConversation(asCarol(), alice);
+      await setState(alice, 'WORKING');
+      await expect(watchBreakReturn(asCarol(), dm.id)).rejects.toThrow(ChatValidationError);
+
+      const group = await createInternalGroup(asAlice(), { name: 'Break Room', memberIds: [bob, carol] });
+      await setState(bob, 'ON_BREAK');
+      await expect(watchBreakReturn(asCarol(), group.id)).rejects.toThrow(/only available in a direct message/);
+    });
+
+    it('waits while the break goes on, then tells the asker once when they are back', async () => {
+      const dm = await startDirectConversation(asCarol(), bob);
+      await setState(bob, 'ON_BREAK');
+      const before = (await noticesFor(carol)).length;
+
+      expect(await getBreakReturnWatch(asCarol(), dm.id)).toEqual({ watching: false });
+      expect(await watchBreakReturn(asCarol(), dm.id)).toEqual({ watching: true });
+      expect(await watchBreakReturn(asCarol(), dm.id)).toEqual({ watching: true }); // pressing twice keeps one request
+      expect(await getBreakReturnWatch(asCarol(), dm.id)).toEqual({ watching: true });
+      expect(await getBreakReturnWatch(asBob(), dm.id)).toEqual({ watching: false }); // personal to the asker
+
+      // A status change while still on a break tells nobody and keeps the request.
+      await deliverBreakReturns(statusChanged(bob));
+      expect(await noticesFor(carol)).toHaveLength(before);
+      expect(await getBreakReturnWatch(asCarol(), dm.id)).toEqual({ watching: true });
+
+      await setState(bob, 'WORKING');
+      const event = statusChanged(bob);
+      await deliverBreakReturns(event);
+      const after = await noticesFor(carol);
+      expect(after).toHaveLength(before + 1);
+      expect(after.at(-1)?.title).toBe(bobName + ' is back from break');
+      expect(after.at(-1)?.link).toBe('/company/messages?conversationId=' + dm.id);
+      expect(await getBreakReturnWatch(asCarol(), dm.id)).toEqual({ watching: false });
+      expect(await noticesFor(bob)).toHaveLength(0); // the person on break is never told
+
+      await deliverBreakReturns(event); // the same event delivered again
+      expect(await noticesFor(carol)).toHaveLength(before + 1);
+    });
+
+    it('says the break has ended when they finished for the day instead of coming back', async () => {
+      const dm = await startDirectConversation(asCarol(), bob);
+      await setState(bob, 'ON_BREAK');
+      await watchBreakReturn(asCarol(), dm.id);
+      const before = (await noticesFor(carol)).length;
+
+      await setState(bob, 'FINISHED');
+      await deliverBreakReturns(statusChanged(bob));
+      const after = await noticesFor(carol);
+      expect(after).toHaveLength(before + 1);
+      expect(after.at(-1)?.title).toBe(bobName + "'s break has ended");
+      expect(after.at(-1)?.body).toMatch(/aren't at work right now/);
+    });
+
+    it('cancelling means no notice; an old request is dropped without one', async () => {
+      const dm = await startDirectConversation(asCarol(), bob);
+      await setState(bob, 'ON_BREAK');
+      await watchBreakReturn(asCarol(), dm.id);
+      expect(await cancelBreakReturnWatch(asCarol(), dm.id)).toEqual({ watching: false });
+      expect(await cancelBreakReturnWatch(asCarol(), dm.id)).toEqual({ watching: false }); // already gone is fine
+
+      const aliceDm = await startDirectConversation(asAlice(), bob);
+      await watchBreakReturn(asAlice(), aliceDm.id);
+      await asOwner('age the request', sql`
+        UPDATE chat_break_return_watch SET created_at = now() - interval '13 hours'
+         WHERE organization_id = ${orgA} AND watcher_id = ${alice}
+      `);
+      expect(await getBreakReturnWatch(asAlice(), aliceDm.id)).toEqual({ watching: false });
+
+      const carolBefore = (await noticesFor(carol)).length;
+      const aliceBefore = (await noticesFor(alice)).length;
+      await setState(bob, 'WORKING');
+      await deliverBreakReturns(statusChanged(bob));
+      expect(await noticesFor(carol)).toHaveLength(carolBefore);
+      expect(await noticesFor(alice)).toHaveLength(aliceBefore);
+      const left = await asOwner('read', sql`SELECT 1 FROM chat_break_return_watch WHERE organization_id = ${orgA} AND subject_id = ${bob}`);
+      expect(left).toHaveLength(0);
     });
   });
 });
