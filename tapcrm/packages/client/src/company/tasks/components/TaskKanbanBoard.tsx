@@ -189,10 +189,17 @@ export function TaskKanbanBoard({
       if (allowed.includes(targetStatus)) {
         await onTransitionStatus(task.id, targetStatus);
       } else {
-        // Direct transition is restricted by server lifecycle (e.g. completed -> cancelled).
-        // Safely bridge via in_progress to satisfy backend validation.
-        await onTransitionStatus(task.id, 'in_progress', undefined, { suppressToast: true });
-        await onTransitionStatus(task.id, targetStatus);
+        // Validate the same legal path in one request so realtime clients only
+        // receive the final status and the card never flashes through a column.
+        const canBridgeViaInProgress =
+          allowed.includes('in_progress') &&
+          VALID_TRANSITIONS.in_progress.includes(targetStatus);
+        await onTransitionStatus(
+          task.id,
+          targetStatus,
+          undefined,
+          canBridgeViaInProgress ? { viaStatus: 'in_progress' } : undefined,
+        );
       }
       if (targetStatus === 'cancelled') setShowCancelledTasks(true);
     } catch {
@@ -272,7 +279,7 @@ export function TaskKanbanBoard({
       className={`grid grid-cols-1 gap-4 md:grid-cols-2 items-start ${
         showCancelledTasks
           ? 'lg:grid-cols-4'
-          : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_96px]'
+          : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_80px]'
       }`}
       onDragEnd={handleDragEnd}
     >
@@ -293,9 +300,9 @@ export function TaskKanbanBoard({
               e.preventDefault();
               void handleDropTask(column.id);
             }}
-            className={`flex flex-col rounded-2xl border bg-app-surface/60 transition-all duration-200 ${
+            className={`relative flex flex-col rounded-2xl border bg-app-surface/60 transition-all duration-200 ${
               isCollapsedCancelledColumn
-                ? 'min-h-12 w-full p-1.5 sm:p-2 lg:min-h-[380px] lg:w-24 lg:justify-start'
+                ? 'min-h-12 w-full p-1.5 sm:p-2 lg:min-h-[380px] lg:w-20 lg:self-stretch lg:justify-start lg:border-slate-200 lg:bg-[#F8FAFC]'
                 : 'min-h-[380px] p-3 sm:p-3.5'
             } ${
               isColumnActive
@@ -304,21 +311,21 @@ export function TaskKanbanBoard({
             }`}
           >
             {/* Column Header */}
-            <header className={`flex items-center ${isCollapsedCancelledColumn ? 'flex-row justify-between border-b border-app-border/60 pb-2 lg:flex-col lg:gap-3 lg:pb-2' : 'justify-between border-b border-app-border/60 pb-3'}`}>
-              <div className={`flex items-center ${isCollapsedCancelledColumn ? 'gap-2 lg:order-2 lg:flex-col lg:gap-1' : 'gap-2'}`}>
+            <header className={`flex items-center ${isCollapsedCancelledColumn ? 'flex-row justify-between border-b border-app-border/60 pb-2 lg:flex-col lg:gap-3 lg:border-slate-200 lg:pb-2' : 'justify-between border-b border-app-border/60 pb-3'}`}>
+              <div className={`flex items-center ${isCollapsedCancelledColumn ? 'gap-2 lg:absolute lg:inset-x-0 lg:bottom-2 lg:top-14 lg:z-10 lg:flex-col lg:items-stretch lg:gap-1' : 'gap-2'}`}>
                 <span className={`size-2.5 rounded-full ${column.dotColor} ${isCollapsedCancelledColumn ? 'lg:hidden' : ''}`} aria-hidden="true" />
                 {isCollapsedCancelledColumn ? (
                   <button
                     type="button"
                     onClick={() => setShowCancelledTasks(true)}
-                    className="text-xs font-bold uppercase tracking-wider text-app-foreground hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent"
+                    className="text-xs font-bold uppercase tracking-wider text-app-foreground hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent lg:flex lg:h-full lg:w-full lg:flex-1 lg:justify-center lg:text-slate-700"
                     aria-label={`Show ${columnTasks.length} cancelled tasks`}
                     aria-expanded={false}
                   >
                     <span className="lg:hidden">{column.title}</span>
-                    <span className="hidden lg:flex lg:flex-col lg:items-center lg:gap-1" aria-hidden="true">
+                    <span className="hidden lg:flex lg:h-full lg:flex-1 lg:flex-col lg:items-center lg:justify-between lg:py-2" aria-hidden="true">
                       {column.title.toUpperCase().split('').map((letter, index) => (
-                        <span key={`${letter}-${index}`} className="leading-none">{letter}</span>
+                        <span key={`${letter}-${index}`} className="text-lg font-semibold leading-none tracking-[0.12em]">{letter}</span>
                       ))}
                     </span>
                   </button>
@@ -327,21 +334,29 @@ export function TaskKanbanBoard({
                 )}
               </div>
               <div className={`flex items-center ${isCollapsedCancelledColumn ? 'gap-1.5 lg:order-1' : 'gap-2'}`}>
-                <span
-                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${column.badgeClass} ${isCollapsedCancelledColumn ? 'px-1.5' : ''}`}
-                  aria-label={`${columnTasks.length} tasks in ${column.title}`}
-                >
-                  {columnTasks.length}
-                </span>
+                {!isCancelledColumn && onCreateTask && (
+                  <button
+                    type="button"
+                    onClick={onCreateTask}
+                    className="grid size-6 shrink-0 place-items-center rounded-md border border-app-border/70 bg-app-surface-raised/60 text-app-muted transition-colors hover:border-app-accent/40 hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent"
+                    aria-label={`Create task in ${column.title}`}
+                    title={`Create task in ${column.title}`}
+                  >
+                    <Icon name="plus" className="size-3.5" />
+                  </button>
+                )}
                 {isCancelledColumn && (
                   <button
                     type="button"
                     onClick={() => setShowCancelledTasks((shown) => !shown)}
-                    className="grid size-7 shrink-0 place-items-center rounded-md border border-app-border/80 bg-app-surface/80 text-sm font-semibold text-app-foreground transition-colors hover:bg-app-surface-raised focus-visible:outline-2 focus-visible:outline-app-accent"
+                    className="grid size-7 shrink-0 place-items-center rounded-md border border-app-border/80 bg-app-surface/80 text-sm font-semibold text-app-foreground transition-colors hover:bg-app-surface-raised focus-visible:outline-2 focus-visible:outline-app-accent lg:border-slate-200 lg:bg-white lg:text-slate-600 lg:hover:bg-slate-100"
                     aria-label={isCollapsedCancelledColumn ? 'Expand cancelled tasks' : 'Collapse cancelled tasks'}
                     aria-expanded={!isCollapsedCancelledColumn}
                   >
-                    {isCollapsedCancelledColumn ? '‹' : '›'}
+                    <Icon
+                      name={isCollapsedCancelledColumn ? 'chevron-left' : 'chevron-right'}
+                      className="size-3.5"
+                    />
                   </button>
                 )}
               </div>
@@ -352,17 +367,6 @@ export function TaskKanbanBoard({
               <p className="pt-2 pb-1 text-[11px] text-app-muted">
                 {column.subtitle}
               </p>
-            )}
-
-            {!isCollapsedCancelledColumn && onCreateTask && (
-              <button
-                type="button"
-                onClick={onCreateTask}
-                className="mb-1 flex min-h-9 w-full items-center gap-2 rounded-lg border border-app-border/60 bg-app-surface-raised/50 px-3 py-1.5 text-left text-xs font-medium text-app-muted transition-colors hover:border-app-accent/40 hover:bg-app-accent/5 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent"
-              >
-                <span className="text-base leading-none text-app-accent" aria-hidden="true">+</span>
-                Add New Task
-              </button>
             )}
 
             {/* Task Card List / Drop Zone */}
@@ -379,6 +383,13 @@ export function TaskKanbanBoard({
                 const isTaskCollapsed = !expandedTaskIds.has(task.id);
                 const overdue = isOverdue(task.dueDate, column.id);
                 const hasAssignees = task.assignees.length > 0;
+                const priorityLabel = task.priority.charAt(0).toUpperCase() + task.priority.slice(1);
+                const priorityMarkerClass = {
+                  low: 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200',
+                  medium: 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-950/50 dark:text-sky-300',
+                  high: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-300',
+                  urgent: 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-300',
+                }[task.priority];
 
                 return (
                   <article
@@ -399,9 +410,32 @@ export function TaskKanbanBoard({
                   >
                     {/* Task title and card controls */}
                     <div className="flex items-start gap-1.5">
-                      <h4 className="min-w-0 flex-1 pt-1 text-xs font-semibold leading-snug text-app-foreground line-clamp-2">
+                      <h4 className={`min-w-0 flex-1 pt-1 text-xs font-semibold leading-snug text-app-foreground ${isTaskCollapsed ? 'truncate' : 'line-clamp-2'}`}>
                         {task.title}
                       </h4>
+
+                      {isTaskCollapsed && (
+                        <div className="flex shrink-0 items-center gap-1 self-center">
+                          <span
+                            className={`grid size-5 place-items-center rounded-md border text-[10px] font-bold leading-none ${priorityMarkerClass}`}
+                            title={`Priority: ${priorityLabel}`}
+                            aria-label={`Priority: ${priorityLabel}`}
+                            role="img"
+                          >
+                            {task.priority.charAt(0).toUpperCase()}
+                          </span>
+                          {overdue && (
+                            <span
+                              className="grid size-5 place-items-center rounded-md border border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+                              title="Overdue"
+                              aria-label="Overdue"
+                              role="img"
+                            >
+                              <Icon name="clock" className="size-3" />
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {/* Card Actions Menu */}
                       <div className="relative shrink-0">
@@ -410,11 +444,11 @@ export function TaskKanbanBoard({
                           onClick={() =>
                             setOpenCardMenuId((curr) => (curr === task.id ? null : task.id))
                           }
-                          className="grid size-6 place-items-center rounded-lg text-app-muted opacity-60 transition-opacity hover:bg-app-background hover:text-app-foreground hover:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                          className="grid size-6 place-items-center rounded-lg border border-app-border bg-app-surface-raised text-app-foreground shadow-xs transition-colors hover:border-app-accent/40 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent"
                           aria-label={`Actions for ${task.title}`}
                           aria-expanded={openCardMenuId === task.id}
                         >
-                          <Icon name="more" className="size-3.5" />
+                          <Icon name="more" className="size-4" />
                         </button>
 
                         {openCardMenuId === task.id && (
@@ -597,11 +631,6 @@ export function TaskKanbanBoard({
                       ? `Release to mark as ${column.title}`
                       : 'Drag cards here to update status'}
                   </p>
-                </div>
-              )}
-              {isCollapsedCancelledColumn && isColumnActive && (
-                <div className="mt-2 flex min-h-10 flex-1 items-center justify-center rounded-lg border border-dashed border-neutral-500/50 bg-neutral-500/10 px-2 py-1 text-center text-[10px] font-medium leading-tight text-app-muted lg:mt-3 lg:min-h-0 lg:px-1 lg:py-2 lg:[writing-mode:vertical-rl] lg:rotate-180">
-                  Drop to cancel
                 </div>
               )}
             </div>

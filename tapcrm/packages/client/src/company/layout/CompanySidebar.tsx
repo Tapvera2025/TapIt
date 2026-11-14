@@ -1,73 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Icon } from '../../ui/index.js';
-import { useTheme, type AccentColor } from '../../theme/ThemeContext.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
 import { useChatUnread } from '../../chat/ChatUnreadContext.js';
-
-function ThemePromoIllustration({ accent }: { accent: AccentColor }): React.JSX.Element {
-  const common = {
-    className: 'sidebar-decoration-symbol size-14',
-    viewBox: '0 0 64 64',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 2.5,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    'aria-hidden': true,
-  };
-
-  if (accent === 'green') {
-    return (
-      <svg {...common}>
-        <path d="M32 52V26" />
-        <path
-          d="M32 35c-9 0-15-5-16-14 9 0 15 5 16 14Z"
-          fill="currentColor"
-          fillOpacity=".18"
-        />
-        <path
-          d="M32 29c1-9 7-14 16-14-1 9-7 14-16 14Z"
-          fill="currentColor"
-          fillOpacity=".28"
-        />
-        <path d="M25 52h14" />
-      </svg>
-    );
-  }
-  if (accent === 'blue') {
-    return (
-      <svg {...common}>
-        <path
-          d="M32 10c-5 8-12 14-12 23a12 12 0 0 0 24 0c0-9-7-15-12-23Z"
-          fill="currentColor"
-          fillOpacity=".18"
-        />
-        <path d="M14 47c5-4 10-4 15 0s10 4 15 0 7-4 10-2" />
-      </svg>
-    );
-  }
-  if (accent === 'orange') {
-    return (
-      <svg {...common}>
-        <path
-          d="M34 53c-10 0-16-6-16-15 0-7 5-11 10-17 3-4 4-8 4-12 8 6 13 13 13 22 0 4-1 7-3 9 1-7-2-12-6-15 1 8-9 11-9 18 0 6 3 9 7 10Z"
-          fill="currentColor"
-          fillOpacity=".22"
-        />
-        <path d="M27 52c-3-2-5-5-5-9 0-4 2-7 5-10-1 7 2 9 5 12 2 2 2 5 1 7" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <path d="m32 9 10 16-10 30-10-30L32 9Z" fill="currentColor" fillOpacity=".2" />
-      <path d="m32 9 10 16-10 30-10-30L32 9Z" />
-      <path d="m22 25 10 5 10-5M32 30v25" />
-      <path d="M49 10v9M44.5 14.5h9" strokeWidth="2" />
-    </svg>
-  );
-}
 
 const GROUP_ICONS: Record<string, string> = {
   Overview: 'grid',
@@ -242,16 +177,26 @@ export function CompanySidebar({
   width?: number;
   onResize?: (width: number) => void;
 }): React.JSX.Element {
+  const isEmployeePortal = variant === 'company' && accountType === 'employee';
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
-    Organization: pathname.startsWith('/company/organization') || pathname === '/company/employees',
-    Recruitment: pathname.startsWith('/company/recruitment'),
+    ...(isEmployeePortal ? { Overview: true } : {}),
+    ...(!isEmployeePortal
+      ? {
+          Organization: pathname.startsWith('/company/organization') || pathname === '/company/employees',
+          Recruitment: pathname.startsWith('/company/recruitment'),
+        }
+      : {}),
   }));
 
   const toggleSection = (label: string) => {
     setOpenSections((prev) => {
       const current =
         prev[label] ??
-        (label === 'Organization' ? pathname.startsWith('/company/organization') : true);
+        (isEmployeePortal
+          ? label === 'Overview'
+          : label === 'Organization'
+          ? pathname.startsWith('/company/organization')
+          : true);
       return { ...prev, [label]: !current };
     });
   };
@@ -431,7 +376,7 @@ export function CompanySidebar({
           const rect = entry.button.getBoundingClientRect();
           const dx = centerX - (rect.left + rect.width / 2);
           const dy = centerY - (rect.top + rect.height / 2);
-          return { path, label: entry.label, distance: dx * dx + dy * dy };
+          return { path, label: entry.label, button: entry.button, distance: dx * dx + dy * dy };
         })
         .sort((a, b) => a.distance - b.distance)[0];
 
@@ -445,7 +390,19 @@ export function CompanySidebar({
         }
         onNavigate(nearest.path);
         onClose();
-        syncActiveSidebarPill();
+        // Snap to the released item immediately. The route state updates
+        // asynchronously, so syncing from aria-current here can briefly read
+        // the old item and leave the pill visually stranded between rows.
+        const targetRect = nearest.button.getBoundingClientRect();
+        const navRect = navigation.getBoundingClientRect();
+        indicator.style.setProperty('--sidebar-pill-top', `${targetRect.top - navRect.top + navigation.scrollTop}px`);
+        indicator.style.setProperty('--sidebar-pill-left', `${targetRect.left - navRect.left + navigation.scrollLeft}px`);
+        indicator.style.setProperty('--sidebar-pill-width', `${targetRect.width}px`);
+        indicator.style.setProperty('--sidebar-pill-height', `${targetRect.height}px`);
+        indicator.style.opacity = '1';
+        setIsActiveNavMoving(true);
+        if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
         if (nearest.path === pathname) shouldRestore = true;
       } else {
         shouldRestore = true;
@@ -551,7 +508,6 @@ export function CompanySidebar({
   // Module-backed items disappear when the company has the module switched off.
   const moduleOn = (key: string): boolean => !enabledModules || enabledModules.includes(key);
   const { activePet } = useAiPet();
-  const { accent } = useTheme();
   const { total: unreadMessages } = useChatUnread();
 
   const clampWidth = (nextWidth: number) => Math.min(420, Math.max(220, nextWidth));
@@ -664,13 +620,13 @@ export function CompanySidebar({
           {
             label: 'Recruitment',
             items: [
-              { label: 'Overview', path: '/company/recruitment', icon: 'briefcase' },
-              { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'briefcase' },
-              { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'briefcase' },
-              { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'briefcase' },
-              { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'briefcase' },
-              { label: 'Offers', path: '/company/recruitment/offers', icon: 'briefcase' },
-              { label: 'Joining', path: '/company/recruitment/joining', icon: 'briefcase' },
+              { label: 'Overview', path: '/company/recruitment', icon: 'grid' },
+              { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'clipboard-list' },
+              { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'inbox' },
+              { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'users' },
+              { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'calendar' },
+              { label: 'Offers', path: '/company/recruitment/offers', icon: 'file-text' },
+              { label: 'Joining', path: '/company/recruitment/joining', icon: 'user-plus' },
             ],
           },
         ]
@@ -1304,11 +1260,13 @@ export function CompanySidebar({
           );
           const isOpen =
             openSections[group.label] ??
-            (group.label === 'Organization'
-              ? pathname.startsWith('/company/organization') || pathname === '/company/employees'
-              : group.label === 'Recruitment'
-                ? pathname.startsWith('/company/recruitment')
-              : true);
+            (isEmployeePortal
+              ? group.label === 'Overview' || activeChild
+              : group.label === 'Organization'
+                ? pathname.startsWith('/company/organization') || pathname === '/company/employees'
+                : group.label === 'Recruitment'
+                  ? pathname.startsWith('/company/recruitment')
+                  : true);
           return (
             <div
               key={group.label}
@@ -1461,19 +1419,6 @@ export function CompanySidebar({
             </div>
           );
         })}
-        {variant === 'company' && (
-          <div className={`sidebar-decoration ${collapsed ? 'xl:hidden' : ''}`}>
-            <div className="relative z-10 max-w-[76%]">
-              <p className="text-sm font-medium leading-5">
-                Work smarter.
-                <br />
-                Grow together.
-              </p>
-              <div className="mt-3 h-1 w-10 rounded-full bg-app-accent" />
-            </div>
-            <ThemePromoIllustration accent={accent} />
-          </div>
-        )}
       </nav>
       {activePet && (
         <div
