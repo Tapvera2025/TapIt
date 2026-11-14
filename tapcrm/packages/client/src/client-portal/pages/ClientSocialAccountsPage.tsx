@@ -7,7 +7,7 @@ import type {
   SocialPortalPlatform,
   SocialPortalProvider,
 } from '@tapcrm/contracts';
-import { Button, Card, Loading, Modal, Notice, Page } from '../../ui/index.js';
+import { Button, Card, ConnectAgreement, Loading, Modal, Notice, Page } from '../../ui/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 import { getPortalProfile } from '../api/portalApi.js';
 import {
@@ -329,6 +329,9 @@ export function ClientSocialAccountsPage({
                   >
                     Connect an account
                   </h2>
+                  <ConnectAgreement
+                    youtube={overview.providers.some((provider) => provider.platform === 'youtube')}
+                  />
                   <div className="grid gap-3 md:grid-cols-2">
                     {overview.providers.map((provider) => (
                       <ProviderCard
