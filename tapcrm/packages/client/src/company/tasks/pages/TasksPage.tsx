@@ -67,6 +67,8 @@ export function TasksPage({
     projectId: initialProjectId,
     participantId: propIsSuperAdmin && propCurrentUserId ? propCurrentUserId : undefined,
   }));
+  const queryRef = useRef(query);
+  queryRef.current = query;
   const [data, setData] = useState<PaginatedTasks | null>(null);
   const [summaryCounts, setSummaryCounts] = useState<TaskSummaryCounts | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,7 +153,7 @@ export function TasksPage({
       try {
         if (!options?.silent) setLoading(true);
         setFetchError(null);
-        const result = await listTasks(overrideQuery ?? query);
+        const result = await listTasks(overrideQuery ?? queryRef.current);
         if (requestSequence === taskFetchSequence.current) setData(result);
       } catch (err) {
         if (requestSequence === taskFetchSequence.current) {
@@ -163,12 +165,12 @@ export function TasksPage({
         if (requestSequence === taskFetchSequence.current) setLoading(false);
       }
     },
-    [query],
+    [],
   );
 
   useEffect(() => {
     void fetchTasks();
-  }, [fetchTasks]);
+  }, [fetchTasks, query]);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,9 +220,7 @@ export function TasksPage({
   ]);
 
   const fetchTasksRef = useRef(fetchTasks);
-  useEffect(() => {
-    fetchTasksRef.current = fetchTasks;
-  }, [fetchTasks]);
+  fetchTasksRef.current = fetchTasks;
 
   // Real-time synchronization via Socket.IO
   useEffect(() => {
@@ -466,9 +466,13 @@ export function TasksPage({
         priority: reset ? 'all' : filter === 'urgent' ? 'urgent' : 'all',
         datePreset: filter === 'overdue'
           ? reset ? 'all' : 'overdue'
-          : previous.datePreset,
-        startDate: filter === 'overdue' ? undefined : previous.startDate,
-        endDate: filter === 'overdue' ? undefined : previous.endDate,
+          : previous.datePreset === 'overdue' ? 'all' : previous.datePreset,
+        startDate: filter === 'overdue' || previous.datePreset === 'overdue'
+          ? undefined
+          : previous.startDate,
+        endDate: filter === 'overdue' || previous.datePreset === 'overdue'
+          ? undefined
+          : previous.endDate,
         page: 1,
       };
     });
@@ -488,7 +492,7 @@ export function TasksPage({
       tone: 'text-app-foreground',
       cardTone: 'border-app-border/80 bg-app-surface/70 hover:border-app-accent/40',
       iconTone: 'bg-app-surface-raised text-app-muted',
-      active: (!query.status || query.status === 'all') && (!query.priority || query.priority === 'all'),
+      active: (!query.status || query.status === 'all') && (!query.priority || query.priority === 'all') && query.datePreset !== 'overdue',
     },
     {
       id: 'pending' as const,
@@ -615,6 +619,17 @@ export function TasksPage({
             loading={loading && !data}
             isSuperAdmin={isSuperAdmin}
             currentUserId={currentUserId}
+            prioritizePopulatedColumns={Boolean(
+              (query.status && query.status !== 'all') ||
+              (query.priority && query.priority !== 'all') ||
+              (query.datePreset && query.datePreset !== 'all') ||
+              query.search?.trim() ||
+              query.assigneeId ||
+              query.creatorId ||
+              query.projectId ||
+              query.startDate ||
+              query.endDate
+            )}
             onTransitionStatus={handleTransitionStatus}
             onEditTask={(task) => setEditingTask(task)}
             onAssignTask={(task) => setAssigningTask(task)}
@@ -635,7 +650,7 @@ export function TasksPage({
 
         {/* Pagination Footer */}
         {data && total > 0 && (
-          <div className="flex items-center justify-end gap-2 pt-4">
+          <div className="flex items-center justify-end gap-2 pt-4 pb-5 sm:pb-0">
             <Button
               type="button"
               kind="secondary"

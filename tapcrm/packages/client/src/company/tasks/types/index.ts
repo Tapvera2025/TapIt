@@ -149,7 +149,9 @@ export interface TaskListProps {
   readonly onCreateTask?: (() => void) | undefined;
 }
 
-export type TaskKanbanBoardProps = TaskListProps;
+export interface TaskKanbanBoardProps extends TaskListProps {
+  readonly prioritizePopulatedColumns?: boolean | undefined;
+}
 
 export interface TaskStatusBadgeProps {
   readonly status: TaskStatus;
