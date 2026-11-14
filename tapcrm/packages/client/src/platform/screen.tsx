@@ -1810,7 +1810,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           </aside>
           <main
             id="main-content"
-            className="min-h-0 min-w-0 flex-1 h-full overflow-y-auto overflow-x-hidden pt-3 sm:pt-4 pr-1 pb-16 [scrollbar-gutter:stable]"
+            className="platform-main-scroll min-h-0 min-w-0 flex-1 h-full overflow-y-auto overflow-x-hidden pt-3 sm:pt-4 pr-1 pb-16 [scrollbar-gutter:stable]"
           >
           <section id="platform-overview" className="mb-[22px] scroll-mt-5">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
@@ -1828,9 +1828,15 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 xl:grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))]">
-              {Object.entries(stats).map(([k, v]) => (
-                <PlatformKpiCard key={k} statKey={k} value={v} />
-              ))}
+              {Object.entries(stats)
+                .filter(
+                  ([key]) =>
+                    key.replace(/([A-Z])/g, '_$1').toLowerCase() !==
+                    'revoked_invitations',
+                )
+                .map(([k, v]) => (
+                  <PlatformKpiCard key={k} statKey={k} value={v} />
+                ))}
             </div>
           </section>
           <section
@@ -2400,24 +2406,24 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               id="platform-companies"
               className="w-full scroll-mt-5 rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_5%,var(--app-background)),color-mix(in_srgb,var(--app-surface)_72%,var(--app-background)))] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.14)] max-[560px]:p-[20px_16px]"
             >
-              <div className="flex items-start justify-between gap-[15px]">
-                <div>
+              <div className="flex items-start justify-between gap-[15px] max-[700px]:grid max-[700px]:grid-cols-[minmax(0,1fr)_auto] max-[700px]:gap-x-2">
+                <div className="min-w-0">
                   <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">
                     Tenant management
                   </p>
-                  <h2 className="font-display text-[23px] tracking-[-0.045em]">
+                  <h2 className="font-display text-[23px] tracking-[-0.045em] max-[700px]:text-[20px]">
                     Companies
                   </h2>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:w-full max-[700px]:justify-end">                  <span className="rounded-full border border-app-border px-2.5 py-1.5 text-[11px] text-app-muted">
-                  {orgs.length} total
-                </span>
+                <div className="flex items-center justify-end gap-2 max-[700px]:w-auto max-[700px]:justify-self-end">
                   <button
                     type="button"
-                    className="rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110"
+                    aria-label="Create company"
+                    className="whitespace-nowrap rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 max-[700px]:min-h-10 max-[700px]:px-3.5 max-[700px]:py-2.5 max-[700px]:text-xs"
                     onClick={startCreateCompany}
                   >
-                    + Create company
+                    <span className="max-[700px]:hidden">+ Create company</span>
+                    <span className="hidden max-[700px]:inline">+ Create</span>
                   </button>
                 </div>
               </div>
@@ -2450,7 +2456,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                   No companies match your search.
                 </p>
               ) : (
-                <div className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-5 grid grid-cols-1 items-start gap-5 sm:grid-cols-2">
                   {visibleOrganizations.map((o) => (
                     <article
                       key={o.id}
@@ -2517,10 +2523,10 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           })}
                         </div>
                       </div>
-                      <div className="mt-6 grid grid-cols-2 gap-2 border-t border-app-border pt-4 sm:grid-cols-5">
+                      <div className="mt-6 grid grid-cols-2 gap-2 border-t border-app-border pt-4">
                         <button
                           type="button"
-                          className="col-span-2 min-h-11 rounded-xl bg-app-accent px-3 py-2.5 text-xs font-bold text-app-on-accent transition hover:brightness-110 sm:col-span-1"
+                          className="col-span-2 min-h-11 rounded-xl bg-app-accent px-3 py-2.5 text-xs font-bold text-app-on-accent transition hover:brightness-110"
                           onClick={() => setSelectedCompany(o)}
                         >
                           View details
@@ -2639,7 +2645,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
 
             </div>
             <div className="mt-6 overflow-hidden rounded-2xl border border-app-accent/20 bg-app-background/35">
-              <div className="hidden grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)_auto] gap-5 border-b border-app-border px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-app-muted lg:grid">
+              <div className="hidden grid-cols-[minmax(180px,1.1fr)_minmax(150px,0.9fr)_minmax(220px,1.25fr)_minmax(140px,auto)] gap-4 border-b border-app-border px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-app-muted min-[960px]:grid">
                 <span>Company &amp; admin</span>
                 <span>Status</span>
                 <span>Timeline</span>
@@ -2672,10 +2678,10 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             : 'close';
                     return (
                       <article
-                        className={`grid ${hasActions ? 'grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)_auto]' : 'grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)]'} items-start justify-items-start gap-5 border-b border-app-border p-5 text-left last:border-b-0 max-[1100px]:grid-cols-2 max-[1100px]:items-start max-[700px]:grid-cols-1`}
+                        className={`grid ${hasActions ? 'grid-cols-[minmax(180px,1.1fr)_minmax(150px,0.9fr)_minmax(220px,1.25fr)_minmax(140px,auto)]' : 'grid-cols-[minmax(180px,1.1fr)_minmax(150px,0.9fr)_minmax(220px,1.25fr)]'} items-start gap-4 border-b border-app-border p-5 text-left last:border-b-0 max-[959px]:grid-cols-2 max-[959px]:items-start max-[700px]:grid-cols-1 max-[560px]:gap-4 max-[560px]:p-4`}
                         key={invitation.id}
                       >
-                        <div className="min-w-0 justify-self-start">
+                        <div className="w-full min-w-0 justify-self-start">
                           <div className="flex items-center gap-3">
                             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-app-accent/15 text-lg font-bold text-app-accent">
                               {invitation.companyName.slice(0, 1).toUpperCase()}
@@ -2700,7 +2706,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             </span>
                           </div>
                         </div>
-                        <div className="min-w-0 justify-self-start">
+                        <div className="w-full min-w-0 justify-self-start">
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-bold tracking-[0.05em] ${invitation.status === 'PENDING' ? 'border-app-accent/35 bg-app-accent/10 text-orange-400' : invitation.status === 'ACCEPTED' ? 'border-emerald-400/35 bg-emerald-400/10 text-emerald-500' : invitation.status === 'EXPIRED' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/10 text-[#f5c56b]' : 'border-[#ff8d8d]/30 bg-[#ff8d8d]/10 text-app-danger'}`}
                           >
@@ -2722,7 +2728,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                               : 'Suspended company'}
                           </span>
                         </div>
-                        <div className="grid w-full grid-cols-4 justify-items-start gap-3 text-left text-xs text-app-muted max-[560px]:grid-cols-2">
+                        <div className="grid w-full grid-cols-2 justify-items-start gap-3 text-left text-xs text-app-muted max-[959px]:col-span-2 max-[700px]:col-span-1 max-[560px]:gap-x-2 max-[560px]:gap-y-3">
                           <span>
                             <b className="mb-1 flex items-center gap-1 text-[9px] uppercase tracking-[0.07em] text-app-foreground">
                               <Icon name="calendar" className="size-3" />
@@ -2753,7 +2759,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           </span>
                         </div>
                         {hasActions && (
-                          <div className="flex flex-wrap justify-start gap-2 justify-self-start max-[1100px]:col-span-2 max-[1100px]:justify-start max-[700px]:col-span-1">
+                          <div className="flex w-full flex-wrap justify-start gap-2 justify-self-start max-[959px]:col-span-2 max-[959px]:justify-start max-[700px]:col-span-1">
                             <button
                               type="button"
                               className="inline-flex items-center gap-1.5 rounded-xl border border-app-accent/35 bg-app-surface px-3 py-2.5 text-xs font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent"
@@ -2808,7 +2814,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           </div>
                         )}
                         {viewInvitationId === invitation.id && (
-                          <div className="col-span-full grid grid-cols-3 gap-3 rounded-xl border border-app-accent/20 bg-app-background p-4 text-xs text-app-muted max-[560px]:grid-cols-1">
+                          <div className="col-span-full grid w-full grid-cols-3 gap-3 justify-self-stretch rounded-xl border border-app-accent/20 bg-app-background p-4 text-xs text-app-muted max-[560px]:grid-cols-1 max-[560px]:p-3">
                             <span>
                               <b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">
                                 Company status

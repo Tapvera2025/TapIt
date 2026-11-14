@@ -3215,6 +3215,25 @@ summary:active {
   animation: guide-flash 1.8s ease-out;
 }
 
+@media (max-width: 850px) {
+  .platform-main-scroll,
+  .platform-sidebar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .platform-main-scroll {
+    scrollbar-gutter: auto;
+  }
+
+  .platform-main-scroll::-webkit-scrollbar,
+  .platform-sidebar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .guide-flash {
     animation: none;
