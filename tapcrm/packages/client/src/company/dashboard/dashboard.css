@@ -899,13 +899,10 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--theme-primary) 12%, var(--app-border));
+  border: 1px solid var(--app-border);
   border-radius: 2rem;
   padding: clamp(0.875rem, 2.2vw, 1.5rem);
-  background:
-    radial-gradient(ellipse at 10% 0%, color-mix(in srgb, var(--theme-primary) 13%, transparent), transparent 38%),
-    radial-gradient(ellipse at 100% 24%, color-mix(in srgb, #a5b4fc 20%, transparent), transparent 34%),
-    color-mix(in srgb, var(--app-background) 78%, var(--app-surface));
+  background: var(--app-background);
 }
 
 .dashboard-admin-hero {
@@ -918,18 +915,15 @@
   gap: 1.25rem;
   overflow: hidden;
   padding: clamp(1.125rem, 2.8vw, 2rem);
-  border: 1px solid color-mix(in srgb, var(--theme-primary) 19%, var(--app-border));
+  border: 1px solid var(--app-border);
   border-radius: 1.75rem;
-  background:
-    radial-gradient(circle at 88% 8%, color-mix(in srgb, #a5b4fc 26%, transparent), transparent 36%),
-    linear-gradient(132deg, color-mix(in srgb, var(--theme-primary) 10%, var(--app-surface)), var(--app-surface) 58%, color-mix(in srgb, #bfdbfe 17%, var(--app-surface)));
+  background: var(--app-surface);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 56%, transparent), 0 18px 45px -36px color-mix(in srgb, var(--app-foreground) 48%, transparent);
 }
 
 .dark .dashboard-admin-hero {
-  background:
-    radial-gradient(circle at 88% 8%, color-mix(in srgb, #818cf8 19%, transparent), transparent 36%),
-    linear-gradient(132deg, color-mix(in srgb, var(--theme-primary) 12%, var(--app-surface)), var(--app-surface) 58%, color-mix(in srgb, #2563eb 13%, var(--app-surface)));
+  background: var(--app-surface);
+  border-color: var(--app-border);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 18px 45px -36px rgba(2, 8, 23, 0.9);
 }
 
@@ -1012,16 +1006,14 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 1.5rem;
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--theme-primary) 5%, transparent), transparent 45%),
-    color-mix(in srgb, var(--app-surface) 86%, transparent);
+  /* KPI/widget cards stay neutral; theme color is reserved for semantic
+     accents inside the card (icons, labels, progress, and actions). */
+  background: var(--app-surface);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 45%, transparent), 0 16px 38px -30px color-mix(in srgb, var(--app-foreground) 48%, transparent);
 }
 
 .dark .dashboard-admin-card {
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--theme-primary) 10%, transparent), transparent 50%),
-    color-mix(in srgb, var(--app-surface) 94%, transparent);
+  background: var(--app-surface);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 16px 38px -30px rgba(2, 8, 23, 0.9);
 }
 

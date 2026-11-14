@@ -7,6 +7,7 @@ import { GlobalFeatureSearch } from './GlobalFeatureSearch.js';
 import type { CompanySearchDestination } from './navigation.js';
 import { createPortal } from 'react-dom';
 import { useCompanyHeroUtility } from './CompanyNavbarContext.js';
+import { ThemeToggle } from '../../theme/ThemeToggle.js';
 
 function initials(fullName: string): string {
   const value = fullName
@@ -95,6 +96,7 @@ export function Navbar({
   const controls = (
         <div className="navbar-utility-controls ml-auto flex shrink-0 items-center gap-2.5 max-[420px]:gap-2">
           <GlobalFeatureSearch className="company-hero-search" destinations={searchDestinations} onNavigate={onNavigate} />
+          {desktop && <ThemeToggle compact className="company-hero-capsule-theme-toggle" />}
           {extraActions}
           <NotificationBell onNavigate={onNavigate} />
           <div ref={accountRef} className="relative">

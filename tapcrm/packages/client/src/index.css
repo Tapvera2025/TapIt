@@ -2419,7 +2419,7 @@ summary:active {
   }
 }
 
-/* Transparent brand artwork. The overlay targets only the CRM letter bounds. */
+/* Transparent brand artwork. */
 .crm-brand {
   position: relative;
   display: inline-block;
@@ -2443,7 +2443,8 @@ summary:active {
   opacity: 0;
   pointer-events: none;
   /* Keep the white dark-mode overlay on CRM only; account for image letterboxing. */
-  clip-path: inset(48.5% 4.25% 27% 61.5%);
+  /* Start after the final orange “a” so the overlay only covers CRM. */
+  clip-path: inset(48.5% 4.25% 27% 67%);
   filter: brightness(0) invert(1);
 }
 
@@ -2455,6 +2456,7 @@ summary:active {
    inside the translucent sidebar. The artwork remains orange/black in light
    mode and uses its existing white CRM overlay in dark mode. */
 .workspace-sidebar .crm-brand {
+  box-sizing: border-box;
   padding: 0;
   border: 0;
   background: transparent;
@@ -2464,12 +2466,29 @@ summary:active {
   filter: drop-shadow(0 0 0.8px color-mix(in srgb, var(--sidebar-foreground) 55%, transparent));
 }
 
+.dark .workspace-sidebar .crm-brand {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .dark .workspace-sidebar .crm-brand>img:first-child {
   filter: drop-shadow(0 0 0.8px rgba(255, 255, 255, 0.42));
 }
 
-.dark .workspace-sidebar .crm-brand .crm-brand-wordmark {
-  filter: brightness(0) invert(1) drop-shadow(0 0 0.8px rgba(255, 255, 255, 0.5));
+/* Keep the full brand artwork legible wherever it appears on a graphite
+   surface. The logo remains one unmodified image; only its backing plate
+   changes with the theme. */
+.dark .global-navbar .crm-brand {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dark .global-navbar .crm-brand>img:first-child {
+  filter: drop-shadow(0 0 0.8px rgba(255, 255, 255, 0.42));
 }
 
 .dark .pet-button-paw {
@@ -2495,11 +2514,11 @@ summary:active {
 .workforce-dashboard .workforce-metric-card {
   --metric-tint: var(--theme-primary);
   min-height: 9.5rem;
-  border-color: color-mix(in srgb, var(--metric-tint) 18%, var(--app-border)) !important;
+  /* KPI surfaces stay neutral; the metric tint is reserved for semantic
+     accents such as icons, labels, and status values. */
+  border-color: var(--app-border) !important;
   background-color: var(--app-surface) !important;
-  background-image: linear-gradient(135deg,
-      color-mix(in srgb, var(--metric-tint) 11%, transparent),
-      color-mix(in srgb, var(--app-surface) 96%, transparent) 72%) !important;
+  background-image: none !important;
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, background-color 180ms ease;
 }
 
@@ -2528,22 +2547,22 @@ summary:active {
 }
 
 .workforce-dashboard .workforce-metric-card:hover {
-  border-color: color-mix(in srgb, var(--metric-tint) 38%, var(--app-border)) !important;
+  border-color: var(--app-border-strong, var(--app-border)) !important;
   transform: translateY(-1px);
 }
 
 .workforce-dashboard .workforce-metric-card[aria-pressed='true'] {
-  border-color: color-mix(in srgb, var(--metric-tint) 62%, var(--app-border)) !important;
+  border-color: var(--app-border-strong, var(--app-border)) !important;
   box-shadow:
-    0 5px 14px -12px color-mix(in srgb, var(--metric-tint) 72%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--metric-tint) 24%, transparent) !important;
+    0 5px 14px -12px rgba(15, 23, 42, 0.28),
+    0 0 0 1px var(--app-border-strong, var(--app-border)) !important;
   transform: translateY(-1px);
 }
 
 .workforce-dashboard .workforce-metric-card>div:first-child {
-  background: color-mix(in srgb, var(--metric-tint) 12%, var(--app-surface)) !important;
-  border: 1px solid color-mix(in srgb, var(--metric-tint) 16%, transparent);
-  color: color-mix(in srgb, var(--metric-tint) 82%, var(--app-foreground)) !important;
+  background: var(--app-surface-raised) !important;
+  border: 1px solid var(--app-border);
+  color: var(--metric-tint) !important;
 }
 
 .workforce-dashboard .workforce-metric-card>span:nth-child(2) {
@@ -2627,6 +2646,15 @@ summary:active {
       color-mix(in srgb, var(--metric-tint) 9%, transparent),
       rgba(27, 30, 36, 0.72) 72%) !important;
   border-color: rgba(214, 220, 231, 0.22) !important;
+}
+
+/* Keep every KPI surface neutral in both themes. Appearance color remains
+   available for semantic content, but must not tint the card background. */
+.workforce-dashboard .workforce-metric-card,
+.workforce-dashboard .dashboard-glass,
+.workforce-dashboard .dashboard-glass-surface {
+  background-color: var(--app-surface) !important;
+  background-image: none !important;
 }
 
 .dark .workforce-dashboard .workforce-metric-card:hover {
@@ -2866,15 +2894,24 @@ summary:active {
     overflow: hidden;
   }
   .workspace-sidebar .company-sidebar-nav { padding-top: var(--workspace-space-md); }
+  /* Keep the first navigation group close to the workspace label. The
+     expanded rail used to combine the nav's mt-4 utility with this padding,
+     creating an unnecessarily large blank band below the label. */
+  .workspace-sidebar[data-sidebar-collapsed='false'] .company-sidebar-nav {
+    margin-top: 0.5rem !important;
+    padding-top: 0.25rem;
+  }
   .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav {
     margin-top: 0.5rem !important;
     padding-top: 0;
   }
 
   .company-page-hero {
-    --hero-start: color-mix(in srgb, var(--theme-primary) 9%, var(--app-surface));
-    --hero-end: color-mix(in srgb, #bfdbfe 14%, var(--app-surface));
-    --hero-border: color-mix(in srgb, var(--theme-primary) 20%, var(--app-border));
+    /* Keep the shared hero surface neutral. Appearance color is reserved for
+       the eyebrow, actions, icons, and active controls—not the card surface. */
+    --hero-start: var(--app-surface);
+    --hero-end: var(--app-surface);
+    --hero-border: var(--app-border);
     position: relative;
     display: flex;
     min-height: 11rem;
@@ -2884,8 +2921,15 @@ summary:active {
   }
 
   .dark .company-page-hero {
-    --hero-start: color-mix(in srgb, var(--theme-primary) 11%, var(--app-surface));
-    --hero-end: color-mix(in srgb, #2563eb 11%, var(--app-surface));
+    /* Keep the hero neutral in night mode: the surface follows the same
+       graphite glass used by the sidebar instead of inheriting the accent
+       appearance tint. */
+    --hero-start: rgba(27, 30, 36, 0.94);
+    --hero-end: rgba(27, 30, 36, 0.88);
+    --hero-border: rgba(214, 220, 231, 0.22);
+    background: rgba(27, 30, 36, 0.78);
+    backdrop-filter: blur(22px) saturate(110%);
+    -webkit-backdrop-filter: blur(22px) saturate(110%);
   }
 
   .company-page-hero-surface {
@@ -2913,6 +2957,20 @@ summary:active {
     background: var(--app-surface);
     box-shadow: 0 8px 20px -18px rgb(15 23 42 / 36%);
   }
+  .dark .company-hero-capsule {
+    /* Match the sidebar's grey graphite glass surface. Do not tint the
+       capsule with the active appearance colour; only its controls retain
+       semantic accent colours. */
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.09)),
+      color-mix(in srgb, var(--sidebar-background) 94%, transparent) !important;
+    border-color: rgba(214, 220, 231, 0.14) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      0 12px 28px -22px rgba(0, 0, 0, 0.78);
+    backdrop-filter: blur(22px) saturate(110%);
+    -webkit-backdrop-filter: blur(22px) saturate(110%);
+  }
   .company-hero-capsule-page-actions {
     display: flex;
     min-width: 0;
@@ -2926,6 +2984,12 @@ summary:active {
   }
   .company-hero-capsule-controls .company-hero-search:not(.is-expanded) > div {
     width: 1.875rem !important;
+  }
+  /* Keep the expanded search compact inside the desktop action capsule. The
+     capsule should remain a page utility, not turn into a full-width header. */
+  .company-hero-capsule-controls .company-hero-search.is-expanded > div {
+    width: min(18rem, calc(100vw - 34rem)) !important;
+    max-width: 18rem;
   }
   .company-hero-capsule-controls .company-hero-search button[aria-label="Search features, pages and settings"] {
     width: 1.875rem;
@@ -2961,6 +3025,36 @@ summary:active {
   }
   .company-hero-capsule-controls .navbar-action-button > svg { width: 0.9375rem; height: 0.9375rem; }
   .company-page-hero-actions > button svg { width: 0.9375rem; height: 0.9375rem; }
+
+  /* The capsule already provides the single control surface. Flatten the
+     compact toggle's inner icon wrapper so it does not render as a switch
+     inside another bordered button. */
+  .company-hero-capsule-theme-toggle {
+    display: inline-flex;
+    width: 1.875rem;
+    min-width: 1.875rem;
+    height: 1.875rem;
+    min-height: 1.875rem;
+    padding: 0;
+    border: 1px solid var(--app-border);
+    border-radius: 9999px;
+    background: transparent;
+    box-shadow: none;
+  }
+  .company-hero-capsule-theme-toggle .theme-toggle-liquid-sheen { display: none; }
+  .company-hero-capsule-theme-toggle > span:not(.theme-toggle-liquid-sheen) {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    border-radius: inherit;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .company-hero-capsule-theme-toggle > span:not(.theme-toggle-liquid-sheen) > svg {
+    width: 1rem;
+    height: 1rem;
+  }
 
   .company-page-hero-eyebrow {
     margin: 0;
@@ -3555,5 +3649,17 @@ summary:active {
 :root:not(.dark) .workspace-sidebar .company-sidebar-active-indicator,
 :root:not(.dark) .workspace-sidebar nav button[aria-current='page'] {
   background-color: color-mix(in srgb, var(--theme-primary) 12%, var(--app-surface)) !important;
+  background-image: none !important;
+}
+
+/* Final KPI/card normalization: no appearance tint on card surfaces in
+   either theme. Accent colors remain available to the content and controls. */
+.dashboard-admin-card,
+.dashboard-admin-card.ui-glass-surface,
+.workforce-dashboard .workforce-metric-card,
+.workforce-dashboard .dashboard-glass,
+.workforce-dashboard .dashboard-glass-surface,
+.workforce-dashboard .workforce-metric-card[aria-pressed='true'] {
+  background-color: var(--app-surface) !important;
   background-image: none !important;
 }
