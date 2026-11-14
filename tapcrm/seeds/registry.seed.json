@@ -8049,15 +8049,12 @@
       "resourceParam": "id"
     },
     {
-<<<<<<< HEAD
       "method": "PUT",
       "path": "/api/chat/conversations/:id/members/:userId/role",
       "action": "chat:manage-groups",
       "resourceParam": "id"
     },
     {
-=======
->>>>>>> ce62b9b3babb18dc9310d84a8e3dd45f172c9a86
       "method": "POST",
       "path": "/api/chat/conversations/:id/messages",
       "action": "chat:send",
