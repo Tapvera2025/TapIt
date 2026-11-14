@@ -329,6 +329,13 @@ describe.skipIf(!enabled)('Global Task Integration (PostgreSQL)', () => {
       expect(scoped.map((u) => u.id)).toEqual([userA2]);
     });
 
+    it('an ordinary employee who is not on the project is offered nobody; one on it is offered its team', async () => {
+      const outsider = await listTaskAssignees(ctxFor(orgA, userA1), taskAssigneesQuerySchema.parse({ projectId }));
+      expect(outsider).toEqual([]);
+      const member = await listTaskAssignees(ctxFor(orgA, userA2), taskAssigneesQuerySchema.parse({ projectId }));
+      expect(member.map((u) => u.id)).toEqual([userA2]);
+    });
+
     it('a project with no assignees offers nobody', async () => {
       const emptyProjectId = randomUUID();
       await asOwner(
