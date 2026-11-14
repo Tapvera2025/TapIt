@@ -380,7 +380,7 @@ export function TaskFilters({
               <section
                 role="dialog"
                 aria-label="Select due date range"
-                className="absolute left-auto right-0 top-full z-[60] mt-2 w-[min(21rem,calc(100vw-2rem))] rounded-2xl border border-app-border bg-app-surface p-4 shadow-2xl sm:left-0 sm:right-auto"
+                className="fixed left-3 right-3 top-1/2 z-[60] mx-auto max-h-[calc(100dvh-1.5rem)] w-auto max-w-[21rem] -translate-y-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-app-border bg-app-surface p-4 shadow-2xl sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:mx-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(21rem,calc(100vw-2rem))] sm:translate-y-0"
               >
                 <header className="flex items-center justify-between gap-3">
                   <h3 className="text-sm font-semibold text-app-foreground">Select date range</h3>
@@ -437,7 +437,7 @@ export function TaskFilters({
                         onClick={() => selectCalendarDate(date)}
                         aria-label={date.toLocaleDateString()}
                         aria-pressed={isStart || isEnd}
-                        className={`mx-auto grid size-8 place-items-center rounded-full text-xs transition-colors ${
+                        className={`mx-auto grid size-7 place-items-center rounded-full text-xs transition-colors sm:size-8 ${
                           isStart || isEnd
                             ? 'bg-app-accent text-white'
                             : isInRange

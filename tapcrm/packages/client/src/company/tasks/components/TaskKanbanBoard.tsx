@@ -10,6 +10,13 @@ const VALID_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   cancelled: ['pending', 'in_progress'],
 };
 
+const MOBILE_COLUMN_ORDER_CLASSES = [
+  'order-1 lg:order-none',
+  'order-2 lg:order-none',
+  'order-3 lg:order-none',
+  'order-4 lg:order-none',
+] as const;
+
 interface ColumnDef {
   readonly id: TaskStatus;
   readonly title: string;
@@ -105,6 +112,7 @@ export function TaskKanbanBoard({
   onEditTask,
   onAssignTask,
   onCreateTask,
+  prioritizePopulatedColumns = false,
 }: TaskKanbanBoardProps): React.JSX.Element {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
@@ -159,6 +167,16 @@ export function TaskKanbanBoard({
     const targetGroup = groupedTasks[displayedStatus] ?? groupedTasks.pending;
     targetGroup.push(task);
   }
+
+  const mobileColumnOrder = prioritizePopulatedColumns
+    ? [...KANBAN_COLUMNS].sort((a, b) => {
+        const aHasVisibleTasks = (groupedTasks[a.id]?.length ?? 0) > 0 &&
+          (a.id !== 'cancelled' || showCancelledTasks);
+        const bHasVisibleTasks = (groupedTasks[b.id]?.length ?? 0) > 0 &&
+          (b.id !== 'cancelled' || showCancelledTasks);
+        return Number(bHasVisibleTasks) - Number(aHasVisibleTasks);
+      })
+    : KANBAN_COLUMNS;
 
   async function handleDropTask(targetStatus: TaskStatus) {
     if (!draggedTaskId) return;
@@ -288,6 +306,10 @@ export function TaskKanbanBoard({
         const isColumnActive = dragOverColumn === column.id;
         const isCancelledColumn = column.id === 'cancelled';
         const isCollapsedCancelledColumn = isCancelledColumn && !showCancelledTasks;
+        const mobileOrderIndex = mobileColumnOrder.findIndex((orderedColumn) => orderedColumn.id === column.id);
+        const mobileOrderClass = prioritizePopulatedColumns
+          ? MOBILE_COLUMN_ORDER_CLASSES[mobileOrderIndex] ?? ''
+          : '';
 
         return (
           <section
@@ -300,7 +322,7 @@ export function TaskKanbanBoard({
               e.preventDefault();
               void handleDropTask(column.id);
             }}
-            className={`relative flex flex-col rounded-2xl border bg-app-surface/60 transition-all duration-200 ${
+            className={`${mobileOrderClass} relative flex flex-col rounded-2xl border bg-app-surface/60 transition-all duration-200 ${
               isCollapsedCancelledColumn
                 ? 'min-h-12 w-full p-1.5 sm:p-2 lg:min-h-[380px] lg:w-20 lg:self-stretch lg:justify-start lg:border-slate-200 lg:bg-[#F8FAFC]'
                 : 'min-h-[380px] p-3 sm:p-3.5'
