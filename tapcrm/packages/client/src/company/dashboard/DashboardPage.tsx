@@ -774,7 +774,10 @@ export function DashboardPage({
                 key={key}
                 data-mobile-widget-id={key}
                 className={`mobile-dashboard-widget ${editing ? 'mobile-dashboard-widget-editing' : ''} ${mobileDragId === key ? 'mobile-dashboard-widget-dragging' : ''} ${mobileDropId === key && mobileDragId !== key ? 'mobile-dashboard-widget-drop-target' : ''}`}
-                style={{ height: editing && def.defaultLayout.resizable !== false ? `${widgetHeight}px` : undefined }}
+                // Mobile widgets need a definite containing height even when
+                // customization is off; the widget shells use h-full and
+                // otherwise collapse/clip their content inside the card.
+                style={{ height: `${widgetHeight}px` }}
               >
                 {editing && (
                   <div className="mobile-dashboard-widget-controls mb-3 flex items-center justify-between gap-2 border-b border-app-border pb-2">
@@ -831,7 +834,7 @@ export function DashboardPage({
                     )}
                   </label>
                 )}
-                <div className={editing ? 'mobile-dashboard-widget-content' : ''}>
+                <div className="mobile-dashboard-widget-content">
                   {renderWidget(Component)}
                 </div>
               </div>

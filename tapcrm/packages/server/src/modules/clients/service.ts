@@ -1,7 +1,7 @@
 import { visibilityFilter, type Resource } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
-import { hashIdentityPassword } from '../identity/facade.js';
+import { hashIdentityPassword, sendWelcomePasswordSetup } from '../identity/facade.js';
 import { ClientEmailTakenError, ClientNotFoundError } from './errors.js';
 import {
   clientEmailExists,
@@ -51,7 +51,7 @@ export async function createClient(ctx: RequestContext, input: CreateClientInput
   // call, so it happens before the transaction opens, never inside it.
   const passwordHash = await hashIdentityPassword(input.password);
 
-  const { id } = await db.transaction(ctx, async (tx) => {
+  const { id, loginUserId } = await db.transaction(ctx, async (tx) => {
     if (await emailExists(tx, input.email)) throw new ClientEmailTakenError(input.email);
 
     const client = await insertClient(tx, ctx.organizationId, ctx.principal.id, {
@@ -62,9 +62,20 @@ export async function createClient(ctx: RequestContext, input: CreateClientInput
       currency: REGION_CURRENCY[input.region],
       timezone: REGION_TIMEZONE[input.region],
     });
-    await insertClientLogin(tx, ctx.organizationId, client.id, { email: input.email, passwordHash, fullName: input.clientName });
-    return client;
+    const login = await insertClientLogin(tx, ctx.organizationId, client.id, { email: input.email, passwordHash, fullName: input.clientName });
+    return { id: client.id, loginUserId: login.id };
   });
+
+  // Post-commit: welcome mail with a set-password link. A delivery failure must
+  // not fail client creation; it is logged, and the credentials entered on the
+  // form still work.
+  try {
+    await sendWelcomePasswordSetup({ userId: loginUserId, organizationId: ctx.organizationId });
+  } catch (error) {
+    console.error(
+      JSON.stringify({ level: 'error', msg: 'client welcome email delivery failed', clientId: id, error: error instanceof Error ? error.message : String(error) }),
+    );
+  }
 
   const created = await findClientById(ctx, id);
   if (!created) throw new ClientNotFoundError();

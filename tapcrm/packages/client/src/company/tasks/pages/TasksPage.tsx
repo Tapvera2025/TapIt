@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { toast } from 'react-hot-toast';
 import { getIdentityAccessToken, identityApiBasePath } from '../../../identity/api/authApi.js';
+import { Icon } from '../../../ui/Icon.js';
 import { Button, Notice, WorkspacePageContainer } from '../../../ui/components.js';
 import { getCompanyIdentity } from '../../api/companyApi.js';
 import {
@@ -32,6 +34,16 @@ export interface TasksPageProps {
   readonly initialProjectId?: string | undefined;
 }
 
+type TaskSummaryFilter = 'all' | 'pending' | 'in_progress' | 'completed' | 'urgent' | 'overdue';
+interface TaskSummaryCounts {
+  readonly all: number;
+  readonly pending: number;
+  readonly in_progress: number;
+  readonly completed: number;
+  readonly urgent: number;
+  readonly overdue: number;
+}
+
 export function TasksPage({
   isSuperAdmin: propIsSuperAdmin,
   currentUserId: propCurrentUserId,
@@ -43,23 +55,20 @@ export function TasksPage({
   );
   const [viewScope, setViewScope] = useState<TaskViewScope>('my_tasks');
   const [viewMode, setViewMode] = useState<TaskViewMode>(() => {
-    try {
-      const saved = localStorage.getItem('tapcrm:tasks-view-mode');
-      return saved === 'kanban' ? 'kanban' : 'list';
-    } catch {
-      return 'list';
-    }
+    return 'kanban';
   });
 
   const [query, setQuery] = useState<TaskListQuery>(() => ({
     page: 1,
-    pageSize: 20,
+    pageSize: 50,
+    status: 'all',
     sortBy: 'createdAt',
     sortOrder: 'desc',
     projectId: initialProjectId,
     participantId: propIsSuperAdmin && propCurrentUserId ? propCurrentUserId : undefined,
   }));
   const [data, setData] = useState<PaginatedTasks | null>(null);
+  const [summaryCounts, setSummaryCounts] = useState<TaskSummaryCounts | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const taskFetchSequence = useRef(0);
@@ -160,6 +169,53 @@ export function TasksPage({
   useEffect(() => {
     void fetchTasks();
   }, [fetchTasks]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const baseQuery: TaskListQuery = {
+      search: query.search,
+      projectId: query.projectId,
+      assigneeId: query.assigneeId,
+      creatorId: query.creatorId,
+      participantId: query.participantId,
+      status: 'all',
+      priority: 'all',
+      page: 1,
+      pageSize: 1,
+    };
+
+    void Promise.all([
+      listTasks(baseQuery),
+      listTasks({ ...baseQuery, status: 'pending' }),
+      listTasks({ ...baseQuery, status: 'in_progress' }),
+      listTasks({ ...baseQuery, status: 'completed' }),
+      listTasks({ ...baseQuery, priority: 'urgent' }),
+      listTasks({ ...baseQuery, datePreset: 'overdue' }),
+    ])
+      .then(([allTasks, pendingTasks, inProgressTasks, completedTasks, urgentTasks, overdueTasks]) => {
+        if (cancelled) return;
+        setSummaryCounts({
+          all: allTasks.total,
+          pending: pendingTasks.total,
+          in_progress: inProgressTasks.total,
+          completed: completedTasks.total,
+          urgent: urgentTasks.total,
+          overdue: overdueTasks.total,
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    query.search,
+    query.projectId,
+    query.assigneeId,
+    query.creatorId,
+    query.participantId,
+    data?.items,
+  ]);
 
   const fetchTasksRef = useRef(fetchTasks);
   useEffect(() => {
@@ -314,15 +370,13 @@ export function TasksPage({
     taskId: string,
     status: TaskStatus,
     userId?: string,
+    options?: { suppressToast?: boolean; viaStatus?: TaskStatus },
   ) {
     const targetTask = data?.items.find((t) => t.id === taskId);
     if (status === 'cancelled' && targetTask) {
       const canCancel = isSuperAdmin || (currentUserId && targetTask.createdBy === currentUserId);
       if (!canCancel) {
-        setNotification({
-          error: true,
-          message: 'Only a super admin or the employee who created the task can cancel it.',
-        });
+        toast.error('Only a super admin or the employee who created the task can cancel it.');
         return;
       }
     }
@@ -359,7 +413,7 @@ export function TasksPage({
     });
 
     try {
-      const updated = await transitionTask(taskId, { status, userId });
+      const updated = await transitionTask(taskId, { status, userId, viaStatus: options?.viaStatus });
       const statusLabel =
         status === 'in_progress'
           ? 'In Progress'
@@ -368,7 +422,9 @@ export function TasksPage({
             : status === 'cancelled'
               ? 'Cancelled'
               : 'Pending';
-      setNotification({ message: `Task status updated to ${statusLabel}` });
+      if (!options?.suppressToast) {
+        toast.success(`Task status updated to ${statusLabel}`);
+      }
 
       // Immediate state update with server response
       setData((prev) => {
@@ -383,13 +439,39 @@ export function TasksPage({
     } catch (err) {
       // Revert optimistic update on rejection
       setData(previousData);
-      setNotification({
-        error: true,
-        message:
-          err instanceof Error ? err.message : 'Status transition was rejected by server',
-      });
+      toast.error(
+        err instanceof Error ? err.message : 'Status transition was rejected by server',
+      );
       throw err;
     }
+  }
+
+  function handleSummaryFilter(filter: TaskSummaryFilter) {
+    setQuery((previous) => {
+      const isAllActive =
+        (!previous.status || previous.status === 'all') &&
+        (!previous.priority || previous.priority === 'all');
+      const isSelectedActive = filter === 'urgent'
+        ? previous.priority === 'urgent'
+        : filter === 'overdue'
+          ? previous.datePreset === 'overdue' && isAllActive
+        : filter === 'all'
+          ? isAllActive
+          : previous.status === filter && (!previous.priority || previous.priority === 'all');
+      const reset = filter === 'all' || isSelectedActive;
+
+      return {
+        ...previous,
+        status: reset || filter === 'urgent' || filter === 'overdue' ? 'all' : filter,
+        priority: reset ? 'all' : filter === 'urgent' ? 'urgent' : 'all',
+        datePreset: filter === 'overdue'
+          ? reset ? 'all' : 'overdue'
+          : previous.datePreset,
+        startDate: filter === 'overdue' ? undefined : previous.startDate,
+        endDate: filter === 'overdue' ? undefined : previous.endDate,
+        page: 1,
+      };
+    });
   }
 
   // Pagination calculations
@@ -397,23 +479,66 @@ export function TasksPage({
   const page = data?.page ?? 1;
   const pageSize = data?.pageSize ?? 20;
   const totalPages = data?.totalPages ?? 1;
-  const visibleTasks = data?.items ?? [];
   const summary = [
-    { label: 'All tasks', value: total, tone: 'text-app-foreground' },
     {
+      id: 'all' as const,
+      label: 'All tasks',
+      value: summaryCounts?.all ?? 0,
+      icon: 'clipboard-list',
+      tone: 'text-app-foreground',
+      cardTone: 'border-app-border/80 bg-app-surface/70 hover:border-app-accent/40',
+      iconTone: 'bg-app-surface-raised text-app-muted',
+      active: (!query.status || query.status === 'all') && (!query.priority || query.priority === 'all'),
+    },
+    {
+      id: 'pending' as const,
       label: 'Pending',
-      value: visibleTasks.filter((task) => task.status === 'pending').length,
+      value: summaryCounts?.pending ?? 0,
+      icon: 'clock',
       tone: 'text-amber-600 dark:text-amber-300',
+      cardTone: 'border-amber-500/25 bg-amber-500/5 hover:border-amber-500/50',
+      iconTone: 'bg-amber-500/10 text-amber-600 dark:text-amber-300',
+      active: query.status === 'pending' && (!query.priority || query.priority === 'all'),
     },
     {
+      id: 'in_progress' as const,
       label: 'In progress',
-      value: visibleTasks.filter((task) => task.status === 'in_progress').length,
+      value: summaryCounts?.in_progress ?? 0,
+      icon: 'play',
       tone: 'text-sky-600 dark:text-sky-300',
+      cardTone: 'border-sky-500/25 bg-sky-500/5 hover:border-sky-500/50',
+      iconTone: 'bg-sky-500/10 text-sky-600 dark:text-sky-300',
+      active: query.status === 'in_progress' && (!query.priority || query.priority === 'all'),
     },
     {
+      id: 'completed' as const,
       label: 'Completed',
-      value: visibleTasks.filter((task) => task.status === 'completed').length,
+      value: summaryCounts?.completed ?? 0,
+      icon: 'check',
       tone: 'text-emerald-600 dark:text-emerald-300',
+      cardTone: 'border-emerald-500/25 bg-emerald-500/5 hover:border-emerald-500/50',
+      iconTone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+      active: query.status === 'completed' && (!query.priority || query.priority === 'all'),
+    },
+    {
+      id: 'urgent' as const,
+      label: 'Urgent',
+      value: summaryCounts?.urgent ?? 0,
+      icon: 'alert-circle',
+      tone: 'text-rose-600 dark:text-rose-300',
+      cardTone: 'border-rose-500/30 bg-rose-500/5 hover:border-rose-500/60',
+      iconTone: 'bg-rose-500/10 text-rose-600 dark:text-rose-300',
+      active: query.priority === 'urgent',
+    },
+    {
+      id: 'overdue' as const,
+      label: 'Overdue',
+      value: summaryCounts?.overdue ?? 0,
+      icon: 'clock',
+      tone: 'text-orange-600 dark:text-orange-300',
+      cardTone: 'border-orange-500/30 bg-orange-500/5 hover:border-orange-500/60',
+      iconTone: 'bg-orange-500/10 text-orange-600 dark:text-orange-300',
+      active: query.datePreset === 'overdue' && (!query.status || query.status === 'all') && (!query.priority || query.priority === 'all'),
     },
   ];
 
@@ -435,23 +560,29 @@ export function TasksPage({
           </div>
         )}
 
-        {/* Compact task summary */}
-        <section
-          aria-label="Task summary"
-          className="grid grid-cols-2 overflow-hidden rounded-2xl border border-app-border/80 bg-app-surface/70 sm:grid-cols-4"
-        >
-          {summary.map((item, index) => (
-            <div
-              key={item.label}
-              className={`px-4 py-3 sm:px-5 ${index > 0 ? 'border-l border-app-border/70' : ''} ${index === 2 ? 'max-sm:border-l-0 max-sm:border-t' : ''} ${index === 3 ? 'max-sm:border-t' : ''}`}
+        {/* Clickable task summary filters */}
+        <section aria-label="Task summary filters" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          {summary.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              disabled={loading}
+              onClick={() => handleSummaryFilter(item.id)}
+              aria-pressed={Boolean(item.active)}
+              className={`rounded-xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-app-accent disabled:cursor-wait disabled:opacity-60 ${item.cardTone} ${item.active ? 'ring-2 ring-app-accent/20' : ''}`}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-muted">
-                {item.label}
-              </p>
-              <p className={`mt-1 text-xl font-semibold tracking-tight ${item.tone}`}>
-                {loading && !data ? '—' : item.value}
-              </p>
-            </div>
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-app-muted sm:text-[11px]">
+                  {item.label}
+                </span>
+                <span className={`grid size-8 shrink-0 place-items-center rounded-full ${item.iconTone}`}>
+                  <Icon name={item.icon} className="size-4" />
+                </span>
+              </span>
+              <span className={`mt-1 block text-xl font-semibold tracking-tight ${item.tone}`}>
+                {summaryCounts ? item.value : '—'}
+              </span>
+            </button>
           ))}
         </section>
 
@@ -459,7 +590,6 @@ export function TasksPage({
         <TaskFilters
           query={query}
           onQueryChange={(nextQuery) => setQuery(nextQuery)}
-          onCreateTask={() => setIsCreateOpen(true)}
           disabled={loading}
           isSuperAdmin={isSuperAdmin}
           viewScope={viewScope}
@@ -488,6 +618,7 @@ export function TasksPage({
             onTransitionStatus={handleTransitionStatus}
             onEditTask={(task) => setEditingTask(task)}
             onAssignTask={(task) => setAssigningTask(task)}
+            onCreateTask={() => setIsCreateOpen(true)}
           />
         ) : (
           <TaskList
@@ -498,6 +629,7 @@ export function TasksPage({
             onTransitionStatus={handleTransitionStatus}
             onEditTask={(task) => setEditingTask(task)}
             onAssignTask={(task) => setAssigningTask(task)}
+            onCreateTask={() => setIsCreateOpen(true)}
           />
         )}
 

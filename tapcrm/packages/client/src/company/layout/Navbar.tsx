@@ -20,8 +20,8 @@ function initials(fullName: string): string {
 
 export function Navbar({
   identity,
-  organizationName,
-  organizationCode,
+  organizationName: _organizationName,
+  organizationCode: _organizationCode,
   sidebarCollapsed,
   sidebarOpen,
   onToggleSidebar,
@@ -31,7 +31,13 @@ export function Navbar({
   settingsPath = '/company/settings',
   extraActions = null,
 }: {
-  identity: { fullName: string; email: string; accountType?: string };
+  identity: {
+    fullName: string;
+    email: string;
+    accountType?: string;
+    positionCode?: string | null;
+    positionName?: string | null;
+  };
   organizationName: string | null;
   organizationCode: string | null;
   sidebarCollapsed: boolean;
@@ -46,7 +52,9 @@ export function Navbar({
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
-  const role = organizationCode?.trim() || organizationName?.slice(0, 3).toUpperCase() || 'ABP';
+  const designation = identity.accountType === 'super-admin'
+    ? 'Super Admin'
+    : identity.positionName || identity.positionCode || 'Employee';
   const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
 
   useEffect(() => {
@@ -112,36 +120,29 @@ export function Navbar({
             <button
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
-              className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 lg:h-9 lg:w-auto lg:justify-start lg:gap-2 lg:rounded-xl lg:px-1.5 lg:pr-2.5"
+              className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
               aria-label="Open account menu"
               aria-haspopup="menu"
               aria-expanded={accountOpen}
             >
-              <span className="text-[10px] font-bold text-app-accent lg:grid lg:size-6 lg:shrink-0 lg:place-items-center lg:rounded-lg lg:bg-app-accent/15 lg:ring-1 lg:ring-inset lg:ring-app-accent/20">
+              <span className="text-xs font-bold text-app-accent">
                 {initials(identity.fullName)}
               </span>
-              <span className="hidden min-w-0 lg:block">
-                <span className="block max-w-28 truncate text-xs font-semibold text-app-foreground">
-                  {identity.fullName}
-                </span>
-                <span className="block whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.12em] text-app-muted" title={role}>
-                  {role}
-                </span>
-              </span>
-              <Icon
-                name="chevron-down"
-                className="hidden size-3 text-app-muted lg:block"
-              />
             </button>
             {accountOpen && (
               <div
-                className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
+                className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg"
                 role="menu"
               >
                 <div className="border-b border-app-border px-3 py-2.5">
-                  <p className="truncate text-sm font-semibold text-app-foreground">
-                    {identity.fullName}
-                  </p>
+                  <div className="flex min-w-0 items-baseline gap-2.5">
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-app-foreground">
+                      {identity.fullName}
+                    </p>
+                    <span className="max-w-[45%] shrink-0 truncate border-l border-app-border pl-2.5 text-[11px] font-medium text-app-muted" title={designation}>
+                      {designation}
+                    </span>
+                  </div>
                   <p className="truncate text-xs text-app-muted">{identity.email}</p>
                 </div>
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5">

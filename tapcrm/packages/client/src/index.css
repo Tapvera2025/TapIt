@@ -751,6 +751,21 @@
     pointer-events: none;
     background: linear-gradient(90deg, transparent, color-mix(in srgb, white 62%, transparent), transparent);
   }
+  .page-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 0 1.25rem;
+    border-bottom: 1px solid var(--app-border);
+  }
+
+  .page-toolbar-action {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-width: 0;
+  }
 
   .recruitment-page-header {
     display: flex;
@@ -870,7 +885,6 @@
       animation: none;
     }
   }
-
   .ui-primary {
     background: var(--app-gradient);
     color: var(--app-on-accent);
@@ -981,9 +995,6 @@
     overflow-y: auto;
     overscroll-behavior-y: contain;
     padding: 20px 24px 24px;
-  }
-  .ui-dialog-body:has(.task-assignee-options) {
-    overflow: visible;
   }
   .task-assignee-options {
     max-height: min(30rem, 70dvh);
@@ -1268,8 +1279,20 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  .mobile-sidebar-backdrop {
+    -webkit-tap-highlight-color: transparent;
+    tap-highlight-color: transparent;
+    box-shadow: none;
+  }
 
+  .mobile-sidebar-backdrop:active,
+  .mobile-sidebar-backdrop:focus,
+  .mobile-sidebar-backdrop:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
     .workspace-sidebar,
     .mobile-sidebar-backdrop {
       transition-duration: 0.01ms !important;
@@ -1291,11 +1314,6 @@
     background-image: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08));
     backdrop-filter: blur(24px) saturate(125%);
     -webkit-backdrop-filter: blur(24px) saturate(125%);
-  }
-
-  .dark .workspace-sidebar .sidebar-decoration {
-    background: rgba(255, 255, 255, 0.055) !important;
-    border-color: rgba(214, 220, 231, 0.14) !important;
   }
 
   .sidebar-profile-card {
@@ -1348,9 +1366,9 @@
     .workspace-sidebar {
       position: static !important;
       inset: auto !important;
-      height: calc(100% - var(--company-sidebar-top-gap, 1rem) - 1rem) !important;
-      margin: var(--company-sidebar-top-gap, 1rem) 0 1rem 1.25rem !important;
-      border-radius: 1rem;
+      height: calc(100dvh - 9rem) !important;
+      margin: var(--company-sidebar-top-gap) 0 1.25rem 1.25rem !important;
+      border-radius: 1.25rem;
       transform: none !important;
     }
 
@@ -1577,30 +1595,6 @@
     filter: saturate(0.92);
   }
 
-  .sidebar-decoration {
-    position: relative;
-    overflow: hidden;
-    padding: 24px 16px 18px;
-    margin-top: 20px;
-    border-radius: 14px;
-    background: var(--theme-primary-soft) !important;
-    color: var(--sidebar-foreground) !important;
-    border: 1px solid var(--sidebar-border);
-  }
-
-  .sidebar-decoration-symbol {
-    position: absolute;
-    right: 0.75rem;
-    bottom: 0.55rem;
-    color: var(--theme-primary);
-    opacity: 0.38;
-    transition: color 180ms ease, opacity 180ms ease;
-    pointer-events: none;
-  }
-
-  .dark .sidebar-decoration-symbol {
-    opacity: 0.52;
-  }
 }
 
 /* Existing feature screens share these tokens while adopting the UI primitives. */
@@ -2017,6 +2011,18 @@ nav button[aria-current='page']::before {
   .notification-overlay-backdrop,
   .notification-panel-drawer .notification-item-button {
     transition: none;
+  }
+}
+
+/* Keep the compact mobile notification popover readable above the page. The
+   tablet/desktop drawer already has its own opaque surface treatment. */
+@media (max-width: 767px) {
+  .notification-panel:not(.notification-panel-drawer) {
+    background: var(--app-surface);
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    opacity: 1;
   }
 }
 

@@ -1068,8 +1068,7 @@ function ContentEditor({
             <Button
               kind="secondary"
               disabled={locked}
-              onClick={() => {
-                void (async () => {
+              onClick={async () => {
                 setBusy(true);
                 try {
                   const result = await api.exportContent(doc.siteId, doc.id);
@@ -1080,7 +1079,6 @@ function ContentEditor({
                 } finally {
                   setBusy(false);
                 }
-                })();
               }}
             >
               Export saved text

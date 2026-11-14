@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, ErrorMessage, Loading, Notice, Page } from '../../ui/components.js';
+import { Button, Card, ErrorMessage, Loading, Notice, Page } from '../../ui/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 import { formatProjectDate } from '../../projects/formatDate.js';
 import { ProjectDetailNavigation } from '../../projects/ProjectDetailNavigation.js';

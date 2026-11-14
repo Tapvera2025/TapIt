@@ -36,6 +36,7 @@ export const updateTaskSchema = z.object({
 
 export const transitionTaskSchema = z.object({
   status: taskStatusSchema,
+  viaStatus: taskStatusSchema.optional(),
   userId: z.string().uuid('Invalid user ID format').optional(),
   notes: z.string().trim().max(2000).optional().nullable(),
 });
@@ -75,15 +76,15 @@ export const taskListQuerySchema = z
   .refine(
     (data) => {
       if (data.datePreset === 'custom') {
-        if (!data.startDate || !data.endDate) {
-          return false;
+        if (data.startDate && data.endDate) {
+          return data.startDate <= data.endDate;
         }
-        return data.startDate <= data.endDate;
+        return Boolean(data.startDate || data.endDate);
       }
       return true;
     },
     {
-      message: 'startDate must be before or equal to endDate for custom datePreset',
+      message: 'A custom date range needs at least one date, and startDate must be before or equal to endDate',
       path: ['startDate'],
     },
   );

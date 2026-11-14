@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { getTaskAssignees } from '../api/tasksApi.js';
 import type {
   TaskAssignableUser,
@@ -16,8 +16,6 @@ export function TaskAssigneePicker({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const [listPlacement, setListPlacement] = useState<'above' | 'below'>('below');
-  const [listMaxHeight, setListMaxHeight] = useState(480);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
@@ -87,36 +85,6 @@ export function TaskAssigneePicker({
       );
     });
   }, [assignees, selectedAssigneeIds, searchTerm]);
-
-  useLayoutEffect(() => {
-    if (!isOpen) return;
-
-    const updateListPosition = () => {
-      const control = controlRef.current;
-      if (!control) return;
-
-      const dialog = control.closest<HTMLElement>('.ui-dialog');
-      const controlRect = control.getBoundingClientRect();
-      const bounds = dialog?.getBoundingClientRect() ?? {
-        top: 0,
-        bottom: window.innerHeight,
-      };
-      const below = Math.max(0, bounds.bottom - controlRect.bottom - 8);
-      const above = Math.max(0, controlRect.top - bounds.top - 8);
-      const placeAbove = above > below;
-
-      setListPlacement(placeAbove ? 'above' : 'below');
-      setListMaxHeight(480);
-    };
-
-    updateListPosition();
-    window.addEventListener('resize', updateListPosition);
-    window.addEventListener('scroll', updateListPosition, true);
-    return () => {
-      window.removeEventListener('resize', updateListPosition);
-      window.removeEventListener('scroll', updateListPosition, true);
-    };
-  }, [isOpen, availableAssignees.length]);
 
   function handleAdd(id: string) {
     if (!selectedAssigneeIds.includes(id)) {
@@ -202,13 +170,13 @@ export function TaskAssigneePicker({
             id={listboxId}
             role="listbox"
             style={{
-              maxHeight: `${listMaxHeight}px`,
+              maxHeight: '30rem',
               overflowY: 'auto',
               overscrollBehaviorY: 'contain',
               WebkitOverflowScrolling: 'touch',
               touchAction: 'pan-y',
             }}
-            className={`task-assignee-options absolute z-20 w-full overflow-y-auto rounded-md border border-app-border bg-app-surface shadow-md outline-none ${listPlacement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+            className="task-assignee-options mt-2 w-full overflow-y-auto rounded-md border border-app-border bg-app-surface shadow-md outline-none"
             onWheel={(event) => {
               const list = event.currentTarget;
               const atTop = list.scrollTop <= 0 && event.deltaY < 0;

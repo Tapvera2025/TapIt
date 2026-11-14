@@ -1,14 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../../../ui/index.js';
-import { Button } from '../../../ui/index.js';
 import type { TaskFiltersProps, TaskListQuery } from '../types/index.js';
 
-type PresetGroup1 = 'all' | 'pending' | 'in_progress' | 'high' | 'completed';
+function toDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value: string): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
 
 export function TaskFilters({
   query,
   onQueryChange,
-  onCreateTask,
   disabled = false,
   isSuperAdmin = false,
   viewScope = 'my_tasks',
@@ -17,7 +27,43 @@ export function TaskFilters({
   onViewModeChange,
 }: TaskFiltersProps): React.JSX.Element {
   const [searchInput, setSearchInput] = useState(query.search ?? '');
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [dateSubmenuOpen, setDateSubmenuOpen] = useState(false);
+  const [rangePickerOpen, setRangePickerOpen] = useState(false);
+  const [draftStartDate, setDraftStartDate] = useState('');
+  const [draftEndDate, setDraftEndDate] = useState('');
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const existingStart = query.datePreset === 'custom' && query.startDate
+      ? parseDateKey(query.startDate.slice(0, 10))
+      : null;
+    const initialDate = existingStart ?? new Date();
+    return new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
+  });
+  const sortMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!sortMenuOpen && !rangePickerOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!sortMenuRef.current?.contains(event.target as Node)) {
+        setSortMenuOpen(false);
+        setDateSubmenuOpen(false);
+        setRangePickerOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSortMenuOpen(false);
+        setDateSubmenuOpen(false);
+        setRangePickerOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [sortMenuOpen, rangePickerOpen]);
 
   // Sync internal search input when query prop resets externally
   useEffect(() => {
@@ -42,82 +88,119 @@ export function TaskFilters({
     };
   }, [searchInput]);
 
-  // Determine active Group 1 preset
-  const activePreset1: PresetGroup1 =
-    query.priority === 'high' && (!query.status || query.status === 'all')
-      ? 'high'
-      : query.status === 'pending'
-        ? 'pending'
-        : query.status === 'in_progress'
-          ? 'in_progress'
-          : query.status === 'completed'
-            ? 'completed'
-            : 'all';
+  function setDatePreset(preset: 'all' | 'today' | 'this_month') {
+    onQueryChange({
+      ...query,
+      sortBy: 'dueDate',
+      datePreset: preset,
+      startDate: undefined,
+      endDate: undefined,
+      page: 1,
+    });
+    setSortMenuOpen(false);
+    setDateSubmenuOpen(false);
+  }
 
-  function handleSelectGroup1(preset: PresetGroup1) {
-    if (preset === 'high') {
-      // High is strictly a priority filter, not a status filter
-      onQueryChange({
-        ...query,
-        priority: 'high',
-        status: 'all',
-        page: 1,
-      });
-    } else if (preset === 'all') {
-      onQueryChange({
-        ...query,
-        status: 'all',
-        priority: 'all',
-        page: 1,
-      });
+  function setSortBy(sortBy: NonNullable<TaskListQuery['sortBy']>) {
+    onQueryChange({ ...query, sortBy, page: 1 });
+    setSortMenuOpen(false);
+    setDateSubmenuOpen(false);
+  }
+
+  function openCustomRange() {
+    const start = query.datePreset === 'custom' ? query.startDate?.slice(0, 10) ?? '' : '';
+    const end = query.datePreset === 'custom' ? query.endDate?.slice(0, 10) ?? '' : '';
+    setDraftStartDate(start);
+    setDraftEndDate(end);
+    const initialDate = parseDateKey(start) ?? new Date();
+    setCalendarMonth(new Date(initialDate.getFullYear(), initialDate.getMonth(), 1));
+    setSortMenuOpen(false);
+    setDateSubmenuOpen(false);
+    setRangePickerOpen(true);
+  }
+
+  function selectCalendarDate(date: Date) {
+    const selectedDate = toDateKey(date);
+    if (!draftStartDate || draftEndDate) {
+      setDraftStartDate(selectedDate);
+      setDraftEndDate('');
+    } else if (selectedDate < draftStartDate) {
+      setDraftStartDate(selectedDate);
+      setDraftEndDate('');
     } else {
-      onQueryChange({
-        ...query,
-        status: preset,
-        priority: 'all',
-        page: 1,
-      });
+      setDraftEndDate(selectedDate);
     }
   }
 
-  function handleDatePresetChange(preset: string) {
+  function selectQuickRange(range: 'today' | 'week' | 'month') {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const end = new Date(start);
+    if (range === 'week') {
+      const daysSinceMonday = (start.getDay() + 6) % 7;
+      start.setDate(start.getDate() - daysSinceMonday);
+      end.setTime(start.getTime());
+      end.setDate(end.getDate() + 6);
+    } else if (range === 'month') {
+      start.setDate(1);
+      end.setMonth(end.getMonth() + 1, 0);
+    }
+    setDraftStartDate(toDateKey(start));
+    setDraftEndDate(toDateKey(end));
+    setCalendarMonth(new Date(start.getFullYear(), start.getMonth(), 1));
+  }
+
+  function applyCustomRange() {
+    if (!draftStartDate || !draftEndDate) return;
     onQueryChange({
       ...query,
-      datePreset: preset as TaskListQuery['datePreset'],
+      datePreset: 'custom',
+      startDate: draftStartDate,
+      endDate: draftEndDate,
+      page: 1,
+    });
+    setRangePickerOpen(false);
+  }
+
+  const sortLabel = query.sortBy === 'priority'
+      ? 'Priority'
+      : query.sortBy === 'status'
+        ? 'Status'
+        : query.sortBy === 'dueDate'
+          ? 'Due Date'
+          : 'Created Date';
+
+  function formatDateRangeLabel(value: string | undefined): string {
+    const date = value ? parseDateKey(value.slice(0, 10)) : null;
+    return date
+      ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : '';
+  }
+
+  function clearCustomRange() {
+    onQueryChange({
+      ...query,
+      datePreset: 'all',
       startDate: undefined,
       endDate: undefined,
       page: 1,
     });
   }
 
+  const calendarFirstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
+  const calendarDaysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+  const calendarCells: (Date | null)[] = [
+    ...Array.from({ length: calendarFirstDay }, () => null),
+    ...Array.from(
+      { length: calendarDaysInMonth },
+      (_, index) => new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), index + 1),
+    ),
+  ];
+
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-app-border/80 bg-app-surface/70 p-2.5 sm:px-3.5 sm:py-2.5 text-app-foreground">
-      <style>{`
-        .task-filter-scroller::-webkit-scrollbar {
-          display: none !important;
-          height: 0 !important;
-          width: 0 !important;
-        }
-      `}</style>
-
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setIsMobileFiltersOpen((open) => !open)}
-        className="inline-flex min-h-9 items-center justify-between rounded-xl border border-app-border bg-app-background/60 px-3 text-xs font-semibold text-app-foreground sm:hidden"
-        aria-expanded={isMobileFiltersOpen}
-        aria-controls="task-filters-panel"
-      >
-        <span className="inline-flex items-center gap-2">
-          <Icon name="filter" className="size-4 text-app-accent" />
-          Filters
-        </span>
-        <Icon name={isMobileFiltersOpen ? 'chevron-up' : 'chevron-down'} className="size-4 text-app-muted" />
-      </button>
-
-      <div id="task-filters-panel" className={`${isMobileFiltersOpen ? 'flex' : 'hidden'} flex-col gap-2 sm:flex`}>
-        {/* Row 1: Scope, Filter status presets, and Due date */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 min-w-0 w-full">
+      <div id="task-filters-panel" className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+        <div className="contents">
         {isSuperAdmin && (
           <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
@@ -151,11 +234,6 @@ export function TaskFilters({
                 All Employee Tasks
               </button>
             </div>
-            {viewScope === 'all_employee_tasks' && (
-              <span className="hidden xl:inline-flex items-center rounded-md bg-app-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-app-accent">
-                Org-wide
-              </span>
-            )}
           </div>
         )}
 
@@ -163,123 +241,279 @@ export function TaskFilters({
           <span className="hidden h-5 w-px bg-app-border/70 sm:block" aria-hidden="true" />
         )}
 
-        {/* Filter status presets - smooth swipeable on mobile, flex on desktop */}
-        <div className="flex min-w-0 w-full sm:w-auto sm:max-w-full items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
-            Filter
-          </span>
-          <div
-            className="task-filter-scroller flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5 pe-4 sm:pe-0"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch',
-            }}
-          >
-            {(
-              [
-                { id: 'all', label: 'All' },
-                { id: 'pending', label: 'Pending' },
-                { id: 'in_progress', label: 'In Progress' },
-                { id: 'high', label: 'High Priority' },
-                { id: 'completed', label: 'Completed' },
-              ] as const
-            ).map((preset) => {
-              const isActive = activePreset1 === preset.id;
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => handleSelectGroup1(preset.id)}
-                  className={`inline-flex shrink-0 items-center justify-center rounded-lg px-2.5 py-1 text-center text-xs font-semibold transition ${
-                    isActive
-                      ? preset.id === 'pending'
-                        ? 'border border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-200'
-                        : preset.id === 'in_progress'
-                          ? 'border border-sky-500/30 bg-sky-500/15 text-sky-700 dark:text-sky-200'
-                          : preset.id === 'completed'
-                            ? 'border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200'
-                            : 'border border-app-accent/40 bg-app-accent/10 text-app-accent'
-                      : 'border border-app-border bg-app-background/60 text-app-foreground hover:border-app-accent/60'
-                  }`}
-                  aria-pressed={isActive}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
         </div>
 
-        <span className="hidden h-5 w-px bg-app-border/70 lg:block" aria-hidden="true" />
-
-        {/* Due date filter */}
-        <label className="flex items-center gap-1.5 shrink-0 text-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
-            Due date
-          </span>
-          <select
-            value={query.datePreset ?? 'all'}
-            disabled={disabled}
-            onChange={(e) => handleDatePresetChange(e.target.value)}
-            className="h-8 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs font-medium text-app-foreground outline-none focus:border-app-accent cursor-pointer"
-            aria-label="Filter by date preset"
-          >
-            <option value="all">All Dates</option>
-            <option value="today">Today</option>
-            <option value="this_month">This Month</option>
-            <option value="overdue">Overdue</option>
-          </select>
-        </label>
-        </div>
-
-        {/* Row 2: Sort on the left, Search Bar & Create Task aligned with Sort on the right */}
-        <div className="flex flex-col gap-2 pt-2 border-t border-app-border/40 sm:flex-row sm:items-center sm:justify-between w-full">
+        <div className="contents">
         {/* Sort controls */}
         <div className="flex flex-wrap items-center gap-1.5 text-xs shrink-0">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-app-muted shrink-0">
             Sort
           </span>
-          <select
-            value={query.sortBy ?? 'createdAt'}
-            disabled={disabled}
-            onChange={(e) =>
-              onQueryChange({
-                ...query,
-                sortBy: e.target.value as TaskListQuery['sortBy'],
-                page: 1,
-              })
-            }
-            className="h-8 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs text-app-foreground outline-none focus:border-app-accent cursor-pointer"
-            aria-label="Sort by attribute"
-          >
-            <option value="createdAt">Created Date</option>
-            <option value="dueDate">Due Date</option>
-            <option value="title">Title</option>
-            <option value="priority">Priority</option>
-            <option value="status">Status</option>
-          </select>
-          <select
-            value={query.sortOrder ?? 'desc'}
-            disabled={disabled}
-            onChange={(e) =>
-              onQueryChange({
-                ...query,
-                sortOrder: e.target.value as 'asc' | 'desc',
-                page: 1,
-              })
-            }
-            className="h-8 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs text-app-foreground outline-none focus:border-app-accent cursor-pointer"
-            aria-label="Sort order"
-          >
-            <option value="desc">Descending (↓)</option>
-            <option value="asc">Ascending (↑)</option>
-          </select>
+          <div ref={sortMenuRef} className="relative flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                setSortMenuOpen((open) => !open);
+                setDateSubmenuOpen(false);
+              }}
+              className="inline-flex h-8 min-w-32 items-center justify-between gap-3 rounded-lg border border-app-border bg-app-background/70 px-2.5 text-xs font-medium text-app-foreground outline-none transition-colors hover:border-app-accent/50 focus:border-app-accent disabled:opacity-50"
+              aria-label="Sort tasks"
+              aria-haspopup="menu"
+              aria-expanded={sortMenuOpen}
+            >
+              <span className="truncate">{sortLabel}</span>
+              <Icon name="chevron-down" className={`size-3.5 shrink-0 text-app-muted transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {query.datePreset === 'custom' && (
+              <div className="inline-flex h-8 shrink-0 items-center rounded-lg border border-app-accent/30 bg-app-accent/5 text-[10px] text-app-foreground sm:text-xs">
+                <button
+                  type="button"
+                  onClick={openCustomRange}
+                  className="inline-flex h-full items-center gap-1.5 px-2"
+                  aria-label="Edit custom due date range"
+                >
+                  <Icon name="calendar" className="size-3.5 text-app-accent" />
+                  <span>{formatDateRangeLabel(query.startDate) || 'Start'} – {formatDateRangeLabel(query.endDate) || 'End'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={clearCustomRange}
+                  className="grid h-full w-7 place-items-center rounded-r-lg text-app-muted hover:bg-app-accent/10 hover:text-app-accent"
+                  aria-label="Clear custom date range"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {sortMenuOpen && (
+              <div
+                role="menu"
+                aria-label="Sort and date options"
+                className="absolute left-0 top-full z-50 mt-1 w-48 rounded-xl border border-app-border bg-app-surface p-1.5 shadow-xl"
+              >
+                {([
+                  ['priority', 'Priority'],
+                  ['status', 'Status'],
+                ] as const).map(([sortBy, label]) => (
+                  <button
+                    key={sortBy}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => setSortBy(sortBy)}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-app-foreground transition-colors hover:bg-app-surface-raised"
+                  >
+                    {label}
+                    {query.sortBy === sortBy && <span className="text-app-accent">✓</span>}
+                  </button>
+                ))}
+
+                <div
+                  className="relative"
+                  onMouseEnter={() => setDateSubmenuOpen(true)}
+                  onMouseLeave={() => setDateSubmenuOpen(false)}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onFocus={() => setDateSubmenuOpen(true)}
+                    onClick={() => setDateSubmenuOpen(true)}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-app-foreground transition-colors hover:bg-app-surface-raised"
+                    aria-haspopup="menu"
+                    aria-expanded={dateSubmenuOpen}
+                  >
+                    Due Date
+                    <Icon name="chevron-right" className="size-3.5 text-app-muted" />
+                  </button>
+                  {dateSubmenuOpen && (
+                    <div
+                      role="menu"
+                      aria-label="Due date range"
+                      className="absolute left-0 top-full z-50 mt-1 w-40 rounded-xl border border-app-border bg-app-surface p-1.5 shadow-xl sm:left-full sm:top-0 sm:mt-0"
+                    >
+                      {([
+                        ['all', 'All Dates'],
+                        ['today', 'Today'],
+                        ['this_month', 'This Month'],
+                      ] as const).map(([preset, label]) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          role="menuitem"
+                          onClick={() => setDatePreset(preset)}
+                          className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-app-foreground transition-colors hover:bg-app-surface-raised"
+                        >
+                          {label}
+                          {query.sortBy === 'dueDate' && query.datePreset === preset && (
+                            <span className="text-app-accent">✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setSortBy('createdAt')}
+                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-app-foreground transition-colors hover:bg-app-surface-raised"
+                >
+                  Created Date
+                  {query.sortBy === 'createdAt' && <span className="text-app-accent">✓</span>}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={openCustomRange}
+                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-app-accent transition-colors hover:bg-app-accent/10"
+                >
+                  Custom Range
+                  <Icon name="calendar" className="size-3.5" />
+                </button>
+              </div>
+            )}
+
+            {rangePickerOpen && (
+              <section
+                role="dialog"
+                aria-label="Select due date range"
+                className="absolute left-auto right-0 top-full z-[60] mt-2 w-[min(21rem,calc(100vw-2rem))] rounded-2xl border border-app-border bg-app-surface p-4 shadow-2xl sm:left-0 sm:right-auto"
+              >
+                <header className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-app-foreground">Select date range</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftStartDate('');
+                      setDraftEndDate('');
+                    }}
+                    className="text-xs font-medium text-app-accent hover:underline"
+                  >
+                    Clear
+                  </button>
+                </header>
+
+                <div className="mt-3 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+                    className="grid size-8 place-items-center rounded-lg text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
+                    aria-label="Previous month"
+                  >
+                    <Icon name="chevron-left" className="size-4" />
+                  </button>
+                  <p className="text-sm font-semibold text-app-foreground">
+                    {calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+                    className="grid size-8 place-items-center rounded-lg text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
+                    aria-label="Next month"
+                  >
+                    <Icon name="chevron-right" className="size-4" />
+                  </button>
+                </div>
+
+                <div className="mt-2 grid grid-cols-7 text-center text-[10px] font-semibold uppercase text-app-muted">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                    <span key={day} className="py-1">{day}</span>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-y-1 text-center">
+                  {calendarCells.map((date, index) => {
+                    if (!date) return <span key={`blank-${index}`} />;
+                    const dateKey = toDateKey(date);
+                    const isStart = dateKey === draftStartDate;
+                    const isEnd = dateKey === draftEndDate;
+                    const isInRange = Boolean(draftStartDate && draftEndDate && dateKey > draftStartDate && dateKey < draftEndDate);
+                    return (
+                      <button
+                        key={dateKey}
+                        type="button"
+                        onClick={() => selectCalendarDate(date)}
+                        aria-label={date.toLocaleDateString()}
+                        aria-pressed={isStart || isEnd}
+                        className={`mx-auto grid size-8 place-items-center rounded-full text-xs transition-colors ${
+                          isStart || isEnd
+                            ? 'bg-app-accent text-white'
+                            : isInRange
+                              ? 'rounded-lg bg-app-accent/10 text-app-accent'
+                              : 'text-app-foreground hover:bg-app-surface-raised'
+                        }`}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-1.5 border-t border-app-border/70 pt-3">
+                  {([
+                    ['today', 'Today'],
+                    ['week', 'This Week'],
+                    ['month', 'This Month'],
+                  ] as const).map(([range, label]) => (
+                    <button
+                      key={range}
+                      type="button"
+                      onClick={() => selectQuickRange(range)}
+                      className="min-h-8 rounded-lg bg-app-surface-raised px-1.5 text-[10px] font-medium text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent sm:text-xs"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <footer className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRangePickerOpen(false)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!draftStartDate || !draftEndDate}
+                    onClick={applyCustomRange}
+                    className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Apply
+                  </button>
+                </footer>
+              </section>
+            )}
+          </div>
         </div>
 
-        {/* Right cluster: View Mode Toggle, Search Bar & Primary Action Button (aligned with sort on desktop/laptop) */}
-        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto shrink-0 justify-between sm:justify-end">
+        {/* Search and view switch stay together on the right side of the toolbar. */}
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          <div className="task-search-glass relative flex h-8 min-w-0 flex-1 sm:flex-initial sm:w-52 lg:w-64 items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface/75 px-2.5 shadow-xs backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/60 focus-within:ring-1 focus-within:ring-app-accent/30">
+            <Icon name="search" className="size-3.5 shrink-0 text-app-muted" />
+            <input
+              type="search"
+              disabled={disabled}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search tasks..."
+              className="min-w-0 flex-1 bg-transparent py-0 text-xs text-app-foreground outline-none placeholder:text-app-muted/80 disabled:opacity-50"
+              aria-label="Search tasks"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput('')}
+                className="grid size-5 shrink-0 place-items-center rounded-full text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none"
+                aria-label="Clear search"
+              >
+                <Icon name="close" className="size-3" />
+              </button>
+            )}
+          </div>
           {onViewModeChange && (
             <div
               role="group"
@@ -320,42 +554,9 @@ export function TaskFilters({
               </button>
             </div>
           )}
+        </div>
+        </div>
 
-          <div className="task-search-glass relative flex h-8 min-w-0 flex-1 sm:flex-initial sm:w-52 lg:w-64 items-center gap-1.5 rounded-lg border border-app-border/80 bg-app-surface/75 px-2.5 shadow-xs backdrop-blur-xl transition-[border-color,box-shadow,background-color] focus-within:border-app-accent/60 focus-within:ring-1 focus-within:ring-app-accent/30">
-            <Icon name="search" className="size-3.5 shrink-0 text-app-muted" />
-            <input
-              type="search"
-              disabled={disabled}
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search tasks..."
-              className="min-w-0 flex-1 bg-transparent py-0 text-xs text-app-foreground outline-none placeholder:text-app-muted/80 disabled:opacity-50"
-              aria-label="Search tasks"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={() => setSearchInput('')}
-                className="grid size-5 shrink-0 place-items-center rounded-full text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-none"
-                aria-label="Clear search"
-              >
-                <Icon name="close" className="size-3" />
-              </button>
-            )}
-          </div>
-          {onCreateTask && (
-            <Button
-              type="button"
-              kind="primary"
-              disabled={disabled}
-              onClick={onCreateTask}
-              className="!h-8 !py-0 !px-3.5 !text-xs font-semibold shrink-0 whitespace-nowrap inline-flex items-center justify-center rounded-lg"
-            >
-              <span aria-hidden="true" className="mr-1 text-sm leading-none">+</span> Create Task
-            </Button>
-          )}
-        </div>
-        </div>
       </div>
     </div>
   );
