@@ -4,6 +4,7 @@ import { db } from '../../platform/dal/db.js';
 import { systemClock, wholeSeconds, type Clock } from '../../platform/time.js';
 import * as AttendanceFacade from '../attendance/facade.js';
 import { PunchNotAllowedError } from './errors.js';
+import { leaveBlocksPunchIn } from './leave-punch.js';
 import { loadToday } from './today.js';
 
 /**
@@ -64,7 +65,7 @@ export async function punch(
     if (retry === null && input.kind === 'in') {
       const workDate = await AttendanceFacade.currentDayFor(tx, ctx.principal.id, at);
       const overlays = workDate === null ? [] : await AttendanceFacade.overlaysForDay(tx, ctx.principal.id, workDate);
-      if (overlays.some((overlay) => overlay.sourceKind === 'leave')) {
+      if (leaveBlocksPunchIn(overlays)) {
         throw new PunchNotAllowedError(
           'You cannot punch in because approved leave exists for today.',
           { kind: input.kind, allowedMoves: allowedMoves.filter((move) => move !== 'in') },

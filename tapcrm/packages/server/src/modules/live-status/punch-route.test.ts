@@ -11,7 +11,7 @@ const { appendEventMock, findClientEventMock, loadTodayMock, overlaysForDayMock 
   })),
   findClientEventMock: vi.fn(async (): Promise<unknown> => null),
   loadTodayMock: vi.fn(async () => ({ row: null, allowedMoves: ['in'] as string[] })),
-  overlaysForDayMock: vi.fn(async () => [] as { sourceKind: string }[]),
+  overlaysForDayMock: vi.fn(async () => [] as { sourceKind: string; kind?: string }[]),
 }));
 
 vi.mock('../attendance/facade.js', () => ({
@@ -57,7 +57,7 @@ describe('punch — refuses a move the person cannot make now', () => {
   });
 
   it('rejects punch in during approved absence leave', async () => {
-    overlaysForDayMock.mockResolvedValue([{ sourceKind: 'leave' }]);
+    overlaysForDayMock.mockResolvedValue([{ sourceKind: 'leave', kind: 'leave-full' }]);
     const clock = fixedClock('2026-10-05T09:00:00Z');
     await expect(punch(ctx, { kind: 'in', clientEventId: UUID }, clock)).rejects.toMatchObject({
       status: 422,
@@ -65,6 +65,16 @@ describe('punch — refuses a move the person cannot make now', () => {
       message: 'You cannot punch in because approved leave exists for today.',
     });
     expect(appendEventMock).not.toHaveBeenCalled();
+  });
+
+  it('allows punch in on an approved half-day leave, for the half they work', async () => {
+    const clock = fixedClock('2026-10-05T09:00:00Z');
+    for (const kind of ['leave-first-half', 'leave-second-half']) {
+      appendEventMock.mockClear();
+      overlaysForDayMock.mockResolvedValue([{ sourceKind: 'leave', kind }]);
+      await punch(ctx, { kind: 'in', clientEventId: UUID }, clock);
+      expect(appendEventMock).toHaveBeenCalledOnce();
+    }
   });
 
   it('allows punch in during approved WFH', async () => {
