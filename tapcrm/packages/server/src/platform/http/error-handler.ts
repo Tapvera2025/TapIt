@@ -274,8 +274,8 @@ function mapError(error: unknown): Mapped {
   /* ---- Database ---- */
   const classified = classifyDatabaseError(error);
   if (classified.failureClass !== 'unclassified') {
-    const expenseMessage = classified.failureClass === 'check_violation'
-      ? expenseValidationMessage(classified.message)
+    const validationMessage = classified.failureClass === 'check_violation'
+      ? databaseValidationMessage(error, classified.message)
       : undefined;
     return {
       status: classified.status,
@@ -286,7 +286,7 @@ function mapError(error: unknown): Mapped {
         message:
           classified.status >= 500
             ? 'Internal error'
-            : expenseMessage ?? (classified.failureClass === 'check_violation'
+            : validationMessage ?? (classified.failureClass === 'check_violation'
               ? 'Some submitted data failed validation. Check the entered values and try again.'
               : `Request could not be completed: ${classified.failureClass}`),
       },
@@ -311,6 +311,29 @@ function expenseValidationMessage(databaseMessage: string): string | undefined {
   if (databaseMessage.includes('approved_reason') || databaseMessage.includes('expense_claim_check2')) return 'An approved expense cannot have a rejection reason.';
   if (databaseMessage.includes('status')) return 'The expense status change is invalid. Refresh the page and try again.';
   return 'Expense details failed validation. Check the date, amount, category, remarks, and receipts.';
+}
+
+function databaseValidationMessage(error: unknown, databaseMessage: string): string | undefined {
+  const constraint = typeof error === 'object' && error !== null && 'constraint' in error
+    ? String((error as { constraint?: unknown }).constraint ?? '')
+    : '';
+  const validationSource = `${constraint} ${databaseMessage}`;
+  const financeMessages: Array<[string, string]> = [
+    ['finance_legal_entity_legal_name_check', 'Legal entity name must be between 1 and 200 characters.'],
+    ['finance_legal_entity_country_code_check', 'Country code must be exactly 2 uppercase letters, for example IN or US.'],
+    ['finance_legal_entity_functional_currency_check', 'Functional currency must be exactly 3 uppercase letters, for example INR or USD.'],
+    ['finance_legal_entity_timezone_check', 'Timezone must be between 1 and 80 characters.'],
+    ['finance_legal_entity_fiscal_year_start_month_check', 'Fiscal year start month must be a whole number from 1 to 12.'],
+    ['finance_legal_entity_status_check', 'Configuration status is invalid. Choose Draft, Pending review, Active, or Inactive.'],
+    ['finance_configuration_supported_currencies_check', 'Enter at least one supported currency.'],
+    ['finance_configuration_tax_policy_status_check', 'Tax policy status is invalid.'],
+    ['finance_configuration_statutory_source_status_check', 'Statutory source status is invalid.'],
+    ['finance_configuration_revenue_policy_status_check', 'Revenue policy status is invalid.'],
+    ['finance_configuration_payment_provider_status_check', 'Payment provider status is invalid.'],
+  ];
+  const match = financeMessages.find(([constraintName]) => validationSource.includes(constraintName));
+  if (match) return match[1];
+  return expenseValidationMessage(databaseMessage);
 }
 
 /** `req.route` is untyped in Express; narrow it rather than trusting `any`. */

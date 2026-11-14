@@ -591,6 +591,7 @@ export function Field({
   type = 'text',
   required = false,
   placeholder,
+  maxLength,
   disabled = false,
   error,
   hint,
@@ -602,6 +603,7 @@ export function Field({
   type?: string;
   required?: boolean;
   placeholder?: string;
+  maxLength?: number;
   disabled?: boolean;
   error?: string | undefined;
   /** A line under the input, e.g. where an automatically filled value came from. */
@@ -617,6 +619,7 @@ export function Field({
       min={min}
       value={value}
       placeholder={placeholder}
+      maxLength={maxLength}
       onChange={(event) => onChange(event.target.value)}
       className="ui-form-control w-full px-3 py-2.5 text-sm outline-none"
     />

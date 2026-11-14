@@ -23,6 +23,7 @@ import { buildBiometricMachineRouter } from './modules/biometric/index.js';
 import { buildWebsiteWebhookRouter } from './modules/sales/adapters/website/index.js';
 import { buildMetaWebhookRouter } from './modules/sales/adapters/meta/index.js';
 import { buildWhatsAppWebhookRouter } from './modules/sales/adapters/whatsapp/index.js';
+import { buildPaymentWebhookRouter } from './modules/finance/payments/public-routes.js';
 import { buildGbpWebhookRouter } from './modules/sales/adapters/gbp/index.js';
 import { registerNotificationRoutes } from './modules/notifications/routes.js';
 import { buildChatFileRouter } from './modules/chat/index.js';
@@ -130,6 +131,7 @@ export function buildApp(options: BuildOptions = {}): Express {
   app.use(`${config.API_BASE_PATH}/webhooks/meta`, buildMetaWebhookRouter());
   app.use(`${config.API_BASE_PATH}/webhooks/whatsapp`, buildWhatsAppWebhookRouter());
   app.use(`${config.API_BASE_PATH}/webhooks/gbp-call`, buildGbpWebhookRouter());
+  app.use(`${config.API_BASE_PATH}/webhooks/payments/hyperswitch`, buildPaymentWebhookRouter());
 
   // Scoped upload body limit; other CRM endpoints retain their current limit.
   app.use('/api/social', express.json({ limit: '72mb' }));

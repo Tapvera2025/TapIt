@@ -95,6 +95,11 @@ export const createJournalSchema = z.object({
   sourceType: z.string().trim().min(1).max(100),
   sourceId: z.string().uuid().nullable().optional(),
   reason: z.string().trim().min(1).max(2000).nullable().optional(),
+  legalEntityId: z.string().uuid().nullable().optional(),
+  transactionCurrency: z.string().regex(/^[A-Z]{3}$/).default('INR'),
+  baseCurrency: z.string().regex(/^[A-Z]{3}$/).default('INR'),
+  exchangeRate: z.string().regex(/^\d+(\.\d{1,8})?$/).default('1'),
+  exchangeRateSource: z.string().trim().min(1).max(160).nullable().optional(),
   lines: z
     .array(
       z.object({
@@ -102,6 +107,7 @@ export const createJournalSchema = z.object({
         debit: decimalSchema,
         credit: decimalSchema,
         description: z.string().trim().min(1).max(1000).nullable().optional(),
+        dimensions: z.record(z.string().trim().min(1).max(120), z.string().trim().min(1).max(240)).default({}),
       }),
     )
     .min(2)

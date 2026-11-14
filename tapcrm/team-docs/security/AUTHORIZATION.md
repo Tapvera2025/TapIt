@@ -192,17 +192,25 @@
 | `receivables:write-off` | receivables | invoice | business | yes | yes | proposedBy | yes | no | no |
 | `payables:view` | payables | vendorBill | business | no | no | — | yes | yes | no |
 | `payables:create-bill` | payables | vendorBill | business | no | no | — | yes | yes | no |
+| `payables:create-vendor-bank-change` | payables | vendor | business | no | no | — | yes | yes | no |
 | `payables:approve-bill` | payables | vendorBill | business | yes | yes | createdBy | yes | no | no |
+| `payables:approve-vendor-bank-change` | payables | vendorBankChange | business | yes | yes | proposedBy | yes | no | no |
+| `payables:approve-purchase-request` | payables | purchaseRequest | business | yes | yes | createdBy | yes | no | no |
+| `payables:match-purchase-request` | payables | purchaseRequest | business | no | no | — | yes | yes | no |
 | `payables:claim` | payables | expenseClaim | people | no | no | — | yes | yes | no |
 | `payables:approve-claim` | payables | expenseClaim | people | no | yes | claimedBy | yes | no | no |
 | `payables:execute-run` | payables | paymentRun | business | yes | yes | approvedBy | yes | no | no |
 | `accounting:view-ledger` | accounting | journalEntry | business | yes | no | — | yes | no | no |
 | `accounting:post-journal` | accounting | journalEntry | business | yes | no | — | yes | no | no |
 | `accounting:manage-accounts` | accounting | ledgerAccount | business | yes | no | — | yes | no | no |
+| `accounting:manage-periods` | accounting | accountingPeriod | business | yes | no | — | yes | no | no |
 | `accounting:close-period` | accounting | accountingPeriod | business | yes | yes | lastPostedBy | yes | no | no |
 | `accounting:reopen-period` | accounting | accountingPeriod | business | yes | no | — | yes | no | yes |
 | `accounting:view-statements` | accounting | — | business | yes | no | — | yes | no | no |
 | `accounting:tax-export` | accounting | — | business | yes | no | — | yes | no | no |
+| `accounting:view-finance-settings` | accounting | — | business | yes | no | — | yes | no | no |
+| `accounting:manage-finance-settings` | accounting | — | business | yes | no | — | no | no | yes |
+| `finance:manage-payment-gateways` | accounting | — | business | yes | no | — | yes | no | no |
 | `social:view` | social | socialWorkspace | business | no | no | — | yes | yes | no |
 | `social:manage` | social | socialWorkspace | business | yes | no | — | yes | no | no |
 | `social:publish` | social | socialWorkspace | business | yes | no | — | yes | no | no |
@@ -766,17 +774,46 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/payments/reconciliation | `payments:reconcile` | — |
 | POST | /api/payments/reconciliation/:id/match | `payments:reconcile` | id |
 | GET | /api/receivables/aging | `receivables:view` | — |
+| GET | /api/receivables/aging/buckets | `receivables:view` | — |
 | GET | /api/receivables/statement/:clientId | `receivables:view` | clientId |
+| GET | /api/receivables/statements | `receivables:view` | — |
 | GET | /api/receivables/collections | `receivables:view` | — |
+| GET | /api/receivables/disputes | `receivables:view` | — |
+| GET | /api/receivables/promises | `receivables:view` | — |
+| GET | /api/receivables/tasks | `receivables:view` | — |
+| GET | /api/receivables/reminders | `receivables:view` | — |
+| GET | /api/receivables/write-offs | `receivables:view` | — |
 | GET | /api/receivables/tds | `receivables:view` | — |
 | POST | /api/receivables/:invoiceId/dun | `receivables:dun` | invoiceId |
+| POST | /api/receivables/:invoiceId/disputes | `receivables:dun` | invoiceId |
+| POST | /api/receivables/disputes/:id/resolve | `receivables:dun` | id |
+| POST | /api/receivables/:invoiceId/promises | `receivables:dun` | invoiceId |
+| POST | /api/receivables/promises/:id/resolve | `receivables:dun` | id |
+| POST | /api/receivables/tasks | `receivables:dun` | — |
+| POST | /api/receivables/tasks/:id/status | `receivables:dun` | id |
 | PUT | /api/receivables/dunning-schedule | `receivables:dun` | — |
-| POST | /api/receivables/:invoiceId/write- | `receivables:write-off` | invoiceId |
+| POST | /api/receivables/:invoiceId/write-off | `receivables:write-off` | invoiceId |
+| POST | /api/receivables/write-offs/:id/approve | `receivables:write-off` | id |
 | GET | /api/payables/bills | `payables:view` | — |
 | GET | /api/payables/bills/:id | `payables:view` | id |
 | POST | /api/payables/bills | `payables:create-bill` | — |
 | PATCH | /api/payables/bills/:id | `payables:create-bill` | id |
 | POST | /api/payables/bills/:id/approve | `payables:approve-bill` | id |
+| POST | /api/payables/bills/:id/confirm-extraction | `payables:create-bill` | id |
+| GET | /api/payables/vendors | `payables:view` | — |
+| POST | /api/payables/vendors | `payables:create-bill` | — |
+| POST | /api/payables/vendors/:id/bank-changes | `payables:create-vendor-bank-change` | id |
+| GET | /api/payables/vendor-bank-changes | `payables:view` | — |
+| POST | /api/payables/vendor-bank-changes/:id/approve | `payables:approve-vendor-bank-change` | id |
+| POST | /api/payables/bills/from-expense | `payables:create-bill` | — |
+| GET | /api/payables/bills/:id/artifact | `payables:view` | id |
+| GET | /api/payables/reimbursement-claims | `payables:create-bill` | — |
+| GET | /api/payables/subscriptions | `payables:view` | — |
+| POST | /api/payables/subscriptions | `payables:create-bill` | — |
+| GET | /api/payables/purchase-requests | `payables:view` | — |
+| POST | /api/payables/purchase-requests | `payables:create-bill` | — |
+| POST | /api/payables/purchase-requests/:id/approve | `payables:approve-purchase-request` | id |
+| POST | /api/payables/purchase-requests/:id/match-bill | `payables:match-purchase-request` | id |
 | GET | /api/payables/claims/mine | `payables:claim` | — |
 | POST | /api/payables/claims | `payables:claim` | — |
 | POST | /api/payables/claims/:id/approve | `payables:approve-claim` | id |
@@ -786,9 +823,47 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/payables/claims/:id/reject | `payables:approve-claim` | id |
 | GET | /api/payables/claims/:id | `payables:claim` | id |
 | GET | /api/payables/claims/:claimId/attachments/:attachmentId | `payables:claim` | claimId |
-| GET | /api/payables/runs | `payables:execute-run` | — |
-| POST | /api/payables/runs | `payables:execute-run` | — |
+| GET | /api/payables/runs | `payables:view` | — |
+| GET | /api/payables/runs/candidates | `payables:view` | — |
+| POST | /api/payables/runs | `payables:create-bill` | — |
+| POST | /api/payables/runs/:id/approve | `payables:execute-run` | id |
 | POST | /api/payables/runs/:id/execute | `payables:execute-run` | id |
+| GET | /api/profitability/budgets | `projects:view-financials` | — |
+| GET | /api/profitability/cost-rates | `projects:view-financials` | — |
+| GET | /api/profitability/eligible-cost-sources | `projects:view-financials` | — |
+| GET | /api/profitability/eligible-revenue-sources | `projects:view-financials` | — |
+| GET | /api/profitability/cost-entries | `projects:view-financials` | — |
+| GET | /api/profitability/revenue-entries | `projects:view-financials` | — |
+| POST | /api/profitability/budgets | `projects:manage` | — |
+| POST | /api/profitability/budgets/:id/approve | `projects:manage` | — |
+| POST | /api/profitability/cost-rates | `projects:manage` | — |
+| POST | /api/profitability/time-costs | `projects:manage` | — |
+| POST | /api/profitability/direct-costs | `projects:manage` | — |
+| POST | /api/profitability/payroll-costs/import | `projects:manage` | — |
+| POST | /api/profitability/revenue | `projects:manage` | — |
+| GET | /api/profitability/allocation-runs | `projects:view-financials` | — |
+| POST | /api/profitability/allocations | `projects:manage` | — |
+| POST | /api/profitability/allocations/:id/approve | `projects:manage` | — |
+| GET | /api/profitability/margins | `projects:view-financials` | — |
+| POST | /api/profitability/margins/refresh | `projects:manage` | — |
+| GET | /api/profitability/metrics | `projects:view-financials` | — |
+| POST | /api/profitability/metrics/refresh | `projects:manage` | — |
+| GET | /api/profitability/leakage | `projects:view-financials` | — |
+| POST | /api/profitability/leakage/scan | `projects:manage` | — |
+| POST | /api/profitability/leakage/:id/decision | `projects:manage` | — |
+| GET | /api/profitability/advertising/accounts | `projects:view-financials` | — |
+| GET | /api/profitability/advertising/accounts/:id/spend | `projects:view-financials` | — |
+| POST | /api/profitability/advertising/accounts | `projects:manage` | — |
+| POST | /api/profitability/advertising/accounts/:id/credentials | `projects:manage` | — |
+| POST | /api/profitability/advertising/accounts/:id/sync | `projects:manage` | — |
+| POST | /api/profitability/advertising/accounts/:id/manual-spend | `projects:manage` | — |
+| GET | /api/cash-flow/command-centre | `accounting:view-statements` | — |
+| GET | /api/cash-flow/snapshots | `accounting:view-statements` | — |
+| GET | /api/cash-flow/snapshots/:id/forecast | `accounting:view-statements` | — |
+| POST | /api/cash-flow/forecast | `accounting:manage-periods` | — |
+| GET | /api/cash-flow/scenarios | `accounting:view-statements` | — |
+| GET | /api/cash-flow/scenarios/:id/forecast | `accounting:view-statements` | — |
+| POST | /api/cash-flow/scenarios | `accounting:manage-periods` | — |
 | GET | /api/accounting/ledger | `accounting:view-ledger` | — |
 | GET | /api/accounting/trial-balance | `accounting:view-ledger` | — |
 | GET | /api/accounting/general-ledger | `accounting:view-ledger` | — |
@@ -796,6 +871,19 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/accounting/reports/pnl | `accounting:view-statements` | — |
 | GET | /api/accounting/reports/balance-sheet | `accounting:view-statements` | — |
 | GET | /api/accounting/reports/cash-flow | `accounting:view-statements` | — |
+| GET | /api/accounting/completion/overview | `accounting:view-ledger` | — |
+| GET | /api/accounting/completion/entities | `accounting:view-ledger` | — |
+| POST | /api/accounting/completion/entities | `accounting:manage-accounts` | — |
+| GET | /api/accounting/completion/schedules | `accounting:view-ledger` | — |
+| GET | /api/accounting/completion/schedules/page | `accounting:view-ledger` | — |
+| POST | /api/accounting/completion/schedules | `accounting:manage-periods` | — |
+| POST | /api/accounting/completion/schedules/:id/recognize | `accounting:post-journal` | `id` |
+| POST | /api/accounting/completion/fx-revaluations | `accounting:post-journal` | — |
+| GET | /api/accounting/completion/fx-revaluations | `accounting:view-ledger` | — |
+| GET | /api/accounting/completion/sync-queue | `accounting:view-ledger` | — |
+| GET | /api/accounting/completion/sync-queue/page | `accounting:view-ledger` | — |
+| GET | /api/accounting/completion/sync-sources | `accounting:view-ledger` | — |
+| POST | /api/accounting/completion/sync-queue | `accounting:manage-periods` | — |
 | GET | /api/accounting/accounts/:id/drill-through | `accounting:view-ledger` | id |
 | GET | /api/accounting/general-ledger/export | `accounting:view-ledger` | — |
 | GET | /api/accounting/trial-balance/export | `accounting:view-ledger` | — |
@@ -807,7 +895,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | POST | /api/accounting/accounts | `accounting:manage-accounts` | — |
 | PATCH | /api/accounting/accounts/:id | `accounting:manage-accounts` | id |
 | GET | /api/accounting/periods | `accounting:view-ledger` | — |
-| POST | /api/accounting/periods | `accounting:close-period` | — |
+| POST | /api/accounting/periods | `accounting:manage-periods` | — |
 | POST | /api/accounting/periods/:id/checklist | `accounting:close-period` | id |
 | POST | /api/accounting/periods/:id/close | `accounting:close-period` | id |
 | POST | /api/accounting/periods/:id/reopen | `accounting:reopen-period` | id |
@@ -822,6 +910,64 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/accounting/tax/gstr2b/:id/reconciliation | `accounting:tax-export` | — |
 | GET | /api/accounting/tax/artifacts | `accounting:tax-export` | — |
 | GET | /api/accounting/tax/artifacts/:id/download | `accounting:tax-export` | — |
+| GET | /api/finance/foundation | `accounting:view-finance-settings` | — |
+| PATCH | /api/finance/foundation | `accounting:manage-finance-settings` | — |
+| GET | /api/finance/reconciliation-settings | `accounting:view-finance-settings` | — |
+| PUT | /api/finance/reconciliation-settings | `accounting:manage-finance-settings` | — |
+| GET | /api/finance/payment-gateways | `finance:manage-payment-gateways` | — |
+| POST | /api/finance/payment-gateways | `finance:manage-payment-gateways` | — |
+| DELETE | /api/finance/payment-gateways/:id | `finance:manage-payment-gateways` | — |
+| POST | /api/finance/payments/create-link | `finance:manage-payment-gateways` | — |
+| GET | /api/invoicing/drafts | `invoicing:view` | — |
+| GET | /api/invoicing/form-options | `invoicing:view` | — |
+| POST | /api/invoicing/drafts | `invoicing:create` | — |
+| GET | /api/invoicing/drafts/:id | `invoicing:view` | id |
+| GET | /api/invoicing/drafts/:id/preview | `invoicing:view` | id |
+| GET | /api/invoicing/drafts/:id/preview.pdf | `invoicing:view` | id |
+| POST | /api/invoicing/drafts/:id/review | `invoicing:view` | id |
+| POST | /api/invoicing/drafts/:id/confirm | `invoicing:issue` | id |
+| POST | /api/invoicing/batches/review | `invoicing:create` | — |
+| POST | /api/invoicing/batches/:id/confirm | `invoicing:issue` | id |
+| GET | /api/invoicing/invoices | `invoicing:view` | — |
+| GET | /api/invoicing/invoices/:id/pdf | `invoicing:view` | id |
+| GET | /api/payments/receipts | `payments:view` | — |
+| GET | /api/payments/receipts/:id/allocatable-invoices | `payments:allocate` | id |
+| POST | /api/payments/receipts | `payments:record` | — |
+| POST | /api/payments/receipts/:id/verify | `payments:record` | id |
+| POST | /api/payments/receipts/:id/allocate | `payments:allocate` | id |
+| GET | /api/payments/bank-lines | `payments:view` | — |
+| POST | /api/payments/bank-imports | `payments:record` | — |
+| POST | /api/payments/bank-lines/:id/match | `payments:reconcile` | id |
+| POST | /api/payments/settlements | `payments:record` | — |
+| GET | /api/payments/settlements | `payments:view` | — |
+| POST | /api/payments/settlement-imports | `payments:record` | — |
+| POST | /api/payments/fx-rates | `payments:record` | — |
+| GET | /api/payments/fx-rates | `payments:view` | — |
+| POST | /api/payments/fx-revaluations | `payments:record` | — |
+| GET | /api/payments/fx-revaluations | `payments:view` | — |
+| GET | /api/payments/exceptions | `payments:view` | — |
+| POST | /api/payments/exceptions/:id/resolve | `payments:reconcile` | id |
+| GET | /api/billing/profiles | `billing:view-terms` | — |
+| GET | /api/billing/form-options | `billing:view-terms` | — |
+| PUT | /api/billing/profiles | `billing:set-terms` | — |
+| POST | /api/billing/rate-cards/:id/versions | `billing:set-terms` | — |
+| GET | /api/billing/rate-cards/:id | `billing:view-terms` | id |
+| GET | /api/billing/contracts | `billing:view-terms` | — |
+| POST | /api/billing/contracts | `billing:set-terms` | — |
+| GET | /api/billing/contracts/:id | `billing:view-terms` | id |
+| GET | /api/billing/contracts/:id/amendments | `billing:view-terms` | id |
+| POST | /api/billing/contracts/:id/amend | `billing:set-terms` | id |
+| POST | /api/billing/contracts/:id/status | `billing:set-terms` | id |
+| GET | /api/billing/contracts/:id/usage | `billing:view-terms` | id |
+| POST | /api/billing/contracts/:id/usage | `billing:set-terms` | id |
+| GET | /api/billing/contracts/:id/documents | `billing:view-terms` | id |
+| POST | /api/billing/contracts/:id/documents | `billing:set-terms` | id |
+| GET | /api/billing/contracts/:id/documents/:documentId/download | `billing:view-terms` | id |
+| GET | /api/billing/schedules | `billing:view-terms` | — |
+| POST | /api/billing/schedules | `billing:set-terms` | — |
+| GET | /api/billing/billable-events | `billing:view-terms` | — |
+| POST | /api/billing/billable-events | `billing:set-terms` | — |
+| POST | /api/billing/billable-events/:id/decision | `billing:set-terms` | — |
 | GET | /api/social/providers | `social:view` | — |
 | GET | /api/social/clients | `social:view` | — |
 | GET | /api/social/clients/:clientId | `social:view` | clientId |
@@ -881,10 +1027,10 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | PATCH | /api/chat/conversations/:id | `chat:send` | id |
 | POST | /api/chat/conversations/:id/members | `chat:send` | id |
 | DELETE | /api/chat/conversations/:id/members/:userId | `chat:send` | id |
-| PUT | /api/chat/conversations/:id/members/:userId/role | `chat:manage-groups` | id |
 | POST | /api/chat/conversations/:id/archive | `chat:manage-groups` | id |
 | POST | /api/chat/conversations/:id/restore | `chat:manage-groups` | id |
 | DELETE | /api/chat/conversations/:id | `chat:manage-groups` | id |
+| PUT | /api/chat/conversations/:id/members/:userId/role | `chat:manage-groups` | id |
 | POST | /api/chat/conversations/:id/messages | `chat:send` | id |
 | POST | /api/chat/messages/:id/forward | `chat:send` | id |
 | POST | /api/chat/messages/:id/react | `chat:send` | id |

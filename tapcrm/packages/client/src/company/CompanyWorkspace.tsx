@@ -85,6 +85,14 @@ import { MyPenaltiesPage } from './penalties/MyPenaltiesPage.js';
 import { ExpenseApprovalsPage, MyExpensesPage } from './expenses/ExpensesPages.js';
 import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
 import { AccountingPage } from './finance/accounting/AccountingPage.js';
+import { FinanceFoundationPage } from './finance/foundation/FinanceFoundationPage.js';
+import { BillingTermsPage } from './finance/billing-terms/BillingTermsPage.js';
+import { InvoicingPage } from './finance/invoicing/InvoicingPage.js';
+import { PaymentOperationsPage } from './finance/payments/PaymentOperationsPage.js';
+import { ReceivablesPage } from './finance/receivables/ReceivablesPage.js';
+import { PayablesPage } from './finance/payables/PayablesPage.js';
+import { ProfitabilityPage } from './finance/profitability/ProfitabilityPage.js';
+import { CashFlowPage } from './finance/cash-flow/CashFlowPage.js';
 import { companySearchDestinations } from './layout/navigation.js';
 import { MeetingsPage } from '../meetings/MeetingsPage.js';
 
@@ -199,7 +207,18 @@ export function CompanyWorkspace({
   const canManageAccountingAccounts = saCan('accounting:manage-accounts');
   const canPostAccounting = saCan('accounting:post-journal');
   const canCloseAccounting = saCan('accounting:close-period');
+  const canManageAccountingPeriods = saCan('accounting:manage-periods');
+  const canViewAccountingStatements = saCan('accounting:view-statements');
   const canTaxAccounting = saCan('accounting:tax-export');
+  const canViewFinanceFoundation =
+    saCan('accounting:view-finance-settings') ||
+    saCan('accounting:manage-finance-settings');
+  const canViewBillingTerms = saCan('billing:view-terms');
+  const canViewInvoicing = saCan('invoicing:view');
+  const canViewReceivables = saCan('receivables:view');
+  const canViewPayables = saCan('payables:view');
+  const canViewProfitability = saCan('projects:view-financials');
+  const canViewCashFlow = canViewAccounting;
   const canViewChat = saCan('chat:view');
   const canViewClients = saCan('clients:view');
   const canViewSocial = saCan('social:view');
@@ -264,6 +283,14 @@ export function CompanyWorkspace({
 
   const pageTitles: Record<string, string> = {
     '/company/finance/accounting': 'Accounting',
+    '/company/finance/settings': 'Finance Settings',
+    '/company/finance/billing': 'Billing Terms & Contracts',
+    '/company/finance/invoicing': 'Invoicing',
+    '/company/finance/payments': 'Payments & Reconciliation',
+    '/company/finance/receivables': 'Receivables & Collections',
+    '/company/finance/payables': 'Payables',
+    '/company/finance/profitability': 'Profitability',
+    '/company/finance/cash-flow': 'Cash Flow Planning',
     '/company/todo': 'My Todo',
     '/company/my-todo': 'My Todo',
     '/company/messages': 'Messages',
@@ -335,6 +362,7 @@ export function CompanyWorkspace({
     '/company/my-interviews': 'My Interviews',
     '/company/recruitment/my-interviews': 'My Interviews',
   };
+  const companyOrganizationId = identity.organization?.id ?? '';
   const isEmployees = pathname === '/company/employees';
   const title = isOrganization
     ? 'Organization'
@@ -356,6 +384,30 @@ export function CompanyWorkspace({
                     : 'Dashboard'));
 
   function renderContent(): React.JSX.Element {
+    if (pathname === '/company/finance/settings' && canViewFinanceFoundation) {
+      return <FinanceFoundationPage organizationId={companyOrganizationId} />;
+    }
+    if (pathname === '/company/finance/billing' && canViewBillingTerms) {
+      return <BillingTermsPage />;
+    }
+    if (pathname === '/company/finance/invoicing' && canViewInvoicing) {
+      return <InvoicingPage />;
+    }
+    if (pathname === '/company/finance/payments' && canViewAccounting) {
+      return <PaymentOperationsPage />;
+    }
+    if (pathname === '/company/finance/receivables' && canViewReceivables) {
+      return <ReceivablesPage />;
+    }
+    if (pathname === '/company/finance/payables' && canViewPayables) {
+      return <PayablesPage />;
+    }
+    if (pathname === '/company/finance/profitability' && canViewProfitability) {
+      return <ProfitabilityPage canManage={isSuperAdmin || can('projects:manage')} />;
+    }
+    if (pathname === '/company/finance/cash-flow' && canViewCashFlow) {
+      return <CashFlowPage canManage={isSuperAdmin || can('accounting:manage-periods')} />;
+    }
     if (pathname === '/company/finance/accounting' && canViewAccounting) {
       const queryTab = new URLSearchParams(rawPathname.split('?')[1] ?? '').get('tab');
       return (
@@ -365,6 +417,8 @@ export function CompanyWorkspace({
           canManageAccounts={canManageAccountingAccounts}
           canPost={canPostAccounting}
           canClose={canCloseAccounting}
+          canManagePeriods={canManageAccountingPeriods}
+          canViewStatements={canViewAccountingStatements}
           canTax={canTaxAccounting}
         />
       );
@@ -915,6 +969,13 @@ export function CompanyWorkspace({
       canManagePayroll={saCan('payroll:manage')}
       canManagePayrollConfig={saCan('payroll:manage-config')}
       canViewAccounting={canViewAccounting}
+      canViewFinanceFoundation={canViewFinanceFoundation}
+      canViewBillingTerms={canViewBillingTerms}
+      canViewInvoicing={canViewInvoicing}
+      canViewReceivables={canViewReceivables}
+      canViewPayables={canViewPayables}
+      canViewProfitability={canViewProfitability}
+      canViewCashFlow={canViewCashFlow}
       canViewTa={saCan('ta:view') || can('ta:view-own')}
       canManageTa={saCan('ta:manage')}
       canManageBiometric={can('biometric:manage')}

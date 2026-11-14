@@ -161,6 +161,10 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Manage ledger accounts',
     description: 'Add and change the accounts in the chart of accounts.',
   },
+  'accounting:manage-periods': {
+    title: 'Manage accounting periods',
+    description: 'Create accounting periods for the organization.',
+  },
   'accounting:post-journal': {
     title: 'Post journal entries',
     description: 'Record manual entries in the ledger.',
@@ -173,6 +177,14 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Export tax data',
     description: 'Download the figures needed for tax filings.',
   },
+  'accounting:view-finance-settings': {
+    title: 'See finance settings',
+    description: 'See the legal entity, currency and fiscal settings for Finance.',
+  },
+  'accounting:manage-finance-settings': {
+    title: 'Manage finance settings',
+    description: 'Update foundational Finance configuration.',
+  },
   'accounting:view-ledger': {
     title: 'See the ledger',
     description: 'See journal entries and account balances.',
@@ -180,6 +192,10 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
   'accounting:view-statements': {
     title: 'See financial statements',
     description: 'See the profit and loss, balance sheet and similar statements.',
+  },
+  'finance:manage-payment-gateways': {
+    title: 'Manage payment gateways',
+    description: 'Connect and disconnect the company payment provider securely.',
   },
 
   // Clients (accounts)
@@ -623,6 +639,14 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Approve vendor bills',
     description: 'Approve bills from suppliers before they are paid.',
   },
+  'payables:approve-purchase-request': {
+    title: 'Approve purchase requests',
+    description: 'Approve purchase requests before they become committed spend.',
+  },
+  'payables:approve-vendor-bank-change': {
+    title: 'Approve vendor bank changes',
+    description: 'Approve changes to supplier payment-account details.',
+  },
   'payables:approve-claim': {
     title: 'Approve expense claims',
     description: "Approve or reject employees' expense claims.",
@@ -635,9 +659,17 @@ export const ACTION_COPY: Readonly<Record<Action, ActionCopy>> = {
     title: 'Enter vendor bills',
     description: 'Record bills received from suppliers.',
   },
+  'payables:create-vendor-bank-change': {
+    title: 'Propose vendor bank changes',
+    description: 'Submit updated supplier payment-account details for review.',
+  },
   'payables:execute-run': {
     title: 'Pay suppliers',
     description: 'Run a batch payment to suppliers.',
+  },
+  'payables:match-purchase-request': {
+    title: 'Match purchase requests',
+    description: 'Link approved purchase requests to their vendor bills.',
   },
   'payables:view': {
     title: 'See bills and payouts',

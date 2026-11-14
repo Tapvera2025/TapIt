@@ -3,7 +3,6 @@ import { registerSeoPolicies, registerSeoRoutes, registerSeoJobs } from './seo-i
 import { registerMeetingJobs, registerMeetingPolicies, registerMeetingRoutes } from './meetings/index.js';
 import { registerBreakPolicyResolver } from './attendance/facade.js';
 import { registerPaymentReadinessPort } from './sales/deals/payments-port.js';
-import { manualPaymentReadinessPort } from './sales/deals/manual-payment-port.js';
 import { breakPolicyResolverImpl } from './break-management/resolver-service.js';
 import { registerPayrollJobs, registerPayrollPorts } from './payroll/facade.js';
 import { registerBreakPolicies } from './break-management/policy.js';
@@ -89,14 +88,48 @@ import {
   registerChatRoutes,
 } from './chat/index.js';
 import { registerClientPolicies, registerClientRoutes } from './clients/index.js';
-import { registerProjectPolicies, registerProjectReportJobs, registerProjectRoutes } from './projects/index.js';
+import {
+  registerProjectPolicies,
+  registerProjectReportJobs,
+  registerProjectRoutes,
+} from './projects/index.js';
 import { registerClientPortalRoutes } from './client-portal/index.js';
 import { registerMyTodoRoutes } from './myTodo/routes.js';
 import { registerAdvancePayrollPorts, registerAdvancePolicies, registerAdvanceRoutes } from './advance/index.js';
 import { registerPenaltyPayrollPorts, registerPenaltyPolicies, registerPenaltyRoutes } from './penalties/index.js';
 import { registerExpensePolicies, registerExpenseRoutes } from './expenses/index.js';
 import { registerTaRoutes } from './ta/routes.js';
-import { registerAccountingJobs, registerAccountingPolicies, registerAccountingRoutes } from './finance/accounting/index.js';
+import {
+  registerAccountingJobs,
+  registerAccountingPolicies,
+  registerAccountingRoutes,
+} from './finance/accounting/index.js';
+import { registerFinanceFoundationRoutes } from './finance/foundation/index.js';
+import {
+  registerBillingTermsJobs,
+  registerBillingTermsPolicies,
+  registerBillingTermsRoutes,
+} from './finance/billing-terms/index.js';
+import {
+  registerPaymentPolicies,
+  registerPaymentRoutes,
+  hyperswitchPaymentReadinessPort,
+} from './finance/payments/index.js';
+import {
+  registerInvoicingPolicies,
+  registerInvoicingRoutes,
+} from './finance/invoicing/index.js';
+import { registerReceivablesRoutes } from './finance/receivables/index.js';
+import { registerReceivablesJobs } from './finance/receivables/index.js';
+import { registerPayablesRoutes } from './finance/payables/index.js';
+import { registerPayablesJobs } from './finance/payables/index.js';
+import { registerPayablesPolicies } from './finance/payables/index.js';
+import { registerProfitabilityRoutes } from './finance/profitability/index.js';
+import { registerProfitabilityJobs } from './finance/profitability/index.js';
+import { registerCashFlowRoutes } from './finance/cash-flow/index.js';
+import { registerCashFlowJobs } from './finance/cash-flow/index.js';
+import { registerAccountingCompletionRoutes } from './finance/accounting/completion/index.js';
+import { registerAccountingCompletionJobs } from './finance/accounting/completion/index.js';
 
 /**
  * Port initialization — MUST run before policies, routes and jobs. The
@@ -105,11 +138,9 @@ import { registerAccountingJobs, registerAccountingPolicies, registerAccountingR
  */
 export function initializePorts(): void {
   registerBreakPolicyResolver(breakPolicyResolverImpl);
-  // Pilot-grade manual payment-confirmation port. Replace when a real
-  // gateway (Stripe/Razorpay) ships — the registration throws on second
-  // call so a gateway port must be wired at the same boot step, not in
-  // addition.
-  registerPaymentReadinessPort(manualPaymentReadinessPort);
+  // Unified gateway-backed readiness port. It deliberately falls back to the
+  // existing manual confirmation semantics for tenants with no active gateway.
+  registerPaymentReadinessPort(hyperswitchPaymentReadinessPort);
   registerPayrollPorts();
   registerAdvancePayrollPorts();
   registerPenaltyPayrollPorts();
@@ -150,6 +181,10 @@ export function registerAllPolicies(): void {
   registerSocialPolicies();
   registerProjectPolicies();
   registerAccountingPolicies();
+  registerBillingTermsPolicies();
+  registerInvoicingPolicies();
+  registerPaymentPolicies();
+  registerPayablesPolicies();
   registerSeoPolicies();
   registerMeetingPolicies();
 }
@@ -203,6 +238,15 @@ export function registerAllRoutes(): void {
   registerOnboardingRoutes();
   registerVerificationRoutes();
   registerAccountingRoutes();
+  registerAccountingCompletionRoutes();
+  registerFinanceFoundationRoutes();
+  registerBillingTermsRoutes();
+  registerPaymentRoutes();
+  registerInvoicingRoutes();
+  registerReceivablesRoutes();
+  registerPayablesRoutes();
+  registerProfitabilityRoutes();
+  registerCashFlowRoutes();
   registerSeoRoutes();
   registerMeetingRoutes();
 }
@@ -230,6 +274,12 @@ export function registerAllJobs(): void {
   registerProjectReportJobs();
   registerSocialJobs();
   registerAccountingJobs();
+  registerAccountingCompletionJobs();
+  registerBillingTermsJobs();
+  registerReceivablesJobs();
+  registerPayablesJobs();
+  registerProfitabilityJobs();
+  registerCashFlowJobs();
   registerSeoJobs();
   registerMeetingJobs();
   registerChatJobs();

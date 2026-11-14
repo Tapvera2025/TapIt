@@ -39,11 +39,12 @@ export interface CreateClientInput {
   region: ClientRegion;
 }
 
-export function getClients(query: { search?: string; status?: 'active' | 'inactive' | 'all'; page?: number } = {}): Promise<PaginatedClients> {
+export function getClients(query: { search?: string; status?: 'active' | 'inactive' | 'all'; page?: number; pageSize?: number } = {}): Promise<PaginatedClients> {
   const params = new URLSearchParams();
   if (query.search?.trim()) params.set('search', query.search.trim());
   if (query.status) params.set('status', query.status);
   if (query.page) params.set('page', String(query.page));
+  if (query.pageSize) params.set('pageSize', String(query.pageSize));
   const suffix = params.toString();
   return identityRequest(`/api/clients${suffix ? `?${suffix}` : ''}`);
 }

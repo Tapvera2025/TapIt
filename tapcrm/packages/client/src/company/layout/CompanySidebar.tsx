@@ -62,6 +62,13 @@ export function CompanySidebar({
   canManagePayroll = false,
   canManagePayrollConfig = false,
   canViewAccounting = false,
+  canViewFinanceFoundation = false,
+  canViewBillingTerms = false,
+  canViewInvoicing = false,
+  canViewReceivables = false,
+  canViewPayables = false,
+  canViewProfitability = false,
+  canViewCashFlow = false,
   canViewTa = false,
   canManageTa = false,
   canManageBiometric = false,
@@ -135,6 +142,13 @@ export function CompanySidebar({
   canManagePayroll?: boolean;
   canManagePayrollConfig?: boolean;
   canViewAccounting?: boolean;
+  canViewFinanceFoundation?: boolean;
+  canViewBillingTerms?: boolean;
+  canViewInvoicing?: boolean;
+  canViewReceivables?: boolean;
+  canViewPayables?: boolean;
+  canViewProfitability?: boolean;
+  canViewCashFlow?: boolean;
   canViewTa?: boolean;
   canManageTa?: boolean;
   canManageBiometric?: boolean;
@@ -243,28 +257,46 @@ export function CompanySidebar({
   const syncActiveSidebarPill = () => {
     // Wait until route state commits, then position the shared pill from the
     // active item itself so it cannot remain at its previous route position.
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      const navigation = navigationRef.current;
-      const indicator = activeNavIndicatorRef.current;
-      const activeItem = navigation?.querySelector<HTMLButtonElement>(
-        '[data-company-nav-item][aria-current="page"]',
-      );
-      if (!navigation || !indicator || !activeItem) return;
-      const navRect = navigation.getBoundingClientRect();
-      const itemRect = activeItem.getBoundingClientRect();
-      indicator.style.setProperty('--sidebar-pill-top', `${itemRect.top - navRect.top + navigation.scrollTop}px`);
-      indicator.style.setProperty('--sidebar-pill-left', `${itemRect.left - navRect.left + navigation.scrollLeft}px`);
-      indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
-      indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
-      indicator.style.opacity = '1';
-      setIsActiveNavMoving(true);
-      if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
-      activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
-    }));
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => {
+        const navigation = navigationRef.current;
+        const indicator = activeNavIndicatorRef.current;
+        const activeItem = navigation?.querySelector<HTMLButtonElement>(
+          '[data-company-nav-item][aria-current="page"]',
+        );
+        if (!navigation || !indicator || !activeItem) return;
+        const navRect = navigation.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        indicator.style.setProperty(
+          '--sidebar-pill-top',
+          `${itemRect.top - navRect.top + navigation.scrollTop}px`,
+        );
+        indicator.style.setProperty(
+          '--sidebar-pill-left',
+          `${itemRect.left - navRect.left + navigation.scrollLeft}px`,
+        );
+        indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
+        indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
+        indicator.style.opacity = '1';
+        setIsActiveNavMoving(true);
+        if (activeNavMoveTimerRef.current !== undefined)
+          window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(
+          () => setIsActiveNavMoving(false),
+          480,
+        );
+      }),
+    );
   };
 
   const startSidebarPillDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!event.currentTarget.matches('[aria-current="page"]') || !window.matchMedia('(min-width: 1280px)').matches || event.button !== 0 || event.pointerType === 'touch') return;
+    if (
+      !event.currentTarget.matches('[aria-current="page"]') ||
+      !window.matchMedia('(min-width: 1280px)').matches ||
+      event.button !== 0 ||
+      event.pointerType === 'touch'
+    )
+      return;
     const indicatorRect = activeNavIndicatorRef.current?.getBoundingClientRect();
     if (!indicatorRect) return;
     sidebarPillDragRef.current = {
@@ -399,7 +431,9 @@ export function CompanySidebar({
       setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
     }
     if (pathname.startsWith('/company/organization')) {
-      setOpenSections((prev) => (prev['Organization'] ? prev : { ...prev, Organization: true }));
+      setOpenSections((prev) =>
+        prev['Organization'] ? prev : { ...prev, Organization: true },
+      );
     }
     prevPathnameRef.current = pathname;
   }, [pathname]);
@@ -433,7 +467,10 @@ export function CompanySidebar({
 
       const previousTop = previousActiveTopRef.current;
       if (previousTop !== null && Math.abs(previousTop - top) > 1) {
-        indicator.style.setProperty('--sidebar-pill-origin', top > previousTop ? 'top center' : 'bottom center');
+        indicator.style.setProperty(
+          '--sidebar-pill-origin',
+          top > previousTop ? 'top center' : 'bottom center',
+        );
         setIsActiveNavMoving(true);
         if (activeNavMoveTimerRef.current !== undefined)
           window.clearTimeout(activeNavMoveTimerRef.current);
@@ -952,10 +989,134 @@ export function CompanySidebar({
                 path: '/company/finance/accounting',
                 icon: 'wallet',
               },
+              ...(canViewFinanceFoundation
+                ? [
+                    {
+                      label: 'Finance Settings',
+                      path: '/company/finance/settings',
+                      icon: 'settings',
+                    },
+                  ]
+                : []),
+              ...(canViewBillingTerms
+                ? [
+                    {
+                      label: 'Billing Terms',
+                      path: '/company/finance/billing',
+                      icon: 'file-text',
+                    },
+                  ]
+                : []),
+              ...(canViewInvoicing
+                ? [
+                    {
+                      label: 'Invoicing',
+                      path: '/company/finance/invoicing',
+                      icon: 'file-text',
+                    },
+                  ]
+                : []),
+              ...(canViewReceivables
+                ? [
+                    {
+                      label: 'Receivables',
+                      path: '/company/finance/receivables',
+                      icon: 'wallet',
+                    },
+                  ]
+                : []),
+              ...(canViewPayables
+                ? [
+                    {
+                      label: 'Payables',
+                      path: '/company/finance/payables',
+                      icon: 'wallet',
+                    },
+                  ]
+                : []),
+              ...(canViewProfitability
+                ? [{ label: 'Profitability', path: '/company/finance/profitability', icon: 'chart' }]
+                : []),
+              ...(canViewCashFlow
+                ? [{ label: 'Cash Flow', path: '/company/finance/cash-flow', icon: 'trending-up' }]
+                : []),
+              ...(canViewAccounting
+                ? [
+                    {
+                      label: 'Payments',
+                      path: '/company/finance/payments',
+                      icon: 'wallet',
+                    },
+                  ]
+                : []),
             ],
           },
         ]
-      : []),
+      : canViewFinanceFoundation ||
+          canViewBillingTerms ||
+          canViewInvoicing ||
+          canViewReceivables ||
+          canViewPayables ||
+          canViewProfitability
+        ? [
+            {
+              label: 'Finance',
+              items: [
+                ...(canViewFinanceFoundation
+                  ? [
+                      {
+                        label: 'Finance Settings',
+                        path: '/company/finance/settings',
+                        icon: 'settings',
+                      },
+                    ]
+                  : []),
+                ...(canViewBillingTerms
+                  ? [
+                      {
+                        label: 'Billing Terms',
+                        path: '/company/finance/billing',
+                        icon: 'file-text',
+                      },
+                    ]
+                  : []),
+                ...(canViewInvoicing
+                  ? [
+                      {
+                        label: 'Invoicing',
+                        path: '/company/finance/invoicing',
+                        icon: 'file-text',
+                      },
+                    ]
+                  : []),
+                ...(canViewReceivables
+                  ? [
+                      {
+                        label: 'Receivables',
+                        path: '/company/finance/receivables',
+                        icon: 'wallet',
+                      },
+                    ]
+                  : []),
+                ...(canViewProfitability
+                  ? [{ label: 'Profitability', path: '/company/finance/profitability', icon: 'chart' }]
+                  : []),
+                ...(canViewCashFlow
+                  ? [{ label: 'Cash Flow', path: '/company/finance/cash-flow', icon: 'trending-up' }]
+                  : []),
+                ...(canViewPayables
+                  ? [
+                      {
+                        label: 'Payables',
+                        path: '/company/finance/payables',
+                        icon: 'wallet',
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          ]
+        : []),
     {
       label: 'Identity & Access',
       items: [
@@ -1035,8 +1196,12 @@ export function CompanySidebar({
           <span aria-hidden="true" />
         </button>
       )}
-      <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
-        <p className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
+      <div
+        className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}
+      >
+        <p
+          className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}
+        >
           {variant === 'client' ? 'Client Workspace' : 'Company Workspace'}
         </p>
         {onToggleCollapsed && (
@@ -1118,8 +1283,15 @@ export function CompanySidebar({
                   name={GROUP_ICONS[group.label] ?? 'grid'}
                   className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
                 />
-                <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>{group.label}</span>
-                <span aria-hidden="true" className={`shrink-0 ${collapsed ? 'xl:hidden' : ''}`}>
+                <span
+                  className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}
+                >
+                  {group.label}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={`shrink-0 ${collapsed ? 'xl:hidden' : ''}`}
+                >
                   {isOpen ? '−' : '+'}
                 </span>
               </button>
@@ -1182,18 +1354,29 @@ export function CompanySidebar({
                             >
                               <Icon name={item.icon} />
                             </span>
-                            <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>
+                            <span
+                              className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}
+                            >
                               {item.label}
                             </span>
                           </span>
-                          {item.label === 'Messages' && (variant === 'client' ? clientMessagesUnread : unreadMessages) > 0 && (
-                            <span
-                              className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
-                              aria-label={`${variant === 'client' ? clientMessagesUnread : unreadMessages} unread messages`}
-                            >
-                              {(variant === 'client' ? clientMessagesUnread : unreadMessages) > 99 ? '99+' : (variant === 'client' ? clientMessagesUnread : unreadMessages)}
-                            </span>
-                          )}
+                          {item.label === 'Messages' &&
+                            (variant === 'client'
+                              ? clientMessagesUnread
+                              : unreadMessages) > 0 && (
+                              <span
+                                className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
+                                aria-label={`${variant === 'client' ? clientMessagesUnread : unreadMessages} unread messages`}
+                              >
+                                {(variant === 'client'
+                                  ? clientMessagesUnread
+                                  : unreadMessages) > 99
+                                  ? '99+'
+                                  : variant === 'client'
+                                    ? clientMessagesUnread
+                                    : unreadMessages}
+                              </span>
+                            )}
                           {item.children && (
                             <span
                               aria-hidden="true"

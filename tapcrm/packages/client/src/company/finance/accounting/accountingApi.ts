@@ -216,6 +216,14 @@ export function getCashFlow(values: {
   closingCash: string;
   from: string;
   to: string;
+  comparative?: {
+    sections: Record<string, string>;
+    openingCash: string;
+    netChange: string;
+    closingCash: string;
+    from: string;
+    to: string;
+  } | null;
 }> {
   return request(`/api/accounting/reports/cash-flow${query(values)}`);
 }

@@ -91,6 +91,36 @@
       "description": ""
     },
     {
+      "action": "accounting:manage-finance-settings",
+      "module": "accounting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": false,
+        "delegationAllowed": false,
+        "superAdminOnly": true
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:manage-periods",
+      "module": "accounting",
+      "resource": "accountingPeriod",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "accounting:post-journal",
       "module": "accounting",
       "resource": "journalEntry",
@@ -122,6 +152,21 @@
     },
     {
       "action": "accounting:tax-export",
+      "module": "accounting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "accounting:view-finance-settings",
       "module": "accounting",
       "resource": null,
       "domain": "business",
@@ -1021,6 +1066,21 @@
       "description": ""
     },
     {
+      "action": "finance:manage-payment-gateways",
+      "module": "accounting",
+      "resource": null,
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "handoff:confirm",
       "module": "handoff",
       "resource": "projectBrief",
@@ -1801,6 +1861,36 @@
       "description": ""
     },
     {
+      "action": "payables:approve-purchase-request",
+      "module": "payables",
+      "resource": "purchaseRequest",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "createdBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:approve-vendor-bank-change",
+      "module": "payables",
+      "resource": "vendorBankChange",
+      "domain": "business",
+      "sensitive": true,
+      "approvalBearing": true,
+      "initiatorField": "proposedBy",
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "payables:claim",
       "module": "payables",
       "resource": "expenseClaim",
@@ -1831,6 +1921,21 @@
       "description": ""
     },
     {
+      "action": "payables:create-vendor-bank-change",
+      "module": "payables",
+      "resource": "vendor",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
       "action": "payables:execute-run",
       "module": "payables",
       "resource": "paymentRun",
@@ -1841,6 +1946,21 @@
       "grantPolicy": {
         "positionGrantable": true,
         "delegationAllowed": false,
+        "superAdminOnly": false
+      },
+      "description": ""
+    },
+    {
+      "action": "payables:match-purchase-request",
+      "module": "payables",
+      "resource": "purchaseRequest",
+      "domain": "business",
+      "sensitive": false,
+      "approvalBearing": false,
+      "initiatorField": null,
+      "grantPolicy": {
+        "positionGrantable": true,
+        "delegationAllowed": true,
         "superAdminOnly": false
       },
       "description": ""
@@ -6388,13 +6508,55 @@
     },
     {
       "method": "GET",
+      "path": "/api/receivables/aging/buckets",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/receivables/statement/:clientId",
       "action": "receivables:view",
       "resourceParam": "clientId"
     },
     {
       "method": "GET",
+      "path": "/api/receivables/statements",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
       "path": "/api/receivables/collections",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/disputes",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/promises",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/tasks",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/reminders",
+      "action": "receivables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/receivables/write-offs",
       "action": "receivables:view",
       "resourceParam": null
     },
@@ -6411,6 +6573,42 @@
       "resourceParam": "invoiceId"
     },
     {
+      "method": "POST",
+      "path": "/api/receivables/:invoiceId/disputes",
+      "action": "receivables:dun",
+      "resourceParam": "invoiceId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/receivables/disputes/:id/resolve",
+      "action": "receivables:dun",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/receivables/:invoiceId/promises",
+      "action": "receivables:dun",
+      "resourceParam": "invoiceId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/receivables/promises/:id/resolve",
+      "action": "receivables:dun",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/receivables/tasks",
+      "action": "receivables:dun",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/receivables/tasks/:id/status",
+      "action": "receivables:dun",
+      "resourceParam": "id"
+    },
+    {
       "method": "PUT",
       "path": "/api/receivables/dunning-schedule",
       "action": "receivables:dun",
@@ -6418,9 +6616,15 @@
     },
     {
       "method": "POST",
-      "path": "/api/receivables/:invoiceId/write-",
+      "path": "/api/receivables/:invoiceId/write-off",
       "action": "receivables:write-off",
       "resourceParam": "invoiceId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/receivables/write-offs/:id/approve",
+      "action": "receivables:write-off",
+      "resourceParam": "id"
     },
     {
       "method": "GET",
@@ -6450,6 +6654,96 @@
       "method": "POST",
       "path": "/api/payables/bills/:id/approve",
       "action": "payables:approve-bill",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/bills/:id/confirm-extraction",
+      "action": "payables:create-bill",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/vendors",
+      "action": "payables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/vendors",
+      "action": "payables:create-bill",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/vendors/:id/bank-changes",
+      "action": "payables:create-vendor-bank-change",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/vendor-bank-changes",
+      "action": "payables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/vendor-bank-changes/:id/approve",
+      "action": "payables:approve-vendor-bank-change",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/bills/from-expense",
+      "action": "payables:create-bill",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/bills/:id/artifact",
+      "action": "payables:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/reimbursement-claims",
+      "action": "payables:create-bill",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/subscriptions",
+      "action": "payables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/subscriptions",
+      "action": "payables:create-bill",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/purchase-requests",
+      "action": "payables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/purchase-requests",
+      "action": "payables:create-bill",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/purchase-requests/:id/approve",
+      "action": "payables:approve-purchase-request",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/purchase-requests/:id/match-bill",
+      "action": "payables:match-purchase-request",
       "resourceParam": "id"
     },
     {
@@ -6509,20 +6803,248 @@
     {
       "method": "GET",
       "path": "/api/payables/runs",
-      "action": "payables:execute-run",
+      "action": "payables:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payables/runs/candidates",
+      "action": "payables:view",
       "resourceParam": null
     },
     {
       "method": "POST",
       "path": "/api/payables/runs",
-      "action": "payables:execute-run",
+      "action": "payables:create-bill",
       "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payables/runs/:id/approve",
+      "action": "payables:execute-run",
+      "resourceParam": "id"
     },
     {
       "method": "POST",
       "path": "/api/payables/runs/:id/execute",
       "action": "payables:execute-run",
       "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/budgets",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/cost-rates",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/eligible-cost-sources",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/eligible-revenue-sources",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/cost-entries",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/revenue-entries",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/budgets",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/budgets/:id/approve",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/cost-rates",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/time-costs",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/direct-costs",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/payroll-costs/import",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/revenue",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/allocation-runs",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/allocations",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/allocations/:id/approve",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/margins",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/margins/refresh",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/metrics",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/metrics/refresh",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/leakage",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/leakage/scan",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/leakage/:id/decision",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/advertising/accounts",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/profitability/advertising/accounts/:id/spend",
+      "action": "projects:view-financials",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/advertising/accounts",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/advertising/accounts/:id/credentials",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/advertising/accounts/:id/sync",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/profitability/advertising/accounts/:id/manual-spend",
+      "action": "projects:manage",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/cash-flow/command-centre",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/cash-flow/snapshots",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/cash-flow/snapshots/:id/forecast",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/cash-flow/forecast",
+      "action": "accounting:manage-periods",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/cash-flow/scenarios",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/cash-flow/scenarios/:id/forecast",
+      "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/cash-flow/scenarios",
+      "action": "accounting:manage-periods",
+      "resourceParam": null
     },
     {
       "method": "GET",
@@ -6564,6 +7086,84 @@
       "method": "GET",
       "path": "/api/accounting/reports/cash-flow",
       "action": "accounting:view-statements",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/overview",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/entities",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/completion/entities",
+      "action": "accounting:manage-accounts",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/schedules",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/schedules/page",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/completion/schedules",
+      "action": "accounting:manage-periods",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/completion/schedules/:id/recognize",
+      "action": "accounting:post-journal",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/completion/fx-revaluations",
+      "action": "accounting:post-journal",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/fx-revaluations",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/sync-queue",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/sync-queue/page",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/accounting/completion/sync-sources",
+      "action": "accounting:view-ledger",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/accounting/completion/sync-queue",
+      "action": "accounting:manage-periods",
       "resourceParam": null
     },
     {
@@ -6635,7 +7235,7 @@
     {
       "method": "POST",
       "path": "/api/accounting/periods",
-      "action": "accounting:close-period",
+      "action": "accounting:manage-periods",
       "resourceParam": null
     },
     {
@@ -6720,6 +7320,354 @@
       "method": "GET",
       "path": "/api/accounting/tax/artifacts/:id/download",
       "action": "accounting:tax-export",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/finance/foundation",
+      "action": "accounting:view-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/finance/foundation",
+      "action": "accounting:manage-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/finance/reconciliation-settings",
+      "action": "accounting:view-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/finance/reconciliation-settings",
+      "action": "accounting:manage-finance-settings",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/finance/payment-gateways",
+      "action": "finance:manage-payment-gateways",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/finance/payment-gateways",
+      "action": "finance:manage-payment-gateways",
+      "resourceParam": null
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/finance/payment-gateways/:id",
+      "action": "finance:manage-payment-gateways",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/finance/payments/create-link",
+      "action": "finance:manage-payment-gateways",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoicing/drafts",
+      "action": "invoicing:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoicing/form-options",
+      "action": "invoicing:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoicing/drafts",
+      "action": "invoicing:create",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoicing/drafts/:id",
+      "action": "invoicing:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoicing/drafts/:id/preview",
+      "action": "invoicing:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoicing/drafts/:id/preview.pdf",
+      "action": "invoicing:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoicing/drafts/:id/review",
+      "action": "invoicing:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoicing/drafts/:id/confirm",
+      "action": "invoicing:issue",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoicing/batches/review",
+      "action": "invoicing:create",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoicing/batches/:id/confirm",
+      "action": "invoicing:issue",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoicing/invoices",
+      "action": "invoicing:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoicing/invoices/:id/pdf",
+      "action": "invoicing:view",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/receipts",
+      "action": "payments:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/receipts/:id/allocatable-invoices",
+      "action": "payments:allocate",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/receipts",
+      "action": "payments:record",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/receipts/:id/verify",
+      "action": "payments:record",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/receipts/:id/allocate",
+      "action": "payments:allocate",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/bank-lines",
+      "action": "payments:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/bank-imports",
+      "action": "payments:record",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/bank-lines/:id/match",
+      "action": "payments:reconcile",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/settlements",
+      "action": "payments:record",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/settlements",
+      "action": "payments:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/settlement-imports",
+      "action": "payments:record",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/fx-rates",
+      "action": "payments:record",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/fx-rates",
+      "action": "payments:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/fx-revaluations",
+      "action": "payments:record",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/fx-revaluations",
+      "action": "payments:view",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/payments/exceptions",
+      "action": "payments:view",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/payments/exceptions/:id/resolve",
+      "action": "payments:reconcile",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/profiles",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/form-options",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/billing/profiles",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/rate-cards/:id/versions",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/rate-cards/:id",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id/amendments",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts/:id/amend",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts/:id/status",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id/usage",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts/:id/usage",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id/documents",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/contracts/:id/documents",
+      "action": "billing:set-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/contracts/:id/documents/:documentId/download",
+      "action": "billing:view-terms",
+      "resourceParam": "id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/schedules",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/schedules",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/billing/billable-events",
+      "action": "billing:view-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/billable-events",
+      "action": "billing:set-terms",
+      "resourceParam": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/billing/billable-events/:id/decision",
+      "action": "billing:set-terms",
       "resourceParam": null
     },
     {
@@ -7097,6 +8045,12 @@
     {
       "method": "DELETE",
       "path": "/api/chat/conversations/:id",
+      "action": "chat:manage-groups",
+      "resourceParam": "id"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/chat/conversations/:id/members/:userId/role",
       "action": "chat:manage-groups",
       "resourceParam": "id"
     },

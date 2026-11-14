@@ -26,6 +26,7 @@ export * from './platform-modules.js';
 export * from './people.js';
 export * from './accounting.js';
 export * from './accounting-ledger.js';
+export * from './payment.js';
 export * from './presence.js';
 export * from './biometric.js';
 export * from './leave.js';

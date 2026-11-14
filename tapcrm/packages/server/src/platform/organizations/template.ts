@@ -39,7 +39,7 @@ const DEVELOPMENT_MODULES = [
   'resource-planning',
   'delivery',
 ] as const;
-const FINANCE_MODULES = [
+export const FINANCE_MODULES = [
   'billing-terms',
   'invoicing',
   'payments',
