@@ -224,7 +224,7 @@ export function GlobalFeatureSearch({
   return (
     <div
       ref={containerRef}
-      className={`relative min-w-0 flex-none md:flex-none ${className}`}
+      className={`relative min-w-0 flex-none md:flex-none ${className} ${expanded ? 'is-expanded' : ''}`}
     >
       <button
         type="button"

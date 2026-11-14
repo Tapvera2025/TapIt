@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import { listJoinings } from '../api/recruitmentApi.js';
 import { JoiningStatusModal } from '../components/JoiningStatusModal.js';
 import { SendJoiningEmailModal } from '../components/SendJoiningEmailModal.js';
 import { JoiningStatusBadge } from '../components/StatusBadge.js';
+import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type { CandidateJoining, JoiningFilter, JoiningStatus } from '../types/index.js';
 
 export function JoiningPage({
@@ -21,6 +22,15 @@ export function JoiningPage({
   // Modals
   const [selectedJoining, setSelectedJoining] = useState<CandidateJoining | null>(null);
   const [emailJoining, setEmailJoining] = useState<CandidateJoining | null>(null);
+
+  const heroActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button type="button" onClick={onNavigateToEmployees} className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent">
+        View Employee Directory →
+      </button>
+    </div>
+  ), [onNavigateToEmployees]);
+  useRecruitmentHeroActions(heroActions);
 
   async function load() {
     setLoading(true);
@@ -51,7 +61,7 @@ export function JoiningPage({
         <button
           type="button"
           onClick={onNavigateToEmployees}
-          className="w-full rounded-xl border border-app-border bg-app-surface px-5 py-2.5 text-center text-sm font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent sm:w-auto"
+          className="w-full rounded-xl border border-app-border bg-app-surface px-5 py-2.5 text-center text-sm font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent sm:w-auto xl:hidden"
         >
           View Employee Directory →
         </button>

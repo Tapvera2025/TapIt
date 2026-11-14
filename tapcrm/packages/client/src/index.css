@@ -307,7 +307,18 @@
 /* Keep the light workspace canvas neutral; appearance themes should tint
    accents and components, not the page background itself. */
 :root:not(.dark) {
-  --app-background: #f6f7f8;
+  /* Keep the light workspace neutral, like Zoho CRM. The selected
+     appearance still controls accent text, icons, borders, and buttons, but
+     it no longer recolours the page and card surfaces. */
+  --app-background: #f5f6f7;
+  --app-surface: #ffffff;
+  --app-surface-raised: #f3f4f6;
+  --app-card-gradient: linear-gradient(180deg, #ffffff, #f8f9fa);
+  --theme-primary-soft: #f1f3f5;
+  --theme-primary-border: #d8dee8;
+  --sidebar-background: #ffffff;
+  --sidebar-active-bg: #eef0f3;
+  --sidebar-hover-bg: rgba(15, 23, 42, 0.045);
 }
 
 @theme inline {
@@ -1110,8 +1121,8 @@
 
   .global-navbar .crm-brand {
     display: block;
-    width: 8.5rem;
-    height: 2.25rem;
+    width: 10.5rem;
+    height: 2.75rem;
     overflow: visible;
     transform: none !important;
     transition: none !important;
@@ -1126,12 +1137,14 @@
   }
   @media (max-width: 640px) {
     .global-navbar .crm-brand {
-      width: 7.25rem;
+      width: 7.75rem;
+      height: 2.4rem;
     }
   }
   @media (max-width: 420px) {
     .global-navbar .crm-brand {
-      width: 6.25rem;
+      width: 6.75rem;
+      height: 2.25rem;
     }
   }
   .global-navbar .navbar-action-button,
@@ -1366,8 +1379,11 @@
     .workspace-sidebar {
       position: static !important;
       inset: auto !important;
-      height: calc(100dvh - 9rem) !important;
-      margin: var(--company-sidebar-top-gap) 0 1.25rem 1.25rem !important;
+      /* Keep the floating rail visually centred in the desktop shell while
+         using the otherwise unused lower viewport space. */
+      align-self: flex-start;
+      height: calc(100dvh - 4.25rem) !important;
+      margin: 3rem 0 1.25rem 1.25rem !important;
       border-radius: 1.25rem;
       transform: none !important;
     }
@@ -1636,6 +1652,61 @@ nav button[aria-current='page']::before {
 
 .workspace-sidebar nav button[aria-current='page']::before {
   display: none;
+}
+
+/* Light mode uses a neutral CRM canvas. Appearance colors remain available
+   for text, icons, controls, and primary actions, but never wash entire page
+   surfaces with an accent tint. Keep this override light-only so dark mode's
+   glass treatment is unchanged. */
+:root:not(.dark) {
+  --app-background: #f5f6f7;
+  --app-surface: #ffffff;
+  --app-surface-raised: #f8f9fa;
+  --app-card-gradient: linear-gradient(180deg, #ffffff, #f8f9fa);
+  --sidebar-background: #ffffff;
+  --sidebar-active-bg: #f1f3f5;
+  --sidebar-hover-bg: rgba(15, 23, 42, 0.045);
+}
+
+:root:not(.dark) :is(
+    .ui-card,
+    .ui-glass-surface,
+    .ui-panel-surface,
+    .ui-page-header,
+    .company-header,
+    .page-heading,
+    .page-toolbar,
+    .recruitment-page-header,
+    .dashboard-glass,
+    .dashboard-glass-surface,
+    .chart-glass,
+    .chart-glass-ring,
+    .metric-card
+  ) {
+  border-color: var(--app-border) !important;
+  background-color: var(--app-surface) !important;
+  background-image: none !important;
+  box-shadow: var(--app-shadow);
+}
+
+:root:not(.dark) .ui-theme-root :is(div, section, article)[class~='border-app-border'][class~='bg-app-surface'][class~='rounded-xl'],
+:root:not(.dark) .ui-theme-root :is(div, section, article)[class~='border-app-border'][class~='bg-app-surface'][class~='rounded-2xl'],
+:root:not(.dark) :is(section, article, form, div, button).bg-app-surface:is(.rounded-2xl, .rounded-xl) {
+  border-color: var(--app-border) !important;
+  background-color: var(--app-surface) !important;
+  background-image: none !important;
+}
+
+:root:not(.dark) .workspace-sidebar,
+:root:not(.dark) .workspace-sidebar .company-sidebar-active-indicator,
+:root:not(.dark) .workspace-sidebar nav button[aria-current='page'] {
+  background-color: var(--sidebar-background) !important;
+  background-image: none !important;
+}
+
+:root:not(.dark) .workspace-sidebar nav button[aria-current='page'] {
+  color: var(--sidebar-active-fg) !important;
+  box-shadow: inset 0 0 0 1px var(--app-border), var(--app-shadow);
 }
 
 /* One shared selection surface travels between primary sidebar items. It uses
@@ -2751,7 +2822,10 @@ summary:active {
 
 @media (min-width: 1280px) {
   .company-layout-shell {
-    --company-sidebar-top-gap: 1rem;
+    --company-sidebar-top-gap: 1.5rem;
+    --workspace-space-sm: 0.5rem;
+    --workspace-space-md: 1rem;
+    --workspace-space-lg: 1.5rem;
   }
 
   /* The page container owns horizontal gutters; the shell owns the 24px
@@ -2761,8 +2835,173 @@ summary:active {
     padding-inline: 2rem;
   }
 
-  .company-layout-shell main {
-    padding: 1.5rem 0 1rem;
+  .company-layout-shell main[data-app-scroll-container] {
+    /* Match the floating rail's desktop top gutter so the first page surface
+       starts on the same visual baseline as the sidebar. */
+    padding: 3rem 0 1rem;
+  }
+
+  .company-page-hero-desktop {
+    margin-bottom: var(--workspace-space-md);
+  }
+
+  /* Keep the floating rail on the same top baseline as the desktop hero.
+     This more-specific rule intentionally owns its full desktop geometry. */
+  .company-layout-shell .workspace-sidebar {
+    height: calc(100dvh - 4.25rem) !important;
+    margin: 3rem 0 1.25rem 1.25rem !important;
+  }
+
+  .workspace-sidebar .sidebar-brand-expanded {
+    width: min(13rem, 100%);
+    height: auto;
+    aspect-ratio: 1981 / 793;
+    overflow: visible;
+  }
+  .workspace-sidebar .sidebar-brand-monogram {
+    display: block;
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    overflow: hidden;
+  }
+  .workspace-sidebar .company-sidebar-nav { padding-top: var(--workspace-space-md); }
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav {
+    margin-top: 0.5rem !important;
+    padding-top: 0;
+  }
+
+  .company-page-hero {
+    --hero-start: color-mix(in srgb, var(--theme-primary) 9%, var(--app-surface));
+    --hero-end: color-mix(in srgb, #bfdbfe 14%, var(--app-surface));
+    --hero-border: color-mix(in srgb, var(--theme-primary) 20%, var(--app-border));
+    position: relative;
+    display: flex;
+    min-height: 11rem;
+    min-width: 0;
+    align-items: flex-end;
+    padding: 4rem clamp(1.75rem, 2.25vw, 2.25rem) 1.5rem;
+  }
+
+  .dark .company-page-hero {
+    --hero-start: color-mix(in srgb, var(--theme-primary) 11%, var(--app-surface));
+    --hero-end: color-mix(in srgb, #2563eb 11%, var(--app-surface));
+  }
+
+  .company-page-hero-surface {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .company-page-hero-copy {
+    position: relative;
+    z-index: 1;
+    /* Optically centre the three-line copy block beneath the utility pocket. */
+    transform: translateY(-0.875rem);
+  }
+  .company-page-hero-utility { position: absolute; z-index: 70; right: 0; top: 0; }
+  .company-hero-capsule {
+    display: flex;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 0.4375rem;
+    min-height: 3rem;
+    padding: 0.4375rem 0.75rem;
+    border: 1px solid var(--app-border);
+    border-radius: 1rem;
+    background: var(--app-surface);
+    box-shadow: 0 8px 20px -18px rgb(15 23 42 / 36%);
+  }
+  .company-hero-capsule-page-actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+  }
+  .company-hero-capsule-controls { display: flex; align-items: center; min-height: 1.875rem; }
+  .company-hero-capsule-controls > div { align-items: center; gap: 0.3125rem; }
+  .company-hero-capsule-controls .navbar-utility-controls {
+    margin-left: 0;
+    gap: 0.3125rem !important;
+  }
+  .company-hero-capsule-controls .company-hero-search:not(.is-expanded) > div {
+    width: 1.875rem !important;
+  }
+  .company-hero-capsule-controls .company-hero-search button[aria-label="Search features, pages and settings"] {
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 0.625rem;
+  }
+  .company-hero-capsule:has(.company-page-hero-actions) .company-page-hero-actions {
+    margin-left: 0;
+    margin-right: 0.25rem;
+    padding-right: 0.4375rem;
+    border-right: 1px solid var(--app-border);
+  }
+  .company-page-hero-actions > button,
+  .company-page-hero-actions > div > button {
+    min-height: 1.875rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    border-radius: 0.625rem !important;
+  }
+  .company-hero-capsule-controls button[aria-label="Open account menu"] {
+    width: 1.875rem;
+    height: 1.875rem;
+  }
+  .company-hero-capsule-controls .navbar-action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    padding: 0;
+    border-radius: 0.625rem;
+  }
+  .company-hero-capsule-controls .navbar-action-button > svg { width: 0.9375rem; height: 0.9375rem; }
+  .company-page-hero-actions > button svg { width: 0.9375rem; height: 0.9375rem; }
+
+  .company-page-hero-eyebrow {
+    margin: 0;
+    color: var(--app-accent);
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .company-page-hero h1 {
+    margin: 0.5rem 0 0;
+    color: var(--app-foreground);
+    font-family: var(--font-display, inherit);
+    font-size: clamp(1.875rem, 2.4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+  }
+
+  .company-page-hero-description {
+    margin: 0.625rem 0 0;
+    max-width: 52rem;
+    color: var(--app-muted);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .company-page-hero-extension,
+  .company-page-hero-actions {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .company-layout-shell main .dashboard-command-bar,
+  .company-layout-shell main .dashboard-admin-hero {
+    display: none;
   }
 
   .messages-tab-list {
@@ -3195,6 +3434,14 @@ summary:active {
   overflow-x: hidden !important;
 }
 
+/* This is an independent scrolling region. Route changes can add/remove
+   nested links and move the active navigation pill; do not let the browser's
+   scroll anchoring turn that layout update into a jump back to the top. */
+.company-sidebar-nav {
+  overflow-anchor: none;
+  scroll-behavior: auto;
+}
+
 .workspace-sidebar ::-webkit-scrollbar:horizontal,
 .workspace-sidebar nav::-webkit-scrollbar:horizontal,
 .company-sidebar-nav::-webkit-scrollbar:horizontal {
@@ -3202,6 +3449,33 @@ summary:active {
   height: 0 !important;
   width: 0 !important;
   background: transparent !important;
+}
+
+/* Keep the desktop sidebar clean until it is actually being used. The nav
+   remains scrollable; its scrollbar is revealed only while the sidebar is
+   hovered so it does not permanently consume visual space. */
+@media (min-width: 1280px) {
+  .workspace-sidebar .company-sidebar-nav {
+    scrollbar-width: none;
+  }
+
+  .workspace-sidebar .company-sidebar-nav::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .workspace-sidebar:hover .company-sidebar-nav,
+  .workspace-sidebar .company-sidebar-nav:hover {
+    scrollbar-width: thin;
+  }
+
+  .workspace-sidebar:hover .company-sidebar-nav::-webkit-scrollbar,
+  .workspace-sidebar .company-sidebar-nav:hover::-webkit-scrollbar {
+    display: initial;
+    width: 7px;
+    height: 7px;
+  }
 }
 
 /* Sales guide: the panel a guide button points at gets a brief outline. */
@@ -3221,4 +3495,65 @@ summary:active {
     outline: 2px solid var(--app-accent);
     outline-offset: 2px;
   }
+}
+
+/* Apple Music-inspired light sidebar: neutral translucent gray with a quiet
+   edge and elevation, while the active liquid pill retains its accent tint. */
+:root:not(.dark) .workspace-sidebar {
+  background: rgba(245, 245, 247, 0.94) !important;
+  background-image: none !important;
+  border-color: rgba(118, 118, 128, 0.24) !important;
+  box-shadow: 0 10px 26px -22px rgba(15, 23, 42, 0.42) !important;
+  backdrop-filter: blur(22px) saturate(115%);
+  -webkit-backdrop-filter: blur(22px) saturate(115%);
+}
+
+:root:not(.dark) .global-navbar {
+  box-shadow:
+    0 8px 22px -20px rgba(15, 23, 42, 0.38),
+    inset 0 -1px 0 rgba(118, 118, 128, 0.2) !important;
+}
+
+/* Final light-mode surface normalization. A number of legacy screens use
+   utility-class surfaces instead of the shared UI primitives above; keep
+   those pages neutral as well without changing accent-colored controls. */
+:root:not(.dark) .ui-theme-root :is(
+    .ui-card,
+    .ui-glass-surface,
+    .ui-panel-surface,
+    .ui-page-header,
+    .page-heading,
+    .page-toolbar,
+    .dashboard-glass,
+    .dashboard-glass-surface,
+    .workforce-metric-card,
+    .metric-card,
+    .chart-glass,
+    .chart-glass-ring,
+    .recruitment-page-header
+  ),
+:root:not(.dark) .company-layout-shell main [class*='border-app-border'][class*='rounded']:not(button):not(a):not(input):not(select):not(textarea):not([role='button']),
+:root:not(.dark) .company-layout-shell main [class*='border-sidebar-border'][class*='rounded']:not(button):not(a):not(input):not(select):not(textarea):not([role='button']) {
+  background-color: var(--app-surface) !important;
+  background-image: none !important;
+}
+
+:root:not(.dark) .ui-theme-root .ui-segmented-tabs,
+:root:not(.dark) .ui-theme-root .ui-form-control,
+:root:not(.dark) .ui-theme-root .ui-progress-ring {
+  background-color: var(--app-surface-raised) !important;
+  background-image: none !important;
+}
+
+:root:not(.dark) .company-layout-shell main [class*='border-app-border'][class*='rounded']:not(button):not(a):not(input):not(select):not(textarea):not([role='button']),
+:root:not(.dark) .company-layout-shell main [class*='border-sidebar-border'][class*='rounded']:not(button):not(a):not(input):not(select):not(textarea):not([role='button']) {
+  border-color: var(--app-border) !important;
+}
+
+/* The sidebar liquid selection pill intentionally keeps its appearance tint;
+   it is the navigation affordance, rather than a page surface. */
+:root:not(.dark) .workspace-sidebar .company-sidebar-active-indicator,
+:root:not(.dark) .workspace-sidebar nav button[aria-current='page'] {
+  background-color: color-mix(in srgb, var(--theme-primary) 12%, var(--app-surface)) !important;
+  background-image: none !important;
 }

@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon.js';
+import { CompanyPageActionPortal } from '../company/layout/CompanyPageActionPortal.js';
+import { useCompanyHeroPageActions } from '../company/layout/CompanyNavbarContext.js';
 
 let activeModalCount = 0;
 let restorePageScroll: (() => void) | null = null;
@@ -169,9 +171,15 @@ export function Page({
   children: ReactNode;
 }): React.JSX.Element {
   const recruitmentHeader = variant === 'recruitment';
+  // Page is also used by the client portal and a few standalone screens. Only
+  // Company Workspace pages have the desktop hero action target, so never hide
+  // a normal page header merely because it received an action prop.
+  const { target: companyHeroActionTarget } = useCompanyHeroPageActions();
+  const usesCompanyHero = Boolean(companyHeroActionTarget);
   return (
     <WorkspacePageContainer>
-        <header className={recruitmentHeader ? 'recruitment-page-header' : 'ui-page-header'}>
+        {usesCompanyHero && action && <CompanyPageActionPortal>{action}</CompanyPageActionPortal>}
+        <header className={`${recruitmentHeader ? 'recruitment-page-header' : 'ui-page-header'}${usesCompanyHero ? ' xl:hidden' : ''}`}>
           <div className={recruitmentHeader ? 'flex min-w-0 items-start gap-3' : 'ui-page-header-copy min-w-0'}>
             {recruitmentHeader && <span className="recruitment-page-header-icon"><Icon name="briefcase" className="size-5" /></span>}
             <div className="min-w-0">
