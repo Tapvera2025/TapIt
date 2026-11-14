@@ -3,7 +3,7 @@
  *
  * Every call site that writes to `lead_activity.event_name` imports
  * from here so the TS union stays in lock-step with the DB constraint
- * (see migration 0078). Adding a new activity type is a two-line change
+ * (see migration 0078; the current list is in 0155). Adding a new activity type is a two-line change
  * — bump the migration + bump the array below.
  */
 
@@ -27,6 +27,7 @@ export const LEAD_ACTIVITY_EVENTS = [
   'callback.rescheduled',
   'callback.completed',
   'callback.missed',
+  'callback.not_reachable',
   'callback.cancelled',
   'callback.requested',
   'deal.creation_requested',

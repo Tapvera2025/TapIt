@@ -72,6 +72,19 @@ export function isClosedLeadStatus(status: string): boolean {
   return status === 'converted' || status === 'closed_lost';
 }
 
+/**
+ * True for the lead's owner while someone else holds it: after an accepted
+ * handover the agent who handed it over can see the lead, but the person who
+ * took it works it until a manager reassigns it. Mirrors the server's
+ * `isHandedOverAway` (handover/policy.ts).
+ */
+export function isHandedOverAway(
+  lead: { ownerId: string | null; currentHolderId: string | null },
+  viewerId: string,
+): boolean {
+  return lead.ownerId === viewerId && lead.currentHolderId !== null && lead.currentHolderId !== viewerId;
+}
+
 /** The statuses a person can move a lead to from `status`. */
 export function statusMoveOptions(
   status: string,

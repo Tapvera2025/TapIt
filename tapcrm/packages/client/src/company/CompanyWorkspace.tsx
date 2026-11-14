@@ -72,7 +72,8 @@ import { MyInterviewsPage } from './recruitment/pages/MyInterviewsPage.js';
 import { useHasAssignedInterviews } from './recruitment/useAssignedInterviews.js';
 import { EmployeeNotesPage, MyNotepadPage } from './notepad/index.js';
 import { MessagesPage } from '../chat/index.js';
-import { ClientsPage } from '../clients/index.js';
+import { ClientsPage, type Client } from '../clients/index.js';
+import { newProjectForClientPath } from '../projects/newProjectLink.js';
 import { SocialWorkspace } from '../social/SocialWorkspace.js';
 import { SeoWorkspace } from '../seo-intelligence/SeoWorkspace.js';
 import { ProjectDetailPage, ProjectsPage } from '../projects/index.js';
@@ -475,7 +476,14 @@ export function CompanyWorkspace({
           canManageProjects={saCan('projects:manage')}
         />
       );
-    if (pathname === '/company/clients' && canViewClients) return <ClientsPage />;
+    if (pathname === '/company/clients' && canViewClients)
+      return (
+        <ClientsPage
+          {...(canViewProjects && saCan('projects:manage')
+            ? { onAddProject: (client: Client) => onNavigate(newProjectForClientPath(client.id)) }
+            : {})}
+        />
+      );
     if (
       (pathname === '/company/social' || pathname.startsWith('/company/social/')) &&
       canViewSocial
@@ -806,6 +814,7 @@ export function CompanyWorkspace({
       return (
         <ProposalEditorPage
           dealId={proposalEditor[1]!}
+          isSuperAdmin={isSuperAdmin}
           onBack={() => onNavigate(`/company/sales/deals/${proposalEditor[1]}`)}
         />
       );
@@ -833,6 +842,7 @@ export function CompanyWorkspace({
           canRecordWin={canRecordWin}
           canConfirmPayment={canConfirmPayment}
           isManager={isSuperAdmin || canSuperviseSales}
+          isSuperAdmin={isSuperAdmin}
           onBack={() => onNavigate('/company/sales/deals')}
           onNavigate={onNavigate}
         />

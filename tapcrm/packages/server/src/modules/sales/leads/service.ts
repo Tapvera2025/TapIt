@@ -12,12 +12,12 @@ import { readPresenceToday } from '../../live-status/facade.js';
 import { normalizeLeadEmail, normalizeLeadPhone, toContactE164 } from './normalization.js';
 import { leadPolicy } from './policy.js';
 import { LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from './errors.js';
-import { canViewInternalHandoverState } from '../handover/policy.js';
+import { canViewInternalHandoverState, HANDED_OVER_MESSAGE, isHandedOverAway } from '../handover/policy.js';
 import { findCampaign, findDuplicatesTx, findLead, findLeadTx, findSource, findSourceTx, insertActivity, insertAudit, insertLead, insertSource, linkLeadCompany, listCampaigns, listLeads as listRows, listSources, loadLeadResource as loadResource, updateLeadRow, updateSource, upsertContactForLead } from './repository.js';
 import { findOrInsertCompanyByName } from '../intake/repository.js';
-import type { Campaign, Lead, LeadCreateResult, LeadResource, LeadSource, PaginatedLeads } from './types.js';
+import type { Campaign, DuplicateWarning, Lead, LeadCreateResult, LeadResource, LeadSource, PaginatedLeads } from './types.js';
 import type { CloseLeadLostInput, CreateLeadInput, LeadListQuery, SourceInput, UpdateLeadInput, UpdateSourceInput } from './validators.js';
-import { cancelOpenCallbacksInTransaction, closeLeadAsLostInTransaction, isTerminalLeadStatus } from './lifecycle.js';
+import { cancelOpenCallbacksInTransaction, closeLeadAsLostInTransaction, closeOpenCallbacksForStatusInTransaction, isTerminalLeadStatus } from './lifecycle.js';
 
 const LIFECYCLE_TRANSITIONS: Record<string, readonly string[]> = {
   new: ['assigned'], assigned: ['contacted'], contacted: ['discovery'], discovery: ['proposal_sent'],
@@ -29,6 +29,8 @@ function assertLifecycleTransition(from: string, to: string): void { if (!isVali
 
 async function assertManageScope(ctx: RequestContext, resource: LeadResource): Promise<void> {
   if (globalAccess(ctx.principal)) return;
+  // The agent who handed the lead over keeps sight of it, not control of it.
+  if (isHandedOverAway(resource, ctx.principal.id)) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, HANDED_OVER_MESSAGE);
   const policy = await effectivePolicy(ctx, 'leads:edit');
   if (!policy?.allowed || !await leadPolicy.check({ ...ctx, scope: scopeResolver }, 'leads:edit', resource, policy.scope)) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Lead is outside the permitted Sales scope');
 }
@@ -184,7 +186,7 @@ export async function getLead(ctx: RequestContext, id: string): Promise<Lead> {
   if (canViewInternalHandoverState(ctx.principal.id, globalAccess(ctx.principal), lead.ownerId, lead.currentHolderId, hasAcceptedHandover)) return lead;
   return { ...lead, activities: lead.activities.filter((activity) => !activity.eventName.startsWith('handover.')) };
 }
-export async function updateLead(ctx: RequestContext, id: string, input: UpdateLeadInput): Promise<Lead> { const before = await getLead(ctx, id); const resource = await loadResource(ctx, id) as LeadResource | null; if (!resource) throw new LeadNotFoundError(); await assertManageScope(ctx, resource); if (input.status) { assertLifecycleTransition(before.status, input.status); if (input.status === 'assigned' && !resource.ownerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot be marked assigned'); } return db.transaction(ctx, async (tx) => { await updateLeadRow(tx, ctx.organizationId, id, input, before, { phone: normalizeLeadPhone(input.phone === undefined ? before.phone : input.phone), email: normalizeLeadEmail(input.email === undefined ? before.email : input.email) }); if (input.companyName !== undefined && input.companyName !== before.companyName) await linkLeadCompany(tx, ctx.organizationId, id, await findOrInsertCompanyByName(tx, ctx.organizationId, input.companyName, ctx.principal.id)); const updated = await findLeadTx(tx, ctx.organizationId, id); if (!updated) throw new LeadNotFoundError(); if (input.status && input.status !== before.status) await insertActivity(tx, ctx.organizationId, id, input.status === 'nurture' ? 'lead.nurtured' : 'lead.status_changed', ctx.principal.id, { from: before.status, to: input.status }); await insertAudit(tx, ctx, 'lead.updated', id, { status: before.status }, { status: updated.status }); return updated; }); }
+export async function updateLead(ctx: RequestContext, id: string, input: UpdateLeadInput): Promise<Lead> { const before = await getLead(ctx, id); const resource = await loadResource(ctx, id) as LeadResource | null; if (!resource) throw new LeadNotFoundError(); await assertManageScope(ctx, resource); if (input.status) { assertLifecycleTransition(before.status, input.status); if (input.status === 'assigned' && !resource.ownerId) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'An unrouted lead cannot be marked assigned'); } return db.transaction(ctx, async (tx) => { await updateLeadRow(tx, ctx.organizationId, id, input, before, { phone: normalizeLeadPhone(input.phone === undefined ? before.phone : input.phone), email: normalizeLeadEmail(input.email === undefined ? before.email : input.email) }); if (input.companyName !== undefined && input.companyName !== before.companyName) await linkLeadCompany(tx, ctx.organizationId, id, await findOrInsertCompanyByName(tx, ctx.organizationId, input.companyName, ctx.principal.id)); const updated = await findLeadTx(tx, ctx.organizationId, id); if (!updated) throw new LeadNotFoundError(); if (input.status && input.status !== before.status) await insertActivity(tx, ctx.organizationId, id, input.status === 'nurture' ? 'lead.nurtured' : 'lead.status_changed', ctx.principal.id, { from: before.status, to: input.status }); if (input.status && input.status !== before.status && before.status === 'callback_scheduled') await closeOpenCallbacksForStatusInTransaction(tx, ctx, id, input.status); await insertAudit(tx, ctx, 'lead.updated', id, { status: before.status }, { status: updated.status }); return updated; }); }
 export const loadLeadResource = loadResource;
 
 /**
@@ -216,7 +218,7 @@ export async function closeLeadAsLost(ctx: RequestContext, id: string, input: Cl
 export async function checkDuplicateLeads(
   ctx: RequestContext,
   input: { phone?: string | null | undefined; email?: string | null | undefined },
-): Promise<{ duplicates: Array<{ leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null }> }> {
+): Promise<{ duplicates: DuplicateWarning[] }> {
   const phone = normalizeLeadPhone(input.phone ?? null);
   const email = normalizeLeadEmail(input.email ?? null);
   if (!phone && !email) return { duplicates: [] };

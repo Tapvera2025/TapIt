@@ -1,6 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+
+const page = (file: string) => fileURLToPath(new URL(file, import.meta.url));
 
 const configuredApiBasePath = process.env['VITE_API_BASE_PATH'] || '/api';
 const apiBasePath = `/${configuredApiBasePath.replace(/^\/+|\/+$/g, '')}`;
@@ -20,5 +23,20 @@ export default defineConfig({
       },
     },
   },
-  build: { outDir: 'dist', sourcemap: true },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+    // The app, plus the public pages that must load without the app or a sign-in
+    // (Google and Meta check them): served at /about, /privacy, /terms and
+    // /data-deletion by the dev server and by nginx.
+    rollupOptions: {
+      input: {
+        main: page('./index.html'),
+        about: page('./about.html'),
+        privacy: page('./privacy.html'),
+        terms: page('./terms.html'),
+        'data-deletion': page('./data-deletion.html'),
+      },
+    },
+  },
 });

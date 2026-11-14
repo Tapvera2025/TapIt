@@ -96,7 +96,8 @@ async function createOpenDeal(): Promise<string> {
 
 async function prepareSignedContract(dealId: string): Promise<string> {
   const draft = await createCommercialsDraft(ctxFor(employee(AGENT, POSITION)), dealId, standardBody);
-  const published = await publishVersion(ctxFor(employee(AGENT, POSITION)), draft.id);
+  // Sales staff publish only an approved version; a Super Admin publishes directly.
+  const published = await publishVersion(ctxFor(superAdmin(HOD)), draft.id);
   const contractDraft = await createContractDraft(ctxFor(employee(AGENT, POSITION)), dealId, {
     commercialsId: published.id,
   });
@@ -243,5 +244,16 @@ describe.skipIf(!enabled)('sales won recorder (PostgreSQL)', () => {
 
     const rows = await listReadyToClose(ctxFor(superAdmin(HOD)));
     expect(rows.some((r) => r.id === dealId)).toBe(true);
+  });
+
+  it('listReadyToClose also lists a deal still on its way to a win, after the ready ones', async () => {
+    const dealId = await createOpenDeal();
+    const draft = await createCommercialsDraft(ctxFor(employee(AGENT, POSITION)), dealId, standardBody);
+    await publishVersion(ctxFor(superAdmin(HOD)), draft.id);
+
+    const rows = await listReadyToClose(ctxFor(superAdmin(HOD)));
+    expect(rows.find((r) => r.id === dealId)?.ready).toBe(false);
+    const firstWaiting = rows.findIndex((r) => !r.ready);
+    expect(rows.slice(firstWaiting).every((r) => !r.ready)).toBe(true);
   });
 });

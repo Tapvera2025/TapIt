@@ -5,6 +5,8 @@ import { CreateDiscussionGroupModal } from './CreateDiscussionGroupModal.js';
 import { CreateProjectModal } from './CreateProjectModal.js';
 import { BulkProjectAssignmentModal } from './BulkProjectAssignmentModal.js';
 import { formatProjectDate } from './formatDate.js';
+import { APP_NAVIGATE_EVENT } from '../navigationEvent.js';
+import { NEW_PROJECT_CLIENT_PARAM } from './newProjectLink.js';
 
 const PRIORITY_LABEL: Record<Project['priority'], string> = { low: 'Low', medium: 'Medium', high: 'High' };
 const STATUS_LABEL: Record<Project['workStatus'], string> = { new: 'New', ongoing: 'Ongoing', ended: 'Ended', expired: 'Expired' };
@@ -20,6 +22,7 @@ export function ProjectsPage({ onOpenProject, canManageProjects, canManageProjec
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [createForClientId, setCreateForClientId] = useState<string | null>(null);
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [pendingGroupFor, setPendingGroupFor] = useState<Project | null>(null);
 
@@ -38,6 +41,24 @@ export function ProjectsPage({ onOpenProject, canManageProjects, canManageProjec
 
   useEffect(() => { void load(); }, []);
 
+  // The param is stripped once read so Back/refresh don't reopen the modal; the listener covers the toast being clicked while already on this page.
+  useEffect(() => {
+    const openFromLocation = (): void => {
+      const params = new URLSearchParams(window.location.search);
+      const clientId = params.get(NEW_PROJECT_CLIENT_PARAM);
+      if (!clientId) return;
+      params.delete(NEW_PROJECT_CLIENT_PARAM);
+      const rest = params.toString();
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`);
+      if (!canManageProjects) return;
+      setCreateForClientId(clientId);
+      setShowCreate(true);
+    };
+    openFromLocation();
+    window.addEventListener(APP_NAVIGATE_EVENT, openFromLocation);
+    return () => window.removeEventListener(APP_NAVIGATE_EVENT, openFromLocation);
+  }, [canManageProjects]);
+
   return (
     <Page
       eyebrow="Projects"
@@ -46,7 +67,7 @@ export function ProjectsPage({ onOpenProject, canManageProjects, canManageProjec
       action={canManageProjects ? (
         <div className="flex flex-wrap justify-end gap-2">
           {canManageProjectAssignments && <Button kind="secondary" onClick={() => setShowBulkAssign(true)}>Project Assign</Button>}
-          <Button onClick={() => setShowCreate(true)}>New project</Button>
+          <Button onClick={() => { setCreateForClientId(null); setShowCreate(true); }}>New project</Button>
         </div>
       ) : undefined}
     >
@@ -83,9 +104,12 @@ export function ProjectsPage({ onOpenProject, canManageProjects, canManageProjec
 
       {showCreate && (
         <CreateProjectModal
-          onClose={() => setShowCreate(false)}
+          key={createForClientId ?? 'blank'}
+          {...(createForClientId ? { initialClientId: createForClientId } : {})}
+          onClose={() => { setShowCreate(false); setCreateForClientId(null); }}
           onCreated={(project) => {
             setShowCreate(false);
+            setCreateForClientId(null);
             setPendingGroupFor(project); // step 2
             void load();
           }}

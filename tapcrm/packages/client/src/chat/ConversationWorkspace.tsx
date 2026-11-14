@@ -13,6 +13,7 @@ import {
 } from './api/chatApi.js';
 import { AttachmentGallery, Lightbox } from './attachments.js';
 import { Avatar, GroupAvatar, PresenceLabel } from './Avatar.js';
+import { BreakReturnStrip } from './BreakReturnStrip.js';
 import { Composer } from './Composer.js';
 import { EditHistory } from './EditHistory.js';
 import { EmojiPopover } from './emoji/EmojiPicker.js';
@@ -1079,6 +1080,15 @@ export function ConversationWorkspace({
               <p className="mx-3 mb-3 rounded-xl border border-app-border bg-app-surface-raised px-4 py-3 text-center text-sm text-app-muted sm:mx-4">
                 This group is archived. You can read it, but no new messages can be sent.
               </p>
+            )}
+
+            {activeConversation && !activeConversation.archivedAt && directOther && !clientMode && presence[directOther.userId] === 'idle' && (
+              <BreakReturnStrip
+                conversationId={activeConversation.id}
+                name={directOther.fullName}
+                transport={transport}
+                onError={fail}
+              />
             )}
 
             {activeConversation && !activeConversation.archivedAt && (

@@ -9,7 +9,7 @@ import { notify } from '../../notifications/facade.js';
  * tell an agent with ten callbacks a day which one to pick up.
  */
 
-export type CallbackEvent = 'scheduled' | 'rescheduled' | 'completed' | 'missed' | 'cancelled';
+export type CallbackEvent = 'scheduled' | 'rescheduled' | 'completed' | 'missed' | 'not_reachable' | 'cancelled';
 export type ReminderType = 't_minus_60' | 't_minus_15' | 'due';
 
 interface CallbackContext {
@@ -54,11 +54,12 @@ export async function notifyCallback(
     rescheduled: { title: `Callback with ${lead.contactName} moved`, body: when ? `The new time is ${when}.` : 'Its time was changed.' },
     completed: { title: `Callback with ${lead.contactName} recorded`, body: 'Its outcome was recorded for you.' },
     missed: { title: `Callback with ${lead.contactName} missed`, body: 'It was marked missed. Book a new time if they still need a call.' },
+    not_reachable: { title: `Couldn’t reach ${lead.contactName}`, body: 'The call was made but nobody answered. Book a new time to try again.' },
     cancelled: { title: `Callback with ${lead.contactName} cancelled`, body: 'It no longer needs a call.' },
   };
   await notify(tx, ctx, {
     type: `callback.${event}`,
-    priority: event === 'missed' ? 'operational' : 'informational',
+    priority: event === 'missed' || event === 'not_reachable' ? 'operational' : 'informational',
     audience: { users: [ownerId] },
     ...copy[event],
     link: `/company/sales/leads/${leadId}`,

@@ -11,6 +11,7 @@ import {
   positionPath,
   positionsBelowNewLevel,
   positionsBySeniority,
+  suggestLevel,
   suggestParentForLevel,
   titleSoundsMoreSenior,
 } from './position-hierarchy-model.js';
@@ -191,5 +192,61 @@ describe('placing a position by its level', () => {
         70,
       ).map((item) => item.enteredSoundsSenior),
     ).toEqual([false]);
+  });
+});
+
+describe('suggesting a level for a new position', () => {
+  function at(id: string, level: number, parentPositionId: string | null = null): OrganizationPosition {
+    return { ...position(id, parentPositionId), organizationalLevel: level };
+  }
+
+  it('puts a senior version of a role one step above it, under the next position up', () => {
+    expect(suggestLevel([at('Graphic Designer', 60)], 'Senior Graphic Designer')).toEqual({
+      level: 70,
+      reason: 'one step above Graphic Designer (level 60)',
+    });
+    expect(
+      suggestLevel([at('Graphic Designer', 60), at('Design Head', 66)], 'Senior Graphic Designer')?.level,
+    ).toBe(63);
+  });
+
+  it('puts a junior version of a role one step below it', () => {
+    expect(suggestLevel([at('Graphic Designer', 60)], 'Junior Graphic Designer')).toEqual({
+      level: 50,
+      reason: 'one step below Graphic Designer (level 60)',
+    });
+  });
+
+  it('uses the usual level for the kind of role when nothing similar exists', () => {
+    expect(suggestLevel([], 'Sales Head')?.level).toBe(90);
+    expect(suggestLevel([], 'Sales Agent')?.level).toBe(25);
+    expect(suggestLevel([], 'Design Intern')?.level).toBe(10);
+  });
+
+  it('keeps a junior kind of role below a more senior one already in the department', () => {
+    // A Sales Head was given 50; an agent must still land below it.
+    expect(suggestLevel([at('Sales Head', 50)], 'Sales Agent')?.level).toBe(25);
+    expect(suggestLevel([at('Sales Head', 20)], 'Sales Agent')).toEqual({
+      level: 10,
+      reason: 'below Sales Head (level 20)',
+    });
+    expect(suggestLevel([at('Sales Agent', 60)], 'Sales Head')?.level).toBe(90);
+  });
+
+  it('suggests nothing without a title or without room', () => {
+    expect(suggestLevel([at('Graphic Designer', 60)], '  ')).toBeNull();
+    expect(
+      suggestLevel([at('Graphic Designer', 60), at('Art Director', 61)], 'Senior Graphic Designer'),
+    ).toBeNull();
+  });
+
+  it('flags an agent placed above the head of the department', () => {
+    expect(
+      levelTitleMismatches([at('Sales Head', 50)], 'Sales Agent', 60).map((item) => [
+        item.position.id,
+        item.enteredSoundsSenior,
+      ]),
+    ).toEqual([['Sales Head', false]]);
+    expect(levelTitleMismatches([at('Sales Head', 50)], 'Sales Agent', 40)).toEqual([]);
   });
 });

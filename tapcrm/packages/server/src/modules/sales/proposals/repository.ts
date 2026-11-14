@@ -36,6 +36,7 @@ interface CommercialsRow {
   readonly createdBy: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  readonly approvalState: string | null;
 }
 
 interface ItemRow {
@@ -76,7 +77,13 @@ const COMMERCIALS_SELECT = sql`
          c.accepted_at       AS "acceptedAt",
          c.created_by        AS "createdBy",
          c.created_at        AS "createdAt",
-         c.updated_at        AS "updatedAt"
+         c.updated_at        AS "updatedAt",
+         (SELECT ar.state
+            FROM approval_request ar
+           WHERE ar.organization_id = c.organization_id
+             AND ar.commercials_id  = c.id
+           ORDER BY ar.requested_at DESC, ar.id DESC
+           LIMIT 1)          AS "approvalState"
     FROM commercials c
 `;
 
@@ -138,8 +145,26 @@ function toCommercials(row: CommercialsRow, items: readonly CommercialsItemRow[]
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    approvalState: row.approvalState ?? null,
     items,
   };
+}
+
+/**
+ * The state of the latest approval request raised on one proposal version,
+ * or null when none was. Sales staff publish a version only once this is
+ * 'approved' (owner decision, 13 Nov 2026).
+ */
+export async function latestApprovalStateForCommercials(tx: Tx, organizationId: string, commercialsId: string): Promise<string | null> {
+  const row = await tx.maybeOne<{ state: string }>(sql`
+    SELECT state
+      FROM approval_request
+     WHERE organization_id = ${organizationId}
+       AND commercials_id  = ${commercialsId}
+     ORDER BY requested_at DESC, id DESC
+     LIMIT 1
+  `);
+  return row?.state ?? null;
 }
 
 export async function findCommercials(ctx: RequestContext, id: string): Promise<Commercials | null> {

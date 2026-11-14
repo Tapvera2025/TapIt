@@ -4,6 +4,7 @@ import {
   checkDuplicateLeads,
   createLead,
   type Campaign,
+  type DuplicateLeadMatch,
   type Lead,
   type LeadSource,
 } from './api.js';
@@ -38,12 +39,7 @@ export interface AddLeadDrawerProps {
   readonly mode?: 'agent' | 'receptionist';
 }
 
-interface DuplicateHit {
-  readonly leadId: string;
-  readonly leadNumber: string;
-  readonly ownerId: string | null;
-  readonly ownerName: string | null;
-}
+type DuplicateHit = DuplicateLeadMatch;
 
 const DEBOUNCE_MS = 400;
 
@@ -283,6 +279,8 @@ function DuplicateCard({
     );
   }
   if (!offer.hasDuplicates) return null;
+  const firstOpenable = duplicates.find((duplicate) => duplicate.canOpen);
+  const someHidden = duplicates.some((duplicate) => !duplicate.canOpen);
   return (
     <section
       aria-label="Possible duplicate"
@@ -294,25 +292,38 @@ function DuplicateCard({
       <ul className="mt-2 space-y-1 text-sm text-app-muted">
         {duplicates.slice(0, 3).map((duplicate) => (
           <li key={duplicate.leadId}>
-            <button
-              type="button"
-              className="underline underline-offset-2 hover:text-app-foreground"
-              onClick={() => onOpenExisting(duplicate.leadId)}
-            >
-              #{duplicate.leadNumber}
-            </button>
-            {duplicate.ownerName && <span> · {duplicate.ownerName}</span>}
+            {duplicate.canOpen ? (
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-app-foreground"
+                onClick={() => onOpenExisting(duplicate.leadId)}
+              >
+                #{duplicate.leadNumber}
+              </button>
+            ) : (
+              <span>#{duplicate.leadNumber}</span>
+            )}
+            <span> · {duplicate.ownerName ?? 'Not assigned yet'}</span>
+            {!duplicate.canOpen && <span> · not in your leads</span>}
           </li>
         ))}
       </ul>
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <Button kind="secondary" onClick={() => onOpenExisting(duplicates[0]!.leadId)}>
-          Open existing
-        </Button>
+        {firstOpenable && (
+          <Button kind="secondary" onClick={() => onOpenExisting(firstOpenable.leadId)}>
+            Open existing
+          </Button>
+        )}
         <Button kind="secondary" onClick={onCreateSeparate}>
           Create separate anyway
         </Button>
       </div>
+      {someHidden && (
+        <p className="mt-2 text-xs text-app-muted">
+          Someone else is already working this contact. Check with them or your supervisor before
+          you call.
+        </p>
+      )}
       <p className="mt-2 text-xs text-app-muted">
         "Add enquiry" happens automatically when you submit — the dedupe engine links the new row
         to the existing contact's active lead.

@@ -209,10 +209,18 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
     await closePools();
   });
 
-  it('requestApproval refuses when dimensions do not require approval', async () => {
+  it('a proposal within the agent’s own limits still goes for approval', async () => {
     const dealId = await createOpenDealAsAgent();
     const draft = await createDraft(ctxFor(employee(AGENT, AGENT_POSITION)), dealId, sampleBody);
-    await expect(requestApproval(ctxFor(employee(AGENT, AGENT_POSITION)), draft.id))
+    const request = await requestApproval(ctxFor(employee(AGENT, AGENT_POSITION)), draft.id);
+    expect(request.state).toBe('pending');
+    expect(request.requestedBy).toBe(AGENT);
+  });
+
+  it('a Super Admin never needs approval: they publish directly', async () => {
+    const dealId = await createOpenDealAsAgent();
+    const draft = await createDraft(ctxFor(employee(AGENT, AGENT_POSITION)), dealId, sampleBody);
+    await expect(requestApproval(ctxFor(superAdmin(AGENT)), draft.id))
       .rejects.toBeInstanceOf(ApprovalNotRequiredError);
   });
 

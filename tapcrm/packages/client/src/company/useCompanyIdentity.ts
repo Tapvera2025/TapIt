@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   IDENTITY_BOOTSTRAP_UPDATED_EVENT,
   IDENTITY_SESSION_CHANGED_EVENT,
+  IdentitySessionChangedError,
   setIdentitySessionPrincipal,
 } from '../identity/api/authApi.js';
 import { getCompanyIdentity, type CompanyIdentity } from './api/companyApi.js';
@@ -42,7 +43,7 @@ export function useCompanyIdentity(): { identity: CompanyIdentity | null; error:
   const lastRefreshAtRef = useRef<number | null>(null);
   const lastJsonRef = useRef<string | null>(null);
 
-  const load = useCallback((silent: boolean): void => {
+  const load = useCallback((silent: boolean, retriesLeft = 1): void => {
     const seq = ++requestSeqRef.current;
     lastRefreshAtRef.current = Date.now();
     void getCompanyIdentity()
@@ -53,14 +54,27 @@ export function useCompanyIdentity(): { identity: CompanyIdentity | null; error:
         if (next.organization) {
           setIdentitySessionPrincipal(next.user.id, next.organization.id);
         }
+        // A good answer always clears an earlier failure, even when the
+        // identity itself has not changed.
+        setError('');
         const json = JSON.stringify(next);
         if (json === lastJsonRef.current) return;
         lastJsonRef.current = json;
         setIdentity(next);
-        setError('');
       })
       .catch((cause: unknown) => {
-        if (silent || !mountedRef.current || seq < appliedSeqRef.current) return;
+        if (!mountedRef.current || seq < appliedSeqRef.current) return;
+        // The session moved on while this was loading (a new sign-in, a
+        // permission change): ask again for whoever is signed in now rather
+        // than showing an error.
+        if (cause instanceof IdentitySessionChangedError && retriesLeft > 0) {
+          load(silent, retriesLeft - 1);
+          return;
+        }
+        if (silent) return;
+        // Once an identity has loaded, a failed reload keeps it (see above)
+        // rather than replacing the workspace with an error.
+        if (lastJsonRef.current !== null) return;
         setError(cause instanceof Error ? cause.message : 'Unable to load company workspace.');
       });
   }, []);

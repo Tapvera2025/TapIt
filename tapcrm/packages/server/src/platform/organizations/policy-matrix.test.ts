@@ -422,3 +422,33 @@ describe('interviewers (assigned by HR from any position)', () => {
     expect(expandPermissionCell('recruitment', 'glob', 'super-admin', recruitment)).toEqual([]);
   });
 });
+
+describe('confirming the advance and recording the win are the Sales Head’s (PRD §10.5, DL-4b, DL-5)', () => {
+  const deals = new Map<string, RegistryActionDefinition[]>([
+    ['deals', ['deals:view', 'deals:edit', 'deals:confirm-payment', 'deals:record-win'].map((action) => ({
+      action, module: 'deals', positionGrantable: true, superAdminOnly: false,
+    }))],
+  ]);
+  const actions = (policies: Array<{ action: string; scope: string }>) =>
+    policies.map((p) => `${p.action}:${p.scope}`).sort();
+
+  it('the Sales Head confirms payments and records wins across the department', () => {
+    expect(actions(expandPermissionCell('deals', 'department', 'sales-head', deals))).toEqual([
+      'deals:confirm-payment:department',
+      'deals:edit:department',
+      'deals:record-win:department',
+      'deals:view:department',
+    ]);
+  });
+
+  it.each([
+    ['sales-team-lead', 'team'],
+    ['sales-supervisor', 'pool'],
+    ['base-employee', 'own'],
+  ] as const)('%s works its deals but neither confirms payments nor records wins', (column, cell) => {
+    expect(actions(expandPermissionCell('deals', cell, column, deals))).toEqual([
+      `deals:edit:${cell}`,
+      `deals:view:${cell}`,
+    ]);
+  });
+});

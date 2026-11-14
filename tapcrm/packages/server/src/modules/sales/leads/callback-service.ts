@@ -8,6 +8,7 @@ import { notifyCallback } from './callback-notifications.js';
 import { findCallback, insertCallback, listCallbacks, loadCallbackResource as loadCallbackResourceRow, markCallbackRescheduled, updateCallbackStatus } from './callback-repository.js';
 import { insertActivity, insertAudit, loadLeadResource } from './repository.js';
 import { findLeadHandoverResource } from '../handover/repository.js';
+import { HANDED_OVER_MESSAGE, isHandedOverAway } from '../handover/policy.js';
 import { leadPolicy } from './policy.js';
 import { scopeResolver } from '../../../platform/authz-adapter.js';
 import type { LeadCallback } from './types.js';
@@ -32,11 +33,19 @@ async function assertLeadAccess(ctx: RequestContext, leadId: string): Promise<{ 
     const resource = await loadLeadResource(ctx, leadId);
     const inScope = Boolean(policy?.allowed && resource && await leadPolicy.check({ ...ctx, scope: scopeResolver }, 'leads:view', resource, policy.scope));
     // The person working the lead books its callbacks: its current holder, or
-    // its owner (callbacks are the owner's even while a colleague holds a
-    // live call).
-    if (!inScope || (operationalOwnerId !== ctx.principal.id && lead.ownerId !== ctx.principal.id)) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Only the lead owner or the person working the lead may book a callback');
+    // its owner while nobody else holds it. After a handover the agent who
+    // handed it over can see the lead but no longer books its callbacks.
+    if (isHandedOverAway(lead, ctx.principal.id)) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, HANDED_OVER_MESSAGE);
+    if (!inScope || operationalOwnerId !== ctx.principal.id) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, 'Only the person working the lead may book a callback');
   }
   return { operationalOwnerId, callbackAssigneeId };
+}
+
+/** The agent who handed a lead over no longer works its callbacks either. */
+async function assertNotHandedOver(ctx: RequestContext, leadId: string): Promise<void> {
+  if (globalAccess(ctx.principal)) return;
+  const lead = await findLeadHandoverResource(ctx, leadId);
+  if (lead && isHandedOverAway(lead, ctx.principal.id)) throw new LeadValidationError(LEAD_ERROR_CODES.OWNER_INVALID, HANDED_OVER_MESSAGE);
 }
 
 function assertBookableTime(scheduledAt: Date): void {
@@ -79,13 +88,13 @@ export async function updateCallback(ctx: RequestContext, id: string, input: Upd
   // Who may move it is the route's `callbacks:edit` check on this callback: its
   // owner, or a Supervisor / Team Lead / Sales Head whose reach includes it —
   // so a callback is not lost when its owner is away.
-  const callback = await getCallback(ctx, id); if (!isValidCallbackTransition(callback.status, 'rescheduled')) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'Only pending callbacks may be rescheduled'); assertBookableTime(input.scheduledAt);
+  const callback = await getCallback(ctx, id); await assertNotHandedOver(ctx, callback.leadId); if (!isValidCallbackTransition(callback.status, 'rescheduled')) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'Only pending callbacks may be rescheduled'); assertBookableTime(input.scheduledAt);
   const nextId = await db.transaction(ctx, async (tx) => { await markCallbackRescheduled(tx, ctx.organizationId, id); const nextId = await insertCallback(tx, ctx.organizationId, { leadId: callback.leadId, ownerId: callback.ownerId, scheduledAt: input.scheduledAt, reason: input.reason === undefined ? callback.reason : input.reason, parentCallbackId: id, createdBy: ctx.principal.id }); await insertActivity(tx, ctx.organizationId, callback.leadId, 'callback.rescheduled', ctx.principal.id, { callbackId: id, nextCallbackId: nextId, scheduledAt: input.scheduledAt.toISOString() }); await insertAudit(tx, ctx, 'callback.rescheduled', id, callback, { nextCallbackId: nextId, scheduledAt: input.scheduledAt }, 'callback'); await notifyCallback(tx, ctx, callback.ownerId, callback.leadId, 'rescheduled', input.scheduledAt); return nextId; });
   const next = await getCallback(ctx, nextId); return next;
 }
 
 export async function completeCallback(ctx: RequestContext, id: string, input: CallbackOutcomeInput): Promise<LeadCallback> {
-  const callback = await getCallback(ctx, id); if (!isValidCallbackTransition(callback.status, input.status)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'This callback is already finalized');
-  await db.transaction(ctx, async (tx) => { await updateCallbackStatus(tx, ctx.organizationId, id, input.status, input.outcome ?? null); const event = input.status === 'completed' ? 'callback.completed' : input.status === 'missed' ? 'callback.missed' : input.status === 'not_reachable' ? 'callback.missed' : 'callback.cancelled'; await insertActivity(tx, ctx.organizationId, callback.leadId, event, ctx.principal.id, { callbackId: id, outcome: input.outcome ?? null }); if (input.status === 'missed') { const stalled = await tx.query<{ id: string }>(sql`UPDATE lead SET stalled_at = COALESCE(stalled_at, now()), stalled_reason = COALESCE(stalled_reason, 'missed_callback') WHERE organization_id = ${ctx.organizationId} AND id = ${callback.leadId} AND stalled_at IS NULL RETURNING id`); if (stalled.length) await insertActivity(tx, ctx.organizationId, callback.leadId, 'lead.stalled', ctx.principal.id, { reason: 'missed_callback', callbackId: id }); } await settleLeadAfterCallbackInTransaction(tx, ctx.organizationId, callback.leadId, { status: input.status, outcome: input.outcome ?? null }, ctx.principal.id); await insertAudit(tx, ctx, `callback.${input.status}`, id, { status: callback.status }, { status: input.status, outcome: input.outcome ?? null }, 'callback'); await notifyCallback(tx, ctx, callback.ownerId, callback.leadId, input.status === 'not_reachable' ? 'missed' : input.status); });
+  const callback = await getCallback(ctx, id); await assertNotHandedOver(ctx, callback.leadId); if (!isValidCallbackTransition(callback.status, input.status)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'This callback is already finalized');
+  await db.transaction(ctx, async (tx) => { await updateCallbackStatus(tx, ctx.organizationId, id, input.status, input.outcome ?? null); const event = input.status === 'completed' ? 'callback.completed' : input.status === 'missed' ? 'callback.missed' : input.status === 'not_reachable' ? 'callback.not_reachable' : 'callback.cancelled'; await insertActivity(tx, ctx.organizationId, callback.leadId, event, ctx.principal.id, { callbackId: id, outcome: input.outcome ?? null }); if (input.status === 'missed') { const stalled = await tx.query<{ id: string }>(sql`UPDATE lead SET stalled_at = COALESCE(stalled_at, now()), stalled_reason = COALESCE(stalled_reason, 'missed_callback') WHERE organization_id = ${ctx.organizationId} AND id = ${callback.leadId} AND stalled_at IS NULL RETURNING id`); if (stalled.length) await insertActivity(tx, ctx.organizationId, callback.leadId, 'lead.stalled', ctx.principal.id, { reason: 'missed_callback', callbackId: id }); } await settleLeadAfterCallbackInTransaction(tx, ctx.organizationId, callback.leadId, { status: input.status, outcome: input.outcome ?? null }, ctx.principal.id); await insertAudit(tx, ctx, `callback.${input.status}`, id, { status: callback.status }, { status: input.status, outcome: input.outcome ?? null }, 'callback'); await notifyCallback(tx, ctx, callback.ownerId, callback.leadId, input.status); });
   return getCallback(ctx, id);
 }

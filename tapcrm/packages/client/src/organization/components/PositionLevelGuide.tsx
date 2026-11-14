@@ -1,6 +1,7 @@
 import {
   levelTitleMismatches,
   positionsBySeniority,
+  suggestLevel,
 } from './position-hierarchy-model.js';
 import type { OrganizationPosition } from '../types/index.js';
 
@@ -19,6 +20,7 @@ export function PositionLevelGuide({
   parent,
   parentSuggested,
   moving,
+  onUseLevel,
 }: {
   departmentName: string;
   /** Every position in the department, flattened. */
@@ -33,6 +35,8 @@ export function PositionLevelGuide({
   parentSuggested: boolean;
   /** Positions that will move under it when it is saved. */
   moving: readonly OrganizationPosition[];
+  /** Puts the suggested level into the form. */
+  onUseLevel?: ((level: number) => void) | undefined;
 }): React.JSX.Element {
   const ranked = positionsBySeniority(positions, editing?.id);
   const title = name.trim() || (editing ? editing.name : 'New position');
@@ -47,6 +51,8 @@ export function PositionLevelGuide({
     level === null || !name.trim()
       ? []
       : levelTitleMismatches(positions, name, level, editing?.id);
+  // Only a new position gets a suggestion; an existing one already has its place.
+  const suggestion = editing ? null : suggestLevel(positions, name);
 
   return (
     <section
@@ -72,6 +78,23 @@ export function PositionLevelGuide({
           moving,
         })}
       </p>
+      {suggestion && suggestion.level !== level && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-app-accent/30 bg-app-accent/5 px-3 py-2 text-xs text-app-foreground">
+          <span>
+            Suggested level: <strong className="tabular-nums">{suggestion.level}</strong>,{' '}
+            {suggestion.reason}.
+          </span>
+          {onUseLevel && (
+            <button
+              type="button"
+              onClick={() => onUseLevel(suggestion.level)}
+              className="rounded-md border border-app-accent/40 px-2 py-0.5 font-semibold text-app-accent hover:bg-app-accent/10"
+            >
+              Use {suggestion.level}
+            </button>
+          )}
+        </p>
+      )}
       {mismatches.map(({ position, enteredSoundsSenior }) => (
         <p
           key={position.id}

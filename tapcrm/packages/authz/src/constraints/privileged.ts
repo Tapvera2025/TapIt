@@ -38,7 +38,18 @@ export function registerPrivilegedConstraints(): void {
       if (resource.type !== 'deal') return PASS;
       if (!action.includes('commercial')) return PASS;
 
+      // The closer: whoever is negotiating the deal while it is open (its
+      // responsible closer, DL-2) and whoever closed it once it is won
+      // (DL-12). Reading `closedBy` alone refused the agent working an open
+      // deal their own proposal, because nobody has closed it yet.
+      if (resource['responsibleCloserId'] === ctx.principal.id) return PASS;
       if (resource['closedBy'] === ctx.principal.id) return PASS;
+
+      // The approval chain: the closer's reporting line, the same chain
+      // approvals routing walks to find an approver. The engine has no
+      // database access, so the deal's resource loader resolves it. A loader
+      // that does not resolve it leaves the field absent, and this denies.
+      if (resource['__holderInClosingChain'] === true) return PASS;
 
       // AC-4c — an originating agent who did not close the deal sees stage,
       // lifecycle and sourcing credit, and NO monetary field (unless BD-9 is

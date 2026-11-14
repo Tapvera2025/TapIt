@@ -3,6 +3,7 @@ type NotifyCtx = Pick<RequestContext, 'organizationId' | 'principal'>;
 import type { Tx } from '../../platform/dal/db.js';
 import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
 import { previewText } from './plain-text.js';
+import type { BreakOutcome } from './break-return.js';
 import type { AttachmentKind, ConversationKind, ReactionEmoji } from './types.js';
 
 /**
@@ -162,5 +163,37 @@ export async function notifyGroupMemberRemoved(
     audience: { users: [removedUserId] },
     title: 'You were removed from ' + (conversation.name ?? 'a group'),
     metadata: { conversationId: conversation.id },
+  });
+}
+
+/**
+ * What the person who pressed "Tell me when they're back" is told (0159).
+ * Plain words, and nothing beyond what the presence dot already shows: back
+ * at work, or not at work.
+ */
+export function breakReturnNotice(subjectName: string, outcome: BreakOutcome): { title: string; body: string } {
+  if (outcome === 'back') return { title: subjectName + ' is back from break', body: '' };
+  return {
+    title: subjectName + "'s break has ended",
+    body: "They aren't at work right now, so a reply may have to wait.",
+  };
+}
+
+/** Someone you were waiting on is no longer on a break. Only the person who asked is told. */
+export async function notifyBreakReturn(
+  tx: Tx,
+  ctx: NotifyCtx,
+  input: { watcherId: string; conversationId: string; subjectId: string; subjectName: string; outcome: BreakOutcome },
+): Promise<void> {
+  const notice = breakReturnNotice(input.subjectName, input.outcome);
+  await notify(tx, ctx, {
+    type: NOTIFICATION_TYPES.CHAT_BACK_FROM_BREAK,
+    // They asked for this one, so channel preferences must not silence it (NT-3).
+    priority: 'operational',
+    audience: { users: [input.watcherId] },
+    title: notice.title,
+    body: notice.body,
+    link: conversationLink(input.conversationId),
+    metadata: { conversationId: input.conversationId, userId: input.subjectId },
   });
 }

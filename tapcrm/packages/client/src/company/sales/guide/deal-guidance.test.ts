@@ -25,11 +25,11 @@ const unmet = (...conditions: UnmetCondition['condition'][]): ReadinessReport =>
   unmet: conditions.map((condition) => ({ condition, description: condition, resolver: `resolve ${condition}` })),
 });
 
-function guide(input: Partial<Omit<DealGuideInput, 'deal'>> & { deal?: Partial<Deal>; versions?: CommercialsState[]; briefState?: DeliveryBriefState | null }): Guidance {
+function guide(input: Partial<Omit<DealGuideInput, 'deal'>> & { deal?: Partial<Deal>; versions?: CommercialsState[]; approvals?: Array<string | null>; briefState?: DeliveryBriefState | null }): Guidance {
   return dealGuidance({
     deal: deal(input.deal),
     readiness: input.readiness ?? null,
-    commercials: (input.versions ?? []).map((state, index) => ({ version: index + 1, state })),
+    commercials: (input.versions ?? []).map((state, index) => ({ version: index + 1, state, approvalState: input.approvals?.[index] ?? null })),
     brief: input.briefState === undefined ? null : input.briefState === null ? null : { state: input.briefState },
     myApproval: input.myApproval ?? false,
     viewer: input.viewer ?? CLOSER,
@@ -48,8 +48,26 @@ describe('deal guidance', () => {
     expect(g.waitingOn).toBe('You');
   });
 
-  it('asks to publish a draft', () => {
-    expect(guide({ versions: ['draft'], readiness: unmet('commercials', 'payment', 'delivery_brief', 'authority') }).title).toBe('Publish the proposal');
+  it('asks a salesperson to send a draft for approval before publishing', () => {
+    const g = guide({ versions: ['draft'], readiness: unmet('commercials', 'payment', 'delivery_brief', 'authority') });
+    expect(g.title).toBe('Send the proposal for approval');
+    expect(g.waitingOn).toBe('You');
+  });
+
+  it('asks to publish a draft once that version is approved', () => {
+    expect(guide({ versions: ['draft'], approvals: ['approved'], deal: { approvalStatus: 'approved' }, readiness: unmet('commercials', 'payment', 'delivery_brief', 'authority') }).title).toBe('Publish the proposal');
+  });
+
+  it('asks again for approval when the approved version was changed', () => {
+    const g = guide({ versions: ['draft'], approvals: ['invalidated'], readiness: unmet('commercials', 'payment', 'delivery_brief', 'authority') });
+    expect(g.title).toBe('Send the proposal for approval');
+    expect(g.detail).toContain('needs approving again');
+  });
+
+  it('lets a Super Admin publish a draft directly', () => {
+    const g = guide({ versions: ['draft'], viewer: { ...HEAD, publishesDirectly: true }, readiness: unmet('commercials', 'payment', 'delivery_brief') });
+    expect(g.title).toBe('Publish the proposal');
+    expect(g.waitingOn).toBe('You');
   });
 
   it('waits on the approver while approval is pending', () => {

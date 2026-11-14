@@ -326,3 +326,54 @@ describe('client isolation — A2, step 3', () => {
     await expect(authorize(context(client), 'org:view-structure', unowned)).rejects.toThrow(/A2/);
   });
 });
+
+describe('closing-terms confidentiality — P1, step 5', () => {
+  beforeEach(() => {
+    registerResourcePolicy({
+      resourceType: 'deal',
+      domain: 'business',
+      check: async () => true,
+      filter: async () => MATCH_NOTHING,
+      participantFields: () => ['responsibleCloserId', 'originatingAgentId'],
+      initiatorField: () => null,
+    });
+    harness.policies['deals:view-commercials'] = { allowed: true, scope: 'department' };
+  });
+
+  const deal = (fields: Record<string, unknown> = {}): Resource => ({
+    type: 'deal',
+    id: 'deal-1',
+    organizationId: ORG,
+    responsibleCloserId: 'closer-1',
+    originatingAgentId: 'source-1',
+    closedBy: null,
+    ...fields,
+  });
+  const as = (id: string): AuthzContext => context(principal({ id }));
+
+  it('lets the responsible closer read the commercials of an open deal', async () => {
+    await expect(authorize(as('closer-1'), 'deals:view-commercials', deal())).resolves.toBeUndefined();
+  });
+
+  it('lets whoever closed a won deal read its commercials', async () => {
+    await expect(
+      authorize(as('head-1'), 'deals:view-commercials', deal({ closedBy: 'head-1' })),
+    ).resolves.toBeUndefined();
+  });
+
+  it('lets the closer’s approval chain read them', async () => {
+    await expect(
+      authorize(as('lead-1'), 'deals:view-commercials', deal({ __holderInClosingChain: true })),
+    ).resolves.toBeUndefined();
+  });
+
+  it('refuses the originating agent who did not close the deal (AC-4c)', async () => {
+    await expect(
+      authorize(as('source-1'), 'deals:view-commercials', deal({ __holderInClosingChain: false })),
+    ).rejects.toThrow(/P1/);
+  });
+
+  it('refuses when the approval chain was not resolved (fails closed)', async () => {
+    await expect(authorize(as('lead-1'), 'deals:view-commercials', deal())).rejects.toThrow(/P1/);
+  });
+});

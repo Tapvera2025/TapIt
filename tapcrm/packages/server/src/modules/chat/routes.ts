@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ApplicationError } from '../../errors.js';
 import { route } from '../../platform/http/route.js';
 import { deletePendingAttachment, uploadAttachment } from './attachments.js';
+import { cancelBreakReturnWatch, getBreakReturnWatch, watchBreakReturn } from './break-return.js';
 import { ChatValidationError } from './errors.js';
 import { presenceForColleagues } from './presence.js';
 import { cancelScheduled, listScheduled, loadScheduledResource, scheduleMessage, sendScheduledNow, updateScheduled } from './scheduled.js';
@@ -143,6 +144,39 @@ export function registerChatRoutes(): void {
     action: 'chat:view',
     module: 'chat',
     handler: async ({ ctx }) => { requireEmployeeChat(ctx); return presenceForColleagues(ctx); },
+  });
+
+  // "Tell me when they're back" in a direct message with someone on a break
+  // (0159). Personal, like saving a message, so `chat:view`; the real gate is
+  // membership of the conversation, and the service accepts direct messages only.
+  route({
+    method: 'GET',
+    path: '/api/chat/conversations/:id/back-from-break',
+    action: 'chat:view',
+    module: 'chat',
+    resourceParam: 'id',
+    loadResource: loadConversationResource,
+    handler: async ({ ctx, params }) => getBreakReturnWatch(ctx, idParam.parse(params).id),
+  });
+
+  route({
+    method: 'PUT',
+    path: '/api/chat/conversations/:id/back-from-break',
+    action: 'chat:view',
+    module: 'chat',
+    resourceParam: 'id',
+    loadResource: loadConversationResource,
+    handler: async ({ ctx, params }) => watchBreakReturn(ctx, idParam.parse(params).id),
+  });
+
+  route({
+    method: 'DELETE',
+    path: '/api/chat/conversations/:id/back-from-break',
+    action: 'chat:view',
+    module: 'chat',
+    resourceParam: 'id',
+    loadResource: loadConversationResource,
+    handler: async ({ ctx, params }) => cancelBreakReturnWatch(ctx, idParam.parse(params).id),
   });
 
   // Full-text search over every conversation the caller is a current member of.

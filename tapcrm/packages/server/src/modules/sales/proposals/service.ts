@@ -9,13 +9,12 @@
 
 import { ApplicationError } from '../../../errors.js';
 import type { Resource } from '@tapcrm/authz';
+import { globalAccess } from '@tapcrm/contracts';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { recompute } from '../commercials/service.js';
-import type { DealResource } from '../deals/types.js';
-import { evaluateDimensionsForRow } from '../approvals/dimensions.js';
-import { loadUserAuthority, toActorAuthority } from '../approvals/repository.js';
+import { toDealResource, type DealResourceRow } from '../deals/repository.js';
 import { commercialsChecksum, commercialsRowToChecksumInput } from './checksum.js';
 import { issueToken, revokeToken, type IssuedToken } from './portal/token.js';
 import {
@@ -25,6 +24,7 @@ import {
   insertCommercials,
   insertCommercialsAudit,
   insertCommercialsItem,
+  latestApprovalStateForCommercials,
   listVersionsForDeal,
   loadDealApprovalSnapshot,
   lockCommercials,
@@ -80,8 +80,8 @@ export class CommercialsPublishBlockedError extends ApplicationError {
   constructor(reason: 'approval_pending' | 'approval_rejected' | 'approval_required' | 'deal_closed' | 'empty_items') {
     const messages: Record<typeof reason, string> = {
       approval_pending: 'Approval is pending; publish is blocked until the request is decided.',
-      approval_rejected: 'Approval was rejected; create a new version addressing the feedback.',
-      approval_required: 'Commercials dimensions exceed authority; request approval before publishing.',
+      approval_rejected: 'Approval was turned down; change the proposal to answer the comments, then request approval again.',
+      approval_required: 'Request approval before publishing: every proposal from the sales team is approved before it goes to the client.',
       deal_closed: 'Deal lifecycle is already terminal; publish is not permitted.',
       empty_items: 'Commercials cannot be published without at least one line item.',
     };
@@ -107,16 +107,7 @@ export async function listVersions(ctx: RequestContext, dealId: string): Promise
  * owning deal.
  */
 export async function loadDealForCommercials(ctx: RequestContext, commercialsId: string): Promise<Resource | null> {
-  const row = await db.maybeOne<{
-    id: string;
-    organizationId: string;
-    responsibleCloserId: string;
-    originatingAgentId: string;
-    lifecycleStatus: string;
-    createdBy: string | null;
-    closedBy: string | null;
-    paymentInitiatedBy: string | null;
-  }>(
+  const row = await db.maybeOne<DealResourceRow>(
     ctx,
     sql`SELECT d.id,
                d.organization_id       AS "organizationId",
@@ -131,18 +122,7 @@ export async function loadDealForCommercials(ctx: RequestContext, commercialsId:
          WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${commercialsId}`,
   );
   if (!row) return null;
-  const resource: DealResource = {
-    type: 'deal',
-    id: row.id,
-    organizationId: row.organizationId,
-    responsibleCloserId: row.responsibleCloserId,
-    originatingAgentId: row.originatingAgentId,
-    lifecycleStatus: row.lifecycleStatus as DealResource['lifecycleStatus'],
-    createdBy: row.createdBy,
-    closedBy: row.closedBy,
-    payment: { initiatedBy: row.paymentInitiatedBy },
-  };
-  return resource;
+  return toDealResource(ctx, row);
 }
 
 function writeFieldsFrom(body: CommercialsBodyInput, totals: ReturnType<typeof recompute>): {
@@ -266,6 +246,8 @@ export async function updateDraft(
     );
     // R-APP-05 — material commercials change invalidates any pending
     // approval for the deal; the salesperson re-requests after revising.
+    // An approval already granted for THIS version goes too: it approved the
+    // proposal as it was, and sales staff publish only an approved version.
     const materialChange =
       !before
       || before.totalMinor !== totals.totalMinor
@@ -281,7 +263,8 @@ export async function updateDraft(
                updated_at      = now()
          WHERE organization_id = ${ctx.organizationId}
            AND deal_id         = ${locked.dealId}
-           AND state IN ('pending','escalated','returned')
+           AND (state IN ('pending','escalated','returned')
+                OR (state = 'approved' AND commercials_id = ${commercialsId}))
          RETURNING id
       `);
       if (invalidated.length > 0) {
@@ -327,11 +310,9 @@ export async function publishVersion(ctx: RequestContext, commercialsId: string)
     if (deal.lifecycleStatus !== 'open') {
       throw new CommercialsPublishBlockedError('deal_closed');
     }
+    // An open request is decided first, by its approver or a Super Admin.
     if (deal.approvalStatus === 'pending') {
       throw new CommercialsPublishBlockedError('approval_pending');
-    }
-    if (deal.approvalStatus === 'rejected') {
-      throw new CommercialsPublishBlockedError('approval_rejected');
     }
 
     const current = await findCommercialsTx(tx, ctx.organizationId, commercialsId);
@@ -340,17 +321,19 @@ export async function publishVersion(ctx: RequestContext, commercialsId: string)
       throw new CommercialsPublishBlockedError('empty_items');
     }
 
-    // R-APP-01 / R-PROP-02 — if the current totals exceed the publisher's
-    // authority, approval must have been granted. `not_required` is only
-    // legitimate when dimensions are within bounds; if they aren't, the
-    // salesperson has to request approval first.
-    if (deal.approvalStatus === 'not_required') {
-      const authorityRow = await loadUserAuthority(ctx, ctx.principal.id);
-      if (authorityRow) {
-        const snap = evaluateDimensionsForRow(current, toActorAuthority(authorityRow));
-        if (snap.requiresApproval) {
-          throw new CommercialsPublishBlockedError('approval_required');
-        }
+    // Owner decision, 13 Nov 2026 (replacing R-APP-01's "only beyond your
+    // limits"): every proposal version built or edited by sales staff is
+    // approved before it is published; a Super Admin publishes directly.
+    // The approval must be for this exact version: a new version, or a
+    // material edit after approval (updateDraft), needs a new one.
+    if (!globalAccess(ctx.principal)) {
+      const approval = await latestApprovalStateForCommercials(tx, ctx.organizationId, commercialsId);
+      if (approval !== 'approved') {
+        throw new CommercialsPublishBlockedError(
+          approval === 'pending' || approval === 'escalated' || approval === 'returned' ? 'approval_pending'
+          : approval === 'rejected' ? 'approval_rejected'
+          : 'approval_required',
+        );
       }
     }
 
