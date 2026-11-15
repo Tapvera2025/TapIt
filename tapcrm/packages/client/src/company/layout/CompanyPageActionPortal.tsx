@@ -9,9 +9,13 @@ import { useCompanyHeroPageActions } from './CompanyNavbarContext.js';
 export function CompanyPageActionPortal({ children }: { readonly children: ReactNode }): React.JSX.Element | null {
   const { target } = useCompanyHeroPageActions();
 
-  if (!target) return null;
-  return createPortal(
-    <div className="company-page-hero-actions hidden shrink-0 items-center gap-2 xl:flex">{children}</div>,
-    target,
+  return (
+    <>
+      <div className="company-page-action-mobile xl:hidden">{children}</div>
+      {target && createPortal(
+        <div className="company-page-hero-actions hidden shrink-0 items-center gap-2 xl:flex">{children}</div>,
+        target,
+      )}
+    </>
   );
 }

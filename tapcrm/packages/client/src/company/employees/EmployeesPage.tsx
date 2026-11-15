@@ -21,6 +21,7 @@ import {
 } from '../api/companyApi.js';
 import { listShifts, listWeekdaySchedules, type ShiftTemplate, type WeekdaySchedule } from '../api/shiftsApi.js';
 import { SkeletonTableRows, WorkspacePageContainer } from '../../ui/index.js';
+import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ export function EmployeesPage({
             </p>
           </div>
           {canManage && (
+            <CompanyPageActionPortal>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -164,6 +166,7 @@ export function EmployeesPage({
                 Create employee
               </button>
             </div>
+            </CompanyPageActionPortal>
           )}
         </div>
 

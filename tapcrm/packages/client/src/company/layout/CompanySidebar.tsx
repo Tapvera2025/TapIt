@@ -1060,7 +1060,13 @@ export function CompanySidebar({
           items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
         },
       ]
-    : navigation.filter((group) => group.items.length > 0);
+    : navigation.filter(
+        (group) =>
+          group.items.length > 0 &&
+          group.label !== 'Recruitment' &&
+          group.label !== 'Shifts & Leave' &&
+          group.label !== 'Identity & Access',
+      );
 
   return (
     <aside

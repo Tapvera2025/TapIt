@@ -83,17 +83,11 @@ export function SalesGuideFrame({ pathname, onNavigate, children }: { pathname: 
   const guide = useSalesGuide();
   const key = salesGuideKey(pathname);
   if (!guide || key === null) return <>{children}</>;
-  const docked = guide.mode === 'open';
   return (
-    <div className={docked ? 'xl:flex xl:items-start' : undefined}>
-      <div className="min-w-0 flex-1">{children}</div>
-      <aside
-        ref={guide.setDock}
-        aria-label="Sales guide"
-        className={docked ? 'sales-guide-dock hidden xl:sticky xl:top-0 xl:block xl:w-[21rem] xl:shrink-0 xl:pr-8' : 'hidden'}
-      />
+    <>
+      {children}
       {guide.pageCoaches === 0 && <CoachView guidance={guideForPath(key, guide.viewer)} onNavigate={onNavigate} />}
-    </div>
+    </>
   );
 }
 
@@ -101,7 +95,7 @@ export function SalesGuideFrame({ pathname, onNavigate, children }: { pathname: 
 export function SalesGuideToggle(): React.JSX.Element | null {
   const guide = useSalesGuide();
   if (!guide) return null;
-  const on = guide.mode !== 'closed';
+  const on = guide.mode === 'open';
   return (
     <button
       type="button"
@@ -158,17 +152,19 @@ function CoachView({ guidance, onCommand, onNavigate }: { guidance: Guidance; on
   }, [sheetOpen]);
 
   if (!guide || guide.mode === 'closed') return null;
-  const { mode, setMode, dock } = guide;
+  const { mode, setMode } = guide;
 
   const perform = async (action: GuideAction): Promise<void> => {
     setError(null);
     switch (action.do.kind) {
       case 'navigate':
         setSheetOpen(false);
+        setMode('minimized');
         onNavigate(action.do.to);
         return;
       case 'focus':
         setSheetOpen(false);
+        setMode('minimized');
         focusGuideTarget(action.do.target);
         return;
       case 'link':
@@ -179,6 +175,7 @@ function CoachView({ guidance, onCommand, onNavigate }: { guidance: Guidance; on
         try {
           await onCommand(action.do.command);
           setSheetOpen(false);
+          setMode('minimized');
         } catch (cause) {
           setError({ title: guidance.title, message: cause instanceof Error ? cause.message : 'That did not work. Try again.' });
         } finally {
@@ -198,14 +195,14 @@ function CoachView({ guidance, onCommand, onNavigate }: { guidance: Guidance; on
   };
   // An error belongs to the step it came from; a new step clears it.
   const shownError = error && error.title === guidance.title ? error.message : null;
-  const card = (variant: 'docked' | 'sheet') => (
+  const card = (variant: 'floating' | 'sheet') => (
     <CoachCard
       guidance={guidance}
       busy={busy}
       error={shownError}
       variant={variant}
       onAction={(action) => void perform(action)}
-      onMinimize={variant === 'docked' ? () => setMode('minimized') : () => setSheetOpen(false)}
+      onMinimize={variant === 'floating' ? () => setMode('minimized') : () => setSheetOpen(false)}
       onClose={close}
     />
   );
@@ -218,7 +215,23 @@ function CoachView({ guidance, onCommand, onNavigate }: { guidance: Guidance; on
 
   return (
     <>
-      {mode === 'open' && dock && createPortal(card('docked'), dock)}
+      {mode === 'open' && createPortal(
+        <div
+          className="fixed inset-0 z-[80] hidden items-center justify-center bg-black/30 p-6 backdrop-blur-sm xl:flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Sales guide"
+          onClick={() => setMode('minimized')}
+        >
+          <div
+            className="w-[min(30rem,calc(100vw-3rem))]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {card('floating')}
+          </div>
+        </div>,
+        document.body,
+      )}
       {!sheetOpen && createPortal(
         <button
           type="button"
@@ -257,7 +270,7 @@ function CoachCard({ guidance, busy, error, variant, onAction, onMinimize, onClo
   guidance: Guidance;
   busy: boolean;
   error: string | null;
-  variant: 'docked' | 'sheet';
+  variant: 'floating' | 'sheet';
   onAction: (action: GuideAction) => void;
   onMinimize: () => void;
   onClose: () => void;
@@ -268,15 +281,15 @@ function CoachCard({ guidance, busy, error, variant, onAction, onMinimize, onClo
   const dangers = guidance.actions.filter((action) => action.emphasis === 'danger');
   return (
     <section
-      className={`sales-guide-card ui-card overflow-hidden border-t-4 p-0 ${tone.edge} ${variant === 'docked' ? 'max-h-[calc(100dvh-7.5rem)] overflow-y-auto' : ''}`}
+      className={`sales-guide-card ui-card overflow-hidden border-t-4 p-0 ${tone.edge} ${variant === 'floating' ? 'max-h-[calc(100dvh-6rem)] overflow-y-auto shadow-2xl' : ''}`}
     >
       <header className="flex items-center gap-2 border-b border-app-border px-4 py-2.5">
         <Icon name="compass" className="size-4 text-app-accent" />
         <p className="min-w-0 flex-1 truncate text-xs font-bold uppercase tracking-[0.12em] text-app-muted">
           Guide · <span className="normal-case tracking-normal">{guidance.context}</span>
         </p>
-        <button type="button" onClick={onMinimize} className="rounded-lg p-1.5 text-app-muted hover:bg-app-background hover:text-app-foreground" aria-label={variant === 'docked' ? 'Minimize the guide' : 'Hide the guide'} title={variant === 'docked' ? 'Minimize' : 'Hide'}>
-          <Icon name={variant === 'docked' ? 'minus' : 'chevron-down'} className="size-4" />
+        <button type="button" onClick={onMinimize} className="rounded-lg p-1.5 text-app-muted hover:bg-app-background hover:text-app-foreground" aria-label={variant === 'floating' ? 'Minimize the guide' : 'Hide the guide'} title={variant === 'floating' ? 'Minimize' : 'Hide'}>
+          <Icon name={variant === 'floating' ? 'minus' : 'chevron-down'} className="size-4" />
         </button>
         <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-app-muted hover:bg-app-background hover:text-app-foreground" aria-label="Close the guide" title="Close the guide">
           <Icon name="close" className="size-4" />

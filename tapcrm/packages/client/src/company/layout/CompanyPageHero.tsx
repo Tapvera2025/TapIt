@@ -1,6 +1,6 @@
 import { WorkspacePageContainer } from '../../ui/index.js';
 import { useCompanyPageMetadataValue, type CompanyPageMetadata } from './CompanyNavbarContext.js';
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { CompanyHeroUtilityCapsule } from './CompanyHeroUtilityCapsule.js';
 
 const DESCRIPTION_BY_TITLE: Readonly<Record<string, string>> = {
@@ -92,20 +92,30 @@ export function CompanyPageHero(): React.JSX.Element {
   if (!metadata) return <></>;
 
   const { width: w, height: h, capsuleLeft, capsuleBottom } = size;
+  const utilityOverlapsCopy = w > 0 && capsuleLeft < w * 0.56;
   const radius = 28;
   // The capsule anchors at the hero's right edge. Measure its actual left and
   // lower edge, then use those exact coordinates for a single continuous
   // pocket. This keeps the cutout clean when its controls change width.
-  const pocketClearance = 8;
-  const pocketLeft = Math.max(radius * 2, capsuleLeft - pocketClearance);
+  // Keep the cutout tightly mapped to the measured capsule bounds.
+  const pocketClearance = 5;
+  // Keep a minimum transition runway, then adapt the pocket corner to the
+  // actual space available between the hero's outer corner and capsule.
+  const pocketLeft = Math.max(radius + 4, capsuleLeft - pocketClearance);
   const pocketBottom = Math.min(h - radius * 2, capsuleBottom + pocketClearance);
-  const pocketCorner = Math.min(18, Math.max(12, pocketBottom / 2));
+  const pocketCorner = Math.min(12, Math.max(5, (pocketLeft - radius) / 2));
   const path = `M ${radius} 0 H ${pocketLeft - pocketCorner} Q ${pocketLeft} 0 ${pocketLeft} ${pocketCorner} V ${pocketBottom - pocketCorner} Q ${pocketLeft} ${pocketBottom} ${pocketLeft + pocketCorner} ${pocketBottom} H ${w - radius} Q ${w} ${pocketBottom} ${w} ${pocketBottom + radius} V ${h - radius} Q ${w} ${h} ${w - radius} ${h} H ${radius} Q 0 ${h} 0 ${h - radius} V ${radius} Q 0 0 ${radius} 0 Z`;
 
   return (
     <div className="company-page-hero-desktop hidden xl:block">
       <WorkspacePageContainer>
-        <section ref={wrapperRef} className="company-page-hero" aria-labelledby="company-page-hero-title">
+        <section
+          ref={wrapperRef}
+          className="company-page-hero"
+          aria-labelledby="company-page-hero-title"
+          data-utility-overlap={utilityOverlapsCopy ? 'true' : 'false'}
+          style={{ '--hero-utility-height': `${Math.max(0, capsuleBottom)}px` } as CSSProperties}
+        >
           {w > 0 && h > 0 && <svg className="company-page-hero-surface" width={w} height={h} aria-hidden="true">
             <defs><linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stopColor="var(--hero-start)" /><stop offset="65%" stopColor="var(--app-surface)" /><stop offset="100%" stopColor="var(--hero-end)" /></linearGradient></defs>
             <path d={path} fill={`url(#${gradientId})`} stroke="var(--hero-border)" strokeWidth="2" />

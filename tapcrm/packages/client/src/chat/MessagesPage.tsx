@@ -5,7 +5,7 @@ import { getConversation, type ConversationKind } from './api/chatApi.js';
 import { DirectMessagesPage } from './DirectMessagesPage.js';
 import { InternalGroupsPage } from './InternalGroupsPage.js';
 import { ProjectGroupsPage } from './ProjectGroupsPage.js';
-import { LiquidMessagesTabBar } from './LiquidMessagesTabBar.js';
+import { LiquidGlassTabs, type LiquidGlassTabItem } from '../company/recruitment/components/RecruitmentTabs.js';
 import { useChatUnread } from './ChatUnreadContext.js';
 import { SavedPanel } from './SavedPanel.js';
 import { SearchPanel } from './SearchPanel.js';
@@ -43,11 +43,12 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
   const [savedVersion, setSavedVersion] = useState(0);
   const unread = useChatUnread();
   const wide = useWideScreen();
-  const tabs = useMemo(() => [
-    { value: 'direct', label: 'Direct Messages', shortLabel: 'Direct', badge: unread.direct },
-    { value: 'group', label: 'Internal Groups', shortLabel: 'Internal', badge: unread.group },
-    { value: 'project', label: 'Project Groups', shortLabel: 'Project', badge: unread.project },
-  ] as const, [unread.direct, unread.group, unread.project]);
+  const tabs = useMemo<LiquidGlassTabItem[]>(() => [
+    { id: 'direct', label: 'Direct Messages', path: 'direct', iconName: 'message' },
+    { id: 'group', label: 'Internal Groups', path: 'group', iconName: 'users' },
+    { id: 'project', label: 'Project Groups', path: 'project', iconName: 'briefcase' },
+  ], []);
+  const tabCounts = useMemo(() => ({ direct: unread.direct, group: unread.group, project: unread.project }), [unread.direct, unread.group, unread.project]);
 
   const go = useCallback((target: { conversationId: string; messageId?: string | undefined; kind: ConversationKind; archived?: boolean | undefined }) => {
     setTab(TAB_FOR_KIND[target.kind] ?? 'direct');
@@ -110,10 +111,12 @@ export function MessagesPage({ currentUserId, isSuperAdmin, canManageProjects }:
     <div className="messages-page flex h-full min-h-0 flex-col px-3 pb-3 sm:px-4 sm:pb-4 md:px-8 md:pb-8">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <LiquidMessagesTabBar
-            tabs={tabs}
-            value={tab}
-            onChange={(next) => {
+          <LiquidGlassTabs
+            items={tabs}
+            activeId={tab}
+            counts={tabCounts}
+            ariaLabel="Message sections"
+            onNavigate={(next) => {
               setDeepLink(undefined);
               setTab(next as Tab);
             }}
