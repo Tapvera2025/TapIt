@@ -2982,12 +2982,10 @@ summary:active {
     /* Optically centre the three-line copy block beneath the utility pocket. */
     transform: translateY(-0.875rem);
   }
-  .company-page-hero[data-utility-overlap='true'] {
-    /* Only wide action capsules that enter the copy region need extra room. */
-    padding-top: max(5.5rem, calc(var(--hero-utility-height, 0px) + 2rem));
-  }
   .company-page-hero[data-utility-overlap='true'] .company-page-hero-copy {
-    transform: none;
+    /* The normal copy position is stable. This is only a small nudge for a
+       genuinely overlapping, expanded capsule. */
+    transform: translateY(-0.5rem);
   }
   .company-page-hero-utility { position: absolute; z-index: 1000; right: 0; top: 0; }
   .company-hero-capsule {
@@ -3592,6 +3590,28 @@ summary:active {
   height: 0 !important;
   width: 0 !important;
   background: transparent !important;
+}
+
+/* When every navigation group is closed, keep the compact section headers in
+   one viewport so the sidebar does not need an unnecessary vertical scroll. */
+.company-sidebar-nav.sidebar-sections-collapsed {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0 !important;
+  overflow-y: hidden;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div.relative {
+  margin-top: 0 !important;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div > button {
+  padding-block: 0.5rem !important;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div > div.mt-2 {
+  margin-top: 0.25rem;
 }
 
 /* Keep the desktop sidebar clean until it is actually being used. The nav

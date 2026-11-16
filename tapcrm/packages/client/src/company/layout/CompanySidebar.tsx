@@ -1081,6 +1081,33 @@ export function CompanySidebar({
           group.label !== 'Shifts & Leave' &&
           group.label !== 'Identity & Access',
       );
+  const sectionHasActiveRoute = (group: CompanyNavGroup): boolean =>
+    group.items.some(
+      (item) =>
+        pathname === item.path ||
+        pathname.startsWith(`${item.path}/`),
+    );
+  const sectionIsOpen = (group: CompanyNavGroup): boolean =>
+    openSections[group.label] ??
+    (isEmployeePortal
+      ? group.label === 'Overview' || sectionHasActiveRoute(group)
+      : group.label === 'Organization'
+        ? pathname.startsWith('/company/organization') || pathname === '/company/employees'
+        : group.label === 'Recruitment'
+          ? pathname.startsWith('/company/recruitment')
+          : true);
+  // Preferences is hidden from the desktop rail and starts expanded for the
+  // company admin fallback. It must not keep the visible module list in the
+  // spacious/scrolling layout when every visible module is closed.
+  const compactNavigation = visibleNavigation.filter(
+    (group) =>
+      group.label !== 'Preferences' ||
+      pathname === '/company/settings' ||
+      openSections[group.label] !== undefined,
+  );
+  const allSectionsCollapsed =
+    compactNavigation.length > 0 &&
+    compactNavigation.every((group) => !sectionIsOpen(group));
 
   return (
     <aside
@@ -1165,7 +1192,7 @@ export function CompanySidebar({
         onPointerUp={finishSidebarPillDrag}
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
-        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
+        className={`company-sidebar-nav relative min-h-0 flex-1 overflow-x-hidden overscroll-y-contain ${allSectionsCollapsed ? 'sidebar-sections-collapsed space-y-0' : 'overflow-y-auto space-y-7'} ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
         aria-label={
           variant === 'client'
             ? 'Client navigation'
@@ -1196,15 +1223,7 @@ export function CompanySidebar({
           const hasExactDestination = group.items.some(
             (item) => pathname === item.path || item.children?.some((sub) => pathname === sub.path),
           );
-          const isOpen =
-            openSections[group.label] ??
-            (isEmployeePortal
-              ? group.label === 'Overview' || activeChild
-              : group.label === 'Organization'
-                ? pathname.startsWith('/company/organization') || pathname === '/company/employees'
-                : group.label === 'Recruitment'
-                  ? pathname.startsWith('/company/recruitment')
-                  : true);
+          const isOpen = sectionIsOpen(group);
           return (
             <div
               key={group.label}

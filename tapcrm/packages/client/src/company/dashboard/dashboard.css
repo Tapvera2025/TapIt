@@ -900,12 +900,12 @@
 /* Administrator overview: quiet canvas, roomy glass cards, visible hierarchy. */
 .dashboard-admin-mode {
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border: 1px solid var(--app-border);
-  border-radius: 2rem;
-  padding: clamp(0.875rem, 2.2vw, 1.5rem);
-  background: var(--app-background);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .dashboard-admin-hero {
@@ -1075,8 +1075,8 @@
 
 @media (max-width: 767px) {
   .dashboard-admin-mode {
-    border-radius: 1.5rem;
-    padding: 0.75rem;
+    border-radius: 0;
+    padding: 0;
   }
 
   .dashboard-admin-hero {
