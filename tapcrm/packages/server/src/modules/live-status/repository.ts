@@ -21,6 +21,8 @@ export interface Row {
   lastEventAt: Date | null;
   workedMinutes: number;
   breakMinutes: number;
+  /** When the two minute counts were worked out; empty on rows written before 0158. */
+  minutesAsOf?: Date | null;
   presenceConfidence: 'confirmed' | 'assumed';
   lastScanAt: Date | null;
   lastScanDevice: string | null;
@@ -50,7 +52,7 @@ export interface BoardRow extends Row {
 export async function readRow(tx: Tx, userId: string): Promise<Row | null> {
   return tx.maybeOne<Row>(sql`
     SELECT user_id AS id, user_id, work_date::text AS work_date, state, since, last_event_at,
-           worked_minutes, break_minutes, presence_confidence, last_scan_at, last_scan_device,
+           worked_minutes, break_minutes, minutes_as_of, presence_confidence, last_scan_at, last_scan_device,
            likely_finished_at, is_wfh, is_remote, day_group,
            shift_start_at, shift_end_at, window_start, window_end, rollover_due_at,
            grace_minutes, flexible_target_minutes, updated_at
@@ -68,13 +70,13 @@ export async function upsertRow(tx: Tx, row: UpsertRow): Promise<void> {
   await tx.query(sql`
     INSERT INTO user_status (
       organization_id, user_id, work_date, state, since, last_event_at,
-      worked_minutes, break_minutes, presence_confidence, last_scan_at, last_scan_device,
+      worked_minutes, break_minutes, minutes_as_of, presence_confidence, last_scan_at, last_scan_device,
       likely_finished_at, is_wfh, is_remote, day_group,
       shift_start_at, shift_end_at, window_start, window_end, rollover_due_at,
       grace_minutes, flexible_target_minutes, updated_at
     ) VALUES (
       ${row.organizationId}, ${row.userId}, ${row.workDate}, ${row.state}, ${row.since}, ${row.lastEventAt},
-      ${row.workedMinutes}, ${row.breakMinutes}, ${row.presenceConfidence}, ${row.lastScanAt}, ${row.lastScanDevice},
+      ${row.workedMinutes}, ${row.breakMinutes}, ${row.minutesAsOf}, ${row.presenceConfidence}, ${row.lastScanAt}, ${row.lastScanDevice},
       ${row.likelyFinishedAt}, ${row.isWfh}, ${row.isRemote}, ${row.dayGroup},
       ${row.shiftStartAt}, ${row.shiftEndAt}, ${row.windowStart}, ${row.windowEnd}, ${row.rolloverDueAt},
       ${row.graceMinutes}, ${row.flexibleTargetMinutes}, now()
@@ -86,6 +88,7 @@ export async function upsertRow(tx: Tx, row: UpsertRow): Promise<void> {
       last_event_at = EXCLUDED.last_event_at,
       worked_minutes = EXCLUDED.worked_minutes,
       break_minutes = EXCLUDED.break_minutes,
+      minutes_as_of = EXCLUDED.minutes_as_of,
       presence_confidence = EXCLUDED.presence_confidence,
       last_scan_at = EXCLUDED.last_scan_at,
       last_scan_device = EXCLUDED.last_scan_device,
@@ -124,7 +127,7 @@ export async function listBoard(
 ): Promise<BoardRow[]> {
   return tx.query<BoardRow>(sql`
     SELECT r.user_id AS id, r.user_id, r.work_date::text AS work_date, r.state, r.since, r.last_event_at,
-           r.worked_minutes, r.break_minutes, r.presence_confidence, r.last_scan_at, r.last_scan_device,
+           r.worked_minutes, r.break_minutes, r.minutes_as_of, r.presence_confidence, r.last_scan_at, r.last_scan_device,
            r.likely_finished_at, r.is_wfh, r.is_remote, r.day_group,
            r.shift_start_at, r.shift_end_at, r.window_start, r.window_end, r.rollover_due_at,
            r.grace_minutes, r.flexible_target_minutes, r.updated_at,

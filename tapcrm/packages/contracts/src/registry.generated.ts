@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 242   Bindings: 757
+ * Actions: 242   Bindings: 760
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -4726,6 +4726,9 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'DELETE', path: '/api/chat/messages/:id/react', action: 'chat:send', resourceParam: 'id' },
   { method: 'POST', path: '/api/chat/messages/:id/unsend', action: 'chat:send', resourceParam: 'id' },
   { method: 'GET', path: '/api/chat/presence', action: 'chat:view', resourceParam: null },
+  { method: 'GET', path: '/api/chat/conversations/:id/back-from-break', action: 'chat:view', resourceParam: 'id' },
+  { method: 'PUT', path: '/api/chat/conversations/:id/back-from-break', action: 'chat:view', resourceParam: 'id' },
+  { method: 'DELETE', path: '/api/chat/conversations/:id/back-from-break', action: 'chat:view', resourceParam: 'id' },
   { method: 'GET', path: '/api/chat/search', action: 'chat:view', resourceParam: null },
   { method: 'GET', path: '/api/chat/saved', action: 'chat:view', resourceParam: null },
   { method: 'GET', path: '/api/chat/scheduled', action: 'chat:view', resourceParam: null },

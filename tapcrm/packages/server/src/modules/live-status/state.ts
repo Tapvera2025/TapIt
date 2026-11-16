@@ -33,6 +33,14 @@ export interface DerivedRow {
   readonly lastEventAt: Date | null;
   readonly workedMinutes: number;
   readonly breakMinutes: number;
+  /**
+   * The instant `workedMinutes` and `breakMinutes` were worked out at. The
+   * row is only re-derived when something happens, so a screen adds the time
+   * since this instant to whichever of the two is still running. Counting
+   * from `since` instead counted the same minutes twice whenever the row was
+   * re-derived in the middle of a stretch (at shift end, for example).
+   */
+  readonly minutesAsOf: Date;
   readonly presenceConfidence: 'confirmed' | 'assumed';
   readonly lastScanAt: Date | null;
   readonly lastScanDevice: string | null;
@@ -189,6 +197,7 @@ export function deriveRow(inputs: DeriveInputs): DerivedRow {
     lastEventAt: lastEvent !== null ? new Date(lastEvent.at) : null,
     workedMinutes,
     breakMinutes,
+    minutesAsOf: now,
     presenceConfidence,
     lastScanAt: lastScan !== null ? new Date(lastScan.at) : null,
     lastScanDevice: inputs.lastScanDevice ?? null,

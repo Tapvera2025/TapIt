@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isClosedLeadStatus,
+  isHandedOverAway,
   leadStatusLabel,
   LOSS_REASON_OPTIONS,
   statusMoveOptions,
@@ -39,5 +40,24 @@ describe('lead status choices', () => {
       'unspecified',
     );
     expect(LOSS_REASON_OPTIONS.map((option) => option.value)).toContain('other');
+  });
+});
+
+describe('a handed-over lead', () => {
+  it('is view-only for the agent who handed it over while someone else holds it', () => {
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: 'supervisor' }, 'agent')).toBe(true);
+  });
+
+  it('is worked by the person who took it', () => {
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: 'supervisor' }, 'supervisor')).toBe(false);
+  });
+
+  it('goes back to normal once the owner holds it again (reassigned back, or never handed over)', () => {
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: 'agent' }, 'agent')).toBe(false);
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: null }, 'agent')).toBe(false);
+  });
+
+  it('does not concern anyone else, such as a manager looking at it', () => {
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: 'supervisor' }, 'team-lead')).toBe(false);
   });
 });

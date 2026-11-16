@@ -91,6 +91,18 @@ interface EmployeeWizardDraftData {
   weekdayScheduleId?: string;
   skillsList?: Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>;
   qualificationsList?: Array<{ institution: string; degree: string; fieldOfStudy: string; passingYear: string; grade: string }>;
+  /**
+   * A skill or qualification typed in but not yet added with its Add button.
+   * The draft keeps it too, so "Save as Draft" saves everything on screen and
+   * closing straight after saving never asks about lost changes.
+   */
+  pendingSkillName?: string;
+  pendingSkillProficiency?: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  pendingInstitution?: string;
+  pendingDegree?: string;
+  pendingFieldOfStudy?: string;
+  pendingPassingYear?: string;
+  pendingGrade?: string;
   step?: number;
   savedAt?: string;
 }
@@ -101,7 +113,7 @@ const DRAFT_KEY = 'tapcrm.employee_wizard_draft';
 type DraftFields = Omit<EmployeeWizardDraftData, 'step' | 'savedAt'>;
 
 /** Filled in for every new form, so they say nothing about whether anything was entered. */
-const PREFILLED_FIELDS = new Set<keyof DraftFields>(['employeeId', 'phoneCountryCode', 'emergencyContactCountryCode']);
+const PREFILLED_FIELDS = new Set<keyof DraftFields>(['employeeId', 'phoneCountryCode', 'emergencyContactCountryCode', 'pendingSkillProficiency']);
 
 function hasEnteredDetails(fields: DraftFields): boolean {
   return (Object.entries(fields) as Array<[keyof DraftFields, unknown]>).some(([key, value]) =>
@@ -259,6 +271,7 @@ export function AddEmployeeWizardModal({
     try {
       const res = await getNextEmployeeId(employeeId.trim() || undefined);
       setEmployeeId(res.nextEmployeeId);
+      adoptGeneratedEmployeeId(res.nextEmployeeId);
       setFieldErrors((prev) => {
         const next = { ...prev };
         delete next.employeeId;
@@ -269,6 +282,26 @@ export function AddEmployeeWizardModal({
     } finally {
       setLoadingEmployeeId(false);
     }
+  }
+
+  /**
+   * The ID is filled in by the system, sometimes only after a draft was saved
+   * without one. Record it in that draft, so it does not count as a change
+   * the person made and closing does not ask about it.
+   */
+  function adoptGeneratedEmployeeId(id: string): void {
+    try {
+      const stored = localStorage.getItem(DRAFT_KEY);
+      const draft = stored ? (JSON.parse(stored) as EmployeeWizardDraftData) : null;
+      if (draft && !draft.employeeId) localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, employeeId: id }));
+    } catch {
+      // The draft in storage keeps its empty ID; the form still has the new one.
+    }
+    setSavedSnapshot((current) => {
+      if (current === null) return current;
+      const saved = JSON.parse(current) as DraftFields;
+      return saved.employeeId ? current : JSON.stringify({ ...saved, employeeId: id });
+    });
   }
 
   function handleAutoGeneratePassword(): void {
@@ -345,6 +378,13 @@ export function AddEmployeeWizardModal({
           if (Array.isArray(data.qualificationsList)) {
             setQualificationsList(data.qualificationsList);
           }
+          if (typeof data.pendingSkillName === 'string') setNewSkillName(data.pendingSkillName);
+          if (data.pendingSkillProficiency) setNewSkillProficiency(data.pendingSkillProficiency);
+          if (typeof data.pendingInstitution === 'string') setInstitution(data.pendingInstitution);
+          if (typeof data.pendingDegree === 'string') setDegree(data.pendingDegree);
+          if (typeof data.pendingFieldOfStudy === 'string') setFieldOfStudy(data.pendingFieldOfStudy);
+          if (typeof data.pendingPassingYear === 'string') setPassingYear(data.pendingPassingYear);
+          if (typeof data.pendingGrade === 'string') setGrade(data.pendingGrade);
           if (typeof data.step === 'number' && [1, 2, 3, 4, 5].includes(data.step)) {
             setStep(data.step as 1 | 2 | 3 | 4 | 5);
           }
@@ -440,17 +480,13 @@ export function AddEmployeeWizardModal({
 
   // Closing asks first only when something would be lost: details not yet in
   // the saved draft, or (with no draft) anything entered at all. A skill or
-  // qualification typed but not yet added is never part of a draft, so it
-  // counts too. The password is deliberately never stored in a draft and is
-  // not counted, so saving a draft on the last step still closes cleanly.
+  // qualification typed but not yet added is saved with the draft too. The
+  // password is deliberately never stored in a draft and is not counted, so
+  // saving a draft on the last step still closes cleanly.
   const currentFields = draftFields();
   const currentSnapshot = JSON.stringify(currentFields);
-  const typedButNotAdded = [newSkillName, institution, degree, fieldOfStudy, passingYear, grade].some(
-    (value) => value.trim() !== '',
-  );
   const hasUnsavedChanges =
-    typedButNotAdded ||
-    (savedSnapshot === null ? hasEnteredDetails(currentFields) : currentSnapshot !== savedSnapshot);
+    savedSnapshot === null ? hasEnteredDetails(currentFields) : currentSnapshot !== savedSnapshot;
   const discardTitle = hasDraft ? 'Discard your latest changes?' : 'Discard employee onboarding?';
   const discardDescription = hasDraft
     ? 'Your saved draft is kept, but changes made since you last saved it will be lost.'
@@ -740,6 +776,13 @@ export function AddEmployeeWizardModal({
         passingYear: q.passingYear.trim(),
         grade: q.grade.trim(),
       })),
+      pendingSkillName: newSkillName.trim(),
+      pendingSkillProficiency: newSkillProficiency,
+      pendingInstitution: institution.trim(),
+      pendingDegree: degree.trim(),
+      pendingFieldOfStudy: fieldOfStudy.trim(),
+      pendingPassingYear: passingYear.trim(),
+      pendingGrade: grade.trim(),
     };
   }
 
@@ -1099,6 +1142,7 @@ export function AddEmployeeWizardModal({
                 <input
                   id="wizard-email"
                   type="email"
+                  autoComplete="off"
                   required
                   value={email}
                   onChange={(e) => {
@@ -1833,6 +1877,7 @@ export function AddEmployeeWizardModal({
                       <input
                         id="wizard-password"
                         type={showPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
                         required
                         value={password}
                         onChange={(e) => {
@@ -1861,6 +1906,7 @@ export function AddEmployeeWizardModal({
                     <input
                       id="wizard-confirmPassword"
                       type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
                       required
                       value={confirmPassword}
                       onChange={(e) => {

@@ -131,7 +131,7 @@ export function TasksPage({
     setViewMode(nextMode);
     try {
       localStorage.setItem('tapcrm:tasks-view-mode', nextMode);
-    } catch {}
+    } catch (_e) { /* ignore localStorage errors */ }
     if (nextMode === 'kanban') {
       setQuery((prev) => ({
         ...prev,

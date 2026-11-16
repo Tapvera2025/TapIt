@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Card, Modal, Notice, SkeletonTable } from '../ui/index.js';
+import { Button, Card, ConnectAgreement, Modal, Notice, SkeletonTable } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import {
   assignCompanyLocation,
@@ -327,6 +327,8 @@ export function CompanyConnections({
               Search Console properties. Then you choose which client each one belongs to.
               Nobody signs in again for each client.
             </p>
+            {/* The company sign-in buttons always include YouTube. */}
+            <ConnectAgreement className="mt-2" youtube />
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">

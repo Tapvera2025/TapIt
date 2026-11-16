@@ -891,6 +891,9 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | DELETE | /api/chat/messages/:id/react | `chat:send` | id |
 | POST | /api/chat/messages/:id/unsend | `chat:send` | id |
 | GET | /api/chat/presence | `chat:view` | — |
+| GET | /api/chat/conversations/:id/back-from-break | `chat:view` | id |
+| PUT | /api/chat/conversations/:id/back-from-break | `chat:view` | id |
+| DELETE | /api/chat/conversations/:id/back-from-break | `chat:view` | id |
 | GET | /api/chat/search | `chat:view` | — |
 | GET | /api/chat/saved | `chat:view` | — |
 | GET | /api/chat/scheduled | `chat:view` | — |

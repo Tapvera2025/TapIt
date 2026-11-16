@@ -4,6 +4,7 @@ import { getIdentityAccessToken, identityApiBasePath } from '../../../identity/a
 import { Icon } from '../../../ui/Icon.js';
 import { getMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../../../identity/api/sessionsApi.js';
 import { ATTENDANCE_UPDATED_EVENT, loadTodayStatus, notifyAttendanceUpdated, punch, type PunchKind, type TodayStatus } from '../../live/liveApi.js';
+import { liveMinutes, useNow } from '../../live/liveTime.js';
 import { getMyShiftAssignment, type ShiftAssignment } from '../../api/shiftsApi.js';
 import { listTasks, transitionTask } from '../../tasks/api/tasksApi.js';
 import type { Task, TaskStatus } from '../../tasks/types/index.js';
@@ -103,6 +104,11 @@ function TaskProgressGraph({
 
 /* ------------------------------------------------------------------ Punch */
 
+/** How often the on-screen timer moves; it shows whole minutes. */
+const TIMER_TICK_MS = 15_000;
+/** How often the punch state is re-read from the server. */
+const STATUS_RECHECK_MS = 2 * 60_000;
+
 export function PunchStateWidget(): React.JSX.Element {
   const [status, setStatus] = useState<TodayStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,6 +140,23 @@ export function PunchStateWidget(): React.JSX.Element {
     window.addEventListener(ATTENDANCE_UPDATED_EVENT, refresh);
     return () => window.removeEventListener(ATTENDANCE_UPDATED_EVENT, refresh);
   }, []);
+
+  // A punch can also come from the biometric device or another tab, so check
+  // again now and then and whenever the person comes back to this tab.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') setRefreshVersion((version) => version + 1);
+    };
+    const timer = window.setInterval(refresh, STATUS_RECHECK_MS);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+
+  // The timer counts up on screen between those checks.
+  const now = useNow(TIMER_TICK_MS);
 
   const handlePunch = async (kind: PunchKind): Promise<void> => {
     setPunchBusy(kind);
@@ -169,7 +192,7 @@ export function PunchStateWidget(): React.JSX.Element {
 
   const row = status?.row ?? null;
   const state = row?.state ?? 'NOT_IN';
-  const worked = row?.workedMinutes ?? 0;
+  const worked = row ? liveMinutes(row, now).worked : 0;
   const hours = Math.floor(worked / 60);
   const minutes = worked % 60;
   const stateLabel: Record<string, string> = {

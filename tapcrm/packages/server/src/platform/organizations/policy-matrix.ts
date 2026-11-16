@@ -204,6 +204,23 @@ export const HR_ONLY_ACTIONS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Sales actions the PRD gives to the Sales Department Head alone (PRD §10.5):
+ * "The Sales Department Head confirms the advance payment
+ * (`deals:confirm-payment`) and then records the win (`deals:record-win`)".
+ * Every win reports to the Head's wins-to-record queue (DL-5), and confirming
+ * the money and recording the outcome are two separate, audited assertions
+ * (DL-4b). Before this, the matrix expanded the whole deals module into every
+ * sales column, so every team lead, supervisor and agent could do both on
+ * their own deals.
+ *
+ * A Super Admin can still grant one of these to another position on purpose.
+ */
+export const SALES_HEAD_ONLY_ACTIONS: ReadonlySet<string> = new Set([
+  'deals:confirm-payment',
+  'deals:record-win',
+]);
+
+/**
  * Self-service actions. Outside HR they always act on the holder alone, so a
  * team or pool cell emits them at `own`: a team lead requests their own leave
  * and explains their own break, not their team's.
@@ -261,6 +278,7 @@ function expandAccessCell(
     if (readOnly && !(definition.action.split(':')[1] ?? '').startsWith('view'))
       return [];
     if (scope !== 'all-people' && HR_ONLY_ACTIONS.has(definition.action)) return [];
+    if (position !== 'sales-head' && SALES_HEAD_ONLY_ACTIONS.has(definition.action)) return [];
     const emittedScope =
       scope !== 'all-people' && SELF_SERVICE_ACTIONS.has(definition.action)
         ? 'own'

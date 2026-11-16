@@ -4,6 +4,7 @@ import { defineJob, type JobHandle } from '../../platform/jobs/runner.js';
 import { onOutboxEvent } from '../../platform/outbox/registry.js';
 import { LIVE_STATUS_EVENTS } from '../live-status/facade.js';
 import { cleanupPendingAttachments } from './attachments.js';
+import { deliverBreakReturns } from './break-return.js';
 import { refreshLinkPreviews } from './link-preview.js';
 import { deliverPresenceChanged } from './presence.js';
 import { sendDueScheduledMessages } from './scheduled.js';
@@ -28,7 +29,8 @@ export interface ChatJobs {
  *   chat.link-preview-sweep   every 5 minutes — previews missed by the
  *                             in-process unfurl (e.g. a restart mid-fetch)
  *
- * Plus the live-status → chat presence relay (an outbox handler, after commit).
+ * Plus two live-status → chat outbox handlers (after commit): the presence
+ * relay, and "Tell me when they're back" notices when a break ends.
  */
 export function registerChatJobs(): ChatJobs {
   const scheduledSend = defineJob({
@@ -78,6 +80,8 @@ export function registerChatJobs(): ChatJobs {
   // shares a conversation with that person. A second handler on the same
   // event; live-status's own board handler is unaffected.
   onOutboxEvent(LIVE_STATUS_EVENTS.STATUS_CHANGED, deliverPresenceChanged);
+  // The same event answers "Tell me when they're back" (0159) once a break is over.
+  onOutboxEvent(LIVE_STATUS_EVENTS.STATUS_CHANGED, deliverBreakReturns);
 
   return { scheduledSend, attachmentCleanup, linkPreviewSweep };
 }

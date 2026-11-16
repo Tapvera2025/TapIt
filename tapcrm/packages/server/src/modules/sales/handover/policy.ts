@@ -6,6 +6,19 @@ export function canViewInternalHandoverState(principalId: string, isGlobalPrinci
   return isGlobalPrincipal || ownerId !== principalId || (!hasAcceptedHandover && currentHolderId === principalId);
 }
 
+/**
+ * After a handover is accepted, the person who handed the lead over (its
+ * owner) can still open it but no longer works it: the receiver holds it, and
+ * keeps it until a manager reassigns it. True for that owner while someone
+ * else holds the lead. A handover is the only thing that sets a holder other
+ * than the owner; a reassignment moves both together.
+ */
+export function isHandedOverAway(lead: { ownerId: string | null; currentHolderId: string | null }, principalId: string): boolean {
+  return lead.ownerId === principalId && lead.currentHolderId !== null && lead.currentHolderId !== principalId;
+}
+
+export const HANDED_OVER_MESSAGE = 'You handed this lead over, so the person who took it works it now. You can still see it, but you can’t change it until a manager gives it back to you.';
+
 export const handoverPolicy: ResourcePolicy<HandoverResource> = {
   resourceType: 'handover', domain: 'business',
   async check(ctx: PolicyEvaluationContext, action: Action, resource: HandoverResource, scope: Scope) {

@@ -1,3 +1,4 @@
+import { visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -30,9 +31,16 @@ const advanceSelect = sql.raw(`
   LEFT JOIN department d ON d.organization_id=u.organization_id AND d.id=u.department_id LEFT JOIN team t ON t.organization_id=u.organization_id AND t.id=u.team_id LEFT JOIN position p ON p.organization_id=u.organization_id AND p.id=u.position_id
   LEFT JOIN app_user ab ON ab.organization_id=a.organization_id AND ab.id=a.approved_by LEFT JOIN app_user rb ON rb.organization_id=a.organization_id AND rb.id=a.rejected_by`);
 
-function filters(query: ListAdvanceQuery, ownId?: string): ReturnType<typeof sql> {
+function filters(
+  query: ListAdvanceQuery,
+  ownId?: string,
+  visibility?: Awaited<ReturnType<typeof visibilityFilter>>,
+): ReturnType<typeof sql> {
   const parts = [sql`a.organization_id = current_organization_id()`];
   if (ownId) parts.push(sql`a.employee_id = ${ownId}`);
+  // Who the caller may see (team, department, all-people…), from their
+  // `advance:view` policy. Without it every holder saw every advance.
+  if (visibility) parts.push(sql`(${visibility})`);
   if (query.status && query.status !== 'all') parts.push(sql`a.status = ${query.status}`);
   if (query.month) parts.push(sql`a.requested_for_period = ${query.month}::date`);
   if (query.search)
@@ -47,8 +55,11 @@ export async function listAdvances(
   query: ListAdvanceQuery,
   own = false,
 ): Promise<{ rows: AdvanceRow[]; total: number }> {
+  // "My advances" is already limited to the caller; the organization list is
+  // limited to whom the caller's `advance:view` scope reaches.
+  const visibility = own ? undefined : await visibilityFilter(ctx, 'advance:view', 'employeeAdvance');
   return db.transaction(ctx, async (tx) => {
-    const where = filters(query, own ? ctx.principal.id : undefined);
+    const where = filters(query, own ? ctx.principal.id : undefined, visibility);
     const count = await tx.one<{ total: number }>(
       sql`SELECT count(*)::int AS total FROM employee_advance a JOIN app_user u ON u.organization_id=a.organization_id AND u.id=a.employee_id WHERE ${where}`,
     );
@@ -218,11 +229,15 @@ export async function createManualAdvance(
 export async function listDeductions(
   ctx: RequestContext,
   query: ListDeductionQuery,
+  action: 'advance:view' | 'advance:export' = 'advance:view',
 ): Promise<{ rows: DeductionRow[]; total: number }> {
+  // Limited to whom the caller's policy for the route's action reaches.
+  const visibility = await visibilityFilter(ctx, action, 'employeeAdvance');
   return db.transaction(ctx, async (tx) => {
     const parts = [
       sql`d.organization_id=${ctx.organizationId}`,
       sql`a.status='approved'`,
+      sql`(${visibility})`,
     ];
     if (query.status && query.status !== 'all') parts.push(sql`d.status=${query.status}`);
     if (query.month) parts.push(sql`d.payroll_period=${query.month}::date`);
@@ -283,7 +298,7 @@ export async function exportDeductions(
   query: ListDeductionQuery,
   format: 'csv' | 'xlsx',
 ): Promise<{ body: Buffer; contentType: string; filename: string }> {
-  const data = await listDeductions(ctx, { ...query, page: 1, pageSize: 10000 });
+  const data = await listDeductions(ctx, { ...query, page: 1, pageSize: 10000 }, 'advance:export');
   const headers = [
     'Advance ID',
     'Employee ID',

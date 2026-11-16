@@ -106,6 +106,64 @@ export async function cancelOpenCallbacksInTransaction(
 }
 
 /**
+ * A lead moved off "callback scheduled" by hand has no callback left to make,
+ * so its open callback ends with the move. Before this it stayed pending: it
+ * kept showing on the callback list and in My Work as a call still to make,
+ * kept sending reminders and was later marked missed.
+ *
+ * Moving to "contacted" says the call happened, so the callback is completed
+ * as connected. Any other move (follow-up, nurture) cancels it.
+ */
+export async function closeOpenCallbacksForStatusInTransaction(
+  tx: Tx,
+  ctx: RequestContext,
+  leadId: string,
+  toStatus: string,
+): Promise<number> {
+  if (toStatus === 'callback_scheduled') return 0;
+  const completed = toStatus === 'contacted';
+  const closed = await tx.query<{ id: string }>(completed
+    ? sql`
+      UPDATE lead_callback
+         SET status       = 'completed',
+             outcome      = 'connected',
+             completed_at = now(),
+             updated_at   = now()
+       WHERE organization_id = ${ctx.organizationId}
+         AND lead_id         = ${leadId}
+         AND status          = 'pending'
+      RETURNING id`
+    : sql`
+      UPDATE lead_callback
+         SET status       = 'cancelled',
+             cancelled_at = now(),
+             updated_at   = now()
+       WHERE organization_id = ${ctx.organizationId}
+         AND lead_id         = ${leadId}
+         AND status          = 'pending'
+      RETURNING id`);
+  const next = completed ? 'completed' : 'cancelled';
+  for (const callback of closed) {
+    await insertActivity(tx, ctx.organizationId, leadId, completed ? 'callback.completed' : 'callback.cancelled', ctx.principal.id, {
+      callbackId: callback.id,
+      outcome: completed ? 'connected' : null,
+      reason: 'lead_status_changed',
+      leadStatus: toStatus,
+    });
+    await insertAudit(
+      tx,
+      ctx,
+      `callback.${next}`,
+      callback.id,
+      { status: 'pending' },
+      { status: next, outcome: completed ? 'connected' : null, reason: 'lead_status_changed', leadStatus: toStatus },
+      'callback',
+    );
+  }
+  return closed.length;
+}
+
+/**
  * Closes a Lead as lost, from a handover rejection or "Mark as lost".
  * Ownership is deliberately restored to the existing Lead owner; this is not
  * a reassignment operation. The outcome moves with the status so a lost lead

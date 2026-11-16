@@ -106,6 +106,24 @@ describe('deriveRow — presence and minutes', () => {
     expect(row.presenceConfidence).toBe('confirmed');
     expect(row.rolloverDueAt.toISOString()).toBe(daySpec.window.end.toISOString());
   });
+
+  it('says when the minutes were worked out, so a screen can add only the time since then', () => {
+    // Re-derived at shift end while still working: the open stretch since
+    // the break (13:00 → 18:00) is already inside workedMinutes.
+    const row = deriveRow({
+      ...daySpec,
+      events: [
+        event('in', '2026-10-05T09:00:00'),
+        event('break-start', '2026-10-05T12:00:00'),
+        event('break-end', '2026-10-05T13:00:00'),
+      ],
+      now: ist('2026-10-05T18:00:00'),
+    });
+    expect(row.state).toBe('WORKING');
+    expect(row.since?.toISOString()).toBe(ist('2026-10-05T13:00:00').toISOString());
+    expect(row.workedMinutes).toBe(480); // 09–12 and 13–18
+    expect(row.minutesAsOf.toISOString()).toBe(ist('2026-10-05T18:00:00').toISOString());
+  });
 });
 
 describe('deriveRow — night shift + rollover_due_at', () => {

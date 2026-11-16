@@ -96,15 +96,21 @@ export interface ReadinessReport {
   readonly unmet: readonly UnmetCondition[];
 }
 
+/** An open deal with a published proposal, on its way to a win. */
 export interface WinsToRecordRow {
   readonly id: string;
   readonly dealNumber: string;
   readonly title: string;
   readonly responsibleCloserId: string;
+  readonly responsibleCloserName?: string | null;
   readonly originatingAgentId: string;
+  readonly contactName?: string | null;
   readonly approvalStatus: DealApprovalStatus;
   readonly contractStatus: DealContractStatus;
+  readonly paymentStatus?: string;
   readonly commercialsId: string | null;
+  /** Approval, contract and advance are through (the readiness report has the final word). */
+  readonly ready?: boolean;
   readonly updatedAt: string;
 }
 

@@ -19,7 +19,7 @@ import { ApplicationError } from '../../../errors.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
-import type { DealResource } from '../deals/types.js';
+import { toDealResource, type DealResourceRow } from '../deals/repository.js';
 import {
   findActiveContractForDealTx,
   findContract,
@@ -103,16 +103,7 @@ export class ContractActiveExistsError extends ApplicationError {
  * parent deal's authz surface (same pattern as proposals/commercials).
  */
 export async function loadDealForContract(ctx: RequestContext, contractId: string): Promise<Resource | null> {
-  const row = await db.maybeOne<{
-    id: string;
-    organizationId: string;
-    responsibleCloserId: string;
-    originatingAgentId: string;
-    lifecycleStatus: string;
-    createdBy: string | null;
-    closedBy: string | null;
-    paymentInitiatedBy: string | null;
-  }>(
+  const row = await db.maybeOne<DealResourceRow>(
     ctx,
     sql`SELECT d.id,
                d.organization_id       AS "organizationId",
@@ -127,18 +118,7 @@ export async function loadDealForContract(ctx: RequestContext, contractId: strin
          WHERE c.organization_id = ${ctx.organizationId} AND c.id = ${contractId}`,
   );
   if (!row) return null;
-  const resource: DealResource = {
-    type: 'deal',
-    id: row.id,
-    organizationId: row.organizationId,
-    responsibleCloserId: row.responsibleCloserId,
-    originatingAgentId: row.originatingAgentId,
-    lifecycleStatus: row.lifecycleStatus as DealResource['lifecycleStatus'],
-    createdBy: row.createdBy,
-    closedBy: row.closedBy,
-    payment: { initiatedBy: row.paymentInitiatedBy },
-  };
-  return resource;
+  return toDealResource(ctx, row);
 }
 
 export async function getContract(ctx: RequestContext, id: string): Promise<Contract> {

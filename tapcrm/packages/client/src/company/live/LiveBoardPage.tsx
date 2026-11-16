@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadLiveBoard, type LiveBoard, type LiveGroup, type LiveRow } from './liveApi.js';
+import { liveMinutes } from './liveTime.js';
 import {
-  connectRealtime,
-  disconnectRealtime,
+  retainRealtime,
   setLiveBoardRefetch,
   subscribeConnectionState,
   type RealtimeConnectionState,
@@ -89,30 +89,14 @@ export function formatDuration(minutes: number | null | undefined, zeroAsDash = 
   return `${m}m`;
 }
 
-/**
- * Compute elapsed minutes from an ISO timestamp to `now`.
- * Returns 0 if the timestamp is invalid or in the future.
- */
-function elapsedMinutes(sinceIso: string | null | undefined, nowMs: number): number {
-  if (!sinceIso) return 0;
-  const sinceMs = new Date(sinceIso).getTime();
-  if (isNaN(sinceMs)) return 0;
-  return Math.max(0, Math.floor((nowMs - sinceMs) / 60_000));
-}
-
 // ─── Live work & break time computation ────────────────────────────────────
 
 /**
  * Compute the displayed work time for a row, incorporating a live clock tick.
  *
- * Backend semantics of `since`:
- *  - WORKING:  timestamp of the CURRENT working stretch start
- *              (last break-end if any, else arrival time).
- *              workedMinutes = accumulated work in PRIOR stretches.
- *              Live work = workedMinutes + elapsed(since, now).
- *  - ON_BREAK: timestamp of the CURRENT break start.
- *              workedMinutes = all accumulated work so far (break excluded).
- *              Live work = workedMinutes (unchanged while on break).
+ * The server works the minutes out at `minutesAsOf` (see liveMinutes):
+ *  - WORKING:  Live work = workedMinutes + the time since then.
+ *  - ON_BREAK: Live work = workedMinutes (unchanged while on break).
  *  - FINISHED: workedMinutes is the final authoritative value from the backend.
  *              We show it directly, no live clock needed.
  *  - NOT_IN:   → "—"
@@ -134,12 +118,9 @@ export function computeLiveWorkTime(row: LiveRow, nowMs: number): string {
   }
 
   if (row.state === 'WORKING') {
-    // since = start of the CURRENT working stretch.
-    // workedMinutes = accumulated work from prior stretches (may be 0 just after punch-in).
-    const currentStretchMinutes = elapsedMinutes(row.since, nowMs);
-    const totalMinutes = row.workedMinutes + currentStretchMinutes;
-    // Show even if 0m (just punched in but since hasn't elapsed yet)
-    return formatDuration(totalMinutes, false);
+    // Work keeps counting from when the server last worked the minutes out
+    // (see liveMinutes). Show even 0m, just after punching in.
+    return formatDuration(liveMinutes(row, nowMs).worked, false);
   }
 
   return '—';
@@ -148,10 +129,8 @@ export function computeLiveWorkTime(row: LiveRow, nowMs: number): string {
 /**
  * Compute the displayed break time for a row, incorporating a live clock tick.
  *
- * Backend semantics of `since` for ON_BREAK:
- *  - since = timestamp of the CURRENT break start.
- *  - breakMinutes = accumulated break from prior completed break stretches.
- *  - Live break = breakMinutes + elapsed(since, now).
+ * While ON_BREAK, live break = breakMinutes + the time since the server
+ * worked the minutes out (see liveMinutes).
  */
 export function computeLiveBreakTime(row: LiveRow, nowMs: number): string {
   if (row.state === 'NOT_IN' || row.dayGroup === 'leave' || row.displayGroup === 'onLeave' || row.displayGroup === 'onHoliday') {
@@ -159,10 +138,8 @@ export function computeLiveBreakTime(row: LiveRow, nowMs: number): string {
   }
 
   if (row.state === 'ON_BREAK') {
-    // since = current break start. breakMinutes = prior accumulated break.
-    const currentBreakMinutes = elapsedMinutes(row.since, nowMs);
-    const totalBreakMinutes = row.breakMinutes + currentBreakMinutes;
-    return formatDuration(totalBreakMinutes, false);
+    // The break keeps counting from when the server last worked it out.
+    return formatDuration(liveMinutes(row, nowMs).onBreak, false);
   }
 
   // WORKING, FINISHED: show accumulated break only (no ongoing break).
@@ -401,7 +378,7 @@ export function LiveBoardPage(): React.JSX.Element {
 
   useEffect(() => {
     setLiveBoardRefetch(load);
-    connectRealtime();
+    const releaseRealtime = retainRealtime();
     const unsubConnection = subscribeConnectionState(setConnectionState);
     load();
 
@@ -417,7 +394,7 @@ export function LiveBoardPage(): React.JSX.Element {
       clearInterval(ticker);
       unsubConnection();
       setLiveBoardRefetch(null);
-      disconnectRealtime();
+      releaseRealtime();
     };
   }, []);
 

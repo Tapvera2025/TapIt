@@ -47,5 +47,11 @@ export interface Commercials {
   readonly createdBy: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  /**
+   * The latest approval request raised on this version ('pending',
+   * 'approved', 'returned', …), or null when none was. Absent on rows built
+   * outside the repository.
+   */
+  readonly approvalState?: string | null;
   readonly items: readonly CommercialsItemRow[];
 }

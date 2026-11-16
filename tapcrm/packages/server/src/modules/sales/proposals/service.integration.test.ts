@@ -8,7 +8,6 @@ import { closePools } from '../../../platform/dal/pool.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { createDeal } from '../deals/service.js';
 import {
-  CommercialsPublishBlockedError,
   CommercialsVersionLockedError,
   createDraft,
   getCommercials,
@@ -226,14 +225,23 @@ describe.skipIf(!enabled)('sales proposals service (PostgreSQL)', () => {
     });
   });
 
-  it('publishVersion is blocked when approval_status = rejected', async () => {
+  it('a salesperson cannot publish a version nobody has approved, even within their limits', async () => {
+    const dealId = await createOpenDeal();
+    const draft = await createDraft(ctxFor(employee(AGENT)), dealId, sampleBody);
+
+    await expect(publishVersion(ctxFor(employee(AGENT)), draft.id)).rejects.toMatchObject({
+      name: 'CommercialsPublishBlockedError',
+      details: { reason: 'approval_required' },
+    });
+  });
+
+  it('a Super Admin publishes directly, even after an earlier version was turned down', async () => {
     const dealId = await createOpenDeal();
     const draft = await createDraft(ctxFor(employee(AGENT)), dealId, sampleBody);
     await setDealApprovalStatus(dealId, 'rejected');
 
-    await expect(publishVersion(ctxFor(superAdmin(SUPER_ADMIN)), draft.id)).rejects.toBeInstanceOf(
-      CommercialsPublishBlockedError,
-    );
+    const published = await publishVersion(ctxFor(superAdmin(SUPER_ADMIN)), draft.id);
+    expect(published.state).toBe('published');
   });
 
   it('publishVersion freezes the row and sets the deal active commercials', async () => {
