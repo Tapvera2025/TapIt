@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { devInstantPasswordResetEnabled, loadConfig, __resetConfig } from './config.js';
+import { devInstantPasswordResetEnabled, emailTransport, loadConfig, __resetConfig } from './config.js';
 
 const BASE = {
   DATABASE_URL: 'postgres://app:pw@localhost:5432/db',
@@ -61,6 +61,11 @@ describe('production safety', () => {
     AUDIT_ARCHIVE_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
     AUDIT_ARCHIVE_KEY_ID: 'audit-key-v1',
     AUDIT_ARCHIVE_KEYRING_JSON: JSON.stringify({ 'audit-key-v0': Buffer.alloc(32, 6).toString('base64') }),
+    SMTP_HOST: 'smtp.example.com',
+    SMTP_PORT: '587',
+    SMTP_USER: 'no-reply@example.com',
+    SMTP_PASSWORD: 'smtp-password',
+    SMTP_FROM: 'no-reply@example.com',
   };
 
   it('accepts a properly configured production environment', () => {
@@ -146,5 +151,76 @@ describe('Google Search Console credentials', () => {
     expect(() =>
       load({ GOOGLE_SEARCH_CONSOLE_AUTH: 'oauth', GOOGLE_OAUTH_CLIENT_ID: '  ', GOOGLE_OAUTH_CLIENT_SECRET: 's', GOOGLE_OAUTH_REFRESH_TOKEN: 'r' }),
     ).toThrow(/GOOGLE_OAUTH_CLIENT_ID/);
+  });
+});
+
+describe('email transport', () => {
+  const PROD = {
+    NODE_ENV: 'production',
+    CLIENT_ORIGIN: 'https://crm.example.com',
+    AUDIT_ARCHIVE_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+    AUDIT_ARCHIVE_KEY_ID: 'audit-key-v1',
+  };
+  const SMTP = {
+    SMTP_HOST: 'smtp.example.com',
+    SMTP_PORT: '587',
+    SMTP_USER: 'no-reply@example.com',
+    SMTP_PASSWORD: 'smtp-password',
+    SMTP_FROM: 'no-reply@example.com',
+  };
+
+  it('prints to the log on a laptop with no SMTP settings', () => {
+    expect(emailTransport(load())).toBe('console');
+  });
+
+  it('sends over SMTP once SMTP_HOST is set', () => {
+    expect(emailTransport(load(SMTP))).toBe('smtp');
+  });
+
+  it('refuses to start production without SMTP, instead of silently printing every email', () => {
+    expect(() => load(PROD)).toThrow(/Email is not configured/);
+  });
+
+  it('treats the blank values compose passes through as unset', () => {
+    expect(() => load({ ...PROD, EMAIL_TRANSPORT: '', SMTP_HOST: '', SMTP_USER: '', SMTP_PASSWORD: '' })).toThrow(
+      /Email is not configured/,
+    );
+  });
+
+  it('allows production without email only when chosen explicitly', () => {
+    const config = load({ ...PROD, EMAIL_TRANSPORT: 'console' });
+    expect(emailTransport(config)).toBe('console');
+  });
+
+  it('accepts production with complete SMTP settings', () => {
+    expect(emailTransport(load({ ...PROD, ...SMTP }))).toBe('smtp');
+  });
+
+  it('refuses SMTP without a sender address, port or host, in every environment', () => {
+    expect(() => load({ ...SMTP, SMTP_FROM: '' })).toThrow(/requires SMTP_FROM/);
+    expect(() => load({ ...SMTP, SMTP_PORT: undefined })).toThrow(/requires SMTP_PORT/);
+    expect(() => load({ EMAIL_TRANSPORT: 'smtp', SMTP_PORT: '587', SMTP_FROM: 'a@example.com' })).toThrow(
+      /requires SMTP_HOST/,
+    );
+  });
+
+  it('refuses a login with only one half set, but accepts a relay with no login', () => {
+    expect(() => load({ ...SMTP, SMTP_PASSWORD: '' })).toThrow(/SMTP_USER and SMTP_PASSWORD must be set together/);
+    expect(() => load({ ...SMTP, SMTP_USER: '', SMTP_PASSWORD: '' })).not.toThrow();
+  });
+});
+
+describe('Meta Lead Ads Graph API version', () => {
+  it('defaults to a version Meta still serves (v18.0 was retired in January 2026)', () => {
+    expect(load().META_GRAPH_VERSION).toBe('v24.0');
+  });
+
+  it('treats a blank value as unset', () => {
+    expect(load({ META_GRAPH_VERSION: '' }).META_GRAPH_VERSION).toBe('v24.0');
+  });
+
+  it('accepts a newer version and refuses a malformed one', () => {
+    expect(load({ META_GRAPH_VERSION: 'v25.0' }).META_GRAPH_VERSION).toBe('v25.0');
+    expect(() => load({ META_GRAPH_VERSION: '24' })).toThrow(/META_GRAPH_VERSION/);
   });
 });

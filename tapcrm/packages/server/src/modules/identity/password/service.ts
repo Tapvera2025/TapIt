@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import { passwordBreachCheckMode } from '../../../config.js';
 import { isBreachedPassword, isCommonPassword, PasswordBreachServiceError } from './repository.js';
@@ -39,9 +40,25 @@ export async function assertPasswordPolicy(password: string): Promise<void> {
   }
 }
 
+const ARGON2_OPTIONS = { type: argon2.argon2id, memoryCost: 65_536, timeCost: 3, parallelism: 4 } as const;
+
 export async function hashIdentityPassword(password: string): Promise<string> {
   await assertPasswordPolicy(password);
-  return argon2.hash(password, { type: argon2.argon2id, memoryCost: 65_536, timeCost: 3, parallelism: 4 });
+  return argon2.hash(password, ARGON2_OPTIONS);
+}
+
+let decoyHash: Promise<string> | null = null;
+
+/**
+ * Spends the same argon2 work as a real password check and always fails. Used
+ * when the email has no account (or no usable password), so a login for an
+ * unknown address takes as long as one for a real account and the response
+ * time does not reveal which addresses exist.
+ */
+export async function verifyAgainstDecoy(password: string): Promise<false> {
+  decoyHash ??= argon2.hash(randomBytes(32).toString('hex'), ARGON2_OPTIONS);
+  await verifyIdentityPassword(await decoyHash, password);
+  return false;
 }
 
 export async function verifyIdentityPassword(hash: string, password: string): Promise<boolean> {

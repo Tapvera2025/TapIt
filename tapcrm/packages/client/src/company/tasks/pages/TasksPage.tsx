@@ -481,7 +481,6 @@ export function TasksPage({
   // Pagination calculations
   const total = data?.total ?? 0;
   const page = data?.page ?? 1;
-  const pageSize = data?.pageSize ?? 20;
   const totalPages = data?.totalPages ?? 1;
   const summary = [
     {

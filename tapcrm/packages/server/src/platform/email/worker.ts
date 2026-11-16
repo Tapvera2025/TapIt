@@ -1,7 +1,7 @@
 import { Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { loadConfig } from '../../config.js';
-import { deliverEmail, type EmailMessage } from './mailer.js';
+import { deliverEmail, reportEmailTransport, type EmailMessage } from './mailer.js';
 import { EMAIL_ATTEMPTS, EMAIL_QUEUE, closeEmailQueue } from './queue.js';
 
 let connection: Redis | null = null;
@@ -42,6 +42,7 @@ export function startEmailWorker(): void {
   worker.on('error', (error) => {
     console.error(JSON.stringify({ level: 'error', msg: 'email worker error', reason: safeReason(error) }));
   });
+  void reportEmailTransport();
 }
 
 export async function stopEmailWorker(): Promise<void> {

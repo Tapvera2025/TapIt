@@ -21,9 +21,12 @@ import type { Candidate, JobRequisition, RecruitmentTab } from '../types/index.j
 export function RecruitmentWorkspace({
   pathname,
   onNavigate,
+  organizationName = null,
 }: {
   readonly pathname: string;
   readonly onNavigate: (path: string) => void;
+  /** Shown in email template previews in place of {{company_name}}. */
+  readonly organizationName?: string | null;
 }): React.JSX.Element {
   // Global modal shortcuts
   const [globalCreateReqOpen, setGlobalCreateReqOpen] = useState(false);
@@ -176,7 +179,7 @@ export function RecruitmentWorkspace({
       ) : activeTab === 'my-interviews' ? (
         <MyInterviewsPage />
       ) : activeTab === 'email-templates' ? (
-        <EmailTemplatesPage />
+        <EmailTemplatesPage organizationName={organizationName} />
       ) : (
         <RecruitmentOverviewPage
           onNavigate={handleNavigate}

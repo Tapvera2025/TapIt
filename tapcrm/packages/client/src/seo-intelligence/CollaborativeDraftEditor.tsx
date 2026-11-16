@@ -15,7 +15,7 @@ import * as Y from 'yjs';
 import { plainTextToContentJson } from '@tapcrm/contracts';
 import type { ContentCommentThread } from '@tapcrm/contracts';
 import type { CreateContentCommentInput } from './content-api.js';
-import { getIdentityAccessToken } from '../identity/api/authApi.js';
+import { getIdentityAccessToken, identityApiBasePath } from '../identity/api/authApi.js';
 
 interface SharedSession {
   document: Y.Doc;
@@ -27,11 +27,18 @@ interface Collaborator {
   color: string;
 }
 
+/**
+ * The collaboration socket. By default it is the app's own address at
+ * `<api>/collab`: nginx in production and the Vite dev server forward that path
+ * to the collaboration server, so no extra port has to be reachable from the
+ * browser (a separate :4001 is not, behind the Cloudflare tunnel).
+ * VITE_CONTENT_COLLAB_URL overrides it.
+ */
 function endpoint() {
   const configured = import.meta.env['VITE_CONTENT_COLLAB_URL'];
   if (configured) return configured;
   const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${scheme}//${window.location.hostname}:4001`;
+  return `${scheme}//${window.location.host}${identityApiBasePath()}/collab`;
 }
 
 function colorFor(id: string) {

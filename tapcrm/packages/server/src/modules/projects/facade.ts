@@ -19,3 +19,4 @@ export {
 } from './reports/clientFeedback.js';
 export type { CreateClientFeedbackInput, FeedbackArea } from './reports/clientFeedback.js';
 export type { ReportPeriod } from './reports/period.js';
+export { registerProjectPolicies } from './policy.js';

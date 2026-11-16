@@ -12,18 +12,31 @@ import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsC
 const VARIABLE_HINTS = [
   { variable: '{{candidate_name}}', description: "Candidate's full name" },
   { variable: '{{position_title}}', description: 'Job position title' },
+  { variable: '{{department}}', description: 'Department of the role' },
   { variable: '{{joining_date}}', description: 'Expected joining date' },
   { variable: '{{company_name}}', description: 'Your company name' },
   { variable: '{{manager_name}}', description: "Reporting manager's name" },
   { variable: '{{acknowledge_link}}', description: 'Joining confirmation link (required for tracking)' },
 ];
 
+/** A standalone page for the sandboxed preview frame; links and forms stay inert. */
+function previewDocument(bodyHtml: string): string {
+  return (
+    '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src https: data:; style-src \'unsafe-inline\'">' +
+    '<style>body{margin:0;padding:16px;font:14px/1.5 system-ui,sans-serif;color:#111;background:#fff}</style>' +
+    `</head><body>${bodyHtml}</body></html>`
+  );
+}
+
 function TemplateEditorModal({
   template,
+  organizationName,
   onClose,
   onSaved,
 }: {
   readonly template?: RecruitmentEmailTemplate | undefined;
+  readonly organizationName: string;
   readonly onClose: () => void;
   readonly onSaved: (t: RecruitmentEmailTemplate) => void;
 }): React.JSX.Element {
@@ -39,8 +52,9 @@ function TemplateEditorModal({
     return body
       .replace(/\{\{candidate_name\}\}/g, 'Rahul Sharma')
       .replace(/\{\{position_title\}\}/g, 'Senior Backend Engineer')
+      .replace(/\{\{department\}\}/g, 'Engineering')
       .replace(/\{\{joining_date\}\}/g, '01 November 2026')
-      .replace(/\{\{company_name\}\}/g, 'Tapvera Technologies')
+      .replace(/\{\{company_name\}\}/g, organizationName)
       .replace(/\{\{manager_name\}\}/g, 'Priya Nair')
       .replace(/\{\{acknowledge_link\}\}/g, '#preview-link');
   }
@@ -162,9 +176,17 @@ function TemplateEditorModal({
             </div>
           </div>
           {previewMode ? (
-            <div
-              className="min-h-[220px] w-full overflow-auto rounded-lg border border-app-border bg-white p-4 text-sm"
-              dangerouslySetInnerHTML={{ __html: buildPreview() }}
+            // The template is HTML written by any HR user, so it is shown in a
+            // fully sandboxed frame: no scripts run and the frame has its own
+            // opaque origin, so it cannot reach this page, its storage or the
+            // session tokens. Rendering it inline let one user's template run
+            // script in a colleague's session (stored XSS).
+            <iframe
+              title="Email preview"
+              sandbox=""
+              referrerPolicy="no-referrer"
+              srcDoc={previewDocument(buildPreview())}
+              className="h-[320px] w-full rounded-lg border border-app-border bg-white"
             />
           ) : (
             <textarea
@@ -204,7 +226,9 @@ function TemplateEditorModal({
   );
 }
 
-export function EmailTemplatesPage(): React.JSX.Element {
+export function EmailTemplatesPage({
+  organizationName = null,
+}: { readonly organizationName?: string | null } = {}): React.JSX.Element {
   const [templates, setTemplates] = useState<RecruitmentEmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -343,6 +367,7 @@ export function EmailTemplatesPage(): React.JSX.Element {
       {editorTarget !== null && (
         <TemplateEditorModal
           template={editorTarget === 'new' ? undefined : editorTarget}
+          organizationName={organizationName?.trim() || 'Your company'}
           onClose={() => setEditorTarget(null)}
           onSaved={(saved) => {
             setTemplates((prev) => {

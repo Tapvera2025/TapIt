@@ -507,7 +507,9 @@ function AcceptDialog({
   return (
     <Modal title="Accept brief and link project" onClose={onClose}>
       <p className="text-sm text-app-muted">
-        Pick an existing project to link, or paste the project id. The link is idempotent on this brief.
+        Link the project that will deliver this deal. Each deal gets its own project: create it first on
+        the Projects page (client, name, dates), then pick it here. A project already linked to another
+        deal, or archived, cannot be used.
       </p>
       <div className="mt-4">
         <Field

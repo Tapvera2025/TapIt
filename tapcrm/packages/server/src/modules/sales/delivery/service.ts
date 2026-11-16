@@ -27,6 +27,7 @@ import { PlatformForbiddenError } from '../../../platform/errors.js';
 import { sql } from '../../../platform/dal/sql.js';
 import {
   checkProjectExists,
+  findBriefLinkedToProject,
   findBrief,
   findBriefForDeal,
   findBriefForDealTx,
@@ -283,6 +284,21 @@ export async function reviewDecision(
           'Project not found; create the project before linking a delivery brief.',
           404,
           'PROJECT_NOT_FOUND',
+        );
+      }
+      if (project.archived) {
+        throw new ApplicationError('That project is archived; link an active project.', 409, 'PROJECT_ARCHIVED');
+      }
+      // One brief → one project, and one project → one brief (R-DEL-04): a
+      // project already delivering another deal must not silently absorb this
+      // one. Migration 0161's unique index is the final guard.
+      const linked = await findBriefLinkedToProject(tx, ctx.organizationId, input.projectId, briefId);
+      if (linked) {
+        throw new ApplicationError(
+          'That project is already linked to another deal\'s delivery brief. Create a project for this deal.',
+          409,
+          'PROJECT_ALREADY_LINKED',
+          { briefId: linked.id, dealId: linked.dealId },
         );
       }
       await markAccepted(tx, ctx.organizationId, briefId, ctx.principal.id, input.projectId, now);

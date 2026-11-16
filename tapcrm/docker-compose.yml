@@ -196,7 +196,18 @@ services:
       SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
       CRUX_API_KEY: ${CRUX_API_KEY:-}
       PAGESPEED_API_KEY: ${PAGESPEED_API_KEY:-}
+      MOZ_ACCESS_ID: ${MOZ_ACCESS_ID:-}
+      MOZ_SECRET_KEY: ${MOZ_SECRET_KEY:-}
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
       RESUME_OCR: ${RESUME_OCR:-true}
+      # Meta Lead Ads (sales intake). Without the app secret every lead webhook
+      # is refused, and without the verify token Meta cannot subscribe.
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v24.0}
+      # Client meetings: Google Calendar and Meet links.
+      MEETINGS_GOOGLE_AUTH: ${MEETINGS_GOOGLE_AUTH:-off}
+      MEETINGS_TOKEN_ENCRYPTION_KEY: ${MEETINGS_TOKEN_ENCRYPTION_KEY:-}
       # Call Analytics: encrypts the JustCall / Aircall keys companies enter.
       TELEPHONY_CREDENTIALS_KEY: ${TELEPHONY_CREDENTIALS_KEY:-}
       # Empty values keep official social providers in Setup Required.
@@ -251,7 +262,8 @@ services:
       API_BASE_PATH: /api
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:?Set CLIENT_ORIGIN in .env (the web app's public URL)}
-      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-console}
+      # Empty: smtp when SMTP_HOST is set, otherwise printed to the log (refused in production).
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -292,7 +304,9 @@ services:
     environment:
       VITE_HOST: 0.0.0.0
       VITE_API_PROXY_TARGET: http://server:${API_PORT:-4000}
-      VITE_CONTENT_COLLAB_URL: ${VITE_CONTENT_COLLAB_URL:-ws://localhost:${CONTENT_COLLAB_PORT:-4001}}
+      # The editor connects to <web>/api/collab; the dev server forwards it here.
+      VITE_CONTENT_COLLAB_PROXY_TARGET: http://server:${CONTENT_COLLAB_PORT:-4001}
+      VITE_CONTENT_COLLAB_URL: ${VITE_CONTENT_COLLAB_URL:-}
     depends_on:
       server:
         condition: service_healthy

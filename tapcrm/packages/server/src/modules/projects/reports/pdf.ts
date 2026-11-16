@@ -37,10 +37,8 @@
 
 import PDFDocument from 'pdfkit';
 import sharp from 'sharp';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { RequestContext } from '../../../platform/dal/context.js';
-import { findProjectById } from '../repository.js';
+import { findOrganizationName, findProjectById } from '../repository.js';
 import { ProjectNotFoundError } from '../errors.js';
 import { listBacklinks, backlinkListSchema, type Backlink } from './off-page.js';
 import {
@@ -108,7 +106,8 @@ interface ReportData {
   backlinks: Backlink[];
   screenshots: Array<{ item: Screenshot; body: Buffer }>;
   summary: Awaited<ReturnType<typeof overview>>;
-  logo: Buffer | null;
+  /** The company issuing the report; the PDF carries its name, not the CRM vendor's. */
+  companyName: string;
 }
 
 /** One figure in a KPI row. */
@@ -297,24 +296,8 @@ async function loadData(ctx: RequestContext, projectId: string): Promise<ReportD
     )
   ).filter((entry): entry is { item: Screenshot; body: Buffer } => entry !== null);
 
-  // The server can run from the monorepo root in development or from the
-  // server workspace in another deployment. Resolve the client-owned logo
-  // from both working-directory layouts without copying the asset.
-  const logoPaths = [
-    join(process.cwd(), 'packages/client/public/brand/tapvera-crm.png'),
-    join(process.cwd(), '../client/public/brand/tapvera-crm.png'),
-    join(process.cwd(), '../../packages/client/public/brand/tapvera-crm.png'),
-  ];
-  let logo: Buffer | null = null;
-  for (const logoPath of logoPaths) {
-    try {
-      logo = await readFile(logoPath);
-      break;
-    } catch {
-      // Try the next known workspace layout.
-    }
-  }
-  return { project, keywords, blogs, backlinks, screenshots, summary, logo };
+  const companyName = (await findOrganizationName(ctx)).trim();
+  return { project, keywords, blogs, backlinks, screenshots, summary, companyName };
 }
 
 /* ========================================================================== */
@@ -552,29 +535,12 @@ function ensureSpace(doc: Doc, required: number, title: string): boolean {
   return false;
 }
 
-/** Draws the same Tapvera CRM artwork used by the application sidebar. */
-function drawBrandLogo(
-  doc: Doc,
-  logo: Buffer | null,
-  x: number,
-  y: number,
-  fit: [number, number],
-): boolean {
-  if (!logo) return false;
-  try {
-    doc.image(logo, x, y, { fit });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Draws running headers and "Page X of Y" footers on every page. Runs once all
  * pages exist so the page count is correct. The bottom margin is zeroed while
  * drawing so PDFKit can never auto-insert a page for the footer.
  */
-function pageChrome(doc: Doc, projectName: string, logo: Buffer | null): void {
+function pageChrome(doc: Doc, projectName: string, companyName: string): void {
   const range = doc.bufferedPageRange();
   for (let index = range.start; index < range.start + range.count; index += 1) {
     doc.switchToPage(index);
@@ -585,8 +551,8 @@ function pageChrome(doc: Doc, projectName: string, logo: Buffer | null): void {
     doc.save();
 
     if (!isCover) {
-      if (!drawBrandLogo(doc, logo, MARGIN, 17, [96, 18]))
-        line(doc, 'TAPVERA CRM', MARGIN, 22, 120, {
+      if (companyName)
+        line(doc, companyName.toUpperCase(), MARGIN, 22, 180, {
           font: FONT.bold,
           size: 7,
           color: COLORS.navy,
@@ -604,7 +570,7 @@ function pageChrome(doc: Doc, projectName: string, logo: Buffer | null): void {
     }
 
     rule(doc, footerY - 8, COLORS.rule, 0.5);
-    line(doc, 'Tapvera CRM  ·  Confidential', MARGIN, footerY, 260, {
+    line(doc, companyName ? `${companyName}  ·  Confidential` : 'Confidential', MARGIN, footerY, 260, {
       size: 7,
       color: COLORS.grey,
     });
@@ -969,9 +935,8 @@ function cover(doc: Doc, data: ReportData): number {
   doc.rect(0, 0, PAGE_WIDTH, bandHeight).fillColor(COLORS.navy).fill();
   doc.rect(0, bandHeight, PAGE_WIDTH, 3).fillColor(COLORS.accent).fill();
 
-  const logoDrawn = drawBrandLogo(doc, data.logo, MARGIN, 30, [136, 32]);
-  if (!logoDrawn)
-    line(doc, 'TAPVERA', MARGIN, 38, 200, {
+  if (data.companyName)
+    line(doc, data.companyName.toUpperCase(), MARGIN, 38, CONTENT_WIDTH - 180, {
       font: FONT.bold,
       size: 18,
       color: COLORS.white,
@@ -1480,7 +1445,7 @@ function buildDocument(data: ReportData): Promise<Buffer> {
       bufferPages: true,
       info: {
         Title: `Project Performance Report — ${safeText(data.project.name)}`,
-        Author: 'Tapvera CRM',
+        Author: data.companyName || 'Project report',
         Subject: 'Project performance report',
       },
     });
@@ -1501,7 +1466,7 @@ function buildDocument(data: ReportData): Promise<Buffer> {
       screenshotSection(doc, data, toc);
 
       drawContents(doc, toc, contentsY); // page numbers are known now
-      pageChrome(doc, safeText(data.project.name), data.logo); // headers + "Page X of Y"
+      pageChrome(doc, safeText(data.project.name), data.companyName); // headers + "Page X of Y"
       doc.end();
     } catch (error) {
       reject(

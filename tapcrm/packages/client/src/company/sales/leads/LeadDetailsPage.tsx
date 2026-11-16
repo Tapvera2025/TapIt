@@ -4,7 +4,7 @@ import { acceptHandover, callbackOutcome, createCallback, createHandover, declin
 import { anHourLater, callbackStatusLabel, formatCallbackDate, organizationLocalToIso, organizationNowLocal, sentenceLabel, sortCallbacks } from './callback-ui.js';
 import { ReassignModal } from './ReassignModal.js';
 import { LeadStatusPanel } from './LeadStatusPanel.js';
-import { isClosedLeadStatus, isHandedOverAway, leadStatusLabel, lossReasonLabel } from './lead-status.js';
+import { isClosedLeadStatus, isHandedOverAway, isLeadReadyForDeal, leadStatusLabel, lossReasonLabel } from './lead-status.js';
 import { convertedDealId, leadActivityLabel } from './lead-activity.js';
 import { createDeal } from '../deals/api.js';
 import { getCalls, type CallListItem } from '../calls/api.js';
@@ -132,7 +132,7 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
   // lead, but the person who took it works it until a manager reassigns it.
   const handedAway = isHandedOverAway(lead, currentUserId);
   const canEditThisLead = canEditLead && !handedAway;
-  const canConvert = canCreateDeal && isHolder && !closed;
+  const canConvert = canCreateDeal && isHolder && isLeadReadyForDeal(lead.status);
   const dealId = lead.activities.map(convertedDealId).find((value): value is string => Boolean(value)) ?? null;
   const guidance = leadGuidance({
     lead,

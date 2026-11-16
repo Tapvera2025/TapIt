@@ -7,6 +7,14 @@ import { MATCH_NOTHING, or, registerResourcePolicy, scopeMemberFilter, scopeMemb
  * = any of those people is inside the scope's people. `all-people` never
  * matches (business domain, PD-1).
  */
+/** Constant SQL: only the parameters vary (T-7). */
+const ASSIGNED_TO_ANY_OF =
+  'EXISTS (SELECT 1 FROM project_assignee pa WHERE pa.organization_id = p.organization_id ' +
+  'AND pa.project_id = p.id AND pa.user_id = ANY($1::uuid[]))';
+const CREATED_BY_OR_ASSIGNED_TO_ME =
+  '(p.created_by = $1 OR EXISTS (SELECT 1 FROM project_assignee pa WHERE pa.organization_id = p.organization_id ' +
+  'AND pa.project_id = p.id AND pa.user_id = $1))';
+
 const projectPolicy: ResourcePolicy = {
   resourceType: 'project',
   domain: 'business',
@@ -24,16 +32,14 @@ const projectPolicy: ResourcePolicy = {
 
   async filter(ctx, _action, scope) {
     if (scope === 'all-people') return MATCH_NOTHING;
-    const assigneeExists = (param: string) =>
-      `EXISTS (SELECT 1 FROM project_assignee pa WHERE pa.organization_id = p.organization_id AND pa.project_id = p.id AND pa.user_id ${param})`;
     if (scope === 'own' || scope === 'participant') {
-      return { sql: `(p.created_by = $1 OR ${assigneeExists('= $1')})`, parameters: [ctx.principal.id] };
+      return { sql: CREATED_BY_OR_ASSIGNED_TO_ME, parameters: [ctx.principal.id] };
     }
     const members = await scopeMemberIds(ctx, scope);
     if (members === null || members.size === 0) return MATCH_NOTHING;
     return or(
       await scopeMemberFilter(ctx, scope, ['p.created_by']),
-      { sql: assigneeExists('= ANY($1::uuid[])'), parameters: [[...members]] },
+      { sql: ASSIGNED_TO_ANY_OF, parameters: [[...members]] },
     );
   },
 

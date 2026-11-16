@@ -546,7 +546,7 @@ export function CompanyWorkspace({
     if (hasRecruitment && pathname === '/company/my-interviews')
       return <MyInterviewsPage />;
     if (isRecruitment)
-      return <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />;
+      return <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} organizationName={identity?.organization?.name ?? null} />;
     // Links in older "interview assigned" notifications, for people outside HR.
     if (hasRecruitment && pathname === '/company/recruitment/my-interviews')
       return <MyInterviewsPage />;

@@ -194,7 +194,7 @@ export function ClientsPage({ onOpenClient, onAddProject }: { onOpenClient?: (cl
             />
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-app-muted">Password</span>
+                <span className="text-xs font-semibold text-app-muted">Temporary password</span>
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, password: generateStrongPassword() }))}
@@ -224,6 +224,7 @@ export function ClientsPage({ onOpenClient, onAddProject }: { onOpenClient?: (cl
                   <Icon name={showPassword ? 'eye-off' : 'eye'} className="size-[18px]" />
                 </button>
               </div>
+              <p className="mt-1 text-xs text-app-muted">The client chooses their own password the first time they sign in.</p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button kind="secondary" type="button" onClick={() => setShowCreate(false)}>Cancel</Button>
@@ -239,7 +240,7 @@ export function ClientsPage({ onOpenClient, onAddProject }: { onOpenClient?: (cl
             {formError && <Notice error>{formError}</Notice>}
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-app-muted">Password</span>
+                <span className="text-xs font-semibold text-app-muted">Temporary password</span>
                 <button type="button" onClick={() => setNewPassword(generateStrongPassword())} className="text-xs font-semibold text-app-accent hover:underline">
                   Generate password
                 </button>
@@ -264,6 +265,7 @@ export function ClientsPage({ onOpenClient, onAddProject }: { onOpenClient?: (cl
                   <Icon name={showNewPassword ? 'eye-off' : 'eye'} className="size-[18px]" />
                 </button>
               </div>
+              <p className="mt-1 text-xs text-app-muted">The client chooses their own password the next time they sign in.</p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button kind="secondary" type="button" onClick={() => setCredentialsFor(null)}>Cancel</Button>

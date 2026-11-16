@@ -115,3 +115,23 @@ export async function postSourceJournalTx(
 
   return { journalId: result.id, duplicate: false };
 }
+
+/**
+ * Whether a journal dated `entryDate` could be posted now: an accounting
+ * period covers the date and is open. Lets a source module record its event
+ * either way and post only when the ledger can take it, instead of failing
+ * the business action because accounting is not set up yet.
+ */
+export async function openPostingPeriodCoversTx(
+  tx: Tx,
+  organizationId: string,
+  entryDate: string,
+): Promise<boolean> {
+  const period = await tx.maybeOne<{ status: string }>(sql`
+    SELECT status FROM accounting_period
+    WHERE organization_id = ${organizationId}
+      AND period_start <= ${entryDate}::date
+      AND period_end >= ${entryDate}::date
+  `);
+  return period !== null && (period.status === 'open' || period.status === 'reopened');
+}

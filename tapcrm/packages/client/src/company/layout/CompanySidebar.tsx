@@ -4,6 +4,9 @@ import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
 import { useChatUnread } from '../../chat/ChatUnreadContext.js';
 
+/** Modules whose pages are tabs inside the module (CompanyModuleTabStrip). */
+const TABBED_MODULE_GROUPS = new Set(['Recruitment', 'Shifts & Leave', 'Identity & Access']);
+
 const GROUP_ICONS: Record<string, string> = {
   Overview: 'grid',
   Communication: 'message',
@@ -1060,13 +1063,13 @@ export function CompanySidebar({
           items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
         },
       ]
-    : navigation.filter(
-        (group) =>
-          group.items.length > 0 &&
-          group.label !== 'Recruitment' &&
-          group.label !== 'Shifts & Leave' &&
-          group.label !== 'Identity & Access',
-      );
+    : navigation
+        .filter((group) => group.items.length > 0)
+        // These modules list their own pages as tabs at the top of the page,
+        // so the sidebar keeps one way in (the first page this person can
+        // open) instead of repeating every tab. Dropping the groups entirely
+        // left HR with no sidebar route into Recruitment, Leave or Shifts.
+        .map((group) => (TABBED_MODULE_GROUPS.has(group.label) ? { ...group, items: group.items.slice(0, 1) } : group));
 
   return (
     <aside

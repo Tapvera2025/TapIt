@@ -72,6 +72,11 @@ export function isClosedLeadStatus(status: string): boolean {
   return status === 'converted' || status === 'closed_lost';
 }
 
+/** Matches the server: a lead becomes a deal only once someone has spoken to it. */
+export function isLeadReadyForDeal(status: string): boolean {
+  return !isClosedLeadStatus(status) && status !== 'new' && status !== 'assigned';
+}
+
 /**
  * True for the lead's owner while someone else holds it: after an accepted
  * handover the agent who handed it over can see the lead, but the person who

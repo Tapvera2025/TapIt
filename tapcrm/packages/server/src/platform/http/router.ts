@@ -280,7 +280,31 @@ function normaliseParams(
   return out;
 }
 
-async function projectResult(
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A list page rather than a record: it has no `id` of its own and carries
+ * records in arrays (items, rows, …) or as nested records. Pagination keys
+ * (total, nextCursor, page) belong to the page, not to any record.
+ */
+function isPage(value: Record<string, unknown>): boolean {
+  if ('id' in value) return false;
+  return Object.values(value).some(
+    (entry) =>
+      (Array.isArray(entry) && entry.every(isPlainObject)) || (isPlainObject(entry) && 'id' in entry),
+  );
+}
+
+/**
+ * Pipeline step 9 at the response boundary: denied fields are omitted from
+ * every record. A list page is not itself a record: projecting it as one
+ * either dropped its `items` (a position with a field allowlist got an empty
+ * page) or left every record inside unfiltered. So a page keeps its own keys
+ * and each record in it is projected; a single record is projected as before.
+ */
+export async function projectResult(
   ctx: RequestContext,
   action: Action,
   result: unknown,
@@ -290,16 +314,28 @@ async function projectResult(
   if (Array.isArray(result)) {
     return Promise.all(
       (result as unknown[]).map((item): unknown =>
-        typeof item === 'object' && item !== null
-          ? project(ctx, action, item as Record<string, unknown>)
-          : item,
+        isPlainObject(item) ? project(ctx, action, item) : item,
       ),
     );
   }
 
-  if (typeof result === 'object') {
-    return project(ctx, action, result as Record<string, unknown>);
+  if (!isPlainObject(result)) return result;
+
+  if (isPage(result)) {
+    const page: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(result)) {
+      // Internal keys never leave the server, as projectRecord does for records.
+      if (key.startsWith('__')) continue;
+      if (Array.isArray(entry) && entry.every(isPlainObject)) {
+        page[key] = await Promise.all(entry.map((record) => project(ctx, action, record)));
+      } else if (isPlainObject(entry) && 'id' in entry) {
+        page[key] = await project(ctx, action, entry);
+      } else {
+        page[key] = entry;
+      }
+    }
+    return page;
   }
 
-  return result;
+  return project(ctx, action, result);
 }

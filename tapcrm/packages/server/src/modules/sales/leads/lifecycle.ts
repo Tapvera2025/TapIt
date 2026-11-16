@@ -7,6 +7,26 @@ export function isTerminalLeadStatus(status: string): boolean {
   return status === 'converted' || status === 'closed_lost';
 }
 
+/**
+ * Why a lead in `status` cannot become a deal yet, or null when it can.
+ * A deal comes from a lead someone has actually spoken to: not one still
+ * waiting to be routed or called, and not one already closed. A lost lead
+ * comes back through re-engagement (a new lead), keeping the loss on record.
+ */
+export function leadNotConvertibleReason(status: string): string | null {
+  switch (status) {
+    case 'converted':
+      return 'This lead has already been converted to a deal.';
+    case 'closed_lost':
+      return 'This lead was closed as lost. Re-engage it first; that opens a new lead to convert.';
+    case 'new':
+    case 'assigned':
+      return 'Nobody has spoken to this lead yet. Mark it as contacted before qualifying it into a deal.';
+    default:
+      return null;
+  }
+}
+
 export type CallbackEnd = {
   readonly status: 'completed' | 'not_reachable' | 'missed' | 'cancelled';
   readonly outcome: string | null;

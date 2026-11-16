@@ -1068,17 +1068,19 @@ function ContentEditor({
             <Button
               kind="secondary"
               disabled={locked}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  const result = await api.exportContent(doc.siteId, doc.id);
-                  download(result.text, result.filename);
-                  history.reload();
-                } catch (e) {
-                  setError(message(e));
-                } finally {
-                  setBusy(false);
-                }
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    const result = await api.exportContent(doc.siteId, doc.id);
+                    download(result.text, result.filename);
+                    history.reload();
+                  } catch (e) {
+                    setError(message(e));
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
               }}
             >
               Export saved text

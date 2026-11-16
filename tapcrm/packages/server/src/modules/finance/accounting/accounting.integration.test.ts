@@ -201,7 +201,7 @@ describe.skipIf(!enabled)('accounting ledger core (PostgreSQL)', () => {
     const csv = await exportAccountingReport(ctx, 'trial-balance', {
       periodId: JANUARY_PERIOD,
     });
-    expect(csv.filename).toMatch(/^tapvera-trial-balance-/);
+    expect(csv.filename).toMatch(/^trial-balance-\d{4}-\d{2}-\d{2}\.csv$/);
     expect(csv.body.toString('utf8')).toContain('accountId');
   });
 

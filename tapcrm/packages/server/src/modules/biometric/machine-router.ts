@@ -6,6 +6,7 @@ import { consumeRateLimit } from '../../platform/security/rate-limit.js';
 import { systemClock, wholeSeconds } from '../../platform/time.js';
 import { handshakeOptions, handshakeTimeZone, parseAttlog } from './adapters/zk-adms.js';
 import { lookupDeviceBySerial } from './directory.js';
+import { machineSourceAddress, sourceAllowed } from './source-address.js';
 import { ingest } from './ingest.js';
 import * as punches from './punch-repository.js';
 
@@ -61,18 +62,18 @@ interface ResolvedDevice {
 }
 
 /** Steps 1–4 of §10.5 "How a request finds its tenant"; null means "answer OK, store nothing". */
-async function resolveDevice(req: Request, serial: string): Promise<ResolvedDevice | null> {
+async function resolveDevice(serial: string, source: string): Promise<ResolvedDevice | null> {
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(serial)) return null;
   const entry = await lookupDeviceBySerial(serial);
   if (entry === null) {
-    log('warn', 'biometric push from an unregistered serial', { serial, sourceIp: req.ip ?? null });
+    log('warn', 'biometric push from an unregistered serial', { serial, sourceIp: source || null });
     return null;
   }
   const ctx = createRequestContext({
     organizationId: entry.organizationId,
     principal: systemPrincipal(entry.organizationId),
     requestId: `iclock:${serial}:${Date.now().toString(36)}`,
-    sourceIp: req.ip ?? null,
+    sourceIp: source || null,
   });
   const now = wholeSeconds(systemClock.now());
   const device = await db.transaction(ctx, async (tx) => {
@@ -89,8 +90,10 @@ async function resolveDevice(req: Request, serial: string): Promise<ResolvedDevi
         ? 'connector disabled'
         : device.status !== 'enabled'
           ? `device ${device.status}`
-          : device.ipAllowlist.length > 0 && !device.ipAllowlist.includes(normaliseIp(req.ip))
-            ? 'source address not allowed'
+          : !sourceAllowed(device.ipAllowlist, source)
+            ? device.ipAllowlist.length > 0
+              ? 'source address not on the device allowlist'
+              : 'push from outside the office network; add the address to the device allowlist'
             : !(await enabledModuleKeys(entry.organizationId)).includes('biometric')
               ? 'biometric module not enabled'
               : null;
@@ -99,22 +102,18 @@ async function resolveDevice(req: Request, serial: string): Promise<ResolvedDevi
       serial,
       organizationId: entry.organizationId,
       reason: refusal,
-      sourceIp: req.ip ?? null,
+      sourceIp: source || null,
     });
     return null;
   }
   return { ctx, device };
 }
 
-function normaliseIp(ip: string | undefined): string {
-  if (ip === undefined) return '';
-  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-}
-
 async function handle(req: Request, res: Response): Promise<void> {
   const endpoint = endpointOf(req);
   const serial = queryValue(req, 'SN');
-  const sourceKey = normaliseIp(req.ip) || 'unknown';
+  const source = machineSourceAddress(req);
+  const sourceKey = source || 'unknown';
 
   const limited = await consumeRateLimit(`iclock:ip:${sourceKey}`, 600, 60);
   if (!limited.allowed) {
@@ -132,7 +131,7 @@ async function handle(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const resolved = await resolveDevice(req, serial);
+  const resolved = await resolveDevice(serial, source);
   if (resolved === null) {
     reply(res, 'OK');
     return;

@@ -6,6 +6,7 @@ import type { CandidateJoining, RecruitmentEmailTemplate, SendJoiningEmailInput 
 const VARIABLE_HINTS = [
   '{{candidate_name}}',
   '{{position_title}}',
+  '{{department}}',
   '{{joining_date}}',
   '{{company_name}}',
   '{{manager_name}}',
@@ -183,7 +184,9 @@ export function SendJoiningEmailModal({
             className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 font-mono text-xs text-app-foreground outline-none focus:border-app-accent"
           />
           <p className="mt-1 text-xs text-app-muted">
-            Include <span className="font-mono text-app-accent">{'{{acknowledge_link}}'}</span> to embed a trackable joining confirmation button.
+            Put <span className="font-mono text-app-accent">{'{{acknowledge_link}}'}</span> where the confirmation link should go;
+            without it, a &ldquo;Confirm your joining&rdquo; button is added at the end. A variable with no value for this
+            candidate (for example a role with no reporting manager) stops the send so you can edit the text.
           </p>
         </div>
 

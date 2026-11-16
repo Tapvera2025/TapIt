@@ -1,4 +1,4 @@
-import { visibilityFilter } from '@tapcrm/authz';
+import { authorize, visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -7,6 +7,7 @@ import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
 import { writePenaltyAudit } from './audit.js';
 import { PenaltyError } from './errors.js';
 import { chargePenalty, releasePenalty } from './payroll.js';
+import { makePenaltyResource } from './policy.js';
 import * as repo from './repository.js';
 import type { PenaltyRow } from './types.js';
 import type {
@@ -82,6 +83,16 @@ export async function createPenalty(
   ctx: RequestContext,
   body: CreatePenaltyBody,
 ): Promise<PenaltyRow> {
+  // The route checks only that the caller may manage penalties at all. The
+  // employee being fined must also be within that scope: a manager whose
+  // penalty:manage covers their team cannot fine someone in another team.
+  const subject = await repo.findPenaltySubject(ctx, body.employeeId);
+  if (!subject) throw new PenaltyError('Employee must be an active employee in this organization.');
+  await authorize(
+    ctx,
+    'penalty:manage',
+    makePenaltyResource('new', ctx.organizationId, subject.id, subject.departmentId, subject.teamId),
+  );
   const id = await db.transaction(ctx, async (tx) => {
     if (!(await repo.employeeExists(tx, ctx.organizationId, body.employeeId)))
       throw new PenaltyError('Employee must be an active employee in this organization.');

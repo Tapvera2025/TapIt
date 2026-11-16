@@ -4,12 +4,24 @@ import { sql } from '../../../platform/dal/sql.js';
 import { hashIdentityPassword } from './service.js';
 import { sendPasswordResetEmail } from '../notifications/authentication-email.js';
 import { createIdentityContext } from '../authentication/principal.js';
-import { findUserByEmail, findUserById } from '../repository.js';
+import { findUserByEmail, findUserById, normalizeIdentityEmail } from '../repository.js';
+import { consumeRateLimit } from '../../../platform/security/rate-limit.js';
 import { IdentityValidationError } from '../errors.js';
 
 const RESET_TTL_MS = 30 * 60 * 1000;
 
+/** Reset emails one address can receive per hour; further requests are dropped silently. */
+const RESET_REQUESTS_PER_EMAIL_PER_HOUR = 3;
+
 export async function requestPasswordReset(email: string): Promise<void> {
+  // Without a cap anyone could flood an inbox with reset mails, each one also
+  // cancelling the link before it. The answer to the caller never changes.
+  const limit = await consumeRateLimit(
+    `identity:password-reset:${normalizeIdentityEmail(email)}`,
+    RESET_REQUESTS_PER_EMAIL_PER_HOUR,
+    3600,
+  );
+  if (!limit.allowed) return;
   const identityUser = await findUserByEmail(email);
   // Keep reset requests indistinguishable for unknown or unverified addresses.
   if (!identityUser || identityUser.status !== 'active' || !identityUser.emailVerifiedAt) return;

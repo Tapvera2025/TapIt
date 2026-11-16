@@ -271,6 +271,7 @@ export async function loadCommercials(
 
 export interface ProjectCheck {
   readonly id: string;
+  readonly archived: boolean;
 }
 
 export async function checkProjectExists(
@@ -279,7 +280,7 @@ export async function checkProjectExists(
   projectId: string,
 ): Promise<ProjectCheck | null> {
   return tx.maybeOne<ProjectCheck>(sql`
-    SELECT id
+    SELECT id, archived_at IS NOT NULL AS archived
       FROM project
      WHERE organization_id = ${organizationId}
        AND id              = ${projectId}
@@ -307,5 +308,38 @@ export async function insertBriefAudit(
       requestId: ctx.requestId,
       sourceIp: ctx.sourceIp,
     })}::jsonb)
+  `);
+}
+
+/** A delivery project's name and the people to tell about it: its creator and assignees. */
+export async function findProjectPeopleTx(
+  tx: Tx,
+  organizationId: string,
+  projectId: string,
+): Promise<{ name: string; userIds: string[] } | null> {
+  const row = await tx.maybeOne<{ name: string; userIds: string[] }>(sql`
+    SELECT p.name,
+           array_remove(array_agg(DISTINCT pa.user_id) || ARRAY[p.created_by], NULL) AS "userIds"
+      FROM project p
+      LEFT JOIN project_assignee pa ON pa.organization_id = p.organization_id AND pa.project_id = p.id
+     WHERE p.organization_id = ${organizationId} AND p.id = ${projectId}
+     GROUP BY p.id, p.name, p.created_by
+  `);
+  return row ? { name: row.name, userIds: [...new Set(row.userIds)] } : null;
+}
+
+/** The brief (other than `exceptBriefId`) a project is already linked to, if any. */
+export async function findBriefLinkedToProject(
+  tx: Tx,
+  organizationId: string,
+  projectId: string,
+  exceptBriefId: string,
+): Promise<{ id: string; dealId: string } | null> {
+  return tx.maybeOne<{ id: string; dealId: string }>(sql`
+    SELECT id, deal_id AS "dealId" FROM delivery_brief
+     WHERE organization_id = ${organizationId}
+       AND project_id = ${projectId}
+       AND id <> ${exceptBriefId}
+     LIMIT 1
   `);
 }
