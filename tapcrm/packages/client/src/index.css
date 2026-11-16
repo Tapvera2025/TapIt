@@ -2862,7 +2862,8 @@ summary:active {
   }
 
   .company-page-hero-desktop {
-    margin-bottom: var(--workspace-space-md);
+    /* Keep the next page surface below the hero's curved lower edge. */
+    margin-bottom: 2rem;
   }
 
   /* Keep the floating rail on the same top baseline as the desktop hero.
