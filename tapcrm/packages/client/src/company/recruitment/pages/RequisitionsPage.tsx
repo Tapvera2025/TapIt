@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, Empty, Modal, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import { Icon } from '../../../ui/index.js';
 import { listRequisitions, updateRequisitionStatus } from '../api/recruitmentApi.js';
@@ -6,6 +6,7 @@ import { RequisitionFormModal } from '../components/RequisitionFormModal.js';
 import { ApplicationLinkModal } from '../components/ApplicationLinkModal.js';
 import { PipelineRoundBuilder } from '../components/PipelineRoundBuilder.js';
 import { RequisitionStatusBadge } from '../components/StatusBadge.js';
+import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type { EmploymentType, JobRequisition, RequisitionStatus } from '../types/index.js';
 
 export function RequisitionsPage({
@@ -27,6 +28,15 @@ export function RequisitionsPage({
   const [appLinkRequisition, setAppLinkRequisition] = useState<JobRequisition | null>(null);
   const [pipelineRequisition, setPipelineRequisition] = useState<JobRequisition | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+
+  const heroActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button type="button" onClick={() => setShowCreateModal(true)} className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold">
+        + Create Requisition
+      </button>
+    </div>
+  ), []);
+  useRecruitmentHeroActions(heroActions);
 
   async function load() {
     setLoading(true);
@@ -81,7 +91,7 @@ export function RequisitionsPage({
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto"
+          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto xl:hidden"
         >
           + Create Requisition
         </button>

@@ -18,6 +18,7 @@ import type {
   OrganizationTeam,
 } from '../types/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
+import { CompanyPageActionPortal } from '../../company/layout/CompanyPageActionPortal.js';
 
 const blank = {
   departmentId: '',
@@ -213,9 +214,11 @@ export function TeamsPage(): React.JSX.Element {
                 </p>
               </div>
             </div>
-            <Button onClick={startCreate}>
-              <span aria-hidden="true">+</span> Add team
-            </Button>
+            <CompanyPageActionPortal>
+              <Button onClick={startCreate}>
+                <span aria-hidden="true">+</span> Add team
+              </Button>
+            </CompanyPageActionPortal>
           </div>
           {loading ? (
             <div className="p-5">

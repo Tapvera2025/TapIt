@@ -7,6 +7,7 @@ import {
 } from '../api/leaveApi.js';
 import { suggestNextCode } from '../../ui/index.js';
 import { SkeletonTable } from '../../ui/index.js';
+import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
 
 type FormMode = null | 'create' | LeaveTypeDto;
 
@@ -137,19 +138,9 @@ export function LeaveTypesPage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">Leave</p>
-        <h1 className="font-display text-2xl font-bold">Leave types</h1>
-        <p className="text-sm text-app-muted">Configure the leave types employees can request and their yearly accrual rules.</p>
-      </header>
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-semibold">Leave types</h2>
-          <p className="mt-1 text-sm text-app-muted">
-            Set the types employees can request and their yearly accrual.
-          </p>
-        </div>
       {mode === null && !loading && !error && (
+        <CompanyPageActionPortal>
           <button
             type="button"
             onClick={openCreate}
@@ -157,6 +148,7 @@ export function LeaveTypesPage(): React.JSX.Element {
           >
             Add leave type
           </button>
+        </CompanyPageActionPortal>
         )}
       </div>
 

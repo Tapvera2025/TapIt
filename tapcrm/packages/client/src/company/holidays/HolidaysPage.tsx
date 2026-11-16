@@ -3,6 +3,7 @@ import { getCompanyDepartments, type CompanyDepartment } from '../api/companyApi
 import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
 import { createHoliday, createHolidayBatch, listHolidays, withdrawHoliday, type Holiday } from '../api/holidaysApi.js';
 import { SkeletonTable } from '../../ui/index.js';
+import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
 
 type HolidayType = 'national' | 'regional' | 'optional' | 'week-off';
 type BulkHolidayRow = { name: string; holidayDate: string; type: 'national' | 'optional' };
@@ -82,7 +83,7 @@ export function HolidaysPage({ canManage = false }: { canManage?: boolean }): Re
     <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-col gap-5 rounded-3xl border border-app-border bg-app-surface/70 p-5 sm:p-7 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[0.18em] text-app-accent">HR · Calendar</p><h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">Holidays</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-app-muted sm:text-base">Plan organization days off and keep everyone’s attendance calendar in sync.</p></div>
-        {canManage && <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row"><button type="button" onClick={() => togglePanel('single')} className="rounded-xl bg-app-accent px-4 py-2.5 text-sm font-semibold text-app-on-accent shadow-sm transition hover:-translate-y-px hover:brightness-110">{showForm ? 'Close form' : 'Add holiday'}</button><button type="button" onClick={() => togglePanel('bulk')} className="rounded-xl border border-app-accent/40 bg-app-accent/10 px-4 py-2.5 text-sm font-semibold text-app-accent transition hover:border-app-accent hover:bg-app-accent/15">{showBulkForm ? 'Close bulk entry' : 'Add multiple'}</button></div>}
+        {canManage && <CompanyPageActionPortal><div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row"><button type="button" onClick={() => togglePanel('single')} className="rounded-xl bg-app-accent px-4 py-2.5 text-sm font-semibold text-app-on-accent shadow-sm transition hover:-translate-y-px hover:brightness-110">{showForm ? 'Close form' : 'Add holiday'}</button><button type="button" onClick={() => togglePanel('bulk')} className="rounded-xl border border-app-accent/40 bg-app-accent/10 px-4 py-2.5 text-sm font-semibold text-app-accent transition hover:border-app-accent hover:bg-app-accent/15">{showBulkForm ? 'Close bulk entry' : 'Add multiple'}</button></div></CompanyPageActionPortal>}
       </header>
 
       <section className="grid gap-3 sm:grid-cols-[auto_1fr] lg:grid-cols-[auto_1fr_auto]">

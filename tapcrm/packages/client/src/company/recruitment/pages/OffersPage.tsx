@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listOffers, listRequisitions, updateOfferStatus } from '../api/recruitmentApi.js';
 import { OfferFormModal } from '../components/OfferFormModal.js';
 import { OfferStatusBadge } from '../components/StatusBadge.js';
+import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type {
   Candidate,
   JobOffer,
@@ -30,6 +31,15 @@ export function OffersPage({
   // Modals & Action
   const [showCreateModal, setShowCreateModal] = useState(Boolean(preselectedCandidate));
   const [actionBusy, setActionBusy] = useState(false);
+
+  const heroActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button type="button" onClick={() => setShowCreateModal(true)} className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold">
+        + Create Offer
+      </button>
+    </div>
+  ), []);
+  useRecruitmentHeroActions(heroActions);
 
   async function load() {
     setLoading(true);
@@ -78,7 +88,7 @@ export function OffersPage({
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto"
+          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto xl:hidden"
         >
           + Create Offer
         </button>

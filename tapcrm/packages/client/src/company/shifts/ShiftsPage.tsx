@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { listShifts, createShift, type ShiftTemplate } from '../api/shiftsApi.js';
 import { suggestNextCode } from '../../ui/index.js';
 import { SkeletonTable } from '../../ui/index.js';
+import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
 
 function fmtTime(value: string | null): string {
   if (!value) return '—';
@@ -90,6 +91,7 @@ export function ShiftsPage(): React.JSX.Element {
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">Shift Templates</h2>
         {!showForm && (
+          <CompanyPageActionPortal>
           <button
             type="button"
             onClick={() => {
@@ -100,6 +102,7 @@ export function ShiftsPage(): React.JSX.Element {
           >
             New shift
           </button>
+          </CompanyPageActionPortal>
         )}
       </div>
 
