@@ -87,3 +87,95 @@ export function filterCallbacks<T extends CallbackForFilter>(
         callback.leadNumber === search),
   );
 }
+
+/** How the callback list and board are ordered. */
+export type CallbackOrder = 'newest' | 'latest_time' | 'soonest_time';
+
+export const CALLBACK_ORDER_OPTIONS: ReadonlyArray<{ value: CallbackOrder; label: string }> = [
+  { value: 'newest', label: 'Newest booked first' },
+  { value: 'latest_time', label: 'Callback time, latest first' },
+  { value: 'soonest_time', label: 'Callback time, soonest first' },
+];
+
+interface CallbackForOrder {
+  readonly id: string;
+  readonly scheduledAt: string;
+  readonly createdAt?: string | undefined;
+}
+
+const instant = (value: string | undefined): number => (value ? new Date(value).getTime() : 0);
+
+/**
+ * Callbacks in the chosen order. "Newest booked first" puts the callback set
+ * most recently at the top (falling back to its time when the booking time is
+ * missing); the other two order by the callback's own time.
+ */
+export function sortCallbacks<T extends CallbackForOrder>(callbacks: readonly T[], order: CallbackOrder = 'newest'): T[] {
+  const byTime = (a: T, b: T) => instant(a.scheduledAt) - instant(b.scheduledAt);
+  return [...callbacks].sort((a, b) => {
+    if (order === 'soonest_time') return byTime(a, b) || a.id.localeCompare(b.id);
+    if (order === 'latest_time') return byTime(b, a) || a.id.localeCompare(b.id);
+    return (instant(b.createdAt) - instant(a.createdAt)) || byTime(b, a) || a.id.localeCompare(b.id);
+  });
+}
+
+/** A pending callback whose time has passed. */
+export function isOverdueCallback(callback: { status: string; scheduledAt: string }, now: Date = new Date()): boolean {
+  return callback.status === 'pending' && new Date(callback.scheduledAt).getTime() < now.getTime();
+}
+
+/** The calendar day ("YYYY-MM-DD") an instant falls on in `timezone`. */
+export function organizationDayKey(value: Date | string, timezone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
+}
+
+export interface CalendarDay {
+  /** "YYYY-MM-DD" */
+  readonly key: string;
+  readonly day: number;
+  /** False for the leading and trailing days of the neighbouring months. */
+  readonly inMonth: boolean;
+}
+
+const pad = (value: number) => String(value).padStart(2, '0');
+
+/**
+ * The weeks of a month for a calendar grid, Monday first, padded with the
+ * neighbouring months' days so every week has seven. `month` is 1–12.
+ */
+export function monthGrid(year: number, month: number): CalendarDay[][] {
+  const first = new Date(Date.UTC(year, month - 1, 1));
+  const lead = (first.getUTCDay() + 6) % 7; // days before the 1st, Monday first
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const weeks = Math.ceil((lead + daysInMonth) / 7);
+  const grid: CalendarDay[][] = [];
+  for (let week = 0; week < weeks; week += 1) {
+    const row: CalendarDay[] = [];
+    for (let weekday = 0; weekday < 7; weekday += 1) {
+      const date = new Date(Date.UTC(year, month - 1, 1 + week * 7 + weekday - lead));
+      row.push({
+        key: `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`,
+        day: date.getUTCDate(),
+        inMonth: date.getUTCMonth() === month - 1,
+      });
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
+/** The month after (`step` 1) or before (`step` -1) the given one. */
+export function shiftMonth(year: number, month: number, step: number): { year: number; month: number } {
+  const date = new Date(Date.UTC(year, month - 1 + step, 1));
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+/** Callbacks grouped by the organization-local day they fall on. */
+export function callbacksByDay<T extends { scheduledAt: string }>(callbacks: readonly T[], timezone: string): Map<string, T[]> {
+  const days = new Map<string, T[]>();
+  for (const callback of [...callbacks].sort((a, b) => instant(a.scheduledAt) - instant(b.scheduledAt))) {
+    const key = organizationDayKey(callback.scheduledAt, timezone);
+    days.set(key, [...(days.get(key) ?? []), callback]);
+  }
+  return days;
+}

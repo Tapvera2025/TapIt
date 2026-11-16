@@ -44,6 +44,10 @@ describe('lead activity lines', () => {
     );
     expect(leadActivityLabel({ eventName: 'quote.sent_again' })).toBe('quote sent again');
   });
+  it('tells an unanswered call apart from a missed callback', () => {
+    expect(leadActivityLabel({ eventName: 'callback.not_reachable' })).toBe('Called, couldn’t reach them');
+    expect(leadActivityLabel({ eventName: 'callback.missed' })).toBe('Callback missed');
+  });
   it('says where an imported lead came from and how it was assigned', () => {
     expect(leadActivityLabel({ eventName: 'lead.created', metadata: { importName: 'Expo list', rowNumber: 3 } })).toBe('Imported from “Expo list”');
     expect(leadActivityLabel({ eventName: 'lead.created', metadata: {} })).toBe('Lead added');

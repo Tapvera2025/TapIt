@@ -530,7 +530,7 @@ export function PositionsPage(): React.JSX.Element {
         const allowedScopes: readonly string[] = actionScopes(REGISTRY[policy.action as Action]);
         if (allowedScopes.includes(policy.scope)) return policy;
         const repaired = allowedScopes.includes('department') ? 'department' : (allowedScopes[0] ?? 'own');
-        return { ...policy, scope: repaired as PositionPolicy['scope'] };
+        return { ...policy, scope: repaired };
       });
       setPolicies(loaded);
       setPolicyBaseline(baseline);
@@ -736,6 +736,7 @@ export function PositionsPage(): React.JSX.Element {
               parent={selectedParent}
               parentSuggested={!form.parentChosen && !editing}
               moving={moving}
+              onUseLevel={(value) => changeLevel(String(value))}
             />
             {lowerSiblings.length > 0 && (
               <label className="flex items-start gap-2 text-xs text-app-muted md:col-span-2">

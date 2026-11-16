@@ -603,6 +603,7 @@ export function Field({
   error,
   hint,
   min,
+  autoComplete,
 }: {
   label: string;
   value: string;
@@ -616,6 +617,12 @@ export function Field({
   hint?: ReactNode;
   /** The earliest value a date or time input offers. */
   min?: string;
+  /**
+   * The browser's autofill hint. Use "off" for an email typed in for someone
+   * else (a new client or employee), so the browser does not fill in the
+   * signed-in person's own saved login.
+   */
+  autoComplete?: string;
 }): React.JSX.Element {
   const input = (
     <input
@@ -623,6 +630,7 @@ export function Field({
       disabled={disabled}
       type={type}
       min={min}
+      autoComplete={autoComplete}
       value={value}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}

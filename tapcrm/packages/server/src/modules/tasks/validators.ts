@@ -36,6 +36,7 @@ export const updateTaskSchema = z.object({
 
 export const transitionTaskSchema = z.object({
   status: taskStatusSchema,
+  viaStatus: taskStatusSchema.optional(),
   userId: z.string().uuid('Invalid user ID format').optional(),
   notes: z.string().trim().max(2000).optional().nullable(),
 });

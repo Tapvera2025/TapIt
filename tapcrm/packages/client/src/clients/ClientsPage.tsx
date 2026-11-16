@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Button, Card, Field, Modal, Notice, Page, Select, SkeletonTable } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import {
@@ -18,9 +19,10 @@ const blankForm = { clientName: '', businessName: '', email: '', password: '', r
 /**
  * Clients — Phase 4 of the build. The Super Admin adds a client here before
  * a project can reference one (Projects' "existing client" picker reads
- * this same list).
+ * this same list). After a client is added, `onAddProject` (when the user can
+ * manage projects) powers the "Add project" action of the follow-up toast.
  */
-export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string) => void }): React.JSX.Element {
+export function ClientsPage({ onOpenClient, onAddProject }: { onOpenClient?: (clientId: string) => void; onAddProject?: (client: Client) => void }): React.JSX.Element {
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -55,16 +57,32 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
     setSaving(true);
     setFormError('');
     try {
-      await createClient(form);
+      const client = await createClient(form);
       setShowCreate(false);
       setForm(blankForm);
       setShowPassword(false);
+      announceClientCreated(client);
       await load();
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'Unable to create client.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const announceClientCreated = (client: Client): void => {
+    if (!onAddProject) {
+      toast.success('Client added');
+      return;
+    }
+    toast.custom((t) => (
+      <ClientAddedToast
+        visible={t.visible}
+        clientName={client.clientName}
+        onAddProject={() => { toast.dismiss(t.id); onAddProject(client); }}
+        onLater={() => toast.dismiss(t.id)}
+      />
+    ), { id: `client-added-${client.id}`, duration: 12_000 });
   };
 
   const submitCredentials = async (event: React.FormEvent): Promise<void> => {
@@ -160,11 +178,13 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
 
       {showCreate && (
         <Modal title="Add client" onClose={() => { setShowCreate(false); setShowPassword(false); }}>
-          <form onSubmit={(event) => void submitCreate(event)} className="space-y-4">
+          {/* The email and password are the new client's, not the signed-in
+              person's: the hints below stop the browser filling in a saved login. */}
+          <form onSubmit={(event) => void submitCreate(event)} className="space-y-4" autoComplete="off">
             {formError && <Notice error>{formError}</Notice>}
             <Field label="Client name" value={form.clientName} onChange={(v) => setForm((f) => ({ ...f, clientName: v }))} required />
             <Field label="Business name" value={form.businessName} onChange={(v) => setForm((f) => ({ ...f, businessName: v }))} required />
-            <Field label="Email" type="email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} required />
+            <Field label="Email" type="email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} autoComplete="off" required />
             <Select
               label="Region"
               value={form.region}
@@ -186,6 +206,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
               <div className="relative mt-2">
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   minLength={12}
                   value={form.password}
@@ -226,6 +247,7 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
               <div className="relative mt-2">
                 <input
                   type={showNewPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   minLength={12}
                   value={newPassword}
@@ -251,5 +273,28 @@ export function ClientsPage({ onOpenClient }: { onOpenClient?: (clientId: string
         </Modal>
       )}
     </Page>
+  );
+}
+
+/** Follow-up toast after a client is added: offers to jump straight into a new project for them. */
+function ClientAddedToast({ visible, clientName, onAddProject, onLater }: { visible: boolean; clientName: string; onAddProject: () => void; onLater: () => void }): React.JSX.Element {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`pointer-events-auto w-[min(92vw,380px)] rounded-2xl border border-app-border bg-app-surface p-4 text-app-foreground shadow-lg transition duration-200 ${visible ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 text-app-accent"><Icon name="check" className="size-[18px]" /></span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Client added</p>
+          <p className="mt-0.5 text-sm text-app-muted">Want to add a project for <strong>{clientName}</strong> now?</p>
+        </div>
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <Button kind="secondary" onClick={onLater} className="!px-3 !py-1.5 !text-xs">Later</Button>
+        <Button onClick={onAddProject} className="!px-3 !py-1.5 !text-xs">Add project</Button>
+      </div>
+    </div>
   );
 }

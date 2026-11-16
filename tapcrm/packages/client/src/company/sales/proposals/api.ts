@@ -47,6 +47,8 @@ export interface CommercialsWire {
   readonly createdBy: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** The latest approval request on this version ('pending', 'approved', …); null when none was raised. */
+  readonly approvalState?: string | null;
   readonly items: readonly CommercialsItemWire[];
 }
 
@@ -75,6 +77,8 @@ export interface Commercials {
   readonly createdBy: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** The latest approval request on this version ('pending', 'approved', …); null when none was raised. */
+  readonly approvalState?: string | null;
   readonly items: readonly CommercialsItem[];
 }
 

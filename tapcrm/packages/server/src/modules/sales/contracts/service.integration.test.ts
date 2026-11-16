@@ -92,7 +92,8 @@ async function createDealOwned(): Promise<string> {
 
 async function createPublishedCommercials(dealId: string): Promise<string> {
   const draft = await createCommercialsDraft(ctxFor(employee(AGENT, POSITION)), dealId, standardBody);
-  const published = await publishVersion(ctxFor(employee(AGENT, POSITION)), draft.id);
+  // Sales staff publish only an approved version; a Super Admin publishes directly.
+  const published = await publishVersion(ctxFor({ id: HOD, organizationId: ORG, sessionVersion: 0, accountType: 'super-admin' }), draft.id);
   return published.id;
 }
 

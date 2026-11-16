@@ -1,8 +1,10 @@
 import {
+  cancelBreakReturnWatch,
   cancelScheduledMessage,
   deletePendingAttachment,
   editMessage,
   forwardMessage,
+  getBreakReturnWatch,
   getMessageEdits,
   getPins,
   getScheduledMessages,
@@ -18,6 +20,8 @@ import {
   unsendMessage,
   updateScheduledMessage,
   uploadAttachment,
+  watchBreakReturn,
+  type BreakReturnWatch,
   type ChatMessage,
   type MessageAttachment,
   type MessageEdit,
@@ -34,8 +38,8 @@ import {
  *
  * Client portal "core set" (product decision): send with files, react with
  * any emoji, edit their own messages, read pins. Forward, unsend, pin,
- * save, schedule, search and presence are employee-only and are simply
- * absent from the client transport.
+ * save, schedule, search, presence and "tell me when they're back" are
+ * employee-only and simply absent from the client transport.
  */
 export interface ChatTransport {
   readonly sendMessage: (conversationId: string, input: OutgoingMessage) => Promise<ChatMessage>;
@@ -57,6 +61,10 @@ export interface ChatTransport {
   readonly updateScheduledMessage?: (id: string, input: { body?: string; sendAt?: string }) => Promise<ScheduledMessage>;
   readonly cancelScheduledMessage?: (id: string) => Promise<unknown>;
   readonly sendScheduledNow?: (id: string) => Promise<{ sent: boolean; messageId: string | null; failureReason: string | null }>;
+  /** "Tell me when they're back" in a direct message with someone on a break (employees only). */
+  readonly getBreakReturnWatch?: (conversationId: string) => Promise<BreakReturnWatch>;
+  readonly watchBreakReturn?: (conversationId: string) => Promise<BreakReturnWatch>;
+  readonly cancelBreakReturnWatch?: (conversationId: string) => Promise<BreakReturnWatch>;
   /** Show live-status presence dots (employees only). */
   readonly presence: boolean;
 }
@@ -81,5 +89,8 @@ export const companyChatTransport: ChatTransport = {
   updateScheduledMessage,
   cancelScheduledMessage,
   sendScheduledNow,
+  getBreakReturnWatch,
+  watchBreakReturn,
+  cancelBreakReturnWatch,
   presence: true,
 };

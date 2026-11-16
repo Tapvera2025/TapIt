@@ -63,6 +63,45 @@ export function subscribeStatusChanged(listener: StatusChangedListener): () => v
   return () => statusListeners.delete(listener);
 }
 
+type RealtimeEventListener = (payload: unknown) => void;
+const eventListeners = new Map<string, Set<RealtimeEventListener>>();
+let holders = 0;
+
+/**
+ * Keeps the socket open for as long as someone needs it. Every page that uses
+ * the socket holds it and releases it when it closes, so one page closing does
+ * not cut off another that is still listening.
+ */
+export function retainRealtime(): () => void {
+  holders += 1;
+  connectRealtime();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    holders -= 1;
+    if (holders === 0) disconnectRealtime();
+  };
+}
+
+/**
+ * Listens for one server event by name (for example `sales.lead.reassigned`,
+ * from server/src/modules/sales/realtime/sales-channel.ts) and keeps the
+ * socket open while listening. Returns the function that stops listening.
+ */
+export function subscribeRealtimeEvent<T>(event: string, listener: (payload: T) => void): () => void {
+  const listeners = eventListeners.get(event) ?? new Set<RealtimeEventListener>();
+  const entry: RealtimeEventListener = (payload) => listener(payload as T);
+  listeners.add(entry);
+  eventListeners.set(event, listeners);
+  const release = retainRealtime();
+  return () => {
+    listeners.delete(entry);
+    if (listeners.size === 0) eventListeners.delete(event);
+    release();
+  };
+}
+
 function flushCoalesced(): void {
   coalesceTimer = null;
   if (coalesced.size === 0) return;
@@ -123,6 +162,10 @@ export function connectRealtime(): void {
   socket.on('permissions:changed', (_payload: PermissionsChangedPayload) => {
     clearPeopleQueries();
     invalidateIdentityPermissions();
+  });
+
+  socket.onAny((event: string, payload: unknown) => {
+    for (const listener of eventListeners.get(event) ?? []) listener(payload);
   });
 
   socket.on('connect_error', (err: Error) => {

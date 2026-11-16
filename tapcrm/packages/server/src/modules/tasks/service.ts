@@ -84,6 +84,21 @@ export function assertValidTransition(
   }
 }
 
+/** Validate a multi-step lifecycle path while committing only its final status. */
+function assertValidTransitionPath(
+  current: TaskStatus,
+  target: TaskStatus,
+  viaStatus?: TaskStatus,
+): void {
+  if (!viaStatus) {
+    assertValidTransition(current, target);
+    return;
+  }
+
+  assertValidTransition(current, viaStatus);
+  assertValidTransition(viaStatus, target);
+}
+
 export async function loadTaskResource(
   ctx: RequestContext,
   id: string,
@@ -354,7 +369,7 @@ export async function transitionTask(
       );
     }
 
-    assertValidTransition(assignee.status, input.status);
+    assertValidTransitionPath(assignee.status, input.status, input.viaStatus);
 
     if (targetUserId !== ctx.principal.id && !globalAccess(ctx.principal)) {
       const updatePolicy = await effectivePolicy(ctx, 'tasks:update');
@@ -454,7 +469,7 @@ export async function transitionTask(
     return updated;
   }
 
-  assertValidTransition(existing.status, input.status);
+  assertValidTransitionPath(existing.status, input.status, input.viaStatus);
 
   const updated = await db.transaction(ctx, async (tx) => {
     await updateTaskRow(tx, ctx.organizationId, id, {

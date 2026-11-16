@@ -216,7 +216,9 @@ export function leadGuidance(input: LeadGuideInput): Guidance {
       short: `With ${holder}`,
       detail: viewer.canReassign
         ? `Their next step: ${theirNext}. You can reassign it if it needs a different owner.`
-        : `Only the person holding a lead can call, book callbacks or turn it into a deal. Their next step: ${theirNext}.`,
+        : lead.ownerId === viewer.id
+          ? `You handed this lead to ${holder}, who works it now. You can still see it, but only ${holder} can change its status, book callbacks or turn it into a deal until a manager gives it back to you. Their next step: ${theirNext}.`
+          : `Only the person holding a lead can call, book callbacks or turn it into a deal. Their next step: ${theirNext}.`,
       waitingOn: holder,
       actions: viewer.canReassign ? [secondary('Reassign', run({ type: 'reassign-lead' }))] : [],
     };

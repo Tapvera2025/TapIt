@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Card, Field, Page } from '../../../ui/index.js';
 import { acceptHandover, callbackOutcome, createCallback, createHandover, declineHandover, getCallbacks, getHandoverTargets, getHandovers, getLead, recordHandoverDisposition, updateCallback, updateLeadStatus, type Handover, type HandoverTarget, type Lead, type LeadCallback } from './api.js';
-import { anHourLater, callbackStatusLabel, formatCallbackDate, organizationLocalToIso, organizationNowLocal, sentenceLabel } from './callback-ui.js';
+import { anHourLater, callbackStatusLabel, formatCallbackDate, organizationLocalToIso, organizationNowLocal, sentenceLabel, sortCallbacks } from './callback-ui.js';
 import { ReassignModal } from './ReassignModal.js';
 import { LeadStatusPanel } from './LeadStatusPanel.js';
-import { isClosedLeadStatus, leadStatusLabel, lossReasonLabel } from './lead-status.js';
+import { isClosedLeadStatus, isHandedOverAway, leadStatusLabel, lossReasonLabel } from './lead-status.js';
 import { convertedDealId, leadActivityLabel } from './lead-activity.js';
 import { createDeal } from '../deals/api.js';
 import { getCalls, type CallListItem } from '../calls/api.js';
@@ -12,6 +12,19 @@ import { directionLabel, formatCallTime, OUTCOME_LABELS, PROVIDER_NAMES } from '
 import { isStillStalled, LEAD_ANCHORS, leadGuidance, leadSteps } from '../guide/lead-guidance.js';
 import { cannotOpen, mailHref, telHref, type GuideCommand } from '../guide/guidance.js';
 import { SalesCoach, StepTracker, focusGuideTarget, useSalesGuide } from '../guide/SalesGuide.js';
+import { IdentityApiError } from '../../../identity/api/authApi.js';
+import { subscribeRealtimeEvent } from '../../live/realtimeClient.js';
+
+/**
+ * What to show under "This lead can't be opened". A refusal (403) or a missing
+ * lead (404) is already explained in plain words on the page, so the server's
+ * technical reason is left out; anything unexpected keeps its message so it
+ * can be reported.
+ */
+function leadLoadFailureDetail(cause: unknown): string | null {
+  if (cause instanceof IdentityApiError && (cause.status === 403 || cause.status === 404)) return null;
+  return cause instanceof Error ? cause.message : 'Unable to load lead.';
+}
 
 export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canReassign = false, canTransferSourcingCredit = false, canCreateDeal = false, canEditLead = false, canViewCalls = false, canManageCallbacks = false, onBack, onNavigate }: { id: string; currentUserId: string; organizationTimezone: string; canReassign?: boolean; canTransferSourcingCredit?: boolean; canCreateDeal?: boolean; canEditLead?: boolean; canViewCalls?: boolean; canManageCallbacks?: boolean; onBack: () => void; onNavigate?: (path: string) => void }): React.JSX.Element {
   const [lead, setLead] = useState<Lead | null>(null);
@@ -21,22 +34,48 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
   const [calls, setCalls] = useState<CallListItem[]>([]);
   const [callsLoading, setCallsLoading] = useState(false);
   const [callsError, setCallsError] = useState('');
-  const [error, setError] = useState('');
+  const [loadFailure, setLoadFailure] = useState<{ detail: string | null } | null>(null);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const guideMode = useSalesGuide()?.mode;
   const navigate = onNavigate ?? (() => undefined);
 
-  const reload = () => Promise.all([getLead(id), getHandovers(id), getCallbacks(id)])
+  const fetchLead = () => Promise.all([getLead(id), getHandovers(id), getCallbacks(id)])
     .then(([nextLead, nextHandovers, nextCallbacks]) => {
       setLead(nextLead);
       setHandovers(nextHandovers);
       setCallbacks(nextCallbacks);
-    })
-    .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load lead.'));
+      setLoadFailure(null);
+    });
+  const reload = () => fetchLead().catch((cause) => setLoadFailure({ detail: leadLoadFailureDetail(cause) }));
+  // A background check keeps what is on screen unless the lead is now refused
+  // or gone; a passing network hiccup does not replace the page with an error.
+  const refreshInBackground = () => fetchLead().catch((cause) => {
+    const detail = leadLoadFailureDetail(cause);
+    if (detail === null) setLoadFailure({ detail });
+  });
 
   useEffect(() => {
     void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // When the lead changes hands, the server tells its old and new holder
+  // (sales.lead.reassigned), so an open page reloads instead of offering
+  // actions its viewer no longer has. Coming back to the tab checks again, in
+  // case the live connection was down at the time.
+  useEffect(() => {
+    const stopListening = subscribeRealtimeEvent<{ leadId?: string }>('sales.lead.reassigned', (payload) => {
+      if (payload?.leadId === id) void refreshInBackground();
+    });
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') void refreshInBackground();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stopListening();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -74,13 +113,13 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
     return () => { current = false; };
   }, [canViewCalls, lead?.phone]);
 
-  if (error) {
+  if (loadFailure) {
     return (
       <Page eyebrow="Sales" title="Lead">
         <SalesCoach guidance={cannotOpen('Lead', 'lead', '/company/sales/leads')} onNavigate={navigate} />
         <p className="font-semibold">This lead can’t be opened.</p>
-        <p className="mt-1 text-sm text-app-muted">It may be outside the leads your role can see, or it no longer exists.</p>
-        <p className="mt-1 text-xs text-app-muted">{error}</p>
+        <p className="mt-1 text-sm text-app-muted">It may have been moved to someone else, it may be outside the leads your role can see, or it no longer exists.</p>
+        {loadFailure.detail && <p className="mt-1 text-xs text-app-muted">{loadFailure.detail}</p>}
         <Button className="mt-4" kind="secondary" onClick={onBack}>Back to leads</Button>
       </Page>
     );
@@ -89,6 +128,10 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
 
   const closed = isClosedLeadStatus(lead.status);
   const isHolder = lead.currentHolderId === currentUserId;
+  // After an accepted handover the agent who handed it over can still see the
+  // lead, but the person who took it works it until a manager reassigns it.
+  const handedAway = isHandedOverAway(lead, currentUserId);
+  const canEditThisLead = canEditLead && !handedAway;
   const canConvert = canCreateDeal && isHolder && !closed;
   const dealId = lead.activities.map(convertedDealId).find((value): value is string => Boolean(value)) ?? null;
   const guidance = leadGuidance({
@@ -96,7 +139,7 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
     callbacks,
     handovers,
     dealId,
-    viewer: { id: currentUserId, canEditLead, canCreateDeal, canReassign },
+    viewer: { id: currentUserId, canEditLead: canEditThisLead, canCreateDeal, canReassign },
     now: new Date(),
     formatWhen: (iso) => formatCallbackDate(iso, organizationTimezone),
   });
@@ -143,7 +186,7 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
   const holderLabel = lead.currentHolderId === currentUserId ? 'You' : lead.currentHolderName;
   const ownerLabel = lead.ownerId === currentUserId ? 'You' : lead.ownerName;
   const showHandover = handovers.length > 0 || (!closed && isHolder);
-  const showCallbacks = callbacks.length > 0 || ((isHolder || lead.ownerId === currentUserId) && !closed);
+  const showCallbacks = callbacks.length > 0 || ((isHolder || (lead.ownerId === currentUserId && !handedAway)) && !closed);
 
   return (
     <Page eyebrow="Sales" title={lead.contactName} description={`Lead #${lead.leadNumber}${lead.companyName ? ` · ${lead.companyName}` : ''}`} action={action}>
@@ -193,8 +236,8 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
           </Card>
 
           <div className="space-y-5">
-            <div id={LEAD_ANCHORS.status} className="rounded-2xl"><LeadStatusPanel lead={lead} canEdit={canEditLead} onChanged={reload} /></div>
-            {showCallbacks && <CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} canManage={canManageCallbacks} onReload={reload} />}
+            <div id={LEAD_ANCHORS.status} className="rounded-2xl"><LeadStatusPanel lead={lead} canEdit={canEditThisLead} lockedNote={handedAway ? `${lead.currentHolderName ?? 'A colleague'} took this lead from you in a handover and works it now. You can see it, but you can’t change its status until a manager gives it back to you.` : undefined} onChanged={reload} /></div>
+            {showCallbacks && <CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} canManage={canManageCallbacks && !handedAway} handedAway={handedAway} onReload={reload} />}
             {showHandover && <HandoverPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} handovers={handovers} targets={targets} onReload={reload} />}
           </div>
 
@@ -266,15 +309,16 @@ function ContactLink({ href, children }: { href: string | null; children: ReactN
   return href ? <a href={href} className="text-app-accent underline-offset-2 hover:underline">{children}</a> : <>{children}</>;
 }
 
-function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, canManage, onReload }: { lead: Lead; currentUserId: string; organizationTimezone: string; callbacks: LeadCallback[]; canManage: boolean; onReload: () => Promise<void> }): React.JSX.Element {
+function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, canManage, handedAway, onReload }: { lead: Lead; currentUserId: string; organizationTimezone: string; callbacks: LeadCallback[]; canManage: boolean; handedAway: boolean; onReload: () => Promise<void> }): React.JSX.Element {
   const [scheduledAt, setScheduledAt] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const isHolder = lead.currentHolderId === currentUserId;
   const closed = isClosedLeadStatus(lead.status);
   const hasOpenCallback = callbacks.some((callback) => callback.status === 'pending');
-  // The owner books follow-ups too, even while a colleague holds a live call.
-  const canSchedule = (isHolder || lead.ownerId === currentUserId) && !closed && !hasOpenCallback;
+  // Whoever works the lead books its callbacks: its holder, or its owner while
+  // nobody else holds it. The agent who handed it over no longer does.
+  const canSchedule = (isHolder || (lead.ownerId === currentUserId && !handedAway)) && !closed && !hasOpenCallback;
   const run = async (action: () => Promise<unknown>, onDone?: () => void) => {
     try {
       await action();
@@ -299,13 +343,13 @@ function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, c
         </div>
       )}
       {isHolder && closed && callbacks.length === 0 && <p className="mt-3 text-xs text-app-muted">This lead is closed, so no callback can be booked.</p>}
-      {callbacks.map((callback) => (
+      {sortCallbacks(callbacks).map((callback) => (
         <div key={callback.id} className="mt-4 border-t border-app-border pt-3 text-sm">
           <p className="font-semibold">{formatCallbackDate(callback.scheduledAt, callback.organizationTimezone)} · {callbackStatusLabel(callback.status)}</p>
           <p className="mt-1 text-xs text-app-muted">{callback.ownerId === currentUserId ? 'Yours' : `With ${callback.ownerName ?? 'someone else'}`}{callback.reason ? ` · ${callback.reason}` : ''}{callback.outcome ? ` · Outcome: ${sentenceLabel(callback.outcome)}` : ''}</p>
           {/* Its owner works it; a Supervisor / Team Lead / Sales Head whose reach
               includes it can move or close it when the owner is away. */}
-          {callback.status === 'pending' && (callback.ownerId === currentUserId || canManage) && (
+          {callback.status === 'pending' && !handedAway && (callback.ownerId === currentUserId || canManage) && (
             <div className="mt-2 space-y-2">
               <p className="text-xs text-app-muted">{callback.ownerId === currentUserId ? 'After the call, record how it went:' : `Handle it for ${callback.ownerName ?? 'its owner'} — record how it went, move it or cancel it:`}</p>
               <div className="flex flex-wrap gap-2">

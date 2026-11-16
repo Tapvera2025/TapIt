@@ -29,6 +29,7 @@ const EVENT_LABELS: Readonly<Record<string, string>> = {
   'callback.rescheduled': 'Callback rescheduled',
   'callback.completed': 'Callback done',
   'callback.missed': 'Callback missed',
+  'callback.not_reachable': 'Called, couldn’t reach them',
   'callback.cancelled': 'Callback cancelled',
   'callback.requested': 'Callback requested',
   'deal.creation_requested': 'Deal requested',

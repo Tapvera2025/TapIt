@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { LEAD_ACTIVITY_EVENTS, isLeadActivityEvent } from './activity-types.js';
 import { resolveCallbackAssignee } from './callback-assignee.js';
 
-describe('resolveCallbackAssignee (R1 plan step 1.18)', () => {
-  it('post-handover: the owner gets the callback, not the temporary holder', () => {
+describe('resolveCallbackAssignee', () => {
+  it('post-handover: the supervisor who took the lead gets the callback, not the agent who handed it over', () => {
     expect(
       resolveCallbackAssignee({
         originatingAgentId: 'orig-agent',
         currentHolderId: 'supervisor-handover',
         ownerId: 'orig-agent',
       }),
-    ).toBe('orig-agent');
+    ).toBe('supervisor-handover');
   });
 
   it('after a reassignment: the new owner gets the callback, not the original sourcer', () => {
@@ -23,34 +23,24 @@ describe('resolveCallbackAssignee (R1 plan step 1.18)', () => {
     ).toBe('new-owner');
   });
 
-  it('no originating agent yet: the owner gets the callback', () => {
+  it('nobody holds it: the owner gets the callback', () => {
     expect(
       resolveCallbackAssignee({
-        originatingAgentId: null,
-        currentHolderId: 'current-holder',
+        originatingAgentId: 'orig-agent',
+        currentHolderId: null,
         ownerId: 'owner-of-lead',
       }),
     ).toBe('owner-of-lead');
   });
 
-  it('no owner: fall back to the originating agent', () => {
+  it('no holder and no owner: fall back to the originating agent', () => {
     expect(
       resolveCallbackAssignee({
         originatingAgentId: 'orig-agent',
-        currentHolderId: 'current-holder',
+        currentHolderId: null,
         ownerId: null,
       }),
     ).toBe('orig-agent');
-  });
-
-  it('neither originating nor owner: fall back to current holder', () => {
-    expect(
-      resolveCallbackAssignee({
-        originatingAgentId: null,
-        currentHolderId: 'current-holder',
-        ownerId: null,
-      }),
-    ).toBe('current-holder');
   });
 
   it('completely unrouted: returns null', () => {

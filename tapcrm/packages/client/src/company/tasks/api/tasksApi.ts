@@ -146,6 +146,9 @@ export async function transitionTask(
     status: input.status,
     notes: input.notes?.trim() || null,
   };
+  if (input.viaStatus) {
+    payload['viaStatus'] = input.viaStatus;
+  }
   if (input.userId?.trim()) {
     payload['userId'] = input.userId.trim();
   }

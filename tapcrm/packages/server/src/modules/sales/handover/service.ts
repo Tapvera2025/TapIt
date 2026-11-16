@@ -1,6 +1,6 @@
 import { globalAccess } from '@tapcrm/contracts';
 import { visibilityFilter } from '@tapcrm/authz';
-import { db } from '../../../platform/dal/db.js';
+import { db, type Tx } from '../../../platform/dal/db.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from '../leads/errors.js';
@@ -15,6 +15,51 @@ import type { Handover, HandoverTarget } from './types.js';
 import type { CreateHandoverInput, DeclineHandoverInput, HandoverAnnotationInput, HandoverDispositionInput, HandoverListQuery } from './validators.js';
 
 const HANDOVER_EXPIRY_MINUTES = 5;
+
+/**
+ * The lead's open callback moves with the lead to whoever accepted the
+ * handover: they work the lead now, and the agent who handed it over can see
+ * it but no longer works it (owner decision, 13 Nov 2026).
+ */
+async function moveOpenCallbacksToReceiver(tx: Tx, ctx: RequestContext, leadId: string, receiverId: string): Promise<number> {
+  const moved = await tx.query<{ id: string }>(sql`
+    UPDATE lead_callback
+       SET owner_id   = ${receiverId},
+           updated_at = now()
+     WHERE organization_id = ${ctx.organizationId}
+       AND lead_id         = ${leadId}
+       AND status          = 'pending'
+       AND owner_id       <> ${receiverId}
+    RETURNING id
+  `);
+  for (const callback of moved) {
+    await insertAudit(tx, ctx, 'callback.reassigned', callback.id, null, { ownerId: receiverId, reason: 'handover_accepted' }, 'callback');
+  }
+  return moved.length;
+}
+
+/**
+ * The live call the receiver took answered any callback that was still open,
+ * so it ends here as "follow up required"; the callback the receiver books
+ * replaces it (a lead has one open callback at a time).
+ */
+async function answerOpenCallbacks(tx: Tx, ctx: RequestContext, leadId: string, handoverId: string): Promise<void> {
+  const answered = await tx.query<{ id: string }>(sql`
+    UPDATE lead_callback
+       SET status       = 'completed',
+           outcome      = 'follow_up_required',
+           completed_at = now(),
+           updated_at   = now()
+     WHERE organization_id = ${ctx.organizationId}
+       AND lead_id         = ${leadId}
+       AND status          = 'pending'
+    RETURNING id
+  `);
+  for (const callback of answered) {
+    await insertActivity(tx, ctx.organizationId, leadId, 'callback.completed', ctx.principal.id, { callbackId: callback.id, outcome: 'follow_up_required', reason: 'handover_callback', handoverId });
+    await insertAudit(tx, ctx, 'callback.completed', callback.id, { status: 'pending' }, { status: 'completed', outcome: 'follow_up_required', reason: 'handover_callback' }, 'callback');
+  }
+}
 
 async function expireHandovers(ctx: RequestContext): Promise<void> {
   await db.transaction(ctx, async (tx) => {
@@ -107,7 +152,8 @@ export async function acceptLeadHandover(ctx: RequestContext, id: string): Promi
     if (!await acceptHandover(tx, ctx.organizationId, id)) throw new HandoverConflictError(HANDOVER_ERROR_CODES.FINALIZED, 'This handover is no longer pending');
     const leadUpdate = await tx.query<{ id: string; status: string }>(sql`UPDATE lead SET current_holder_id = ${ctx.principal.id} WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId} AND current_holder_id = ${existing.fromUserId} AND status NOT IN ('converted', 'closed_lost') RETURNING id, status`);
     if (!leadUpdate.length) throw new HandoverConflictError(HANDOVER_ERROR_CODES.INVALID, 'The Lead is no longer held by the original operational owner');
-    await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.accepted', ctx.principal.id, { handoverId: id, fromUserId: existing.fromUserId });
+    const callbacksMoved = await moveOpenCallbacksToReceiver(tx, ctx, existing.leadId, ctx.principal.id);
+    await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.accepted', ctx.principal.id, { handoverId: id, fromUserId: existing.fromUserId, callbacksMoved });
     await insertAudit(tx, ctx, 'handover.accepted', id, { status: 'pending' }, { status: 'accepted', currentHolderId: ctx.principal.id, ownerId: existing.fromUserId });
     await notifyHandoverOutcome(tx, ctx, existing.leadId, [existing.fromUserId], 'accepted');
     const result = await findHandoverTx(tx, ctx.organizationId, id); if (!result) throw new HandoverNotFoundError(); return result;
@@ -132,7 +178,8 @@ async function claimQueuedHandoverForUser(ctx: RequestContext, existing: Handove
     if (!await claimQueuedHandover(tx, ctx.organizationId, existing.id, ctx.principal.id)) throw new HandoverConflictError(HANDOVER_ERROR_CODES.FINALIZED, 'This queued handover is no longer available');
     const leadUpdate = await tx.query(sql`UPDATE lead SET current_holder_id = ${ctx.principal.id} WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId} AND status NOT IN ('converted', 'closed_lost') RETURNING id`);
     if (!leadUpdate.length) throw new HandoverConflictError(HANDOVER_ERROR_CODES.INVALID, 'A converted or closed-lost Lead cannot be handed over');
-    await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.accepted', ctx.principal.id, { handoverId: existing.id, fromUserId: existing.fromUserId, handoverMode: 'team_queue' });
+    const callbacksMoved = await moveOpenCallbacksToReceiver(tx, ctx, existing.leadId, ctx.principal.id);
+    await insertActivity(tx, ctx.organizationId, existing.leadId, 'handover.accepted', ctx.principal.id, { handoverId: existing.id, fromUserId: existing.fromUserId, handoverMode: 'team_queue', callbacksMoved });
     await insertAudit(tx, ctx, 'handover.accepted', existing.id, { status: 'pending', handoverMode: 'team_queue' }, { status: 'accepted', currentHolderId: ctx.principal.id, ownerId: existing.fromUserId });
     await notifyHandoverOutcome(tx, ctx, existing.leadId, [existing.fromUserId], 'accepted');
     const result = await findHandoverTx(tx, ctx.organizationId, existing.id); if (!result) throw new HandoverNotFoundError(); return result;
@@ -162,11 +209,13 @@ export async function recordLeadHandoverDisposition(ctx: RequestContext, id: str
     if (input.disposition === 'rejected' && !await closeLeadAsLostInTransaction(tx, ctx.organizationId, existing.leadId, input.lossReason!)) throw new LeadValidationError(LEAD_ERROR_CODES.VALIDATION, 'The Lead cannot be closed as lost in its current lifecycle state');
     if (input.disposition === 'rejected') await cancelOpenCallbacksInTransaction(tx, ctx, existing.leadId, 'lead_closed_lost');
     if (input.disposition === 'callback') {
+      await answerOpenCallbacks(tx, ctx, existing.leadId, id);
       await tx.query(sql`UPDATE lead SET status = 'callback_scheduled' WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId}`);
+      // The receiver still holds the lead, so the callback is theirs
+      // (resolveCallbackAssignee) and the lead stays with them until a
+      // manager reassigns it. The agent who handed it over can see it but no
+      // longer works it (owner decision, 13 Nov 2026).
       await scheduleCallbackInTransaction(tx, ctx, existing.leadId, input.scheduledAt!, input.reason ?? null, ctx.principal.id);
-      // The live call is over and the follow-up is the owner's, so the lead goes
-      // back to them: they can book the next callback or hand over again.
-      await tx.query(sql`UPDATE lead SET current_holder_id = owner_id WHERE organization_id = ${ctx.organizationId} AND id = ${existing.leadId} AND owner_id IS NOT NULL`);
     }
     const event = input.disposition === 'rejected' ? 'lead.closed_lost' : input.disposition === 'callback' ? 'callback.requested' : 'deal.creation_requested';
     await insertActivity(tx, ctx.organizationId, existing.leadId, event, ctx.principal.id, { handoverId: id, disposition: input.disposition, reason: input.reason ?? null, lossReason: input.lossReason ?? null });

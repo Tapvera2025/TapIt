@@ -3,6 +3,7 @@ import { allowedMoves as allowedFromState } from '@tapcrm/contracts';
 import type { Tx } from '../../platform/dal/db.js';
 import * as AttendanceFacade from '../attendance/facade.js';
 import * as ShiftsFacade from '../shifts/facade.js';
+import { leaveBlocksPunchIn } from './leave-punch.js';
 import * as repo from './repository.js';
 
 /**
@@ -53,7 +54,7 @@ export async function loadToday(
     const shift = await ShiftsFacade.resolve(tx, userId, workDate);
     if (shift.kind === 'none') return 'no-shift-today';
     const overlays = await AttendanceFacade.overlaysForDay(tx, userId, workDate);
-    if (overlays.some((overlay) => overlay.sourceKind === 'leave')) return 'on-approved-leave';
+    if (leaveBlocksPunchIn(overlays)) return 'on-approved-leave';
     return null;
   }
 
@@ -63,7 +64,7 @@ export async function loadToday(
     const shift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
     if (shift.kind !== 'none') {
       const overlays = await AttendanceFacade.overlaysForDay(tx, userId, todayWindow.date);
-      if (overlays.some((o) => o.sourceKind === 'leave')) {
+      if (leaveBlocksPunchIn(overlays)) {
         return { row: null, allowedMoves: [], disabledReason: 'on-approved-leave' };
       }
       return { row: null, allowedMoves: ['in'], disabledReason: null };
@@ -81,7 +82,7 @@ export async function loadToday(
       const todayShift = await ShiftsFacade.resolve(tx, userId, todayWindow.date);
       if (todayShift.kind !== 'none') {
         const overlays = await AttendanceFacade.overlaysForDay(tx, userId, todayWindow.date);
-        if (overlays.some((o) => o.sourceKind === 'leave')) {
+        if (leaveBlocksPunchIn(overlays)) {
           return { row, allowedMoves: [], disabledReason: 'on-approved-leave' };
         }
         return { row, allowedMoves: ['in'], disabledReason: null };

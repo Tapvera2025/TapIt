@@ -348,6 +348,24 @@ export function getPresence(): Promise<Record<string, ChatPresence>> {
   return identityRequest('/api/chat/presence');
 }
 
+/** Whether you asked to be told when the other person in a direct message is back from their break. */
+export interface BreakReturnWatch {
+  watching: boolean;
+}
+
+export function getBreakReturnWatch(conversationId: string): Promise<BreakReturnWatch> {
+  return identityRequest(`/api/chat/conversations/${enc(conversationId)}/back-from-break`);
+}
+
+/** "Tell me when they're back": a notification arrives once their break ends. */
+export function watchBreakReturn(conversationId: string): Promise<BreakReturnWatch> {
+  return identityRequest(`/api/chat/conversations/${enc(conversationId)}/back-from-break`, { method: 'PUT' });
+}
+
+export function cancelBreakReturnWatch(conversationId: string): Promise<BreakReturnWatch> {
+  return identityRequest(`/api/chat/conversations/${enc(conversationId)}/back-from-break`, { method: 'DELETE' });
+}
+
 export function scheduleMessage(conversationId: string, input: OutgoingMessage & { sendAt: string }): Promise<ScheduledMessage> {
   const body = JSON.parse(messageBody(input)) as Record<string, unknown>;
   return identityRequest(`/api/chat/conversations/${enc(conversationId)}/scheduled`, {

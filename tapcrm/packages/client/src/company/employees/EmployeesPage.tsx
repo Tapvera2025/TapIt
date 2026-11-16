@@ -499,6 +499,7 @@ export function EmployeesPage({
                   </span>
                   <input
                     type="password"
+                    autoComplete="new-password"
                     value={resetPw}
                     onChange={(e) => setResetPw(e.target.value)}
                     required
@@ -510,6 +511,7 @@ export function EmployeesPage({
                   <span className="mb-1.5 block text-xs font-semibold text-app-muted">Confirm password</span>
                   <input
                     type="password"
+                    autoComplete="new-password"
                     value={resetConfirm}
                     onChange={(e) => setResetConfirm(e.target.value)}
                     required

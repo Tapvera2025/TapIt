@@ -450,7 +450,7 @@ export async function listTasksWithFilter(
         break;
       case 'overdue':
         whereClauses.push(
-          sql`t.due_date < now() AND t.status NOT IN ('completed', 'cancelled')`,
+          sql`t.due_date < CURRENT_DATE AND t.status NOT IN ('completed', 'cancelled')`,
         );
         break;
       case 'custom':
@@ -458,7 +458,7 @@ export async function listTasksWithFilter(
           whereClauses.push(sql`t.due_date >= ${query.startDate}`);
         }
         if (query.endDate) {
-          whereClauses.push(sql`t.due_date <= ${query.endDate}`);
+          whereClauses.push(sql`t.due_date < ${query.endDate}::date + INTERVAL '1 day'`);
         }
         break;
       case 'all':
@@ -650,14 +650,20 @@ export async function findAssignableUsers(
   // Once a project is selected, the picker is project-scoped: a project
   // member may assign to every other active member of that same project.
   // Requiring actor membership prevents this endpoint from exposing a
-  // project's employee list to unrelated employees.
+  // project's employee list to unrelated employees. Someone who may assign to
+  // anyone in the organization (Super Admin, or `tasks:assign` at
+  // all-people, e.g. HR) is not unrelated: they see the project's team
+  // without being on it, as saving the task already allows
+  // (service.ts assertAssigneesInScope).
   if (query.projectId) {
-    whereClauses.push(sql`EXISTS (
-      SELECT 1 FROM project_assignee actor_pa
-      WHERE actor_pa.organization_id = u.organization_id
-        AND actor_pa.project_id = ${query.projectId}
-        AND actor_pa.user_id = ${ctx.principal.id}
-    )`);
+    if (scope.kind !== 'all') {
+      whereClauses.push(sql`EXISTS (
+        SELECT 1 FROM project_assignee actor_pa
+        WHERE actor_pa.organization_id = u.organization_id
+          AND actor_pa.project_id = ${query.projectId}
+          AND actor_pa.user_id = ${ctx.principal.id}
+      )`);
+    }
     whereClauses.push(sql`EXISTS (
       SELECT 1 FROM project_assignee project_pa
       WHERE project_pa.organization_id = u.organization_id

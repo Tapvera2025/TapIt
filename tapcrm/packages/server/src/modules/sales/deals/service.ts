@@ -15,6 +15,7 @@ import { PlatformForbiddenError, PlatformNotFoundError } from '../../../platform
 import { sql } from '../../../platform/dal/sql.js';
 import { findOrInsertCompanyByName } from '../intake/repository.js';
 import { cancelOpenCallbacksInTransaction } from '../leads/lifecycle.js';
+import { HANDED_OVER_MESSAGE, isHandedOverAway } from '../handover/policy.js';
 import { insertActivity, insertAudit } from '../leads/repository.js';
 import {
   DEAL_ERROR_CODES,
@@ -82,6 +83,11 @@ async function pullLeadLineage(ctx: RequestContext, leadId: string): Promise<{
   );
   if (!row) {
     throw new ApplicationError('Originating lead not found', 404, 'DEAL_LEAD_NOT_FOUND');
+  }
+  // The agent who handed the lead over no longer works it, so they cannot
+  // turn it into a deal either; the person who took it can.
+  if (!globalAccess(ctx.principal) && isHandedOverAway(row, ctx.principal.id)) {
+    throw new ApplicationError(HANDED_OVER_MESSAGE, 403, 'LEAD_HANDED_OVER');
   }
   const originatingAgentId = row.originatingAgentId ?? row.ownerId ?? row.currentHolderId;
   const responsibleCloserId = row.currentHolderId ?? row.ownerId ?? row.originatingAgentId;

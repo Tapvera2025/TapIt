@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PolicyEvaluationContext } from '@tapcrm/authz';
-import { canViewInternalHandoverState, handoverPolicy } from './policy.js';
+import { canViewInternalHandoverState, handoverPolicy, isHandedOverAway } from './policy.js';
 
 const baseContext = { organizationId: 'org-a', principal: { id: 'user-a' }, scope: { poolIds: async () => new Set<string>(), teamIds: async () => new Set<string>(), departmentId: async () => null } };
 const context = baseContext as unknown as PolicyEvaluationContext;
@@ -32,5 +32,19 @@ describe('lead handover policy', () => {
     expect(canViewInternalHandoverState('user-b', false, 'user-a', 'user-b')).toBe(true);
     expect(canViewInternalHandoverState('user-a', false, 'user-a', 'user-a')).toBe(true);
     expect(canViewInternalHandoverState('user-a', false, 'user-a', 'user-a', true)).toBe(false);
+  });
+});
+
+describe('a lead after an accepted handover', () => {
+  it('is out of the hands of the agent who handed it over while the receiver holds it', () => {
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: 'supervisor' }, 'agent')).toBe(true);
+  });
+  it('is worked by the receiver, and untouched for managers looking at it', () => {
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: 'supervisor' }, 'supervisor')).toBe(false);
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: 'supervisor' }, 'sales-head')).toBe(false);
+  });
+  it('is the owner’s again once a manager reassigns it back', () => {
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: 'agent' }, 'agent')).toBe(false);
+    expect(isHandedOverAway({ ownerId: 'agent', currentHolderId: null }, 'agent')).toBe(false);
   });
 });

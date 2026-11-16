@@ -89,6 +89,7 @@ export interface UpdateTaskInput {
 
 export interface TransitionTaskInput {
   readonly status: TaskStatus;
+  readonly viaStatus?: TaskStatus | undefined;
   readonly userId?: string | undefined;
   readonly notes?: string | null | undefined;
 }
@@ -141,14 +142,16 @@ export interface TaskListProps {
     taskId: string,
     status: TaskStatus,
     userId?: string,
-    options?: { suppressToast?: boolean },
+    options?: { suppressToast?: boolean; viaStatus?: TaskStatus },
   ) => Promise<void>;
   readonly onEditTask?: ((task: Task) => void) | undefined;
   readonly onAssignTask?: ((task: Task) => void) | undefined;
   readonly onCreateTask?: (() => void) | undefined;
 }
 
-export type TaskKanbanBoardProps = TaskListProps;
+export interface TaskKanbanBoardProps extends TaskListProps {
+  readonly prioritizePopulatedColumns?: boolean | undefined;
+}
 
 export interface TaskStatusBadgeProps {
   readonly status: TaskStatus;

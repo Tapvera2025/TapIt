@@ -111,12 +111,22 @@ export async function linkLeadCompany(tx: Tx, organizationId: string, id: string
 export async function insertActivity(tx: Tx, organizationId: string, leadId: string, eventName: LeadActivityEvent, actorId: string | null, metadata: unknown): Promise<void> { await tx.query(sql`INSERT INTO lead_activity (organization_id, lead_id, event_name, actor_id, metadata) VALUES (${organizationId}, ${leadId}, ${eventName}, ${actorId}, ${JSON.stringify(metadata)}::jsonb)`); }
 export async function insertAudit(tx: Tx, ctx: RequestContext, action: string, targetId: string, before: unknown, after: unknown, targetType = 'lead'): Promise<void> { await tx.query(sql`INSERT INTO audit_outbox (organization_id, stream, payload) VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({ action, actorId: ctx.principal.id, actorType: ctx.principal.accountType, targetType, targetId, before, after, requestId: ctx.requestId, sourceIp: ctx.sourceIp })}::jsonb)`); }
 
-export async function findDuplicates(ctx: RequestContext, filter: SqlFragment, phone: string | null, email: string | null): Promise<DuplicateWarning[]> {
-  if (!phone && !email) return [];
-  const row = await db.query<{ leadId: string; leadNumber: string; ownerId: string | null; ownerName: string | null }>(ctx, sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${ctx.organizationId} AND ${filter} AND ((${phone}::text IS NOT NULL AND l.phone_normalized = ${phone}::text) OR (${email}::text IS NOT NULL AND l.email_normalized = ${email}::text)) ORDER BY l.created_at DESC LIMIT 10`);
-  return row;
+/**
+ * LD-8: duplicate detection on phone and email warns the creator and names the
+ * existing owner, whoever that is. The search therefore covers the whole
+ * organization; `visibleFilter` (the caller's `leads:view` scope) only decides
+ * which matches the caller may open, reported as `canOpen`. Restricting the
+ * search to the caller's own scope let an agent add someone another agent was
+ * already working without any warning.
+ */
+function duplicatesQuery(organizationId: string, visibleFilter: SqlFragment, phone: string | null, email: string | null): SqlFragment {
+  return sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName", COALESCE((${visibleFilter}), false) AS "canOpen" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${organizationId} AND ((${phone}::text IS NOT NULL AND l.phone_normalized = ${phone}::text) OR (${email}::text IS NOT NULL AND l.email_normalized = ${email}::text)) ORDER BY l.created_at DESC LIMIT 10`;
 }
-export async function findDuplicatesTx(tx: Tx, organizationId: string, filter: SqlFragment, phone: string | null, email: string | null): Promise<DuplicateWarning[]> {
+export async function findDuplicates(ctx: RequestContext, visibleFilter: SqlFragment, phone: string | null, email: string | null): Promise<DuplicateWarning[]> {
   if (!phone && !email) return [];
-  return tx.query<DuplicateWarning>(sql`SELECT l.id AS "leadId", l.lead_number::text AS "leadNumber", l.owner_id AS "ownerId", owner.full_name AS "ownerName" FROM lead l LEFT JOIN app_user owner ON owner.organization_id = l.organization_id AND owner.id = l.owner_id WHERE l.organization_id = ${organizationId} AND ${filter} AND ((${phone}::text IS NOT NULL AND l.phone_normalized = ${phone}::text) OR (${email}::text IS NOT NULL AND l.email_normalized = ${email}::text)) ORDER BY l.created_at DESC LIMIT 10`);
+  return db.query<DuplicateWarning>(ctx, duplicatesQuery(ctx.organizationId, visibleFilter, phone, email));
+}
+export async function findDuplicatesTx(tx: Tx, organizationId: string, visibleFilter: SqlFragment, phone: string | null, email: string | null): Promise<DuplicateWarning[]> {
+  if (!phone && !email) return [];
+  return tx.query<DuplicateWarning>(duplicatesQuery(organizationId, visibleFilter, phone, email));
 }
