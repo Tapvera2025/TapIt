@@ -1,5 +1,6 @@
 import { Button } from '../../../ui/index.js';
 import { Icon } from '../../../ui/index.js';
+import { CompanyPageActionPortal } from '../../layout/CompanyPageActionPortal.js';
 import type { SaveStatus } from '../types/index.js';
 
 export interface NotepadHeaderProps {
@@ -63,7 +64,7 @@ export function NotepadHeader({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <CompanyPageActionPortal>
         <Button
           type="button"
           kind="secondary"
@@ -75,7 +76,7 @@ export function NotepadHeader({
           <Icon name="history" className="size-4 text-app-muted" />
           <span>History</span>
         </Button>
-      </div>
+      </CompanyPageActionPortal>
     </div>
   );
 }

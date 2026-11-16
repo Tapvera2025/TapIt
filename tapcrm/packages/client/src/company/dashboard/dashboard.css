@@ -297,7 +297,10 @@
     flex-wrap: wrap;
   }
 
-  .dashboard-widget-heading > :last-child {
+  /* Only auto-align a real trailing action. Without this guard, a heading
+     with no action treats its own title group as the last child and shifts
+     itself toward the center on narrow cards. */
+  .dashboard-widget-heading > :last-child:not(:first-child) {
     margin-left: auto;
   }
 }

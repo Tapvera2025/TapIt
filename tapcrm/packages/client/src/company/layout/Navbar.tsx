@@ -104,7 +104,7 @@ export function Navbar({
               <span className="text-xs font-bold text-app-accent">{initials(identity.fullName)}</span>
             </button>
             {accountOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg" role="menu">
+              <div className="absolute right-0 top-full z-[1000] mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg" role="menu">
                 <div className="border-b border-app-border px-3 py-2.5">
                   <div className="flex min-w-0 items-baseline gap-2.5">
                     <p className="min-w-0 flex-1 truncate text-sm font-semibold text-app-foreground">{identity.fullName}</p>

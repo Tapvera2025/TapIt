@@ -2862,6 +2862,8 @@ summary:active {
   }
 
   .company-page-hero-desktop {
+    position: relative;
+    z-index: 1000;
     /* Keep the next page surface below the hero's curved lower edge. */
     margin-bottom: 2rem;
   }
@@ -2910,7 +2912,7 @@ summary:active {
     min-height: 11rem;
     min-width: 0;
     align-items: flex-end;
-    padding: 4rem clamp(1.75rem, 2.25vw, 2.25rem) 1.5rem;
+    padding: 4rem clamp(1.75rem, 2.25vw, 2.25rem) 2.5rem;
   }
 
   .dark .company-page-hero {
@@ -2944,7 +2946,7 @@ summary:active {
   .company-page-hero[data-utility-overlap='true'] .company-page-hero-copy {
     transform: none;
   }
-  .company-page-hero-utility { position: absolute; z-index: 70; right: 0; top: 0; }
+  .company-page-hero-utility { position: absolute; z-index: 1000; right: 0; top: 0; }
   .company-hero-capsule {
     display: flex;
     box-sizing: border-box;
