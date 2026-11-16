@@ -5,6 +5,7 @@ import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigat
 import { useChatUnread } from '../../chat/ChatUnreadContext.js';
 
 const GROUP_ICONS: Record<string, string> = {
+  Platform: 'grid',
   Overview: 'grid',
   Communication: 'message',
   Organization: 'building',
@@ -85,8 +86,9 @@ export function CompanySidebar({
   onToggleCollapsed,
   width = 256,
   onResize,
+  showAiPet = true,
 }: {
-  variant?: 'company' | 'client';
+  variant?: 'company' | 'client' | 'platform';
   pathname: string;
   identity: {
     fullName: string;
@@ -162,6 +164,7 @@ export function CompanySidebar({
   onToggleCollapsed?: () => void;
   width?: number;
   onResize?: (width: number) => void;
+  showAiPet?: boolean;
 }): React.JSX.Element {
   const isEmployeePortal = variant === 'company' && accountType === 'employee';
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
@@ -1060,7 +1063,18 @@ export function CompanySidebar({
           items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
         },
       ]
-    : navigation.filter(
+    : variant === 'platform'
+      ? [
+          {
+            label: 'Platform',
+            items: [
+              { label: 'Platform Dashboard', path: '/platform', icon: 'grid' },
+              { label: 'Companies', path: '/platform/companies', icon: 'building' },
+              { label: 'Admin Invitations', path: '/platform/invitations', icon: 'users' },
+            ],
+          },
+        ]
+      : navigation.filter(
         (group) =>
           group.items.length > 0 &&
           group.label !== 'Recruitment' &&
@@ -1115,7 +1129,11 @@ export function CompanySidebar({
       )}
       <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
         <p className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
-          {variant === 'client' ? 'Client Workspace' : 'Company Workspace'}
+          {variant === 'client'
+            ? 'Client Workspace'
+            : variant === 'platform'
+              ? 'Platform'
+              : 'Company Workspace'}
         </p>
         {onToggleCollapsed && (
           <button
@@ -1148,7 +1166,13 @@ export function CompanySidebar({
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
         className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
-        aria-label={variant === 'client' ? 'Client navigation' : 'Company navigation'}
+        aria-label={
+          variant === 'client'
+            ? 'Client navigation'
+            : variant === 'platform'
+              ? 'Platform navigation'
+              : 'Company navigation'
+        }
       >
         <div
           ref={activeNavIndicatorRef}
@@ -1207,7 +1231,9 @@ export function CompanySidebar({
                   {group.items.map((item) => {
                     const isRootRoute = variant === 'client'
                       ? item.path === '/client'
-                      : item.path === '/company/organization';
+                      : variant === 'platform'
+                        ? item.path === '/platform'
+                        : item.path === '/company/organization';
                     const isActive = pathname === item.path ||
                       (!isRootRoute && pathname.startsWith(`${item.path}/`));
                     const isTopLevelActive = isActive &&
@@ -1319,7 +1345,7 @@ export function CompanySidebar({
           );
         })}
       </nav>
-      {activePet && (
+      {showAiPet && activePet && (
         <div
           className={`sidebar-pet-runway shrink-0 border-t border-sidebar-border/70 px-1 pt-1 ${collapsed ? 'xl:hidden' : ''}`}
         >

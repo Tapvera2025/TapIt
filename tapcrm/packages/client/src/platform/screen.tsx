@@ -15,6 +15,12 @@ import { ACCENT_COLORS, useTheme, type Theme } from '../theme/ThemeContext.js';
 import { Icon } from '../ui/index.js';
 import { GlobalFeatureSearch } from '../company/layout/GlobalFeatureSearch.js';
 import type { CompanySearchDestination } from '../company/layout/navigation.js';
+import { Navbar } from '../company/layout/Navbar.js';
+import { CompanyNavbarProvider } from '../company/layout/CompanyNavbarContext.js';
+import { CompanyPageHero } from '../company/layout/CompanyPageHero.js';
+import { CompanyPageActionPortal } from '../company/layout/CompanyPageActionPortal.js';
+import { CompanySidebar } from '../company/layout/CompanySidebar.js';
+import { WorkspacePageContainer } from '../ui/index.js';
 import {
   validateField,
   validateStep,
@@ -183,17 +189,16 @@ function PlatformKpiCard({
   };
 
   return (
-    <article className="group relative flex min-h-[82px] min-w-0 items-center overflow-hidden rounded-xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_6%,transparent),color-mix(in_srgb,var(--app-surface)_58%,transparent))] p-2.5 shadow-[0_8px_24px_color-mix(in_srgb,var(--app-accent)_4%,transparent)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-app-accent/45 sm:min-h-[96px] sm:rounded-2xl sm:p-3.5">
-      <div className="pointer-events-none absolute -right-8 -top-10 size-16 rounded-full bg-app-accent/10 blur-xl sm:size-20" />
-      <div className="relative flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-app-accent/30 bg-app-accent/10 text-app-accent transition group-hover:scale-105 group-hover:border-app-accent/45 sm:size-10 sm:rounded-xl">
+    <article className="group relative flex min-h-[82px] min-w-0 items-center border-b border-app-border p-3 transition-colors duration-200 hover:bg-app-background/60 sm:min-h-[100px] sm:border-r sm:p-4">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-app-accent/35 bg-transparent text-app-accent transition-colors group-hover:border-app-accent group-hover:text-app-accent sm:size-10">
           <Icon name={meta.icon} className="size-4 sm:size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[10px] font-semibold leading-tight text-app-muted sm:text-xs" title={meta.label}>
+          <p className="truncate text-xs font-semibold leading-tight text-app-muted sm:text-sm">
             {meta.label}
           </p>
-          <strong className="mt-0.5 block font-display text-xl font-bold leading-tight tracking-tight text-app-foreground sm:text-2xl">
+          <strong className="mt-1 block font-display text-2xl font-bold leading-none tracking-tight text-app-foreground sm:text-3xl">
             {value}
           </strong>
         </div>
@@ -596,7 +601,13 @@ function splitPhoneNumber(value: string) {
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function TextField({
@@ -771,7 +782,7 @@ export function PlatformLogin({ onLogin }: { onLogin: () => void }) {
         '/platform/auth/login',
         {
           method: 'POST',
-          body: JSON.stringify({ email, password, deviceLabel: 'Platform Web' }),
+          body: JSON.stringify({ email: email.trim(), password, deviceLabel: 'Platform Web' }),
         },
       );
       saveTokens(result.accessToken, result.refreshToken);
@@ -1049,6 +1060,10 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
     () => window.localStorage.getItem('tapcrm:platform-sidebar-collapsed') === 'true',
   );
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = Number(window.localStorage.getItem('tapcrm:platform-sidebar-width'));
+    return Number.isFinite(saved) && saved >= 220 && saved <= 420 ? saved : 256;
+  });
   const [activeSection, setActiveSection] = useState('platform-overview');
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -1074,6 +1089,10 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       String(sidebarCollapsed),
     );
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    window.localStorage.setItem('tapcrm:platform-sidebar-width', String(sidebarWidth));
+  }, [sidebarWidth]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1112,6 +1131,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     groupKey?: string;
   } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [expandedCompanyIds, setExpandedCompanyIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const catalogByKey = new Map<string, PlatformModuleCatalogEntry>(
     catalog.map((entry) => [entry.key, entry]),
   );
@@ -1595,6 +1617,23 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     { id: 'platform-invitations', label: 'Admin Invitations', icon: 'users' },
   ] as const;
 
+  const platformPath = activeSection === 'platform-companies'
+    ? '/platform/companies'
+    : activeSection === 'platform-invitations'
+      ? '/platform/invitations'
+      : '/platform';
+
+  const navigatePlatform = (path: string): void => {
+    const nextSection = path === '/platform/companies'
+      ? 'platform-companies'
+      : path === '/platform/invitations'
+        ? 'platform-invitations'
+        : 'platform-overview';
+    setActiveSection(nextSection);
+    setMobileNavOpen(false);
+    document.getElementById(nextSection)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const renderPlatformNavigation = () => (
     <nav aria-label="Master Admin navigation" className="flex flex-col gap-1.5">
       {platformNavigation.map((item) => (
@@ -1651,41 +1690,25 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   );
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground [background-image:radial-gradient(circle_at_86%_0%,rgba(244,139,60,0.09),transparent_28rem)]">
-      <div className="relative z-30 shrink-0 px-[clamp(12px,2.2vw,24px)] pt-[clamp(8px,1.2vw,16px)]">
-        <header className="mx-auto grid h-16 w-full max-w-[1480px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-app-border bg-app-surface/95 px-3 shadow-sm backdrop-blur-xl sm:px-5">
-          <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 sm:gap-2.5">
-            <button
-              type="button"
-              onClick={() => setMobileNavOpen((open) => !open)}
-              className={`grid size-9 shrink-0 place-items-center rounded-xl border transition min-[851px]:hidden focus-visible:outline-2 focus-visible:outline-app-accent ${
-                mobileNavOpen
-                  ? 'border-app-accent/60 bg-app-accent/10 text-app-accent ring-1 ring-app-accent/30'
-                  : 'border-app-border bg-app-background text-app-foreground hover:border-app-accent hover:text-app-accent'
-              }`}
-              aria-label={
-                mobileNavOpen ? 'Close platform navigation' : 'Open platform navigation'
-              }
-              aria-expanded={mobileNavOpen}
-              aria-controls="platform-mobile-navigation"
-            >
-              <Icon name={mobileNavOpen ? 'close' : 'menu'} className="size-4" />
-            </button>
-            <BrandLogo className="w-[132px] max-[850px]:w-[128px] max-[560px]:w-[108px]" />
-          </div>
-          <div className="col-start-2 row-start-1 min-w-0 pr-1">
-            <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.12em] text-app-accent sm:text-[10px] sm:tracking-[0.15em]">
-              Master Admin
-            </p>
-            <p className="text-[11px] font-semibold leading-tight text-app-foreground sm:text-sm">Platform Dashboard</p>
-          </div>
-
-          <div className="platform-header-actions col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-1.5">
+    <div className="company-layout-shell platform-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
+      <CompanyNavbarProvider initialPage={{ eyebrow: 'Master Admin', title: 'Platform Dashboard', description: 'Manage organizations, invitations and platform access from one workspace.' }}>
+        <Navbar
+          identity={{ fullName: 'Master Admin', email: 'Platform administrator', accountType: 'super-admin' }}
+          organizationName={null}
+          organizationCode={null}
+          sidebarCollapsed={sidebarCollapsed}
+          sidebarOpen={mobileNavOpen}
+          onToggleSidebar={() => setMobileNavOpen((open) => !open)}
+          onNavigate={navigatePlatform}
+          onLogout={logout}
+          searchDestinations={[]}
+          settingsPath="/platform"
+          extraActions={
             <div className="platform-appearance-anchor relative">
               <button
                 type="button"
                 onClick={() => setAppearanceOpen((open) => !open)}
-                className="platform-appearance-button grid size-8 place-items-center rounded-lg border border-app-border bg-app-background text-app-muted transition hover:border-app-accent hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
+                className="grid size-8 place-items-center rounded-lg border border-app-border bg-app-surface text-app-muted transition hover:border-app-accent hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2"
                 aria-label="Appearance settings"
                 aria-expanded={appearanceOpen}
                 aria-haspopup="dialog"
@@ -1699,11 +1722,17 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                 />
               )}
             </div>
-          </div>
-        </header>
-      </div>
+          }
+          showSearch={false}
+          showNotifications={false}
+          showAccountDesignation={false}
+          showAiCompanion={false}
+          showSettings={false}
+          showLogout={false}
+          profilePreview
+        />
 
-      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden px-[clamp(12px,2.2vw,24px)]">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <button
           type="button"
           onClick={() => setMobileNavOpen(false)}
@@ -1716,11 +1745,27 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           aria-hidden={!mobileNavOpen}
           tabIndex={mobileNavOpen ? 0 : -1}
         />
-        <div className="mx-auto flex w-full max-w-[1480px] min-h-0 min-w-0 flex-1 items-start gap-6">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <CompanySidebar
+            variant="platform"
+            pathname={platformPath}
+            identity={{ fullName: 'Master Admin', email: 'Platform administrator', accountType: 'super-admin' }}
+            organizationName={null}
+            accountType="super-admin"
+            onNavigate={navigatePlatform}
+            onLogout={logout}
+            open={mobileNavOpen}
+            onClose={() => setMobileNavOpen(false)}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            width={sidebarWidth}
+            onResize={setSidebarWidth}
+            showAiPet={false}
+          />
           <aside
             id="platform-mobile-navigation"
             data-sidebar-collapsed={sidebarCollapsed ? 'true' : 'false'}
-            className={`platform-sidebar flex shrink-0 flex-col justify-between overflow-y-auto overflow-x-hidden border-app-border bg-app-surface shadow-sm transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] max-[850px]:fixed max-[850px]:bottom-0 max-[850px]:left-0 max-[850px]:top-16 max-[850px]:z-50 max-[850px]:w-72 max-[850px]:rounded-r-2xl max-[850px]:border-y max-[850px]:border-r max-[850px]:p-4 max-[850px]:shadow-2xl ${
+            className={`hidden platform-sidebar flex shrink-0 flex-col justify-between overflow-y-auto overflow-x-hidden border-app-border bg-app-surface shadow-sm transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] max-[850px]:fixed max-[850px]:bottom-0 max-[850px]:left-0 max-[850px]:top-16 max-[850px]:z-50 max-[850px]:w-72 max-[850px]:rounded-r-2xl max-[850px]:border-y max-[850px]:border-r max-[850px]:p-4 max-[850px]:shadow-2xl ${
               mobileNavOpen
                 ? 'max-[850px]:translate-x-0'
                 : 'max-[850px]:-translate-x-full max-[850px]:pointer-events-none'
@@ -1808,17 +1853,34 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               </button>
             </div>
           </aside>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <main
             id="main-content"
-            className="min-h-0 min-w-0 flex-1 h-full overflow-y-auto overflow-x-hidden pt-3 sm:pt-4 pr-1 pb-16 [scrollbar-gutter:stable]"
+            data-app-scroll-container
+            className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-16 [scrollbar-gutter:stable]"
           >
+          <CompanyPageHero />
+          <CompanyPageActionPortal mobileClassName="hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSection('platform-companies');
+                setCompanyFormOpen(true);
+              }}
+              className="platform-capsule-action platform-capsule-action-primary"
+            >
+              <Icon name="plus" className="size-4" />
+              <span>New company</span>
+            </button>
+          </CompanyPageActionPortal>
+          <WorkspacePageContainer className="platform-page-content">
           <section id="platform-overview" className="mb-[22px] scroll-mt-5">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
               <div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">
-                  Overview
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent xl:hidden">
+                  Master Admin
                 </p>
-                <h2 className="font-display text-xl font-semibold tracking-[-0.03em]">
+                <h2 className="font-display text-xl font-semibold tracking-[-0.03em] xl:hidden">
                   Platform Overview
                 </h2>
               </div>
@@ -1827,10 +1889,14 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
 
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 xl:grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))]">
-              {Object.entries(stats).map(([k, v]) => (
-                <PlatformKpiCard key={k} statKey={k} value={v} />
-              ))}
+            <div className="platform-kpi-grid overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+                {Object.entries(stats)
+                  .filter(([k]) => !['revoked_invitations', 'revokedInvitations'].includes(k))
+                  .map(([k, v]) => (
+                  <PlatformKpiCard key={k} statKey={k} value={v} />
+                  ))}
+              </div>
             </div>
           </section>
           <section
@@ -2398,7 +2464,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             )}
             <section
               id="platform-companies"
-              className="w-full scroll-mt-5 rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_5%,var(--app-background)),color-mix(in_srgb,var(--app-surface)_72%,var(--app-background)))] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.14)] max-[560px]:p-[20px_16px]"
+              className="w-full scroll-mt-5 rounded-2xl border border-app-border bg-app-surface p-6 shadow-sm max-[560px]:p-[20px_16px]"
             >
               <div className="flex items-start justify-between gap-[15px]">
                 <div>
@@ -2409,27 +2475,23 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                     Companies
                   </h2>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:w-full max-[700px]:justify-end">                  <span className="rounded-full border border-app-border px-2.5 py-1.5 text-[11px] text-app-muted">
-                  {orgs.length} total
-                </span>
-                  <button
-                    type="button"
-                    className="rounded-xl bg-app-accent px-5 py-3 text-sm font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110"
-                    onClick={startCreateCompany}
-                  >
-                    + Create company
-                  </button>
+                <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:w-full max-[700px]:justify-end">
+                  <span className="rounded-lg border border-app-border bg-app-background px-3 py-2 text-xs font-semibold text-app-muted">
+                    {orgs.length} total
+                  </span>
                 </div>
               </div>
               <p className="mt-[9px] text-sm text-app-muted">
                 Manage each company&apos;s available platform areas.
               </p>
-              <div className="relative mt-5 mb-3 rounded-2xl border border-app-accent/20 bg-app-background/45 p-2 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition focus-within:border-app-accent/50">                <Icon
-                name="search"
-                className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-app-accent"
-              />
+              <div className="relative mt-5 mb-3 rounded-xl border border-app-border bg-app-background px-1 transition focus-within:border-app-accent/60">
+                <Icon
+                  name="search"
+                  className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-app-muted"
+                />
                 <input
-                  className="block w-full rounded-xl border-0 bg-transparent py-3 pl-11 pr-11 text-sm text-app-foreground outline-none ring-0 shadow-none placeholder:text-app-muted focus:!border-0 focus:!outline-none focus:!ring-0 focus:!ring-offset-0 focus:!shadow-none" value={companySearch}
+                  className="block w-full rounded-lg border-0 bg-transparent py-3 pl-11 pr-11 text-sm text-app-foreground outline-none ring-0 shadow-none placeholder:text-app-muted focus:!border-0 focus:!outline-none focus:!ring-0 focus:!ring-offset-0 focus:!shadow-none"
+                  value={companySearch}
                   onChange={(event) => setCompanySearch(event.target.value)}
                   placeholder="Search company name, code or email"
                   aria-label="Search companies"
@@ -2450,47 +2512,70 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                   No companies match your search.
                 </p>
               ) : (
-                <div className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-                  {visibleOrganizations.map((o) => (
+                <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-3">
+                  {visibleOrganizations.map((o) => {
+                    const expanded = expandedCompanyIds.has(o.id);
+                    return (
                     <article
                       key={o.id}
-                      className="flex min-h-[300px] flex-col rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_5%,var(--app-background)),color-mix(in_srgb,var(--app-surface)_72%,var(--app-background)))] p-5 shadow-[0_12px_30px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-app-accent/50"
+                      className={`flex h-fit min-w-0 self-start flex-col rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-app-accent/55 ${expanded ? 'ring-1 ring-app-accent/20' : ''}`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-app-accent/12 text-lg font-bold text-app-accent">
+                      <div className="flex min-w-0 items-start gap-3">
+                          <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-app-accent/35 bg-transparent text-lg font-bold text-app-accent">
                             {o.name.slice(0, 1).toUpperCase()}
                           </span>
-                          <div className="min-w-0">
-                            <h3 className="truncate font-display text-lg font-bold">
+                          <div className="min-w-0 flex-1">
+                            <h3
+                              className="truncate whitespace-nowrap font-display text-base font-bold leading-tight sm:text-lg"
+                              title={o.name}
+                            >
                               {o.name}
                             </h3>
-                            <p className="mt-1 text-xs uppercase tracking-wide text-app-muted">
-                              {o.code} ·{' '}
-                              <span
-                                className={
-                                  o.status === 'active'
-                                    ? 'text-app-accent'
-                                    : 'text-app-danger'
-                                }
-                              >
-                                {o.status}
-                              </span>
-                            </p>
                           </div>
-                        </div>
-                        <span className="rounded-full border border-app-border px-2 py-1 text-[10px] font-semibold text-app-muted">
+                          <button
+                            type="button"
+                            className="grid size-8 shrink-0 place-items-center rounded-lg border border-app-border text-app-muted transition hover:border-app-accent hover:bg-app-accent/10 hover:text-app-accent"
+                            onClick={() =>
+                              setExpandedCompanyIds((current) => {
+                                const next = new Set(current);
+                                if (next.has(o.id)) next.delete(o.id);
+                                else next.add(o.id);
+                                return next;
+                              })
+                            }
+                            aria-expanded={expanded}
+                            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${o.name}`}
+                            title={expanded ? 'Collapse company details' : 'Expand company details'}
+                          >
+                            <Icon name={expanded ? 'chevron-up' : 'chevron-down'} className="size-4" />
+                          </button>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-b border-app-border pb-3">
+                        <p className="min-w-0 truncate text-xs uppercase tracking-wide text-app-muted">
+                          {o.code} ·{' '}
+                          <span className={o.status === 'active' ? 'text-app-accent' : 'text-app-danger'}>
+                            {o.status}
+                          </span>
+                        </p>
+                        <span className="shrink-0 whitespace-nowrap rounded-full border border-app-border px-2 py-1 text-[10px] font-semibold text-app-muted">
                           {o.timezone}
                         </span>
                       </div>
-                      <div className="mt-5 grid gap-2 text-xs text-app-muted sm:grid-cols-2">
-                        <span className="truncate">✉ {o.ownerEmail}</span>
-                        <span className="truncate">
+                      <div className="mt-4 grid gap-2 text-xs text-app-muted sm:grid-cols-2">
+                        <span className="min-w-0 truncate" title={o.ownerEmail || 'Owner email not provided'}>✉ {o.ownerEmail || 'Owner email not provided'}</span>
+                        <span className="min-w-0 truncate" title={[o.city, o.country].filter(Boolean).join(', ') || 'Location not provided'}>
                           ⌖{' '}
                           {[o.city, o.country].filter(Boolean).join(', ') ||
                             'Location not provided'}
                         </span>
                       </div>
+                      {!expanded && (
+                        <div className="mt-5 flex items-center border-t border-app-border pt-4 text-xs text-app-muted">
+                          <span>{PLATFORM_MODULE_GROUPS.length} platform areas</span>
+                        </div>
+                      )}
+                      {expanded && (
+                        <>
                       <div className="mt-5">
                         <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-app-muted">
                           Platform areas
@@ -2503,13 +2588,13 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                                 type="button"
                                 key={group.key}
                                 title={`Manage ${group.label} modules`}
-                                className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-[10px] font-semibold ${status.state === 'enabled' ? 'border-app-accent/35 bg-app-accent/10 text-app-accent' : status.state === 'partial' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/[0.04] text-[#f5c56b]' : 'border-app-border text-app-muted'} hover:border-app-accent`}
+                                className={`flex min-w-0 w-full items-center justify-between gap-2 rounded-lg border border-app-border bg-app-background px-3 py-2 text-left text-[10px] font-semibold transition hover:border-app-accent ${status.state === 'enabled' ? 'text-app-accent' : status.state === 'partial' ? 'text-[#b7791f]' : 'text-app-muted'}`}
                                 onClick={() => setManageTarget({ org: o, groupKey: group.key })}
                               >
-                                <span>
+                                <span className="min-w-0 truncate" title={`${group.label}: ${status.state}`}>
                                   {group.label}: {status.state}
                                 </span>
-                                <span className="opacity-80">
+                                <span className="shrink-0 whitespace-nowrap opacity-80">
                                   {status.enabled}/{status.total}
                                 </span>
                               </button>
@@ -2517,67 +2602,66 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           })}
                         </div>
                       </div>
-                      <div className="mt-6 grid grid-cols-2 gap-2 border-t border-app-border pt-4 sm:grid-cols-5">
+                      <div className="mt-6 space-y-2 border-t border-app-border pt-4">
                         <button
                           type="button"
-                          className="col-span-2 min-h-11 rounded-xl bg-app-accent px-3 py-2.5 text-xs font-bold text-app-on-accent transition hover:brightness-110 sm:col-span-1"
+                          className="min-h-11 w-full rounded-xl bg-app-accent px-3 py-2.5 text-sm font-bold leading-tight text-app-on-accent transition hover:brightness-110"
                           onClick={() => setSelectedCompany(o)}
                         >
                           View details
                         </button>
-                        <button
-                          type="button"
-                          className="min-h-11 rounded-xl border border-app-accent/30 px-3 py-2.5 text-xs font-semibold text-app-accent transition hover:bg-app-accent/10"
-                          onClick={() => setManageTarget({ org: o })}
-                        >
-                          Modules
-                        </button>
-                        <button
-                          type="button"
-                          className="min-h-11 rounded-xl border border-app-accent/30 px-3 py-2.5 text-xs font-semibold text-app-accent transition hover:bg-app-accent/10"
-                          onClick={() => editOrganization(o)}
-                          disabled={
-                            busy ||
-                            deletingId !== null ||
-                            statusChangingId !== null
-                          }
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="min-h-11 rounded-xl border border-app-border px-3 py-2.5 text-xs text-app-muted transition hover:border-app-accent hover:text-app-accent"
-                          onClick={() =>
-                            setPendingCompanyAction({
-                              type: 'status',
-                              org: o,
-                              nextStatus: o.status === 'active' ? 'suspended' : 'active',
-                            })
-                          }
-                          disabled={statusChangingId === o.id || deletingId === o.id}
-                        >
-                          {o.status === 'active' ? 'Suspend' : 'Activate'}
-                        </button>
-                        <button
-                          type="button"
-                          className="min-h-11 rounded-xl border border-[#ff8d8d]/30 px-3 py-2.5 text-xs text-app-danger transition hover:border-[#ff8d8d]"
-                          onClick={() =>
-                            setPendingCompanyAction({ type: 'delete', org: o })
-                          }
-                          disabled={deletingId === o.id || statusChangingId === o.id}
-                        >
-                          {deletingId === o.id ? 'Removing…' : 'Remove'}
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            className="min-h-11 min-w-0 rounded-xl border border-app-accent/30 px-3 py-2.5 text-sm font-semibold text-app-accent transition hover:bg-app-accent/10"
+                            onClick={() => setManageTarget({ org: o })}
+                          >
+                            Modules
+                          </button>
+                          <button
+                            type="button"
+                            className="min-h-11 min-w-0 rounded-xl border border-app-accent/30 px-3 py-2.5 text-sm font-semibold text-app-accent transition hover:bg-app-accent/10"
+                            onClick={() => editOrganization(o)}
+                            disabled={busy || deletingId !== null || statusChangingId !== null}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="min-h-11 min-w-0 rounded-xl border border-app-border px-3 py-2.5 text-sm text-app-muted transition hover:border-app-accent hover:text-app-accent"
+                            onClick={() =>
+                              setPendingCompanyAction({
+                                type: 'status',
+                                org: o,
+                                nextStatus: o.status === 'active' ? 'suspended' : 'active',
+                              })
+                            }
+                            disabled={statusChangingId === o.id || deletingId === o.id}
+                          >
+                            {o.status === 'active' ? 'Suspend' : 'Activate'}
+                          </button>
+                          <button
+                            type="button"
+                            className="min-h-11 min-w-0 rounded-xl border border-[#ff8d8d]/30 px-3 py-2.5 text-sm text-app-danger transition hover:border-[#ff8d8d]"
+                            onClick={() => setPendingCompanyAction({ type: 'delete', org: o })}
+                            disabled={deletingId === o.id || statusChangingId === o.id}
+                          >
+                            {deletingId === o.id ? 'Removing…' : 'Remove'}
+                          </button>
+                        </div>
                       </div>
+                        </>
+                      )}
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
           </section>
           <section
             id="platform-invitations"
-            className="mx-auto mt-[18px] w-full scroll-mt-5 rounded-2xl border border-app-accent/20 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--app-accent)_5%,var(--app-background)),color-mix(in_srgb,var(--app-surface)_72%,var(--app-background)))] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.14)] max-[560px]:p-[20px_16px]"
+            className="mx-auto mt-[18px] w-full scroll-mt-5 rounded-2xl border border-app-border bg-app-surface p-6 shadow-sm max-[560px]:p-[20px_16px]"
           >
             <div className="flex items-end justify-between gap-5 max-[700px]:flex-col max-[700px]:items-start">
               <div>
@@ -2591,12 +2675,12 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                   Manage and track invitation status for company administrators.
                 </p>
               </div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-app-accent/30 bg-app-accent/10 px-4 py-2 text-xs font-semibold text-app-accent max-[700px]:self-start">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-app-border bg-app-background px-3 py-2 text-xs font-semibold text-app-muted max-[700px]:self-start">
                 <Icon name="users" className="size-4" />
                 {invitationTotal} total
               </span>
             </div>
-            <div className="mt-6 grid grid-cols-[minmax(0,1fr)_190px] gap-3 rounded-2xl border border-app-accent/20 bg-app-background/45 p-3 max-[700px]:grid-cols-1">
+            <div className="mt-6 grid grid-cols-[minmax(0,1fr)_190px] gap-3 rounded-xl border border-app-border bg-app-background p-3 max-[700px]:grid-cols-1">
               <div className="relative">
                 <Icon
                   name="search"
@@ -2638,8 +2722,8 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
 
             </div>
-            <div className="mt-6 overflow-hidden rounded-2xl border border-app-accent/20 bg-app-background/35">
-              <div className="hidden grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)_auto] gap-5 border-b border-app-border px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-app-muted lg:grid">
+            <div className="mt-6 overflow-hidden rounded-xl border border-app-border bg-app-surface">
+              <div className="hidden min-w-0 grid-cols-[minmax(230px,1.1fr)_minmax(190px,.9fr)_minmax(0,1.5fr)_minmax(132px,.65fr)] gap-5 border-b border-app-border px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-app-muted lg:grid">
                 <span>Company &amp; admin</span>
                 <span>Status</span>
                 <span>Timeline</span>
@@ -2672,16 +2756,16 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             : 'close';
                     return (
                       <article
-                        className={`grid ${hasActions ? 'grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)_auto]' : 'grid-cols-[minmax(220px,1.1fr)_minmax(190px,0.9fr)_minmax(260px,1.25fr)]'} items-start justify-items-start gap-5 border-b border-app-border p-5 text-left last:border-b-0 max-[1100px]:grid-cols-2 max-[1100px]:items-start max-[700px]:grid-cols-1`}
+                        className={`grid min-w-0 ${hasActions ? 'grid-cols-[minmax(230px,1.1fr)_minmax(190px,.9fr)_minmax(0,1.5fr)_minmax(132px,.65fr)]' : 'grid-cols-[minmax(230px,1.1fr)_minmax(190px,.9fr)_minmax(0,1.5fr)]'} items-start justify-items-start gap-5 border-b border-app-border p-5 text-left last:border-b-0 max-[1100px]:grid-cols-2 max-[1100px]:items-start max-[700px]:grid-cols-1`}
                         key={invitation.id}
                       >
                         <div className="min-w-0 justify-self-start">
                           <div className="flex items-center gap-3">
-                            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-app-accent/15 text-lg font-bold text-app-accent">
+                            <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-app-accent/35 bg-transparent text-lg font-bold text-app-accent">
                               {invitation.companyName.slice(0, 1).toUpperCase()}
                             </span>
                             <div className="min-w-0">
-                              <strong className="block truncate text-base font-bold text-app-foreground">
+                              <strong className="block line-clamp-2 break-words text-base font-bold leading-tight text-app-foreground">
                                 {invitation.companyName}
                               </strong>
                               <small className="mt-1 block text-xs text-app-muted">
@@ -2702,7 +2786,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                         </div>
                         <div className="min-w-0 justify-self-start">
                           <span
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-bold tracking-[0.05em] ${invitation.status === 'PENDING' ? 'border-app-accent/35 bg-app-accent/10 text-orange-400' : invitation.status === 'ACCEPTED' ? 'border-emerald-400/35 bg-emerald-400/10 text-emerald-500' : invitation.status === 'EXPIRED' ? 'border-[#f5c56b]/35 bg-[#f5c56b]/10 text-[#f5c56b]' : 'border-[#ff8d8d]/30 bg-[#ff8d8d]/10 text-app-danger'}`}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-bold tracking-[0.05em] ${invitation.status === 'PENDING' ? 'border-app-accent/45 text-app-accent' : invitation.status === 'ACCEPTED' ? 'border-emerald-500/45 text-emerald-600' : invitation.status === 'EXPIRED' ? 'border-[#b7791f]/45 text-[#b7791f]' : 'border-app-danger/45 text-app-danger'}`}
                           >
                             <Icon name={statusIcon} className="size-3.5" />
                             {invitation.status}
@@ -2716,36 +2800,36 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                                   ? 'Invitation has expired.'
                                   : 'Invitation has been revoked.'}
                           </p>
-                          <span className="mt-2 inline-flex rounded-full border border-app-accent/20 bg-app-accent/10 px-2 py-0.5 text-[9px] font-semibold text-app-accent">
+                          <span className="mt-2 inline-flex rounded-full border border-app-border px-2 py-0.5 text-[9px] font-semibold text-app-muted">
                             {invitation.companyStatus === 'active'
                               ? 'Active company'
                               : 'Suspended company'}
                           </span>
                         </div>
-                        <div className="grid w-full grid-cols-4 justify-items-start gap-3 text-left text-xs text-app-muted max-[560px]:grid-cols-2">
-                          <span>
-                            <b className="mb-1 flex items-center gap-1 text-[9px] uppercase tracking-[0.07em] text-app-foreground">
+                        <div className="grid min-w-0 w-full grid-cols-2 gap-x-3 gap-y-4 text-left text-xs text-app-muted xl:grid-cols-4">
+                          <span className="min-w-0">
+                            <b className="mb-1 flex items-center gap-1 whitespace-nowrap text-[9px] uppercase tracking-[0.07em] text-app-foreground">
                               <Icon name="calendar" className="size-3" />
                               Created
                             </b>
-                            {formatDate(invitation.createdAt)}
+                            <span className="block truncate whitespace-nowrap" title={formatDate(invitation.createdAt)}>{formatDate(invitation.createdAt)}</span>
                           </span>
-                          <span>
-                            <b className="mb-1 flex items-center gap-1 text-[9px] uppercase tracking-[0.07em] text-app-foreground">
+                          <span className="min-w-0">
+                            <b className="mb-1 flex items-center gap-1 whitespace-nowrap text-[9px] uppercase tracking-[0.07em] text-app-foreground">
                               <Icon name="clock" className="size-3" />
                               Expires
                             </b>
-                            {formatDate(invitation.expiresAt)}
+                            <span className="block truncate whitespace-nowrap" title={formatDate(invitation.expiresAt)}>{formatDate(invitation.expiresAt)}</span>
                           </span>
-                          <span>
-                            <b className="mb-1 flex items-center gap-1 text-[9px] uppercase tracking-[0.07em] text-app-foreground">
+                          <span className="min-w-0">
+                            <b className="mb-1 flex items-center gap-1 whitespace-nowrap text-[9px] uppercase tracking-[0.07em] text-app-foreground">
                               <Icon name="forward" className="size-3" />
                               Last sent
                             </b>
-                            {formatDate(invitation.lastSentAt)}
+                            <span className="block truncate whitespace-nowrap" title={formatDate(invitation.lastSentAt)}>{formatDate(invitation.lastSentAt)}</span>
                           </span>
-                          <span>
-                            <b className="mb-1 flex items-center gap-1 text-[9px] uppercase tracking-[0.07em] text-app-foreground">
+                          <span className="min-w-0">
+                            <b className="mb-1 flex items-center gap-1 whitespace-nowrap text-[9px] uppercase tracking-[0.07em] text-app-foreground">
                               <Icon name="refresh" className="size-3" />
                               Resends
                             </b>
@@ -2753,10 +2837,10 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           </span>
                         </div>
                         {hasActions && (
-                          <div className="flex flex-wrap justify-start gap-2 justify-self-start max-[1100px]:col-span-2 max-[1100px]:justify-start max-[700px]:col-span-1">
+                          <div className="flex w-full min-w-0 flex-col gap-2 justify-self-stretch max-[1100px]:col-span-2 max-[700px]:col-span-1">
                             <button
                               type="button"
-                              className="inline-flex items-center gap-1.5 rounded-xl border border-app-accent/35 bg-app-surface px-3 py-2.5 text-xs font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent"
+                              className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-app-accent/35 bg-app-surface px-3 py-2.5 text-xs font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent"
                               onClick={() =>
                                 setViewInvitationId((current) =>
                                   current === invitation.id ? null : invitation.id,
@@ -2769,7 +2853,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             {canResend && (
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-xs text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55"
+                                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-xs text-app-foreground transition hover:border-app-accent hover:text-app-accent disabled:cursor-wait disabled:opacity-55"
                                 onClick={() => void resendInvitation(invitation)}
                                 disabled={invitationActionId === invitation.id}
                               >
@@ -2782,20 +2866,20 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             {canResetPassword && (
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-app-accent px-3 py-2.5 text-xs font-bold text-app-on-accent transition hover:brightness-110 disabled:cursor-wait disabled:opacity-55"
+                                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-app-accent/35 bg-app-accent/10 px-3 py-2.5 text-center text-xs font-semibold leading-tight text-app-accent transition hover:border-app-accent hover:bg-app-accent/15 disabled:cursor-wait disabled:opacity-55"
                                 onClick={() => void sendAdminPasswordReset(invitation)}
                                 disabled={invitationActionId === invitation.id}
                               >
-                                <Icon name="shield" className="size-3.5" />
+                                <Icon name="shield" className="size-3.5 shrink-0" />
                                 {invitationActionId === invitation.id
                                   ? 'Sending…'
-                                  : 'Send password reset'}
+                                  : 'Reset password'}
                               </button>
                             )}
                             {canRevoke && (
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-[#ff8d8d]/30 bg-transparent px-3 py-2.5 text-xs text-app-danger hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55"
+                                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-[#ff8d8d]/30 bg-transparent px-3 py-2.5 text-xs text-app-danger hover:border-[#ff8d8d] hover:bg-[#ff8d8d]/10 disabled:cursor-wait disabled:opacity-55"
                                 onClick={() => void revokeInvitation(invitation)}
                                 disabled={invitationActionId === invitation.id}
                               >
@@ -2808,7 +2892,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                           </div>
                         )}
                         {viewInvitationId === invitation.id && (
-                          <div className="col-span-full grid grid-cols-3 gap-3 rounded-xl border border-app-accent/20 bg-app-background p-4 text-xs text-app-muted max-[560px]:grid-cols-1">
+                          <div className="col-span-full grid grid-cols-3 gap-3 rounded-xl border border-app-border bg-app-background p-4 text-xs text-app-muted max-[560px]:grid-cols-1">
                             <span>
                               <b className="mb-[3px] block text-[9px] uppercase tracking-[0.07em] text-app-foreground">
                                 Company status
@@ -2882,7 +2966,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
             )}
           </section>
+          </WorkspacePageContainer>
         </main>
+          </div>
       </div>
     </div>
       {selectedCompany && (
@@ -2974,6 +3060,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           }}
         />
       )}
+      </CompanyNavbarProvider>
     </div>
   );
 }

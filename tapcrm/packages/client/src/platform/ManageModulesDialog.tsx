@@ -248,7 +248,7 @@ export function ManageModulesDialog({
                   groupRefs.current[group.key] = node;
                 }}
                 aria-labelledby={`manage-group-${group.key}`}
-                className={`mb-4 scroll-mt-2 rounded-2xl border bg-app-background/35 p-3 sm:p-4 ${group.key === initialGroupKey ? 'border-app-accent/40' : 'border-app-border'}`}
+                className={`mb-4 scroll-mt-2 rounded-2xl border bg-app-surface p-3 sm:p-4 ${group.key === initialGroupKey ? 'border-app-accent/40' : 'border-app-border'}`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 id={`manage-group-${group.key}`} className="font-display text-sm font-semibold">
@@ -298,7 +298,7 @@ export function ManageModulesDialog({
                               </span>
                             )}
                             {changed && (
-                              <span className="rounded-full bg-app-accent/10 px-2 py-0.5 text-[10px] font-semibold text-app-accent">
+                              <span className="rounded-full border border-app-accent/35 px-2 py-0.5 text-[10px] font-semibold text-app-accent">
                                 {on ? 'Will enable' : 'Will disable'}
                               </span>
                             )}

@@ -33,6 +33,13 @@ export function Navbar({
   searchDestinations,
   settingsPath = '/company/settings',
   extraActions = null,
+  showSearch = true,
+  showNotifications = true,
+  showAccountDesignation = true,
+  showAiCompanion = true,
+  showSettings = true,
+  showLogout = true,
+  profilePreview = false,
 }: {
   identity: {
     fullName: string;
@@ -52,11 +59,22 @@ export function Navbar({
   settingsPath?: string;
   /** Page-specific buttons shown before the notification bell (e.g. the sales guide toggle). */
   extraActions?: ReactNode;
+  /** Portal-level controls for reduced navigation surfaces such as Master Admin. */
+  showSearch?: boolean;
+  showNotifications?: boolean;
+  showAccountDesignation?: boolean;
+  showAiCompanion?: boolean;
+  /** Optional account-menu actions for portals with a reduced profile menu. */
+  showSettings?: boolean;
+  showLogout?: boolean;
+  /** Master Admin uses a compact hover preview instead of a full account menu. */
+  profilePreview?: boolean;
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1280px)').matches);
   const { target } = useCompanyHeroUtility();
   const accountRef = useRef<HTMLDivElement>(null);
+  const profileHoverTimer = useRef<number | null>(null);
   const designation = identity.accountType === 'super-admin'
     ? 'Super Admin'
     : identity.positionName || identity.positionCode || 'Employee';
@@ -93,31 +111,58 @@ export function Navbar({
     onNavigate(path);
   };
 
+  const openProfilePreview = () => {
+    if (!profilePreview || !desktop) return;
+    if (profileHoverTimer.current !== null) window.clearTimeout(profileHoverTimer.current);
+    setAccountOpen(true);
+  };
+
+  const closeProfilePreview = () => {
+    if (!profilePreview || !desktop) return;
+    if (profileHoverTimer.current !== null) window.clearTimeout(profileHoverTimer.current);
+    profileHoverTimer.current = window.setTimeout(() => setAccountOpen(false), 120);
+  };
+
   const controls = (
         <div className="navbar-utility-controls ml-auto flex shrink-0 items-center gap-2.5 max-[420px]:gap-2">
-          <GlobalFeatureSearch className="company-hero-search" destinations={searchDestinations} onNavigate={onNavigate} />
+          {showSearch && (
+            <GlobalFeatureSearch className="company-hero-search" destinations={searchDestinations} onNavigate={onNavigate} />
+          )}
           {desktop && <ThemeToggle compact className="company-hero-capsule-theme-toggle" />}
           {extraActions}
-          <NotificationBell onNavigate={onNavigate} />
-          <div ref={accountRef} className="relative">
-            <button type="button" onClick={() => setAccountOpen((open) => !open)} className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={accountOpen}>
-              <span className="text-xs font-bold text-app-accent">{initials(identity.fullName)}</span>
+          {showNotifications && <NotificationBell onNavigate={onNavigate} />}
+          <div
+            ref={accountRef}
+            className="relative"
+            onMouseEnter={profilePreview ? openProfilePreview : undefined}
+            onMouseLeave={profilePreview ? closeProfilePreview : undefined}
+          >
+            <button type="button" onClick={() => setAccountOpen((open) => !open)} onContextMenu={(event) => { if (profilePreview) event.preventDefault(); }} className="flex size-10 select-none touch-manipulation items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={accountOpen}>
+              <span className="select-none text-xs font-bold text-app-accent">{initials(identity.fullName)}</span>
             </button>
             {accountOpen && (
-              <div className="absolute right-0 top-full z-[1000] mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg" role="menu">
-                <div className="border-b border-app-border px-3 py-2.5">
+              <div className={`absolute right-0 top-full z-[1000] max-w-[calc(100vw-1rem)] select-none overflow-hidden border border-app-border bg-app-surface shadow-lg ${profilePreview ? 'mt-3 w-56 rounded-xl p-3 shadow-[0_12px_28px_rgba(15,23,42,0.14)]' : 'mt-2 w-72 rounded-xl p-1.5'}`} role={profilePreview ? 'tooltip' : 'menu'}>
+                <div className={profilePreview ? 'px-1 py-0.5' : 'border-b border-app-border px-3 py-2.5'}>
                   <div className="flex min-w-0 items-baseline gap-2.5">
                     <p className="min-w-0 flex-1 truncate text-sm font-semibold text-app-foreground">{identity.fullName}</p>
-                    <span className="max-w-[45%] shrink-0 truncate border-l border-app-border pl-2.5 text-[11px] font-medium text-app-muted" title={designation}>{designation}</span>
+                    {showAccountDesignation && (
+                      <span className="max-w-[45%] shrink-0 truncate border-l border-app-border pl-2.5 text-[11px] font-medium text-app-muted" title={designation}>{designation}</span>
+                    )}
                   </div>
                   <p className="truncate text-xs text-app-muted">{identity.email}</p>
                 </div>
-                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                  <span className="text-xs font-semibold text-app-muted">AI companion</span>
-                  <AiPetButton wrapperClassName="navbar-account-pet" className="size-8 !p-0" />
-                </div>
-                <button type="button" role="menuitem" onClick={() => navigateFromMenu(settingsPath)} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"><Icon name="settings" className="size-4" /> Settings</button>
-                <button type="button" role="menuitem" onClick={onLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10"><Icon name="logout" className="size-4" /> Log out</button>
+                {showAiCompanion && (
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-xs font-semibold text-app-muted">AI companion</span>
+                    <AiPetButton wrapperClassName="navbar-account-pet" className="size-8 !p-0" />
+                  </div>
+                )}
+                {showSettings && (
+                  <button type="button" role="menuitem" onClick={() => navigateFromMenu(settingsPath)} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"><Icon name="settings" className="size-4" /> Settings</button>
+                )}
+                {showLogout && (
+                  <button type="button" role="menuitem" onClick={onLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10"><Icon name="logout" className="size-4" /> Log out</button>
+                )}
               </div>
             )}
           </div>

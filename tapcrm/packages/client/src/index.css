@@ -696,6 +696,49 @@
   }
 
   /* Keep the platform drawer in the same translucent workspace style. */
+  .platform-capsule-action,
+  .platform-capsule-icon {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--app-surface) 88%, transparent);
+    color: var(--app-foreground);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.45rem 0.75rem;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+  }
+  .platform-capsule-action:hover,
+  .platform-capsule-icon:hover {
+    border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-border));
+    background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+    color: var(--app-accent);
+    transform: translateY(-1px);
+  }
+  .platform-capsule-action-primary {
+    border-color: color-mix(in srgb, var(--app-accent) 60%, var(--app-border));
+    background: linear-gradient(110deg, var(--app-accent), color-mix(in srgb, var(--app-accent) 62%, #d98cff));
+    color: var(--app-on-accent);
+  }
+  .platform-capsule-icon { width: 2.25rem; padding: 0; }
+  .platform-kpi-grid article:last-child { border-bottom: 0; }
+  .platform-kpi-grid,
+  .platform-kpi-grid > div {
+    background-color: var(--app-surface) !important;
+    background-image: none !important;
+  }
+  .platform-kpi-grid { box-shadow: none !important; }
+  @media (min-width: 640px) {
+    .platform-kpi-grid article:nth-last-child(-n + 2) { border-bottom: 0; }
+  }
+  @media (min-width: 1280px) {
+    .platform-kpi-grid article:nth-last-child(-n + 4) { border-bottom: 0; }
+    .platform-kpi-grid article:nth-child(4n) { border-right: 0; }
+  }
   .platform-sidebar {
     isolation: isolate;
     background: color-mix(in srgb, var(--sidebar-background) 76%, transparent) !important;
@@ -3668,4 +3711,35 @@ summary:active {
 .workforce-dashboard .workforce-metric-card[aria-pressed='true'] {
   background-color: var(--app-surface) !important;
   background-image: none !important;
+}
+
+/* Master Admin uses neutral graphite surfaces in dark mode. Keep the global
+   card-gradient fallback from reintroducing the accent tint on its KPI,
+   tenant, company, and access-lifecycle surfaces. */
+.dark .platform-shell #platform-overview .platform-kpi-grid,
+.dark .platform-shell #platform-overview .platform-kpi-grid > div,
+.dark .platform-shell #platform-companies,
+.dark .platform-shell #platform-companies article,
+.dark .platform-shell #platform-invitations,
+.dark .platform-shell #platform-invitations > div {
+  background-color: var(--app-surface) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* Platform portal spacing: keep the rail floating with a balanced viewport
+   inset while lifting the page content closer to the desktop navbar. */
+@media (min-width: 1280px) {
+  .platform-shell main[data-app-scroll-container] {
+    padding-top: 3rem;
+  }
+
+  .platform-shell .workspace-sidebar {
+    height: calc(100dvh - 4.25rem) !important;
+    margin: 3rem 0 1.25rem 1.25rem !important;
+  }
+
+  .platform-shell .workspace-sidebar .sidebar-brand-expanded {
+    width: min(11rem, 100%);
+  }
 }
