@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 242   Bindings: 760
+ * Actions: 242   Bindings: 757
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
