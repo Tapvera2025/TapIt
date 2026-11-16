@@ -4,7 +4,7 @@ import { RingChart, BarChart, Progress } from '../../../ui/index.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../../api/companyApi.js';
 
 function Panel({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <div className="flex h-full flex-col overflow-hidden">{children}</div>;
+  return <div className="dashboard-widget-shell flex h-full min-h-0 w-full flex-col gap-3 overflow-hidden">{children}</div>;
 }
 function Loading(): React.JSX.Element {
   return <div className="flex-1 animate-pulse rounded-lg bg-app-surface/60" />;

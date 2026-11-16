@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Empty, Loading, Modal, Notice, Page } from '../../../ui/index.js';
 import {
   createEmailTemplate,
@@ -7,6 +7,7 @@ import {
   updateEmailTemplate,
 } from '../api/recruitmentApi.js';
 import type { CreateEmailTemplateInput, RecruitmentEmailTemplate, UpdateEmailTemplateInput } from '../types/index.js';
+import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 
 const VARIABLE_HINTS = [
   { variable: '{{candidate_name}}', description: "Candidate's full name" },
@@ -208,6 +209,15 @@ export function EmailTemplatesPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editorTarget, setEditorTarget] = useState<RecruitmentEmailTemplate | null | 'new'>(null);
+
+  const heroActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button type="button" onClick={() => setEditorTarget('new')} className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold">
+        + New Template
+      </button>
+    </div>
+  ), []);
+  useRecruitmentHeroActions(heroActions);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   async function load() {
@@ -249,7 +259,7 @@ export function EmailTemplatesPage(): React.JSX.Element {
         <button
           type="button"
           onClick={() => setEditorTarget('new')}
-          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto"
+          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto xl:hidden"
         >
           + New Template
         </button>

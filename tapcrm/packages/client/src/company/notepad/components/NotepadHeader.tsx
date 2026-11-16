@@ -56,12 +56,9 @@ export function NotepadHeader({
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center justify-between gap-3">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-app-foreground md:text-3xl">
-          My Notepad
-        </h1>
-        <div className="mt-1 flex items-center gap-2">
+        <div className="flex items-center gap-2">
           {statusDisplay}
         </div>
       </div>

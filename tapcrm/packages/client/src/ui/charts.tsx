@@ -43,9 +43,9 @@ export function TimerRing({
           strokeDashoffset={circumference * (1 - progress)}
         />
       </svg>
-      <div className="relative z-[1] text-center">
+      <div className="ui-progress-ring-content relative z-[1] text-center">
         <p className="text-2xl font-bold tabular-nums tracking-tight text-app-foreground">{valueLabel}</p>
-        {caption && <p className="mt-0.5 text-[11px] font-medium text-app-muted">{caption}</p>}
+        {caption && <p className="ui-progress-ring-caption mt-0.5 font-medium text-app-muted">{caption}</p>}
       </div>
     </div>
   );

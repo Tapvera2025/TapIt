@@ -87,6 +87,8 @@ import { ExpenseApprovalsPage, MyExpensesPage } from './expenses/ExpensesPages.j
 import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
 import { AccountingPage } from './finance/accounting/AccountingPage.js';
 import { companySearchDestinations } from './layout/navigation.js';
+import { CompanyModuleTabStrip } from './layout/CompanyModuleTabStrip.js';
+import type { LiquidGlassTabItem } from './recruitment/components/RecruitmentTabs.js';
 import { MeetingsPage } from '../meetings/MeetingsPage.js';
 
 export function CompanyWorkspace({
@@ -213,6 +215,153 @@ export function CompanyWorkspace({
   const canViewScopedLeaveCoverage = identity.capabilities.some(
     ({ action, scope }) => action === 'leave:view' && scope !== 'own',
   );
+
+  const identityTabs: LiquidGlassTabItem[] = [
+    {
+      id: 'sessions',
+      label: 'Sessions & Devices',
+      path: '/company/sessions',
+      iconName: 'monitor',
+    },
+    ...(isSuperAdmin || can('identity:manage-geofence')
+      ? [
+          {
+            id: 'geofencing',
+            label: 'Geofencing',
+            path: '/company/geofencing',
+            iconName: 'pin',
+          },
+        ]
+      : []),
+    ...(canViewAccessExplorer
+      ? [
+          {
+            id: 'access',
+            label: 'Access Explorer',
+            path: '/company/access',
+            iconName: 'shield',
+          },
+        ]
+      : []),
+    ...(isSuperAdmin || canViewAudit
+      ? [
+          {
+            id: 'audit',
+            label: 'Audit Log',
+            path: '/company/audit',
+            iconName: 'clipboard-list',
+          },
+        ]
+      : []),
+  ];
+  const identityActiveId =
+    pathname === '/company/geofencing'
+      ? 'geofencing'
+      : pathname === '/company/audit'
+        ? 'audit'
+        : pathname === '/company/access' || pathname === '/company/access/role-changes'
+          ? 'access'
+          : 'sessions';
+
+  const shiftsLeaveTabs: LiquidGlassTabItem[] = [
+    ...(moduleOn('leave')
+      ? [
+          {
+            id: 'my-leave',
+            label: 'My Leave',
+            path: '/company/leave/my',
+            iconName: 'sun',
+          },
+        ]
+      : []),
+    ...(canUseLeaveQueue
+      ? [
+          {
+            id: 'leave-queue',
+            label: 'Leave Queue',
+            path: '/company/leave/queue',
+            iconName: 'inbox',
+          },
+        ]
+      : []),
+    ...(canManageLeaveTypes || canViewScopedLeaveCoverage
+      ? [
+          {
+            id: 'leave-balances',
+            label: 'Leave Balances',
+            path: '/company/leave/balances',
+            iconName: 'chart',
+          },
+        ]
+      : []),
+    ...(canManageLeaveTypes
+      ? [
+          {
+            id: 'leave-types',
+            label: 'Leave Types',
+            path: '/company/leave/types',
+            iconName: 'settings',
+          },
+        ]
+      : []),
+    ...(moduleOn('holidays')
+      ? [
+          {
+            id: 'holidays',
+            label: 'Holidays',
+            path: '/company/holidays',
+            iconName: 'flag',
+          },
+        ]
+      : []),
+    ...(can('shifts:manage')
+      ? [
+          { id: 'shifts', label: 'Shifts', path: '/company/shifts', iconName: 'layers' },
+          {
+            id: 'weekday-schedules',
+            label: 'Weekday Schedules',
+            path: '/company/weekday-schedules',
+            iconName: 'calendar',
+          },
+        ]
+      : []),
+  ];
+  const shiftsLeaveActiveId =
+    pathname === '/company/leave/queue'
+      ? 'leave-queue'
+      : pathname === '/company/leave/balances'
+        ? 'leave-balances'
+        : pathname === '/company/leave/types'
+          ? 'leave-types'
+          : pathname === '/company/holidays'
+            ? 'holidays'
+            : pathname === '/company/shifts'
+              ? 'shifts'
+              : pathname === '/company/weekday-schedules'
+                ? 'weekday-schedules'
+                : 'my-leave';
+
+  const withIdentityTabs = (content: ReactNode): React.JSX.Element => (
+    <CompanyModuleTabStrip
+      items={identityTabs}
+      activeId={identityActiveId}
+      onNavigate={onNavigate}
+      ariaLabel="Identity and access sections"
+    >
+      {content}
+    </CompanyModuleTabStrip>
+  );
+  const withShiftsLeaveTabs = (content: ReactNode): React.JSX.Element => (
+    <CompanyModuleTabStrip
+      items={shiftsLeaveTabs}
+      activeId={shiftsLeaveActiveId}
+      onNavigate={onNavigate}
+      ariaLabel="Shifts and leave sections"
+    >
+      {content}
+    </CompanyModuleTabStrip>
+  );
+
   const userId = identity.user.id;
   const fullName = identity.user.fullName;
   const organizationTimeZone = identity.organization?.timezone ?? 'UTC';
@@ -402,14 +551,18 @@ export function CompanyWorkspace({
     if (hasRecruitment && pathname === '/company/recruitment/my-interviews')
       return <MyInterviewsPage />;
     if (pathname === '/company/access' && canViewAccessExplorer)
-      return <AccessExplorerPage key="person" />;
+      return withIdentityTabs(<AccessExplorerPage key="person" />);
     if (pathname === '/company/access/role-changes' && canViewAccessExplorer) {
-      return <AccessExplorerPage key="role-changes" initialTab="role-changes" />;
+      return withIdentityTabs(
+        <AccessExplorerPage key="role-changes" initialTab="role-changes" />,
+      );
     }
     if (pathname === '/company/role-change-request' && canRequestRoleChange)
       return <RoleChangeRequestPage />;
     if (pathname === '/company/audit' && (isSuperAdmin || canViewAudit)) {
-      return <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />;
+      return withIdentityTabs(
+        <AuditLogPage canManageHolds={isSuperAdmin} canExport={isSuperAdmin} />,
+      );
     }
     if (pathname === '/company/breaks/queue' && can('breaks:review-breach'))
       return <BreachQueuePage />;
@@ -434,11 +587,11 @@ export function CompanyWorkspace({
       return <MyTaPage />;
     if (pathname === '/company/settings') return <SettingsPage showCurrencyManagement={saCan('system:manage-settings')} />;
     if (pathname === '/company/sessions') {
-      return (
+      return withIdentityTabs(
         <SessionsPage
           onBack={() => onNavigate('/company/dashboard')}
           onSignedOut={onLogout}
-        />
+        />,
       );
     }
     if (isEmployees) {
@@ -463,7 +616,9 @@ export function CompanyWorkspace({
     if (pathname.startsWith('/company/organization/'))
       return <OrganizationWorkspace pathname={pathname} />;
     if (pathname === '/company/geofencing') {
-      return <GeofencingPage onBack={() => onNavigate('/company/dashboard')} />;
+      return withIdentityTabs(
+        <GeofencingPage onBack={() => onNavigate('/company/dashboard')} />,
+      );
     }
     if (pathname === '/company/tasks') {
       return <TasksPage isSuperAdmin={isSuperAdmin} currentUserId={userId} />;
@@ -606,13 +761,16 @@ export function CompanyWorkspace({
       return <LiveBoardPage />;
     if (pathname === '/company/attendance/corrections' && can('attendance:correct'))
       return <CorrectionsPage />;
-    if (pathname === '/company/shifts' && can('shifts:manage')) return <ShiftsPage />;
+    if (pathname === '/company/shifts' && can('shifts:manage'))
+      return withShiftsLeaveTabs(<ShiftsPage />);
     if (pathname === '/company/weekday-schedules' && can('shifts:manage'))
-      return <WeekdaySchedulesPage />;
+      return withShiftsLeaveTabs(<WeekdaySchedulesPage />);
     if (pathname === '/company/holidays' && moduleOn('holidays'))
-      return <HolidaysPage canManage={saCan('holidays:manage')} />;
+      return withShiftsLeaveTabs(<HolidaysPage canManage={saCan('holidays:manage')} />);
     if (pathname === '/company/leave/my' && moduleOn('leave')) {
-      return <LeavePage userId={userId} organizationTimeZone={organizationTimeZone} />;
+      return withShiftsLeaveTabs(
+        <LeavePage userId={userId} organizationTimeZone={organizationTimeZone} />,
+      );
     }
     if (pathname === '/company/advance/mine' && saCan('advance:view-own'))
       return <MyAdvancesPage />;
@@ -636,27 +794,31 @@ export function CompanyWorkspace({
     if (pathname === '/company/my-penalties' && saCan('penalty:view-own'))
       return <MyPenaltiesPage />;
     if (pathname === '/company/leave/queue' && canUseLeaveQueue) {
-      return (
+      return withShiftsLeaveTabs(
         <LeaveQueuePage
           canAcknowledge={canAcknowledgeLeave}
           canDecide={canDecideLeave}
           canViewScopedCoverage={canViewScopedLeaveCoverage}
-        />
+        />,
       );
     }
     if (
       pathname === '/company/leave/balances' &&
       (canManageLeaveTypes || canViewScopedLeaveCoverage)
     ) {
-      return <LeaveBalancesPage canAdjust={canManageLeaveTypes} />;
+      return withShiftsLeaveTabs(
+        <LeaveBalancesPage canAdjust={canManageLeaveTypes} />,
+      );
     }
     if (pathname === '/company/leave/types') {
-      return canManageLeaveTypes ? (
-        <LeaveTypesPage />
-      ) : (
-        <p role="alert" className="p-6 text-sm text-app-muted">
-          You do not have access to manage leave types.
-        </p>
+      return withShiftsLeaveTabs(
+        canManageLeaveTypes ? (
+          <LeaveTypesPage />
+        ) : (
+          <p role="alert" className="p-6 text-sm text-app-muted">
+            You do not have access to manage leave types.
+          </p>
+        ),
       );
     }
     if (pathname === '/company/biometric' && can('biometric:manage'))

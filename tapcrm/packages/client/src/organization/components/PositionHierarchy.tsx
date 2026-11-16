@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { Icon } from '../../ui/index.js';
 import { Button, Modal } from './OrganizationUi.js';
+import { CompanyPageActionPortal } from '../../company/layout/CompanyPageActionPortal.js';
 import {
   filterPositionTree,
   flattenPositions,
@@ -310,9 +311,11 @@ export function PositionHierarchy({
             <option value="inactive">Inactive</option>
           </select>
         </label>
-        <Button onClick={() => onCreate()} className="!min-h-[38px] !h-[38px] !py-0 !px-4 !text-xs !font-semibold inline-flex items-center justify-center shrink-0">
-          <span aria-hidden="true" className="mr-1 leading-none">+</span> Add position
-        </Button>
+        <CompanyPageActionPortal>
+          <Button onClick={() => onCreate()} className="!min-h-[38px] !h-[38px] !py-0 !px-4 !text-xs !font-semibold inline-flex items-center justify-center shrink-0">
+            <span aria-hidden="true" className="mr-1 leading-none">+</span> Add position
+          </Button>
+        </CompanyPageActionPortal>
         <div className="position-view-toggle" role="group" aria-label="Position view">
           <button
             type="button"

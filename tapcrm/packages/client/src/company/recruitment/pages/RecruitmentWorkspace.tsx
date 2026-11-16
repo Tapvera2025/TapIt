@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCompanyPageMetadata } from '../../layout/CompanyNavbarContext.js';
 import { RecruitmentTabs } from '../components/RecruitmentTabs.js';
+import { RecruitmentHeroActionsProvider } from '../components/RecruitmentHeroActionsContext.js';
 import { RecruitmentOverviewPage } from './RecruitmentOverviewPage.js';
 import { RequisitionsPage } from './RequisitionsPage.js';
 import { ResumeInboxPage } from './ResumeInboxPage.js';
@@ -30,6 +32,7 @@ export function RecruitmentWorkspace({
   const [requisitions, setRequisitions] = useState<JobRequisition[]>([]);
   const [scheduleInterviewCandidate, setScheduleInterviewCandidate] = useState<Candidate | null>(null);
   const [createOfferCandidate, setCreateOfferCandidate] = useState<Candidate | null>(null);
+  const [tabHeroActions, setTabHeroActions] = useState<ReactNode | null>(null);
 
   // Active tab derivation
   const activeTab: RecruitmentTab = pathname.startsWith('/company/recruitment/requisitions')
@@ -63,9 +66,60 @@ export function RecruitmentWorkspace({
     void loadRequisitions();
   }, [activeTab, globalAddCandOpen]);
 
-  function handleNavigate(path: string) {
+  const handleNavigate = useCallback((path: string) => {
     onNavigate(path);
-  }
+  }, [onNavigate]);
+
+  const navigateToCandidates = useCallback(() => {
+    onNavigate('/company/recruitment/candidates');
+  }, [onNavigate]);
+
+  const navigateToJoining = useCallback(() => {
+    onNavigate('/company/recruitment/joining');
+  }, [onNavigate]);
+
+  const navigateToEmployees = useCallback(() => {
+    onNavigate('/company/employees');
+  }, [onNavigate]);
+
+  const openCreateRequisition = useCallback(() => {
+    setGlobalCreateReqOpen(true);
+  }, []);
+
+  const openAddCandidate = useCallback(() => {
+    setDefaultRequisitionId(undefined);
+    setGlobalAddCandOpen(true);
+  }, []);
+
+  const recruitmentActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button
+        type="button"
+        onClick={openAddCandidate}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold text-app-foreground transition hover:border-app-accent hover:text-app-accent"
+      >
+        + Add Candidate
+      </button>
+      <button
+        type="button"
+        onClick={openCreateRequisition}
+        className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+      >
+        + Create Requisition
+      </button>
+    </div>
+  ), [openAddCandidate, openCreateRequisition]);
+
+  const pageMetadata = useMemo(() => ({
+    eyebrow: 'Human resources',
+    title: 'Recruitment',
+    description: 'Manage recruitment, candidates and employee onboarding.',
+    // Only Overview owns the two global shortcuts. Every other recruitment
+    // screen publishes its own action(s) to the utility capsule.
+    extension: activeTab === 'overview' ? recruitmentActions : tabHeroActions,
+  }), [activeTab, recruitmentActions, tabHeroActions]);
+
+  useCompanyPageMetadata(pageMetadata);
 
   function handleScheduleInterview(candidate: Candidate) {
     setScheduleInterviewCandidate(candidate);
@@ -76,7 +130,8 @@ export function RecruitmentWorkspace({
   }
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden">
+    <RecruitmentHeroActionsProvider setActions={setTabHeroActions}>
+      <div className="w-full max-w-full overflow-x-hidden">
       {/* Top Section Navigation Tabs */}
       <div className="w-full max-w-full px-4 pt-8 md:px-8 md:pt-10">
         <div className="mx-auto max-w-7xl">
@@ -98,7 +153,7 @@ export function RecruitmentWorkspace({
         />
       ) : activeTab === 'resumes' ? (
         <ResumeInboxPage
-          onNavigateToCandidate={() => handleNavigate('/company/recruitment/candidates')}
+          onNavigateToCandidate={navigateToCandidates}
         />
       ) : activeTab === 'candidates' ? (
         <CandidatesPage
@@ -112,11 +167,11 @@ export function RecruitmentWorkspace({
       ) : activeTab === 'offers' ? (
         <OffersPage
           preselectedCandidate={createOfferCandidate ?? undefined}
-          onNavigateToJoining={() => handleNavigate('/company/recruitment/joining')}
+          onNavigateToJoining={navigateToJoining}
         />
       ) : activeTab === 'joining' ? (
         <JoiningPage
-          onNavigateToEmployees={() => handleNavigate('/company/employees')}
+          onNavigateToEmployees={navigateToEmployees}
         />
       ) : activeTab === 'my-interviews' ? (
         <MyInterviewsPage />
@@ -125,11 +180,8 @@ export function RecruitmentWorkspace({
       ) : (
         <RecruitmentOverviewPage
           onNavigate={handleNavigate}
-          onOpenCreateRequisition={() => setGlobalCreateReqOpen(true)}
-          onOpenAddCandidate={() => {
-            setDefaultRequisitionId(undefined);
-            setGlobalAddCandOpen(true);
-          }}
+          onOpenCreateRequisition={openCreateRequisition}
+          onOpenAddCandidate={openAddCandidate}
         />
       )}
       </div>
@@ -186,6 +238,7 @@ export function RecruitmentWorkspace({
           }}
         />
       )}
-    </div>
+      </div>
+    </RecruitmentHeroActionsProvider>
   );
 }

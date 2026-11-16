@@ -11,6 +11,7 @@ import {
   type LeaveBalanceDto,
 } from '../api/leaveApi.js';
 import { Button, GlassSurface, Page } from '../../ui/index.js';
+import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
@@ -173,7 +174,8 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">My Leave Requests</h2>
         {!showForm && !showWfhForm && !loading && !error && (
-          <div className="flex gap-2">
+          <CompanyPageActionPortal>
+            <div className="flex gap-2">
             <Button
               kind="primary"
               onClick={() => { setShowForm(true); setLeaveTypeId(''); void refreshTypes('absence'); }}
@@ -188,7 +190,8 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
             >
               Request WFH
             </Button>
-          </div>
+            </div>
+          </CompanyPageActionPortal>
         )}
       </div>
 

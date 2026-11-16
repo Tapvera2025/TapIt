@@ -71,18 +71,7 @@ export function RecruitmentOverviewPage({
 
   return (
     <WorkspacePageContainer>
-      <div className="recruitment-page-header">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
-              <Icon name="briefcase" className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">People / HR</p>
-              <h1 className="mt-0.5 text-xl font-bold text-app-foreground">Recruitment workspace</h1>
-              <p className="mt-0.5 text-xs text-app-muted">Manage openings, candidates, interviews, offers, and joining readiness.</p>
-            </div>
-          </div>
-          <div className="recruitment-page-header-actions">
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row xl:hidden">
           {onOpenAddCandidate && (
             <button
               type="button"
@@ -101,7 +90,6 @@ export function RecruitmentOverviewPage({
               + Create Requisition
             </button>
           )}
-        </div>
       </div>
       {error && (
         <div className="mt-5">

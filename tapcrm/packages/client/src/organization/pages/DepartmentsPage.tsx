@@ -15,6 +15,7 @@ import {
 import { suggestNextCode } from '../../ui/index.js';
 import type { OrganizationDepartment } from '../types/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
+import { CompanyPageActionPortal } from '../../company/layout/CompanyPageActionPortal.js';
 
 const empty = { code: '', name: '', kind: 'support', status: 'active' };
 type DepartmentFieldErrors = { code?: string; name?: string };
@@ -138,9 +139,11 @@ export function DepartmentsPage(): React.JSX.Element {
               </p>
             </div>
           </div>
-          <Button onClick={startCreate}>
-            <span aria-hidden="true">+</span> Add department
-          </Button>
+          <CompanyPageActionPortal>
+            <Button onClick={startCreate}>
+              <span aria-hidden="true">+</span> Add department
+            </Button>
+          </CompanyPageActionPortal>
         </div>
         {loading ? (
           <div className="p-5">

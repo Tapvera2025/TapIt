@@ -17,6 +17,7 @@ import type {
   SubmitRoundFeedbackInput,
 } from '../types/index.js';
 import { formatMinutes } from '../../../ui/format-duration.js';
+import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
@@ -99,6 +100,7 @@ function isUpcoming(entry: Entry): boolean {
 }
 
 export function MyInterviewsPage(): React.JSX.Element {
+  useRecruitmentHeroActions(null);
   const [mine, setMine] = useState<MyInterviews>({ rounds: [], interviews: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

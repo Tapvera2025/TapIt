@@ -15,6 +15,7 @@ import {
 } from '../components/OrganizationUi.js';
 import type { OrganizationDepartment, OrganizationDesignation } from '../types/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
+import { CompanyPageActionPortal } from '../../company/layout/CompanyPageActionPortal.js';
 
 type DesignationField = 'departmentId' | 'name' | 'specializations';
 type DesignationFieldErrors = Partial<Record<DesignationField, string>>;
@@ -169,7 +170,9 @@ export function DesignationsPage(): React.JSX.Element {
               <p className="mt-0.5 text-xs text-app-muted">Manage job titles and specializations. These values do not grant authorization.</p>
             </div>
           </div>
-          <Button onClick={create}><span aria-hidden="true">+</span> Add designation</Button>
+          <CompanyPageActionPortal>
+            <Button onClick={create}><span aria-hidden="true">+</span> Add designation</Button>
+          </CompanyPageActionPortal>
         </div>
         {loading ? (
           <div className="p-5"><SkeletonTable columns={4} rows={5} /></div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { atsScanSummary, type AtsCriteriaSettings, type AtsScanSummary } from '@tapcrm/contracts';
 import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
 import {
@@ -12,6 +12,7 @@ import { ResumeUploadModal } from '../components/ResumeUploadModal.js';
 import { ResumeReviewModal } from '../components/ResumeReviewModal.js';
 import { AtsScoreBadge } from '../components/AtsScoreBadge.js';
 import { AtsCriteriaModal } from '../components/AtsCriteriaModal.js';
+import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import {
   submissionSource,
   type CandidateResumeSubmission,
@@ -64,6 +65,15 @@ export function ResumeInboxPage({
 
   // ATS bulk scanning for the selected job
   const [bulk, setBulk] = useState<BulkScan | null>(null);
+
+  const heroActions = useMemo(() => (
+    <div className="company-page-hero-actions">
+      <button type="button" onClick={() => setShowUploadModal(true)} className="ui-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold">
+        + Upload Resume
+      </button>
+    </div>
+  ), []);
+  useRecruitmentHeroActions(heroActions);
 
   async function load() {
     setLoading(true);
@@ -166,7 +176,7 @@ export function ResumeInboxPage({
         <button
           type="button"
           onClick={() => setShowUploadModal(true)}
-          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto"
+          className="w-full rounded-xl bg-app-accent px-5 py-2.5 text-center text-sm font-semibold text-app-on-accent shadow-xs transition hover:opacity-90 sm:w-auto xl:hidden"
         >
           + Upload Resume
         </button>
