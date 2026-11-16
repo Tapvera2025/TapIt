@@ -12,8 +12,28 @@ import {
 import type { ShiftTemplate, WeekdaySchedule } from '../api/shiftsApi.js';
 import { missingScheduleNotice } from './schedule-notice.js';
 import { createEmployee, getNextEmployeeId, type CreateEmployeeInput } from '../api/employeesApi.js';
-import { IdentityApiError } from '../../identity/api/authApi.js';
-import { ConfirmDiscardModal, ConfirmCancelButton } from '../../ui/ConfirmDiscardModal.js';
+import { getIdentitySessionSnapshot, IdentityApiError } from '../../identity/api/authApi.js';
+import { ConfirmCancelButton } from '../../ui/ConfirmDiscardModal.js';
+import {
+  PHONE_COUNTRY_OPTIONS,
+  formatFullPhone,
+  phoneError,
+  sanitizePhoneInput,
+  splitPhoneAndCountryCode,
+} from './phone.js';
+
+export { PHONE_COUNTRY_OPTIONS } from './phone.js';
+
+/**
+ * Add Employee — HR or Super Admin enters only what the employee cannot give
+ * themselves: who they are (name, work email, phone), where they sit in the
+ * organization, their shift and their joining date.
+ *
+ * There is no password step. The employee gets an email, sets their own
+ * password, and then completes the rest of their profile (personal details,
+ * education, experience, documents) themselves. HR sees how far they got in
+ * the Employees list.
+ */
 
 interface AddEmployeeWizardModalProps {
   isOpen: boolean;
@@ -26,201 +46,125 @@ interface AddEmployeeWizardModalProps {
   weekdaySchedules: WeekdaySchedule[];
 }
 
-type WizardFieldErrors = {
-  // Stage 1: Basic Info
-  fullName?: string;
-  email?: string;
-  employeeId?: string;
-  departmentId?: string;
-  positionId?: string;
-  joiningDate?: string;
+interface FormState {
+  fullName: string;
+  email: string;
+  phoneCountryCode: string;
+  phone: string;
+  employeeId: string;
+  joiningDate: string;
+  departmentId: string;
+  positionId: string;
+  teamId: string;
+  reportsTo: string;
+  designationId: string;
+  specialization: string;
+  shiftId: string;
+  weekdayScheduleId: string;
+}
 
-  // Stage 2: Personal Info
-  phone?: string;
-  dateOfBirth?: string;
-  gender?: string;
-  addressLine1?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  emergencyContactName?: string;
-  emergencyContactCountryCode?: string;
-  emergencyContactPhone?: string;
-  emergencyContactRelation?: string;
+type FieldErrors = Partial<Record<keyof FormState, string>>;
 
-  // Stage 3: Shift & Skills
-  shiftId?: string;
-  weekdayScheduleId?: string;
-  skills?: string;
-  newSkillName?: string;
-
-  // Stage 4: Qualification
-  qualifications?: string;
-  qualificationDraft?: string;
-
-  // Stage 5: Password & Security
-  password?: string;
-  confirmPassword?: string;
+const EMPTY_FORM: FormState = {
+  fullName: '',
+  email: '',
+  phoneCountryCode: '+91',
+  phone: '',
+  employeeId: '',
+  joiningDate: '',
+  departmentId: '',
+  positionId: '',
+  teamId: '',
+  reportsTo: '',
+  designationId: '',
+  specialization: '',
+  shiftId: '',
+  weekdayScheduleId: '',
 };
 
-interface EmployeeWizardDraftData {
-  fullName?: string;
-  email?: string;
-  employeeId?: string;
-  joiningDate?: string;
-  departmentId?: string;
-  positionId?: string;
-  teamId?: string;
-  designationId?: string;
-  specialization?: string;
-  reportsTo?: string;
-  phoneCountryCode?: string;
-  phone?: string;
-  dateOfBirth?: string;
-  gender?: string;
-  addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  emergencyContactName?: string;
-  emergencyContactCountryCode?: string;
-  emergencyContactPhone?: string;
-  emergencyContactRelation?: string;
-  shiftId?: string;
-  weekdayScheduleId?: string;
-  skillsList?: Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>;
-  qualificationsList?: Array<{ institution: string; degree: string; fieldOfStudy: string; passingYear: string; grade: string }>;
-  /**
-   * A skill or qualification typed in but not yet added with its Add button.
-   * The draft keeps it too, so "Save as Draft" saves everything on screen and
-   * closing straight after saving never asks about lost changes.
-   */
-  pendingSkillName?: string;
-  pendingSkillProficiency?: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-  pendingInstitution?: string;
-  pendingDegree?: string;
-  pendingFieldOfStudy?: string;
-  pendingPassingYear?: string;
-  pendingGrade?: string;
-  step?: number;
-  savedAt?: string;
+/** Fields filled in for every new form, so they say nothing about whether anything was entered. */
+const PREFILLED: ReadonlySet<keyof FormState> = new Set(['phoneCountryCode', 'employeeId']);
+
+/**
+ * Drafts are kept per signed-in person and organization, so someone else
+ * using the same browser never sees them. The old single-key draft also held
+ * personal details; only the fields this form still has are carried over.
+ */
+const LEGACY_DRAFT_KEY = 'tapcrm.employee_wizard_draft';
+function draftKey(): string | null {
+  const { principalId, organizationId } = getIdentitySessionSnapshot();
+  return principalId && organizationId ? `tapcrm.employee_draft.v2.${organizationId}.${principalId}` : null;
 }
 
-const DRAFT_KEY = 'tapcrm.employee_wizard_draft';
-
-/** The form's contents as a draft stores them, without when it was saved or which step was open. */
-type DraftFields = Omit<EmployeeWizardDraftData, 'step' | 'savedAt'>;
-
-/** Filled in for every new form, so they say nothing about whether anything was entered. */
-const PREFILLED_FIELDS = new Set<keyof DraftFields>(['employeeId', 'phoneCountryCode', 'emergencyContactCountryCode', 'pendingSkillProficiency']);
-
-function hasEnteredDetails(fields: DraftFields): boolean {
-  return (Object.entries(fields) as Array<[keyof DraftFields, unknown]>).some(([key, value]) =>
-    PREFILLED_FIELDS.has(key) ? false : Array.isArray(value) ? value.length > 0 : value !== '',
-  );
-}
-
-function sanitizeNameInput(value: string): string {
-  return value.replace(/[^a-zA-Z\s'.-]/g, '');
-}
-
-export const PHONE_COUNTRY_OPTIONS = [
-  { code: '+91', country: 'IN', label: '+91 (India)' },
-  { code: '+1', country: 'US', label: '+1 (US)' },
-  { code: '+44', country: 'UK', label: '+44 (UK)' },
-  { code: '+971', country: 'UAE', label: '+971 (UAE)' },
-  { code: '+65', country: 'SG', label: '+65 (Singapore)' },
-  { code: '+61', country: 'AU', label: '+61 (Australia)' },
-  { code: '+1', country: 'CA', label: '+1 (Canada)' },
-  { code: '+49', country: 'DE', label: '+49 (Germany)' },
-  { code: '+33', country: 'FR', label: '+33 (France)' },
-  { code: '+966', country: 'SA', label: '+966 (Saudi Arabia)' },
-  { code: '+974', country: 'QA', label: '+974 (Qatar)' },
-  { code: '+968', country: 'OM', label: '+968 (Oman)' },
-  { code: '+965', country: 'KW', label: '+965 (Kuwait)' },
-  { code: '+973', country: 'BH', label: '+973 (Bahrain)' },
-  { code: '+81', country: 'JP', label: '+81 (Japan)' },
-  { code: '+86', country: 'CN', label: '+86 (China)' },
-  { code: '+82', country: 'KR', label: '+82 (South Korea)' },
-  { code: '+880', country: 'BD', label: '+880 (Bangladesh)' },
-  { code: '+92', country: 'PK', label: '+92 (Pakistan)' },
-  { code: '+94', country: 'LK', label: '+94 (Sri Lanka)' },
-  { code: '+977', country: 'NP', label: '+977 (Nepal)' },
-  { code: '+60', country: 'MY', label: '+60 (Malaysia)' },
-  { code: '+62', country: 'ID', label: '+62 (Indonesia)' },
-  { code: '+63', country: 'PH', label: '+63 (Philippines)' },
-  { code: '+27', country: 'ZA', label: '+27 (South Africa)' },
-  { code: '+234', country: 'NG', label: '+234 (Nigeria)' },
-  { code: '+254', country: 'KE', label: '+254 (Kenya)' },
-  { code: '+55', country: 'BR', label: '+55 (Brazil)' },
-  { code: '+52', country: 'MX', label: '+52 (Mexico)' },
-  { code: '+34', country: 'ES', label: '+34 (Spain)' },
-  { code: '+39', country: 'IT', label: '+39 (Italy)' },
-  { code: '+31', country: 'NL', label: '+31 (Netherlands)' },
-  { code: '+41', country: 'CH', label: '+41 (Switzerland)' },
-  { code: '+46', country: 'SE', label: '+46 (Sweden)' },
-  { code: '+47', country: 'NO', label: '+47 (Norway)' },
-  { code: '+64', country: 'NZ', label: '+64 (New Zealand)' },
-  { code: '+353', country: 'IE', label: '+353 (Ireland)' },
-] as const;
-
-function splitPhoneAndCountryCode(
-  input: string,
-  defaultCode = '+91'
-): { countryCode: string; nationalNumber: string } {
-  const trimmed = input.trim();
-  if (trimmed.startsWith('+')) {
-    const sorted = [...PHONE_COUNTRY_OPTIONS].map((o) => o.code).sort((a, b) => b.length - a.length);
-    for (const code of sorted) {
-      if (trimmed.startsWith(code)) {
-        return { countryCode: code, nationalNumber: trimmed.slice(code.length).trim() };
-      }
+function readDraft(): Partial<FormState> | null {
+  const key = draftKey();
+  if (!key) return null;
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) return JSON.parse(stored) as Partial<FormState>;
+    const legacy = localStorage.getItem(LEGACY_DRAFT_KEY);
+    if (!legacy) return null;
+    localStorage.removeItem(LEGACY_DRAFT_KEY);
+    const old = JSON.parse(legacy) as Record<string, unknown>;
+    const carried: Partial<FormState> = {};
+    for (const field of Object.keys(EMPTY_FORM) as (keyof FormState)[]) {
+      const value = old[field];
+      if (typeof value === 'string') carried[field] = value;
     }
-    const match = trimmed.match(/^(\+\d{1,4})\s*(.*)$/);
-    if (match) {
-      return { countryCode: match[1] ?? defaultCode, nationalNumber: match[2] ?? '' };
-    }
+    localStorage.setItem(key, JSON.stringify(carried));
+    return carried;
+  } catch {
+    return null;
   }
-  return { countryCode: defaultCode, nationalNumber: trimmed };
 }
 
-function formatFullPhone(countryCode: string, nationalNumber: string): string {
-  const trimmed = nationalNumber.trim();
-  if (!trimmed) return '';
-  if (trimmed.startsWith('+')) return trimmed;
-  return `${countryCode} ${trimmed}`;
+function writeDraft(form: FormState): boolean {
+  const key = draftKey();
+  if (!key) return false;
+  try {
+    localStorage.setItem(key, JSON.stringify(form));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-function sanitizePhoneInput(value: string): string {
-  const hasPlus = value.startsWith('+');
-  const cleaned = value.replace(/[^0-9\s-]/g, '');
-  return hasPlus ? `+${cleaned.replace(/^\+/, '')}` : cleaned;
+function clearDraft(): void {
+  const key = draftKey();
+  try {
+    if (key) localStorage.removeItem(key);
+    localStorage.removeItem(LEGACY_DRAFT_KEY);
+  } catch {
+    // Nothing stored.
+  }
 }
 
-function sanitizeDigitsOnly(value: string, maxLength?: number): string {
-  const digits = value.replace(/\D/g, '');
-  return maxLength ? digits.slice(0, maxLength) : digits;
+function hasEnteredDetails(form: FormState): boolean {
+  return (Object.keys(form) as (keyof FormState)[]).some((key) => !PREFILLED.has(key) && form[key].trim() !== '');
 }
 
-function stripEmojis(value: string): string {
-  return value.replace(
-    /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g,
-    '',
-  );
-}
-
-function flattenPositions(
-  positions: CompanyLadderPosition[],
-  depth = 0,
-): Array<{ value: string; label: string }> {
+function flattenPositions(positions: CompanyLadderPosition[], depth = 0): Array<{ value: string; label: string }> {
   return positions.flatMap((position) => [
-    {
-      value: position.id,
-      label: `${'— '.repeat(depth)}${position.name} (${position.code})`,
-    },
+    { value: position.id, label: `${'— '.repeat(depth)}${position.name} (${position.code})` },
     ...flattenPositions(position.children ?? [], depth + 1),
   ]);
+}
+
+const inputClass = (error?: string) =>
+  `w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent disabled:opacity-50 ${
+    error ? 'border-red-500' : 'border-app-border'
+  }`;
+
+function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }): React.JSX.Element {
+  return (
+    <label htmlFor={htmlFor} className="mb-1 block text-xs font-semibold text-app-muted">
+      {children}
+    </label>
+  );
+}
+
+function FieldError({ message }: { message?: string | undefined }): React.JSX.Element | null {
+  return message ? <p className="mt-1 text-xs text-red-500">{message}</p> : null;
 }
 
 export function AddEmployeeWizardModal({
@@ -233,803 +177,248 @@ export function AddEmployeeWizardModal({
   shifts,
   weekdaySchedules,
 }: AddEmployeeWizardModalProps): React.JSX.Element | null {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const scheduleNotice = missingScheduleNotice(shifts.length, weekdaySchedules.length);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
-  const [hasDraft, setHasDraft] = useState(false);
-  /** The form as last saved to (or restored from) the draft; null when there is no draft. */
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
-  /** Set while a restored draft is being applied, so its values become the saved baseline. */
-  const [baselinePending, setBaselinePending] = useState(false);
-  /** Keeps the employee-ID generator from overwriting the ID a restored draft brings. */
-  const restoringDraftRef = useRef(false);
-  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<WizardFieldErrors>({});
-
-  // Dynamic positions and managers
-  const [positions, setPositions] = useState<Array<{ value: string; label: string }>>([]);
-  const [managers, setManagers] = useState<CompanyReportingManager[]>([]);
-  const [rootPositionIds, setRootPositionIds] = useState<Set<string>>(new Set());
-
-  // Stage 1: Basic Information
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
-  const [loadingEmployeeId, setLoadingEmployeeId] = useState(false);
-  const [joiningDate, setJoiningDate] = useState('');
-  const [departmentId, setDepartmentId] = useState('');
-  const [positionId, setPositionId] = useState('');
-  const [teamId, setTeamId] = useState('');
-  const [designationId, setDesignationId] = useState('');
-  const [specialization, setSpecialization] = useState('');
-  const [reportsTo, setReportsTo] = useState('');
-
-  async function handleAutoGenerateEmployeeId(): Promise<void> {
-    setLoadingEmployeeId(true);
-    try {
-      const res = await getNextEmployeeId(employeeId.trim() || undefined);
-      setEmployeeId(res.nextEmployeeId);
-      adoptGeneratedEmployeeId(res.nextEmployeeId);
-      setFieldErrors((prev) => {
-        const next = { ...prev };
-        delete next.employeeId;
-        return next;
-      });
-    } catch {
-      setEmployeeId('EMP-00001');
-    } finally {
-      setLoadingEmployeeId(false);
-    }
-  }
-
   /**
-   * The ID is filled in by the system, sometimes only after a draft was saved
-   * without one. Record it in that draft, so it does not count as a change
-   * the person made and closing does not ask about it.
+   * The suggested ID is only a preview. Left untouched, the server picks the
+   * number when saving, so two people adding employees at once never collide.
    */
-  function adoptGeneratedEmployeeId(id: string): void {
-    try {
-      const stored = localStorage.getItem(DRAFT_KEY);
-      const draft = stored ? (JSON.parse(stored) as EmployeeWizardDraftData) : null;
-      if (draft && !draft.employeeId) localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, employeeId: id }));
-    } catch {
-      // The draft in storage keeps its empty ID; the form still has the new one.
-    }
-    setSavedSnapshot((current) => {
-      if (current === null) return current;
-      const saved = JSON.parse(current) as DraftFields;
-      return saved.employeeId ? current : JSON.stringify({ ...saved, employeeId: id });
-    });
-  }
+  const [suggestedId, setSuggestedId] = useState<string | null>(null);
+  const [loadingId, setLoadingId] = useState(false);
+  const [positions, setPositions] = useState<Array<{ value: string; label: string }>>([]);
+  const [rootPositionIds, setRootPositionIds] = useState<Set<string>>(new Set());
+  const [managers, setManagers] = useState<CompanyReportingManager[]>([]);
+  const restoredRef = useRef(false);
 
-  function handleAutoGeneratePassword(): void {
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const lower = 'abcdefghijkmnopqrstuvwxyz';
-    const digits = '23456789';
-    const symbols = '!@#$%^&*()_+-=';
-    const all = upper + lower + digits + symbols;
-    const pwd = [
-      upper[Math.floor(Math.random() * upper.length)] ?? 'A',
-      lower[Math.floor(Math.random() * lower.length)] ?? 'b',
-      digits[Math.floor(Math.random() * digits.length)] ?? '7',
-      symbols[Math.floor(Math.random() * symbols.length)] ?? '#',
-    ];
-    for (let i = pwd.length; i < 16; i++) {
-      pwd.push(all[Math.floor(Math.random() * all.length)] ?? 'x');
-    }
-    const result = pwd.sort(() => Math.random() - 0.5).join('');
-    setPassword(result);
-    setConfirmPassword(result);
-    setShowPassword(true);
-    setFieldErrors((prev) => {
-      const next = { ...prev };
-      delete next.password;
-      delete next.confirmPassword;
+  const scheduleNotice = missingScheduleNotice(shifts.length, weekdaySchedules.length);
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    setErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
       return next;
     });
-  }
+  };
 
-  // Restore saved draft on open
+  // Restore a saved draft once, when the form opens.
   useEffect(() => {
-    if (!isOpen) return;
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) {
-        const data = JSON.parse(saved) as EmployeeWizardDraftData;
-        if (data && typeof data === 'object') {
-          if (typeof data.fullName === 'string') setFullName(data.fullName);
-          if (typeof data.email === 'string') setEmail(data.email);
-          if (typeof data.employeeId === 'string') setEmployeeId(data.employeeId);
-          if (typeof data.joiningDate === 'string') setJoiningDate(data.joiningDate);
-          if (typeof data.departmentId === 'string') setDepartmentId(data.departmentId);
-          if (typeof data.positionId === 'string') setPositionId(data.positionId);
-          if (typeof data.teamId === 'string') setTeamId(data.teamId);
-          if (typeof data.designationId === 'string') setDesignationId(data.designationId);
-          if (typeof data.specialization === 'string') setSpecialization(data.specialization);
-          if (typeof data.reportsTo === 'string') setReportsTo(data.reportsTo);
-          if (typeof data.phoneCountryCode === 'string') setPhoneCountryCode(data.phoneCountryCode);
-          if (typeof data.phone === 'string') {
-            const parsed = splitPhoneAndCountryCode(data.phone, data.phoneCountryCode || '+91');
-            setPhoneCountryCode(parsed.countryCode);
-            setPhone(parsed.nationalNumber);
-          }
-          if (typeof data.dateOfBirth === 'string') setDateOfBirth(data.dateOfBirth);
-          if (typeof data.gender === 'string') setGender(data.gender);
-          if (typeof data.addressLine1 === 'string') setAddressLine1(data.addressLine1);
-          if (typeof data.addressLine2 === 'string') setAddressLine2(data.addressLine2);
-          if (typeof data.city === 'string') setCity(data.city);
-          if (typeof data.state === 'string') setState(data.state);
-          if (typeof data.postalCode === 'string') setPostalCode(data.postalCode);
-          if (typeof data.emergencyContactName === 'string') setEmergencyContactName(data.emergencyContactName);
-          if (typeof data.emergencyContactCountryCode === 'string') setEmergencyContactCountryCode(data.emergencyContactCountryCode);
-          if (typeof data.emergencyContactPhone === 'string') {
-            const parsed = splitPhoneAndCountryCode(data.emergencyContactPhone, data.emergencyContactCountryCode || '+91');
-            setEmergencyContactCountryCode(parsed.countryCode);
-            setEmergencyContactPhone(parsed.nationalNumber);
-          }
-          if (typeof data.emergencyContactRelation === 'string') setEmergencyContactRelation(data.emergencyContactRelation);
-          if (typeof data.shiftId === 'string') setShiftId(data.shiftId);
-          if (typeof data.weekdayScheduleId === 'string') setWeekdayScheduleId(data.weekdayScheduleId);
-          if (Array.isArray(data.skillsList)) {
-            setSkillsList(data.skillsList);
-          }
-          if (Array.isArray(data.qualificationsList)) {
-            setQualificationsList(data.qualificationsList);
-          }
-          if (typeof data.pendingSkillName === 'string') setNewSkillName(data.pendingSkillName);
-          if (data.pendingSkillProficiency) setNewSkillProficiency(data.pendingSkillProficiency);
-          if (typeof data.pendingInstitution === 'string') setInstitution(data.pendingInstitution);
-          if (typeof data.pendingDegree === 'string') setDegree(data.pendingDegree);
-          if (typeof data.pendingFieldOfStudy === 'string') setFieldOfStudy(data.pendingFieldOfStudy);
-          if (typeof data.pendingPassingYear === 'string') setPassingYear(data.pendingPassingYear);
-          if (typeof data.pendingGrade === 'string') setGrade(data.pendingGrade);
-          if (typeof data.step === 'number' && [1, 2, 3, 4, 5].includes(data.step)) {
-            setStep(data.step as 1 | 2 | 3 | 4 | 5);
-          }
-          const savedTime = typeof data.savedAt === 'string'
-            ? new Date(data.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : '';
-          setDraftNotice(`Restored saved draft${savedTime ? ` from ${savedTime}` : ''}.`);
-          setHasDraft(true);
-          restoringDraftRef.current = typeof data.employeeId === 'string' && data.employeeId !== '';
-          setBaselinePending(true);
-          return;
-        }
-      }
-    } catch {
-      // Ignore JSON parse errors
+    if (!isOpen || restoredRef.current) return;
+    restoredRef.current = true;
+    const draft = readDraft();
+    if (draft) {
+      const restored = { ...EMPTY_FORM, ...draft };
+      setForm(restored);
+      setSavedSnapshot(JSON.stringify(restored));
+      setDraftNotice('Restored your saved draft.');
     }
   }, [isOpen]);
 
-  // Pre-load next sequence on mount if no employeeId
-  useEffect(() => {
-    if (!isOpen || restoringDraftRef.current) return;
-    if (!employeeId) {
-      void handleAutoGenerateEmployeeId();
+  async function suggestEmployeeId(): Promise<void> {
+    setLoadingId(true);
+    try {
+      const { nextEmployeeId } = await getNextEmployeeId();
+      setSuggestedId(nextEmployeeId);
+      setForm((current) => (current.employeeId ? current : { ...current, employeeId: nextEmployeeId }));
+    } catch {
+      // No preview: leaving the field empty lets the server number the employee.
+      setSuggestedId(null);
+    } finally {
+      setLoadingId(false);
     }
-  }, [isOpen, employeeId]);
+  }
 
-  // Fetch positions whenever departmentId changes
   useEffect(() => {
-    const department = departments.find((d) => d.id === departmentId);
+    if (!isOpen) return;
+    void suggestEmployeeId();
+    // Only once per opening; the button asks again on demand.
+  }, [isOpen]);
+
+  // Positions of the chosen department.
+  useEffect(() => {
+    const department = departments.find((d) => d.id === form.departmentId);
     if (!department) {
       setPositions([]);
       setRootPositionIds(new Set());
       return;
     }
+    let cancelled = false;
     getCompanyLadder(department.code)
       .then((ladder) => {
+        if (cancelled) return;
         setPositions(flattenPositions(ladder.positions));
         setRootPositionIds(new Set(ladder.positions.map((p) => p.id)));
       })
-      .catch(() => setError('Unable to load positions for this department.'));
-  }, [departmentId, departments]);
+      .catch(() => {
+        if (!cancelled) setError('Unable to load positions for this department.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.departmentId, departments]);
 
-  const isRootPosition = positionId !== '' && rootPositionIds.has(positionId);
+  const isRootPosition = form.positionId !== '' && rootPositionIds.has(form.positionId);
 
-  // Fetch managers whenever placement changes
+  // Who the person can report to, given department, position and team.
   useEffect(() => {
-    if (!departmentId || !positionId || isRootPosition) {
+    if (!form.departmentId || !form.positionId || isRootPosition) {
       setManagers([]);
-      if (isRootPosition && reportsTo !== '') {
-        setReportsTo('');
-      }
+      if (isRootPosition) setForm((current) => (current.reportsTo ? { ...current, reportsTo: '' } : current));
       return;
     }
-    getCompanyReportingManagers(departmentId, positionId, undefined, teamId || undefined)
-      .then(setManagers)
-      .catch(() => setError('Unable to load reporting managers.'));
-  }, [departmentId, positionId, teamId, isRootPosition]);
-
-  // Stage 2: Personal Information
-  const [phoneCountryCode, setPhoneCountryCode] = useState('+91');
-  const [phone, setPhone] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
-  const [gender, setGender] = useState('');
-  const [addressLine1, setAddressLine1] = useState('');
-  const [addressLine2, setAddressLine2] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [postalCode, setPostalCode] = useState('');
-  const [emergencyContactName, setEmergencyContactName] = useState('');
-  const [emergencyContactCountryCode, setEmergencyContactCountryCode] = useState('+91');
-  const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
-  const [emergencyContactRelation, setEmergencyContactRelation] = useState('');
-
-  // Stage 3: Shift & Skills
-  const [shiftId, setShiftId] = useState('');
-  const [weekdayScheduleId, setWeekdayScheduleId] = useState('');
-  const [skillsList, setSkillsList] = useState<Array<{ skillName: string; proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert' }>>([]);
-  const [newSkillName, setNewSkillName] = useState('');
-  const [newSkillProficiency, setNewSkillProficiency] = useState<'beginner' | 'intermediate' | 'advanced' | 'expert'>('intermediate');
-
-  // Stage 4: Qualification
-  const [qualificationsList, setQualificationsList] = useState<Array<{ institution: string; degree: string; fieldOfStudy: string; passingYear: string; grade: string }>>([]);
-  const [institution, setInstitution] = useState('');
-  const [degree, setDegree] = useState('');
-  const [fieldOfStudy, setFieldOfStudy] = useState('');
-  const [passingYear, setPassingYear] = useState('');
-  const [grade, setGrade] = useState('');
-
-  // Stage 5: Email & Account Setup
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-
-  // Closing asks first only when something would be lost: details not yet in
-  // the saved draft, or (with no draft) anything entered at all. A skill or
-  // qualification typed but not yet added is saved with the draft too. The
-  // password is deliberately never stored in a draft and is not counted, so
-  // saving a draft on the last step still closes cleanly.
-  const currentFields = draftFields();
-  const currentSnapshot = JSON.stringify(currentFields);
-  const hasUnsavedChanges =
-    savedSnapshot === null ? hasEnteredDetails(currentFields) : currentSnapshot !== savedSnapshot;
-  const discardTitle = hasDraft ? 'Discard your latest changes?' : 'Discard employee onboarding?';
-  const discardDescription = hasDraft
-    ? 'Your saved draft is kept, but changes made since you last saved it will be lost.'
-    : 'The details you entered will be lost. Use "Save as Draft" first to keep them.';
-
-  // A restored draft is the saved baseline once its values are in the form.
-  useEffect(() => {
-    if (!baselinePending) return;
-    setSavedSnapshot(currentSnapshot);
-    setBaselinePending(false);
-    restoringDraftRef.current = false;
-  }, [baselinePending, currentSnapshot]);
+    let cancelled = false;
+    getCompanyReportingManagers(form.departmentId, form.positionId, undefined, form.teamId || undefined)
+      .then((list) => {
+        if (cancelled) return;
+        setManagers(list);
+        // A manager from another team is no longer a valid choice.
+        setForm((current) =>
+          current.reportsTo && !list.some((m) => m.id === current.reportsTo) ? { ...current, reportsTo: '' } : current,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setError('Unable to load reporting managers.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.departmentId, form.positionId, form.teamId, isRootPosition]);
 
   if (!isOpen) return null;
 
-  const departmentTeams = teams.filter((t) => t.departmentId === departmentId);
-  const designation = designations.find((d) => d.id === designationId);
+  const departmentTeams = teams.filter((t) => t.departmentId === form.departmentId);
+  const designation = designations.find((d) => d.id === form.designationId);
+  // The suggested ID is not the person's input: a draft keeps it empty, so the
+  // next free number is suggested again when the draft is reopened.
+  const draftForm: FormState = { ...form, employeeId: form.employeeId === suggestedId ? '' : form.employeeId };
+  const snapshot = JSON.stringify(draftForm);
+  const hasUnsavedChanges = savedSnapshot === null ? hasEnteredDetails(form) : snapshot !== savedSnapshot;
+  const discardTitle = savedSnapshot ? 'Discard your latest changes?' : 'Discard this new employee?';
+  const discardDescription = savedSnapshot
+    ? 'Your saved draft is kept, but changes made since you saved it will be lost.'
+    : 'The details you entered will be lost. Use "Save as draft" first to keep them.';
 
-  function clearFieldError(field: keyof WizardFieldErrors): void {
-    if (fieldErrors[field]) {
-      setFieldErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
+  function validate(which: 1 | 2): FieldErrors {
+    const next: FieldErrors = {};
+    if (which === 1) {
+      const name = form.fullName.trim();
+      if (!name) next.fullName = 'Full name is required.';
+      else if (!/^[\p{L}\s'.-]+$/u.test(name)) next.fullName = 'Use letters, spaces, hyphens and apostrophes only.';
+      else if (name.length < 2 || name.length > 160) next.fullName = 'Full name must be 2 to 160 characters.';
+
+      const email = form.email.trim();
+      if (!email) next.email = 'Work email is required.';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 320) next.email = 'Enter a valid email address.';
+
+      const phoneProblem = phoneError(formatFullPhone(form.phoneCountryCode, form.phone), true);
+      if (phoneProblem) next.phone = phoneProblem;
+
+      const id = form.employeeId.trim();
+      if (id && !/^[A-Z0-9][A-Z0-9-]{0,49}$/i.test(id)) {
+        next.employeeId = 'Use letters, digits and hyphens only (max 50).';
+      }
+
+      if (!form.joiningDate) next.joiningDate = 'Joining date is required.';
+      else if (Number.isNaN(Date.parse(form.joiningDate))) next.joiningDate = 'Enter a valid date.';
+    } else {
+      if (!form.departmentId) next.departmentId = 'Department is required.';
+      if (!form.positionId) next.positionId = 'Position is required.';
+      if (form.departmentId && departmentTeams.length > 0 && !form.teamId) {
+        next.teamId = 'Choose the team this person joins.';
+      }
+      if (!form.shiftId) next.shiftId = 'Choose a shift.';
+      if (!form.weekdayScheduleId) {
+        next.weekdayScheduleId =
+          weekdaySchedules.length === 0 ? 'Create an active weekday schedule first.' : 'Choose a weekday schedule.';
+      }
+    }
+    return next;
+  }
+
+  function goNext(): void {
+    const found = validate(1);
+    setErrors(found);
+    if (Object.keys(found).length === 0) setStep(2);
+  }
+
+  function saveDraft(): void {
+    if (writeDraft(draftForm)) {
+      setSavedSnapshot(snapshot);
+      setDraftNotice(`Draft saved at ${new Date().toLocaleTimeString()}.`);
+    } else {
+      setError('Unable to save a draft in this browser.');
     }
   }
 
-  function focusFirstError(errors: WizardFieldErrors): void {
-    const firstKey = Object.keys(errors)[0];
-    if (firstKey) {
-      setTimeout(() => {
-        let el = document.getElementById(`wizard-${firstKey}`);
-        if (!el && firstKey === 'skills') {
-          el = document.getElementById('wizard-newSkillName');
-        }
-        if (!el && (firstKey === 'qualifications' || firstKey === 'qualificationDraft')) {
-          el = document.getElementById('wizard-institution');
-        }
-        if (el) {
-          el.focus();
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100);
-    }
+  function discardDraft(): void {
+    clearDraft();
+    setSavedSnapshot(null);
+    setDraftNotice(null);
   }
 
-  function validateStep(s: number): boolean {
-    const errs: WizardFieldErrors = {};
-    if (s === 1) {
-      const trimmedName = fullName.trim();
-      if (!trimmedName) {
-        errs.fullName = 'Full name is required.';
-      } else if (!/^[a-zA-Z\s'.-]+$/.test(trimmedName)) {
-        errs.fullName = 'Full name must only contain letters, spaces, hyphens, and apostrophes (no numbers or emojis).';
-      } else if (trimmedName.length < 2) {
-        errs.fullName = 'Full name must be at least 2 characters.';
-      } else if (trimmedName.length > 160) {
-        errs.fullName = 'Full name must be at most 160 characters.';
-      }
-
-      const trimmedEmail = email.trim();
-      if (!trimmedEmail) {
-        errs.email = 'Corporate email is required.';
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-        errs.email = 'Please enter a valid corporate email address.';
-      } else if (trimmedEmail.length > 320) {
-        errs.email = 'Email must be at most 320 characters.';
-      }
-
-      const trimmedEmpId = employeeId.trim();
-      if (trimmedEmpId && !/^[A-Z0-9][A-Z0-9-]{0,49}$/i.test(trimmedEmpId)) {
-        errs.employeeId = 'Employee ID must be alphanumeric with hyphens (max 50 chars).';
-      }
-
-      if (!departmentId.trim()) {
-        errs.departmentId = 'Department is required.';
-      }
-
-      if (!positionId.trim()) {
-        errs.positionId = 'Position is required.';
-      }
-
-      if (!joiningDate.trim()) {
-        errs.joiningDate = 'Joining date is required.';
-      } else if (isNaN(Date.parse(joiningDate))) {
-        errs.joiningDate = 'Please enter a valid joining date.';
-      }
-    } else if (s === 2) {
-      const trimmedPhone = formatFullPhone(phoneCountryCode, phone);
-      const fullPhone = formatFullPhone(phoneCountryCode, trimmedPhone);
-      const phoneDigits = fullPhone.replace(/\D/g, '');
-      if (!trimmedPhone) {
-        errs.phone = 'Contact phone is required.';
-      } else if (!/^\+?[0-9\s-]+$/.test(trimmedPhone) || phoneDigits.length < 7 || phoneDigits.length > 15) {
-        errs.phone = 'Please enter a valid phone number with 7 to 15 digits (numbers only).';
-      }
-
-      if (!dateOfBirth.trim()) {
-        errs.dateOfBirth = 'Date of birth is required.';
-      } else if (isNaN(Date.parse(dateOfBirth))) {
-        errs.dateOfBirth = 'Please enter a valid date of birth.';
-      } else {
-        const dob = new Date(dateOfBirth);
-        const today = new Date();
-        const minAgeDate = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
-        if (dob > today) {
-          errs.dateOfBirth = 'Date of birth cannot be in the future.';
-        } else if (dob > minAgeDate) {
-          errs.dateOfBirth = 'Employee must be at least 16 years old.';
-        }
-      }
-
-      if (!gender.trim()) {
-        errs.gender = 'Gender is required.';
-      }
-
-      const trimmedAddr1 = addressLine1.trim();
-      if (!trimmedAddr1) {
-        errs.addressLine1 = 'Street address line 1 is required.';
-      } else if (trimmedAddr1.length > 255) {
-        errs.addressLine1 = 'Address line 1 must be at most 255 characters.';
-      }
-
-      const trimmedCity = city.trim();
-      if (!trimmedCity) {
-        errs.city = 'City is required.';
-      } else if (!/^[a-zA-Z\s'.-]+$/.test(trimmedCity)) {
-        errs.city = 'City must only contain letters (no numbers or emojis).';
-      } else if (trimmedCity.length > 100) {
-        errs.city = 'City must be at most 100 characters.';
-      }
-
-      const trimmedState = state.trim();
-      if (!trimmedState) {
-        errs.state = 'State is required.';
-      } else if (!/^[a-zA-Z\s'.-]+$/.test(trimmedState)) {
-        errs.state = 'State must only contain letters (no numbers or emojis).';
-      } else if (trimmedState.length > 100) {
-        errs.state = 'State must be at most 100 characters.';
-      }
-
-      const trimmedPostal = postalCode.trim();
-      if (!trimmedPostal) {
-        errs.postalCode = 'Postal code is required.';
-      } else if (!/^\d{4,10}$/.test(trimmedPostal)) {
-        errs.postalCode = 'Postal code must be 4 to 10 numeric digits only.';
-      }
-
-      const trimmedEmgName = emergencyContactName.trim();
-      if (!trimmedEmgName) {
-        errs.emergencyContactName = 'Emergency contact name is required.';
-      } else if (!/^[a-zA-Z\s'.-]+$/.test(trimmedEmgName)) {
-        errs.emergencyContactName = 'Emergency contact name must only contain letters (no numbers or emojis).';
-      } else if (trimmedEmgName.length < 2) {
-        errs.emergencyContactName = 'Emergency contact name must be at least 2 characters.';
-      } else if (trimmedEmgName.length > 160) {
-        errs.emergencyContactName = 'Name must be at most 160 characters.';
-      }
-
-      const trimmedEmgPhone = emergencyContactPhone.trim();
-      const fullEmgPhone = formatFullPhone(emergencyContactCountryCode, trimmedEmgPhone);
-      const emgPhoneDigits = fullEmgPhone.replace(/\D/g, '');
-      if (!trimmedEmgPhone) {
-        errs.emergencyContactPhone = 'Emergency contact phone is required.';
-      } else if (!/^\+?[0-9\s-]+$/.test(trimmedEmgPhone) || emgPhoneDigits.length < 7 || emgPhoneDigits.length > 15) {
-        errs.emergencyContactPhone = 'Emergency contact phone must have 7 to 15 digits (numbers only).';
-      }
-
-      const trimmedEmgRel = emergencyContactRelation.trim();
-      if (!trimmedEmgRel) {
-        errs.emergencyContactRelation = 'Emergency contact relationship is required.';
-      } else if (!/^[a-zA-Z\s-]+$/.test(trimmedEmgRel)) {
-        errs.emergencyContactRelation = 'Relationship must only contain letters (no numbers or emojis).';
-      } else if (trimmedEmgRel.length > 60) {
-        errs.emergencyContactRelation = 'Relationship must be at most 60 characters.';
-      }
-    } else if (s === 3) {
-      if (!shiftId.trim()) {
-        errs.shiftId = 'Please select a shift schedule.';
-      }
-      if (!weekdayScheduleId.trim()) {
-        errs.weekdayScheduleId = weekdaySchedules.length === 0
-          ? 'Create an active weekday schedule before adding an employee.'
-          : 'Please select a weekday schedule.';
-      }
-
-      if (skillsList.length === 0) {
-        const trimmedSkill = stripEmojis(newSkillName.trim());
-        if (trimmedSkill) {
-          setSkillsList([{ skillName: trimmedSkill, proficiency: newSkillProficiency }]);
-          setNewSkillName('');
-        } else {
-          errs.skills = 'At least one skill is required.';
-        }
-      }
-    } else if (s === 4) {
-      if (qualificationsList.length === 0) {
-        const trimmedInst = stripEmojis(institution.trim());
-        const trimmedDeg = stripEmojis(degree.trim());
-        if (trimmedInst && trimmedDeg) {
-          const trimmedYear = passingYear.trim();
-          if (trimmedYear) {
-            const yr = parseInt(trimmedYear, 10);
-            const currentYear = new Date().getFullYear();
-            if (!/^\d{4}$/.test(trimmedYear) || isNaN(yr) || yr < 1950 || yr > currentYear + 10) {
-              errs.qualificationDraft = `Passing year must be a 4-digit year between 1950 and ${currentYear + 10}.`;
-              setFieldErrors(errs);
-              focusFirstError(errs);
-              return false;
-            }
-          }
-          setQualificationsList([
-            {
-              institution: trimmedInst,
-              degree: trimmedDeg,
-              fieldOfStudy: stripEmojis(fieldOfStudy.trim()),
-              passingYear: trimmedYear,
-              grade: stripEmojis(grade.trim()),
-            },
-          ]);
-          setInstitution('');
-          setDegree('');
-          setFieldOfStudy('');
-          setPassingYear('');
-          setGrade('');
-        } else {
-          errs.qualifications = 'At least one qualification is required.';
-        }
-      }
-    } else if (s === 5) {
-      if (!password) {
-        errs.password = 'Temporary password is required.';
-      } else if (password.length < 12) {
-        errs.password = 'Password must be at least 12 characters.';
-      } else if (password.length > 200) {
-        errs.password = 'Password must be at most 200 characters.';
-      }
-
-      if (!confirmPassword) {
-        errs.confirmPassword = 'Confirm password is required.';
-      } else if (password !== confirmPassword) {
-        errs.confirmPassword = 'Passwords do not match.';
-      }
+  async function submit(): Promise<void> {
+    const first = validate(1);
+    if (Object.keys(first).length > 0) {
+      setErrors(first);
+      setStep(1);
+      return;
     }
+    const second = validate(2);
+    setErrors(second);
+    if (Object.keys(second).length > 0) return;
 
-    setFieldErrors(errs);
-    if (Object.keys(errs).length > 0) {
-      focusFirstError(errs);
-      return false;
-    }
-    return true;
-  }
-
-  function draftFields(): DraftFields {
-    return {
-      fullName: fullName.trim(),
-      email: email.trim(),
-      employeeId: employeeId.trim(),
-      joiningDate: joiningDate.trim(),
-      departmentId: departmentId.trim(),
-      positionId: positionId.trim(),
-      teamId: teamId.trim(),
-      designationId: designationId.trim(),
-      specialization: specialization.trim(),
-      reportsTo: reportsTo.trim(),
-      phoneCountryCode,
-      phone: phone.trim(),
-      dateOfBirth: dateOfBirth.trim(),
-      gender: gender.trim(),
-      addressLine1: addressLine1.trim(),
-      addressLine2: addressLine2.trim(),
-      city: city.trim(),
-      state: state.trim(),
-      postalCode: postalCode.trim(),
-      emergencyContactName: emergencyContactName.trim(),
-      emergencyContactCountryCode,
-      emergencyContactPhone: emergencyContactPhone.trim(),
-      emergencyContactRelation: emergencyContactRelation.trim(),
-      shiftId: shiftId.trim(),
-      weekdayScheduleId: weekdayScheduleId.trim(),
-      skillsList: skillsList.map((s) => ({ skillName: s.skillName.trim(), proficiency: s.proficiency })),
-      qualificationsList: qualificationsList.map((q) => ({
-        institution: q.institution.trim(),
-        degree: q.degree.trim(),
-        fieldOfStudy: q.fieldOfStudy.trim(),
-        passingYear: q.passingYear.trim(),
-        grade: q.grade.trim(),
-      })),
-      pendingSkillName: newSkillName.trim(),
-      pendingSkillProficiency: newSkillProficiency,
-      pendingInstitution: institution.trim(),
-      pendingDegree: degree.trim(),
-      pendingFieldOfStudy: fieldOfStudy.trim(),
-      pendingPassingYear: passingYear.trim(),
-      pendingGrade: grade.trim(),
+    const employeeId = form.employeeId.trim().toUpperCase();
+    // Send the ID only when HR typed their own; the suggestion is assigned by the server.
+    const customId = employeeId && employeeId !== suggestedId ? employeeId : '';
+    const payload: CreateEmployeeInput = {
+      fullName: form.fullName.trim(),
+      email: form.email.trim().toLowerCase(),
+      phone: formatFullPhone(form.phoneCountryCode, form.phone),
+      ...(customId ? { employeeId: customId } : {}),
+      joiningDate: form.joiningDate,
+      departmentId: form.departmentId,
+      positionId: form.positionId,
+      ...(form.teamId ? { teamId: form.teamId } : {}),
+      ...(form.designationId ? { designationId: form.designationId } : {}),
+      ...(form.specialization ? { specialization: form.specialization } : {}),
+      reportsTo: form.reportsTo || null,
+      shiftId: form.shiftId,
+      weekdayScheduleId: form.weekdayScheduleId,
     };
-  }
 
-  function handleSaveDraft(): void {
-    const fields = draftFields();
-    const draftData: EmployeeWizardDraftData = { ...fields, step, savedAt: new Date().toISOString() };
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
-      setHasDraft(true);
-      setSavedSnapshot(JSON.stringify(fields));
-      setDraftNotice('Draft saved successfully.');
-    } catch {
-      setError('Unable to save draft.');
-    }
-  }
-
-  function handleClearDraft(): void {
-    try {
-      localStorage.removeItem(DRAFT_KEY);
-      setHasDraft(false);
-      setSavedSnapshot(null);
-      setDraftNotice(null);
-    } catch {
-      // Ignore
-    }
-  }
-
-  function requestClose(): void {
-    if (hasUnsavedChanges) setShowDiscardConfirm(true);
-    else onClose();
-  }
-
-  function handleNext(): void {
-    if (step === 1) {
-      setFullName((v) => v.trim());
-      setEmail((v) => v.trim());
-      setEmployeeId((v) => v.trim());
-      setJoiningDate((v) => v.trim());
-    } else if (step === 2) {
-      setPhone((v) => v.trim());
-      setDateOfBirth((v) => v.trim());
-      setAddressLine1((v) => v.trim());
-      setAddressLine2((v) => v.trim());
-      setCity((v) => v.trim());
-      setState((v) => v.trim());
-      setPostalCode((v) => v.trim());
-      setEmergencyContactName((v) => v.trim());
-      setEmergencyContactPhone((v) => v.trim());
-      setEmergencyContactRelation((v) => v.trim());
-    } else if (step === 3) {
-      setNewSkillName((v) => v.trim());
-    } else if (step === 4) {
-      setInstitution((v) => v.trim());
-      setDegree((v) => v.trim());
-      setFieldOfStudy((v) => v.trim());
-      setPassingYear((v) => v.trim());
-      setGrade((v) => v.trim());
-    }
-    if (!validateStep(step)) return;
-    if (step < 5) setStep((prev) => (prev + 1) as 1 | 2 | 3 | 4 | 5);
-  }
-
-  function handleBack(): void {
-    if (step > 1) setStep((prev) => (prev - 1) as 1 | 2 | 3 | 4 | 5);
-  }
-
-  function addSkill(): void {
-    const trimmedSkill = stripEmojis(newSkillName.trim()).trim();
-    if (!trimmedSkill) {
-      setFieldErrors((prev) => ({ ...prev, newSkillName: 'Skill name is required.' }));
-      return;
-    }
-    if (trimmedSkill.length > 50) {
-      setFieldErrors((prev) => ({ ...prev, newSkillName: 'Skill name must be at most 50 characters.' }));
-      return;
-    }
-    setSkillsList([...skillsList, { skillName: trimmedSkill, proficiency: newSkillProficiency }]);
-    setNewSkillName('');
-    clearFieldError('skills');
-    clearFieldError('newSkillName');
-  }
-
-  function removeSkill(index: number): void {
-    setSkillsList(skillsList.filter((_, i) => i !== index));
-  }
-
-  function addQualification(): void {
-    const trimmedInst = stripEmojis(institution.trim()).trim();
-    const trimmedDeg = stripEmojis(degree.trim()).trim();
-    if (!trimmedInst || !trimmedDeg) {
-      setFieldErrors((prev) => ({
-        ...prev,
-        qualificationDraft: 'Institution and degree are required to add qualification.',
-      }));
-      return;
-    }
-    const trimmedYear = passingYear.trim();
-    if (trimmedYear) {
-      const yr = parseInt(trimmedYear, 10);
-      const currentYear = new Date().getFullYear();
-      if (!/^\d{4}$/.test(trimmedYear) || isNaN(yr) || yr < 1950 || yr > currentYear + 10) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          qualificationDraft: `Passing year must be a 4-digit year between 1950 and ${currentYear + 10}.`,
-        }));
-        return;
-      }
-    }
-    setQualificationsList([
-      ...qualificationsList,
-      {
-        institution: trimmedInst,
-        degree: trimmedDeg,
-        fieldOfStudy: stripEmojis(fieldOfStudy.trim()).trim(),
-        passingYear: trimmedYear,
-        grade: stripEmojis(grade.trim()).trim(),
-      },
-    ]);
-    setInstitution('');
-    setDegree('');
-    setFieldOfStudy('');
-    setPassingYear('');
-    setGrade('');
-    clearFieldError('qualifications');
-    clearFieldError('qualificationDraft');
-  }
-
-  function removeQualification(index: number): void {
-    setQualificationsList(qualificationsList.filter((_, i) => i !== index));
-  }
-
-  async function handleSubmit(): Promise<void> {
-    for (const s of [1, 2, 3, 4, 5] as const) {
-      if (!validateStep(s)) {
-        if (step !== s) {
-          setStep(s);
-        }
-        return;
-      }
-    }
     setBusy(true);
     setError('');
-
-    const trimmedFullName = fullName.trim();
-    const trimmedEmail = email.trim().toLowerCase();
-    const trimmedEmployeeId = employeeId.trim().toUpperCase();
-    const trimmedDepartmentId = departmentId.trim();
-    const trimmedPositionId = positionId.trim();
-    const trimmedTeamId = teamId.trim();
-    const trimmedDesignationId = designationId.trim();
-    const trimmedSpecialization = specialization.trim();
-    const trimmedReportsTo = reportsTo.trim();
-    const trimmedJoiningDate = joiningDate.trim();
-    const trimmedPhone = phone.trim();
-    const trimmedPassword = password.trim();
-    const trimmedConfirmPassword = confirmPassword.trim();
-    const trimmedShiftId = shiftId.trim();
-    const trimmedWeekdayScheduleId = weekdayScheduleId.trim();
-
-    const personalInfo: NonNullable<CreateEmployeeInput['personalInfo']> = {};
-    if (trimmedPhone) personalInfo.phone = trimmedPhone;
-    if (dateOfBirth.trim()) personalInfo.dateOfBirth = dateOfBirth.trim();
-    if (gender.trim()) personalInfo.gender = gender.trim();
-    if (addressLine1.trim()) personalInfo.addressLine1 = addressLine1.trim();
-    if (addressLine2.trim()) personalInfo.addressLine2 = addressLine2.trim();
-    if (city.trim()) personalInfo.city = city.trim();
-    if (state.trim()) personalInfo.state = state.trim();
-    if (postalCode.trim()) personalInfo.postalCode = postalCode.trim();
-    if (emergencyContactName.trim()) personalInfo.emergencyContactName = emergencyContactName.trim();
-    const trimmedEmgPhone = formatFullPhone(emergencyContactCountryCode, emergencyContactPhone);
-    if (trimmedEmgPhone) personalInfo.emergencyContactPhone = trimmedEmgPhone;
-    if (emergencyContactRelation.trim()) personalInfo.emergencyContactRelation = emergencyContactRelation.trim();
-
-    const qualifications: NonNullable<CreateEmployeeInput['qualifications']> = qualificationsList.map((q) => {
-      const item: NonNullable<CreateEmployeeInput['qualifications']>[number] = {
-        institution: q.institution.trim(),
-        degree: q.degree.trim(),
-      };
-      if (q.fieldOfStudy?.trim()) item.fieldOfStudy = q.fieldOfStudy.trim();
-      if (q.passingYear?.trim()) item.passingYear = parseInt(q.passingYear.trim(), 10);
-      if (q.grade?.trim()) item.grade = q.grade.trim();
-      return item;
-    });
-
-    const skills: NonNullable<CreateEmployeeInput['skills']> = skillsList.map((s) => ({
-      skillName: s.skillName.trim(),
-      proficiency: s.proficiency,
-    }));
-
-    const payload: CreateEmployeeInput = {
-      ...(trimmedEmployeeId ? { employeeId: trimmedEmployeeId } : {}),
-      fullName: trimmedFullName,
-      email: trimmedEmail,
-      password: trimmedPassword,
-      confirmPassword: trimmedConfirmPassword,
-      departmentId: trimmedDepartmentId,
-      positionId: trimmedPositionId,
-      ...(trimmedTeamId ? { teamId: trimmedTeamId } : {}),
-      ...(trimmedDesignationId ? { designationId: trimmedDesignationId } : {}),
-      ...(trimmedSpecialization ? { specialization: trimmedSpecialization } : {}),
-      reportsTo: trimmedReportsTo || null,
-      ...(trimmedJoiningDate ? { joiningDate: trimmedJoiningDate } : {}),
-      ...(trimmedPhone ? { phone: trimmedPhone } : {}),
-      ...(Object.keys(personalInfo).length > 0 ? { personalInfo } : {}),
-      ...(trimmedShiftId ? { shiftId: trimmedShiftId } : {}),
-      ...(trimmedWeekdayScheduleId ? { weekdayScheduleId: trimmedWeekdayScheduleId } : {}),
-      ...(qualifications.length > 0 ? { qualifications } : {}),
-      ...(skills.length > 0 ? { skills } : {}),
-    };
-
     try {
-      const res = await createEmployee(payload);
-      try {
-        localStorage.removeItem(DRAFT_KEY);
-      } catch {
-        // Ignore
-      }
-      onSuccess(res.employee.fullName, res.employee.id, res.onboardingWorkflowId, res.setupUrl);
+      const result = await createEmployee(payload);
+      clearDraft();
+      onSuccess(result.employee.fullName, result.employee.id, result.onboardingWorkflowId, result.setupUrl);
     } catch (cause) {
-      if (cause instanceof IdentityApiError) {
-        setError(cause.message);
-      } else {
-        setError(cause instanceof Error ? cause.message : 'Unable to create employee.');
-      }
+      setError(
+        cause instanceof IdentityApiError || cause instanceof Error ? cause.message : 'Unable to create the employee.',
+      );
     } finally {
       setBusy(false);
     }
   }
 
   return createPortal(
-    (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
-    >
-      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm transition-opacity" onClick={requestClose} />
-
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
+      <div className="fixed inset-0 bg-[#080e17a6] backdrop-blur-sm" aria-hidden="true" />
       <dialog
         open
-        className="ui-dialog z-50 my-auto flex max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3.5rem)] w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-2xl flex-col rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6 shadow-2xl text-app-foreground overflow-hidden"
+        className="ui-dialog z-50 my-auto flex max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] max-w-2xl flex-col overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 text-app-foreground shadow-2xl sm:max-h-[calc(100dvh-3.5rem)] sm:w-[calc(100%-2rem)] sm:p-6"
       >
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-0 pb-4">
+        <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="font-display text-xl font-bold">New Employee Onboarding</h2>
-            <p className="text-xs text-app-muted mt-0.5">Multi-stage employee creation & onboarding setup</p>
+            <h2 className="font-display text-lg font-bold">Add employee</h2>
+            <p className="mt-0.5 text-xs text-app-muted">
+              Enter what only HR knows. The employee sets a password and fills in the rest themselves.
+            </p>
           </div>
           <ConfirmCancelButton
             onDiscard={onClose}
@@ -1038,30 +427,22 @@ export function AddEmployeeWizardModal({
             description={discardDescription}
             discardText="Discard"
             continueText="Continue"
-            aria-label="Close modal"
-            className="grid size-8 place-items-center rounded-lg text-xl text-app-muted hover:bg-app-background transition-colors"
+            aria-label="Close"
+            className="grid size-8 place-items-center rounded-lg text-xl text-app-muted transition-colors hover:bg-app-background"
           >
             ×
           </ConfirmCancelButton>
         </div>
 
-        {/* Stepper Wizard Bar */}
-        <div className="shrink-0 my-4 flex items-center justify-between px-2 text-xs font-semibold">
+        <div className="my-4 flex shrink-0 items-center gap-4 px-1 text-xs font-semibold">
           {[
-            { id: 1, label: '1. Basic Info' },
-            { id: 2, label: '2. Personal' },
-            { id: 3, label: '3. Shift & Skills' },
-            { id: 4, label: '4. Qualification' },
-            { id: 5, label: '5. Email Setup' },
+            { id: 1 as const, label: 'Basic details' },
+            { id: 2 as const, label: 'Work setup' },
           ].map((item) => (
             <div
               key={item.id}
               className={`flex items-center gap-1.5 ${
-                step === item.id
-                  ? 'text-app-accent font-bold'
-                  : step > item.id
-                  ? 'text-emerald-500'
-                  : 'text-app-muted'
+                step === item.id ? 'font-bold text-app-accent' : step > item.id ? 'text-emerald-500' : 'text-app-muted'
               }`}
             >
               <span
@@ -1069,875 +450,321 @@ export function AddEmployeeWizardModal({
                   step === item.id
                     ? 'bg-app-accent text-app-on-accent'
                     : step > item.id
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-app-border text-app-muted'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-app-border text-app-muted'
                 }`}
               >
                 {step > item.id ? '✓' : item.id}
               </span>
-              <span className="hidden sm:inline">{item.label}</span>
+              {item.label}
             </div>
           ))}
         </div>
 
         {scheduleNotice && (
-          <div
-            className="shrink-0 mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200"
-            role="status"
-          >
+          <div className="mb-3 shrink-0 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200" role="status">
             {scheduleNotice}
           </div>
         )}
-
         {error && (
-          <div className="shrink-0 mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-500">
+          <div className="mb-3 shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-500" role="alert">
             {error}
           </div>
         )}
-
         {draftNotice && (
-          <div className="shrink-0 mb-3 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs text-emerald-800 dark:text-emerald-200">
-            <div className="flex items-center gap-1.5">
-              <span>💾</span>
-              <span>{draftNotice}</span>
-            </div>
-            {hasDraft && (
-              <button
-                type="button"
-                onClick={handleClearDraft}
-                className="font-semibold text-red-500 hover:underline"
-              >
-                Discard Draft
+          <div className="mb-3 flex shrink-0 items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs text-emerald-800 dark:text-emerald-200">
+            <span>{draftNotice}</span>
+            {savedSnapshot && (
+              <button type="button" onClick={discardDraft} className="font-semibold text-red-500 hover:underline">
+                Discard draft
               </button>
             )}
           </div>
         )}
 
-        {/* Modal Form Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-4 pr-1">
           {step === 1 && (
             <div className="grid gap-3.5 sm:grid-cols-2">
               <div>
-                <label htmlFor="wizard-fullName" className="mb-1 block text-xs font-semibold text-app-muted">Full Name *</label>
+                <Label htmlFor="wizard-fullName">Full name *</Label>
                 <input
                   id="wizard-fullName"
                   type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => {
-                    setFullName(sanitizeNameInput(e.target.value));
-                    clearFieldError('fullName');
-                  }}
-                  onBlur={() => setFullName((v) => v.trim())}
-                  placeholder="e.g. John Doe"
-                  className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                    fieldErrors.fullName ? 'border-red-500' : 'border-app-border'
-                  }`}
+                  value={form.fullName}
+                  onChange={(e) => set('fullName', e.target.value.replace(/[^\p{L}\s'.-]/gu, ''))}
+                  placeholder="e.g. Priya Sharma"
+                  className={inputClass(errors.fullName)}
                 />
-                {fieldErrors.fullName && <p className="mt-1 text-xs text-red-500">{fieldErrors.fullName}</p>}
+                <FieldError message={errors.fullName} />
               </div>
-
               <div>
-                <label htmlFor="wizard-email" className="mb-1 block text-xs font-semibold text-app-muted">Corporate Email *</label>
+                <Label htmlFor="wizard-email">Work email *</Label>
                 <input
                   id="wizard-email"
                   type="email"
                   autoComplete="off"
-                  required
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(stripEmojis(e.target.value.trim()));
-                    clearFieldError('email');
-                  }}
-                  onBlur={() => setEmail((v) => v.trim())}
-                  placeholder="john.doe@company.com"
-                  className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                    fieldErrors.email ? 'border-red-500' : 'border-app-border'
-                  }`}
+                  value={form.email}
+                  onChange={(e) => set('email', e.target.value.trim())}
+                  placeholder="priya@company.com"
+                  className={inputClass(errors.email)}
                 />
-                {fieldErrors.email && <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>}
+                <FieldError message={errors.email} />
+                <p className="mt-1 text-[11px] text-app-muted">The password setup link is sent here.</p>
               </div>
-
               <div>
+                <Label htmlFor="wizard-phone">Phone *</Label>
+                <div className="flex gap-2">
+                  <select
+                    aria-label="Country code"
+                    value={form.phoneCountryCode}
+                    onChange={(e) => set('phoneCountryCode', e.target.value)}
+                    className={`${inputClass()} w-28 shrink-0 px-2`}
+                  >
+                    {PHONE_COUNTRY_OPTIONS.map((option) => (
+                      <option key={`${option.country}-${option.code}`} value={option.code}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    id="wizard-phone"
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.startsWith('+')) {
+                        const parsed = splitPhoneAndCountryCode(value, form.phoneCountryCode);
+                        setForm((current) => ({
+                          ...current,
+                          phoneCountryCode: parsed.countryCode,
+                          phone: sanitizePhoneInput(parsed.nationalNumber),
+                        }));
+                        setErrors(({ phone: _phone, ...rest }) => rest);
+                      } else {
+                        set('phone', sanitizePhoneInput(value));
+                      }
+                    }}
+                    placeholder="98765 43210"
+                    className={`${inputClass(errors.phone)} min-w-0 flex-1`}
+                  />
+                </div>
+                <FieldError message={errors.phone} />
+              </div>
+              <div>
+                <Label htmlFor="wizard-joiningDate">Joining date *</Label>
+                <input
+                  id="wizard-joiningDate"
+                  type="date"
+                  value={form.joiningDate}
+                  onChange={(e) => set('joiningDate', e.target.value)}
+                  className={inputClass(errors.joiningDate)}
+                />
+                <FieldError message={errors.joiningDate} />
+              </div>
+              <div className="sm:col-span-2">
                 <div className="mb-1 flex items-center justify-between">
-                  <label htmlFor="wizard-employeeId" className="block text-xs font-semibold text-app-muted">Employee ID (Optional)</label>
+                  <Label htmlFor="wizard-employeeId">Employee ID</Label>
                   <button
                     type="button"
-                    onClick={() => void handleAutoGenerateEmployeeId()}
-                    disabled={loadingEmployeeId}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-app-accent hover:underline disabled:opacity-50"
+                    onClick={() => {
+                      set('employeeId', '');
+                      void suggestEmployeeId();
+                    }}
+                    disabled={loadingId}
+                    className="text-[11px] font-semibold text-app-accent hover:underline disabled:opacity-50"
                   >
-                    {loadingEmployeeId ? 'Fetching…' : '⚡ Auto-generate'}
+                    {loadingId ? 'Fetching…' : 'Use next number'}
                   </button>
                 </div>
-                <div className="relative">
-                  <input
-                    id="wizard-employeeId"
-                    type="text"
-                    value={employeeId}
-                    onChange={(e) => {
-                      setEmployeeId(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''));
-                      clearFieldError('employeeId');
-                    }}
-                    onBlur={() => setEmployeeId((v) => v.trim())}
-                    placeholder="e.g. EMP-00001 (or click Auto)"
-                    className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm uppercase outline-none focus:border-app-accent ${
-                      fieldErrors.employeeId ? 'border-red-500' : 'border-app-border'
-                    }`}
-                  />
-                  {employeeId && (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 rounded bg-app-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-app-accent">
-                      Assigned
-                    </span>
-                  )}
-                </div>
+                <input
+                  id="wizard-employeeId"
+                  type="text"
+                  value={form.employeeId}
+                  onChange={(e) => set('employeeId', e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
+                  placeholder="Leave empty to number automatically"
+                  className={`${inputClass(errors.employeeId)} uppercase`}
+                />
+                <FieldError message={errors.employeeId} />
                 <p className="mt-1 text-[11px] text-app-muted">
-                  Auto-generates sequence based on DB records, or enter custom.
+                  {suggestedId && form.employeeId === suggestedId
+                    ? 'Next free number. It is confirmed when you create the employee.'
+                    : 'Type your own ID (e.g. when moving from another HR system), or leave empty.'}
                 </p>
-                {fieldErrors.employeeId && <p className="mt-1 text-xs text-red-500">{fieldErrors.employeeId}</p>}
               </div>
+            </div>
+          )}
 
+          {step === 2 && (
+            <div className="grid gap-3.5 sm:grid-cols-2">
               <div>
-                <label htmlFor="wizard-departmentId" className="mb-1 block text-xs font-semibold text-app-muted">Department *</label>
+                <Label htmlFor="wizard-departmentId">Department *</Label>
                 <select
                   id="wizard-departmentId"
-                  required
-                  value={departmentId}
-                  onChange={(e) => {
-                    setDepartmentId(e.target.value);
-                    setPositionId('');
-                    setTeamId('');
-                    setReportsTo('');
-                    clearFieldError('departmentId');
-                  }}
-                  className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                    fieldErrors.departmentId ? 'border-red-500' : 'border-app-border'
-                  }`}
+                  value={form.departmentId}
+                  onChange={(e) =>
+                    setForm((current) => ({
+                      ...current,
+                      departmentId: e.target.value,
+                      positionId: '',
+                      teamId: '',
+                      reportsTo: '',
+                      designationId: '',
+                      specialization: '',
+                    }))
+                  }
+                  className={inputClass(errors.departmentId)}
                 >
                   <option value="">Select department</option>
                   {departments.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
                   ))}
                 </select>
-                {fieldErrors.departmentId && <p className="mt-1 text-xs text-red-500">{fieldErrors.departmentId}</p>}
+                <FieldError message={errors.departmentId} />
               </div>
-
               <div>
-                <label htmlFor="wizard-positionId" className="mb-1 block text-xs font-semibold text-app-muted">Position *</label>
+                <Label htmlFor="wizard-positionId">Position *</Label>
                 <select
                   id="wizard-positionId"
-                  required
-                  value={positionId}
-                  onChange={(e) => {
-                    setPositionId(e.target.value);
-                    clearFieldError('positionId');
-                  }}
-                  disabled={!departmentId}
-                  className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent disabled:opacity-50 ${
-                    fieldErrors.positionId ? 'border-red-500' : 'border-app-border'
-                  }`}
+                  value={form.positionId}
+                  disabled={!form.departmentId}
+                  onChange={(e) => set('positionId', e.target.value)}
+                  className={inputClass(errors.positionId)}
                 >
                   <option value="">Select position</option>
                   {positions.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
                   ))}
                 </select>
-                {fieldErrors.positionId && <p className="mt-1 text-xs text-red-500">{fieldErrors.positionId}</p>}
+                <FieldError message={errors.positionId} />
               </div>
-
               <div>
-                <label className="mb-1 block text-xs font-semibold text-app-muted">Team (Optional)</label>
+                <Label htmlFor="wizard-teamId">Team{departmentTeams.length > 0 ? ' *' : ''}</Label>
                 <select
-                  value={teamId}
-                  onChange={(e) => setTeamId(e.target.value)}
-                  disabled={!departmentId}
-                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent disabled:opacity-50"
+                  id="wizard-teamId"
+                  value={form.teamId}
+                  disabled={!form.departmentId || departmentTeams.length === 0}
+                  onChange={(e) => set('teamId', e.target.value)}
+                  className={inputClass(errors.teamId)}
                 >
-                  <option value="">No team</option>
+                  <option value="">
+                    {form.departmentId && departmentTeams.length === 0 ? 'This department has no teams' : 'Select team'}
+                  </option>
                   {departmentTeams.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
                   ))}
                 </select>
+                <FieldError message={errors.teamId} />
               </div>
-
               {isRootPosition ? (
                 <div className="rounded-xl border border-app-border bg-app-background p-3 text-xs text-app-muted">
                   This position reports directly to the Company Super Admin.
                 </div>
               ) : (
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-app-muted">Reporting Manager (Optional)</label>
+                  <Label htmlFor="wizard-reportsTo">Reporting manager</Label>
                   <select
-                    value={reportsTo}
-                    onChange={(e) => setReportsTo(e.target.value)}
-                    className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
+                    id="wizard-reportsTo"
+                    value={form.reportsTo}
+                    disabled={!form.positionId}
+                    onChange={(e) => set('reportsTo', e.target.value)}
+                    className={inputClass()}
                   >
-                    <option value="">None / Independent</option>
+                    <option value="">None for now</option>
                     {managers.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.accountType === 'super-admin'
-                          ? `${m.fullName} (Company Super Admin)`
-                          : m.fullName}
+                        {m.accountType === 'super-admin' ? `${m.fullName} (Company Super Admin)` : m.fullName}
                       </option>
                     ))}
                   </select>
                 </div>
               )}
-
               <div>
-                <label className="mb-1 block text-xs font-semibold text-app-muted">Designation (Optional)</label>
+                <Label htmlFor="wizard-designationId">Designation</Label>
                 <select
-                  value={designationId}
-                  onChange={(e) => setDesignationId(e.target.value)}
-                  className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
+                  id="wizard-designationId"
+                  value={form.designationId}
+                  onChange={(e) => setForm((current) => ({ ...current, designationId: e.target.value, specialization: '' }))}
+                  className={inputClass()}
                 >
                   <option value="">None</option>
                   {designations.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
                   ))}
                 </select>
               </div>
-
               {designation && designation.specializations.length > 0 && (
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-app-muted">Specialization (Optional)</label>
+                  <Label htmlFor="wizard-specialization">Specialization</Label>
                   <select
-                    value={specialization}
-                    onChange={(e) => setSpecialization(e.target.value)}
-                    className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
+                    id="wizard-specialization"
+                    value={form.specialization}
+                    onChange={(e) => set('specialization', e.target.value)}
+                    className={inputClass()}
                   >
                     <option value="">Select specialization</option>
                     {designation.specializations.map((spec) => (
-                      <option key={spec} value={spec}>{spec}</option>
+                      <option key={spec} value={spec}>
+                        {spec}
+                      </option>
                     ))}
                   </select>
                 </div>
               )}
-
               <div>
-                <label htmlFor="wizard-joiningDate" className="mb-1 block text-xs font-semibold text-app-muted">Joining Date *</label>
-                <input
-                  id="wizard-joiningDate"
-                  type="date"
-                  required
-                  value={joiningDate}
-                  onChange={(e) => {
-                    setJoiningDate(e.target.value);
-                    clearFieldError('joiningDate');
-                  }}
-                  className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                    fieldErrors.joiningDate ? 'border-red-500' : 'border-app-border'
-                  }`}
-                />
-                {fieldErrors.joiningDate && <p className="mt-1 text-xs text-red-500">{fieldErrors.joiningDate}</p>}
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-4">
-              <div className="grid gap-3.5 sm:grid-cols-3">
-                <div>
-                  <label htmlFor="wizard-phone" className="mb-1 block text-xs font-semibold text-app-muted">Contact Phone *</label>
-                  <div
-                    className={`flex rounded-lg border bg-app-background transition-colors focus-within:border-app-accent focus-within:ring-1 focus-within:ring-app-accent/20 ${
-                      fieldErrors.phone ? 'border-red-500' : 'border-app-border'
-                    }`}
-                  >
-                    <select
-                      id="wizard-phoneCountryCode"
-                      value={phoneCountryCode}
-                      onChange={(e) => {
-                        setPhoneCountryCode(e.target.value);
-                        clearFieldError('phone');
-                      }}
-                      aria-label="Contact phone country code"
-                      className="w-[74px] sm:w-[78px] shrink-0 rounded-l-lg border-r border-app-border bg-app-surface-raised/60 px-1.5 py-2 text-xs font-semibold text-app-foreground outline-none cursor-pointer hover:bg-app-surface focus:bg-app-surface transition"
-                    >
-                      {PHONE_COUNTRY_OPTIONS.map((item) => (
-                        <option key={`phone-${item.country}-${item.code}`} value={item.code}>
-                          {item.country} {item.code}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      id="wizard-phone"
-                      type="tel"
-                      required
-                      value={phone}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val.startsWith('+')) {
-                          const parsed = splitPhoneAndCountryCode(val, phoneCountryCode);
-                          setPhoneCountryCode(parsed.countryCode);
-                          setPhone(sanitizePhoneInput(parsed.nationalNumber));
-                        } else {
-                          setPhone(sanitizePhoneInput(val));
-                        }
-                        clearFieldError('phone');
-                      }}
-                      onBlur={() => setPhone((v) => v.trim())}
-                      placeholder="8240998467"
-                      className="min-w-0 flex-1 rounded-r-lg bg-transparent px-3 py-2 text-sm outline-none placeholder:text-app-muted"
-                    />
-                  </div>
-                  {fieldErrors.phone && <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>}
-                </div>
-                <div>
-                  <label htmlFor="wizard-dateOfBirth" className="mb-1 block text-xs font-semibold text-app-muted">Date of Birth *</label>
-                  <input
-                    id="wizard-dateOfBirth"
-                    type="date"
-                    required
-                    value={dateOfBirth}
-                    onChange={(e) => {
-                      setDateOfBirth(e.target.value);
-                      clearFieldError('dateOfBirth');
-                    }}
-                    onBlur={() => setDateOfBirth((v) => v.trim())}
-                    className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                      fieldErrors.dateOfBirth ? 'border-red-500' : 'border-app-border'
-                    }`}
-                  />
-                  {fieldErrors.dateOfBirth && <p className="mt-1 text-xs text-red-500">{fieldErrors.dateOfBirth}</p>}
-                </div>
-                <div>
-                  <label htmlFor="wizard-gender" className="mb-1 block text-xs font-semibold text-app-muted">Gender *</label>
-                  <select
-                    id="wizard-gender"
-                    required
-                    value={gender}
-                    onChange={(e) => {
-                      setGender(e.target.value);
-                      clearFieldError('gender');
-                    }}
-                    className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                      fieldErrors.gender ? 'border-red-500' : 'border-app-border'
-                    }`}
-                  >
-                    <option value="">Select gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Non-Binary">Non-Binary</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                  {fieldErrors.gender && <p className="mt-1 text-xs text-red-500">{fieldErrors.gender}</p>}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-app-border bg-app-background/50 p-4">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-app-muted">Address Details</h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label htmlFor="wizard-addressLine1" className="mb-1 block text-xs font-semibold text-app-muted">Street Address Line 1 *</label>
-                    <input
-                      id="wizard-addressLine1"
-                      type="text"
-                      required
-                      value={addressLine1}
-                      onChange={(e) => {
-                        setAddressLine1(stripEmojis(e.target.value));
-                        clearFieldError('addressLine1');
-                      }}
-                      onBlur={() => setAddressLine1((v) => v.trim())}
-                      placeholder="Street Address Line 1"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                        fieldErrors.addressLine1 ? 'border-red-500' : 'border-app-border'
-                      }`}
-                    />
-                    {fieldErrors.addressLine1 && <p className="mt-1 text-xs text-red-500">{fieldErrors.addressLine1}</p>}
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label htmlFor="wizard-addressLine2" className="mb-1 block text-xs font-semibold text-app-muted">Line 2 (Apartment, suite, etc.) (Optional)</label>
-                    <input
-                      id="wizard-addressLine2"
-                      type="text"
-                      value={addressLine2}
-                      onChange={(e) => setAddressLine2(stripEmojis(e.target.value))}
-                      onBlur={() => setAddressLine2((v) => v.trim())}
-                      placeholder="Line 2 (Apartment, suite, etc.) (Optional)"
-                      className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="wizard-city" className="mb-1 block text-xs font-semibold text-app-muted">City *</label>
-                    <input
-                      id="wizard-city"
-                      type="text"
-                      required
-                      value={city}
-                      onChange={(e) => {
-                        setCity(sanitizeNameInput(e.target.value));
-                        clearFieldError('city');
-                      }}
-                      onBlur={() => setCity((v) => v.trim())}
-                      placeholder="City"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                        fieldErrors.city ? 'border-red-500' : 'border-app-border'
-                      }`}
-                    />
-                    {fieldErrors.city && <p className="mt-1 text-xs text-red-500">{fieldErrors.city}</p>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label htmlFor="wizard-state" className="mb-1 block text-xs font-semibold text-app-muted">State *</label>
-                      <input
-                        id="wizard-state"
-                        type="text"
-                        required
-                        value={state}
-                        onChange={(e) => {
-                          setState(sanitizeNameInput(e.target.value));
-                          clearFieldError('state');
-                        }}
-                        onBlur={() => setState((v) => v.trim())}
-                        placeholder="State"
-                        className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                          fieldErrors.state ? 'border-red-500' : 'border-app-border'
-                        }`}
-                      />
-                      {fieldErrors.state && <p className="mt-1 text-xs text-red-500">{fieldErrors.state}</p>}
-                    </div>
-                    <div>
-                      <label htmlFor="wizard-postalCode" className="mb-1 block text-xs font-semibold text-app-muted">Postal Code *</label>
-                      <input
-                        id="wizard-postalCode"
-                        type="text"
-                        required
-                        value={postalCode}
-                        onChange={(e) => {
-                          setPostalCode(sanitizeDigitsOnly(e.target.value, 10));
-                          clearFieldError('postalCode');
-                        }}
-                        onBlur={() => setPostalCode((v) => v.trim())}
-                        placeholder="Postal Code (e.g. 110001)"
-                        className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                          fieldErrors.postalCode ? 'border-red-500' : 'border-app-border'
-                        }`}
-                      />
-                      {fieldErrors.postalCode && <p className="mt-1 text-xs text-red-500">{fieldErrors.postalCode}</p>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-app-border bg-app-background/50 p-4">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-app-muted">Emergency Contact</h3>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <label htmlFor="wizard-emergencyContactName" className="mb-1 block text-xs font-semibold text-app-muted">Contact Name *</label>
-                    <input
-                      id="wizard-emergencyContactName"
-                      type="text"
-                      required
-                      value={emergencyContactName}
-                      onChange={(e) => {
-                        setEmergencyContactName(sanitizeNameInput(e.target.value));
-                        clearFieldError('emergencyContactName');
-                      }}
-                      onBlur={() => setEmergencyContactName((v) => v.trim())}
-                      placeholder="Contact Name"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                        fieldErrors.emergencyContactName ? 'border-red-500' : 'border-app-border'
-                      }`}
-                    />
-                    {fieldErrors.emergencyContactName && <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyContactName}</p>}
-                  </div>
-                  <div>
-                    <label htmlFor="wizard-emergencyContactPhone" className="mb-1 block text-xs font-semibold text-app-muted">Contact Phone *</label>
-                    <div
-                      className={`flex rounded-lg border bg-app-background transition-colors focus-within:border-app-accent focus-within:ring-1 focus-within:ring-app-accent/20 ${
-                        fieldErrors.emergencyContactPhone ? 'border-red-500' : 'border-app-border'
-                      }`}
-                    >
-                      <select
-                        id="wizard-emergencyContactCountryCode"
-                        value={emergencyContactCountryCode}
-                        onChange={(e) => {
-                          setEmergencyContactCountryCode(e.target.value);
-                          clearFieldError('emergencyContactPhone');
-                        }}
-                        aria-label="Emergency contact phone country code"
-                        className="w-24 shrink-0 rounded-l-lg border-r border-app-border bg-app-surface-raised/60 px-2 py-2 text-xs font-semibold text-app-foreground outline-none cursor-pointer hover:bg-app-surface focus:bg-app-surface transition"
-                      >
-                        {PHONE_COUNTRY_OPTIONS.map((item) => (
-                          <option key={`emg-${item.country}-${item.code}`} value={item.code}>
-                            {item.code} {item.country}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        id="wizard-emergencyContactPhone"
-                        type="tel"
-                        required
-                        value={emergencyContactPhone}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val.startsWith('+')) {
-                            const parsed = splitPhoneAndCountryCode(val, emergencyContactCountryCode);
-                            setEmergencyContactCountryCode(parsed.countryCode);
-                            setEmergencyContactPhone(sanitizePhoneInput(parsed.nationalNumber));
-                          } else {
-                            setEmergencyContactPhone(sanitizePhoneInput(val));
-                          }
-                          clearFieldError('emergencyContactPhone');
-                        }}
-                        onBlur={() => setEmergencyContactPhone((v) => v.trim())}
-                        placeholder="9876543210"
-                        className="min-w-0 flex-1 rounded-r-lg bg-transparent px-3 py-2 text-sm outline-none placeholder:text-app-muted"
-                      />
-                    </div>
-                    {fieldErrors.emergencyContactPhone && (
-                      <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyContactPhone}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label htmlFor="wizard-emergencyContactRelation" className="mb-1 block text-xs font-semibold text-app-muted">Relationship *</label>
-                    <input
-                      id="wizard-emergencyContactRelation"
-                      type="text"
-                      required
-                      value={emergencyContactRelation}
-                      onChange={(e) => {
-                        setEmergencyContactRelation(sanitizeNameInput(e.target.value));
-                        clearFieldError('emergencyContactRelation');
-                      }}
-                      onBlur={() => setEmergencyContactRelation((v) => v.trim())}
-                      placeholder="Relationship (e.g. Spouse)"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                        fieldErrors.emergencyContactRelation ? 'border-red-500' : 'border-app-border'
-                      }`}
-                    />
-                    {fieldErrors.emergencyContactRelation && <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyContactRelation}</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="wizard-shiftId" className="mb-1 block text-xs font-semibold text-app-muted">Assigned Shift Schedule *</label>
+                <Label htmlFor="wizard-shiftId">Shift *</Label>
                 <select
                   id="wizard-shiftId"
-                  value={shiftId}
-                  onChange={(e) => {
-                    setShiftId(e.target.value);
-                    clearFieldError('shiftId');
-                  }}
-                  className={`w-full rounded-lg border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent ${
-                    fieldErrors.shiftId ? 'border-red-500' : 'border-app-border'
-                  }`}
+                  value={form.shiftId}
+                  onChange={(e) => set('shiftId', e.target.value)}
+                  className={inputClass(errors.shiftId)}
                 >
-                  <option value="">Select shift schedule *</option>
+                  <option value="">Select shift</option>
                   {shifts.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.kind === 'fixed' ? `${s.startTime ?? ''} - ${s.endTime ?? ''}` : 'Flexible'})
                     </option>
                   ))}
                 </select>
-                {fieldErrors.shiftId && <p className="mt-1 text-xs text-red-500">{fieldErrors.shiftId}</p>}
-                <p className="mt-1 text-xs text-app-muted">
-                  The employee's work calendar & attendance calculation will be bound to this shift template.
-                </p>
+                <FieldError message={errors.shiftId} />
               </div>
-
               <div>
-                <label htmlFor="wizard-weekdayScheduleId" className="mb-1 block text-xs font-semibold text-app-muted">Weekday schedule *</label>
+                <Label htmlFor="wizard-weekdayScheduleId">Weekday schedule *</Label>
                 <select
                   id="wizard-weekdayScheduleId"
-                  value={weekdayScheduleId}
-                  onChange={(e) => {
-                    setWeekdayScheduleId(e.target.value);
-                    clearFieldError('weekdayScheduleId');
-                  }}
-                  className={`w-full rounded-lg border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent ${
-                    fieldErrors.weekdayScheduleId ? 'border-red-500' : 'border-app-border'
-                  }`}
+                  value={form.weekdayScheduleId}
+                  onChange={(e) => set('weekdayScheduleId', e.target.value)}
+                  className={inputClass(errors.weekdayScheduleId)}
                 >
-                  <option value="">Select weekday schedule *</option>
+                  <option value="">Select weekday schedule</option>
                   {weekdaySchedules.map((schedule) => (
-                    <option key={schedule.id} value={schedule.id}>{schedule.name}</option>
+                    <option key={schedule.id} value={schedule.id}>
+                      {schedule.name}
+                    </option>
                   ))}
                 </select>
-                {fieldErrors.weekdayScheduleId && <p className="mt-1 text-xs text-red-500">{fieldErrors.weekdayScheduleId}</p>}
-                <p className="mt-1 text-xs text-app-muted">
-                  This controls working weekdays only. Shift timings remain from the selected shift.
-                </p>
+                <FieldError message={errors.weekdayScheduleId} />
               </div>
-
-              <div id="wizard-skills" className="rounded-xl border border-app-border bg-app-background/50 p-4">
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-app-muted">Skills & Competencies *</h3>
-                <div className="flex gap-2">
-                  <input
-                    id="wizard-newSkillName"
-                    type="text"
-                    value={newSkillName}
-                    onChange={(e) => {
-                      setNewSkillName(stripEmojis(e.target.value));
-                      clearFieldError('newSkillName');
-                      clearFieldError('skills');
-                    }}
-                    onBlur={() => setNewSkillName((v) => v.trim())}
-                    placeholder="e.g. TypeScript, Customer Service"
-                    className={`flex-1 rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                      fieldErrors.newSkillName || (fieldErrors.skills && skillsList.length === 0) ? 'border-red-500' : 'border-app-border'
-                    }`}
-                  />
-                  <select
-                    value={newSkillProficiency}
-                    onChange={(e) => setNewSkillProficiency(e.target.value as 'beginner' | 'intermediate' | 'advanced' | 'expert')}
-                    className="w-32 rounded-lg border border-app-border bg-app-background px-2 py-2 text-xs outline-none focus:border-app-accent"
-                  >
-                    <option value="beginner">Beginner</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                    <option value="expert">Expert</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={addSkill}
-                    className="rounded-lg bg-app-accent px-4 py-2 text-xs font-bold text-app-on-accent"
-                  >
-                    Add
-                  </button>
-                </div>
-                {fieldErrors.newSkillName && <p className="mt-1 text-xs text-red-500">{fieldErrors.newSkillName}</p>}
-                {fieldErrors.skills && <p className="mt-1 text-xs text-red-500">{fieldErrors.skills}</p>}
-
-                {skillsList.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {skillsList.map((s, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-2.5 py-1 text-xs font-medium"
-                      >
-                        <span>{s.skillName}</span>
-                        <span className="text-[10px] text-app-muted uppercase">({s.proficiency})</span>
-                        <button
-                          type="button"
-                          onClick={() => removeSkill(index)}
-                          className="text-app-muted hover:text-red-500 font-bold"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-4">
-              <div id="wizard-qualifications" className="rounded-xl border border-app-border bg-app-background/50 p-4">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-app-muted">Add Qualification / Degree *</h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="wizard-institution" className="mb-1 block text-xs font-semibold text-app-muted">Institution / University *</label>
-                    <input
-                      id="wizard-institution"
-                      type="text"
-                      value={institution}
-                      onChange={(e) => {
-                        setInstitution(stripEmojis(e.target.value));
-                        clearFieldError('qualificationDraft');
-                        clearFieldError('qualifications');
-                      }}
-                      onBlur={() => setInstitution((v) => v.trim())}
-                      placeholder="Institution / University"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                        fieldErrors.qualificationDraft || (fieldErrors.qualifications && qualificationsList.length === 0)
-                          ? 'border-red-500'
-                          : 'border-app-border'
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="wizard-degree" className="mb-1 block text-xs font-semibold text-app-muted">Degree *</label>
-                    <input
-                      id="wizard-degree"
-                      type="text"
-                      value={degree}
-                      onChange={(e) => {
-                        setDegree(stripEmojis(e.target.value));
-                        clearFieldError('qualificationDraft');
-                        clearFieldError('qualifications');
-                      }}
-                      onBlur={() => setDegree((v) => v.trim())}
-                      placeholder="Degree (e.g. B.Tech, MBA)"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                        fieldErrors.qualificationDraft || (fieldErrors.qualifications && qualificationsList.length === 0)
-                          ? 'border-red-500'
-                          : 'border-app-border'
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="wizard-fieldOfStudy" className="mb-1 block text-xs font-semibold text-app-muted">Field of Study (Optional)</label>
-                    <input
-                      id="wizard-fieldOfStudy"
-                      type="text"
-                      value={fieldOfStudy}
-                      onChange={(e) => setFieldOfStudy(stripEmojis(e.target.value))}
-                      onBlur={() => setFieldOfStudy((v) => v.trim())}
-                      placeholder="Field of Study (e.g. Computer Science)"
-                      className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label htmlFor="wizard-passingYear" className="mb-1 block text-xs font-semibold text-app-muted">Passing Year (Optional)</label>
-                      <input
-                        id="wizard-passingYear"
-                        type="text"
-                        inputMode="numeric"
-                        value={passingYear}
-                        onChange={(e) => setPassingYear(sanitizeDigitsOnly(e.target.value, 4))}
-                        onBlur={() => setPassingYear((v) => v.trim())}
-                        placeholder="Passing Year (e.g. 2023)"
-                        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="wizard-grade" className="mb-1 block text-xs font-semibold text-app-muted">Grade / CGPA (Optional)</label>
-                      <input
-                        id="wizard-grade"
-                        type="text"
-                        value={grade}
-                        onChange={(e) => setGrade(stripEmojis(e.target.value))}
-                        onBlur={() => setGrade((v) => v.trim())}
-                        placeholder="Grade / CGPA"
-                        className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={addQualification}
-                  className="mt-3 rounded-lg bg-app-accent px-4 py-1.5 text-xs font-bold text-app-on-accent"
-                >
-                  Add to List
-                </button>
-                {fieldErrors.qualificationDraft && <p className="mt-2 text-xs text-red-500">{fieldErrors.qualificationDraft}</p>}
-                {fieldErrors.qualifications && <p className="mt-2 text-xs text-red-500">{fieldErrors.qualifications}</p>}
-              </div>
-
-              {qualificationsList.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-semibold text-app-muted">Added Qualifications ({qualificationsList.length})</h4>
-                  <div className="divide-y divide-app-border rounded-xl border border-app-border bg-app-surface">
-                    {qualificationsList.map((q, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 text-xs">
-                        <div>
-                          <p className="font-bold text-app-foreground">{q.degree} — {q.institution}</p>
-                          <p className="text-app-muted">{[q.fieldOfStudy, q.passingYear, q.grade].filter(Boolean).join(' · ')}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeQualification(idx)}
-                          className="rounded border border-app-border px-2 py-1 text-red-500 hover:border-red-500"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-app-border bg-app-background/50 p-4">
-                <h3 className="mb-1 text-sm font-bold text-app-foreground">Initial Security Credentials</h3>
-                <p className="mb-4 text-xs text-app-muted">
-                  These initial credentials will be securely dispatched to <span className="font-semibold text-app-foreground">{email}</span>. The employee will be prompted to reset their password upon initial login.
-                </p>
-
-                <div className="space-y-3">
-                  <div>
-                    <div className="mb-1 flex items-center justify-between">
-                      <label htmlFor="wizard-password" className="block text-xs font-semibold text-app-muted">
-                        Temporary Password (min 12 chars) *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleAutoGeneratePassword}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-app-accent hover:underline"
-                      >
-                        ⚡ Auto-generate
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <input
-                        id="wizard-password"
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete="new-password"
-                        required
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          clearFieldError('password');
-                        }}
-                        onBlur={() => setPassword((v) => v.trim())}
-                        placeholder="••••••••••••"
-                        className={`w-full rounded-lg border bg-app-background px-3 py-2 pr-10 text-sm font-mono outline-none focus:border-app-accent ${
-                          fieldErrors.password ? 'border-red-500' : 'border-app-border'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-app-muted"
-                      >
-                        {showPassword ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
-                    {fieldErrors.password && <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>}
-                  </div>
-
-                  <div>
-                    <label htmlFor="wizard-confirmPassword" className="mb-1 block text-xs font-semibold text-app-muted">Confirm Password *</label>
-                    <input
-                      id="wizard-confirmPassword"
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        clearFieldError('confirmPassword');
-                      }}
-                      onBlur={() => setConfirmPassword((v) => v.trim())}
-                      placeholder="••••••••••••"
-                      className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${
-                        fieldErrors.confirmPassword ? 'border-red-500' : 'border-app-border'
-                      }`}
-                    />
-                    {fieldErrors.confirmPassword && (
-                      <p className="mt-1 text-xs text-red-500">{fieldErrors.confirmPassword}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-xs text-emerald-800 dark:text-emerald-200">
-                <p className="font-bold">Lifecycle Milestone Preview</p>
+              <div className="rounded-xl border border-app-accent/20 bg-app-accent/5 p-3.5 text-xs text-app-muted sm:col-span-2">
+                <p className="font-bold text-app-foreground">What happens next</p>
                 <p className="mt-1">
-                  Upon submission, the employee identity is provisioned, shift schedule assigned, and the 9-step Onboarding Workflow is automatically initialized.
+                  {form.fullName.trim() || 'The employee'} gets an email to set their password. After signing in they are
+                  asked to complete their profile — personal details, education, experience and documents. You can follow
+                  their progress in the Employees list. The onboarding checklist starts automatically.
                 </p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Modal Footer Controls */}
-        <div className="shrink-0 mt-4 flex items-center justify-between pt-4">
+        <div className="mt-2 flex shrink-0 items-center justify-between gap-2 border-t border-app-border/70 pt-4">
           <div className="flex items-center gap-2">
             <ConfirmCancelButton
               onDiscard={onClose}
@@ -1946,65 +773,50 @@ export function AddEmployeeWizardModal({
               description={discardDescription}
               discardText="Discard"
               continueText="Continue"
-              className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent hover:text-red-500 transition-colors"
+              className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold transition-colors hover:border-app-accent hover:text-red-500"
             >
               Cancel
             </ConfirmCancelButton>
-            {step > 1 && (
+            {step === 2 && (
               <button
                 type="button"
-                onClick={handleBack}
+                onClick={() => setStep(1)}
                 className="rounded-lg border border-app-border px-4 py-2 text-sm font-semibold hover:border-app-accent"
               >
                 Back
               </button>
             )}
           </div>
-
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleSaveDraft}
-              className="rounded-lg border border-app-border bg-app-surface px-4 py-2 text-sm font-semibold hover:border-app-accent hover:bg-app-background/50 transition-colors"
+              onClick={saveDraft}
+              className="rounded-lg border border-app-border bg-app-surface px-4 py-2 text-sm font-semibold transition-colors hover:border-app-accent"
             >
-              Save as Draft
+              Save as draft
             </button>
-            {step < 5 ? (
+            {step === 1 ? (
               <button
                 type="button"
-                onClick={handleNext}
-                className="rounded-lg bg-app-accent px-5 py-2 text-sm font-bold text-app-on-accent hover:opacity-90 transition-opacity"
+                onClick={goNext}
+                className="rounded-lg bg-app-accent px-5 py-2 text-sm font-bold text-app-on-accent transition-opacity hover:opacity-90"
               >
-                Next Step →
+                Next →
               </button>
             ) : (
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void handleSubmit()}
+                onClick={() => void submit()}
                 className="rounded-lg bg-emerald-600 px-6 py-2 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
               >
-                {busy ? 'Provisioning...' : 'Complete & Onboard Employee'}
+                {busy ? 'Creating…' : 'Create & send invite'}
               </button>
             )}
           </div>
         </div>
       </dialog>
-
-      <ConfirmDiscardModal
-        isOpen={showDiscardConfirm}
-        onDiscard={() => {
-          setShowDiscardConfirm(false);
-          onClose();
-        }}
-        onContinue={() => setShowDiscardConfirm(false)}
-        title={discardTitle}
-        description={discardDescription}
-        discardText="Discard"
-        continueText="Continue"
-      />
-    </div>
-    ),
+    </div>,
     document.body,
   );
 }

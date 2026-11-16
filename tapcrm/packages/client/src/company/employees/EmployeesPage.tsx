@@ -9,6 +9,13 @@ import { EditEmployeeModal } from './EditEmployeeModal.js';
 import { AddEmployeeWizardModal } from './AddEmployeeWizardModal.js';
 import { OnboardingChecklistDrawer } from './OnboardingChecklistDrawer.js';
 import { EmployeeVerificationModal } from './EmployeeVerificationModal.js';
+import { EmployeeProfileStatusModal } from './EmployeeProfileStatusModal.js';
+import {
+  forgetProfileCompletion,
+  listProfileCompletion,
+  type ProfileCompletionSummary,
+} from '../api/myProfileApi.js';
+import { completionToneClass } from '../profile/ProfileCompletionRing.js';
 import {
   getCompanyDepartments,
   getCompanyDesignations,
@@ -72,6 +79,10 @@ export function EmployeesPage({
   const [showCreate, setShowCreate] = useState(false);
   const [onboardingEmployee, setOnboardingEmployee] = useState<{ id: string; name: string; setupUrl?: string | null | undefined } | null>(null);
   const [verifyingEmployee, setVerifyingEmployee] = useState<{ id: string; name: string } | null>(null);
+  // How far each employee has got with their own profile (they fill it in after HR creates the account).
+  const [completion, setCompletion] = useState<Map<string, ProfileCompletionSummary>>(() => new Map());
+  const [profileStatusFor, setProfileStatusFor] = useState<{ id: string; name: string } | null>(null);
+  const [onlyIncomplete, setOnlyIncomplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -82,7 +93,16 @@ export function EmployeesPage({
   const [resetError, setResetError] = useState('');
   const [resetDone, setResetDone] = useState(false);
 
+  function loadCompletion(): void {
+    forgetProfileCompletion();
+    // Optional extra: the list works without it, so a failure only hides the chips.
+    listProfileCompletion()
+      .then((list) => setCompletion(new Map(list.map((entry) => [entry.userId, entry]))))
+      .catch(() => setCompletion(new Map()));
+  }
+
   async function load(): Promise<void> {
+    loadCompletion();
     setLoading(true);
     try {
       const [nextEmployees, nextDepartments, nextTeams, nextDesignations, nextShifts, nextWeekdaySchedules] =
@@ -121,8 +141,14 @@ export function EmployeesPage({
       );
   }, [showInactive]);
 
-  const visible = employees.filter((employee) =>
-    employee.fullName.toLowerCase().includes(search.toLowerCase()),
+  const incompleteCount = employees.filter((employee) => {
+    const entry = completion.get(employee.id);
+    return entry !== undefined && entry.percent < 100;
+  }).length;
+  const visible = employees.filter(
+    (employee) =>
+      employee.fullName.toLowerCase().includes(search.toLowerCase()) &&
+      (!onlyIncomplete || (completion.get(employee.id)?.percent ?? 100) < 100),
   );
 
   return (
@@ -192,7 +218,9 @@ export function EmployeesPage({
             isOpen={showCreate}
             onClose={() => setShowCreate(false)}
             onSuccess={(name, employeeId, _workflowId, setupUrl) => {
-              setMessage(`Employee ${name} created and 9-step onboarding workflow initialized.`);
+              setMessage(
+                `${name} was added. They will get an email to set their password, then complete their own profile — you can follow their progress here.`,
+              );
               setShowCreate(false);
               void load();
               setOnboardingEmployee({ id: employeeId, name, setupUrl: setupUrl ?? null });
@@ -262,6 +290,21 @@ export function EmployeesPage({
                     </svg>
                   </button>
                 )}
+                {incompleteCount > 0 && (
+                  <button
+                    type="button"
+                    id="employee-incomplete-filter"
+                    aria-pressed={onlyIncomplete}
+                    onClick={() => setOnlyIncomplete((value) => !value)}
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
+                      onlyIncomplete
+                        ? 'border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                        : 'border-app-border text-app-muted hover:border-amber-500/40'
+                    }`}
+                  >
+                    Profile incomplete ({incompleteCount})
+                  </button>
+                )}
                 <span className="shrink-0 text-xs text-app-muted">
                   {visible.length}/{employees.length}
                 </span>
@@ -319,6 +362,31 @@ export function EmployeesPage({
                             <p className="break-all text-xs text-app-muted">
                               {employee.email ?? 'Employee account'}
                             </p>
+                            {completion.get(employee.id) && (
+                              <button
+                                type="button"
+                                id={`profile-status-btn-${employee.id}`}
+                                onClick={() => setProfileStatusFor({ id: employee.id, name: employee.fullName })}
+                                title={
+                                  (completion.get(employee.id)?.pending.length ?? 0) > 0
+                                    ? `Not submitted: ${completion
+                                        .get(employee.id)!
+                                        .pending.map((item) => item.label)
+                                        .join(', ')}`
+                                    : 'Profile complete'
+                                }
+                                className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-bold transition hover:opacity-80 ${completionToneClass(
+                                  completion.get(employee.id)!.percent,
+                                )}`}
+                              >
+                                Profile {completion.get(employee.id)!.percent}%
+                                {completion.get(employee.id)!.percent < 100 && (
+                                  <span className="font-semibold opacity-80">
+                                    · {completion.get(employee.id)!.pending.length} pending
+                                  </span>
+                                )}
+                              </button>
+                            )}
                             {metaParts.length > 0 && (
                               <p className="mt-0.5 break-words text-[11.5px] text-app-muted">
                                 {metaParts.join(' · ')}
@@ -570,7 +638,25 @@ export function EmployeesPage({
           employeeId={verifyingEmployee.id}
           employeeName={verifyingEmployee.name}
           canManage={canManage}
-          onClose={() => setVerifyingEmployee(null)}
+          onClose={() => {
+            setVerifyingEmployee(null);
+            // A rejected document counts as missing again in the profile figure.
+            loadCompletion();
+          }}
+        />
+      )}
+
+      {profileStatusFor && (
+        <EmployeeProfileStatusModal
+          employeeId={profileStatusFor.id}
+          employeeName={profileStatusFor.name}
+          summary={completion.get(profileStatusFor.id)}
+          canManage={canManage}
+          onClose={() => setProfileStatusFor(null)}
+          onOpenVerification={() => {
+            setVerifyingEmployee(profileStatusFor);
+            setProfileStatusFor(null);
+          }}
         />
       )}
     </WorkspacePageContainer>

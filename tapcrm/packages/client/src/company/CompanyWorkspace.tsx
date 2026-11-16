@@ -90,6 +90,8 @@ import { companySearchDestinations } from './layout/navigation.js';
 import { CompanyModuleTabStrip } from './layout/CompanyModuleTabStrip.js';
 import type { LiquidGlassTabItem } from './recruitment/components/RecruitmentTabs.js';
 import { MeetingsPage } from '../meetings/MeetingsPage.js';
+import { MyProfilePage } from './profile/MyProfilePage.js';
+import { CompleteProfilePrompt } from './profile/CompleteProfilePrompt.js';
 
 export function CompanyWorkspace({
   pathname: rawPathname,
@@ -422,6 +424,7 @@ export function CompanyWorkspace({
     '/company/projects': 'Projects',
     '/company/my-notepad': 'My Notepad',
     '/company/notepad': 'My Notepad',
+    '/company/my-profile': 'My Profile',
     '/company/employee-notes': 'Employee Notes',
     '/company/sales/territories': 'Territories',
     '/company/sales': 'Sales Overview',
@@ -531,6 +534,7 @@ export function CompanyWorkspace({
       return <ExpenseApprovalsPage />;
     if (pathname === '/company/todo' || pathname === '/company/my-todo')
       return <MyTodoPage />;
+    if (pathname === '/company/my-profile') return <MyProfilePage onNavigate={onNavigate} />;
     if (pathname === '/company/my-notepad' || pathname === '/company/notepad')
       return <MyNotepadPage />;
     if (pathname === '/company/employee-notes')
@@ -1112,6 +1116,11 @@ export function CompanyWorkspace({
       searchDestinations={searchDestinations}
     >
       {renderContent()}
+      <CompleteProfilePrompt
+        accountType={identity.user.accountType}
+        pathname={pathname}
+        onNavigate={onNavigate}
+      />
     </CompanyLayout>
   );
   // The sales guide follows people across Sales pages; others never see it.

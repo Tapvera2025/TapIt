@@ -26,6 +26,27 @@ export const REQUIRED_VERIFICATION_DOCUMENTS: readonly VerificationDocumentType[
   'PASSPORT_PHOTO',
 ];
 
+/**
+ * Proof of a previous job. Someone who said this is their first job (no prior
+ * experience) has no previous employer to get these from, so they are not
+ * asked for them; everyone else is, exactly as before.
+ */
+export const PREVIOUS_EMPLOYMENT_DOCUMENTS: readonly VerificationDocumentType[] = [
+  'PAYSLIP_1',
+  'PAYSLIP_2',
+  'PAYSLIP_3',
+  'EXPERIENCE_LETTER',
+];
+
+/** The documents one employee must have approved before HR can mark them verified. */
+export function requiredVerificationDocuments(
+  noPriorExperience: boolean,
+): readonly VerificationDocumentType[] {
+  return noPriorExperience
+    ? REQUIRED_VERIFICATION_DOCUMENTS.filter((type) => !PREVIOUS_EMPLOYMENT_DOCUMENTS.includes(type))
+    : REQUIRED_VERIFICATION_DOCUMENTS;
+}
+
 export const VERIFICATION_STATUSES = [
   'PENDING',
   'PARTIALLY_VERIFIED',
@@ -90,6 +111,8 @@ export interface VerificationDocumentSummary {
 }
 
 export interface VerificationDetailsResponse {
+  /** The documents this employee needs; fewer for someone with no prior experience. */
+  requiredDocumentTypes?: VerificationDocumentType[];
   verification: {
     id: string;
     employeeId: string;

@@ -8,6 +8,8 @@ import type { CompanySearchDestination } from './navigation.js';
 import { createPortal } from 'react-dom';
 import { useCompanyHeroUtility } from './CompanyNavbarContext.js';
 import { ThemeToggle } from '../../theme/ThemeToggle.js';
+import { ProfileCompletionRing } from '../profile/ProfileCompletionRing.js';
+import { completionPercent, useMyProfile } from '../profile/myProfileStore.js';
 
 function initials(fullName: string): string {
   const value = fullName
@@ -61,6 +63,12 @@ export function Navbar({
     ? 'Super Admin'
     : identity.positionName || identity.positionCode || 'Employee';
   const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
+  // Employees complete their own profile after HR creates the account; the
+  // avatar shows how far along they are until it is done.
+  const isEmployee = identity.accountType === 'employee';
+  const { profile } = useMyProfile(isEmployee);
+  const profilePercent = completionPercent(profile);
+  const profileIncomplete = profilePercent !== null && profilePercent < 100;
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1280px)');
@@ -100,9 +108,17 @@ export function Navbar({
           {extraActions}
           <NotificationBell onNavigate={onNavigate} />
           <div ref={accountRef} className="relative">
-            <button type="button" onClick={() => setAccountOpen((open) => !open)} className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={accountOpen}>
-              <span className="text-xs font-bold text-app-accent">{initials(identity.fullName)}</span>
-            </button>
+            {profileIncomplete ? (
+              <button type="button" onClick={() => setAccountOpen((open) => !open)} className="grid size-10 place-items-center rounded-full p-0 transition focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2" aria-label={`Open account menu. Profile ${profilePercent}% complete`} title={`Profile ${profilePercent}% complete`} aria-haspopup="menu" aria-expanded={accountOpen}>
+                <ProfileCompletionRing percent={profilePercent}>
+                  <span className="grid size-[32px] place-items-center rounded-full bg-app-surface-raised text-xs font-bold text-app-accent">{initials(identity.fullName)}</span>
+                </ProfileCompletionRing>
+              </button>
+            ) : (
+              <button type="button" onClick={() => setAccountOpen((open) => !open)} className="flex size-10 items-center justify-center rounded-full border border-app-border bg-app-surface-raised p-0 text-left transition hover:border-app-accent/50 hover:bg-app-accent/10 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={accountOpen}>
+                <span className="text-xs font-bold text-app-accent">{initials(identity.fullName)}</span>
+              </button>
+            )}
             {accountOpen && (
               <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-app-border bg-app-surface p-1.5 shadow-lg" role="menu">
                 <div className="border-b border-app-border px-3 py-2.5">
@@ -116,6 +132,17 @@ export function Navbar({
                   <span className="text-xs font-semibold text-app-muted">AI companion</span>
                   <AiPetButton wrapperClassName="navbar-account-pet" className="size-8 !p-0" />
                 </div>
+                {profilePercent !== null && (
+                  <button type="button" role="menuitem" onClick={() => navigateFromMenu('/company/my-profile')} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground">
+                    <Icon name="clipboard" className="size-4" />
+                    <span className="flex-1">My profile</span>
+                    {profileIncomplete ? (
+                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">{profilePercent}% complete</span>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Complete</span>
+                    )}
+                  </button>
+                )}
                 <button type="button" role="menuitem" onClick={() => navigateFromMenu(settingsPath)} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"><Icon name="settings" className="size-4" /> Settings</button>
                 <button type="button" role="menuitem" onClick={onLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-app-danger hover:bg-app-danger/10"><Icon name="logout" className="size-4" /> Log out</button>
               </div>
