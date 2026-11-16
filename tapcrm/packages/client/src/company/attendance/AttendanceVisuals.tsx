@@ -24,7 +24,8 @@ export function AttendanceLegend(): React.JSX.Element {
 
 export function AttendanceKpis({ items, className = '', columns = 5 }: { items: Array<{ label: string; value: string | number; tone?: string }>; className?: string; columns?: 4 | 5 }): React.JSX.Element {
   const largeColumns = columns === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-5';
-  return <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${largeColumns} ${className}`}>{items.map((item) => <div key={item.label} className={`flex min-h-[112px] h-full flex-col rounded-2xl border border-app-border bg-app-surface p-4 shadow-sm ${item.tone ?? ''}`}><p className="min-h-10 text-[10px] font-bold uppercase leading-5 tracking-[0.12em] text-app-muted">{item.label}</p><p className="mt-auto text-xl font-bold tabular-nums">{item.value}</p></div>)}</div>;
+  const mediumColumns = columns === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3';
+  return <div className={`grid grid-cols-2 gap-3 ${mediumColumns} ${largeColumns} ${className}`}>{items.map((item) => <div key={item.label} className={`flex min-h-[112px] h-full flex-col rounded-2xl border border-app-border bg-app-surface p-4 shadow-sm ${item.tone ?? ''}`}><p className="min-h-10 text-[10px] font-bold uppercase leading-5 tracking-[0.12em] text-app-muted">{item.label}</p><p className="mt-auto text-xl font-bold tabular-nums">{item.value}</p></div>)}</div>;
 }
 
 export function MonthlyAttendanceKpis({
