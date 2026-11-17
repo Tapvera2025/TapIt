@@ -272,7 +272,7 @@ export function GlobalFeatureSearch({
               aria-label="Search features, pages and settings"
               aria-expanded={open}
               aria-controls="global-feature-search-results"
-              className="h-9 w-full rounded-xl border border-app-border bg-app-surface-raised/80 py-2 pl-9 pr-16 text-xs text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent sm:text-sm"
+              className="h-9 w-full rounded-xl border border-app-border bg-app-surface-raised/80 py-2 pl-9 pr-10 text-xs text-app-foreground outline-none placeholder:text-app-muted focus:border-app-accent sm:text-sm"
             />
             <button
               type="button"
@@ -285,9 +285,6 @@ export function GlobalFeatureSearch({
             >
               <Icon name="close" className="size-3.5" />
             </button>
-            <kbd className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 rounded-md border border-app-border px-1.5 py-0.5 text-[10px] font-semibold text-app-muted">
-              ⌘K
-            </kbd>
           </div>
         ) : (
           <button

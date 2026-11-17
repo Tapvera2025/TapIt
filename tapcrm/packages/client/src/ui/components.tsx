@@ -161,6 +161,7 @@ export function Page({
   title,
   description,
   action,
+  hideMobileAction = false,
   variant = 'default',
   children,
 }: {
@@ -168,6 +169,7 @@ export function Page({
   title: string;
   description?: string;
   action?: ReactNode;
+  hideMobileAction?: boolean;
   variant?: 'default' | 'recruitment';
   children: ReactNode;
 }): React.JSX.Element {
@@ -179,7 +181,11 @@ export function Page({
   const usesCompanyHero = Boolean(companyHeroActionTarget);
   return (
     <WorkspacePageContainer>
-        {usesCompanyHero && action && <CompanyPageActionPortal>{action}</CompanyPageActionPortal>}
+        {usesCompanyHero && action && (
+          <CompanyPageActionPortal mobileClassName={hideMobileAction ? 'hidden' : undefined}>
+            {action}
+          </CompanyPageActionPortal>
+        )}
         <header className={`${recruitmentHeader ? 'recruitment-page-header' : 'ui-page-header'}${usesCompanyHero ? ' xl:hidden' : ''}`}>
           <div className={recruitmentHeader ? 'flex min-w-0 items-start gap-3' : 'ui-page-header-copy min-w-0'}>
             {recruitmentHeader && <span className="recruitment-page-header-icon"><Icon name="briefcase" className="size-5" /></span>}
@@ -848,6 +854,7 @@ export function Modal({
   footer,
   size = 'md',
   dirty,
+  closeButtonClassName = '',
 }: {
   title: string;
   /**
@@ -859,6 +866,8 @@ export function Modal({
   /** Stays in view under the scrolling content: put the main actions here. */
   footer?: ReactNode;
   size?: 'md' | 'lg';
+  /** Optional responsive classes for the header close control. */
+  closeButtonClassName?: string | undefined;
   /**
    * Whether closing now would lose edits. Left out, the window notices typing
    * in its own fields; pass it when the edits are not plain form fields.
@@ -949,7 +958,7 @@ export function Modal({
         <button
           type="button"
           onClick={requestClose}
-          className="grid size-9 place-items-center rounded-lg text-2xl text-app-muted hover:bg-app-background"
+          className={`grid size-9 place-items-center rounded-lg text-2xl text-app-muted hover:bg-app-background ${closeButtonClassName}`}
           aria-label="Close dialog"
         >
           ×

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, Field, Icon, Modal, Notice, Progress, Select, Skeleton, SkeletonDetail } from '../../../ui/index.js';
 import { LiquidGlassTabs } from '../../recruitment/components/RecruitmentTabs.js';
 import { getCall, getCallRecording, type CallDetail, type CallListItem, type CallOverview, type ConnectionSummary, type DailyCallPoint } from './api.js';
@@ -72,29 +72,149 @@ export function initialRange(timeZone: string, preset: Exclude<RangePreset, 'cus
   return { preset, ...presetRange(preset, timeZone) };
 }
 
-const PRESETS: ReadonlyArray<Exclude<RangePreset, 'custom'>> = ['today', '7d', '30d', 'month', '90d'];
+function dateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function parseDateKey(value: string): Date | null {
+  const [year, month, day] = value.split('-').map(Number);
+  return year && month && day ? new Date(year, month - 1, day) : null;
+}
+
+function shortDate(value: string): string {
+  const date = parseDateKey(value);
+  return date ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : value;
+}
 
 export function RangeFilter({ value, timeZone, onChange }: { value: RangeValue; timeZone: string; onChange: (next: RangeValue) => void }): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState(value.from);
+  const [draftTo, setDraftTo] = useState(value.to);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const date = parseDateKey(value.from) ?? new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  });
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+
+  function openPicker(): void {
+    setDraftFrom(value.preset === 'custom' ? value.from : '');
+    setDraftTo(value.preset === 'custom' ? value.to : '');
+    const date = parseDateKey(value.preset === 'custom' ? value.from : value.to) ?? new Date();
+    setCalendarMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+    setOpen(true);
+  }
+
+  function selectDate(date: Date): void {
+    const selected = dateKey(date);
+    if (!draftFrom || draftTo) {
+      setDraftFrom(selected);
+      setDraftTo('');
+    } else if (selected < draftFrom) {
+      setDraftFrom(selected);
+    } else {
+      setDraftTo(selected);
+    }
+  }
+
+  function applyCustomRange(): void {
+    if (!draftFrom || !draftTo) return;
+    onChange({ preset: 'custom', from: draftFrom, to: draftTo });
+    setOpen(false);
+  }
+
+  function choosePreset(preset: Exclude<RangePreset, 'custom'>): void {
+    const next = { preset, ...presetRange(preset, timeZone) };
+    onChange(next);
+    setDraftFrom(next.from);
+    setDraftTo(next.to);
+    const date = parseDateKey(next.from) ?? new Date();
+    setCalendarMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+  }
+
+  function chooseQuickRange(range: 'today' | 'week' | 'month'): void {
+    if (range === 'today' || range === 'month') {
+      choosePreset(range === 'today' ? 'today' : 'month');
+      return;
+    }
+    const end = new Date();
+    const start = new Date(end);
+    const daysSinceMonday = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - daysSinceMonday);
+    end.setDate(start.getDate() + 6);
+    const next = { preset: 'custom' as const, from: dateKey(start), to: dateKey(end) };
+    onChange(next);
+    setDraftFrom(next.from);
+    setDraftTo(next.to);
+    setCalendarMonth(new Date(start.getFullYear(), start.getMonth(), 1));
+  }
+
+  const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
+  const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+  const calendarDays = [
+    ...Array.from({ length: firstDay }, () => null as Date | null),
+    ...Array.from({ length: daysInMonth }, (_, index) => new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), index + 1)),
+  ];
+
   return (
     <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end">
-      <div role="group" aria-label="Date range" className="flex flex-wrap gap-1.5 rounded-xl border border-app-border bg-app-surface p-1">
-        {PRESETS.map((preset) => (
-          <button
-            key={preset}
-            type="button"
-            aria-pressed={value.preset === preset}
-            onClick={() => onChange({ preset, ...presetRange(preset, timeZone) })}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-              value.preset === preset ? 'ui-primary' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'
-            }`}
-          >
-            {RANGE_LABELS[preset]}
-          </button>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:w-80">
-        <Field label="From" type="date" value={value.from} onChange={(from) => from && onChange({ preset: 'custom', from, to: value.to < from ? from : value.to })} />
-        <Field label="To" type="date" value={value.to} min={value.from} onChange={(to) => to && onChange({ preset: 'custom', from: value.from > to ? to : value.from, to })} />
+      <div ref={pickerRef} className="relative min-w-0 lg:w-64">
+        <label className="block text-xs font-semibold text-app-muted">Date range</label>
+        <button
+          type="button"
+          onClick={openPicker}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          className="mt-1.5 inline-flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-app-border bg-app-surface px-3 text-left text-sm font-semibold text-app-foreground outline-none transition hover:border-app-accent/60 focus:border-app-accent"
+        >
+          <span className="truncate">{value.preset === 'custom' ? `${shortDate(value.from)} – ${shortDate(value.to)}` : RANGE_LABELS[value.preset]}</span>
+          <Icon name="calendar" className="size-4 shrink-0 text-app-muted" />
+        </button>
+        {open && (
+          <section role="dialog" aria-label="Select call date range" className="absolute left-0 top-full z-50 mt-2 max-h-[calc(100dvh-2rem)] w-[min(20rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-app-border bg-app-surface p-3 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">Select date range</h3>
+              <button type="button" onClick={() => { setDraftFrom(''); setDraftTo(''); }} className="text-xs font-medium text-app-accent hover:underline">Clear</button>
+            </div>
+            <div className="mt-2 border-t border-app-border pt-2">
+              <div className="flex items-center justify-between">
+                <button type="button" onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="grid size-7 place-items-center rounded-lg text-app-muted hover:bg-app-surface-raised" aria-label="Previous month"><Icon name="chevron-left" className="size-4" /></button>
+                <span className="text-sm font-semibold">{calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+                <button type="button" onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="grid size-7 place-items-center rounded-lg text-app-muted hover:bg-app-surface-raised" aria-label="Next month"><Icon name="chevron-right" className="size-4" /></button>
+              </div>
+              <div className="mt-1 grid grid-cols-7 text-center text-[9px] font-semibold uppercase text-app-muted">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-0.5">{day}</span>)}</div>
+              <div className="grid grid-cols-7 gap-y-0.5 text-center">
+                {calendarDays.map((date, index) => date ? (
+                  <button key={dateKey(date)} type="button" onClick={() => selectDate(date)} className={`mx-auto grid size-6 place-items-center rounded-full text-[11px] ${dateKey(date) === draftFrom || dateKey(date) === draftTo ? 'bg-app-accent text-app-on-accent' : draftFrom && draftTo && dateKey(date) > draftFrom && dateKey(date) < draftTo ? 'bg-app-accent/10 text-app-accent' : 'hover:bg-app-surface-raised'}`}>{date.getDate()}</button>
+                ) : <span key={`blank-${index}`} />)}
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5 border-t border-app-border pt-2">
+              {([['today', 'Today'], ['week', 'This Week'], ['month', 'This Month']] as const).map(([range, label]) => (
+                <button key={range} type="button" onClick={() => chooseQuickRange(range)} className="min-h-8 rounded-lg bg-app-surface-raised px-1.5 text-[10px] font-medium text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent sm:text-xs">{label}</button>
+              ))}
+            </div>
+            <div className="mt-2 flex items-center justify-end gap-2 border-t border-app-border pt-2">
+              <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-3 py-2 text-xs font-semibold text-app-muted hover:bg-app-surface-raised">Cancel</button>
+              <button type="button" onClick={applyCustomRange} disabled={!draftFrom || !draftTo} className="ui-primary rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50">Apply</button>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

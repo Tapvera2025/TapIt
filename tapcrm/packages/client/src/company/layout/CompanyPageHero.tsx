@@ -18,6 +18,21 @@ const DESCRIPTION_BY_TITLE: Readonly<Record<string, string>> = {
   'My Notepad': 'Keep personal notes and useful workspace information close by.',
   Recruitment: 'Manage recruitment, candidates and employee onboarding.',
   'Sales Overview': 'Monitor sales activity, pipeline progress and team performance.',
+  Overview: 'Monitor sales activity, pipeline progress and team performance.',
+  Setup: 'Configure Sales routing, lead sources and calling integrations.',
+  'All Leads': 'Work with leads across your company workspace.',
+  'Lead Pool': 'Review inbound leads waiting for a claim.',
+  'Inactive Leads': 'Review leads that need renewed attention.',
+  'Follow-up Required': 'Keep follow-ups moving across your lead pipeline.',
+  'Needs Review': 'Review leads waiting for your team\'s attention.',
+  'Imported Leads': 'Review imported leads and their source data.',
+  'Team overview': 'Review team sales activity and current workload.',
+  Pipeline: 'Manage your Sales pipeline and active deals.',
+  'My calls': 'Review your call activity across the company workspace.',
+  'Call log': 'Review calls across your company workspace.',
+  'Assigned lead calls': 'Review calls assigned to your lead portfolio.',
+  'Call integrations': 'Manage connected calling platforms and integrations.',
+  'Territories & routing': 'Configure territories and routing for incoming leads.',
 };
 
 function categoryForPath(pathname: string): string {
@@ -61,38 +76,69 @@ export function CompanyPageHero(): React.JSX.Element {
   const metadata = useCompanyPageMetadataValue();
   const wrapperRef = useRef<HTMLElement>(null);
   const capsuleRef = useRef<HTMLDivElement>(null);
+  const copyRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({
     width: 0,
     height: 0,
     capsuleLeft: 0,
+    capsuleRight: 0,
     capsuleBottom: 0,
+    copyLeft: 0,
+    copyRight: 0,
+    copyTop: 0,
   });
   const gradientId = useId().replace(/:/g, '');
   useLayoutEffect(() => {
     const wrapper = wrapperRef.current;
     const capsule = capsuleRef.current;
-    if (!wrapper || !capsule) return;
+    const copy = copyRef.current;
+    if (!wrapper || !capsule || !copy) return;
     const update = () => {
       const wrapperBounds = wrapper.getBoundingClientRect();
       const capsuleBounds = capsule.getBoundingClientRect();
+      const copyBounds = copy.getBoundingClientRect();
       const next = {
         width: wrapper.clientWidth,
         height: wrapper.clientHeight,
         capsuleLeft: capsuleBounds.left - wrapperBounds.left,
+        capsuleRight: capsuleBounds.right - wrapperBounds.left,
         capsuleBottom: capsuleBounds.bottom - wrapperBounds.top,
+        copyLeft: copyBounds.left - wrapperBounds.left,
+        copyRight: copyBounds.right - wrapperBounds.left,
+        // offsetTop is the copy's layout position before its optional
+        // collision transform, so the measurement cannot oscillate when the
+        // overlap state changes.
+        copyTop: copy.offsetTop,
       };
       setSize((prev) => Object.keys(next).every((key) => prev[key as keyof typeof prev] === next[key as keyof typeof next]) ? prev : next);
     };
     const observer = new ResizeObserver(update);
     observer.observe(wrapper);
     observer.observe(capsule);
+    observer.observe(copy);
     update();
     return () => observer.disconnect();
   }, []);
   if (!metadata) return <></>;
 
-  const { width: w, height: h, capsuleLeft, capsuleBottom } = size;
-  const utilityOverlapsCopy = w > 0 && capsuleLeft < w * 0.56;
+  const {
+    width: w,
+    height: h,
+    capsuleLeft,
+    capsuleRight,
+    capsuleBottom,
+    copyLeft,
+    copyRight,
+    copyTop,
+  } = size;
+  // Keep the copy anchored in its normal position. Only move it when the
+  // measured capsule actually enters its horizontal and vertical bounds.
+  // The clearance prevents a one-pixel contact from changing the layout.
+  const utilityOverlapsCopy =
+    w > 0 &&
+    capsuleLeft < copyRight &&
+    capsuleRight > copyLeft &&
+    capsuleBottom > copyTop + 8;
   const radius = 28;
   // The capsule anchors at the hero's right edge. Measure its actual left and
   // lower edge, then use those exact coordinates for a single continuous
@@ -120,7 +166,7 @@ export function CompanyPageHero(): React.JSX.Element {
             <defs><linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stopColor="var(--hero-start)" /><stop offset="65%" stopColor="var(--app-surface)" /><stop offset="100%" stopColor="var(--hero-end)" /></linearGradient></defs>
             <path d={path} fill={`url(#${gradientId})`} stroke="var(--hero-border)" strokeWidth="2" />
           </svg>}
-          <div className="company-page-hero-copy min-w-0">
+          <div ref={copyRef} className="company-page-hero-copy min-w-0">
             <p className="company-page-hero-eyebrow">{metadata.eyebrow}</p>
             <h1 id="company-page-hero-title">{metadata.title}</h1>
             <p className="company-page-hero-description">{metadata.description}</p>

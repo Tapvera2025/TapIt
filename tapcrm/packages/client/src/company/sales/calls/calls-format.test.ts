@@ -36,6 +36,7 @@ describe('call analytics formatting', () => {
     expect(presetRange('today', 'Asia/Kolkata', now)).toEqual({ from: '2026-11-01', to: '2026-11-01' });
     expect(presetRange('7d', 'Asia/Kolkata', now)).toEqual({ from: '2026-10-26', to: '2026-11-01' });
     expect(presetRange('month', 'UTC', now)).toEqual({ from: '2026-10-01', to: '2026-10-31' });
+    expect(presetRange('month', 'Asia/Kolkata', new Date('2026-11-16T10:00:00Z'))).toEqual({ from: '2026-11-01', to: '2026-11-30' });
     expect(presetRange('30d', 'UTC', now)).toEqual({ from: '2026-10-02', to: '2026-10-31' });
     expect(shiftDay('2026-03-01', -1)).toBe('2026-02-28');
   });

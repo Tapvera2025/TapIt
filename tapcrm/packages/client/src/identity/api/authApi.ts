@@ -175,7 +175,19 @@ export function clearIdentityTokens(reason: 'logout' | 'expired' = 'logout'): vo
 function redirectToIdentityLogin(): void {
   clearIdentityTokens('expired');
   window.dispatchEvent(new Event(IDENTITY_EXPIRED_EVENT));
-  if (window.location.pathname !== '/login') {
+  // Identity expiry must not hijack the independent Master Admin control
+  // panel route. A pending company request can finish after navigation to
+  // /platform/login; redirecting unconditionally would send the user back to
+  // the company login screen.
+  const path = window.location.pathname;
+  const isCompanyRoute =
+    path === '/login' ||
+    path === '/forgot-password' ||
+    path === '/reset-password' ||
+    path === '/organization' ||
+    path.startsWith('/organization/') ||
+    path.startsWith('/company/');
+  if (isCompanyRoute && path !== '/login') {
     window.history.replaceState({}, '', '/login');
     window.dispatchEvent(new PopStateEvent('popstate'));
   }
