@@ -1,8 +1,47 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { BrandLogo, Icon } from '../../ui/index.js';
+import { Icon } from '../../ui/index.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
 import { useChatUnread } from '../../chat/ChatUnreadContext.js';
+
+const SIDEBAR_SECTION_ROUTES: readonly [string, string][] = [
+  ['/company/organization', 'Organization'],
+  ['/company/employees', 'Organization'],
+  ['/company/recruitment', 'Recruitment'],
+  ['/company/employee-notes', 'Employee Activities'],
+  ['/company/clients', 'Delivery'],
+  ['/company/projects', 'Delivery'],
+  ['/company/meetings', 'Delivery'],
+  ['/company/social', 'Delivery'],
+  ['/company/seo-intelligence', 'SEO Intelligence'],
+  ['/company/sales', 'Sales'],
+  ['/company/attendance', 'Attendance'],
+  ['/company/breaks', 'Attendance'],
+  ['/company/biometric', 'Attendance'],
+  ['/company/leave', 'Shifts & Leave'],
+  ['/company/holidays', 'Shifts & Leave'],
+  ['/company/shifts', 'Shifts & Leave'],
+  ['/company/weekday-schedules', 'Shifts & Leave'],
+  ['/company/advance', 'Advances & Penalties'],
+  ['/company/penalties', 'Advances & Penalties'],
+  ['/company/expenses', 'Advances & Penalties'],
+  ['/company/ta', 'Advances & Penalties'],
+  ['/company/my-ta', 'Advances & Penalties'],
+  ['/company/payroll', 'Payroll'],
+  ['/company/finance', 'Finance'],
+  ['/company/access', 'Identity & Access'],
+  ['/company/audit', 'Identity & Access'],
+  ['/company/sessions', 'Identity & Access'],
+  ['/company/geofencing', 'Identity & Access'],
+  ['/company/role-change-request', 'Identity & Access'],
+  ['/company/settings', 'Preferences'],
+];
+
+function sectionForPath(pathname: string, variant: 'company' | 'client' | 'platform') {
+  if (variant === 'client') return pathname.startsWith('/client/profile') ? 'Account' : 'Overview';
+  if (variant === 'platform') return 'Platform';
+  return SIDEBAR_SECTION_ROUTES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? 'Overview';
+}
 
 const GROUP_ICONS: Record<string, string> = {
   Platform: 'grid',
@@ -25,8 +64,7 @@ const GROUP_ICONS: Record<string, string> = {
 export function CompanySidebar({
   variant = 'company',
   pathname,
-  identity: _identity,
-  organizationName: _organizationName,
+  organizationName,
   accountType,
   canRequestRoleChange = false,
   canViewAudit = false,
@@ -84,6 +122,10 @@ export function CompanySidebar({
   onClose,
   collapsed = false,
   onToggleCollapsed,
+  isPinned = false,
+  onSidebarPointerEnter,
+  onSidebarPointerLeave,
+  onSidebarInteraction,
   width = 256,
   onResize,
   showAiPet = true,
@@ -162,34 +204,21 @@ export function CompanySidebar({
   onClose: () => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  isPinned?: boolean;
+  onSidebarPointerEnter?: (event: React.PointerEvent<HTMLElement>) => void;
+  onSidebarPointerLeave?: (event: React.PointerEvent<HTMLElement>) => void;
+  onSidebarInteraction?: () => void;
   width?: number;
   onResize?: (width: number) => void;
   showAiPet?: boolean;
 }): React.JSX.Element {
-  const isEmployeePortal = variant === 'company' && accountType === 'employee';
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
-    ...(isEmployeePortal ? { Overview: true } : {}),
-    ...(!isEmployeePortal
-      ? {
-          Organization:
-            pathname.startsWith('/company/organization') ||
-            pathname === '/company/employees',
-          Recruitment: pathname.startsWith('/company/recruitment'),
-        }
-      : {}),
-  }));
+  const [openSection, setOpenSection] = useState<string | null>(() =>
+    collapsed ? null : sectionForPath(pathname, variant),
+  );
 
   const toggleSection = (label: string) => {
-    setOpenSections((prev) => {
-      const current =
-        prev[label] ??
-        (isEmployeePortal
-          ? label === 'Overview'
-          : label === 'Organization'
-            ? pathname.startsWith('/company/organization')
-            : true);
-      return { ...prev, [label]: !current };
-    });
+    if (collapsed) return;
+    setOpenSection((current) => (current === label ? null : label));
   };
 
   const toggleNavItem = (label: string) => {
@@ -203,6 +232,7 @@ export function CompanySidebar({
     Recruitment: pathname.startsWith('/company/recruitment'),
   }));
   const prevPathnameRef = useRef(pathname);
+
   const navigationRef = useRef<HTMLElement>(null);
   // The page deliberately returns to the top on navigation. The sidebar is a
   // separate, independently scrollable control and must keep its place while
@@ -457,18 +487,17 @@ export function CompanySidebar({
   };
 
   useEffect(() => {
+    const previousPathname = prevPathnameRef.current;
     const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
     const isRecruitment = pathname.startsWith('/company/recruitment');
-    if (!wasRecruitment && isRecruitment) {
+    if (!collapsed && !wasRecruitment && isRecruitment) {
       setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
     }
-    if (pathname.startsWith('/company/organization')) {
-      setOpenSections((prev) =>
-        prev['Organization'] ? prev : { ...prev, Organization: true },
-      );
+    if (previousPathname !== pathname && !collapsed) {
+      setOpenSection(sectionForPath(pathname, variant));
     }
     prevPathnameRef.current = pathname;
-  }, [pathname]);
+  }, [pathname, variant, collapsed]);
 
   useLayoutEffect(() => {
     const navigation = navigationRef.current;
@@ -1170,20 +1199,18 @@ export function CompanySidebar({
           : []),
       ],
     },
-    ...(canViewAccounting
-      ? [
-          {
-            label: 'Finance',
-            items: [
-              {
-                label: 'Accounting',
-                path: '/company/finance/accounting',
-                icon: 'wallet',
-              },
-            ],
-          },
-        ]
-      : []),
+    {
+      label: 'Finance',
+      items: canViewAccounting
+        ? [
+            {
+              label: 'Accounting',
+              path: '/company/finance/accounting',
+              icon: 'wallet',
+            },
+          ]
+        : [],
+    },
     {
       label: 'Identity & Access',
       items: [
@@ -1248,25 +1275,15 @@ export function CompanySidebar({
           ]
         : navigation.filter(
             (group) =>
-              group.items.length > 0 &&
+              (group.items.length > 0 ||
+                group.label === 'Payroll' ||
+                group.label === 'Finance') &&
               group.label !== 'Recruitment' &&
               group.label !== 'Shifts & Leave' &&
               group.label !== 'Identity & Access',
           );
-  const sectionHasActiveRoute = (group: CompanyNavGroup): boolean =>
-    group.items.some(
-      (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
-    );
   const sectionIsOpen = (group: CompanyNavGroup): boolean =>
-    openSections[group.label] ??
-    (isEmployeePortal
-      ? group.label === 'Overview' || sectionHasActiveRoute(group)
-      : group.label === 'Organization'
-        ? pathname.startsWith('/company/organization') ||
-          pathname === '/company/employees'
-        : group.label === 'Recruitment'
-          ? pathname.startsWith('/company/recruitment')
-          : true);
+    openSection === group.label;
   // Preferences is hidden from the desktop rail and starts expanded for the
   // company admin fallback. It must not keep the visible module list in the
   // spacious/scrolling layout when every visible module is closed.
@@ -1274,15 +1291,22 @@ export function CompanySidebar({
     (group) =>
       group.label !== 'Preferences' ||
       pathname === '/company/settings' ||
-      openSections[group.label] !== undefined,
+      openSection === group.label,
   );
   const allSectionsCollapsed =
     compactNavigation.length > 0 &&
     compactNavigation.every((group) => !sectionIsOpen(group));
+  // The rail must stay compact even when an expanded module is remembered
+  // while the pointer leaves the sidebar. The remembered section is restored
+  // after expansion, but it must never force the collapsed layout to reserve
+  // space for submenu content.
+  const useCompactNavigation = collapsed || allSectionsCollapsed;
 
   return (
     <aside
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden xl:overflow-x-visible border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-4 xl:ml-5 xl:h-[calc(100%-2rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
+      onPointerEnter={onSidebarPointerEnter}
+      onPointerLeave={onSidebarPointerLeave}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden xl:overflow-x-visible border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-4 xl:ml-5 xl:h-[calc(100%-2rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${showAiPet && activePet ? 'sidebar-has-pet' : ''} ${isResizing ? 'select-none' : ''}`}
       style={
         collapsed
           ? undefined
@@ -1291,41 +1315,47 @@ export function CompanySidebar({
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
       data-sidebar-open={open ? 'true' : 'false'}
     >
-      <div className="relative hidden shrink-0 items-center justify-center border-b border-sidebar-border pb-4 xl:flex">
-        {collapsed ? (
-          <svg
-            className="sidebar-brand-monogram"
-            viewBox="30 155 530 500"
-            role="img"
-            aria-label="Tapvera CRM"
-          >
-            <image
-              href="/brand/tapvera-crm.png"
-              width="1981"
-              height="793"
-              style={{
-                clipPath: 'polygon(0 0, 29% 0, 29% 44%, 16.4% 44%, 16.4% 100%, 0 100%)',
-              }}
-            />
-          </svg>
-        ) : (
-          <BrandLogo className="sidebar-brand-expanded" />
-        )}
-        {onToggleCollapsed && (
-          <button
-            type="button"
-            onClick={onToggleCollapsed}
-            className={`sidebar-collapse-toggle absolute bottom-0 ${collapsed ? '-right-2' : '-right-4'} z-30 hidden size-6 cursor-pointer select-none p-0 translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border border-app-border bg-app-surface text-app-accent shadow-[0_2px_8px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent xl:flex`}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!collapsed}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <Icon
-              name={collapsed ? 'chevron-right' : 'chevron-left'}
-              className="pointer-events-none size-3.5"
-            />
-          </button>
-        )}
+      <div className="sidebar-workspace-header">
+        <div className="sidebar-workspace-card">
+          <span className="sidebar-workspace-copy">
+            <span className="sidebar-workspace-company">
+              {organizationName || 'Company'}
+            </span>
+            <span className="sidebar-workspace-name">Company Workspace</span>
+          </span>
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              className="sidebar-collapse-toggle hidden size-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-xl border border-app-border bg-app-surface text-app-accent shadow-[0_2px_8px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent xl:flex"
+              aria-label={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+              aria-pressed={isPinned}
+              aria-expanded={!collapsed}
+              title={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+            >
+              <Icon
+                name="chevron-right"
+                className="pointer-events-none size-4"
+              />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="sidebar-mobile-workspace-title">
+        <p>
+          {variant === 'client'
+            ? 'Client Workspace'
+            : variant === 'platform'
+              ? 'Platform'
+              : 'Company Workspace'}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close navigation"
+        >
+          ×
+        </button>
       </div>
       {!collapsed && (
         <button
@@ -1347,27 +1377,6 @@ export function CompanySidebar({
           <span aria-hidden="true" />
         </button>
       )}
-      <div
-        className={`relative flex shrink-0 items-center px-3 pt-2 pb-1 ${collapsed ? 'xl:justify-center' : 'justify-between'} ${variant === 'platform' ? 'xl:hidden' : ''}`}
-      >
-        <p
-          className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}
-        >
-          {variant === 'client'
-            ? 'Client Workspace'
-            : variant === 'platform'
-              ? 'Platform'
-              : 'Company Workspace'}
-        </p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg p-2 text-sidebar-muted xl:hidden"
-          aria-label="Close navigation"
-        >
-          ×
-        </button>
-      </div>
       <nav
         ref={navigationRef}
         onScroll={trackSidebarScroll}
@@ -1375,7 +1384,7 @@ export function CompanySidebar({
         onPointerUp={finishSidebarPillDrag}
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
-        className={`company-sidebar-nav relative min-h-0 flex-1 overflow-x-hidden overscroll-y-contain ${allSectionsCollapsed ? 'sidebar-sections-collapsed space-y-0' : 'overflow-y-auto space-y-7'} ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
+        className={`company-sidebar-nav relative min-h-0 flex-1 overflow-x-hidden overscroll-y-contain ${useCompactNavigation ? 'sidebar-sections-collapsed space-y-0' : 'overflow-y-auto space-y-7'} ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
         aria-label={
           variant === 'client'
             ? 'Client navigation'
@@ -1408,7 +1417,7 @@ export function CompanySidebar({
               pathname === item.path ||
               item.children?.some((sub) => pathname === sub.path),
           );
-          const isOpen = sectionIsOpen(group);
+          const isOpen = !collapsed && sectionIsOpen(group);
           return (
             <div
               key={group.label}
@@ -1416,17 +1425,20 @@ export function CompanySidebar({
             >
               <button
                 type="button"
-                onClick={() => toggleSection(group.label)}
+                onClick={() => {
+                  onSidebarInteraction?.();
+                  toggleSection(group.label);
+                }}
                 aria-expanded={isOpen}
-                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
+                className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
                 title={collapsed ? group.label : undefined}
               >
                 <Icon
                   name={GROUP_ICONS[group.label] ?? 'grid'}
-                  className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
+                  className="size-5 shrink-0"
                 />
                 <span
-                  className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}
+                  className={`min-w-0 flex-1 truncate whitespace-nowrap text-left ${collapsed ? 'xl:hidden' : ''}`}
                 >
                   {group.label}
                 </span>
@@ -1438,7 +1450,7 @@ export function CompanySidebar({
                 </span>
               </button>
               {isOpen && (
-                <div className="mt-2 space-y-1">
+                <div className="sidebar-module-items mt-2 space-y-1">
                   {group.items.map((item) => {
                     const isRootRoute =
                       variant === 'client'
@@ -1477,6 +1489,7 @@ export function CompanySidebar({
                               suppressSidebarClickRef.current = false;
                               return;
                             }
+                            onSidebarInteraction?.();
                             if (item.children) {
                               if (!pathname.startsWith(item.path)) {
                                 setExpandedItems((prev) => ({
@@ -1499,13 +1512,7 @@ export function CompanySidebar({
                           className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isTopLevelActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
                           title={collapsed ? item.label : undefined}
                         >
-                          <span className="flex items-center gap-3">
-                            <span
-                              data-sidebar-icon={item.icon}
-                              className="inline-flex shrink-0 items-center justify-center"
-                            >
-                              <Icon name={item.icon} />
-                            </span>
+                          <span className="flex items-center">
                             <span
                               className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}
                             >
@@ -1552,6 +1559,7 @@ export function CompanySidebar({
                                   type="button"
                                   aria-current={active ? 'page' : undefined}
                                   onClick={() => {
+                                    onSidebarInteraction?.();
                                     preserveSidebarScrollForNavigation(sub.path);
                                     onNavigate(sub.path);
                                     onClose();
