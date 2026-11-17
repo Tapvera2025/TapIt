@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -1316,7 +1317,7 @@ export function AddEmployeeWizardModal({
 
               <div>
                 <label htmlFor="wizard-joiningDate" className="mb-1 block text-xs font-semibold text-app-muted">Joining Date *</label>
-                <input
+                <CalendarPicker
                   id="wizard-joiningDate"
                   type="date"
                   required
@@ -1385,7 +1386,7 @@ export function AddEmployeeWizardModal({
                 </div>
                 <div>
                   <label htmlFor="wizard-dateOfBirth" className="mb-1 block text-xs font-semibold text-app-muted">Date of Birth *</label>
-                  <input
+                  <CalendarPicker
                     id="wizard-dateOfBirth"
                     type="date"
                     required

@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon } from '../../../ui/index.js';
+import { DateRangeCalendar, Icon } from '../../../ui/index.js';
 import type { TaskFiltersProps, TaskListQuery } from '../types/index.js';
-
-function toDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 function parseDateKey(value: string): Date | null {
   if (!value) return null;
@@ -32,13 +25,6 @@ export function TaskFilters({
   const [rangePickerOpen, setRangePickerOpen] = useState(false);
   const [draftStartDate, setDraftStartDate] = useState('');
   const [draftEndDate, setDraftEndDate] = useState('');
-  const [calendarMonth, setCalendarMonth] = useState(() => {
-    const existingStart = query.datePreset === 'custom' && query.startDate
-      ? parseDateKey(query.startDate.slice(0, 10))
-      : null;
-    const initialDate = existingStart ?? new Date();
-    return new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
-  });
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,42 +98,9 @@ export function TaskFilters({
     const end = query.datePreset === 'custom' ? query.endDate?.slice(0, 10) ?? '' : '';
     setDraftStartDate(start);
     setDraftEndDate(end);
-    const initialDate = parseDateKey(start) ?? new Date();
-    setCalendarMonth(new Date(initialDate.getFullYear(), initialDate.getMonth(), 1));
     setSortMenuOpen(false);
     setDateSubmenuOpen(false);
     setRangePickerOpen(true);
-  }
-
-  function selectCalendarDate(date: Date) {
-    const selectedDate = toDateKey(date);
-    if (!draftStartDate || draftEndDate) {
-      setDraftStartDate(selectedDate);
-      setDraftEndDate('');
-    } else if (selectedDate < draftStartDate) {
-      setDraftStartDate(selectedDate);
-      setDraftEndDate('');
-    } else {
-      setDraftEndDate(selectedDate);
-    }
-  }
-
-  function selectQuickRange(range: 'today' | 'week' | 'month') {
-    const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const end = new Date(start);
-    if (range === 'week') {
-      const daysSinceMonday = (start.getDay() + 6) % 7;
-      start.setDate(start.getDate() - daysSinceMonday);
-      end.setTime(start.getTime());
-      end.setDate(end.getDate() + 6);
-    } else if (range === 'month') {
-      start.setDate(1);
-      end.setMonth(end.getMonth() + 1, 0);
-    }
-    setDraftStartDate(toDateKey(start));
-    setDraftEndDate(toDateKey(end));
-    setCalendarMonth(new Date(start.getFullYear(), start.getMonth(), 1));
   }
 
   function applyCustomRange() {
@@ -186,16 +139,6 @@ export function TaskFilters({
       page: 1,
     });
   }
-
-  const calendarFirstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
-  const calendarDaysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
-  const calendarCells: (Date | null)[] = [
-    ...Array.from({ length: calendarFirstDay }, () => null),
-    ...Array.from(
-      { length: calendarDaysInMonth },
-      (_, index) => new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), index + 1),
-    ),
-  ];
 
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-app-border/80 bg-app-surface/70 p-2.5 sm:px-3.5 sm:py-2.5 text-app-foreground">
@@ -376,117 +319,16 @@ export function TaskFilters({
               </div>
             )}
 
-            {rangePickerOpen && (
-              <section
-                role="dialog"
-                aria-label="Select due date range"
-                className="fixed left-3 right-3 top-1/2 z-[60] mx-auto max-h-[calc(100dvh-1.5rem)] w-auto max-w-[21rem] -translate-y-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-app-border bg-app-surface p-4 shadow-2xl sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:mx-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(21rem,calc(100vw-2rem))] sm:translate-y-0"
-              >
-                <header className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-app-foreground">Select date range</h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraftStartDate('');
-                      setDraftEndDate('');
-                    }}
-                    className="text-xs font-medium text-app-accent hover:underline"
-                  >
-                    Clear
-                  </button>
-                </header>
-
-                <div className="mt-3 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-                    className="grid size-8 place-items-center rounded-lg text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
-                    aria-label="Previous month"
-                  >
-                    <Icon name="chevron-left" className="size-4" />
-                  </button>
-                  <p className="text-sm font-semibold text-app-foreground">
-                    {calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-                    className="grid size-8 place-items-center rounded-lg text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
-                    aria-label="Next month"
-                  >
-                    <Icon name="chevron-right" className="size-4" />
-                  </button>
-                </div>
-
-                <div className="mt-2 grid grid-cols-7 text-center text-[10px] font-semibold uppercase text-app-muted">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                    <span key={day} className="py-1">{day}</span>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-y-1 text-center">
-                  {calendarCells.map((date, index) => {
-                    if (!date) return <span key={`blank-${index}`} />;
-                    const dateKey = toDateKey(date);
-                    const isStart = dateKey === draftStartDate;
-                    const isEnd = dateKey === draftEndDate;
-                    const isInRange = Boolean(draftStartDate && draftEndDate && dateKey > draftStartDate && dateKey < draftEndDate);
-                    return (
-                      <button
-                        key={dateKey}
-                        type="button"
-                        onClick={() => selectCalendarDate(date)}
-                        aria-label={date.toLocaleDateString()}
-                        aria-pressed={isStart || isEnd}
-                        className={`mx-auto grid size-7 place-items-center rounded-full text-xs transition-colors sm:size-8 ${
-                          isStart || isEnd
-                            ? 'bg-app-accent text-white'
-                            : isInRange
-                              ? 'rounded-lg bg-app-accent/10 text-app-accent'
-                              : 'text-app-foreground hover:bg-app-surface-raised'
-                        }`}
-                      >
-                        {date.getDate()}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 grid grid-cols-3 gap-1.5 border-t border-app-border/70 pt-3">
-                  {([
-                    ['today', 'Today'],
-                    ['week', 'This Week'],
-                    ['month', 'This Month'],
-                  ] as const).map(([range, label]) => (
-                    <button
-                      key={range}
-                      type="button"
-                      onClick={() => selectQuickRange(range)}
-                      className="min-h-8 rounded-lg bg-app-surface-raised px-1.5 text-[10px] font-medium text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent sm:text-xs"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                <footer className="mt-3 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRangePickerOpen(false)}
-                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!draftStartDate || !draftEndDate}
-                    onClick={applyCustomRange}
-                    className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Apply
-                  </button>
-                </footer>
-              </section>
-            )}
+            <DateRangeCalendar
+              open={rangePickerOpen}
+              anchorRef={sortMenuRef}
+              startDate={draftStartDate}
+              endDate={draftEndDate}
+              onRangeChange={(start, end) => { setDraftStartDate(start); setDraftEndDate(end); }}
+              onApply={applyCustomRange}
+              onCancel={() => setRangePickerOpen(false)}
+              className="calendar-popover-scroll fixed z-[60] overflow-y-auto overscroll-contain rounded-2xl border border-app-border bg-app-surface p-4 shadow-2xl"
+            />
           </div>
         </div>
 

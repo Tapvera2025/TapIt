@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../ui/CalendarPicker.js';
 import { useEffect, useRef, useState } from 'react';
 import {
   EMPTY_CONTENT_SNAPSHOT,
@@ -856,7 +857,7 @@ function ContentEditor({
               ))}
               <label>
                 Due date
-                <input
+                <CalendarPicker
                   type="date"
                   value={draft.dueDate}
                   disabled={!editable}

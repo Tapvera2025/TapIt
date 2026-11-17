@@ -22,9 +22,28 @@ export function AttendanceLegend(): React.JSX.Element {
   return <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-app-muted">{['present', 'absent', 'wfh', 'half-day', 'leave', 'holiday'].map((key) => { const entry = key === 'wfh' ? { status: 'present', isWfh: true } : { status: key, isWfh: false }; const tone = attendanceStatus(entry); return <span key={key} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 ${tone.className}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{tone.label}</span>; })}</div>;
 }
 
-export function AttendanceKpis({ items, className = '', columns = 5 }: { items: Array<{ label: string; value: string | number; tone?: string }>; className?: string; columns?: 4 | 5 }): React.JSX.Element {
+export function AttendanceKpis({ items, className = '', columns = 5, variant = 'default' }: { items: Array<{ label: string; value: string | number; tone?: string }>; className?: string; columns?: 4 | 5; variant?: 'default' | 'report' }): React.JSX.Element {
   const largeColumns = columns === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-5';
   const mediumColumns = columns === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3';
+  if (variant === 'report') {
+    const colors: Record<string, { icon: string; card: string; iconTone: string }> = {
+      Present: { icon: 'users', card: 'border-emerald-200 bg-emerald-50/65 dark:border-emerald-900 dark:bg-emerald-950/20', iconTone: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-300' },
+      WFH: { icon: 'monitor', card: 'border-sky-200 bg-sky-50/65 dark:border-sky-900 dark:bg-sky-950/20', iconTone: 'bg-sky-100 text-sky-600 dark:bg-sky-900/60 dark:text-sky-300' },
+      Late: { icon: 'clock', card: 'border-amber-200 bg-amber-50/65 dark:border-amber-900 dark:bg-amber-950/20', iconTone: 'bg-amber-100 text-amber-600 dark:bg-amber-900/60 dark:text-amber-300' },
+      'No punch': { icon: 'circle-dot', card: 'border-violet-200 bg-violet-50/65 dark:border-violet-900 dark:bg-violet-950/20', iconTone: 'bg-violet-100 text-violet-600 dark:bg-violet-900/60 dark:text-violet-300' },
+      Employees: { icon: 'users', card: 'border-app-border bg-app-surface-raised/65', iconTone: 'bg-app-surface-raised text-app-muted' },
+      'Present units': { icon: 'check', card: 'border-emerald-200 bg-emerald-50/65 dark:border-emerald-900 dark:bg-emerald-950/20', iconTone: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-300' },
+      'Absent units': { icon: 'close', card: 'border-rose-200 bg-rose-50/65 dark:border-rose-900 dark:bg-rose-950/20', iconTone: 'bg-rose-100 text-rose-600 dark:bg-rose-900/60 dark:text-rose-300' },
+      'WFH days': { icon: 'monitor', card: 'border-sky-200 bg-sky-50/65 dark:border-sky-900 dark:bg-sky-950/20', iconTone: 'bg-sky-100 text-sky-600 dark:bg-sky-900/60 dark:text-sky-300' },
+    };
+    return <div className={`grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3 ${className}`}>{items.map((item) => {
+      const visual = colors[item.label] ?? colors['Present']!;
+      return <article key={item.label} className={`flex min-h-[72px] min-w-0 items-center gap-2.5 rounded-2xl border p-2.5 sm:min-h-[78px] sm:gap-3 sm:p-3 ${visual.card}`}>
+        <span className={`grid size-9 shrink-0 place-items-center rounded-full sm:size-10 ${visual.iconTone}`}><Icon name={visual.icon} className="size-4 sm:size-5" /></span>
+        <div className="min-w-0"><p className="truncate text-[9px] font-bold uppercase tracking-[0.09em] text-app-muted sm:text-[10px]">{item.label}</p><p className="mt-0.5 font-display text-xl font-bold leading-none tabular-nums text-app-foreground sm:text-2xl">{item.value}</p></div>
+      </article>;
+    })}</div>;
+  }
   return <div className={`grid grid-cols-2 gap-3 ${mediumColumns} ${largeColumns} ${className}`}>{items.map((item) => <div key={item.label} className={`flex min-h-[112px] h-full flex-col rounded-2xl border border-app-border bg-app-surface p-4 shadow-sm ${item.tone ?? ''}`}><p className="min-h-10 text-[10px] font-bold uppercase leading-5 tracking-[0.12em] text-app-muted">{item.label}</p><p className="mt-auto text-xl font-bold tabular-nums">{item.value}</p></div>)}</div>;
 }
 

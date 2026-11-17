@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
 import { Button, Modal, Notice } from '../../../ui/index.js';
 import {
@@ -184,7 +185,7 @@ export function ApplicationLinkModal({
 
             <label className="block text-xs font-semibold text-app-muted">
               Link Expiration Date (Optional)
-              <input
+              <CalendarPicker
                 type="date"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
