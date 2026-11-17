@@ -40,8 +40,6 @@ type WeeklyAttendanceSummary = WeeklyAttendanceRow & {
   dayRows: WeeklyAttendanceRow[];
   punchDays: number;
   daysInPeriod: number;
-  firstPunchInAt: string | null;
-  lastPunchOutAt: string | null;
   shiftSummary: string;
   statusSummary: string;
 };
@@ -58,8 +56,6 @@ function summarizeWeeklyRows(rows: WeeklyAttendanceRow[], weekStart: string): We
     const dayRows = [...employeeDays].sort((left, right) => left.reportDate.localeCompare(right.reportDate));
     const first = dayRows[0]!;
     const punchDays = dayRows.filter((day) => day.arrivalAt || day.departureAt).length;
-    const firstPunchInAt = dayRows.find((day) => day.arrivalAt)?.arrivalAt ?? null;
-    const lastPunchOutAt = [...dayRows].reverse().find((day) => day.departureAt)?.departureAt ?? null;
     const shiftNames = Array.from(new Set(dayRows.map((day) => day.shift?.kind).filter((kind): kind is string => Boolean(kind))));
     const selectedShift = dayRows.find((day) => day.shift)?.shift ?? first.shift;
     const statusCounts = new Map<string, number>();
@@ -71,8 +67,8 @@ function summarizeWeeklyRows(rows: WeeklyAttendanceRow[], weekStart: string): We
     return {
       ...first,
       reportDate: weekStart,
-      arrivalAt: firstPunchInAt,
-      departureAt: lastPunchOutAt,
+      arrivalAt: null,
+      departureAt: null,
       workedMinutes: dayRows.reduce((sum, day) => sum + day.workedMinutes, 0),
       breakMinutes: dayRows.reduce((sum, day) => sum + day.breakMinutes, 0),
       lateMinutes: dayRows.reduce((sum, day) => sum + day.lateMinutes, 0),
@@ -81,8 +77,6 @@ function summarizeWeeklyRows(rows: WeeklyAttendanceRow[], weekStart: string): We
       dayRows,
       punchDays,
       daysInPeriod: 7,
-      firstPunchInAt,
-      lastPunchOutAt,
       shiftSummary: shiftNames.length > 1 ? 'Multiple' : shiftNames[0] ?? '—',
       statusSummary: Array.from(statusCounts, ([status, count]) => `${status} × ${count}`).join(' · '),
     };
@@ -386,10 +380,10 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
     {!loading && !error && mode === 'weekly' && weeklyRows.length > 0 && (
       <Card className="overflow-hidden p-0">
         <HorizontalScrollArea ariaLabel="Weekly attendance summary table" showArrows={false}>
-          <table className="w-full min-w-[1360px] text-sm">
+          <table className="w-full min-w-[1180px] text-sm">
             <thead>
               <tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted">
-                {['Employee', 'Email/ID', 'Department', 'Team', 'Position', 'Punch days', 'First punch in', 'Last punch out', 'Worked', 'Break', 'Late', 'Overtime', 'Shift', 'Week status'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}
+                {['Employee', 'Email/ID', 'Department', 'Team', 'Position', 'Punch days', 'Worked', 'Break', 'Late', 'Overtime', 'Shift', 'Week status'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -401,8 +395,6 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
                   <td className="px-3 py-3">{row.teamName ?? '?'}</td>
                   <td className="px-3 py-3">{row.positionName ?? '?'}</td>
                   <td className="whitespace-nowrap px-3 py-3">{row.punchDays} / {row.daysInPeriod} days</td>
-                  <td className="whitespace-nowrap px-3 py-3">{time(row.firstPunchInAt)}</td>
-                  <td className="whitespace-nowrap px-3 py-3">{time(row.lastPunchOutAt)}</td>
                   <td className="whitespace-nowrap px-3 py-3 font-semibold">{duration(row.workedMinutes)}</td>
                   <td className="whitespace-nowrap px-3 py-3">{duration(row.breakMinutes)}</td>
                   <td className="whitespace-nowrap px-3 py-3">{row.lateMinutes}m</td>
