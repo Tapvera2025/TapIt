@@ -21,6 +21,7 @@ import { Planner } from './Planner.js';
 import { PostDetails } from './PostDetails.js';
 import { PlatformMark, SocialEmpty } from './presentation.js';
 import { SocialAnalyticsPanel } from './SocialAnalyticsPanel.js';
+import { LiquidGlassTabs, type LiquidGlassTabItem } from '../company/recruitment/components/RecruitmentTabs.js';
 import {
   ConnectedAccounts,
   SocialOverview,
@@ -310,10 +311,23 @@ export function SocialWorkspace({
     (candidate) => !candidate.assignedTo,
   );
   const title = sections.find((item) => item.id === section)?.label ?? 'Overview';
+  const visibleSections: readonly LiquidGlassTabItem[] = sections
+    .filter(
+      (item) =>
+        (item.id !== 'create' || canManage) &&
+        (item.id !== 'connections' || canManageIntegrations),
+    )
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      path: item.id,
+      iconName: item.icon,
+    }));
   return (
     <Page
       eyebrow="Manage Social Media"
       title={title}
+      hideMobileAction
       description={section === 'analytics'
         ? 'Native analytics for this client’s social channels.'
         : 'Plan, review and publish content for every client from one workspace.'}
@@ -338,29 +352,12 @@ export function SocialWorkspace({
           )}
         </div>
       )}
-      <nav
-        aria-label="Social media sections"
-        className="flex gap-1 overflow-x-auto border-b border-app-border pb-2"
-      >
-        {sections
-          .filter(
-            (item) =>
-              (item.id !== 'create' || canManage) &&
-              (item.id !== 'connections' || canManageIntegrations),
-          )
-          .map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => navigate(item.id)}
-              aria-current={section === item.id ? 'page' : undefined}
-              className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition ${section === item.id ? 'bg-app-accent/10 text-app-accent' : 'text-app-muted hover:bg-app-surface-raised hover:text-app-foreground'}`}
-            >
-              <Icon name={item.icon} className="size-4" />
-              {item.label}
-            </button>
-          ))}
-      </nav>
+      <LiquidGlassTabs
+        items={visibleSections}
+        activeId={section}
+        onNavigate={navigate}
+        ariaLabel="Social media sections"
+      />
       {error && (
         <Notice error>
           <div className="flex flex-wrap items-center justify-between gap-3">

@@ -108,7 +108,7 @@ export function ReportingPage(): React.JSX.Element {
       ) : (
         <div className="mt-5 space-y-5">
           <Card className="overflow-hidden p-0">
-            <div className="flex items-center gap-3 border-b border-b-[color:var(--app-border)] px-5 py-4 sm:px-6">
+            <div className="organization-local-header flex items-center gap-3 border-b border-b-[color:var(--app-border)] px-5 py-4 sm:px-6 xl:hidden">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-app-accent/10 text-app-accent"><Icon name="users" className="size-4" /></span>
               <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-muted">Organization</p><h1 className="mt-0.5 text-base font-bold">Reporting relationships</h1><p className="mt-0.5 text-xs text-app-muted">Preview a backend-validated individual or subtree reassignment before applying it.</p></div>
             </div>

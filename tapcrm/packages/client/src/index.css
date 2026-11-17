@@ -696,6 +696,49 @@
   }
 
   /* Keep the platform drawer in the same translucent workspace style. */
+  .platform-capsule-action,
+  .platform-capsule-icon {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--app-surface) 88%, transparent);
+    color: var(--app-foreground);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.45rem 0.75rem;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+  }
+  .platform-capsule-action:hover,
+  .platform-capsule-icon:hover {
+    border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-border));
+    background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+    color: var(--app-accent);
+    transform: translateY(-1px);
+  }
+  .platform-capsule-action-primary {
+    border-color: color-mix(in srgb, var(--app-accent) 60%, var(--app-border));
+    background: linear-gradient(110deg, var(--app-accent), color-mix(in srgb, var(--app-accent) 62%, #d98cff));
+    color: var(--app-on-accent);
+  }
+  .platform-capsule-icon { width: 2.25rem; padding: 0; }
+  .platform-kpi-grid article:last-child { border-bottom: 0; }
+  .platform-kpi-grid,
+  .platform-kpi-grid > div {
+    background-color: var(--app-surface) !important;
+    background-image: none !important;
+  }
+  .platform-kpi-grid { box-shadow: none !important; }
+  @media (min-width: 640px) {
+    .platform-kpi-grid article:nth-last-child(-n + 2) { border-bottom: 0; }
+  }
+  @media (min-width: 1280px) {
+    .platform-kpi-grid article:nth-last-child(-n + 4) { border-bottom: 0; }
+    .platform-kpi-grid article:nth-child(4n) { border-right: 0; }
+  }
   .platform-sidebar {
     isolation: isolate;
     background: color-mix(in srgb, var(--sidebar-background) 76%, transparent) !important;
@@ -1379,11 +1422,11 @@
     .workspace-sidebar {
       position: static !important;
       inset: auto !important;
-      /* Keep the floating rail visually centred in the desktop shell while
-         using the otherwise unused lower viewport space. */
+      /* Layered !important declarations take precedence over unlayered
+         overrides. Own desktop geometry here, using the hero's top inset. */
       align-self: flex-start;
-      height: calc(100dvh - 4.25rem) !important;
-      margin: 3rem 0 1.25rem 1.25rem !important;
+      height: calc(100dvh - var(--company-sidebar-top-gap, 1.5rem) - 1.25rem) !important;
+      margin: var(--company-sidebar-top-gap, 1.5rem) 0 1.25rem 1.25rem !important;
       border-radius: 1.25rem;
       transform: none !important;
     }
@@ -2856,20 +2899,16 @@ summary:active {
   }
 
   .company-layout-shell main[data-app-scroll-container] {
-    /* Match the floating rail's desktop top gutter so the first page surface
-       starts on the same visual baseline as the sidebar. */
-    padding: 3rem 0 1rem;
+    /* Keep the first page surface close to the navbar while preserving a
+       deliberate breathing room across every desktop layout. */
+    padding: var(--company-sidebar-top-gap) 0 1rem;
   }
 
   .company-page-hero-desktop {
-    margin-bottom: var(--workspace-space-md);
-  }
-
-  /* Keep the floating rail on the same top baseline as the desktop hero.
-     This more-specific rule intentionally owns its full desktop geometry. */
-  .company-layout-shell .workspace-sidebar {
-    height: calc(100dvh - 4.25rem) !important;
-    margin: 3rem 0 1.25rem 1.25rem !important;
+    position: relative;
+    z-index: 1000;
+    /* Keep the next page surface below the hero's curved lower edge. */
+    margin-bottom: 2rem;
   }
 
   .workspace-sidebar .sidebar-brand-expanded {
@@ -2909,7 +2948,7 @@ summary:active {
     min-height: 11rem;
     min-width: 0;
     align-items: flex-end;
-    padding: 4rem clamp(1.75rem, 2.25vw, 2.25rem) 1.5rem;
+    padding: 4rem clamp(1.75rem, 2.25vw, 2.25rem) 2.5rem;
   }
 
   .dark .company-page-hero {
@@ -2936,14 +2975,12 @@ summary:active {
     /* Optically centre the three-line copy block beneath the utility pocket. */
     transform: translateY(-0.875rem);
   }
-  .company-page-hero[data-utility-overlap='true'] {
-    /* Only wide action capsules that enter the copy region need extra room. */
-    padding-top: max(5.5rem, calc(var(--hero-utility-height, 0px) + 2rem));
-  }
   .company-page-hero[data-utility-overlap='true'] .company-page-hero-copy {
-    transform: none;
+    /* The normal copy position is stable. This is only a small nudge for a
+       genuinely overlapping, expanded capsule. */
+    transform: translateY(-0.5rem);
   }
-  .company-page-hero-utility { position: absolute; z-index: 70; right: 0; top: 0; }
+  .company-page-hero-utility { position: absolute; z-index: 1000; right: 0; top: 0; }
   .company-hero-capsule {
     display: flex;
     box-sizing: border-box;
@@ -3524,11 +3561,48 @@ summary:active {
     0 0 10px color-mix(in srgb, var(--theme-primary) 50%, transparent);
 }
 
+/* Mouse clicks retain focus after collapsing: only keyboard-visible focus
+   should reveal the toggle when the pointer is outside the rail. */
+.workspace-sidebar .sidebar-collapse-toggle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workspace-sidebar:hover .sidebar-collapse-toggle,
+.workspace-sidebar .sidebar-collapse-toggle:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar-collapse-toggle > * {
+  pointer-events: none;
+}
+
 /* Sidebar horizontal scrollbar prevention */
-.workspace-sidebar,
 .workspace-sidebar nav,
 .company-sidebar-nav {
   overflow-x: hidden !important;
+}
+
+/* The desktop collapse control intentionally sits outside the sidebar edge.
+   Keep the mobile drawer clipped while allowing that control to float on
+   desktop without affecting the navigation scroll region. */
+@media (max-width: 1279px) {
+  .workspace-sidebar {
+    overflow-x: hidden !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Let the desktop sidebar collapse control float beyond the shell edge. */
+  .company-layout-shell {
+    overflow: visible !important;
+  }
+
+  .workspace-sidebar {
+    overflow: visible !important;
+    clip-path: none !important;
+  }
 }
 
 /* This is an independent scrolling region. Route changes can add/remove
@@ -3546,6 +3620,28 @@ summary:active {
   height: 0 !important;
   width: 0 !important;
   background: transparent !important;
+}
+
+/* When every navigation group is closed, keep the compact section headers in
+   one viewport so the sidebar does not need an unnecessary vertical scroll. */
+.company-sidebar-nav.sidebar-sections-collapsed {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0 !important;
+  overflow-y: hidden;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div.relative {
+  margin-top: 0 !important;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div > button {
+  padding-block: 0.5rem !important;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div > div.mt-2 {
+  margin-top: 0.25rem;
 }
 
 /* Keep the desktop sidebar clean until it is actually being used. The nav
@@ -3666,3 +3762,26 @@ summary:active {
   background-color: var(--app-surface) !important;
   background-image: none !important;
 }
+
+/* Master Admin uses neutral graphite surfaces in dark mode. Keep the global
+   card-gradient fallback from reintroducing the accent tint on its KPI,
+   tenant, company, and access-lifecycle surfaces. */
+.dark .platform-shell #platform-overview .platform-kpi-grid,
+.dark .platform-shell #platform-overview .platform-kpi-grid > div,
+.dark .platform-shell #platform-companies,
+.dark .platform-shell #platform-companies article,
+.dark .platform-shell #platform-invitations,
+.dark .platform-shell #platform-invitations > div {
+  background-color: var(--app-surface) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* Platform portal spacing: keep the rail floating with a balanced viewport
+   inset while lifting the page content closer to the desktop navbar. */
+@media (min-width: 1280px) {
+  .platform-shell .workspace-sidebar .sidebar-brand-expanded {
+    width: min(11rem, 100%);
+  }
+}
+

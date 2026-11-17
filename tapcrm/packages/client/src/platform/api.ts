@@ -22,6 +22,11 @@ const ACCESS_KEY = 'tapcrm.platform.access';
 const REFRESH_KEY = 'tapcrm.platform.refresh';
 export const AUTH_EXPIRED_EVENT = 'tapcrm:auth-expired';
 
+// Keep the control-panel client aligned with the same configurable API base
+// path used by the employee/company authentication client. Hard-coding /api
+// makes platform login fail in deployments mounted under another prefix.
+const API_BASE_PATH = `/${String(import.meta.env['VITE_API_BASE_PATH'] || '/api').replace(/^\/+|\/+$/g, '')}`;
+
 export function getAccessToken() {
   return sessionStorage.getItem(ACCESS_KEY);
 }
@@ -43,7 +48,7 @@ export async function api<T>(
   headers.set('content-type', 'application/json');
   const token = getAccessToken();
   if (token) headers.set('authorization', `Bearer ${token}`);
-  const response = await fetch(`/api${path}`, { ...init, headers });
+  const response = await fetch(`${API_BASE_PATH}${path}`, { ...init, headers });
   const body = (await response.json()) as ApiResult<T>;
   if (
     response.status === 401 &&

@@ -649,6 +649,24 @@ export function DashboardPage({
 
   const dashboardActions = useMemo(() => (
     <div className="company-page-hero-actions">
+      {editing && (
+        <>
+          <button
+            type="button"
+            onClick={() => setPickerOpen((open) => !open)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold"
+          >
+            <Icon name="plus" className="size-4" /> Add widget
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold"
+          >
+            <Icon name="refresh" className="size-4" /> Reset
+          </button>
+        </>
+      )}
       <button
         type="button"
         onClick={() => {
@@ -662,7 +680,7 @@ export function DashboardPage({
         {editing ? 'Done' : 'Customize'}
       </button>
     </div>
-  ), [editing]);
+  ), [editing, reset]);
 
   const pageMetadata = useMemo(() => ({
     eyebrow: 'Company operations',
@@ -706,36 +724,7 @@ export function DashboardPage({
           )}
         </div>
         <div className="ml-auto flex w-auto flex-wrap items-center justify-end gap-2">
-            {isAdminDashboard && (
-              <>
-                <span className="dashboard-admin-date">{dashboardDate}</span>
-                <button
-                  type="button"
-                  onClick={() => setRefreshKey((version) => version + 1)}
-                  className="dashboard-admin-refresh"
-                >
-                  <Icon name="refresh" className="size-4" /> Refresh
-                </button>
-              </>
-            )}
-            {editing && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen((open) => !open)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold"
-                >
-                  <Icon name="plus" className="size-4" /> Add widget
-                </button>
-                <button
-                  type="button"
-                  onClick={reset}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold"
-                >
-                  <Icon name="refresh" className="size-4" /> Reset
-                </button>
-              </>
-            )}
+            {isAdminDashboard && <span className="dashboard-admin-date">{dashboardDate}</span>}
             <button
               type="button"
               onClick={() => {
@@ -750,10 +739,6 @@ export function DashboardPage({
             </button>
         </div>
       </section>
-      <div className="hidden xl:flex items-center justify-end gap-2">
-        {isAdminDashboard && <button type="button" onClick={() => setRefreshKey((version) => version + 1)} className="dashboard-admin-refresh"><Icon name="refresh" className="size-4" /> Refresh</button>}
-        {editing && <><button type="button" onClick={() => setPickerOpen((open) => !open)} className="rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold">Add widget</button><button type="button" onClick={reset} className="rounded-lg border border-app-border bg-app-surface px-3 py-2 text-xs font-semibold">Reset</button></>}
-      </div>
       {editing && pickerOpen && (
         <div className="mt-5 rounded-2xl border border-app-border bg-app-surface p-4">
           <p className="text-sm font-semibold">Add a widget</p>

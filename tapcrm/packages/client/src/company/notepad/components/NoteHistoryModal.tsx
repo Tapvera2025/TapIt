@@ -34,7 +34,7 @@ export function NoteHistoryModal({
   if (!isOpen) return null;
 
   return (
-    <Modal title="Note History" onClose={onClose}>
+    <Modal title="Note History" onClose={onClose} closeButtonClassName="hidden xl:grid">
       <div className="space-y-4">
         {error && (
           <div className="space-y-2">
@@ -98,7 +98,7 @@ export function NoteHistoryModal({
           </div>
         )}
 
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end pt-2 xl:hidden">
           <Button type="button" kind="secondary" onClick={onClose}>
             Close
           </Button>

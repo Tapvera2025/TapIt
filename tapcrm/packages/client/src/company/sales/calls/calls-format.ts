@@ -157,7 +157,15 @@ export function presetRange(preset: Exclude<RangePreset, 'custom'>, timeZone: st
     case '7d':
       return { from: shiftDay(today, -6), to: today };
     case 'month':
-      return { from: `${today.slice(0, 8)}01`, to: today };
+      {
+        const year = Number(today.slice(0, 4));
+        const month = Number(today.slice(5, 7));
+        const endOfMonth = new Date(Date.UTC(year, month, 0, 12));
+        return {
+          from: `${today.slice(0, 8)}01`,
+          to: localDate(endOfMonth, timeZone),
+        };
+      }
     case '90d':
       return { from: shiftDay(today, -89), to: today };
     default:
