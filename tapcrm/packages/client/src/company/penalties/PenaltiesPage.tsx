@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import {
@@ -143,7 +144,7 @@ export function PenaltiesPage(): React.JSX.Element {
           />
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Payroll month</span>
-            <input
+            <CalendarPicker
               className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground"
               type="month"
               value={payrollPeriod}
@@ -168,7 +169,7 @@ export function PenaltiesPage(): React.JSX.Element {
           />
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Date from</span>
-            <input
+            <CalendarPicker
               className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground"
               type="date"
               value={dateFrom}
@@ -180,7 +181,7 @@ export function PenaltiesPage(): React.JSX.Element {
           </label>
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Date to</span>
-            <input
+            <CalendarPicker
               className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground"
               type="date"
               value={dateTo}

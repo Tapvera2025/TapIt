@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
 import {
   listLeaves,
@@ -238,7 +239,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">From date</label>
-              <input
+              <CalendarPicker
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
@@ -256,7 +257,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">To date</label>
-              <input
+              <CalendarPicker
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
@@ -330,7 +331,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">From date</label>
-              <input
+              <CalendarPicker
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
@@ -339,7 +340,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">To date</label>
-              <input
+              <CalendarPicker
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}

@@ -2,6 +2,35 @@
 @import 'tailwindcss';
 @import './ui/theme.css';
 
+.calendar-popover-scroll {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.calendar-popover-scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.attendance-horizontal-scroll-arrow {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.attendance-horizontal-scroll-area:hover .attendance-horizontal-scroll-arrow,
+.attendance-horizontal-scroll-area:focus-within .attendance-horizontal-scroll-arrow {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .attendance-horizontal-scroll-arrow {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @keyframes tapcrm-skeleton-shimmer {
@@ -3680,6 +3709,25 @@ summary:active {
 
 .guide-flash {
   animation: guide-flash 1.8s ease-out;
+}
+
+@media (max-width: 850px) {
+  .platform-main-scroll,
+  .platform-sidebar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .platform-main-scroll {
+    scrollbar-gutter: auto;
+  }
+
+  .platform-main-scroll::-webkit-scrollbar,
+  .platform-sidebar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

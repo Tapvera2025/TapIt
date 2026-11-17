@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useCallback, useEffect, useState } from 'react';
 import {
   acceptConfig,
@@ -183,7 +184,7 @@ export function PayrollSettingsPage(): React.JSX.Element {
           <form onSubmit={(e) => void submit(e)} className="grid gap-4 md:grid-cols-2">
             <label className="text-xs font-semibold text-app-muted">
               <span className="mb-2 block">Applies from month</span>
-              <input
+              <CalendarPicker
                 type="month"
                 required
                 value={month}

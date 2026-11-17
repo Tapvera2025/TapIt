@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useCallback, useEffect, useState } from 'react';
 import {
   INPUT_KIND_LABELS,
@@ -193,7 +194,7 @@ export function PayrollInputsPage(): React.JSX.Element {
       <div className="mt-6 flex flex-wrap items-end gap-4">
         <label className="text-xs font-semibold text-app-muted">
           <span className="mb-2 block">Payroll month</span>
-          <input
+          <CalendarPicker
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}

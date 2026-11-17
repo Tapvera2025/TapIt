@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
 import { Button, Card, Page } from '../../../ui/index.js';
 import { STAGE_LABELS, LIFECYCLE_LABELS, LOSS_REASON_LABELS, formatCurrencyLabel } from '../deals/deals-helpers.js';
@@ -40,7 +41,7 @@ export function ReportsPage(): React.JSX.Element {
       description="Pipeline, wins and losses for the selected period. Scoped by your deals-visibility."
       action={
         <div className="flex items-center gap-2">
-          <input
+          <CalendarPicker
             type="month"
             value={period}
             onChange={(event) => setPeriod(event.target.value)}

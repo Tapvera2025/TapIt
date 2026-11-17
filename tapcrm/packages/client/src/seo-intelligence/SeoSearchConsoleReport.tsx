@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../ui/CalendarPicker.js';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Chart as ChartJS,
@@ -209,8 +210,8 @@ export function SeoSearchConsoleReport({
           </div>
         </div>
         <form onSubmit={(event) => { event.preventDefault(); if (draft.from > draft.to) { setError('The start date must be before the end date.'); return; } setError(''); setPeriod({ ...draft }); }} className="mt-5 flex flex-wrap items-end gap-3 border-t border-app-border/60 pt-4">
-          <label className="grid gap-1 text-[11px] font-semibold text-app-muted">From<input type="date" value={draft.from} max={today} required onChange={(event) => setDraft((value) => ({ ...value, from: event.target.value }))} className="rounded-lg border border-app-border bg-app-surface px-2.5 py-2 text-xs text-app-foreground" /></label>
-          <label className="grid gap-1 text-[11px] font-semibold text-app-muted">To<input type="date" value={draft.to} max={today} required onChange={(event) => setDraft((value) => ({ ...value, to: event.target.value }))} className="rounded-lg border border-app-border bg-app-surface px-2.5 py-2 text-xs text-app-foreground" /></label>
+          <label className="grid gap-1 text-[11px] font-semibold text-app-muted">From<CalendarPicker type="date" value={draft.from} max={today} required onChange={(event) => setDraft((value) => ({ ...value, from: event.target.value }))} className="rounded-lg border border-app-border bg-app-surface px-2.5 py-2 text-xs text-app-foreground" /></label>
+          <label className="grid gap-1 text-[11px] font-semibold text-app-muted">To<CalendarPicker type="date" value={draft.to} max={today} required onChange={(event) => setDraft((value) => ({ ...value, to: event.target.value }))} className="rounded-lg border border-app-border bg-app-surface px-2.5 py-2 text-xs text-app-foreground" /></label>
           <Button type="submit" kind="secondary" disabled={loading}>Apply dates</Button>
           <Button type="button" kind="secondary" disabled={loading} onClick={() => setReload((value) => value + 1)}>Refresh</Button>
           {data && <span className="ml-auto text-[11px] text-app-muted">Google data through {data.latestDataDate ?? 'no returned dates'} · fetched {new Date(data.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
