@@ -3785,3 +3785,336 @@ summary:active {
   }
 }
 
+/* The edge control is a persistent pin/unpin switch, not a hover-only action. */
+@media (min-width: 1280px) {
+  .workspace-sidebar .sidebar-collapse-toggle {
+    position: absolute;
+    z-index: 50;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+}
+
+.workspace-sidebar .sidebar-module-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem !important;
+  margin-top: 0.5rem;
+  padding-left: 1rem;
+}
+
+.workspace-sidebar .sidebar-module-items > div {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.workspace-sidebar .sidebar-module-items > div > button {
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0.45rem 0.75rem !important;
+  line-height: 1.25 !important;
+}
+
+.workspace-sidebar .company-sidebar-nav.sidebar-sections-collapsed {
+  padding-bottom: 1rem !important;
+}
+
+/* Workspace identity card replacing the sidebar logo and external heading. */
+.sidebar-workspace-header {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.sidebar-workspace-card {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  min-height: 3.25rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.sidebar-workspace-icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 2.75rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 34%, var(--app-border));
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--theme-primary) 12%, var(--app-surface));
+  color: var(--theme-primary);
+}
+
+.sidebar-workspace-icon svg {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.sidebar-workspace-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sidebar-workspace-company,
+.sidebar-workspace-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-workspace-company {
+  color: var(--app-foreground);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.sidebar-workspace-name {
+  color: var(--sidebar-muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.sidebar-mobile-workspace-title {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  .sidebar-workspace-header {
+    display: none;
+  }
+
+  .sidebar-mobile-workspace-title {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem 0.25rem;
+  }
+
+  .sidebar-mobile-workspace-title p {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--sidebar-muted);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .sidebar-mobile-workspace-title button {
+    flex-shrink: 0;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    color: var(--sidebar-muted);
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+}
+
+@media (min-width: 1280px) {
+  .workspace-sidebar .sidebar-workspace-header {
+    padding-right: 0;
+  }
+
+  .workspace-sidebar .sidebar-collapse-toggle {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+    border-radius: 0.8rem !important;
+    transform: none !important;
+    margin-left: auto;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .sidebar-workspace-card {
+    min-height: 0;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .sidebar-workspace-copy {
+    display: none;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .sidebar-collapse-toggle {
+    margin-left: 0;
+  }
+}
+
+/* Keep every top-level module on the same neutral section surface. Hovering
+   uses the active theme surface so the navigation stays accent-aware. */
+.workspace-sidebar .company-sidebar-nav > div.relative > button {
+  background: color-mix(
+    in srgb,
+    var(--sidebar-active-bg) 34%,
+    var(--sidebar-background)
+  ) !important;
+}
+
+.workspace-sidebar .company-sidebar-nav > div.relative > button:hover,
+.workspace-sidebar .company-sidebar-nav > div.relative > button:focus-visible {
+  background: var(--theme-primary) !important;
+  color: #fff !important;
+}
+
+.workspace-sidebar .company-sidebar-nav > div.relative > button:hover svg,
+.workspace-sidebar .company-sidebar-nav > div.relative > button:focus-visible svg {
+  color: #fff !important;
+}
+
+.workspace-sidebar .company-sidebar-nav > div.relative > button[aria-expanded='true'] {
+  background: var(--theme-primary) !important;
+  color: #fff !important;
+}
+
+.workspace-sidebar .company-sidebar-nav > div.relative > button[aria-expanded='true'] svg {
+  color: #fff !important;
+}
+
+@media (min-width: 1280px) {
+  /* Keep the collapsed icon rail usable when its module list exceeds the
+     available height instead of letting the last module hide behind logout. */
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed {
+    justify-content: flex-start;
+    gap: 0 !important;
+    overflow-y: auto !important;
+    padding-bottom: 2rem !important;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed > div.relative {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed > div.relative > button {
+    min-height: 0 !important;
+    height: 2rem !important;
+    padding: 0 !important;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed > div.relative > button > svg {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .sidebar-logout {
+    flex-shrink: 0;
+  }
+}
+
+/* Dark sidebar: keep the rail graphite and glassy. Purple is reserved for
+   navigation emphasis instead of tinting every module surface. */
+.dark .workspace-sidebar {
+  background:
+    linear-gradient(180deg, rgba(55, 58, 66, 0.82), rgba(39, 42, 49, 0.88)) !important;
+  border-color: rgba(214, 220, 231, 0.22) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 36px -24px rgba(0, 0, 0, 0.72) !important;
+  backdrop-filter: blur(24px) saturate(115%);
+  -webkit-backdrop-filter: blur(24px) saturate(115%);
+}
+
+.dark .sidebar-workspace-header {
+  border-bottom-color: rgba(214, 220, 231, 0.18);
+}
+
+.dark .sidebar-workspace-card {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dark .sidebar-workspace-icon {
+  border-color: color-mix(in srgb, var(--theme-primary) 68%, rgba(214, 220, 231, 0.24));
+  background: color-mix(in srgb, var(--theme-primary) 12%, rgba(20, 22, 27, 0.72));
+  color: color-mix(in srgb, var(--theme-primary) 88%, white);
+}
+
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button {
+  border: 1px solid rgba(214, 220, 231, 0.07);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)) !important;
+  color: rgba(241, 245, 249, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 8px 18px -18px rgba(0, 0, 0, 0.9);
+}
+
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button:hover,
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button:focus-visible,
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--theme-primary) 62%, rgba(255, 255, 255, 0.14));
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--theme-primary) 76%, #1e2027),
+      color-mix(in srgb, var(--theme-primary) 54%, #1e2027)) !important;
+  color: #fff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 24px -18px color-mix(in srgb, var(--theme-primary) 75%, transparent);
+}
+
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button svg {
+  color: rgba(226, 232, 240, 0.68);
+}
+
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button:hover svg,
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button:focus-visible svg,
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button[aria-expanded='true'] svg {
+  color: #fff !important;
+}
+
+.dark .workspace-sidebar .sidebar-logout {
+  border-top-color: rgba(214, 220, 231, 0.18) !important;
+}
+
+/* The navbar can still overflow on narrow screens, but its native scrollbar
+   should never be visible as part of the chrome. */
+.global-navbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.global-navbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* The pet runway reduces the available nav height. Keep compact expanded
+   sections spaced instead of letting their buttons touch each other. */
+@media (min-width: 1280px) {
+  .workspace-sidebar.sidebar-has-pet[data-sidebar-collapsed='false']
+    .company-sidebar-nav.sidebar-sections-collapsed {
+    justify-content: flex-start;
+    gap: 0.55rem !important;
+    overflow-y: auto;
+    padding-bottom: 1rem !important;
+  }
+
+  .workspace-sidebar.sidebar-has-pet[data-sidebar-collapsed='false']
+    .company-sidebar-nav.sidebar-sections-collapsed > div.relative {
+    flex: 0 0 auto;
+  }
+}
+
