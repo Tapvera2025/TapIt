@@ -3561,6 +3561,23 @@ summary:active {
     0 0 10px color-mix(in srgb, var(--theme-primary) 50%, transparent);
 }
 
+/* Mouse clicks retain focus after collapsing: only keyboard-visible focus
+   should reveal the toggle when the pointer is outside the rail. */
+.workspace-sidebar .sidebar-collapse-toggle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workspace-sidebar:hover .sidebar-collapse-toggle,
+.workspace-sidebar .sidebar-collapse-toggle:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar-collapse-toggle > * {
+  pointer-events: none;
+}
+
 /* Sidebar horizontal scrollbar prevention */
 .workspace-sidebar nav,
 .company-sidebar-nav {

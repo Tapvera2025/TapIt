@@ -1315,14 +1315,14 @@ export function CompanySidebar({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            className={`absolute bottom-0 ${collapsed ? '-right-2' : '-right-4'} z-30 hidden size-6 p-0 translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border border-app-border bg-app-surface text-app-accent shadow-[0_2px_8px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent xl:flex`}
+            className={`sidebar-collapse-toggle absolute bottom-0 ${collapsed ? '-right-2' : '-right-4'} z-30 hidden size-6 cursor-pointer select-none p-0 translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border border-app-border bg-app-surface text-app-accent shadow-[0_2px_8px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent xl:flex`}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-expanded={!collapsed}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <Icon
               name={collapsed ? 'chevron-right' : 'chevron-left'}
-              className="size-3.5"
+              className="pointer-events-none size-3.5"
             />
           </button>
         )}
@@ -1348,7 +1348,7 @@ export function CompanySidebar({
         </button>
       )}
       <div
-        className={`relative flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'} ${variant === 'platform' ? 'xl:hidden' : ''}`}
+        className={`relative flex shrink-0 items-center px-3 pt-2 pb-1 ${collapsed ? 'xl:justify-center' : 'justify-between'} ${variant === 'platform' ? 'xl:hidden' : ''}`}
       >
         <p
           className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}
