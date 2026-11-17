@@ -1422,11 +1422,11 @@
     .workspace-sidebar {
       position: static !important;
       inset: auto !important;
-      /* Keep the floating rail visually centred in the desktop shell while
-         using the otherwise unused lower viewport space. */
+      /* Layered !important declarations take precedence over unlayered
+         overrides. Own desktop geometry here, using the hero's top inset. */
       align-self: flex-start;
-      height: calc(100dvh - 4.25rem) !important;
-      margin: 3rem 0 1.25rem 1.25rem !important;
+      height: calc(100dvh - var(--company-sidebar-top-gap, 1.5rem) - 1.25rem) !important;
+      margin: var(--company-sidebar-top-gap, 1.5rem) 0 1.25rem 1.25rem !important;
       border-radius: 1.25rem;
       transform: none !important;
     }
@@ -2899,9 +2899,9 @@ summary:active {
   }
 
   .company-layout-shell main[data-app-scroll-container] {
-    /* Match the floating rail's desktop top gutter so the first page surface
-       starts on the same visual baseline as the sidebar. */
-    padding: 3rem 0 1rem;
+    /* Keep the first page surface close to the navbar while preserving a
+       deliberate breathing room across every desktop layout. */
+    padding: var(--company-sidebar-top-gap) 0 1rem;
   }
 
   .company-page-hero-desktop {
@@ -2909,13 +2909,6 @@ summary:active {
     z-index: 1000;
     /* Keep the next page surface below the hero's curved lower edge. */
     margin-bottom: 2rem;
-  }
-
-  /* Keep the floating rail on the same top baseline as the desktop hero.
-     This more-specific rule intentionally owns its full desktop geometry. */
-  .company-layout-shell .workspace-sidebar {
-    height: calc(100dvh - 4.25rem) !important;
-    margin: 3rem 0 1.25rem 1.25rem !important;
   }
 
   .workspace-sidebar .sidebar-brand-expanded {
@@ -3569,10 +3562,30 @@ summary:active {
 }
 
 /* Sidebar horizontal scrollbar prevention */
-.workspace-sidebar,
 .workspace-sidebar nav,
 .company-sidebar-nav {
   overflow-x: hidden !important;
+}
+
+/* The desktop collapse control intentionally sits outside the sidebar edge.
+   Keep the mobile drawer clipped while allowing that control to float on
+   desktop without affecting the navigation scroll region. */
+@media (max-width: 1279px) {
+  .workspace-sidebar {
+    overflow-x: hidden !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Let the desktop sidebar collapse control float beyond the shell edge. */
+  .company-layout-shell {
+    overflow: visible !important;
+  }
+
+  .workspace-sidebar {
+    overflow: visible !important;
+    clip-path: none !important;
+  }
 }
 
 /* This is an independent scrolling region. Route changes can add/remove
@@ -3750,16 +3763,8 @@ summary:active {
 /* Platform portal spacing: keep the rail floating with a balanced viewport
    inset while lifting the page content closer to the desktop navbar. */
 @media (min-width: 1280px) {
-  .platform-shell main[data-app-scroll-container] {
-    padding-top: 3rem;
-  }
-
-  .platform-shell .workspace-sidebar {
-    height: calc(100dvh - 4.25rem) !important;
-    margin: 3rem 0 1.25rem 1.25rem !important;
-  }
-
   .platform-shell .workspace-sidebar .sidebar-brand-expanded {
     width: min(11rem, 100%);
   }
 }
+

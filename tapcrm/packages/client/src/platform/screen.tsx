@@ -183,7 +183,7 @@ function PlatformKpiCard({
   const normalizedKey = statKey.replace(/([A-Z])/g, '_$1').toLowerCase();
   const meta = PLATFORM_KPI_META[normalizedKey] ?? {
     label: normalizedKey.replaceAll('_', ' '),
-    description: 'Live platform data',
+    description: 'Platform metric',
     icon: 'chart',
     visual: 'line' as const,
   };
@@ -1875,18 +1875,14 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           </CompanyPageActionPortal>
           <WorkspacePageContainer className="platform-page-content">
           <section id="platform-overview" className="mb-[22px] scroll-mt-5">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-2 xl:hidden">
               <div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent xl:hidden">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-accent">
                   Master Admin
                 </p>
-                <h2 className="font-display text-xl font-semibold tracking-[-0.03em] xl:hidden">
+                <h2 className="font-display text-xl font-semibold tracking-[-0.03em]">
                   Platform Overview
                 </h2>
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-3">
-                <span className="text-xs text-app-muted">Live platform data</span>
-
               </div>
             </div>
             <div className="platform-kpi-grid overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
