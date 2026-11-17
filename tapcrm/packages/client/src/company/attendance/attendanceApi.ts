@@ -151,6 +151,13 @@ export function requestMonthlyAttendanceExport(query: Record<string, string>): P
   return identityDownload(`/api/attendance/reports/monthly/export?${params}`, { method: 'POST' });
 }
 
+export function requestAttendanceRangeExport(from: string, to: string, format: 'csv' | 'xlsx', userIds: string[]): Promise<Blob> {
+  return identityDownload('/api/attendance/export', {
+    method: 'POST',
+    body: JSON.stringify({ from, to, format, userIds }),
+  });
+}
+
 export interface DailyLateRow {
   id: string;
   employeeId: string | null;
@@ -254,6 +261,7 @@ export interface AttendanceDayDetail {
       start?: string | null;
       end?: string | null;
       isOvernight?: boolean;
+      graceMinutes?: number;
       timezone?: string;
     } | null;
     shiftSource: string;

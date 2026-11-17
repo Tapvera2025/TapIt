@@ -915,7 +915,6 @@ export function LiveBoardPage(): React.JSX.Element {
                   <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted tabular-nums">PUNCH OUT</th>
                   <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted tabular-nums">WORK TIME</th>
                   <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted tabular-nums">BREAK TIME</th>
-                  <th className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-app-muted text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-app-border/70">
@@ -959,17 +958,6 @@ export function LiveBoardPage(): React.JSX.Element {
                       <td className="px-4 py-3.5 tabular-nums text-app-muted text-xs">{row.punchOut}</td>
                       <td className="px-4 py-3.5 tabular-nums font-semibold text-app-foreground text-xs">{liveTimes.workTime}</td>
                       <td className="px-4 py-3.5 tabular-nums text-app-muted text-xs">{liveTimes.breakTime}</td>
-                      <td className="px-4 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEmployee(row)}
-                          className="size-7 rounded-lg border border-app-border bg-app-surface inline-flex items-center justify-center text-app-muted hover:text-app-foreground hover:border-app-accent transition-colors cursor-pointer"
-                          aria-label={`Actions for ${row.fullName}`}
-                          title="View employee details"
-                        >
-                          <span className="tracking-widest font-bold text-xs leading-none">•••</span>
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}

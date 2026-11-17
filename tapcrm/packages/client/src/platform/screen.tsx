@@ -2462,12 +2462,12 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               id="platform-companies"
               className="w-full scroll-mt-5 rounded-2xl border border-app-border bg-app-surface p-6 shadow-sm max-[560px]:p-[20px_16px]"
             >
-              <div className="flex items-start justify-between gap-[15px]">
-                <div>
+              <div className="flex items-start justify-between gap-[15px] max-[700px]:grid max-[700px]:grid-cols-[minmax(0,1fr)_auto] max-[700px]:gap-x-2">
+                <div className="min-w-0">
                   <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">
                     Tenant management
                   </p>
-                  <h2 className="font-display text-[23px] tracking-[-0.045em]">
+                  <h2 className="font-display text-[23px] tracking-[-0.045em] max-[700px]:text-[20px]">
                     Companies
                   </h2>
                 </div>
@@ -2755,7 +2755,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                         className={`grid min-w-0 ${hasActions ? 'grid-cols-[minmax(230px,1.1fr)_minmax(190px,.9fr)_minmax(0,1.5fr)_minmax(132px,.65fr)]' : 'grid-cols-[minmax(230px,1.1fr)_minmax(190px,.9fr)_minmax(0,1.5fr)]'} items-start justify-items-start gap-5 border-b border-app-border p-5 text-left last:border-b-0 max-[1100px]:grid-cols-2 max-[1100px]:items-start max-[700px]:grid-cols-1`}
                         key={invitation.id}
                       >
-                        <div className="min-w-0 justify-self-start">
+                        <div className="w-full min-w-0 justify-self-start">
                           <div className="flex items-center gap-3">
                             <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-app-accent/35 bg-transparent text-lg font-bold text-app-accent">
                               {invitation.companyName.slice(0, 1).toUpperCase()}
@@ -2780,7 +2780,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             </span>
                           </div>
                         </div>
-                        <div className="min-w-0 justify-self-start">
+                        <div className="w-full min-w-0 justify-self-start">
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-bold tracking-[0.05em] ${invitation.status === 'PENDING' ? 'border-app-accent/45 text-app-accent' : invitation.status === 'ACCEPTED' ? 'border-emerald-500/45 text-emerald-600' : invitation.status === 'EXPIRED' ? 'border-[#b7791f]/45 text-[#b7791f]' : 'border-app-danger/45 text-app-danger'}`}
                           >

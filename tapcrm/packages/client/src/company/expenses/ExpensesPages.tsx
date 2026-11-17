@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Button, Card, Empty, Loading, Modal, Notice, Page, Select } from '../../ui/index.js';
@@ -74,7 +75,7 @@ function ExpenseForm({ onDone }: { onDone: () => void }): React.JSX.Element {
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">
           Expense Date
-          <input
+          <CalendarPicker
             className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
             type="date"
             value={date}

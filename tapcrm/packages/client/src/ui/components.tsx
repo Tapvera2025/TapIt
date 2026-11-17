@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon.js';
+import { CalendarPicker } from './CalendarPicker.js';
 import { CompanyPageActionPortal } from '../company/layout/CompanyPageActionPortal.js';
 import { useCompanyHeroPageActions } from '../company/layout/CompanyNavbarContext.js';
 
@@ -630,7 +631,19 @@ export function Field({
    */
   autoComplete?: string;
 }): React.JSX.Element {
-  const input = (
+  const input = type === 'date' || type === 'month' ? (
+    <CalendarPicker
+      type={type}
+      required={required}
+      disabled={disabled}
+      min={min}
+      value={value}
+      placeholder={placeholder}
+      autoComplete={autoComplete}
+      onChange={(event) => onChange(event.target.value)}
+      className="ui-form-control w-full px-3 py-2.5 text-sm outline-none"
+    />
+  ) : (
     <input
       required={required}
       disabled={disabled}

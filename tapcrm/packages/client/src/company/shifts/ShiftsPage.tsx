@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
 import { listShifts, createShift, type ShiftTemplate } from '../api/shiftsApi.js';
 import { suggestNextCode } from '../../ui/index.js';
@@ -144,7 +145,7 @@ export function ShiftsPage(): React.JSX.Element {
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">Effective from</label>
-              <input
+              <CalendarPicker
                 type="date"
                 value={effectiveFrom}
                 onChange={(e) => setEffectiveFrom(e.target.value)}

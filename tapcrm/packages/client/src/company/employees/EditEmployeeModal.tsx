@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useEffect, useId, useMemo, useState } from 'react';
 import {
   changePlacement,
@@ -61,7 +62,9 @@ function TextInput({
   return (
     <div>
       <label htmlFor={id} className="mb-2 block text-xs font-semibold text-app-muted">{label}</label>
-      <input id={id} type={type} required={required} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} />
+      {type === 'date' || type === 'month'
+        ? <CalendarPicker id={id} type={type} required={required} value={value} onChange={(event) => onChange(event.target.value)} className={inputClass} />
+        : <input id={id} type={type} required={required} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} />}
       {hint && <p className="mt-1 text-xs text-app-muted">{hint}</p>}
     </div>
   );
@@ -500,7 +503,7 @@ export function EditEmployeeModal({
               />
               <div>
                 <label className="mb-2 block text-xs font-semibold text-app-muted">Effective from</label>
-                <input
+                <CalendarPicker
                   type="date"
                   value={shiftEffectiveFrom}
                   onChange={(e) => setShiftEffectiveFrom(e.target.value)}
@@ -535,7 +538,7 @@ export function EditEmployeeModal({
               />
               <div>
                 <label className="mb-2 block text-xs font-semibold text-app-muted">Effective from</label>
-                <input
+                <CalendarPicker
                   type="date"
                   value={weekdayScheduleEffectiveFrom}
                   onChange={(e) => setWeekdayScheduleEffectiveFrom(e.target.value)}

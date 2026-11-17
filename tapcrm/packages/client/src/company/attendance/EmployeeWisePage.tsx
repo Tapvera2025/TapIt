@@ -44,11 +44,17 @@ export function EmployeeWisePage(): React.JSX.Element {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
+    const query = search.trim();
+    if (!query) {
+      setEmployees([]);
+      setSearching(false);
+      return;
+    }
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setSearching(true);
       setError(null);
-      void searchAttendanceReportEmployees(search, controller.signal)
+      void searchAttendanceReportEmployees(query, controller.signal)
         .then((nextEmployees) => { setEmployees(nextEmployees); })
         .catch((cause) => { if (!(cause instanceof Error && cause.name === 'AbortError')) setError(attendanceErrorMessage(cause, 'Unable to search employees.')); })
         .finally(() => setSearching(false));
@@ -78,7 +84,7 @@ export function EmployeeWisePage(): React.JSX.Element {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_160px]">
           <div className="relative">
             <Field label="Search employee" value={search} onChange={setSearch} placeholder="Name, employee ID or email" />
-            {(search.length > 0 || employees.length > 0) && !selected && (
+            {search.trim().length > 0 && !selected && (
               <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-app-border bg-app-surface shadow-xl">
                 {searching && <p className="px-3 py-3 text-sm text-app-muted">Searching…</p>}
                 {!searching && employees.map((employee) => (

@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../ui/CalendarPicker.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon } from '../ui/index.js';
 import {
@@ -210,11 +211,11 @@ export function SearchPanel({
           </label>
           <label className="flex flex-col gap-1">
             <span className="font-semibold text-app-muted">After</span>
-            <input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="h-9 rounded-lg border border-app-border bg-app-background px-2 text-sm" />
+            <CalendarPicker type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="h-9 rounded-lg border border-app-border bg-app-background px-2 text-sm" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="font-semibold text-app-muted">Before</span>
-            <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="h-9 rounded-lg border border-app-border bg-app-background px-2 text-sm" />
+            <CalendarPicker type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="h-9 rounded-lg border border-app-border bg-app-background px-2 text-sm" />
           </label>
           {filterCount > 0 && (
             <button type="button" onClick={() => { setConversationId(''); setSenderId(''); setFrom(''); setTo(''); }} className="col-span-2 justify-self-start text-xs font-semibold text-app-accent hover:underline">

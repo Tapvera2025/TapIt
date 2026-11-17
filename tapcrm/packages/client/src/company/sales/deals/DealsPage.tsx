@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Field, Page, Select } from '../../../ui/index.js';
 import { listDeals, type Deal, type DealListQuery } from './api.js';
@@ -130,7 +131,7 @@ export function DealsPage({ isSalesHod, onNavigate }: DealsPageProps): React.JSX
           />
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Expected close</span>
-            <input
+            <CalendarPicker
               type="month"
               value={closeMonth}
               onChange={(event) => setCloseMonth(event.target.value)}

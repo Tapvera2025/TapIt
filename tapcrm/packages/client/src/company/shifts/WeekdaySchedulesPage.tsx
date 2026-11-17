@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useCallback, useEffect, useState } from 'react';
 import {
   createWorkingDayException,
@@ -350,7 +351,7 @@ export function WeekdaySchedulesPage(): React.JSX.Element {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label htmlFor="working-day-exception-date" className="mb-1.5 block text-sm font-semibold">Working date <span className="text-app-danger">*</span></label>
-                <input id="working-day-exception-date" type="date" value={exceptionDate} required aria-invalid={Boolean(exceptionFieldErrors.date)} aria-describedby={exceptionFieldErrors.date ? 'working-day-exception-date-error' : undefined} onChange={(event) => { setExceptionDate(event.target.value); setExceptionFormError(''); setExceptionFieldErrors((current) => ({ ...current, date: '' })); }} className={`w-full rounded-xl border bg-app-background px-3.5 py-2.5 text-sm outline-none focus:border-app-accent ${exceptionFieldErrors.date ? 'border-app-danger' : 'border-app-border'}`} />
+                <CalendarPicker id="working-day-exception-date" type="date" value={exceptionDate} required aria-invalid={Boolean(exceptionFieldErrors.date)} aria-describedby={exceptionFieldErrors.date ? 'working-day-exception-date-error' : undefined} onChange={(event) => { setExceptionDate(event.target.value); setExceptionFormError(''); setExceptionFieldErrors((current) => ({ ...current, date: '' })); }} className={`w-full rounded-xl border bg-app-background px-3.5 py-2.5 text-sm outline-none focus:border-app-accent ${exceptionFieldErrors.date ? 'border-app-danger' : 'border-app-border'}`} />
                 {exceptionFieldErrors.date && <p id="working-day-exception-date-error" role="alert" className="mt-1.5 text-xs text-app-danger">{exceptionFieldErrors.date}</p>}
               </div>
               <div>

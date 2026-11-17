@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
@@ -225,7 +226,7 @@ export function MyAdvancesPage(): React.JSX.Element {
         </label>
         <label className="text-sm font-semibold">
           Advance month
-          <input
+          <CalendarPicker
             className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
             type="month"
             value={period.slice(0, 7)}
@@ -473,7 +474,7 @@ function AdminAdvances(): React.JSX.Element {
         </label>
         <label className="text-sm font-semibold">
           Advance month
-          <input
+          <CalendarPicker
             className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5"
             type="month"
             value={manualPeriod.slice(0, 7)}

@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
   BLOCKER_LABELS,
@@ -606,7 +607,7 @@ export function RunsPage({ onNavigate }: { onNavigate?: (path: string) => void }
           <form onSubmit={(e) => void handleCreate(e)} className="flex flex-wrap items-end gap-3">
             <label className="text-xs font-semibold text-app-muted">
               <span className="mb-2 block">Month to pay</span>
-              <input
+              <CalendarPicker
                 type="month"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}

@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
 import {
   listBreakPolicies,
@@ -59,7 +60,7 @@ function AssignPanel({ policyId, onDone }: { policyId: string; onDone: () => voi
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="block text-xs font-semibold text-app-muted">Effective from</label>
-          <input
+          <CalendarPicker
             type="date"
             value={effectiveFrom}
             min={tomorrow()}
@@ -71,7 +72,7 @@ function AssignPanel({ policyId, onDone }: { policyId: string; onDone: () => voi
         </div>
         <div>
           <label className="block text-xs font-semibold text-app-muted">Effective to (optional)</label>
-          <input
+          <CalendarPicker
             type="date"
             value={effectiveTo}
             onChange={(e) => setEffectiveTo(e.target.value)}
@@ -243,7 +244,7 @@ export function BreakPoliciesPage(): React.JSX.Element {
             </div>
             <div>
               <label className="block text-xs font-semibold text-app-muted">Effective from</label>
-              <input
+              <CalendarPicker
                 type="date"
                 value={effectiveFrom}
                 min={tomorrow()}
