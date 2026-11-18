@@ -14,12 +14,15 @@ import {
 export * from './types.js';
 
 function configFor(platform: SocialPlatform): ProviderConfig {
-  if (platform === 'facebook' || platform === 'instagram')
+  if (platform === 'facebook' || platform === 'instagram') {
+    const loginConfigurationId = process.env['SOCIAL_META_CONFIG_ID']?.trim();
     return {
       clientId: process.env['SOCIAL_META_CLIENT_ID'] ?? '',
       clientSecret: process.env['SOCIAL_META_CLIENT_SECRET'] ?? '',
       apiVersion: process.env['SOCIAL_META_API_VERSION'] || 'v24.0',
+      ...(loginConfigurationId ? { loginConfigurationId } : {}),
     };
+  }
   if (platform === 'linkedin')
     return {
       clientId: process.env['SOCIAL_LINKEDIN_CLIENT_ID'] ?? '',

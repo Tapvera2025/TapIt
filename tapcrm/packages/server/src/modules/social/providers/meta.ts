@@ -69,6 +69,14 @@ export class MetaProvider implements SocialProvider {
         'CONFIGURATION_INVALID',
         'Configure a supported Meta Graph API version.',
       );
+    if (
+      config.loginConfigurationId !== undefined &&
+      !/^\d+$/.test(config.loginConfigurationId)
+    )
+      throw new ProviderError(
+        'CONFIGURATION_INVALID',
+        'Configure the Facebook Login for Business configuration ID as a number.',
+      );
     this.capabilities = {
       publishText: platform === 'facebook',
       publishImages: true,
@@ -91,13 +99,18 @@ export class MetaProvider implements SocialProvider {
   getAuthorizationUrl(input: { state: string; redirectUri: string }): string {
     assertRedirectUri(input.redirectUri);
     const url = new URL(`https://www.facebook.com/${this.version}/dialog/oauth`);
+    // Facebook Login for Business: the configuration saved in the App Dashboard
+    // decides the permissions and assets, and Meta then shows the business sign-in
+    // screens. Without one, the dialog falls back to a list of permissions.
+    const permissions = this.config.loginConfigurationId
+      ? { config_id: this.config.loginConfigurationId }
+      : { scope: this.scopes.join(','), auth_type: 'rerequest' };
     url.search = form({
       client_id: this.config.clientId,
       redirect_uri: input.redirectUri,
       state: input.state,
       response_type: 'code',
-      scope: this.scopes.join(','),
-      auth_type: 'rerequest',
+      ...permissions,
     }).toString();
     return url.toString();
   }
