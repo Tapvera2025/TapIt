@@ -2,6 +2,18 @@
   container: attendance-toolbar / inline-size;
 }
 
+.attendance-toolbar-format label > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (min-width: 1100px) {
   @container attendance-toolbar (max-width: 900px) {
     .attendance-toolbar-controls {
@@ -38,18 +50,6 @@
     .attendance-toolbar-format {
       flex: 1 1 110px !important;
       min-width: 110px !important;
-    }
-
-    .attendance-toolbar-format label > span {
-      position: absolute !important;
-      width: 1px !important;
-      height: 1px !important;
-      padding: 0 !important;
-      margin: -1px !important;
-      overflow: hidden !important;
-      clip: rect(0, 0, 0, 0) !important;
-      white-space: nowrap !important;
-      border: 0 !important;
     }
 
     .attendance-toolbar-export {

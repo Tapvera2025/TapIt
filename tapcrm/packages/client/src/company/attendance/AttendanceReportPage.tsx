@@ -86,7 +86,7 @@ function summarizeWeeklyRows(rows: WeeklyAttendanceRow[], weekStart: string): We
 }
 
 export function AttendanceReportPage({ canExport = false }: { canExport?: boolean }): React.JSX.Element {
-  const now = today(); const [mode, setMode] = useState<Mode>('daily'); const [date, setDate] = useState(now); const [month, setMonth] = useState(now.slice(5, 7)); const [year, setYear] = useState(now.slice(0, 4)); const [shiftId, setShiftId] = useState(''); const [format, setFormat] = useState<'csv' | 'xlsx'>('csv'); const [shifts, setShifts] = useState<ShiftTemplate[]>([]); const [clockNow, setClockNow] = useState(() => Date.now());
+  const now = today(); const [mode, setMode] = useState<Mode>('daily'); const [date, setDate] = useState(now); const [month, setMonth] = useState(now.slice(5, 7)); const [year, setYear] = useState(now.slice(0, 4)); const [shiftId, setShiftId] = useState(''); const [format, setFormat] = useState<'csv' | 'xlsx' | ''>(''); const [shifts, setShifts] = useState<ShiftTemplate[]>([]); const [clockNow, setClockNow] = useState(() => Date.now());
   const [dailyRows, setDailyRows] = useState<DailyAttendanceRow[]>([]); const [weeklyRows, setWeeklyRows] = useState<WeeklyAttendanceRow[]>([]); const [weeklyDataKey, setWeeklyDataKey] = useState(''); const [monthlyRows, setMonthlyRows] = useState<MonthlyAttendanceRow[]>([]); const [selectedDrawer, setSelectedDrawer] = useState<DrawerSelection | null>(null); const [page, setPage] = useState(1); const [total, setTotal] = useState(0); const [totalPages, setTotalPages] = useState(1); const [loading, setLoading] = useState(true); const [exporting, setExporting] = useState(false); const [error, setError] = useState<string | null>(null);
   const closeAttendanceDrawer = useCallback(() => setSelectedDrawer(null), []);
   const months = useMemo(() => Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: new Date(Date.UTC(2026, index, 1)).toLocaleString('en-IN', { month: 'long', timeZone: 'UTC' }) })), []);
@@ -167,6 +167,7 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
   }, [mode, date, month, year, shiftId, page, weekDates, weekKey, weeklyDataKey]);
 
   async function exportReport(): Promise<void> {
+    if (!format) return;
     setExporting(true);
     setError(null);
     try {
@@ -358,8 +359,8 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
         <div className="attendance-toolbar-shift min-w-0 min-[1100px]:min-w-[164px] min-[1100px]:flex-1"><Select compact label="Shift" value={shiftId} onChange={(value) => { setShiftId(value); setPage(1); }} options={shifts.map((item) => ({ value: item.id, label: item.name }))} /></div>
         {canExport && (
           <>
-            <div className="attendance-toolbar-format min-w-0 min-[1100px]:min-w-[184px] min-[1100px]:flex-1"><Select compact label="Export format" value={format} onChange={(value) => setFormat(value as 'csv' | 'xlsx')} options={[{ value: 'csv', label: 'CSV' }, { value: 'xlsx', label: 'XLSX' }]} /></div>
-            <Button className="attendance-toolbar-export inline-flex w-full items-center justify-center gap-2 min-[1100px]:w-auto min-[1100px]:shrink-0" disabled={exporting || loading || (mode === 'weekly' && weeklyRows.length === 0)} onClick={() => void exportReport()}>
+            <div className="attendance-toolbar-format min-w-0 min-[1100px]:min-w-[184px] min-[1100px]:flex-1"><Select compact label="Export format" value={format} onChange={(value) => setFormat(value as 'csv' | 'xlsx' | '')} options={[{ value: 'csv', label: 'CSV' }, { value: 'xlsx', label: 'XLSX' }]} placeholder="Select format" placeholderDisabled /></div>
+            <Button className="attendance-toolbar-export inline-flex w-full items-center justify-center gap-2 min-[1100px]:w-auto min-[1100px]:shrink-0" disabled={!format || exporting || loading || (mode === 'weekly' && weeklyRows.length === 0)} onClick={() => void exportReport()}>
               <Icon name="download" className="size-4" />{exporting ? 'Exporting…' : 'Export'}
             </Button>
           </>

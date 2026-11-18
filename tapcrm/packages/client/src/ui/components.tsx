@@ -688,6 +688,7 @@ export function Select({
   disabled = false,
   error,
   placeholder,
+  placeholderDisabled = false,
 }: {
   label: string;
   value: string;
@@ -699,6 +700,7 @@ export function Select({
   error?: string | undefined;
   /** The empty option's text, e.g. "All teams" for a filter. Defaults to "Select <label>". */
   placeholder?: string;
+  placeholderDisabled?: boolean;
 }): React.JSX.Element {
   return (
     <label className={`min-w-0 text-xs font-semibold text-app-muted ${compact ? 'min-[1100px]:flex min-[1100px]:items-center min-[1100px]:gap-2' : ''}`}>
@@ -710,7 +712,7 @@ export function Select({
         onChange={(event) => onChange(event.target.value)}
         className={`ui-form-control w-full px-3 py-2.5 text-sm outline-none disabled:opacity-50 ${compact ? 'min-[1100px]:w-auto min-[1100px]:min-w-0 min-[1100px]:flex-1 min-[1100px]:py-1.5' : ''}`}
       >
-        <option value="">{placeholder ?? `Select ${label.toLowerCase()}`}</option>
+        <option value="" disabled={placeholderDisabled}>{placeholder ?? `Select ${label.toLowerCase()}`}</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
