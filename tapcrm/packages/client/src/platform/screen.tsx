@@ -2709,7 +2709,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             {canResetPassword && (
                               <button
                                 type="button"
-                                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-app-accent/35 bg-app-accent/10 px-3 py-2.5 text-center text-xs font-semibold leading-tight text-app-accent transition hover:border-app-accent hover:bg-app-accent/15 disabled:cursor-wait disabled:opacity-55"
+                                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-app-accent/35 bg-app-accent/10 px-3 py-2.5 text-center text-xs font-semibold leading-none text-app-accent transition hover:border-app-accent hover:bg-app-accent/15 disabled:cursor-wait disabled:opacity-55"
                                 onClick={() => void sendAdminPasswordReset(invitation)}
                                 disabled={invitationActionId === invitation.id}
                               >
