@@ -143,9 +143,16 @@ export function CompanyLayout({
   searchDestinations: readonly CompanySearchDestination[];
 }): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => window.localStorage.getItem('tapcrm:sidebar-collapsed') === 'true',
-  );
+  const [sidebarPinned, setSidebarPinned] = useState(() => {
+    try {
+      return window.localStorage.getItem('crm-sidebar-pinned') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const sidebarHoverCollapseTimerRef = useRef<number | undefined>(undefined);
+  const sidebarExpanded = sidebarPinned || sidebarHovered;
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const savedWidth = Number(window.localStorage.getItem('tapcrm:sidebar-width'));
     return Number.isFinite(savedWidth) && savedWidth >= 220 && savedWidth <= 420
@@ -225,8 +232,12 @@ export function CompanyLayout({
   }, [pathname]);
 
   useEffect(() => {
-    window.localStorage.setItem('tapcrm:sidebar-collapsed', String(sidebarCollapsed));
-  }, [sidebarCollapsed]);
+    try {
+      window.localStorage.setItem('crm-sidebar-pinned', String(sidebarPinned));
+    } catch {
+      // Preserve in-memory behavior when browser storage is unavailable.
+    }
+  }, [sidebarPinned]);
 
   useEffect(() => {
     window.localStorage.setItem('tapcrm:sidebar-width', String(sidebarWidth));
@@ -266,9 +277,46 @@ export function CompanyLayout({
     };
   }, [sidebarOpen]);
 
+  useEffect(
+    () => () => {
+      if (sidebarHoverCollapseTimerRef.current !== undefined) {
+        window.clearTimeout(sidebarHoverCollapseTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleSidebarPointerEnter = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType !== 'mouse') return;
+    if (sidebarHoverCollapseTimerRef.current !== undefined) {
+      window.clearTimeout(sidebarHoverCollapseTimerRef.current);
+      sidebarHoverCollapseTimerRef.current = undefined;
+    }
+    setSidebarHovered(true);
+  };
+
+  const handleSidebarPointerLeave = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType !== 'mouse') return;
+    if (sidebarHoverCollapseTimerRef.current !== undefined)
+      window.clearTimeout(sidebarHoverCollapseTimerRef.current);
+    sidebarHoverCollapseTimerRef.current = window.setTimeout(() => {
+      setSidebarHovered(false);
+      sidebarHoverCollapseTimerRef.current = undefined;
+    }, 150);
+  };
+
+  const keepSidebarExpandedForInteraction = () => {
+    if (window.innerWidth < 1280) return;
+    if (sidebarHoverCollapseTimerRef.current !== undefined) {
+      window.clearTimeout(sidebarHoverCollapseTimerRef.current);
+      sidebarHoverCollapseTimerRef.current = undefined;
+    }
+    setSidebarHovered(true);
+  };
+
   const toggleSidebar = () => {
     if (window.innerWidth >= 1280) {
-      setSidebarCollapsed((collapsed) => !collapsed);
+      setSidebarPinned((pinned) => !pinned);
     } else {
       setSidebarOpen((open) => !open);
     }
@@ -303,7 +351,7 @@ export function CompanyLayout({
           identity={identity}
           organizationName={organizationName}
           organizationCode={organizationCode}
-          sidebarCollapsed={sidebarCollapsed}
+          sidebarCollapsed={!sidebarExpanded}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={toggleSidebar}
           onNavigate={onNavigate}
@@ -370,8 +418,12 @@ export function CompanyLayout({
             onLogout={onLogout}
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            collapsed={sidebarCollapsed}
+            collapsed={sidebarOpen ? false : !sidebarExpanded}
             onToggleCollapsed={toggleSidebar}
+            isPinned={sidebarPinned}
+            onSidebarPointerEnter={handleSidebarPointerEnter}
+            onSidebarPointerLeave={handleSidebarPointerLeave}
+            onSidebarInteraction={keepSidebarExpandedForInteraction}
             width={sidebarWidth}
             onResize={setSidebarWidth}
           />
