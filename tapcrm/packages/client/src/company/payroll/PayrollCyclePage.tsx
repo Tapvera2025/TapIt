@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getPayrollCycle, type CycleStatus } from '../api/payrollApi.js';
-import { SkeletonMetrics } from '../../ui/index.js';
+import { Card, Page, SkeletonMetrics } from '../../ui/index.js';
+
+const PAGE_DESCRIPTION = 'Review the current payroll cycle and published employee payslips.';
 
 function fmtPeriod(periodStart: string): string {
   return new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -25,21 +27,28 @@ export function PayrollCyclePage(): React.JSX.Element {
     })();
   }, []);
 
-  if (loading) return <div className="p-6"><SkeletonMetrics count={3} /></div>;
-  if (error) return <div className="p-6 text-sm text-app-danger">{error}</div>;
+  if (loading) {
+    return (
+      <Page eyebrow="Payroll" title="Payroll Cycle" description={PAGE_DESCRIPTION}>
+        <SkeletonMetrics count={3} />
+      </Page>
+    );
+  }
+
+  if (error) {
+    return (
+      <Page eyebrow="Payroll" title="Payroll Cycle" description={PAGE_DESCRIPTION}>
+        <p className="text-sm text-app-danger">{error}</p>
+      </Page>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-lg space-y-4 p-4 sm:p-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">Payroll</p>
-        <h1 className="font-display text-2xl font-bold">Payroll cycle</h1>
-        <p className="text-sm text-app-muted">Review the current payroll cycle and published employee payslips.</p>
-      </header>
-      <div className="rounded-2xl border border-app-border bg-app-surface p-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">Latest payslip</p>
+    <Page eyebrow="Payroll" title="Payroll Cycle" description={PAGE_DESCRIPTION}>
+      <Card className="mx-auto w-full max-w-5xl text-center">
         {data?.currentSlip ? (
           <div className="mt-3 space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <p className="text-lg font-semibold">{fmtPeriod(data.currentSlip.periodStart)}</p>
               <span className="rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
                 Published
@@ -56,7 +65,7 @@ export function PayrollCyclePage(): React.JSX.Element {
         ) : (
           <p className="mt-3 text-sm text-app-muted">No published payslip yet.</p>
         )}
-      </div>
-    </div>
+      </Card>
+    </Page>
   );
 }
