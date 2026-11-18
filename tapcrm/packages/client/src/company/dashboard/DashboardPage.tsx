@@ -205,7 +205,13 @@ function buildLayout(
       }
       const source = primary ?? seed;
       if (source) {
-        requested.push({ item: toGridItem(source, def), anchored: Boolean(primary || seed) });
+        // Migrate the punch widget's legacy six-row default. Explicit larger
+        // custom sizes remain intact; only the old default-sized item is
+        // reduced to the new compact minimum.
+        const normalizedSource = id === 'punch-state' && source.h === 6
+          ? { ...source, h: def.defaultLayout.h }
+          : source;
+        requested.push({ item: toGridItem(normalizedSource, def), anchored: Boolean(primary || seed) });
       } else {
         requested.push({ item: toGridItem({ i: id, x: 0, y: 0, w: def.defaultLayout.w, h: def.defaultLayout.h }, def), anchored: false });
       }

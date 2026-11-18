@@ -260,6 +260,10 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
         value={tab}
         onChange={(next) => setTab(next as ExplorerTab)}
         className="mt-6 access-explorer-liquid-tabs"
+        // The day-mode snapshot lens can capture the shared hero and render
+        // it inside this active pill. Keep the glass styling, but avoid that
+        // cross-surface refraction on the nested access tabs.
+        liquidEffect={false}
       />
 
       {tab === 'person' ? (

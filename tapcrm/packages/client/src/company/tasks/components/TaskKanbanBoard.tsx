@@ -330,7 +330,7 @@ export function TaskKanbanBoard({
             }}
             className={`${mobileOrderClass} relative flex flex-col rounded-2xl border bg-app-surface/60 transition-all duration-200 ${
               isCollapsedCancelledColumn
-                ? 'min-h-12 w-full p-1.5 sm:p-2 lg:min-h-[380px] lg:w-20 lg:self-stretch lg:justify-start lg:border-slate-200 lg:bg-[#F8FAFC]'
+                ? 'min-h-12 w-full p-1.5 sm:p-2 lg:min-h-[380px] lg:w-20 lg:self-stretch lg:justify-start lg:border-app-border lg:bg-app-surface'
                 : 'min-h-[380px] p-3 sm:p-3.5'
             } ${
               isCancelledColumn && isDragBlockedByCancelRestriction
@@ -341,7 +341,7 @@ export function TaskKanbanBoard({
             }`}
           >
             {/* Column Header */}
-            <header className={`flex items-center ${isCollapsedCancelledColumn ? 'flex-row justify-between border-b border-app-border/60 pb-2 lg:flex-col lg:gap-3 lg:border-slate-200 lg:pb-2' : 'justify-between border-b border-app-border/60 pb-3'}`}>
+            <header className={`flex items-center ${isCollapsedCancelledColumn ? 'flex-row justify-between border-b border-app-border/60 pb-2 lg:flex-col lg:gap-3 lg:border-app-border lg:pb-2' : 'justify-between border-b border-app-border/60 pb-3'}`}>
               <div className={`flex items-center ${isCollapsedCancelledColumn ? 'gap-2 lg:absolute lg:inset-x-0 lg:bottom-2 lg:top-14 lg:z-10 lg:flex-col lg:items-stretch lg:gap-1' : 'gap-2'}`}>
                 <span className={`size-2.5 rounded-full ${column.dotColor} ${isCollapsedCancelledColumn ? 'lg:hidden' : ''}`} aria-hidden="true" />
                 {isCollapsedCancelledColumn ? (
@@ -353,7 +353,7 @@ export function TaskKanbanBoard({
                     aria-expanded={false}
                   >
                     <span className="lg:hidden">{column.title}</span>
-                    <span className="hidden lg:flex lg:h-full lg:flex-1 lg:flex-col lg:items-center lg:justify-between lg:py-2" aria-hidden="true">
+                    <span className="hidden lg:flex lg:h-full lg:flex-1 lg:flex-col lg:items-center lg:justify-between lg:py-2 lg:text-app-foreground" aria-hidden="true">
                       {column.title.toUpperCase().split('').map((letter, index) => (
                         <span key={`${letter}-${index}`} className="text-lg font-semibold leading-none tracking-[0.12em]">{letter}</span>
                       ))}
@@ -389,7 +389,7 @@ export function TaskKanbanBoard({
                   <button
                     type="button"
                     onClick={() => setShowCancelledTasks((shown) => !shown)}
-                    className="grid size-7 shrink-0 place-items-center rounded-md border border-app-border/80 bg-app-surface/80 text-sm font-semibold text-app-foreground transition-colors hover:bg-app-surface-raised focus-visible:outline-2 focus-visible:outline-app-accent lg:border-slate-200 lg:bg-white lg:text-slate-600 lg:hover:bg-slate-100"
+                    className="grid size-7 shrink-0 place-items-center rounded-md border border-app-border/80 bg-app-surface/80 text-sm font-semibold text-app-foreground transition-colors hover:bg-app-surface-raised focus-visible:outline-2 focus-visible:outline-app-accent lg:border-app-border lg:bg-app-surface-raised lg:text-app-muted lg:hover:bg-app-surface"
                     aria-label={isCollapsedCancelledColumn ? 'Expand cancelled tasks' : 'Collapse cancelled tasks'}
                     aria-expanded={!isCollapsedCancelledColumn}
                   >
