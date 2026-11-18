@@ -1,12 +1,13 @@
 import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card, Empty, HorizontalScrollArea, Loading, Notice, Page, Select } from '../../ui/index.js';
-import { calendarMonth, validDateOnly } from '../../ui/index.js';
+import { validDateOnly } from '../../ui/index.js';
 import { Icon } from '../../ui/Icon.js';
 import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
 import { attendanceErrorMessage, getDailyAttendanceReport, getMonthlyAttendanceReport, requestAttendanceRangeExport, requestDailyAttendanceExport, requestMonthlyAttendanceExport, type DailyAttendanceRow, type MonthlyAttendanceRow } from './attendanceApi.js';
 import { AttendanceKpis, AttendanceLegend } from './AttendanceVisuals.js';
 import { AttendanceDetailsDrawer, type AttendanceDrawerDay, type AttendanceDetailsDrawerProps } from './AttendanceDetailsDrawer.js';
+import './AttendanceReportPage.css';
 
 type Mode = 'daily' | 'weekly' | 'monthly';
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -21,8 +22,16 @@ const mondayOf = (date: string): string => {
 };
 const dateLabel = (date: string): string => new Date(`${date}T00:00:00.000Z`).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 const time = (value: string | null): string => value ? new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+const timelineTime = (value: string | null): string => value ? new Date(value).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : time(null);
 const duration = (value: number): string => `${Math.floor(value / 60)}h ${value % 60}m`;
-const dailyStatus = (row: DailyAttendanceRow): string => row.dayType === 'week-off' ? 'No attendance record' : row.status ?? (row.arrivalAt ? 'In progress' : 'No punch');
+const dailyStatus = (row: DailyAttendanceRow, isWorking = false): string => row.dayType === 'week-off' ? 'No attendance record' : isWorking ? 'Working' : row.status ?? (row.arrivalAt ? 'In progress' : 'No punch');
+function currentWorkedMinutes(row: DailyAttendanceRow, isWorking: boolean, nowMs: number): number {
+  if (!isWorking || !row.arrivalAt) return row.workedMinutes;
+  const punchInAt = new Date(row.arrivalAt).getTime();
+  if (Number.isNaN(punchInAt)) return row.workedMinutes;
+  const elapsedMinutes = Math.floor((nowMs - punchInAt) / 60_000) - row.breakMinutes;
+  return Math.max(row.workedMinutes, Math.max(0, elapsedMinutes));
+}
 const code = (record: { status: string | null; dayType?: string | null; isWfh: boolean } | undefined): string => !record || record.dayType === 'week-off' ? '—' : record.isWfh && (record.status === 'present' || record.status === 'full-day') ? 'P·WFH' : record.status === 'present' || record.status === 'full-day' ? 'P' : record.status === 'half-day' ? 'HD' : record.status === 'absent' ? 'Ab' : record.status === 'leave' || record.status === 'half-day-leave' ? 'L' : record.status === 'holiday' || record.dayType === 'holiday' ? 'H' : record.status ?? '—';
 
 type DrawerSelection = Omit<AttendanceDetailsDrawerProps, 'onClose' | 'onPeriodChange'>;
@@ -40,8 +49,7 @@ type WeeklyAttendanceSummary = WeeklyAttendanceRow & {
   dayRows: WeeklyAttendanceRow[];
   punchDays: number;
   daysInPeriod: number;
-  shiftSummary: string;
-  statusSummary: string;
+  lateDays: number;
 };
 
 function summarizeWeeklyRows(rows: WeeklyAttendanceRow[], weekStart: string): WeeklyAttendanceSummary[] {
@@ -58,11 +66,6 @@ function summarizeWeeklyRows(rows: WeeklyAttendanceRow[], weekStart: string): We
     const punchDays = dayRows.filter((day) => day.arrivalAt || day.departureAt).length;
     const shiftNames = Array.from(new Set(dayRows.map((day) => day.shift?.kind).filter((kind): kind is string => Boolean(kind))));
     const selectedShift = dayRows.find((day) => day.shift)?.shift ?? first.shift;
-    const statusCounts = new Map<string, number>();
-    for (const day of dayRows) {
-      const label = dailyStatus(day).replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-      statusCounts.set(label, (statusCounts.get(label) ?? 0) + 1);
-    }
 
     return {
       ...first,
@@ -77,28 +80,44 @@ function summarizeWeeklyRows(rows: WeeklyAttendanceRow[], weekStart: string): We
       dayRows,
       punchDays,
       daysInPeriod: 7,
-      shiftSummary: shiftNames.length > 1 ? 'Multiple' : shiftNames[0] ?? '—',
-      statusSummary: Array.from(statusCounts, ([status, count]) => `${status} × ${count}`).join(' · '),
+      lateDays: dayRows.filter((day) => day.lateMinutes > 0).length,
     };
   }).sort((left, right) => left.fullName.localeCompare(right.fullName));
 }
 
 export function AttendanceReportPage({ canExport = false }: { canExport?: boolean }): React.JSX.Element {
-  const now = today(); const [mode, setMode] = useState<Mode>('daily'); const [date, setDate] = useState(now); const [month, setMonth] = useState(now.slice(5, 7)); const [year, setYear] = useState(now.slice(0, 4)); const [shiftId, setShiftId] = useState(''); const [format, setFormat] = useState<'csv' | 'xlsx'>('csv'); const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
+  const now = today(); const [mode, setMode] = useState<Mode>('daily'); const [date, setDate] = useState(now); const [month, setMonth] = useState(now.slice(5, 7)); const [year, setYear] = useState(now.slice(0, 4)); const [shiftId, setShiftId] = useState(''); const [format, setFormat] = useState<'csv' | 'xlsx'>('csv'); const [shifts, setShifts] = useState<ShiftTemplate[]>([]); const [clockNow, setClockNow] = useState(() => Date.now());
   const [dailyRows, setDailyRows] = useState<DailyAttendanceRow[]>([]); const [weeklyRows, setWeeklyRows] = useState<WeeklyAttendanceRow[]>([]); const [weeklyDataKey, setWeeklyDataKey] = useState(''); const [monthlyRows, setMonthlyRows] = useState<MonthlyAttendanceRow[]>([]); const [selectedDrawer, setSelectedDrawer] = useState<DrawerSelection | null>(null); const [page, setPage] = useState(1); const [total, setTotal] = useState(0); const [totalPages, setTotalPages] = useState(1); const [loading, setLoading] = useState(true); const [exporting, setExporting] = useState(false); const [error, setError] = useState<string | null>(null);
   const closeAttendanceDrawer = useCallback(() => setSelectedDrawer(null), []);
-  const months = useMemo(() => Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: new Date(Date.UTC(2026, index, 1)).toLocaleString('en-IN', { month: 'long', timeZone: 'UTC' }) })), []); const dates = calendarMonth(`${year}-${month}`).filter((item) => item.startsWith(`${year}-${month}`));
+  const months = useMemo(() => Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: new Date(Date.UTC(2026, index, 1)).toLocaleString('en-IN', { month: 'long', timeZone: 'UTC' }) })), []);
   const weekStart = mondayOf(date); const weekEnd = addDays(weekStart, 6); const weekKey = `${weekStart}:${shiftId}`; const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
   const weeklySummaries = useMemo(() => summarizeWeeklyRows(weeklyRows, weekStart), [weeklyRows, weekStart]);
   const weeklyEmployeeCount = weeklySummaries.length;
   const visibleWeeklyRows = useMemo(() => weeklySummaries.slice((page - 1) * 50, page * 50), [weeklySummaries, page]);
   const weeklyTotalPages = Math.max(1, Math.ceil(weeklySummaries.length / 50));
-  const periodRows = mode === 'weekly' ? weeklyRows : dailyRows;
-  const periodEmployeeCount = mode === 'weekly' ? weeklyEmployeeCount : total;
   const periodLabel = mode === 'weekly'
     ? `${dateLabel(weekStart)} – ${dateLabel(weekEnd)}`
     : mode === 'daily' ? dateLabel(date) : `${months.find((item) => item.value === month)?.label ?? month} ${year}`;
   useEffect(() => { setSelectedDrawer(null); }, [mode, date, month, year, shiftId]);
+  useEffect(() => {
+    if (mode !== 'daily' || date !== today()) return;
+    const controller = new AbortController();
+    const timer = window.setInterval(() => {
+      setClockNow(Date.now());
+      const query: Record<string, string> = { date, page: String(page), pageSize: '50' };
+      if (shiftId) query['shiftId'] = shiftId;
+      void getDailyAttendanceReport(query, controller.signal).then((result) => {
+        if (controller.signal.aborted) return;
+        setDailyRows(result.rows);
+        setTotal(result.total);
+        setTotalPages(result.totalPages);
+      }).catch(() => undefined);
+    }, 15_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [mode, date, page, shiftId]);
   useEffect(() => { void listShifts().then(setShifts).catch((cause) => setError(attendanceErrorMessage(cause, 'Unable to load shifts.'))); }, []);
   useEffect(() => {
     if (mode === 'weekly' && weeklyDataKey === weekKey) return;
@@ -294,9 +313,9 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
   }
 
   return <Page eyebrow="HR · Attendance" title="Attendance Report" description="Daily, weekly, and monthly attendance from stored calculated records.">
-    <Card className="p-2.5 sm:p-3.5">
-      <div className="grid grid-cols-2 items-end gap-2.5 sm:grid-cols-3 min-[1100px]:flex min-[1100px]:flex-wrap min-[1100px]:gap-3">
-        <div className="col-span-2 flex min-w-0 rounded-2xl border border-app-border bg-app-surface-raised/65 p-1 sm:col-span-1 min-[1100px]:shrink-0" role="group" aria-label="Attendance period">
+    <Card className="attendance-toolbar-container p-2.5 sm:p-3.5">
+      <div className="attendance-toolbar-controls grid grid-cols-2 items-end gap-2.5 sm:grid-cols-3 min-[1100px]:flex min-[1100px]:flex-nowrap min-[1100px]:items-center min-[1100px]:gap-2">
+        <div className="attendance-toolbar-period col-span-2 flex min-w-0 rounded-2xl border border-app-border bg-app-surface-raised/65 p-1 sm:col-span-1 min-[1100px]:shrink-0" role="group" aria-label="Attendance period">
           {([
             { id: 'daily' as const, label: 'Daily', icon: 'calendar' },
             { id: 'weekly' as const, label: 'Weekly', icon: 'calendar' },
@@ -314,43 +333,45 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
             </button>
           ))}
         </div>
-        <label className="min-w-0 text-xs font-semibold text-app-muted min-[1100px]:min-w-[145px] min-[1100px]:flex-1">
-          <span className="mb-1.5 flex items-center gap-1.5"><Icon name="calendar" className="size-3.5" />Date</span>
-          <CalendarPicker
-            type={mode === 'monthly' ? 'month' : 'date'}
-            value={mode === 'monthly' ? `${year}-${month}` : date}
-            min={mode === 'monthly' ? '2000-01' : undefined}
-            max={mode === 'monthly' ? '2200-12' : undefined}
-            onChange={(event) => {
-              const value = event.target.value;
-              if (mode === 'monthly') {
-                const [nextYear, nextMonth] = value.split('-');
-                if (nextYear && nextMonth) { setYear(nextYear); setMonth(nextMonth); setPage(1); }
-              } else if (validDateOnly(value)) {
-                setDate(value);
-                setPage(1);
-              }
-            }}
-            className="ui-form-control w-full px-3 py-2.5 text-sm text-app-foreground"
-          />
+        <label className="attendance-toolbar-date min-w-0 text-xs font-semibold text-app-muted min-[1100px]:flex min-[1100px]:min-w-[170px] min-[1100px]:flex-1 min-[1100px]:items-center min-[1100px]:gap-2">
+          <span className="attendance-toolbar-label mb-1.5 flex items-center gap-1.5 min-[1100px]:mb-0 min-[1100px]:shrink-0"><Icon name="calendar" className="size-3.5" />Date</span>
+          <div className="min-w-0 flex-1">
+            <CalendarPicker
+              type={mode === 'monthly' ? 'month' : 'date'}
+              value={mode === 'monthly' ? `${year}-${month}` : date}
+              min={mode === 'monthly' ? '2000-01' : undefined}
+              max={mode === 'monthly' ? '2200-12' : undefined}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (mode === 'monthly') {
+                  const [nextYear, nextMonth] = value.split('-');
+                  if (nextYear && nextMonth) { setYear(nextYear); setMonth(nextMonth); setPage(1); }
+                } else if (validDateOnly(value)) {
+                  setDate(value);
+                  setPage(1);
+                }
+              }}
+              className="ui-form-control w-full px-3 py-2.5 text-sm text-app-foreground min-[1100px]:py-1.5"
+            />
+          </div>
         </label>
-        <div className="min-w-0 min-[1100px]:min-w-[145px] min-[1100px]:flex-1"><Select label="Shift" value={shiftId} onChange={(value) => { setShiftId(value); setPage(1); }} options={shifts.map((item) => ({ value: item.id, label: item.name }))} /></div>
+        <div className="attendance-toolbar-shift min-w-0 min-[1100px]:min-w-[164px] min-[1100px]:flex-1"><Select compact label="Shift" value={shiftId} onChange={(value) => { setShiftId(value); setPage(1); }} options={shifts.map((item) => ({ value: item.id, label: item.name }))} /></div>
         {canExport && (
           <>
-            <div className="min-w-0 min-[1100px]:min-w-[150px] min-[1100px]:flex-1"><Select label="Export format" value={format} onChange={(value) => setFormat(value as 'csv' | 'xlsx')} options={[{ value: 'csv', label: 'CSV' }, { value: 'xlsx', label: 'XLSX' }]} /></div>
-            <Button className="inline-flex w-full items-center justify-center gap-2 min-[1100px]:w-auto" disabled={exporting || loading || (mode === 'weekly' && weeklyRows.length === 0)} onClick={() => void exportReport()}>
+            <div className="attendance-toolbar-format min-w-0 min-[1100px]:min-w-[184px] min-[1100px]:flex-1"><Select compact label="Export format" value={format} onChange={(value) => setFormat(value as 'csv' | 'xlsx')} options={[{ value: 'csv', label: 'CSV' }, { value: 'xlsx', label: 'XLSX' }]} /></div>
+            <Button className="attendance-toolbar-export inline-flex w-full items-center justify-center gap-2 min-[1100px]:w-auto min-[1100px]:shrink-0" disabled={exporting || loading || (mode === 'weekly' && weeklyRows.length === 0)} onClick={() => void exportReport()}>
               <Icon name="download" className="size-4" />{exporting ? 'Exporting…' : 'Export'}
             </Button>
           </>
         )}
       </div>
     </Card>
-    {!loading && !error && (
+    {!loading && !error && mode === 'daily' && (
       <Card className="p-3.5 sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold">At-a-glance status</h2>
-            <p className="text-sm text-app-muted">{periodLabel} · {periodEmployeeCount} {periodEmployeeCount === 1 ? 'employee' : 'employees'}</p>
+            <p className="text-sm text-app-muted">{periodLabel} · {total} {total === 1 ? 'employee' : 'employees'}</p>
           </div>
           <AttendanceLegend />
         </div>
@@ -358,58 +379,186 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
           <AttendanceKpis
             variant="report"
             columns={4}
-            items={mode !== 'monthly'
-              ? [
-                { label: 'Present', value: periodRows.filter((row) => row.status === 'present' || row.status === 'full-day' || row.arrivalAt).length },
-                { label: 'WFH', value: periodRows.filter((row) => row.isWfh).length },
-                { label: 'Late', value: periodRows.filter((row) => row.lateMinutes > 0).length },
-                { label: 'No punch', value: periodRows.filter((row) => row.dayType !== 'week-off' && !row.arrivalAt).length },
-              ]
-              : [
-                { label: 'Employees', value: total },
-                { label: 'Present units', value: monthlyRows.reduce((sum, row) => sum + row.presentUnits, 0) },
-                { label: 'Absent units', value: monthlyRows.reduce((sum, row) => sum + row.absentUnits, 0) },
-                { label: 'WFH days', value: monthlyRows.reduce((sum, row) => sum + row.wfhDays, 0) },
-              ]}
+            items={[
+              { label: 'Present', value: dailyRows.filter((row) => row.status === 'present' || row.status === 'full-day' || row.arrivalAt).length },
+              { label: 'WFH', value: dailyRows.filter((row) => row.isWfh).length },
+              { label: 'Late', value: dailyRows.filter((row) => row.lateMinutes > 0).length },
+              { label: 'No punch', value: dailyRows.filter((row) => row.dayType !== 'week-off' && !row.arrivalAt).length },
+            ]}
           />
         </div>
       </Card>
     )}
     {error && <Notice error>{error}</Notice>}{loading && <Loading />}{!loading && !error && ((mode === 'daily' && dailyRows.length === 0) || (mode === 'weekly' && weeklyRows.length === 0) || (mode === 'monthly' && monthlyRows.length === 0)) && <Empty>{mode === 'monthly' ? 'No attendance data are available for this month and shift selection.' : mode === 'weekly' ? 'No attendance data are available for this week and shift selection.' : 'No employees or attendance data are available for this date and visibility scope.'}</Empty>}
-    {!loading && !error && mode === 'daily' && dailyRows.length > 0 && <Card className="overflow-hidden p-0"><HorizontalScrollArea ariaLabel="Daily attendance table" showArrows={false}><table className="w-full min-w-[1100px] text-sm"><thead><tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted">{['Employee', 'Email/ID', 'Department', 'Team', 'Position', 'Punch in', 'Punch out', 'Worked', 'Break', 'Late', 'Overtime', 'Shift', 'Status'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead><tbody>{dailyRows.map((row) => <tr key={row.id} className="border-b border-app-border last:border-0"><td className="px-3 py-3 font-semibold"><button type="button" onClick={() => openDailyDrawer(row)} aria-label={`View daily attendance for ${row.fullName}`} className="rounded text-left hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent">{row.fullName}</button></td><td className="px-3 py-3">{row.employeeId ?? '—'}</td><td className="px-3 py-3">{row.departmentName ?? '—'}</td><td className="px-3 py-3">{row.teamName ?? '—'}</td><td className="px-3 py-3">{row.positionName ?? '—'}</td><td className="px-3 py-3">{time(row.arrivalAt)}</td><td className="px-3 py-3">{time(row.departureAt)}</td><td className="px-3 py-3">{duration(row.workedMinutes)}</td><td className="px-3 py-3">{duration(row.breakMinutes)}</td><td className="px-3 py-3">{row.lateMinutes}m</td><td className="px-3 py-3">{row.overtimeMinutes}m</td><td className="px-3 py-3">{row.shift?.kind ?? '—'}</td><td className="px-3 py-3 font-semibold">{dailyStatus(row)}</td></tr>)}</tbody></table></HorizontalScrollArea><Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} /></Card>}
-    {!loading && !error && mode === 'weekly' && weeklyRows.length > 0 && (
+    {!loading && !error && mode === 'daily' && dailyRows.length > 0 && (
       <Card className="overflow-hidden p-0">
-        <HorizontalScrollArea ariaLabel="Weekly attendance summary table" showArrows={false}>
-          <table className="w-full min-w-[1180px] text-sm">
+        <HorizontalScrollArea ariaLabel="Daily attendance table" showArrows={false}>
+          <table className="w-full min-w-[1060px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[18%]" />
+              <col className="w-[13%]" />
+              <col className="w-[14%]" />
+              <col className="w-[37%]" />
+              <col className="w-[8%]" />
+              <col className="w-[10%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted">
-                {['Employee', 'Email/ID', 'Department', 'Team', 'Position', 'Punch days', 'Worked', 'Break', 'Late', 'Overtime', 'Shift', 'Week status'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}
+                <th className="min-w-[190px] px-4 py-3">Employee</th>
+                <th className="min-w-[135px] px-3 py-3">Department</th>
+                <th className="min-w-[155px] px-3 py-3">Position</th>
+                <th className="min-w-[390px] px-3 py-3 text-center">Punch In / Punch Out</th>
+                <th className="min-w-[110px] px-3 py-3">Break</th>
+                <th className="min-w-[140px] px-3 py-3">Status</th>
               </tr>
             </thead>
             <tbody>
-              {visibleWeeklyRows.map((row) => (
-                <tr key={row.id} className="border-b border-app-border last:border-0">
-                  <td className="px-3 py-3 font-semibold"><button type="button" onClick={() => openWeeklyDrawer(row)} aria-label={`View weekly attendance for ${row.fullName}`} className="rounded text-left hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent">{row.fullName}</button></td>
-                  <td className="px-3 py-3">{row.employeeId ?? '?'}</td>
+              {dailyRows.map((row) => {
+                const isWorking = date === now && Boolean(row.arrivalAt) && !row.departureAt;
+                const workedMinutes = currentWorkedMinutes(row, isWorking, clockNow);
+                return (
+                <tr
+                  key={row.id}
+                  tabIndex={0}
+                  aria-label={`Open daily attendance details for ${row.fullName}`}
+                  onClick={() => openDailyDrawer(row)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openDailyDrawer(row);
+                    }
+                  }}
+                  className="cursor-pointer border-b border-app-border transition-colors last:border-0 hover:bg-app-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-app-accent"
+                >
+                  <td className="px-4 py-3">
+                    <span className="block max-w-full truncate whitespace-nowrap font-semibold text-app-foreground" title={row.fullName}>{row.fullName}</span>
+                    <span className="mt-0.5 block truncate text-xs text-app-muted">{row.employeeId ?? '—'}</span>
+                  </td>
+                  <td className="px-3 py-3 text-app-foreground">{row.departmentName ?? '—'}</td>
+                  <td className="px-3 py-3 text-app-foreground">{row.positionName ?? '—'}</td>
+                  <td className="px-3 py-3">
+                    <div className="mx-auto grid min-w-[370px] grid-cols-[minmax(72px,0.8fr)_minmax(148px,1fr)_minmax(72px,0.8fr)] items-center gap-2.5">
+                      <div className="min-w-0">
+                        <span className="block truncate text-sm font-semibold tabular-nums text-app-accent">{timelineTime(row.arrivalAt)}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <span className={`mb-0.5 block text-center text-[9px] font-bold uppercase tracking-wide ${isWorking ? 'text-emerald-700 dark:text-emerald-300' : 'text-app-muted'}`}>{isWorking ? 'Working' : 'Worked'}</span>
+                        <div className="flex items-center gap-1.5" aria-label={`${isWorking ? 'Working' : 'Worked'} ${duration(workedMinutes)}`}>
+                          <span className="size-2 shrink-0 rounded-full bg-app-accent" />
+                          <span className="h-px min-w-2 flex-1 bg-app-border" />
+                          <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-app-foreground">{duration(workedMinutes)}</span>
+                          <span className="h-px min-w-2 flex-1 bg-app-border" />
+                          <span className="size-2 shrink-0 rounded-full bg-app-accent" />
+                        </div>
+                      </div>
+                      <div className="min-w-0 text-right">
+                        <span className="block truncate text-sm font-semibold tabular-nums text-app-accent">{timelineTime(row.departureAt)}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 tabular-nums">{duration(row.breakMinutes)}</td>
+                  <td className="px-3 py-3 font-semibold">
+                    {isWorking ? <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/35 dark:text-emerald-300"><span className="size-1.5 rounded-full bg-emerald-500" />Working</span> : dailyStatus(row)}
+                  </td>
+                </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </HorizontalScrollArea>
+        <Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} />
+      </Card>
+    )}
+    {!loading && !error && mode === 'weekly' && weeklyRows.length > 0 && (
+      <Card className="overflow-hidden p-0">
+        <HorizontalScrollArea ariaLabel="Weekly attendance summary table" showArrows={false}>
+          <table className="w-full min-w-[900px] text-sm">
+            <thead>
+              <tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted">
+                {['Employee', 'Department', 'Position', 'Punch days', 'Worked', 'Break', 'Late'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleWeeklyRows.map((row) => {
+                const lateDays = row.dayRows.filter((day) => day.lateMinutes > 0);
+                const lateTooltip = lateDays.map((day) => `${dateLabel(day.reportDate)}: ${duration(day.lateMinutes)} late`).join('\n');
+                return (
+                <tr key={row.id} onClick={() => openWeeklyDrawer(row)} className="cursor-pointer border-b border-app-border last:border-0 transition-colors hover:bg-app-accent/5">
+                  <td className="min-w-[190px] px-3 py-3">
+                    <button type="button" onClick={(event) => { event.stopPropagation(); openWeeklyDrawer(row); }} aria-label={`View weekly attendance for ${row.fullName}`} title={row.fullName} className="block max-w-[180px] truncate whitespace-nowrap rounded text-left font-semibold text-app-foreground hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent">{row.fullName}</button>
+                    <span className="mt-0.5 block truncate text-xs text-app-muted">{row.employeeId ?? '—'}</span>
+                  </td>
                   <td className="px-3 py-3">{row.departmentName ?? '?'}</td>
-                  <td className="px-3 py-3">{row.teamName ?? '?'}</td>
                   <td className="px-3 py-3">{row.positionName ?? '?'}</td>
                   <td className="whitespace-nowrap px-3 py-3">{row.punchDays} / {row.daysInPeriod} days</td>
                   <td className="whitespace-nowrap px-3 py-3 font-semibold">{duration(row.workedMinutes)}</td>
                   <td className="whitespace-nowrap px-3 py-3">{duration(row.breakMinutes)}</td>
-                  <td className="whitespace-nowrap px-3 py-3">{row.lateMinutes}m</td>
-                  <td className="whitespace-nowrap px-3 py-3">{row.overtimeMinutes}m</td>
-                  <td className="px-3 py-3">{row.shiftSummary}</td>
-                  <td className="max-w-72 px-3 py-3 text-xs">{row.statusSummary}</td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    {lateDays.length > 0 ? <span tabIndex={0} title={lateTooltip} aria-label={`Late ${lateDays.length} ${lateDays.length === 1 ? 'day' : 'days'}: ${lateTooltip.replaceAll('\n', '. ')}`} className="cursor-help rounded-sm font-medium underline decoration-dotted underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent">{row.lateDays} {row.lateDays === 1 ? 'day' : 'days'}</span> : `${row.lateDays} days`}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </HorizontalScrollArea>
         <Pagination page={page} totalPages={weeklyTotalPages} total={weeklyEmployeeCount} itemLabel="employees" onPage={setPage} />
       </Card>
     )}
-    {!loading && !error && mode === 'monthly' && monthlyRows.length > 0 && <Card className="overflow-hidden p-0"><HorizontalScrollArea ariaLabel="Monthly attendance by date" showArrows={false}><table className="min-w-[1200px] w-full text-sm"><thead><tr className="border-b border-app-border bg-app-surface-raised text-left text-xs text-app-muted"><th className="sticky left-0 z-10 min-w-52 bg-app-surface-raised px-4 py-3">Employee</th><th className="min-w-28 px-3 py-3">Shift</th>{dates.map((item) => <th key={item} className="min-w-12 px-2 py-3 text-center">{Number(item.slice(8))}</th>)}</tr></thead><tbody>{monthlyRows.map((row) => { const records = new Map(row.records.map((record) => [record.date, record])); return <tr key={row.id} className="group border-b border-app-border transition hover:bg-app-accent/5"><td className="sticky left-0 z-10 bg-app-surface px-4 py-3"><button type="button" onClick={() => openMonthlyDrawer(row)} aria-label={`View monthly attendance for ${row.fullName}`} className="group/employee w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent"><span className="block font-semibold text-app-foreground group-hover/employee:text-app-accent">{row.fullName}</span><span className="mt-0.5 block text-xs text-app-muted">{row.employeeId ?? '—'} · {row.departmentName ?? '—'}</span></button></td><td className="px-3 py-3 text-xs text-app-muted">{row.shift?.kind ?? 'Multiple/—'}</td>{dates.map((item) => <td key={item} className="px-1 py-2 text-center text-xs font-bold">{code(records.get(item))}</td>)}</tr>; })}</tbody></table></HorizontalScrollArea><HorizontalScrollArea className="border-t border-app-border" ariaLabel="Monthly attendance totals" showArrows={false}><table className="w-full min-w-[1000px] text-sm"><thead><tr className="text-left text-xs text-app-muted"><th className="px-4 py-3">Employee totals</th><th className="px-3 py-3">Present</th><th className="px-3 py-3">Leave</th><th className="px-3 py-3">Absent</th><th className="px-3 py-3">Holiday</th><th className="px-3 py-3">WFH</th><th className="px-3 py-3">Late</th><th className="px-3 py-3">Worked</th><th className="px-3 py-3">Break</th><th className="px-3 py-3">Overtime</th></tr></thead><tbody>{monthlyRows.map((row) => <tr key={row.id} className="border-t border-app-border"><td className="px-4 py-2 font-semibold"><button type="button" onClick={() => openMonthlyDrawer(row)} aria-label={`View monthly attendance for ${row.fullName}`} className="rounded text-left hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent">{row.fullName}</button></td><td className="px-3 py-2">{row.presentUnits}</td><td className="px-3 py-2">{row.paidLeaveUnits + row.unpaidLeaveUnits}</td><td className="px-3 py-2">{row.absentUnits}</td><td className="px-3 py-2">{row.holidayUnits}</td><td className="px-3 py-2">{row.wfhDays}</td><td className="px-3 py-2">{row.lateDays} / {row.lateMinutes}m</td><td className="px-3 py-2">{duration(row.workedMinutes)}</td><td className="px-3 py-2">{duration(row.breakMinutes)}</td><td className="px-3 py-2">{row.overtimeMinutes}m</td></tr>)}</tbody></table></HorizontalScrollArea><Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} /></Card>}
+    {!loading && !error && mode === 'monthly' && monthlyRows.length > 0 && (
+      <Card className="overflow-hidden p-0">
+        <HorizontalScrollArea ariaLabel="Monthly attendance totals" showArrows={false}>
+          <table className="w-full min-w-[1000px] text-sm">
+            <thead>
+              <tr className="text-left text-xs text-app-muted">
+                <th className="px-4 py-3">Employee totals</th>
+                <th className="px-3 py-3">Present</th>
+                <th className="px-3 py-3">Leave</th>
+                <th className="px-3 py-3">Absent</th>
+                <th className="px-3 py-3">Holiday</th>
+                <th className="px-3 py-3">WFH</th>
+                <th className="px-3 py-3">Late</th>
+                <th className="px-3 py-3">Worked</th>
+                <th className="px-3 py-3">Break</th>
+                <th className="px-3 py-3">Overtime</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyRows.map((row) => (
+                <tr
+                  key={row.id}
+                  tabIndex={0}
+                  aria-label={`Open monthly attendance details for ${row.fullName}`}
+                  onClick={() => openMonthlyDrawer(row)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openMonthlyDrawer(row);
+                    }
+                  }}
+                  className="cursor-pointer border-t border-app-border transition-colors hover:bg-app-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-app-accent"
+                >
+                  <td className="px-4 py-2">
+                    <span className="block font-semibold text-app-foreground">{row.fullName}</span>
+                    <span className="mt-0.5 block text-xs text-app-muted">{row.employeeId ?? '—'}</span>
+                  </td>
+                  <td className="px-3 py-2">{row.presentUnits}</td>
+                  <td className="px-3 py-2">{row.paidLeaveUnits + row.unpaidLeaveUnits}</td>
+                  <td className="px-3 py-2">{row.absentUnits}</td>
+                  <td className="px-3 py-2">{row.holidayUnits}</td>
+                  <td className="px-3 py-2">{row.wfhDays}</td>
+                  <td className="px-3 py-2">{row.lateDays} {row.lateDays === 1 ? 'day' : 'days'}</td>
+                  <td className="px-3 py-2">{duration(row.workedMinutes)}</td>
+                  <td className="px-3 py-2">{duration(row.breakMinutes)}</td>
+                  <td className="px-3 py-2">{row.overtimeMinutes}m</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </HorizontalScrollArea>
+        <Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} />
+      </Card>
+    )}
     {selectedDrawer && <AttendanceDetailsDrawer key={selectedDrawer.employee.id} {...selectedDrawer} onPeriodChange={switchDrawerPeriod} onClose={closeAttendanceDrawer} />}
   </Page>;
 }
