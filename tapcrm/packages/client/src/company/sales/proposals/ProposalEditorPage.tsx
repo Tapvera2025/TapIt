@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Page, Select } from '../../../ui/index.js';
 import {
@@ -440,7 +441,7 @@ export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: Pro
                       />
                       <label className="text-xs font-semibold text-app-muted">
                         <span className="mb-2 block">Valid until</span>
-                        <input
+                        <CalendarPicker
                           type="date"
                           disabled={!editable}
                           value={draftBody?.validityAt?.slice(0, 10) ?? selected.validityAt?.slice(0, 10) ?? ''}

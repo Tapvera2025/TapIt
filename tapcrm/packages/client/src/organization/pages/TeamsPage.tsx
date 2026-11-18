@@ -199,7 +199,7 @@ export function TeamsPage(): React.JSX.Element {
       )}
       <div className="space-y-5">
         <Card className="overflow-hidden p-0">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-b-[color:var(--app-border)] px-5 py-5 sm:px-6">
+          <div className="organization-local-header flex flex-wrap items-center justify-between gap-4 border-b border-b-[color:var(--app-border)] px-5 py-5 sm:px-6 xl:hidden">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
                 <Icon name="users" className="size-5" />

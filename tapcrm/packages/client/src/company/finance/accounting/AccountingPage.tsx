@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Button,
+  CalendarPicker,
   Card,
   Empty,
   Loading,
@@ -1412,16 +1413,27 @@ function Field({
   type?: string;
   placeholder?: string;
 }): React.JSX.Element {
+  const input = type === 'date' || type === 'month' ? (
+    <CalendarPicker
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+      className="block w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent focus:ring-2 focus:ring-app-accent/20"
+    />
+  ) : (
+    <input
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+      className="block w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent focus:ring-2 focus:ring-app-accent/20"
+    />
+  );
   return (
     <label className="text-xs font-semibold text-app-muted">
       <span className="mb-2 block">{label}</span>
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className="block w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent focus:ring-2 focus:ring-app-accent/20"
-      />
+      {input}
     </label>
   );
 }

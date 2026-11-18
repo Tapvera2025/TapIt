@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card, Field, Modal, Notice, Page, Select } from '../../ui/index.js';
 import {
@@ -310,7 +311,7 @@ export function TaManagementPage(): React.JSX.Element {
           </label>
           <label className="text-xs font-semibold text-app-muted">
             TA month
-            <input
+            <CalendarPicker
               className="mt-2 w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
               type="month"
               value={month.slice(0, 7)}
@@ -591,7 +592,7 @@ export function MyTaPage(): React.JSX.Element {
             <div className="flex items-center gap-3">
               <label className="text-xs font-semibold text-app-muted">
                 TA month
-                <input
+                <CalendarPicker
                   className="mt-2 block rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
                   type="month"
                   value={month.slice(0, 7)}
@@ -702,7 +703,7 @@ export function MyTaPage(): React.JSX.Element {
             <div className="flex items-center gap-3">
               <label className="text-xs font-semibold text-app-muted">
                 TA month
-                <input
+                <CalendarPicker
                   className="mt-2 block rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
                   type="month"
                   value={month.slice(0, 7)}

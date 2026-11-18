@@ -2,6 +2,35 @@
 @import 'tailwindcss';
 @import './ui/theme.css';
 
+.calendar-popover-scroll {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.calendar-popover-scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.attendance-horizontal-scroll-arrow {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.attendance-horizontal-scroll-area:hover .attendance-horizontal-scroll-arrow,
+.attendance-horizontal-scroll-area:focus-within .attendance-horizontal-scroll-arrow {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .attendance-horizontal-scroll-arrow {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @keyframes tapcrm-skeleton-shimmer {
@@ -696,6 +725,49 @@
   }
 
   /* Keep the platform drawer in the same translucent workspace style. */
+  .platform-capsule-action,
+  .platform-capsule-icon {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--app-surface) 88%, transparent);
+    color: var(--app-foreground);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.45rem 0.75rem;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+  }
+  .platform-capsule-action:hover,
+  .platform-capsule-icon:hover {
+    border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-border));
+    background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+    color: var(--app-accent);
+    transform: translateY(-1px);
+  }
+  .platform-capsule-action-primary {
+    border-color: color-mix(in srgb, var(--app-accent) 60%, var(--app-border));
+    background: linear-gradient(110deg, var(--app-accent), color-mix(in srgb, var(--app-accent) 62%, #d98cff));
+    color: var(--app-on-accent);
+  }
+  .platform-capsule-icon { width: 2.25rem; padding: 0; }
+  .platform-kpi-grid article:last-child { border-bottom: 0; }
+  .platform-kpi-grid,
+  .platform-kpi-grid > div {
+    background-color: var(--app-surface) !important;
+    background-image: none !important;
+  }
+  .platform-kpi-grid { box-shadow: none !important; }
+  @media (min-width: 640px) {
+    .platform-kpi-grid article:nth-last-child(-n + 2) { border-bottom: 0; }
+  }
+  @media (min-width: 1280px) {
+    .platform-kpi-grid article:nth-last-child(-n + 4) { border-bottom: 0; }
+    .platform-kpi-grid article:nth-child(4n) { border-right: 0; }
+  }
   .platform-sidebar {
     isolation: isolate;
     background: color-mix(in srgb, var(--sidebar-background) 76%, transparent) !important;
@@ -1379,11 +1451,11 @@
     .workspace-sidebar {
       position: static !important;
       inset: auto !important;
-      /* Keep the floating rail visually centred in the desktop shell while
-         using the otherwise unused lower viewport space. */
+      /* Layered !important declarations take precedence over unlayered
+         overrides. Own desktop geometry here, using the hero's top inset. */
       align-self: flex-start;
-      height: calc(100dvh - 4.25rem) !important;
-      margin: 3rem 0 1.25rem 1.25rem !important;
+      height: calc(100dvh - var(--company-sidebar-top-gap, 1.5rem) - 1.25rem) !important;
+      margin: var(--company-sidebar-top-gap, 1.5rem) 0 1.25rem 1.25rem !important;
       border-radius: 1.25rem;
       transform: none !important;
     }
@@ -2856,24 +2928,20 @@ summary:active {
   }
 
   .company-layout-shell main[data-app-scroll-container] {
-    /* Match the floating rail's desktop top gutter so the first page surface
-       starts on the same visual baseline as the sidebar. */
-    padding: 3rem 0 1rem;
+    /* Keep the first page surface close to the navbar while preserving a
+       deliberate breathing room across every desktop layout. */
+    padding: var(--company-sidebar-top-gap) 0 1rem;
   }
 
   .company-page-hero-desktop {
-    margin-bottom: var(--workspace-space-md);
-  }
-
-  /* Keep the floating rail on the same top baseline as the desktop hero.
-     This more-specific rule intentionally owns its full desktop geometry. */
-  .company-layout-shell .workspace-sidebar {
-    height: calc(100dvh - 4.25rem) !important;
-    margin: 3rem 0 1.25rem 1.25rem !important;
+    position: relative;
+    z-index: 1000;
+    /* Keep the next page surface below the hero's curved lower edge. */
+    margin-bottom: 2rem;
   }
 
   .workspace-sidebar .sidebar-brand-expanded {
-    width: min(13rem, 100%);
+    width: min(11rem, 100%);
     height: auto;
     aspect-ratio: 1981 / 793;
     overflow: visible;
@@ -2909,7 +2977,7 @@ summary:active {
     min-height: 11rem;
     min-width: 0;
     align-items: flex-end;
-    padding: 4rem clamp(1.75rem, 2.25vw, 2.25rem) 1.5rem;
+    padding: 4rem clamp(1.75rem, 2.25vw, 2.25rem) 2.5rem;
   }
 
   .dark .company-page-hero {
@@ -2936,14 +3004,12 @@ summary:active {
     /* Optically centre the three-line copy block beneath the utility pocket. */
     transform: translateY(-0.875rem);
   }
-  .company-page-hero[data-utility-overlap='true'] {
-    /* Only wide action capsules that enter the copy region need extra room. */
-    padding-top: max(5.5rem, calc(var(--hero-utility-height, 0px) + 2rem));
-  }
   .company-page-hero[data-utility-overlap='true'] .company-page-hero-copy {
-    transform: none;
+    /* The normal copy position is stable. This is only a small nudge for a
+       genuinely overlapping, expanded capsule. */
+    transform: translateY(-0.5rem);
   }
-  .company-page-hero-utility { position: absolute; z-index: 70; right: 0; top: 0; }
+  .company-page-hero-utility { position: absolute; z-index: 1000; right: 0; top: 0; }
   .company-hero-capsule {
     display: flex;
     box-sizing: border-box;
@@ -3524,11 +3590,48 @@ summary:active {
     0 0 10px color-mix(in srgb, var(--theme-primary) 50%, transparent);
 }
 
+/* Mouse clicks retain focus after collapsing: only keyboard-visible focus
+   should reveal the toggle when the pointer is outside the rail. */
+.workspace-sidebar .sidebar-collapse-toggle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workspace-sidebar:hover .sidebar-collapse-toggle,
+.workspace-sidebar .sidebar-collapse-toggle:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar-collapse-toggle > * {
+  pointer-events: none;
+}
+
 /* Sidebar horizontal scrollbar prevention */
-.workspace-sidebar,
 .workspace-sidebar nav,
 .company-sidebar-nav {
   overflow-x: hidden !important;
+}
+
+/* The desktop collapse control intentionally sits outside the sidebar edge.
+   Keep the mobile drawer clipped while allowing that control to float on
+   desktop without affecting the navigation scroll region. */
+@media (max-width: 1279px) {
+  .workspace-sidebar {
+    overflow-x: hidden !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Let the desktop sidebar collapse control float beyond the shell edge. */
+  .company-layout-shell {
+    overflow: visible !important;
+  }
+
+  .workspace-sidebar {
+    overflow: visible !important;
+    clip-path: none !important;
+  }
 }
 
 /* This is an independent scrolling region. Route changes can add/remove
@@ -3546,6 +3649,28 @@ summary:active {
   height: 0 !important;
   width: 0 !important;
   background: transparent !important;
+}
+
+/* When every navigation group is closed, keep the compact section headers in
+   one viewport so the sidebar does not need an unnecessary vertical scroll. */
+.company-sidebar-nav.sidebar-sections-collapsed {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0 !important;
+  overflow-y: hidden;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div.relative {
+  margin-top: 0 !important;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div > button {
+  padding-block: 0.5rem !important;
+}
+
+.company-sidebar-nav.sidebar-sections-collapsed > div > div.mt-2 {
+  margin-top: 0.25rem;
 }
 
 /* Keep the desktop sidebar clean until it is actually being used. The nav
@@ -3584,6 +3709,25 @@ summary:active {
 
 .guide-flash {
   animation: guide-flash 1.8s ease-out;
+}
+
+@media (max-width: 850px) {
+  .platform-main-scroll,
+  .platform-sidebar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .platform-main-scroll {
+    scrollbar-gutter: auto;
+  }
+
+  .platform-main-scroll::-webkit-scrollbar,
+  .platform-sidebar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3666,3 +3810,359 @@ summary:active {
   background-color: var(--app-surface) !important;
   background-image: none !important;
 }
+
+/* Master Admin uses neutral graphite surfaces in dark mode. Keep the global
+   card-gradient fallback from reintroducing the accent tint on its KPI,
+   tenant, company, and access-lifecycle surfaces. */
+.dark .platform-shell #platform-overview .platform-kpi-grid,
+.dark .platform-shell #platform-overview .platform-kpi-grid > div,
+.dark .platform-shell #platform-companies,
+.dark .platform-shell #platform-companies article,
+.dark .platform-shell #platform-invitations,
+.dark .platform-shell #platform-invitations > div {
+  background-color: var(--app-surface) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* Platform portal spacing: keep the rail floating with a balanced viewport
+   inset while lifting the page content closer to the desktop navbar. */
+@media (min-width: 1280px) {
+  .platform-shell .workspace-sidebar .sidebar-brand-expanded {
+    width: min(11rem, 100%);
+  }
+}
+
+/* The edge control is a persistent pin/unpin switch, not a hover-only action. */
+@media (min-width: 1280px) {
+  .workspace-sidebar .sidebar-collapse-toggle {
+    position: absolute;
+    z-index: 50;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+}
+
+.workspace-sidebar .sidebar-module-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem !important;
+  margin-top: 0.5rem;
+  padding-left: 1rem;
+}
+
+.workspace-sidebar .sidebar-module-items > div {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.workspace-sidebar .sidebar-module-items > div > button {
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0.45rem 0.75rem !important;
+  line-height: 1.25 !important;
+}
+
+.workspace-sidebar .company-sidebar-nav.sidebar-sections-collapsed {
+  padding-bottom: 1rem !important;
+}
+
+/* Workspace identity card replacing the sidebar logo and external heading. */
+.sidebar-workspace-header {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.sidebar-workspace-card {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  min-height: 3.25rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.sidebar-workspace-icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 2.75rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 34%, var(--app-border));
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--theme-primary) 12%, var(--app-surface));
+  color: var(--theme-primary);
+}
+
+.sidebar-workspace-icon svg {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.sidebar-workspace-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sidebar-workspace-company,
+.sidebar-workspace-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-workspace-company {
+  color: var(--app-foreground);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.sidebar-workspace-name {
+  color: var(--sidebar-muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.sidebar-mobile-workspace-title {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  .sidebar-workspace-header {
+    display: none;
+  }
+
+  .sidebar-mobile-workspace-title {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem 0.25rem;
+  }
+
+  .sidebar-mobile-workspace-title p {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--sidebar-muted);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .sidebar-mobile-workspace-title button {
+    flex-shrink: 0;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    color: var(--sidebar-muted);
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+}
+
+@media (min-width: 1280px) {
+  .workspace-sidebar .sidebar-workspace-header {
+    padding-right: 0;
+  }
+
+  .workspace-sidebar .sidebar-collapse-toggle {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+    border-radius: 0.8rem !important;
+    transform: none !important;
+    margin-left: auto;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .sidebar-workspace-card {
+    min-height: 0;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .sidebar-workspace-copy {
+    display: none;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .sidebar-collapse-toggle {
+    margin-left: 0;
+  }
+}
+
+/* Keep every top-level module on the same neutral section surface. Hovering
+   uses the active theme surface so the navigation stays accent-aware. */
+.workspace-sidebar .company-sidebar-nav > div.relative > button {
+  background: color-mix(
+    in srgb,
+    var(--sidebar-active-bg) 34%,
+    var(--sidebar-background)
+  ) !important;
+}
+
+.workspace-sidebar .company-sidebar-nav > div.relative > button:hover,
+.workspace-sidebar .company-sidebar-nav > div.relative > button:focus-visible {
+  background: var(--theme-primary) !important;
+  color: #fff !important;
+}
+
+.workspace-sidebar .company-sidebar-nav > div.relative > button:hover svg,
+.workspace-sidebar .company-sidebar-nav > div.relative > button:focus-visible svg {
+  color: #fff !important;
+}
+
+.workspace-sidebar .company-sidebar-nav > div.relative > button[aria-expanded='true'] {
+  background: var(--theme-primary) !important;
+  color: #fff !important;
+}
+
+.workspace-sidebar .company-sidebar-nav > div.relative > button[aria-expanded='true'] svg {
+  color: #fff !important;
+}
+
+@media (min-width: 1280px) {
+  /* Keep the collapsed icon rail usable when its module list exceeds the
+     available height instead of letting the last module hide behind logout. */
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed {
+    justify-content: flex-start;
+    gap: 0 !important;
+    overflow-y: auto !important;
+    padding-bottom: 2rem !important;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed > div.relative {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed > div.relative > button {
+    min-height: 0 !important;
+    height: 2rem !important;
+    padding: 0 !important;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed > div.relative > button > svg {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .sidebar-logout {
+    flex-shrink: 0;
+  }
+}
+
+/* Dark sidebar: keep the rail graphite and glassy. Purple is reserved for
+   navigation emphasis instead of tinting every module surface. */
+.dark .workspace-sidebar {
+  background:
+    linear-gradient(180deg, rgba(55, 58, 66, 0.82), rgba(39, 42, 49, 0.88)) !important;
+  border-color: rgba(214, 220, 231, 0.22) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 36px -24px rgba(0, 0, 0, 0.72) !important;
+  backdrop-filter: blur(24px) saturate(115%);
+  -webkit-backdrop-filter: blur(24px) saturate(115%);
+}
+
+.dark .sidebar-workspace-header {
+  border-bottom-color: rgba(214, 220, 231, 0.18);
+}
+
+.dark .sidebar-workspace-card {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dark .sidebar-workspace-icon {
+  border-color: color-mix(in srgb, var(--theme-primary) 68%, rgba(214, 220, 231, 0.24));
+  background: color-mix(in srgb, var(--theme-primary) 12%, rgba(20, 22, 27, 0.72));
+  color: color-mix(in srgb, var(--theme-primary) 88%, white);
+}
+
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button {
+  border: 1px solid rgba(214, 220, 231, 0.07);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)) !important;
+  color: rgba(241, 245, 249, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 8px 18px -18px rgba(0, 0, 0, 0.9);
+}
+
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button:hover,
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button:focus-visible,
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--theme-primary) 62%, rgba(255, 255, 255, 0.14));
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--theme-primary) 76%, #1e2027),
+      color-mix(in srgb, var(--theme-primary) 54%, #1e2027)) !important;
+  color: #fff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 24px -18px color-mix(in srgb, var(--theme-primary) 75%, transparent);
+}
+
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button svg {
+  color: rgba(226, 232, 240, 0.68);
+}
+
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button:hover svg,
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button:focus-visible svg,
+.dark .workspace-sidebar .company-sidebar-nav > div.relative > button[aria-expanded='true'] svg {
+  color: #fff !important;
+}
+
+.dark .workspace-sidebar .sidebar-logout {
+  border-top-color: rgba(214, 220, 231, 0.18) !important;
+}
+
+/* The navbar can still overflow on narrow screens, but its native scrollbar
+   should never be visible as part of the chrome. */
+.global-navbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.global-navbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* The pet runway reduces the available nav height. Keep compact expanded
+   sections spaced instead of letting their buttons touch each other. */
+@media (min-width: 1280px) {
+  .workspace-sidebar.sidebar-has-pet[data-sidebar-collapsed='false']
+    .company-sidebar-nav.sidebar-sections-collapsed {
+    justify-content: flex-start;
+    gap: 0.55rem !important;
+    overflow-y: auto;
+    padding-bottom: 1rem !important;
+  }
+
+  .workspace-sidebar.sidebar-has-pet[data-sidebar-collapsed='false']
+    .company-sidebar-nav.sidebar-sections-collapsed > div.relative {
+    flex: 0 0 auto;
+  }
+}
+

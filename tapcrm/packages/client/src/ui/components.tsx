@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon.js';
+import { CalendarPicker } from './CalendarPicker.js';
 import { CompanyPageActionPortal } from '../company/layout/CompanyPageActionPortal.js';
 import { useCompanyHeroPageActions } from '../company/layout/CompanyNavbarContext.js';
 
@@ -160,6 +161,7 @@ export function Page({
   title,
   description,
   action,
+  hideMobileAction = false,
   variant = 'default',
   children,
 }: {
@@ -167,6 +169,7 @@ export function Page({
   title: string;
   description?: string;
   action?: ReactNode;
+  hideMobileAction?: boolean;
   variant?: 'default' | 'recruitment';
   children: ReactNode;
 }): React.JSX.Element {
@@ -178,7 +181,11 @@ export function Page({
   const usesCompanyHero = Boolean(companyHeroActionTarget);
   return (
     <WorkspacePageContainer>
-        {usesCompanyHero && action && <CompanyPageActionPortal>{action}</CompanyPageActionPortal>}
+        {usesCompanyHero && action && (
+          <CompanyPageActionPortal mobileClassName={hideMobileAction ? 'hidden' : undefined}>
+            {action}
+          </CompanyPageActionPortal>
+        )}
         <header className={`${recruitmentHeader ? 'recruitment-page-header' : 'ui-page-header'}${usesCompanyHero ? ' xl:hidden' : ''}`}>
           <div className={recruitmentHeader ? 'flex min-w-0 items-start gap-3' : 'ui-page-header-copy min-w-0'}>
             {recruitmentHeader && <span className="recruitment-page-header-icon"><Icon name="briefcase" className="size-5" /></span>}
@@ -624,7 +631,19 @@ export function Field({
    */
   autoComplete?: string;
 }): React.JSX.Element {
-  const input = (
+  const input = type === 'date' || type === 'month' ? (
+    <CalendarPicker
+      type={type}
+      required={required}
+      disabled={disabled}
+      min={min}
+      value={value}
+      placeholder={placeholder}
+      autoComplete={autoComplete}
+      onChange={(event) => onChange(event.target.value)}
+      className="ui-form-control w-full px-3 py-2.5 text-sm outline-none"
+    />
+  ) : (
     <input
       required={required}
       disabled={disabled}
@@ -835,6 +854,7 @@ export function Modal({
   footer,
   size = 'md',
   dirty,
+  closeButtonClassName = '',
 }: {
   title: string;
   /**
@@ -846,6 +866,8 @@ export function Modal({
   /** Stays in view under the scrolling content: put the main actions here. */
   footer?: ReactNode;
   size?: 'md' | 'lg';
+  /** Optional responsive classes for the header close control. */
+  closeButtonClassName?: string | undefined;
   /**
    * Whether closing now would lose edits. Left out, the window notices typing
    * in its own fields; pass it when the edits are not plain form fields.
@@ -936,7 +958,7 @@ export function Modal({
         <button
           type="button"
           onClick={requestClose}
-          className="grid size-9 place-items-center rounded-lg text-2xl text-app-muted hover:bg-app-background"
+          className={`grid size-9 place-items-center rounded-lg text-2xl text-app-muted hover:bg-app-background ${closeButtonClassName}`}
           aria-label="Close dialog"
         >
           ×

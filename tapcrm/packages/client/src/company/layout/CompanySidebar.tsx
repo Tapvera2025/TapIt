@@ -1,13 +1,50 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { BrandLogo, Icon } from '../../ui/index.js';
+import { Icon } from '../../ui/index.js';
 import { SidebarPet, useAiPet } from './AiPet.js';
 import { myNotepadNavItem, myTodoNavItem, type CompanyNavGroup } from './navigation.js';
 import { useChatUnread } from '../../chat/ChatUnreadContext.js';
 
-/** Modules whose pages are tabs inside the module (CompanyModuleTabStrip). */
-const TABBED_MODULE_GROUPS = new Set(['Recruitment', 'Shifts & Leave', 'Identity & Access']);
+const SIDEBAR_SECTION_ROUTES: readonly [string, string][] = [
+  ['/company/organization', 'Organization'],
+  ['/company/employees', 'Organization'],
+  ['/company/recruitment', 'Recruitment'],
+  ['/company/employee-notes', 'Employee Activities'],
+  ['/company/clients', 'Delivery'],
+  ['/company/projects', 'Delivery'],
+  ['/company/meetings', 'Delivery'],
+  ['/company/social', 'Delivery'],
+  ['/company/seo-intelligence', 'SEO Intelligence'],
+  ['/company/sales', 'Sales'],
+  ['/company/attendance', 'Attendance'],
+  ['/company/breaks', 'Attendance'],
+  ['/company/biometric', 'Attendance'],
+  ['/company/leave', 'Shifts & Leave'],
+  ['/company/holidays', 'Shifts & Leave'],
+  ['/company/shifts', 'Shifts & Leave'],
+  ['/company/weekday-schedules', 'Shifts & Leave'],
+  ['/company/advance', 'Advances & Penalties'],
+  ['/company/penalties', 'Advances & Penalties'],
+  ['/company/expenses', 'Advances & Penalties'],
+  ['/company/ta', 'Advances & Penalties'],
+  ['/company/my-ta', 'Advances & Penalties'],
+  ['/company/payroll', 'Payroll'],
+  ['/company/finance', 'Finance'],
+  ['/company/access', 'Identity & Access'],
+  ['/company/audit', 'Identity & Access'],
+  ['/company/sessions', 'Identity & Access'],
+  ['/company/geofencing', 'Identity & Access'],
+  ['/company/role-change-request', 'Identity & Access'],
+  ['/company/settings', 'Preferences'],
+];
+
+function sectionForPath(pathname: string, variant: 'company' | 'client' | 'platform') {
+  if (variant === 'client') return pathname.startsWith('/client/profile') ? 'Account' : 'Overview';
+  if (variant === 'platform') return 'Platform';
+  return SIDEBAR_SECTION_ROUTES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? 'Overview';
+}
 
 const GROUP_ICONS: Record<string, string> = {
+  Platform: 'grid',
   Overview: 'grid',
   Communication: 'message',
   Organization: 'building',
@@ -27,8 +64,7 @@ const GROUP_ICONS: Record<string, string> = {
 export function CompanySidebar({
   variant = 'company',
   pathname,
-  identity: _identity,
-  organizationName: _organizationName,
+  organizationName,
   accountType,
   canRequestRoleChange = false,
   canViewAudit = false,
@@ -86,10 +122,15 @@ export function CompanySidebar({
   onClose,
   collapsed = false,
   onToggleCollapsed,
+  isPinned = false,
+  onSidebarPointerEnter,
+  onSidebarPointerLeave,
+  onSidebarInteraction,
   width = 256,
   onResize,
+  showAiPet = true,
 }: {
-  variant?: 'company' | 'client';
+  variant?: 'company' | 'client' | 'platform';
   pathname: string;
   identity: {
     fullName: string;
@@ -163,31 +204,21 @@ export function CompanySidebar({
   onClose: () => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  isPinned?: boolean;
+  onSidebarPointerEnter?: (event: React.PointerEvent<HTMLElement>) => void;
+  onSidebarPointerLeave?: (event: React.PointerEvent<HTMLElement>) => void;
+  onSidebarInteraction?: () => void;
   width?: number;
   onResize?: (width: number) => void;
+  showAiPet?: boolean;
 }): React.JSX.Element {
-  const isEmployeePortal = variant === 'company' && accountType === 'employee';
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
-    ...(isEmployeePortal ? { Overview: true } : {}),
-    ...(!isEmployeePortal
-      ? {
-          Organization: pathname.startsWith('/company/organization') || pathname === '/company/employees',
-          Recruitment: pathname.startsWith('/company/recruitment'),
-        }
-      : {}),
-  }));
+  const [openSection, setOpenSection] = useState<string | null>(() =>
+    collapsed ? null : sectionForPath(pathname, variant),
+  );
 
   const toggleSection = (label: string) => {
-    setOpenSections((prev) => {
-      const current =
-        prev[label] ??
-        (isEmployeePortal
-          ? label === 'Overview'
-          : label === 'Organization'
-          ? pathname.startsWith('/company/organization')
-          : true);
-      return { ...prev, [label]: !current };
-    });
+    if (collapsed) return;
+    setOpenSection((current) => (current === label ? null : label));
   };
 
   const toggleNavItem = (label: string) => {
@@ -201,6 +232,7 @@ export function CompanySidebar({
     Recruitment: pathname.startsWith('/company/recruitment'),
   }));
   const prevPathnameRef = useRef(pathname);
+
   const navigationRef = useRef<HTMLElement>(null);
   // The page deliberately returns to the top on navigation. The sidebar is a
   // separate, independently scrollable control and must keep its place while
@@ -271,28 +303,46 @@ export function CompanySidebar({
   const syncActiveSidebarPill = () => {
     // Wait until route state commits, then position the shared pill from the
     // active item itself so it cannot remain at its previous route position.
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      const navigation = navigationRef.current;
-      const indicator = activeNavIndicatorRef.current;
-      const activeItem = navigation?.querySelector<HTMLButtonElement>(
-        '[data-company-nav-item][aria-current="page"]',
-      );
-      if (!navigation || !indicator || !activeItem) return;
-      const navRect = navigation.getBoundingClientRect();
-      const itemRect = activeItem.getBoundingClientRect();
-      indicator.style.setProperty('--sidebar-pill-top', `${itemRect.top - navRect.top + navigation.scrollTop}px`);
-      indicator.style.setProperty('--sidebar-pill-left', `${itemRect.left - navRect.left + navigation.scrollLeft}px`);
-      indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
-      indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
-      indicator.style.opacity = '1';
-      setIsActiveNavMoving(true);
-      if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
-      activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
-    }));
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => {
+        const navigation = navigationRef.current;
+        const indicator = activeNavIndicatorRef.current;
+        const activeItem = navigation?.querySelector<HTMLButtonElement>(
+          '[data-company-nav-item][aria-current="page"]',
+        );
+        if (!navigation || !indicator || !activeItem) return;
+        const navRect = navigation.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        indicator.style.setProperty(
+          '--sidebar-pill-top',
+          `${itemRect.top - navRect.top + navigation.scrollTop}px`,
+        );
+        indicator.style.setProperty(
+          '--sidebar-pill-left',
+          `${itemRect.left - navRect.left + navigation.scrollLeft}px`,
+        );
+        indicator.style.setProperty('--sidebar-pill-width', `${itemRect.width}px`);
+        indicator.style.setProperty('--sidebar-pill-height', `${itemRect.height}px`);
+        indicator.style.opacity = '1';
+        setIsActiveNavMoving(true);
+        if (activeNavMoveTimerRef.current !== undefined)
+          window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(
+          () => setIsActiveNavMoving(false),
+          480,
+        );
+      }),
+    );
   };
 
   const startSidebarPillDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!event.currentTarget.matches('[aria-current="page"]') || !window.matchMedia('(min-width: 1280px)').matches || event.button !== 0 || event.pointerType === 'touch') return;
+    if (
+      !event.currentTarget.matches('[aria-current="page"]') ||
+      !window.matchMedia('(min-width: 1280px)').matches ||
+      event.button !== 0 ||
+      event.pointerType === 'touch'
+    )
+      return;
     const indicatorRect = activeNavIndicatorRef.current?.getBoundingClientRect();
     if (!indicatorRect) return;
     sidebarPillDragRef.current = {
@@ -372,7 +422,12 @@ export function CompanySidebar({
           const rect = entry.button.getBoundingClientRect();
           const dx = centerX - (rect.left + rect.width / 2);
           const dy = centerY - (rect.top + rect.height / 2);
-          return { path, label: entry.label, button: entry.button, distance: dx * dx + dy * dy };
+          return {
+            path,
+            label: entry.label,
+            button: entry.button,
+            distance: dx * dx + dy * dy,
+          };
         })
         .sort((a, b) => a.distance - b.distance)[0];
 
@@ -392,14 +447,24 @@ export function CompanySidebar({
         // the old item and leave the pill visually stranded between rows.
         const targetRect = nearest.button.getBoundingClientRect();
         const navRect = navigation.getBoundingClientRect();
-        indicator.style.setProperty('--sidebar-pill-top', `${targetRect.top - navRect.top + navigation.scrollTop}px`);
-        indicator.style.setProperty('--sidebar-pill-left', `${targetRect.left - navRect.left + navigation.scrollLeft}px`);
+        indicator.style.setProperty(
+          '--sidebar-pill-top',
+          `${targetRect.top - navRect.top + navigation.scrollTop}px`,
+        );
+        indicator.style.setProperty(
+          '--sidebar-pill-left',
+          `${targetRect.left - navRect.left + navigation.scrollLeft}px`,
+        );
         indicator.style.setProperty('--sidebar-pill-width', `${targetRect.width}px`);
         indicator.style.setProperty('--sidebar-pill-height', `${targetRect.height}px`);
         indicator.style.opacity = '1';
         setIsActiveNavMoving(true);
-        if (activeNavMoveTimerRef.current !== undefined) window.clearTimeout(activeNavMoveTimerRef.current);
-        activeNavMoveTimerRef.current = window.setTimeout(() => setIsActiveNavMoving(false), 480);
+        if (activeNavMoveTimerRef.current !== undefined)
+          window.clearTimeout(activeNavMoveTimerRef.current);
+        activeNavMoveTimerRef.current = window.setTimeout(
+          () => setIsActiveNavMoving(false),
+          480,
+        );
         if (nearest.path === pathname) shouldRestore = true;
       } else {
         shouldRestore = true;
@@ -422,16 +487,17 @@ export function CompanySidebar({
   };
 
   useEffect(() => {
+    const previousPathname = prevPathnameRef.current;
     const wasRecruitment = prevPathnameRef.current.startsWith('/company/recruitment');
     const isRecruitment = pathname.startsWith('/company/recruitment');
-    if (!wasRecruitment && isRecruitment) {
+    if (!collapsed && !wasRecruitment && isRecruitment) {
       setExpandedItems((prev) => ({ ...prev, Recruitment: true }));
     }
-    if (pathname.startsWith('/company/organization')) {
-      setOpenSections((prev) => (prev['Organization'] ? prev : { ...prev, Organization: true }));
+    if (previousPathname !== pathname && !collapsed) {
+      setOpenSection(sectionForPath(pathname, variant));
     }
     prevPathnameRef.current = pathname;
-  }, [pathname]);
+  }, [pathname, variant, collapsed]);
 
   useLayoutEffect(() => {
     const navigation = navigationRef.current;
@@ -494,7 +560,10 @@ export function CompanySidebar({
 
       const previousTop = previousActiveTopRef.current;
       if (previousTop !== null && Math.abs(previousTop - top) > 1) {
-        indicator.style.setProperty('--sidebar-pill-origin', top > previousTop ? 'top center' : 'bottom center');
+        indicator.style.setProperty(
+          '--sidebar-pill-origin',
+          top > previousTop ? 'top center' : 'bottom center',
+        );
         setIsActiveNavMoving(true);
         if (activeNavMoveTimerRef.current !== undefined)
           window.clearTimeout(activeNavMoveTimerRef.current);
@@ -530,7 +599,8 @@ export function CompanySidebar({
 
   const isSuperAdmin = accountType === 'super-admin';
   // Module-backed items disappear when the company has the module switched off.
-  const moduleOn = (key: string): boolean => !enabledModules || enabledModules.includes(key);
+  const moduleOn = (key: string): boolean =>
+    !enabledModules || enabledModules.includes(key);
   const { activePet } = useAiPet();
   const { total: unreadMessages } = useChatUnread();
 
@@ -602,7 +672,11 @@ export function CompanySidebar({
                       path: '/company/organization/departments',
                       icon: 'building',
                     },
-                    { label: 'Teams', path: '/company/organization/teams', icon: 'users' },
+                    {
+                      label: 'Teams',
+                      path: '/company/organization/teams',
+                      icon: 'users',
+                    },
                     {
                       label: 'Positions',
                       path: '/company/organization/positions',
@@ -634,7 +708,11 @@ export function CompanySidebar({
           {
             label: 'Employee Activities',
             items: [
-              { label: 'Employee Notes', path: '/company/employee-notes', icon: 'notepad' },
+              {
+                label: 'Employee Notes',
+                path: '/company/employee-notes',
+                icon: 'notepad',
+              },
             ],
           },
         ]
@@ -645,12 +723,32 @@ export function CompanySidebar({
             label: 'Recruitment',
             items: [
               { label: 'Overview', path: '/company/recruitment', icon: 'grid' },
-              { label: 'Requisitions', path: '/company/recruitment/requisitions', icon: 'clipboard-list' },
-              { label: 'Resume Inbox', path: '/company/recruitment/resumes', icon: 'inbox' },
-              { label: 'Candidates', path: '/company/recruitment/candidates', icon: 'users' },
-              { label: 'Interviews', path: '/company/recruitment/interviews', icon: 'calendar' },
+              {
+                label: 'Requisitions',
+                path: '/company/recruitment/requisitions',
+                icon: 'clipboard-list',
+              },
+              {
+                label: 'Resume Inbox',
+                path: '/company/recruitment/resumes',
+                icon: 'inbox',
+              },
+              {
+                label: 'Candidates',
+                path: '/company/recruitment/candidates',
+                icon: 'users',
+              },
+              {
+                label: 'Interviews',
+                path: '/company/recruitment/interviews',
+                icon: 'calendar',
+              },
               { label: 'Offers', path: '/company/recruitment/offers', icon: 'file-text' },
-              { label: 'Joining', path: '/company/recruitment/joining', icon: 'user-plus' },
+              {
+                label: 'Joining',
+                path: '/company/recruitment/joining',
+                icon: 'user-plus',
+              },
             ],
           },
         ]
@@ -667,10 +765,22 @@ export function CompanySidebar({
                 ? [{ label: 'Projects', path: '/company/projects', icon: 'grid' }]
                 : []),
               ...(canViewMeetings
-                ? [{ label: 'Client meetings', path: '/company/meetings', icon: 'calendar' }]
+                ? [
+                    {
+                      label: 'Client meetings',
+                      path: '/company/meetings',
+                      icon: 'calendar',
+                    },
+                  ]
                 : []),
               ...(canViewSocial
-                ? [{ label: 'Manage Social Media', path: '/company/social', icon: 'share' }]
+                ? [
+                    {
+                      label: 'Manage Social Media',
+                      path: '/company/social',
+                      icon: 'share',
+                    },
+                  ]
                 : []),
             ],
           },
@@ -681,7 +791,11 @@ export function CompanySidebar({
           {
             label: 'SEO Intelligence',
             items: [
-              { label: 'SEO Dashboard', path: '/company/seo-intelligence', icon: 'trending-up' },
+              {
+                label: 'SEO Dashboard',
+                path: '/company/seo-intelligence',
+                icon: 'trending-up',
+              },
             ],
           },
         ]
@@ -707,7 +821,13 @@ export function CompanySidebar({
                 icon: 'chart',
               },
               ...(canViewLeads
-                ? [{ label: 'My Work', path: '/company/sales/my-work', icon: 'briefcase' }]
+                ? [
+                    {
+                      label: 'My Work',
+                      path: '/company/sales/my-work',
+                      icon: 'briefcase',
+                    },
+                  ]
                 : []),
               ...(canViewLeads
                 ? [
@@ -719,9 +839,21 @@ export function CompanySidebar({
                         { label: 'All Leads', path: '/company/sales/leads' },
                         { label: 'Lead Pool', path: '/company/sales/bid-pool' },
                         { label: 'Inactive Leads', path: '/company/sales/leads/stalled' },
-                        { label: 'Follow-up Required', path: '/company/sales/leads/re-engagement' },
-                        ...(canTriageSales ? [{ label: 'Needs Review', path: '/company/sales/triage' }] : []),
-                        ...(canViewImports ? [{ label: 'Imported Leads', path: '/company/sales/leads/imported' }] : []),
+                        {
+                          label: 'Follow-up Required',
+                          path: '/company/sales/leads/re-engagement',
+                        },
+                        ...(canTriageSales
+                          ? [{ label: 'Needs Review', path: '/company/sales/triage' }]
+                          : []),
+                        ...(canViewImports
+                          ? [
+                              {
+                                label: 'Imported Leads',
+                                path: '/company/sales/leads/imported',
+                              },
+                            ]
+                          : []),
                       ],
                     },
                   ]
@@ -730,17 +862,34 @@ export function CompanySidebar({
                 ? [
                     {
                       label: 'Activities',
-                      path: canViewCallbacks ? '/company/sales/callbacks' : canViewHandovers ? '/company/sales/handovers' : '/company/sales/calls',
+                      path: canViewCallbacks
+                        ? '/company/sales/callbacks'
+                        : canViewHandovers
+                          ? '/company/sales/handovers'
+                          : '/company/sales/calls',
                       icon: 'calendar',
                       children: [
-                        ...(canViewCallbacks ? [{ label: 'Callbacks', path: '/company/sales/callbacks' }] : []),
-                        ...(canViewHandovers ? [{ label: 'Handovers', path: '/company/sales/handovers' }] : []),
-                        ...(canViewCalls ? [
-                          { label: 'Calls', path: '/company/sales/calls' },
-                          { label: 'My calls', path: '/company/sales/calls/me' },
-                          { label: 'Call log', path: '/company/sales/calls/log' },
-                        ] : []),
-                        ...(canTrackAssignedCalls ? [{ label: 'Assigned lead calls', path: '/company/sales/calls/assigned-leads' }] : []),
+                        ...(canViewCallbacks
+                          ? [{ label: 'Callbacks', path: '/company/sales/callbacks' }]
+                          : []),
+                        ...(canViewHandovers
+                          ? [{ label: 'Handovers', path: '/company/sales/handovers' }]
+                          : []),
+                        ...(canViewCalls
+                          ? [
+                              { label: 'Calls', path: '/company/sales/calls' },
+                              { label: 'My calls', path: '/company/sales/calls/me' },
+                              { label: 'Call log', path: '/company/sales/calls/log' },
+                            ]
+                          : []),
+                        ...(canTrackAssignedCalls
+                          ? [
+                              {
+                                label: 'Assigned lead calls',
+                                path: '/company/sales/calls/assigned-leads',
+                              },
+                            ]
+                          : []),
                       ],
                     },
                   ]
@@ -752,9 +901,15 @@ export function CompanySidebar({
                       path: '/company/sales/deals',
                       icon: 'briefcase',
                       children: [
-                        ...(canViewDeals ? [{ label: 'Pipeline', path: '/company/sales/deals' }] : []),
-                        ...(canDecideApprovals ? [{ label: 'Approvals', path: '/company/sales/approvals' }] : []),
-                        ...(canRecordWin ? [{ label: 'Wins to record', path: '/company/sales/wins' }] : []),
+                        ...(canViewDeals
+                          ? [{ label: 'Pipeline', path: '/company/sales/deals' }]
+                          : []),
+                        ...(canDecideApprovals
+                          ? [{ label: 'Approvals', path: '/company/sales/approvals' }]
+                          : []),
+                        ...(canRecordWin
+                          ? [{ label: 'Wins to record', path: '/company/sales/wins' }]
+                          : []),
                       ],
                     },
                   ]
@@ -763,11 +918,22 @@ export function CompanySidebar({
                 ? [
                     {
                       label: 'Performance',
-                      path: canForecast ? '/company/sales/reports' : '/company/sales/supervisor',
+                      path: canForecast
+                        ? '/company/sales/reports'
+                        : '/company/sales/supervisor',
                       icon: 'chart',
                       children: [
-                        ...(canTriageSales ? [{ label: 'Team overview', path: '/company/sales/supervisor' }] : []),
-                        ...(canForecast ? [{ label: 'Reports', path: '/company/sales/reports' }] : []),
+                        ...(canTriageSales
+                          ? [
+                              {
+                                label: 'Team overview',
+                                path: '/company/sales/supervisor',
+                              },
+                            ]
+                          : []),
+                        ...(canForecast
+                          ? [{ label: 'Reports', path: '/company/sales/reports' }]
+                          : []),
                       ],
                     },
                   ]
@@ -777,9 +943,25 @@ export function CompanySidebar({
                 path: '/company/sales/setup',
                 icon: 'settings',
                 children: [
-                  ...(canViewTerritories ? [{ label: 'Territories & routing', path: '/company/sales/territories' }] : []),
-                  ...(canViewLeads ? [{ label: 'Lead sources', path: '/company/sales/leads' }] : []),
-                  ...(canManageCalls ? [{ label: 'Call integrations', path: '/company/sales/call-integrations' }] : []),
+                  ...(canViewTerritories
+                    ? [
+                        {
+                          label: 'Territories & routing',
+                          path: '/company/sales/territories',
+                        },
+                      ]
+                    : []),
+                  ...(canViewLeads
+                    ? [{ label: 'Lead sources', path: '/company/sales/leads' }]
+                    : []),
+                  ...(canManageCalls
+                    ? [
+                        {
+                          label: 'Call integrations',
+                          path: '/company/sales/call-integrations',
+                        },
+                      ]
+                    : []),
                 ],
               },
             ],
@@ -792,7 +974,11 @@ export function CompanySidebar({
         ...(accountType === 'employee' && moduleOn('attendance')
           ? [
               { label: 'Today', path: '/company/attendance/today', icon: 'clock' },
-              { label: 'My Attendance', path: '/company/attendance/my', icon: 'calendar' },
+              {
+                label: 'My Attendance',
+                path: '/company/attendance/my',
+                icon: 'calendar',
+              },
             ]
           : []),
         ...(canViewAttendanceReports && moduleOn('attendance')
@@ -866,7 +1052,9 @@ export function CompanySidebar({
     {
       label: 'Shifts & Leave',
       items: [
-        ...(moduleOn('leave') ? [{ label: 'My Leave', path: '/company/leave/my', icon: 'sun' }] : []),
+        ...(moduleOn('leave')
+          ? [{ label: 'My Leave', path: '/company/leave/my', icon: 'sun' }]
+          : []),
         ...(canUseLeaveQueue
           ? [{ label: 'Leave Queue', path: '/company/leave/queue', icon: 'inbox' }]
           : []),
@@ -876,7 +1064,9 @@ export function CompanySidebar({
         ...(canManageLeaveTypes
           ? [{ label: 'Leave Types', path: '/company/leave/types', icon: 'settings' }]
           : []),
-        ...(moduleOn('holidays') ? [{ label: 'Holidays', path: '/company/holidays', icon: 'flag' }] : []),
+        ...(moduleOn('holidays')
+          ? [{ label: 'Holidays', path: '/company/holidays', icon: 'flag' }]
+          : []),
         ...(canManageShifts
           ? [
               { label: 'Shifts', path: '/company/shifts', icon: 'layers' },
@@ -966,7 +1156,13 @@ export function CompanySidebar({
       label: 'Payroll',
       items: [
         ...(moduleOn('payroll')
-          ? [{ label: 'My Payslips', path: '/company/payroll/my-payslips', icon: 'file-text' }]
+          ? [
+              {
+                label: 'My Payslips',
+                path: '/company/payroll/my-payslips',
+                icon: 'file-text',
+              },
+            ]
           : []),
         ...(canManagePayroll
           ? [
@@ -1003,20 +1199,18 @@ export function CompanySidebar({
           : []),
       ],
     },
-    ...(canViewAccounting
-      ? [
-          {
-            label: 'Finance',
-            items: [
-              {
-                label: 'Accounting',
-                path: '/company/finance/accounting',
-                icon: 'wallet',
-              },
-            ],
-          },
-        ]
-      : []),
+    {
+      label: 'Finance',
+      items: canViewAccounting
+        ? [
+            {
+              label: 'Accounting',
+              path: '/company/finance/accounting',
+              icon: 'wallet',
+            },
+          ]
+        : [],
+    },
     {
       label: 'Identity & Access',
       items: [
@@ -1046,34 +1240,73 @@ export function CompanySidebar({
       items: [{ label: 'Settings', path: '/company/settings', icon: 'settings' }],
     },
   ];
-  const visibleNavigation: CompanyNavGroup[] = variant === 'client'
-    ? [
-        {
-          label: 'Overview',
-          items: [
-            { label: 'Dashboard', path: '/client', icon: 'grid' },
-            { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
-            { label: 'Messages', path: '/client/messages', icon: 'message' },
-            { label: 'Meetings', path: '/client/meetings', icon: 'calendar' },
-            { label: 'Social accounts', path: '/client/social', icon: 'share' },
-          ],
-        },
-        {
-          label: 'Account',
-          items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
-        },
-      ]
-    : navigation
-        .filter((group) => group.items.length > 0)
-        // These modules list their own pages as tabs at the top of the page,
-        // so the sidebar keeps one way in (the first page this person can
-        // open) instead of repeating every tab. Dropping the groups entirely
-        // left HR with no sidebar route into Recruitment, Leave or Shifts.
-        .map((group) => (TABBED_MODULE_GROUPS.has(group.label) ? { ...group, items: group.items.slice(0, 1) } : group));
+  const visibleNavigation: CompanyNavGroup[] =
+    variant === 'client'
+      ? [
+          {
+            label: 'Overview',
+            items: [
+              { label: 'Dashboard', path: '/client', icon: 'grid' },
+              { label: 'Projects', path: '/client/projects', icon: 'briefcase' },
+              { label: 'Messages', path: '/client/messages', icon: 'message' },
+              { label: 'Meetings', path: '/client/meetings', icon: 'calendar' },
+              { label: 'Social accounts', path: '/client/social', icon: 'share' },
+            ],
+          },
+          {
+            label: 'Account',
+            items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
+          },
+        ]
+      : variant === 'platform'
+        ? [
+            {
+              label: 'Platform',
+              items: [
+                { label: 'Platform Dashboard', path: '/platform', icon: 'grid' },
+                { label: 'Companies', path: '/platform/companies', icon: 'building' },
+                {
+                  label: 'Admin Invitations',
+                  path: '/platform/invitations',
+                  icon: 'users',
+                },
+              ],
+            },
+          ]
+        : navigation.filter(
+            (group) =>
+              (group.items.length > 0 ||
+                group.label === 'Payroll' ||
+                group.label === 'Finance') &&
+              group.label !== 'Recruitment' &&
+              group.label !== 'Shifts & Leave' &&
+              group.label !== 'Identity & Access',
+          );
+  const sectionIsOpen = (group: CompanyNavGroup): boolean =>
+    openSection === group.label;
+  // Preferences is hidden from the desktop rail and starts expanded for the
+  // company admin fallback. It must not keep the visible module list in the
+  // spacious/scrolling layout when every visible module is closed.
+  const compactNavigation = visibleNavigation.filter(
+    (group) =>
+      group.label !== 'Preferences' ||
+      pathname === '/company/settings' ||
+      openSection === group.label,
+  );
+  const allSectionsCollapsed =
+    compactNavigation.length > 0 &&
+    compactNavigation.every((group) => !sectionIsOpen(group));
+  // The rail must stay compact even when an expanded module is remembered
+  // while the pointer leaves the sidebar. The remembered section is restored
+  // after expansion, but it must never force the collapsed layout to reserve
+  // space for submenu content.
+  const useCompactNavigation = collapsed || allSectionsCollapsed;
 
   return (
     <aside
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-4 xl:ml-5 xl:h-[calc(100%-2rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${isResizing ? 'select-none' : ''}`}
+      onPointerEnter={onSidebarPointerEnter}
+      onPointerLeave={onSidebarPointerLeave}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden xl:overflow-x-visible border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-4 xl:ml-5 xl:h-[calc(100%-2rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${showAiPet && activePet ? 'sidebar-has-pet' : ''} ${isResizing ? 'select-none' : ''}`}
       style={
         collapsed
           ? undefined
@@ -1082,19 +1315,47 @@ export function CompanySidebar({
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
       data-sidebar-open={open ? 'true' : 'false'}
     >
-      <div className="hidden shrink-0 items-center justify-center border-b border-sidebar-border pb-4 xl:flex">
-        {collapsed ? (
-          <svg className="sidebar-brand-monogram" viewBox="30 155 530 500" role="img" aria-label="Tapvera CRM">
-            <image
-              href="/brand/tapvera-crm.png"
-              width="1981"
-              height="793"
-              style={{ clipPath: 'polygon(0 0, 29% 0, 29% 44%, 16.4% 44%, 16.4% 100%, 0 100%)' }}
-            />
-          </svg>
-        ) : (
-          <BrandLogo className="sidebar-brand-expanded" />
-        )}
+      <div className="sidebar-workspace-header">
+        <div className="sidebar-workspace-card">
+          <span className="sidebar-workspace-copy">
+            <span className="sidebar-workspace-company">
+              {organizationName || 'Company'}
+            </span>
+            <span className="sidebar-workspace-name">Company Workspace</span>
+          </span>
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              className="sidebar-collapse-toggle hidden size-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-xl border border-app-border bg-app-surface text-app-accent shadow-[0_2px_8px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent xl:flex"
+              aria-label={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+              aria-pressed={isPinned}
+              aria-expanded={!collapsed}
+              title={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+            >
+              <Icon
+                name="chevron-right"
+                className="pointer-events-none size-4"
+              />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="sidebar-mobile-workspace-title">
+        <p>
+          {variant === 'client'
+            ? 'Client Workspace'
+            : variant === 'platform'
+              ? 'Platform'
+              : 'Company Workspace'}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close navigation"
+        >
+          ×
+        </button>
       </div>
       {!collapsed && (
         <button
@@ -1116,33 +1377,6 @@ export function CompanySidebar({
           <span aria-hidden="true" />
         </button>
       )}
-      <div className={`flex shrink-0 items-center px-3 ${collapsed ? 'xl:justify-center' : 'justify-between'}`}>
-        <p className={`truncate whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted ${collapsed ? 'xl:hidden' : ''}`}>
-          {variant === 'client' ? 'Client Workspace' : 'Company Workspace'}
-        </p>
-        {onToggleCollapsed && (
-          <button
-            type="button"
-            onClick={onToggleCollapsed}
-            className="hidden items-center justify-center rounded-lg p-1.5 text-sidebar-muted transition hover:bg-sidebar-hover-bg hover:text-sidebar-foreground xl:flex"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <Icon
-              name={collapsed ? 'sidebar-open' : 'sidebar-close'}
-              className="size-4"
-            />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg p-2 text-sidebar-muted xl:hidden"
-          aria-label="Close navigation"
-        >
-          ×
-        </button>
-      </div>
       <nav
         ref={navigationRef}
         onScroll={trackSidebarScroll}
@@ -1150,8 +1384,14 @@ export function CompanySidebar({
         onPointerUp={finishSidebarPillDrag}
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
-        className={`company-sidebar-nav relative min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden overscroll-y-contain ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
-        aria-label={variant === 'client' ? 'Client navigation' : 'Company navigation'}
+        className={`company-sidebar-nav relative min-h-0 flex-1 overflow-x-hidden overscroll-y-contain ${useCompactNavigation ? 'sidebar-sections-collapsed space-y-0' : 'overflow-y-auto space-y-7'} ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
+        aria-label={
+          variant === 'client'
+            ? 'Client navigation'
+            : variant === 'platform'
+              ? 'Platform navigation'
+              : 'Company navigation'
+        }
       >
         <div
           ref={activeNavIndicatorRef}
@@ -1160,7 +1400,7 @@ export function CompanySidebar({
           data-dragging={isDraggingSidebarPill}
           aria-hidden="true"
         />
-        {visibleNavigation.map((group) => {
+        {visibleNavigation.map((group, groupIndex) => {
           const activeChild = group.items.some(
             (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
           );
@@ -1173,47 +1413,56 @@ export function CompanySidebar({
             ),
           );
           const hasExactDestination = group.items.some(
-            (item) => pathname === item.path || item.children?.some((sub) => pathname === sub.path),
+            (item) =>
+              pathname === item.path ||
+              item.children?.some((sub) => pathname === sub.path),
           );
-          const isOpen =
-            openSections[group.label] ??
-            (isEmployeePortal
-              ? group.label === 'Overview' || activeChild
-              : group.label === 'Organization'
-                ? pathname.startsWith('/company/organization') || pathname === '/company/employees'
-                : group.label === 'Recruitment'
-                  ? pathname.startsWith('/company/recruitment')
-                  : true);
+          const isOpen = !collapsed && sectionIsOpen(group);
           return (
             <div
               key={group.label}
-              className={`relative z-[1] ${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed ? 'xl:border-t xl:border-sidebar-border/70 xl:pt-4 first:xl:border-t-0 first:xl:pt-0' : ''}`}
+              className={`relative z-[1] ${group.label === 'Preferences' ? 'sidebar-preferences-group' : ''} ${collapsed && groupIndex > 0 ? 'xl:border-t xl:border-sidebar-border/70 xl:pt-4' : ''}`}
             >
               <button
                 type="button"
-                onClick={() => toggleSection(group.label)}
+                onClick={() => {
+                  onSidebarInteraction?.();
+                  toggleSection(group.label);
+                }}
                 aria-expanded={isOpen}
-                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
+                className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${activeChild ? 'bg-sidebar-hover-bg text-sidebar-foreground' : 'text-sidebar-section-muted'}`}
                 title={collapsed ? group.label : undefined}
               >
                 <Icon
                   name={GROUP_ICONS[group.label] ?? 'grid'}
-                  className={`hidden size-4 xl:block ${collapsed ? '' : 'xl:hidden'}`}
+                  className="size-5 shrink-0"
                 />
-                <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>{group.label}</span>
-                <span aria-hidden="true" className={`shrink-0 ${collapsed ? 'xl:hidden' : ''}`}>
+                <span
+                  className={`min-w-0 flex-1 truncate whitespace-nowrap text-left ${collapsed ? 'xl:hidden' : ''}`}
+                >
+                  {group.label}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={`shrink-0 ${collapsed ? 'xl:hidden' : ''}`}
+                >
                   {isOpen ? '−' : '+'}
                 </span>
               </button>
               {isOpen && (
-                <div className="mt-2 space-y-1">
+                <div className="sidebar-module-items mt-2 space-y-1">
                   {group.items.map((item) => {
-                    const isRootRoute = variant === 'client'
-                      ? item.path === '/client'
-                      : item.path === '/company/organization';
-                    const isActive = pathname === item.path ||
+                    const isRootRoute =
+                      variant === 'client'
+                        ? item.path === '/client'
+                        : variant === 'platform'
+                          ? item.path === '/platform'
+                          : item.path === '/company/organization';
+                    const isActive =
+                      pathname === item.path ||
                       (!isRootRoute && pathname.startsWith(`${item.path}/`));
-                    const isTopLevelActive = isActive &&
+                    const isTopLevelActive =
+                      isActive &&
                       !hasActiveNestedDestination &&
                       (!hasExactDestination || pathname === item.path);
                     const showChildren = Boolean(
@@ -1240,9 +1489,13 @@ export function CompanySidebar({
                               suppressSidebarClickRef.current = false;
                               return;
                             }
+                            onSidebarInteraction?.();
                             if (item.children) {
                               if (!pathname.startsWith(item.path)) {
-                                setExpandedItems((prev) => ({ ...prev, [item.label]: true }));
+                                setExpandedItems((prev) => ({
+                                  ...prev,
+                                  [item.label]: true,
+                                }));
                                 preserveSidebarScrollForNavigation(item.path);
                                 onNavigate(item.path);
                                 onClose();
@@ -1259,25 +1512,30 @@ export function CompanySidebar({
                           className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition hover:text-sidebar-active-fg ${collapsed ? 'xl:justify-center xl:px-2' : ''} ${isTopLevelActive ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-xs' : 'text-sidebar-nav-muted'}`}
                           title={collapsed ? item.label : undefined}
                         >
-                          <span className="flex items-center gap-3">
+                          <span className="flex items-center">
                             <span
-                              data-sidebar-icon={item.icon}
-                              className="inline-flex shrink-0 items-center justify-center"
+                              className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}
                             >
-                              <Icon name={item.icon} />
-                            </span>
-                            <span className={`truncate whitespace-nowrap ${collapsed ? 'xl:hidden' : ''}`}>
                               {item.label}
                             </span>
                           </span>
-                          {item.label === 'Messages' && (variant === 'client' ? clientMessagesUnread : unreadMessages) > 0 && (
-                            <span
-                              className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
-                              aria-label={`${variant === 'client' ? clientMessagesUnread : unreadMessages} unread messages`}
-                            >
-                              {(variant === 'client' ? clientMessagesUnread : unreadMessages) > 99 ? '99+' : (variant === 'client' ? clientMessagesUnread : unreadMessages)}
-                            </span>
-                          )}
+                          {item.label === 'Messages' &&
+                            (variant === 'client'
+                              ? clientMessagesUnread
+                              : unreadMessages) > 0 && (
+                              <span
+                                className={`inline-flex shrink-0 items-center justify-center rounded-full bg-app-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-app-on-accent ${collapsed ? 'xl:hidden' : ''}`}
+                                aria-label={`${variant === 'client' ? clientMessagesUnread : unreadMessages} unread messages`}
+                              >
+                                {(variant === 'client'
+                                  ? clientMessagesUnread
+                                  : unreadMessages) > 99
+                                  ? '99+'
+                                  : variant === 'client'
+                                    ? clientMessagesUnread
+                                    : unreadMessages}
+                              </span>
+                            )}
                           {item.children && (
                             <span
                               aria-hidden="true"
@@ -1301,6 +1559,7 @@ export function CompanySidebar({
                                   type="button"
                                   aria-current={active ? 'page' : undefined}
                                   onClick={() => {
+                                    onSidebarInteraction?.();
                                     preserveSidebarScrollForNavigation(sub.path);
                                     onNavigate(sub.path);
                                     onClose();
@@ -1322,7 +1581,7 @@ export function CompanySidebar({
           );
         })}
       </nav>
-      {activePet && (
+      {showAiPet && activePet && (
         <div
           className={`sidebar-pet-runway shrink-0 border-t border-sidebar-border/70 px-1 pt-1 ${collapsed ? 'xl:hidden' : ''}`}
         >

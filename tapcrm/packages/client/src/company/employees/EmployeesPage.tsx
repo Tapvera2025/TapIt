@@ -154,23 +154,9 @@ export function EmployeesPage({
   return (
     <WorkspacePageContainer>
 
-        {/* ── Page header ─────────────────────────────────────────────────── */}
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-app-border bg-app-surface px-5 py-4 sm:px-6">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">
-              People
-            </p>
-            <h1 className="mt-1 font-display text-xl font-bold tracking-[-0.035em]">
-              Employees
-            </h1>
-            <p className="mt-1 text-sm text-app-muted">
-              {loading
-                ? 'Loading…'
-                : `${employees.length} member${employees.length !== 1 ? 's' : ''} in your organization`}
-            </p>
-          </div>
-          {canManage && (
-            <CompanyPageActionPortal>
+        {/* Keep page actions in the shared hero capsule; the duplicate local header was removed. */}
+        {canManage && (
+          <CompanyPageActionPortal>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -192,9 +178,8 @@ export function EmployeesPage({
                 Create employee
               </button>
             </div>
-            </CompanyPageActionPortal>
-          )}
-        </div>
+          </CompanyPageActionPortal>
+        )}
 
         {/* ── Alerts ──────────────────────────────────────────────────────── */}
         {message && (

@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
 import { Button, Modal, Notice } from '../../../ui/index.js';
 import { getProjects, type Project } from '../../../projects/api/projectsApi.js';
@@ -201,7 +202,7 @@ export function TaskForm({
           {/* Schedule / Due Date */}
           <label className="block text-xs font-semibold text-app-muted">
             <span className="mb-1.5 block">Schedule / Due Date</span>
-            <input
+            <CalendarPicker
               type="date"
               disabled={isBusy}
               value={dueDate}

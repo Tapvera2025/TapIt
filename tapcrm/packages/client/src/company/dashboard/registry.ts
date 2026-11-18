@@ -208,7 +208,7 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     available: (id) => [
       'leave:decide', 'leave:acknowledge', 'attendance:correct', 'approvals:decide', 'payables:approve-claim',
     ].some((action) => superAdminOr(action)(id)),
-    defaultLayout: { w: 3, h: 4, minW: 3, minH: 3 },
+    defaultLayout: { w: 3, h: 4.2, minW: 3, minH: 4.2, maxH: 4.2 },
     component: AdminPendingRequestsWidget,
   },
 ];

@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Card, Field, Page } from '../../../ui/index.js';
 import { acceptHandover, callbackOutcome, createCallback, createHandover, declineHandover, getCallbacks, getHandoverTargets, getHandovers, getLead, recordHandoverDisposition, updateCallback, updateLeadStatus, type Handover, type HandoverTarget, type Lead, type LeadCallback } from './api.js';
@@ -410,7 +411,7 @@ function ConvertToDealModal({ lead, onClose, onCreated }: { lead: Lead; onClose:
           </label>
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Expected to close by (optional)</span>
-            <input type="date" value={expectedCloseAt} onChange={(event) => setExpectedCloseAt(event.target.value)} className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm" />
+            <CalendarPicker type="date" value={expectedCloseAt} onChange={(event) => setExpectedCloseAt(event.target.value)} className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm" />
           </label>
         </div>
         <div className="mt-5 flex justify-end gap-3">

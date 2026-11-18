@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../ui/CalendarPicker.js';
 import { useCallback, useEffect, useState } from 'react';
 import {
   formatDate,
@@ -178,7 +179,7 @@ function SalaryForm({
         <div>
           <label className="block text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Effective from</span>
-            <input
+            <CalendarPicker
               type="date"
               required
               value={effectiveFrom}
@@ -407,7 +408,7 @@ export function SalariesPage(): React.JSX.Element {
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <label className="text-xs font-semibold text-app-muted">
           <span className="mb-2 block">Salary in effect on</span>
-          <input
+          <CalendarPicker
             type="date"
             value={onDate}
             onChange={(e) => setOnDate(e.target.value)}

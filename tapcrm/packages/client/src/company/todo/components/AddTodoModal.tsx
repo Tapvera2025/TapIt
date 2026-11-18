@@ -1,3 +1,4 @@
+import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Button } from '../../../ui/index.js';
@@ -163,7 +164,7 @@ export function AddTodoModal({
 
           <label className="block text-xs font-semibold text-app-muted">
             <span className="mb-1.5 block">Scheduled Date *</span>
-            <input
+            <CalendarPicker
               type="date"
               required
               disabled={isSubmitting}
