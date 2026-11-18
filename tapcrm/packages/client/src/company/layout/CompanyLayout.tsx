@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Lenis from 'lenis';
-import { CompanySidebar } from './CompanySidebar.js';
+import { PortalSidebar } from '../../layout/PortalSidebar.js';
 import { Navbar } from './Navbar.js';
 import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
 import { SalesGuideFrame, SalesGuideToggle } from '../sales/guide/SalesGuide.js';
@@ -8,6 +8,7 @@ import { salesGuideKey } from '../sales/guide/page-guidance.js';
 import type { CompanySearchDestination } from './navigation.js';
 import { CompanyNavbarProvider } from './CompanyNavbarContext.js';
 import { CompanyPageHero, defaultCompanyPageMetadata } from './CompanyPageHero.js';
+import { usePortalSidebarState } from './usePortalSidebarState.js';
 
 export function CompanyLayout({
   pathname,
@@ -142,23 +143,19 @@ export function CompanyLayout({
   children: React.ReactNode;
   searchDestinations: readonly CompanySearchDestination[];
 }): React.JSX.Element {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarPinned, setSidebarPinned] = useState(() => {
-    try {
-      return window.localStorage.getItem('crm-sidebar-pinned') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [sidebarHovered, setSidebarHovered] = useState(false);
-  const sidebarHoverCollapseTimerRef = useRef<number | undefined>(undefined);
-  const sidebarExpanded = sidebarPinned || sidebarHovered;
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const savedWidth = Number(window.localStorage.getItem('tapcrm:sidebar-width'));
-    return Number.isFinite(savedWidth) && savedWidth >= 220 && savedWidth <= 420
-      ? savedWidth
-      : 256;
-  });
+  const {
+    sidebarOpen,
+    sidebarPinned,
+    sidebarExpanded,
+    sidebarCollapsed,
+    sidebarWidth,
+    setSidebarWidth,
+    toggleSidebar,
+    closeSidebar,
+    onSidebarPointerEnter,
+    onSidebarPointerLeave,
+    onSidebarInteraction,
+  } = usePortalSidebarState();
   const mainScrollRef = useRef<HTMLElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
   const lenisRef = useRef<Lenis | null>(null);
@@ -232,20 +229,8 @@ export function CompanyLayout({
   }, [pathname]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem('crm-sidebar-pinned', String(sidebarPinned));
-    } catch {
-      // Preserve in-memory behavior when browser storage is unavailable.
-    }
-  }, [sidebarPinned]);
-
-  useEffect(() => {
-    window.localStorage.setItem('tapcrm:sidebar-width', String(sidebarWidth));
-  }, [sidebarWidth]);
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSidebarOpen(false);
+      if (event.key === 'Escape') closeSidebar();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -277,51 +262,6 @@ export function CompanyLayout({
     };
   }, [sidebarOpen]);
 
-  useEffect(
-    () => () => {
-      if (sidebarHoverCollapseTimerRef.current !== undefined) {
-        window.clearTimeout(sidebarHoverCollapseTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  const handleSidebarPointerEnter = (event: React.PointerEvent<HTMLElement>) => {
-    if (event.pointerType !== 'mouse') return;
-    if (sidebarHoverCollapseTimerRef.current !== undefined) {
-      window.clearTimeout(sidebarHoverCollapseTimerRef.current);
-      sidebarHoverCollapseTimerRef.current = undefined;
-    }
-    setSidebarHovered(true);
-  };
-
-  const handleSidebarPointerLeave = (event: React.PointerEvent<HTMLElement>) => {
-    if (event.pointerType !== 'mouse') return;
-    if (sidebarHoverCollapseTimerRef.current !== undefined)
-      window.clearTimeout(sidebarHoverCollapseTimerRef.current);
-    sidebarHoverCollapseTimerRef.current = window.setTimeout(() => {
-      setSidebarHovered(false);
-      sidebarHoverCollapseTimerRef.current = undefined;
-    }, 150);
-  };
-
-  const keepSidebarExpandedForInteraction = () => {
-    if (window.innerWidth < 1280) return;
-    if (sidebarHoverCollapseTimerRef.current !== undefined) {
-      window.clearTimeout(sidebarHoverCollapseTimerRef.current);
-      sidebarHoverCollapseTimerRef.current = undefined;
-    }
-    setSidebarHovered(true);
-  };
-
-  const toggleSidebar = () => {
-    if (window.innerWidth >= 1280) {
-      setSidebarPinned((pinned) => !pinned);
-    } else {
-      setSidebarOpen((open) => !open);
-    }
-  };
-
   const initialPage = useMemo(() => defaultCompanyPageMetadata({
     pathname,
     title: _title,
@@ -341,7 +281,7 @@ export function CompanyLayout({
         </a>
         <button
           type="button"
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeSidebar}
           className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] appearance-none border-0 outline-none bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out focus:outline-none focus-visible:outline-none focus:ring-0 active:outline-none active:ring-0 xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
           aria-label="Close navigation overlay"
           aria-hidden={!sidebarOpen}
@@ -360,7 +300,7 @@ export function CompanyLayout({
           extraActions={salesGuideKey(pathname) !== null ? <SalesGuideToggle /> : null}
         />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <CompanySidebar
+          <PortalSidebar
             pathname={pathname}
             identity={identity}
             organizationName={organizationName}
@@ -417,13 +357,13 @@ export function CompanyLayout({
             onNavigate={onNavigate}
             onLogout={onLogout}
             open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
+          onClose={closeSidebar}
             collapsed={sidebarOpen ? false : !sidebarExpanded}
             onToggleCollapsed={toggleSidebar}
             isPinned={sidebarPinned}
-            onSidebarPointerEnter={handleSidebarPointerEnter}
-            onSidebarPointerLeave={handleSidebarPointerLeave}
-            onSidebarInteraction={keepSidebarExpandedForInteraction}
+            onSidebarPointerEnter={onSidebarPointerEnter}
+            onSidebarPointerLeave={onSidebarPointerLeave}
+            onSidebarInteraction={onSidebarInteraction}
             width={sidebarWidth}
             onResize={setSidebarWidth}
           />

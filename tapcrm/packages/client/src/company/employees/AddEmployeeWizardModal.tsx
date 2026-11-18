@@ -1322,8 +1322,8 @@ export function AddEmployeeWizardModal({
                   type="date"
                   required
                   value={joiningDate}
-                  onChange={(e) => {
-                    setJoiningDate(e.target.value);
+                  onChange={(event) => {
+                    setJoiningDate(event.target.value);
                     clearFieldError('joiningDate');
                   }}
                   className={`w-full rounded-lg border bg-app-background px-3 py-2 text-sm outline-none focus:border-app-accent ${

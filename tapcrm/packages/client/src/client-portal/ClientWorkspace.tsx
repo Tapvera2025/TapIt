@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import { CompanySidebar } from '../company/layout/CompanySidebar.js';
+import { PortalSidebar } from '../layout/PortalSidebar.js';
 import { Navbar } from '../company/layout/Navbar.js';
 import { SettingsPage } from '../company/settings/SettingsPage.js';
 import { isNotAClientError } from './api/portalApi.js';
@@ -15,6 +15,7 @@ import { ClientMeetingsPage } from './pages/ClientMeetingsPage.js';
 import { ClientSocialAccountsPage } from './pages/ClientSocialAccountsPage.js';
 import { identityApiBasePath, getIdentityAccessToken } from '../identity/api/authApi.js';
 import type { CompanySearchDestination } from '../company/layout/navigation.js';
+import { usePortalSidebarState } from '../company/layout/usePortalSidebarState.js';
 
 const clientSearchDestinations: readonly CompanySearchDestination[] = [
   {
@@ -78,9 +79,18 @@ export function ClientWorkspace({
   onNavigate: (path: string) => void;
   onLogout: () => void;
 }): React.JSX.Element {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const {
+    sidebarOpen,
+    sidebarCollapsed,
+    sidebarPinned,
+    sidebarWidth,
+    setSidebarWidth,
+    toggleSidebar,
+    closeSidebar,
+    onSidebarPointerEnter,
+    onSidebarPointerLeave,
+    onSidebarInteraction,
+  } = usePortalSidebarState();
   const [clientMessagesUnread, setClientMessagesUnread] = useState(0);
   const mainScrollRef = useRef<HTMLElement>(null);
 
@@ -164,12 +174,6 @@ export function ClientWorkspace({
   else if (pathname === '/client/settings') page = <SettingsPage />;
   else page = <ClientDashboardPage onNavigate={onNavigate} onError={handleError} />;
 
-  const toggleSidebar = () => {
-    if (window.matchMedia('(min-width: 1280px)').matches)
-      setSidebarCollapsed((collapsed) => !collapsed);
-    else setSidebarOpen((open) => !open);
-  };
-
   return (
     <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
       <a
@@ -180,7 +184,7 @@ export function ClientWorkspace({
       </a>
       <button
         type="button"
-        onClick={() => setSidebarOpen(false)}
+        onClick={closeSidebar}
         className={`mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-[55] bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
         aria-label="Close navigation overlay"
         aria-hidden={!sidebarOpen}
@@ -192,7 +196,7 @@ export function ClientWorkspace({
         organizationCode={null}
         sidebarCollapsed={sidebarCollapsed}
         sidebarOpen={sidebarOpen}
-        onToggleSidebar={toggleSidebar}
+          onToggleSidebar={toggleSidebar}
         onNavigate={onNavigate}
         onLogout={onLogout}
         searchDestinations={clientSearchDestinations}
@@ -200,7 +204,7 @@ export function ClientWorkspace({
       />
 
       <div className="flex min-h-0 flex-1">
-        <CompanySidebar
+        <PortalSidebar
           variant="client"
           clientMessagesUnread={clientMessagesUnread}
           pathname={pathname}
@@ -210,9 +214,13 @@ export function ClientWorkspace({
           onNavigate={onNavigate}
           onLogout={onLogout}
           open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
+          onClose={closeSidebar}
           collapsed={sidebarCollapsed}
           onToggleCollapsed={toggleSidebar}
+          isPinned={sidebarPinned}
+          onSidebarPointerEnter={onSidebarPointerEnter}
+          onSidebarPointerLeave={onSidebarPointerLeave}
+          onSidebarInteraction={onSidebarInteraction}
           width={sidebarWidth}
           onResize={setSidebarWidth}
         />

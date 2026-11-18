@@ -1034,6 +1034,17 @@
     padding: 1.25rem;
   }
 
+  /* The punch widget has a compact default control stack. Keep its desktop
+     bottom inset proportional to that content without changing the grid
+     height or any responsive/mobile spacing. */
+  .dashboard-grid .react-grid-item:has(.dashboard-punch-panel) {
+    padding-bottom: 0;
+  }
+
+  .dashboard-grid .react-grid-item:has(.dashboard-punch-panel) .dashboard-punch-panel {
+    padding-bottom: 0;
+  }
+
   .dashboard-admin-mode .dashboard-grid .react-grid-item {
     padding: 0;
   }
