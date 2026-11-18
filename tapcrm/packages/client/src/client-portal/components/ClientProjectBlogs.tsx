@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice } from '../../ui/components.js';
+import { Card, Empty, Loading } from '../../ui/components.js';
 import { getPortalProjectBlogReport, type PortalBlogPost, type PortalBlogReport } from '../api/portalApi.js';
 import { ReportKpiCard } from '../../projects/reports/components/ReportKpiCard.js';
 import { Pager } from '../../projects/reports/components/Pager.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type BlogStatus = 'all' | 'draft' | 'published' | 'archived';
 
@@ -58,7 +59,7 @@ export function ClientProjectBlogs({ projectId }: { projectId: string }): React.
         </label>
       </div>
 
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {report && <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <ReportKpiCard label="Total blogs" value={report.overview.totalBlogs} active={status === 'all'} onClick={() => changeStatus('all')} />
         <ReportKpiCard label="Published" value={report.overview.publishedBlogs} tone="positive" active={status === 'published'} onClick={() => changeStatus('published')} />

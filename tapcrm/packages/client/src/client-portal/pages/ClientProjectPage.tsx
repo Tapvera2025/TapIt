@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, ErrorMessage, Loading, Notice, Page } from '../../ui/index.js';
+import { Button, Card, ErrorMessage, Loading, Page } from '../../ui/index.js';
 import { IdentityApiError } from '../../identity/api/authApi.js';
 import { formatProjectDate } from '../../projects/formatDate.js';
 import { ProjectDetailNavigation } from '../../projects/ProjectDetailNavigation.js';
@@ -7,6 +7,7 @@ import { downloadPortalProjectReport, getPortalProject, PORTAL_SERVICE_LABELS, P
 import { PortalLink, ProgressBar } from '../components.js';
 import { ClientSocialConnectCard } from '../components/ClientSocialConnectCard.js';
 import { ClientProjectReportSections } from '../components/ClientProjectReportSections.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type ClientProjectTab = 'details' | 'reports';
 const CLIENT_PROJECT_TABS = [
@@ -37,7 +38,7 @@ export function ClientProjectPage({ id, onNavigate, onError }: { id: string; onN
     const notFound = error instanceof IdentityApiError && error.status === 404;
     return (
       <Page title={notFound ? 'Project not found' : 'Project'} action={back}>
-        {notFound ? <Notice error>We couldn’t find that project. It may have been removed from your account.</Notice> : <ErrorMessage cause={error} />}
+        {notFound ? <ErrorToast message="We couldn’t find that project. It may have been removed from your account." /> : <ErrorMessage cause={error} />}
       </Page>
     );
   }

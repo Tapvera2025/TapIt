@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Button, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Modal, Select } from '../../../ui/index.js';
 import { recordInterviewDecision } from '../api/recruitmentApi.js';
 import type { Interview } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function InterviewDecisionModal({
   interview,
@@ -44,7 +45,7 @@ export function InterviewDecisionModal({
       onClose={onClose}
     >
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <Select
           label="Evaluation Decision *"

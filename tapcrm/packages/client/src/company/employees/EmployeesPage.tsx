@@ -29,6 +29,7 @@ import {
 import { listShifts, listWeekdaySchedules, type ShiftTemplate, type WeekdaySchedule } from '../api/shiftsApi.js';
 import { SkeletonTableRows, WorkspacePageContainer } from '../../ui/index.js';
 import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 // ── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -191,11 +192,7 @@ export function EmployeesPage({
             {message}
           </div>
         )}
-        {error && (
-          <p className="mt-4 rounded-xl border border-app-danger/30 bg-app-danger/8 px-4 py-3 text-sm text-app-danger">
-            {error}
-          </p>
-        )}
+        {error && <ErrorToast message={error} />}
 
         {/* ── Add employee wizard ──────────────────────────────────────────── */}
         {showCreate && (
@@ -571,9 +568,7 @@ export function EmployeesPage({
                     className="w-full rounded-xl border border-app-border bg-app-background px-3 py-2.5 text-sm outline-none focus:border-app-accent"
                   />
                 </label>
-                {resetError && (
-                  <p className="text-xs text-app-danger">{resetError}</p>
-                )}
+                {resetError && <ErrorToast message={resetError} />}
                 <div className="flex gap-2 pt-1">
                   <button
                     type="submit"

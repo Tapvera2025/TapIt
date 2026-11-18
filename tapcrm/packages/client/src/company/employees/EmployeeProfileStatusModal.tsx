@@ -8,6 +8,7 @@ import {
 } from '../api/myProfileApi.js';
 import { DOCUMENT_TYPE_LABELS } from '../api/verificationApi.js';
 import { ProfileCompletionBar } from '../profile/ProfileCompletionRing.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 /**
  * HR's view of how far an employee has got with their own profile: what is
@@ -109,7 +110,7 @@ export function EmployeeProfileStatusModal({
         )}
 
         {canManage && loading && <SkeletonCard className="h-48" />}
-        {canManage && error && <Notice error>{error}</Notice>}
+        {canManage && error && <ErrorToast message={error} />}
         {details && <SubmittedDetails details={details} />}
       </div>
     </Modal>

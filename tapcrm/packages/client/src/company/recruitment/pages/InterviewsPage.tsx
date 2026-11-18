@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
+import { Card, Empty, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listInterviews, listRequisitions, updateInterviewStatus } from '../api/recruitmentApi.js';
 import { InterviewFeedbackModal } from '../components/InterviewFeedbackModal.js';
 import { InterviewScheduleModal } from '../components/InterviewScheduleModal.js';
@@ -14,6 +14,7 @@ import type {
   JobRequisition,
 } from '../types/index.js';
 import { formatMinutes } from '../../../ui/format-duration.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function InterviewsPage({
   preselectedCandidate,
@@ -98,11 +99,7 @@ export function InterviewsPage({
         </button>
       }
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {/* Filters */}
       <Card className="mt-6 p-4">

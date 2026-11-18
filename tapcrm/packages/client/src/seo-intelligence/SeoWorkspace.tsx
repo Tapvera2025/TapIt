@@ -50,6 +50,7 @@ import type {
 } from './types.js';
 import './seo-workspace.css';
 import { SeoContentPanel, type ContentAccess } from './SeoContentPanel.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 interface DetailData {
   scans?: SeoScanRun[];
@@ -390,14 +391,7 @@ export function SeoWorkspace({
           {notice}
           </p>
         )}
-        {actionError && (
-          <p
-          role="alert"
-          className="mb-5 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-app-danger"
-        >
-          {actionError}
-          </p>
-        )}
+        {actionError && <ErrorToast message={actionError} />}
         {['finding', 'fix', 'alert'].includes(busy) && (
           <p role="status" className="seo-small-copy mb-4">
             Saving your update…
@@ -413,11 +407,7 @@ export function SeoWorkspace({
         }
         tabIndex={0}
       >
-        {deepLinkError && isProjectSection(section) && (
-          <p role="alert" className="mb-5 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-app-danger">
-            {deepLinkError}
-          </p>
-        )}
+        {deepLinkError && isProjectSection(section) && <ErrorToast message={deepLinkError} />}
         {section === 'keyword-search' ? (
           <SeoKeywordSearch
             openSignal={keywordSearchSignal}

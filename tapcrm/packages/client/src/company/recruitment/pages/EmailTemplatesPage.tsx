@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Empty, Loading, Modal, Notice, Page } from '../../../ui/index.js';
+import { Button, Empty, Loading, Modal, Page } from '../../../ui/index.js';
 import {
   createEmailTemplate,
   deleteEmailTemplate,
@@ -8,6 +8,7 @@ import {
 } from '../api/recruitmentApi.js';
 import type { CreateEmailTemplateInput, RecruitmentEmailTemplate, UpdateEmailTemplateInput } from '../types/index.js';
 import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const VARIABLE_HINTS = [
   { variable: '{{candidate_name}}', description: "Candidate's full name" },
@@ -110,7 +111,7 @@ function TemplateEditorModal({
       onClose={onClose}
     >
       <form onSubmit={(e) => void handleSave(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -289,11 +290,7 @@ export function EmailTemplatesPage({
         </button>
       }
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {loading ? (
         <div className="mt-6">

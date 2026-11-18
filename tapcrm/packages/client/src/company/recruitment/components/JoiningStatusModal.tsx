@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Field, Modal, Select } from '../../../ui/index.js';
 import { updateJoiningStatus } from '../api/recruitmentApi.js';
 import type { CandidateJoining, JoiningStatus } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function JoiningStatusModal({
   joining,
@@ -47,7 +48,7 @@ export function JoiningStatusModal({
   return (
     <Modal title={`Manage Joining: ${joining.candidateName ?? 'Candidate'}`} onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <div className="rounded-xl border border-app-border bg-app-surface p-4 text-xs text-app-muted space-y-1">
           <p>

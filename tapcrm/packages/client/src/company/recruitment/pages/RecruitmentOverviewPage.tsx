@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Notice, SkeletonPage, WorkspacePageContainer } from '../../../ui/index.js';
+import { Card, SkeletonPage, WorkspacePageContainer } from '../../../ui/index.js';
 import { Icon } from '../../../ui/index.js';
 import {
   getRecruitmentMetrics,
@@ -18,6 +18,7 @@ import type {
   JobRequisition,
   RecruitmentMetrics,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function RecruitmentOverviewPage({
   onNavigate,
@@ -91,11 +92,7 @@ export function RecruitmentOverviewPage({
             </button>
           )}
       </div>
-      {error && (
-        <div className="mt-5">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {loading && !metrics ? (
         <div className="mt-5"><SkeletonPage cards={4} rows={4} /></div>

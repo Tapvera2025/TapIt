@@ -16,6 +16,7 @@ import { plainTextToContentJson } from '@tapcrm/contracts';
 import type { ContentCommentThread } from '@tapcrm/contracts';
 import type { CreateContentCommentInput } from './content-api.js';
 import { getIdentityAccessToken, identityApiBasePath } from '../identity/api/authApi.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 interface SharedSession {
   document: Y.Doc;
@@ -557,7 +558,7 @@ export function CollaborativeDraftEditor({
               autoFocus={commentDraft.kind === 'comment'}
             />
           </label>
-          {commentError && <p role="alert">{commentError}</p>}
+          {commentError && <ErrorToast message={commentError} />}
           <div className="content-actions">
             <button type="submit" disabled={commentBusy || !commentBody.trim()}>
               {commentBusy ? 'Saving…' : 'Post review note'}
@@ -575,8 +576,8 @@ export function CollaborativeDraftEditor({
         <h4>
           Review notes <span>{threads.length}</span>
         </h4>
-        {threadError && <p role="alert">{threadError}</p>}
-        {commentError && !commentDraft && <p role="alert">{commentError}</p>}
+        {threadError && <ErrorToast message={threadError} />}
+        {commentError && !commentDraft && <ErrorToast message={commentError} />}
         {threads.length === 0 && !threadError ? (
           <p className="seo-small-copy">
             Select text to leave a comment or suggest an edit.

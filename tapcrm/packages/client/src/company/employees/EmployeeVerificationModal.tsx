@@ -16,6 +16,7 @@ import {
   rejectVerificationDocument,
   uploadVerificationDocument,
 } from '../api/verificationApi.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 interface EmployeeVerificationModalProps {
   isOpen: boolean;
@@ -528,11 +529,7 @@ export function EmployeeVerificationModal({
 
         {/* Content area */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4 pt-4 pb-4">
-          {error && (
-            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-500 font-medium">
-              {error}
-            </div>
-          )}
+          {error && <ErrorToast message={error} />}
 
           {data?.status === 'REJECTED' && data.rejectionReason && (
             <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs">
@@ -772,18 +769,7 @@ export function EmployeeVerificationModal({
                                 ))}
                               </div>
 
-                              {marksheetError && (
-                                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-500 flex items-start justify-between gap-2">
-                                  <span>{marksheetError}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setMarksheetError('')}
-                                    className="text-[11px] hover:underline shrink-0"
-                                  >
-                                    Dismiss
-                                  </button>
-                                </div>
-                              )}
+                              {marksheetError && <ErrorToast message={marksheetError} />}
 
                               <div className="flex flex-wrap items-center gap-2 pt-1">
                                 <button

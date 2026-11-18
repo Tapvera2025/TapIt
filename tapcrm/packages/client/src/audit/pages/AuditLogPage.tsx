@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ACTIONS, actionTitle } from '@tapcrm/contracts';
-import { Button, Card, Empty, Field, Modal, Notice, Page, SearchableSelect, Select, SkeletonTable } from '../../ui/index.js';
+import { Button, Card, Empty, Field, Modal, Page, SearchableSelect, Select, SkeletonTable } from '../../ui/index.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../../company/api/companyApi.js';
 import { createLegalHold, downloadAuditExport, getAuditEntries, getAuditEntry, getAuditIntegrity, getLegalHoldTargets, getLegalHolds, releaseLegalHold, type AuditEntry, type AuditIntegrityReport, type LegalHold, type LegalHoldTarget } from '../api/auditApi.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 export function AuditLogPage({ canManageHolds = false, canExport = false }: { canManageHolds?: boolean; canExport?: boolean }): React.JSX.Element {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
@@ -115,7 +116,7 @@ export function AuditLogPage({ canManageHolds = false, canExport = false }: { ca
           <Button onClick={() => { resetPagination(); load(undefined); }}>Search</Button>
         </div>
         {canExport && <div className="mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-app-border pt-4">
-          {exportError && <p className="mr-auto text-sm text-app-danger">{exportError}</p>}
+          {exportError && <ErrorToast message={exportError} />}
           <span className="text-xs text-app-muted">Export current filters</span>
           <Button kind="secondary" onClick={() => exportAudit('csv')}>Download CSV</Button>
           <Button kind="secondary" onClick={() => exportAudit('json')}>Download JSON</Button>
@@ -146,7 +147,7 @@ export function AuditLogPage({ canManageHolds = false, canExport = false }: { ca
       {canManageHolds && <Card className="mt-6">
         <p className="text-xs font-bold uppercase tracking-wide text-app-muted">Legal holds</p>
         <p className="mt-1 text-sm text-app-muted">Active holds protect matching audit entries from future retention removal. Releasing one hold does not release overlapping holds.</p>
-        {holdError && <div className="mt-4"><Notice error>{holdError}</Notice></div>}
+        {holdError && <ErrorToast message={holdError} />}
         <div className="mt-4 grid gap-4 md:grid-cols-4">
           <Select label="Hold type" value={holdType} onChange={(value) => setHoldType(value as typeof holdType)} options={[{ value: 'user', label: 'User' }, { value: 'client', label: 'Client' }, { value: 'date-range', label: 'Date range' }]} />
           {holdType === 'date-range' ? <>
@@ -170,7 +171,7 @@ export function AuditLogPage({ canManageHolds = false, canExport = false }: { ca
           {holds.length === 0 && <p className="text-sm text-app-muted">No active legal holds.</p>}
         </div>
       </Card>}
-      {error && <div className="mt-6"><Notice error>{error}</Notice></div>}
+      {error && <ErrorToast message={error} />}
       {loading ? <div className="mt-6"><SkeletonTable columns={5} /></div> : entries.length === 0 ? <div className="mt-6"><Empty>No audit entries match these filters.</Empty></div> : (
         <Card className="mt-6 overflow-x-auto p-0">
           <table className="w-full text-left text-sm">

@@ -28,6 +28,7 @@ import {
 } from '../employees/phone.js';
 import { ProfileCompletionBar } from './ProfileCompletionRing.js';
 import { setMyProfile, useMyProfile } from './myProfileStore.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 /**
  * My Profile — where an employee completes, at their own pace, everything HR
@@ -91,7 +92,7 @@ export function MyProfilePage({ onNavigate }: { onNavigate: (path: string) => vo
   if (error && !profile) {
     return (
       <WorkspacePageContainer>
-        <Notice error>{error}</Notice>
+        <ErrorToast message={error} />
       </WorkspacePageContainer>
     );
   }
@@ -337,11 +338,7 @@ function PhoneInput({
           className="ui-form-control min-w-0 flex-1 px-3 py-2.5 text-sm outline-none"
         />
       </div>
-      {error && (
-        <span className="mt-1 block font-normal text-app-danger" role="alert">
-          {error}
-        </span>
-      )}
+      {error && <ErrorToast message={error} />}
     </div>
   );
 }
@@ -629,7 +626,7 @@ function EducationEditor({ details, onDirty, onSaved }: EditorProps): React.JSX.
       <Button kind="secondary" onClick={() => setRows((list) => [...list, emptyQualification()])}>
         + Add another qualification
       </Button>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <p className="text-[11px] text-app-muted">Upload the matching certificates or marksheets in the Documents section.</p>
       <EditorFooter busy={busy} onSave={(advance) => void save(advance)} />
     </div>
@@ -749,7 +746,7 @@ function ExperienceEditor({ details, onDirty, onSaved }: EditorProps): React.JSX
           </Button>
         </>
       )}
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <EditorFooter busy={busy} onSave={(advance) => void save(advance)} />
     </div>
   );

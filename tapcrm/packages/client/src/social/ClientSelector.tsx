@@ -3,6 +3,7 @@ import { Button, Field } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import { listSocialClients } from './api.js';
 import type { SocialClient, SocialClientPage } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 /** Searches the existing CRM client records through the social permission boundary. */
 export function ClientSelector({
@@ -103,9 +104,7 @@ export function ClientSelector({
             {loading ? (
               <p className="p-3 text-xs text-app-muted">Searching clients…</p>
             ) : error ? (
-              <p className="p-3 text-xs text-app-danger" role="alert">
-                {error}
-              </p>
+              <ErrorToast message={error} />
             ) : data?.items.length ? (
               data.items.map((client) => (
                 <button

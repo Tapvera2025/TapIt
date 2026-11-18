@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ConversationWorkspace, type Conversation } from '../chat/index.js';
 import { useChat } from '../chat/useChat.js';
-import { Button, Empty, Modal, Notice } from '../ui/index.js';
+import { Button, Empty, Modal } from '../ui/index.js';
 import { updateDiscussionGroup, type Project } from './api/projectsApi.js';
 import { CreateDiscussionGroupModal } from './CreateDiscussionGroupModal.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 /**
  * A project's Discussions tab: the combined employees + client thread
@@ -102,7 +103,7 @@ function EditDiscussionGroupModal({
   return (
     <Modal title="Edit discussion group" onClose={onClose}>
       <form onSubmit={(event) => void submit(event)} className="space-y-3">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <label className="block text-xs font-semibold text-app-muted">
           <span className="mb-1.5 block">Group name</span>
           <input

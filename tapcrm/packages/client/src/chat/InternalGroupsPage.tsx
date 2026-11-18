@@ -16,6 +16,7 @@ import { GroupSettingsModal } from './GroupSettingsModal.js';
 import { groupAuthorityFor } from './groupPermissions.js';
 import { usePresenceMap } from './presence.js';
 import { useChat } from './useChat.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const label = (conversation: Conversation): string => conversation.name ?? 'Group';
 
@@ -188,11 +189,7 @@ function GroupsInbox({
         />
       )}
 
-      {(error || chat.error) && (
-        <p role="alert" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-[#d86b6b]/30 bg-app-surface px-4 py-2 text-sm text-app-danger shadow-lg">
-          {error || chat.error}
-        </p>
-      )}
+      {(error || chat.error) && <ErrorToast message={error || chat.error} />}
       {notice && !(error || chat.error) && (
         <p role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-app-accent/30 bg-app-surface px-4 py-2 text-sm text-app-foreground shadow-lg">
           {notice}

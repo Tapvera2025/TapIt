@@ -3,6 +3,7 @@ import { Button, Card, Notice } from '../../ui/index.js';
 import { downloadProjectReport } from './api/projectReportsApi.js';
 import { ScreenshotsPage } from './ScreenshotsPage.js';
 import type { Project } from '../api/projectsApi.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 /**
  * A project's Reports tab: the downloadable report and project screenshots.
@@ -55,7 +56,7 @@ export function ProjectReportsPage({ project, onOpenSeo }: { project: Project; o
         </div>
       </div>
       {notice && <Notice>{notice}</Notice>}
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <Card className="flex flex-wrap items-center justify-between gap-4 border-app-accent/30 bg-app-accent/5">
         <div className="max-w-2xl">
           <h3 className="font-display text-lg font-bold">Keywords, rankings, blog links and backlinks</h3>

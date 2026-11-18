@@ -4,6 +4,7 @@ import { listShifts, createShift, type ShiftTemplate } from '../api/shiftsApi.js
 import { suggestNextCode } from '../../ui/index.js';
 import { SkeletonTable } from '../../ui/index.js';
 import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function fmtTime(value: string | null): string {
   if (!value) return '—';
@@ -241,7 +242,7 @@ export function ShiftsPage(): React.JSX.Element {
               />
             </div>
           </div>
-          {formError && <p className="text-xs text-app-danger">{formError}</p>}
+          {formError && <ErrorToast message={formError} />}
           <div className="flex gap-2">
             <button
               type="submit"
@@ -261,7 +262,7 @@ export function ShiftsPage(): React.JSX.Element {
         </form>
       )}
 
-      {error && <p className="text-sm text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {loading && <SkeletonTable columns={4} rows={5} />}
 
       {!loading && shifts.length === 0 && (

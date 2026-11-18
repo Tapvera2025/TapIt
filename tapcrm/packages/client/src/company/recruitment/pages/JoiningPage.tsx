@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
+import { Card, Empty, Page, SkeletonTable } from '../../../ui/index.js';
 import { listJoinings } from '../api/recruitmentApi.js';
 import { JoiningStatusModal } from '../components/JoiningStatusModal.js';
 import { SendJoiningEmailModal } from '../components/SendJoiningEmailModal.js';
 import { JoiningStatusBadge } from '../components/StatusBadge.js';
 import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type { CandidateJoining, JoiningFilter, JoiningStatus } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function JoiningPage({
   onNavigateToEmployees,
@@ -67,11 +68,7 @@ export function JoiningPage({
         </button>
       }
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {/* Workflow Explanatory Notice */}
       <div className="mt-6 rounded-xl border border-app-accent/30 bg-app-accent/10 p-4 text-xs text-app-foreground">

@@ -10,6 +10,7 @@ import {
   SeoSeverityBadge,
 } from './SeoUi.js';
 import type { SeoRuleRow } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export function SeoRulesPanel({
   rules,
@@ -131,14 +132,7 @@ export function SeoRulesPanel({
           </select>
         </label>
       </div>
-      {(loadError || error) && (
-        <p
-          role="alert"
-          className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-app-danger"
-        >
-          {error || loadError}
-        </p>
-      )}
+      {(loadError || error) && <ErrorToast message={error || loadError} />}
       {notice && (
         <p
           role="status"

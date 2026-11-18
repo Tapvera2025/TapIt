@@ -6,6 +6,7 @@ import { actOnSocialPost } from './api.js';
 import { PlatformMark, PostStatus, socialDate } from './presentation.js';
 import { scheduleInZone, scheduleToUtc } from './time.js';
 import type { SocialPost, SocialPostAction } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export function PostDetails({
   post,
@@ -67,7 +68,7 @@ export function PostDetails({
   return (
     <Modal title="Post details" size="lg" onClose={onClose} dirty={false}>
       <div className="space-y-5">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <PostStatus status={post.status} />
           <p className="text-xs text-app-muted">

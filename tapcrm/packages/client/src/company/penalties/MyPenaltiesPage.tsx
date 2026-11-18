@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../ui/index.js';
+import { Card, Empty, Loading, Page } from '../../ui/index.js';
 import { listMyPenalties } from './api/penaltiesApi.js';
 import { PenaltyDetailDrawer } from './components/PenaltyDetailDrawer.js';
 import { MyPenaltyTable } from './components/MyPenaltyTable.js';
 import type { Penalty } from './types/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 const money = (paise: number): string =>
   `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -43,7 +44,7 @@ export function MyPenaltiesPage(): React.JSX.Element {
       title="My Penalties"
       description="View penalties recorded against your account."
     >
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <p className="text-sm text-app-muted">Active penalties</p>

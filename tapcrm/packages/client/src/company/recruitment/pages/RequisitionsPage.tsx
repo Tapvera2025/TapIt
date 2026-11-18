@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Empty, Modal, Notice, Page, SkeletonTable } from '../../../ui/index.js';
+import { Card, Empty, Modal, Page, SkeletonTable } from '../../../ui/index.js';
 import { Icon } from '../../../ui/index.js';
 import { listRequisitions, updateRequisitionStatus } from '../api/recruitmentApi.js';
 import { RequisitionFormModal } from '../components/RequisitionFormModal.js';
@@ -8,6 +8,7 @@ import { PipelineRoundBuilder } from '../components/PipelineRoundBuilder.js';
 import { RequisitionStatusBadge } from '../components/StatusBadge.js';
 import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type { EmploymentType, JobRequisition, RequisitionStatus } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function RequisitionsPage({
   onAddCandidateForRequisition,
@@ -97,11 +98,7 @@ export function RequisitionsPage({
         </button>
       }
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {/* Filters Bar */}
       <Card className="mt-6 p-4">

@@ -9,6 +9,7 @@ import type {
   TodoPriority,
   UpdateTodoPayload,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export interface AddTodoModalProps {
   readonly isOpen: boolean;
@@ -123,14 +124,7 @@ export function AddTodoModal({
         }}
         className="space-y-4"
       >
-        {validationError && (
-          <div
-            role="alert"
-            className="rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-3 text-xs text-app-danger"
-          >
-            {validationError}
-          </div>
-        )}
+        {validationError && <ErrorToast message={validationError} />}
 
         {/* Title */}
         <label className="block text-xs font-semibold text-app-muted">

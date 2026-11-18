@@ -82,6 +82,7 @@ import { SettingsPage } from './settings/SettingsPage.js';
 import { WorkspaceSkeleton } from '../ui/index.js';
 import { AdvanceRequestsPage, MyAdvancesPage } from './advance/AdvancePages.js';
 import { PenaltiesPage } from './penalties/PenaltiesPage.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 import { MyPenaltiesPage } from './penalties/MyPenaltiesPage.js';
 import { ExpenseApprovalsPage, MyExpensesPage } from './expenses/ExpensesPages.js';
 import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
@@ -115,7 +116,8 @@ export function CompanyWorkspace({
     return (
       <div className="grid min-h-screen place-items-center bg-app-background p-6 text-center text-app-foreground">
         <div>
-          <p className="text-app-danger">{error}</p>
+          <ErrorToast message={error} />
+          <p className="text-sm text-app-muted">Your workspace could not be opened.</p>
           <button
             type="button"
             onClick={onLogout}

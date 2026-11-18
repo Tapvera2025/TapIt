@@ -14,6 +14,7 @@ import { useSeoResource } from './useSeoResource.js';
 import * as api from './content-api.js';
 import { CollaborativeDraftEditor } from './CollaborativeDraftEditor.js';
 import './seo-content.css';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export interface ContentAccess {
   userId: string;
@@ -162,11 +163,7 @@ export function SeoContentPanel({
           ) : undefined
         }
       />
-      {error && (
-        <p role="alert" className="content-error">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       {view === 'brand' ? (
         brand.error ? (
           <ContentFailure error={brand.error} retry={brand.reload} />
@@ -309,14 +306,7 @@ export function SeoContentPanel({
   );
 }
 function ContentFailure({ error, retry }: { error: string; retry: () => void }) {
-  return (
-    <div role="alert" className="content-error">
-      {error}{' '}
-      <Button kind="secondary" onClick={retry}>
-        Try again
-      </Button>
-    </div>
-  );
+  return <ErrorToast message={error} action={{ label: 'Try again', onClick: retry }} />;
 }
 
 function BrandEditor({
@@ -382,11 +372,7 @@ function BrandEditor({
           placeholder="Audience: …\nVoice and tone: …\nApproved facts and sources: …\nWords and claims to avoid: …\nPreferred call to action: …"
         />
       </label>
-      {error && (
-        <p role="alert" className="content-error">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       {canEdit ? (
         <Button disabled={!dirty || busy} onClick={() => void save()}>
           {busy ? 'Saving…' : 'Save guidance version'}
@@ -684,8 +670,8 @@ function ContentEditor({
         </div>
       )}
       {error && (
-        <div role="alert" className="content-error">
-          <p>{error}</p>
+        <>
+          <ErrorToast message={error} />
           <div className="content-actions">
             <Button
               kind="secondary"
@@ -717,7 +703,7 @@ function ContentEditor({
               </Button>
             )}
           </div>
-        </div>
+        </>
       )}
       {notice && !dirty && (
         <p className="seo-small-copy" role="status">
@@ -881,17 +867,13 @@ function ContentEditor({
                     ))}
                 </select>
               </label>
-              {membersError && (
-                <p role="alert" className="content-error">
-                  Reviewer choices unavailable: {membersError}
-                </p>
-              )}
+              {membersError && <ErrorToast message={`Reviewer choices unavailable: ${membersError}`} />}
               <div className="content-brand-note">
                 <strong>
                   Brand guidance {draft.brandVersion ? `· v${draft.brandVersion}` : ''}
                 </strong>
                 {pinnedBrand.error ? (
-                  <p role="alert">{pinnedBrand.error}</p>
+                  <ErrorToast message={pinnedBrand.error} />
                 ) : (
                   <p>
                     {pinnedBrand.data?.guidance ||

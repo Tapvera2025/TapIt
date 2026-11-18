@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Card, Page } from '../../../ui/index.js';
 import { getTerritory, getTerritoryCoverage, reassignTerritory, type Territory, type TerritoryCoverage } from '../api.js';
 import { getCompanyTeams, type CompanyTeam } from '../../api/companyApi.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function TerritoryDetailsPage({ id, onBack, canManage }: { id: string; onBack: () => void; canManage: boolean }): React.JSX.Element {
   const [territory, setTerritory] = useState<Territory | null>(null);
@@ -9,7 +10,7 @@ export function TerritoryDetailsPage({ id, onBack, canManage }: { id: string; on
   const [teams, setTeams] = useState<CompanyTeam[]>([]); const [newTeamId, setNewTeamId] = useState(''); const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { void getTerritory(id).then((next) => { setTerritory(next); setNewTeamId(next.salesTeamId); }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load territory.')); void getTerritoryCoverage().then((rows) => setCoverage(rows.find((row) => row.territoryId === id) ?? null)); if (canManage) void getCompanyTeams().then(setTeams); }, [id, canManage]);
-  if (error) return <Page title="Territory"><p className="text-app-danger">{error}</p></Page>;
+  if (error) return <Page title="Territory"><ErrorToast message={error} /></Page>;
   if (!territory) return <Page title="Territory"><p className="text-sm text-app-muted">Loading territory...</p></Page>;
   const grouped = new Map<string, string[]>();
   for (const rule of territory.rules) grouped.set(rule.dimension, [...(grouped.get(rule.dimension) ?? []), rule.value]);

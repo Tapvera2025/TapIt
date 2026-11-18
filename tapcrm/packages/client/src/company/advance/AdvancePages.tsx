@@ -6,7 +6,6 @@ import {
   Empty,
   Loading,
   Modal,
-  Notice,
   Page,
   Select,
 } from '../../ui/index.js';
@@ -22,6 +21,7 @@ import {
 } from './api/advanceApi.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../api/companyApi.js';
 import { organizationApi } from '../../organization/api/organizationApi.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 const money = (paise: string | null, currency = 'INR'): string =>
   paise === null
@@ -184,7 +184,7 @@ export function MyAdvancesPage(): React.JSX.Element {
       title="My Advances"
       description="Request and track employee advances."
     >
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm text-app-muted">Pending</p>
@@ -435,7 +435,7 @@ function AdminAdvances(): React.JSX.Element {
       title="Advance Requests"
       description="Review employee requests and manage approvals."
     >
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <Form
         title="Create a manual advance"
         onSubmit={() => void manual()}
@@ -601,7 +601,7 @@ function AdminAdvances(): React.JSX.Element {
             Requested {money(selected.requestedAmountPaise, selected.currency)} ·{' '}
             {periodLabel(selected.requestedForPeriod)}
           </p>
-          {reviewError && <Notice error>{reviewError}</Notice>}
+          {reviewError && <ErrorToast message={reviewError} />}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-semibold">
               Approved amount ({selected.currency})

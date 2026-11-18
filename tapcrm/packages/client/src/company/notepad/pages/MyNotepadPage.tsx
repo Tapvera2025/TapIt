@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Notice, SkeletonNotepadPage, WorkspacePageContainer } from '../../../ui/index.js';
+import { Card, SkeletonNotepadPage, WorkspacePageContainer } from '../../../ui/index.js';
 import {
   clearNote,
   getCurrentNote,
@@ -16,6 +16,7 @@ import type {
   MyNotepadHistoryItem,
   SaveStatus,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export const MAX_NOTE_CHARACTERS = 50_000;
 
@@ -157,20 +158,7 @@ export function MyNotepadPage(): React.JSX.Element {
     <WorkspacePageContainer>
       <div className="space-y-4">
         {/* Error notification banner if any */}
-        {generalError && (
-          <Notice error>
-            <div className="flex items-center justify-between gap-2">
-              <span>{generalError}</span>
-              <button
-                type="button"
-                onClick={() => setGeneralError(null)}
-                className="text-xs underline hover:no-underline"
-              >
-                Dismiss
-              </button>
-            </div>
-          </Notice>
-        )}
+        {generalError && <ErrorToast message={generalError} />}
 
         {/* Main Notepad Card */}
         <Card className="space-y-4 p-4 sm:p-6 md:p-8">

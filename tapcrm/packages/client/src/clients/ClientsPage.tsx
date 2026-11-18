@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Card, Field, Modal, Notice, Page, Select, SkeletonTable } from '../ui/index.js';
+import { Button, Card, Field, Modal, Page, Select, SkeletonTable } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import {
   CLIENT_REGIONS,
@@ -13,6 +13,7 @@ import {
   type Client,
   type ClientRegion,
 } from './api/clientsApi.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const blankForm = { clientName: '', businessName: '', email: '', password: '', region: 'in' as ClientRegion };
 
@@ -119,7 +120,7 @@ export function ClientsPage({ onOpenClient, onAddProject }: { onOpenClient?: (cl
         </div>
       </Card>
 
-      {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
+      {error && <ErrorToast message={error} />}
       {loading ? (
         <SkeletonTable columns={4} rows={5} />
       ) : clients.length === 0 ? (
@@ -181,7 +182,7 @@ export function ClientsPage({ onOpenClient, onAddProject }: { onOpenClient?: (cl
           {/* The email and password are the new client's, not the signed-in
               person's: the hints below stop the browser filling in a saved login. */}
           <form onSubmit={(event) => void submitCreate(event)} className="space-y-4" autoComplete="off">
-            {formError && <Notice error>{formError}</Notice>}
+            {formError && <ErrorToast message={formError} />}
             <Field label="Client name" value={form.clientName} onChange={(v) => setForm((f) => ({ ...f, clientName: v }))} required />
             <Field label="Business name" value={form.businessName} onChange={(v) => setForm((f) => ({ ...f, businessName: v }))} required />
             <Field label="Email" type="email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} autoComplete="off" required />
@@ -237,7 +238,7 @@ export function ClientsPage({ onOpenClient, onAddProject }: { onOpenClient?: (cl
       {credentialsFor && (
         <Modal title={`${credentialsFor.hasActiveLogin ? 'Reset' : 'Set'} password — ${credentialsFor.clientName}`} onClose={() => { setCredentialsFor(null); setShowNewPassword(false); }}>
           <form onSubmit={(event) => void submitCredentials(event)} className="space-y-4">
-            {formError && <Notice error>{formError}</Notice>}
+            {formError && <ErrorToast message={formError} />}
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-app-muted">Temporary password</span>

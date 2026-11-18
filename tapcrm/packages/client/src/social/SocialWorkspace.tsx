@@ -36,6 +36,7 @@ import {
   type SocialProvider,
   type SocialSettings,
 } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const sections = [
   { id: 'overview', label: 'Overview', icon: 'grid' },
@@ -359,20 +360,16 @@ export function SocialWorkspace({
         ariaLabel="Social media sections"
       />
       {error && (
-        <Notice error>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>{error}</span>
-            <Button
-              kind="secondary"
-              onClick={() => {
-                if (!client) window.location.reload();
-                else changed();
-              }}
-            >
-              Try again
-            </Button>
-          </div>
-        </Notice>
+        <ErrorToast
+          message={error}
+          action={{
+            label: 'Try again',
+            onClick: () => {
+              if (!client) window.location.reload();
+              else changed();
+            },
+          }}
+        />
       )}
       {connecting && !accountSelection && (
         <Notice>Completing platform authorization…</Notice>
@@ -506,7 +503,7 @@ export function SocialWorkspace({
               . This authorization expires after{' '}
               {accountSelection.expiresInMinutes ?? 10} minutes.
             </p>
-            {selectionError && <Notice error>{selectionError}</Notice>}
+            {selectionError && <ErrorToast message={selectionError} />}
             {accountSelection.candidates.length ? (
               <div className="space-y-2">
                 <input

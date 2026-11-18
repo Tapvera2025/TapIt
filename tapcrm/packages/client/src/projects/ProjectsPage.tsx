@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Notice, Page, SkeletonTable } from '../ui/index.js';
+import { Button, Card, Page, SkeletonTable } from '../ui/index.js';
 import { getProjects, type Project } from './api/projectsApi.js';
 import { CreateDiscussionGroupModal } from './CreateDiscussionGroupModal.js';
 import { CreateProjectModal } from './CreateProjectModal.js';
@@ -7,6 +7,7 @@ import { BulkProjectAssignmentModal } from './BulkProjectAssignmentModal.js';
 import { formatProjectDate } from './formatDate.js';
 import { APP_NAVIGATE_EVENT } from '../navigationEvent.js';
 import { NEW_PROJECT_CLIENT_PARAM } from './newProjectLink.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const PRIORITY_LABEL: Record<Project['priority'], string> = { low: 'Low', medium: 'Medium', high: 'High' };
 const STATUS_LABEL: Record<Project['workStatus'], string> = { new: 'New', ongoing: 'Ongoing', ended: 'Ended', expired: 'Expired' };
@@ -71,7 +72,7 @@ export function ProjectsPage({ onOpenProject, canManageProjects, canManageProjec
         </div>
       ) : undefined}
     >
-      {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
+      {error && <ErrorToast message={error} />}
       {loading ? (
         <SkeletonTable columns={4} rows={5} />
       ) : projects.length === 0 ? (

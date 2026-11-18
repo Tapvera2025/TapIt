@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getChatColleagues } from '../chat/index.js';
 import { TasksPage } from '../company/tasks/index.js';
-import { Button, Card, Notice, SkeletonDetail, SkeletonMessageThread } from '../ui/index.js';
+import { Button, Card, SkeletonDetail, SkeletonMessageThread } from '../ui/index.js';
 import { getProject, setProjectTeam, type Project } from './api/projectsApi.js';
 import { ClientSocialAccessCard } from './ClientSocialAccessCard.js';
 import { isSocialProject } from './ClientSocialAccessCard.helpers.js';
@@ -11,6 +11,7 @@ import { formatProjectAmount } from './project-amounts.js';
 import { ProjectDiscussionTab } from './ProjectDiscussionTab.js';
 import { ProjectReportsPage } from './reports/ProjectReportsPage.js';
 import { ProjectDetailNavigation } from './ProjectDetailNavigation.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 type Tab = 'details' | 'discussions' | 'tasks' | 'reports';
 const TABS = [
@@ -61,7 +62,7 @@ export function ProjectDetailPage({
       .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load project.'));
   }, [projectId]);
 
-  if (error) return <div className="p-6"><Notice error>{error}</Notice></div>;
+  if (error) return <ErrorToast message={error} />;
   if (!project) return <SkeletonDetail sections={3} />;
 
   return (
@@ -209,11 +210,7 @@ export function ProjectDetailPage({
       </div>
       )}
 
-      {error && (
-        <p role="alert" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-[#d86b6b]/30 bg-app-surface px-4 py-2 text-sm text-app-danger shadow-lg">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {showEdit && (
         <EditProjectModal

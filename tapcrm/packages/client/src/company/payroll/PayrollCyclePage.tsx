@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getPayrollCycle, type CycleStatus } from '../api/payrollApi.js';
 import { SkeletonMetrics } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function fmtPeriod(periodStart: string): string {
   return new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -26,7 +27,7 @@ export function PayrollCyclePage(): React.JSX.Element {
   }, []);
 
   if (loading) return <div className="p-6"><SkeletonMetrics count={3} /></div>;
-  if (error) return <div className="p-6 text-sm text-app-danger">{error}</div>;
+  if (error) return <ErrorToast message={error} />;
 
   return (
     <div className="mx-auto max-w-lg space-y-4 p-4 sm:p-6">

@@ -10,6 +10,7 @@ import {
 } from '@tapcrm/contracts';
 import { Button, Loading, Modal, Notice } from '../../../ui/index.js';
 import { getAtsCriteria, saveAtsCriteria } from '../api/recruitmentApi.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const MAX_PER_LIST = 30;
 
@@ -119,11 +120,7 @@ function CriteriaListInput({
           className="min-w-[10rem] flex-1 bg-transparent px-1 py-1 text-sm text-app-foreground outline-none"
         />
       </div>
-      {error && (
-        <p className="mt-1 text-xs text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
     </div>
   );
 }
@@ -246,7 +243,7 @@ export function AtsCriteriaModal({
       }
     >
       {loadError ? (
-        <Notice error>{loadError}</Notice>
+        <ErrorToast message={loadError} />
       ) : !settings ? (
         <Loading />
       ) : (
@@ -256,7 +253,7 @@ export function AtsCriteriaModal({
               Suggested from the job description. Review and adjust before saving — nothing is screened until you save.
             </Notice>
           )}
-          {error && <Notice error>{error}</Notice>}
+          {error && <ErrorToast message={error} />}
 
           <CriteriaListInput
             label="Required skills"

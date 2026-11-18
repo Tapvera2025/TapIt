@@ -1,5 +1,6 @@
 import { BrandLogo } from '../ui/index.js';
 import { useState } from 'react';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export function AcceptInvitation() {
   const token = new URLSearchParams(window.location.search).get('token') ?? '';
@@ -116,7 +117,7 @@ export function AcceptInvitation() {
                   {busy ? 'Creating account…' : 'Create Admin Account'}
                 </button>
               </form>
-              {message && <p className="mt-[18px] text-[13px] leading-[1.5] text-app-danger" aria-live="polite">{message}</p>}
+              {message && <ErrorToast message={message} />}
             </>
           )}
         </div>

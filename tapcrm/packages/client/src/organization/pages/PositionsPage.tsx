@@ -598,9 +598,7 @@ export function PositionsPage(): React.JSX.Element {
         </div>
       )}
       {Boolean(error) && (
-        <div className="mt-5">
-          <ErrorMessage cause={error} />
-        </div>
+        <ErrorMessage cause={error} />
       )}
       {loading || !ladder ? (
         <>
@@ -663,9 +661,7 @@ export function PositionsPage(): React.JSX.Element {
               : 'Choose where the new position belongs.'}
           </p>
           {Boolean(error) && (
-            <div className="mb-4">
-              <ErrorMessage cause={error} />
-            </div>
+            <ErrorMessage cause={error} />
           )}
           <form
             noValidate
@@ -867,9 +863,7 @@ export function PositionsPage(): React.JSX.Element {
           }
         >
           {Boolean(policyError) && (
-            <div className="mb-4">
-              <ErrorMessage cause={policyError} />
-            </div>
+            <ErrorMessage cause={policyError} />
           )}
           {policiesLoading ? (
             <p className="py-10 text-center text-sm text-app-muted">Loading policies…</p>
@@ -1005,11 +999,7 @@ function ImpactPreview({
           {busy ? 'Applying…' : 'Confirm and apply'}
         </Button>
       </div>
-      {formError && (
-        <div className="mt-4">
-          <ErrorMessage cause={new Error(formError)} />
-        </div>
-      )}
+      {formError && <ErrorMessage cause={new Error(formError)} />}
     </div>
   );
 }

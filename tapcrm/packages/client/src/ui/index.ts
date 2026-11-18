@@ -1,5 +1,6 @@
 /** Public entry point for TapCRM's shared client UI. */
 export * from './components.js';
+export * from './ErrorToast.js';
 export * from './charts.js';
 export * from './Icon.js';
 export * from './BrandLogo.js';

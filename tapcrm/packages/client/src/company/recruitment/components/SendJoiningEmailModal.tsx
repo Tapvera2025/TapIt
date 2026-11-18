@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Button, Modal, Notice } from '../../../ui/index.js';
+import { Button, Modal } from '../../../ui/index.js';
 import { listEmailTemplates, sendJoiningEmail } from '../api/recruitmentApi.js';
 import type { CandidateJoining, RecruitmentEmailTemplate, SendJoiningEmailInput } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const VARIABLE_HINTS = [
   '{{candidate_name}}',
@@ -101,7 +102,7 @@ export function SendJoiningEmailModal({
       onClose={onClose}
     >
       <form onSubmit={(e) => void handleSend(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <div className="rounded-xl border border-app-border bg-app-surface px-4 py-3 text-xs space-y-1.5">
           <div className="flex justify-between">

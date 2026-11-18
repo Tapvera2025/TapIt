@@ -7,6 +7,7 @@ import {
   type BreakPolicyRow,
 } from '../api/breaksApi.js';
 import { SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 /** Break policies and assignments take effect from tomorrow at the earliest (future-dated). */
 function tomorrow(): string {
@@ -309,7 +310,7 @@ export function BreakPoliciesPage(): React.JSX.Element {
               </label>
             </div>
           </div>
-          {formError && <p className="text-xs text-app-danger">{formError}</p>}
+          {formError && <ErrorToast message={formError} />}
           <div className="flex gap-2">
             <button
               type="submit"
@@ -329,7 +330,7 @@ export function BreakPoliciesPage(): React.JSX.Element {
         </form>
       )}
 
-      {error && <p className="text-sm text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {loading && <SkeletonTable columns={4} rows={5} />}
 
       {!loading && policies.length === 0 && (

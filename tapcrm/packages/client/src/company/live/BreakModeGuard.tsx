@@ -5,6 +5,7 @@ import { exactCompletedBreakSeconds } from '../attendance/breakTime.js';
 import { getBreakAllowance } from '../api/breaksApi.js';
 import { ATTENDANCE_UPDATED_EVENT, loadTodayStatus, notifyAttendanceUpdated, punch } from './liveApi.js';
 import './break-mode-guard.css';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function formatBreakTime(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
@@ -423,7 +424,7 @@ export function BreakModeGuard(): React.JSX.Element | null {
           <BreakTimer totalBreakSeconds={totalBreakSeconds} limitMinutes={effectiveLimitMinutes} />
         </div>
         <div className="break-mode-footer">
-          {error && <p className="break-mode-error" role="alert">{error}</p>}
+          {error && <ErrorToast message={error} />}
           <button type="button" className="break-mode-resume ui-primary" onClick={() => void resume()} disabled={resuming}>
             {readyToReturn ? 'Back to it!' : resuming ? 'Returning…' : 'I’m ready to get back'}
             {!readyToReturn && !resuming && (

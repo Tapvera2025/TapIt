@@ -15,6 +15,7 @@ import {
 } from './api.js';
 import { BriefSections } from './BriefSections.js';
 import { getProjects, type Project } from '../../../projects/api/projectsApi.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
@@ -172,8 +173,8 @@ export function DeliveryBriefPage({
   if (loadError) {
     return (
       <Page eyebrow="Sales" title="Delivery brief">
-        <p className="text-app-danger">{loadError}</p>
-        <Button className="mt-4" kind="secondary" onClick={onBack}>
+        <ErrorToast message={loadError} />
+        <Button kind="secondary" onClick={onBack}>
           Back to deal
         </Button>
       </Page>
@@ -208,11 +209,7 @@ export function DeliveryBriefPage({
         </Button>
       }
     >
-      {actionError && (
-        <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {actionError}
-        </p>
-      )}
+      {actionError && <ErrorToast message={actionError} />}
 
       {!brief ? (
         <StartBriefPanel
@@ -535,7 +532,7 @@ function AcceptDialog({
             ))}
           </select>
         </label>
-        {loadError && <p className="mt-2 text-xs text-app-danger">{loadError}</p>}
+        {loadError && <ErrorToast message={loadError} />}
       </div>
       <div className="mt-3">
         <Field

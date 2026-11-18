@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Card, Loading, Notice, Select } from '../../ui/index.js';
 import { getSearchConsoleSettings, linkSearchConsoleProperty, syncSearchConsoleRanks, unlinkSearchConsoleProperty } from './api/projectReportsApi.js';
 import type { SearchConsoleSettings } from './types.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 /**
  * Linking a project to its Search Console property, and running a fetch now.
@@ -69,7 +70,7 @@ export function SearchConsoleCard({ projectId, onSynced }: { projectId: string; 
   }
 
   if (settings === null) {
-    return <Card>{error ? <Notice error>{error}</Notice> : <Loading />}</Card>;
+    return <Card>{error ? <ErrorToast message={error} /> : <Loading />}</Card>;
   }
 
   const link = settings.link;
@@ -104,7 +105,7 @@ export function SearchConsoleCard({ projectId, onSynced }: { projectId: string; 
     </div>
 
     {notice && <div className="mb-3"><Notice>{notice}</Notice></div>}
-    {error && <div className="mb-3"><Notice error>{error}</Notice></div>}
+    {error && <ErrorToast message={error} />}
     {!settings.configured && <div className="mb-3"><Notice error>No Google login is connected yet. A company admin connects the Google account that manages your clients’ Search Console properties under Social → Company connections; its properties then appear here.</Notice></div>}
     {settings.configured && settings.error !== null && <div className="mb-3"><Notice error>{settings.error}</Notice></div>}
 

@@ -22,6 +22,7 @@ import {
   sanitizePhoneInput,
   splitPhoneAndCountryCode,
 } from './phone.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 export { PHONE_COUNTRY_OPTIONS } from './phone.js';
 
@@ -467,11 +468,7 @@ export function AddEmployeeWizardModal({
             {scheduleNotice}
           </div>
         )}
-        {error && (
-          <div className="mb-3 shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-500" role="alert">
-            {error}
-          </div>
-        )}
+        {error && <ErrorToast message={error} />}
         {draftNotice && (
           <div className="mb-3 flex shrink-0 items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs text-emerald-800 dark:text-emerald-200">
             <span>{draftNotice}</span>

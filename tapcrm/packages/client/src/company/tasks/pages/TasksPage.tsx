@@ -26,6 +26,7 @@ import type {
   TaskViewScope,
   UpdateTaskInput,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export interface TasksPageProps {
   readonly isSuperAdmin?: boolean | undefined;
@@ -549,9 +550,10 @@ export function TasksPage({
     <WorkspacePageContainer>
       <div className="space-y-5">
         {/* Banner notification */}
-        {notification && (
+        {notification?.error && <ErrorToast message={notification.message} />}
+        {notification && !notification.error && (
           <div className="relative">
-            <Notice error={notification.error ?? false}>{notification.message}</Notice>
+            <Notice>{notification.message}</Notice>
             <button
               type="button"
               onClick={() => setNotification(null)}
@@ -602,14 +604,7 @@ export function TasksPage({
         />
 
         {/* Error state with retry */}
-        {fetchError && (
-          <div className="flex flex-col items-start gap-2">
-            <Notice error>{fetchError}</Notice>
-            <Button type="button" kind="secondary" onClick={() => void fetchTasks()}>
-              Retry
-            </Button>
-          </div>
-        )}
+        {fetchError && <ErrorToast message={fetchError} action={{ label: 'Retry', onClick: () => void fetchTasks() }} />}
 
         {/* Task View: Kanban Board or List */}
         {viewMode === 'kanban' ? (

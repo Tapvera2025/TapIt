@@ -8,6 +8,7 @@ import {
 } from '../api/breaksApi.js';
 import { SkeletonCard } from '../../ui/index.js';
 import { formatMinutes } from '../../ui/format-duration.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 export function EmployeeBreakView(): React.JSX.Element {
   const [allowance, setAllowance] = useState<BreakAllowance | null>(null);
@@ -22,7 +23,7 @@ export function EmployeeBreakView(): React.JSX.Element {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  if (error) return <p className="p-4 text-red-600">{error}</p>;
+  if (error) return <ErrorToast message={error} />;
   if (!allowance) return <div className="p-4"><SkeletonCard className="h-48" /></div>;
 
   async function handleExplanation(breachId: string): Promise<void> {

@@ -11,6 +11,7 @@ import type { Task, TaskStatus } from '../../tasks/types/index.js';
 import { listLeaves, getLeaveBalances, type LeaveBalanceDto, type LeaveRequestSummary } from '../../api/leaveApi.js';
 import { listHolidays, type Holiday } from '../../api/holidaysApi.js';
 import type { WidgetContext } from '../widget-types.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }): React.JSX.Element {
   return <div className={`dashboard-widget-shell flex h-full min-h-0 w-full flex-col gap-3 overflow-x-hidden overflow-y-auto ${className}`}>{children}</div>;
@@ -228,7 +229,7 @@ export function PunchStateWidget(): React.JSX.Element {
           {punchBusy === breakKind ? (breakKind === 'break-start' ? 'Starting…' : 'Ending…') : breakKind === 'break-start' ? 'Start Break' : 'End Break'}
         </button>
       </div>
-      {error && <p className="text-xs text-app-danger" role="alert">{error}</p>}
+      {error && <ErrorToast message={error} />}
     </Panel>
   );
 }
@@ -334,7 +335,7 @@ export function BreakManagementWidget(): React.JSX.Element {
           ))}
         </div>
       )}
-      {error && <p className="text-xs text-app-danger" role="alert">{error}</p>}
+      {error && <ErrorToast message={error} />}
     </Panel>
   );
 }
@@ -476,7 +477,7 @@ export function MyTasksWidget({ ctx }: { ctx: WidgetContext }): React.JSX.Elemen
           View all →
         </button>
       </div>
-      {error && <p role="alert" className="rounded-xl border border-app-danger/25 bg-app-danger/10 px-3 py-2 text-xs text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       <TaskProgressGraph tasks={tasks} userId={ctx.userId} filter={taskFilter} onFilterChange={setTaskFilter} />
       <ul className="mt-1 min-h-0 flex-1 space-y-2 overflow-auto pr-1">
         {visibleTasks.map((task) => (
@@ -662,7 +663,7 @@ export function MySessionsWidget({ ctx }: { ctx: WidgetContext }): React.JSX.Ele
           Manage →
         </button>
       </div>
-      {error && <p role="alert" className="rounded-xl border border-app-danger/25 bg-app-danger/10 px-3 py-2 text-xs text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       <div className="dashboard-session-list min-h-0 flex-1 space-y-2 overflow-auto pr-1">
         {activeSessions.slice(0, 4).map((session) => {
           const device = sessionDevice(session);

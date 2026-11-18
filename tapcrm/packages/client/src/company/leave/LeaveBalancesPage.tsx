@@ -6,6 +6,7 @@ import {
   type LeaveBalanceOverviewRow,
 } from '../api/leaveApi.js';
 import { Button, Modal, Notice, Page, SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -90,7 +91,7 @@ function AdjustBalance({
             className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
           />
         </label>
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <div className="flex justify-end gap-2">
           <Button kind="secondary" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={busy || !valid}>{busy ? 'Saving…' : 'Save adjustment'}</Button>
@@ -156,7 +157,7 @@ export function LeaveBalancesPage({ canAdjust }: { canAdjust: boolean }): React.
         </label>
       </div>
       {notice && <div className="mt-4"><Notice>{notice}</Notice></div>}
-      {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
+      {error && <ErrorToast message={error} />}
       {loading ? (
         <div className="mt-6"><SkeletonTable columns={5} rows={5} /></div>
       ) : types.length === 0 ? (

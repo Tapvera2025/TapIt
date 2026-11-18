@@ -30,6 +30,7 @@ import {
   timeAgo,
 } from './calls-format.js';
 import { CallsTabs, errorText, SectionTitle, type CallsAccess } from './CallsShared.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const PROVIDERS: readonly TelephonyProvider[] = ['justcall', 'aircall'];
 
@@ -129,7 +130,7 @@ export function CallIntegrationsPage({ access, onNavigate }: { access: CallsAcce
           32-byte key, e.g. <code className="font-mono">openssl rand -hex 32</code>) and restart the server.
         </Notice>
       )}
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {message && <Notice>{message}</Notice>}
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -501,11 +502,7 @@ function ConnectDialog({
           />
         </div>
         <p className="text-xs text-app-muted">{guide.note}</p>
-        {error && (
-          <p className="rounded-xl border border-app-danger/30 bg-app-danger/10 p-3 text-sm text-app-danger" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <ErrorToast message={error} />}
         <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
       </form>
     </Modal>
@@ -526,7 +523,7 @@ function SyncHistoryDialog({ connection, onClose }: { connection: TelephonyConne
   }, [connection.id]);
   return (
     <Modal title={`${PROVIDER_NAMES[connection.provider]} sync history`} onClose={onClose} size="lg">
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {!runs && !error && <Skeleton className="h-40 w-full" />}
       {runs && runs.length === 0 && <p className="text-sm text-app-muted">No syncs have run yet.</p>}
       {runs && runs.length > 0 && (
@@ -671,7 +668,7 @@ function AgentMatching({ connections, version }: { connections: readonly Telepho
             </button>
           ))}
         </div>
-        {error && <div className="mt-3"><Notice error>{error}</Notice></div>}
+        {error && <ErrorToast message={error} />}
         {note && <div className="mt-3"><Notice>{note}</Notice></div>}
       </div>
       {!agents ? (

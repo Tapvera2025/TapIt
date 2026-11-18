@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
+import { Card, Empty, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listOffers, listRequisitions, updateOfferStatus } from '../api/recruitmentApi.js';
 import { OfferFormModal } from '../components/OfferFormModal.js';
 import { OfferStatusBadge } from '../components/StatusBadge.js';
@@ -11,6 +11,7 @@ import type {
   OfferFilter,
   OfferStatus,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function OffersPage({
   preselectedCandidate,
@@ -94,11 +95,7 @@ export function OffersPage({
         </button>
       }
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {/* Filter Bar */}
       <Card className="mt-6 p-4">

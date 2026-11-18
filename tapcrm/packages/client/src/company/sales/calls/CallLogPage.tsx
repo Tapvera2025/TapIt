@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Field, Icon, Notice, Page, SearchableSelect, Select } from '../../../ui/index.js';
+import { Button, Card, Field, Icon, Page, SearchableSelect, Select } from '../../../ui/index.js';
 import { getCallPeople, getCalls, type CallOutcome, type CallPage, type CallPeople, type TelephonyProvider } from './api.js';
 import { OUTCOME_LABELS } from './calls-format.js';
 import {
@@ -15,6 +15,7 @@ import {
   type CallsAccess,
   type RangeValue,
 } from './CallsShared.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const PAGE_SIZE = 50;
 
@@ -148,7 +149,7 @@ export function CallLogPage({
         </div>
       </Card>
 
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
 
       <Card className="overflow-hidden p-0">
         {loading && !result ? (

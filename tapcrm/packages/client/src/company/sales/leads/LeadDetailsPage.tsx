@@ -15,6 +15,7 @@ import { cannotOpen, mailHref, telHref, type GuideCommand } from '../guide/guida
 import { SalesCoach, StepTracker, focusGuideTarget, useSalesGuide } from '../guide/SalesGuide.js';
 import { IdentityApiError } from '../../../identity/api/authApi.js';
 import { subscribeRealtimeEvent } from '../../live/realtimeClient.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 /**
  * What to show under "This lead can't be opened". A refusal (403) or a missing
@@ -250,7 +251,7 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
               </div>
               {canViewCalls && onNavigate && <Button kind="secondary" onClick={() => onNavigate('/company/sales/calls/log')}>Open call log</Button>}
             </div>
-            {callsError && <p className="mt-3 text-sm text-app-danger" role="alert">{callsError}</p>}
+            {callsError && <ErrorToast message={callsError} />}
             {callsLoading && <p className="mt-4 text-sm text-app-muted">Checking synced calls for this phone number…</p>}
             {timeline.length > 0 ? (
               <ol className="mt-5 space-y-4">
@@ -333,7 +334,7 @@ function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, c
   return (
     <Card id={LEAD_ANCHORS.callbacks}>
       <h2 className="font-display text-lg font-bold">Callbacks</h2>
-      {error && <p className="mt-2 text-xs text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {canSchedule && (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-app-muted">Book a time to call {lead.contactName} back. You get a reminder an hour before and 15 minutes before.</p>
@@ -401,7 +402,7 @@ function ConvertToDealModal({ lead, onClose, onCreated }: { lead: Lead; onClose:
           <button type="button" onClick={onClose} className="text-sm text-app-muted hover:text-app-foreground">Close</button>
         </div>
         <p className="mt-2 text-sm text-app-muted">The lead becomes a deal you own. Next you build the proposal, get it approved if needed, and collect the advance.</p>
-        {error && <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-2 text-sm text-app-danger">{error}</p>}
+        {error && <ErrorToast message={error} />}
         <div className="mt-4 grid gap-4">
           <Field label="Deal title" value={title} onChange={setTitle} required />
           <Field label="What they are buying" value={service} onChange={setService} />
@@ -450,7 +451,7 @@ function HandoverPanel({ lead, currentUserId, organizationTimezone, handovers, t
   return (
     <Card id={LEAD_ANCHORS.handover}>
       <h2 className="font-display text-lg font-bold">Hand over a live call</h2>
-      {error && <p className="mt-3 text-xs text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {active ? (
         <div className="mt-3 space-y-3 text-sm">
           <p className="font-semibold">{active.status === 'pending' ? `Offered to ${active.toUserName ?? 'the team queue'}, waiting for them to accept` : `${active.toUserName ?? 'A colleague'} took the call`}</p>

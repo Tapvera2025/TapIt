@@ -30,6 +30,7 @@ import {
   rupeesToPaise,
   type BadgeTone,
 } from './proposals-helpers.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
   neutral: 'bg-app-background text-app-muted',
@@ -300,8 +301,8 @@ export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: Pro
   if (loadError) {
     return (
       <Page eyebrow="Sales" title="Proposals">
-        <p className="text-app-danger">{loadError}</p>
-        <Button className="mt-4" kind="secondary" onClick={onBack}>
+        <ErrorToast message={loadError} />
+        <Button kind="secondary" onClick={onBack}>
           Back to deal
         </Button>
       </Page>
@@ -350,11 +351,7 @@ export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: Pro
         </div>
       }
     >
-      {saveError && (
-        <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {saveError}
-        </p>
-      )}
+      {saveError && <ErrorToast message={saveError} />}
       {selected && editable && !isSuperAdmin && (
         <p className={`mb-4 rounded-lg p-3 text-sm ${NOTE_CLASSES[approvalNote(approvalState).tone]}`}>
           {approvalNote(approvalState).text}
