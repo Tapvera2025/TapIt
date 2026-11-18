@@ -169,32 +169,6 @@ export function CalendarPicker({
   const shownValue = type === 'month' ? monthLabel(value) : dateLabel(value);
   const accessibleLabel = ariaLabel ?? (type === 'month' ? 'Choose month' : 'Choose date');
 
-  // Use the browser-native calendar control for every single-value picker.
-  // It is reliable inside native dialogs and clipped modal containers, while
-  // this component keeps one shared API and visual treatment everywhere.
-  const useNativePicker = typeof window !== 'undefined';
-  if (useNativePicker) return (
-    <input
-      {...inputAttributes}
-      id={id}
-      name={name}
-      type={type}
-      required={required}
-      disabled={disabled}
-      autoComplete={autoComplete}
-      value={value}
-      min={min}
-      max={max}
-      placeholder={placeholder}
-      aria-label={ariaLabel ?? accessibleLabel}
-      aria-labelledby={ariaLabelledBy}
-      aria-describedby={ariaDescribedBy}
-      aria-invalid={ariaInvalid}
-      onChange={(event) => onChange(event)}
-      className={`ui-form-control w-full cursor-pointer px-3 py-2.5 text-sm text-app-foreground outline-none disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
-    />
-  );
-
   function emit(nextValue: string) {
     if (nextValue && type === 'date' && !withinDateBounds(nextValue, min, max)) return;
     if (nextValue && type === 'month' && !withinDateBounds(nextValue, min?.slice(0, 7), max?.slice(0, 7))) return;

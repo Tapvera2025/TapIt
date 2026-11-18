@@ -7,7 +7,6 @@ import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
 import { attendanceErrorMessage, getDailyAttendanceReport, getMonthlyAttendanceReport, requestAttendanceRangeExport, requestDailyAttendanceExport, requestMonthlyAttendanceExport, type DailyAttendanceRow, type MonthlyAttendanceRow } from './attendanceApi.js';
 import { AttendanceKpis, AttendanceLegend } from './AttendanceVisuals.js';
 import { AttendanceDetailsDrawer, type AttendanceDrawerDay, type AttendanceDetailsDrawerProps } from './AttendanceDetailsDrawer.js';
-import './AttendanceReportPage.css';
 
 type Mode = 'daily' | 'weekly' | 'monthly';
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -314,9 +313,9 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
   }
 
   return <Page eyebrow="HR · Attendance" title="Attendance Report" description="Daily, weekly, and monthly attendance from stored calculated records.">
-    <Card className="attendance-toolbar-container p-2.5 sm:p-3.5">
-      <div className="attendance-toolbar-controls grid grid-cols-2 items-end gap-2.5 sm:grid-cols-3 min-[1100px]:flex min-[1100px]:flex-nowrap min-[1100px]:items-center min-[1100px]:gap-2">
-        <div className="attendance-toolbar-period col-span-2 flex min-w-0 rounded-2xl border border-app-border bg-app-surface-raised/65 p-1 sm:col-span-1 min-[1100px]:shrink-0" role="group" aria-label="Attendance period">
+    <Card className="p-2.5 sm:p-3.5">
+      <div className="grid grid-cols-2 items-end gap-2.5 sm:grid-cols-3 min-[1100px]:flex min-[1100px]:flex-nowrap min-[1100px]:items-center min-[1100px]:justify-between min-[1100px]:gap-1.5">
+        <div className="col-span-2 flex min-w-0 rounded-2xl border border-app-border bg-app-surface-raised/65 p-1 sm:col-span-1 min-[1100px]:w-[210px] min-[1100px]:shrink-0" role="group" aria-label="Attendance period">
           {([
             { id: 'daily' as const, label: 'Daily', icon: 'calendar' },
             { id: 'weekly' as const, label: 'Weekly', icon: 'calendar' },
@@ -327,14 +326,14 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
               type="button"
               aria-pressed={mode === item.id}
               onClick={() => { setMode(item.id); setPage(1); }}
-              className={`inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-semibold transition sm:gap-1.5 sm:px-2.5 ${mode === item.id ? 'bg-app-accent text-app-on-accent shadow-sm' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
+              className={`inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-semibold transition sm:gap-1.5 sm:px-2.5 min-[1100px]:gap-0.5 min-[1100px]:px-1 min-[1100px]:text-[10px] ${mode === item.id ? 'bg-app-accent text-app-on-accent shadow-sm' : 'text-app-muted hover:bg-app-background hover:text-app-foreground'}`}
             >
-              <Icon name={item.icon} className="size-3.5 shrink-0" />
+              <Icon name={item.icon} className="size-3.5 shrink-0 min-[1100px]:size-3" />
               <span>{item.label}</span>
             </button>
           ))}
         </div>
-        <label className="attendance-toolbar-date min-w-0 text-xs font-semibold text-app-muted min-[1100px]:flex min-[1100px]:min-w-[170px] min-[1100px]:flex-1 min-[1100px]:items-center min-[1100px]:gap-2">
+        <label className="attendance-toolbar-date min-w-0 text-xs font-semibold text-app-muted min-[1100px]:flex min-[1100px]:min-w-[162px] min-[1100px]:max-w-[280px] min-[1100px]:flex-[1_1_220px] min-[1100px]:items-center min-[1100px]:gap-1.5">
           <span className="attendance-toolbar-label mb-1.5 flex items-center gap-1.5 min-[1100px]:mb-0 min-[1100px]:shrink-0"><Icon name="calendar" className="size-3.5" />Date</span>
           <div className="min-w-0 flex-1">
             <CalendarPicker
@@ -352,15 +351,15 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
                   setPage(1);
                 }
               }}
-              className="ui-form-control w-full px-3 py-2.5 text-sm text-app-foreground min-[1100px]:py-1.5"
+              className="ui-form-control w-full px-3 py-2.5 text-sm text-app-foreground min-[1100px]:px-2 min-[1100px]:py-1.5 min-[1100px]:pr-7 min-[1100px]:text-[12px]"
             />
           </div>
         </label>
-        <div className="attendance-toolbar-shift min-w-0 min-[1100px]:min-w-[164px] min-[1100px]:flex-1"><Select compact label="Shift" value={shiftId} onChange={(value) => { setShiftId(value); setPage(1); }} options={shifts.map((item) => ({ value: item.id, label: item.name }))} /></div>
+        <div className="attendance-toolbar-shift min-w-0 min-[1100px]:min-w-[137px] min-[1100px]:max-w-[210px] min-[1100px]:flex-[1_1_160px]"><Select compact label="Shift" value={shiftId} onChange={(value) => { setShiftId(value); setPage(1); }} options={shifts.map((item) => ({ value: item.id, label: item.name }))} /></div>
         {canExport && (
           <>
-            <div className="attendance-toolbar-format min-w-0 min-[1100px]:min-w-[184px] min-[1100px]:flex-1"><Select compact label="Export format" value={format} onChange={(value) => setFormat(value as 'csv' | 'xlsx' | '')} options={[{ value: 'csv', label: 'CSV' }, { value: 'xlsx', label: 'XLSX' }]} placeholder="Select format" placeholderDisabled /></div>
-            <Button className="attendance-toolbar-export inline-flex w-full items-center justify-center gap-2 min-[1100px]:w-auto min-[1100px]:shrink-0" disabled={!format || exporting || loading || (mode === 'weekly' && weeklyRows.length === 0)} onClick={() => void exportReport()}>
+            <div className="attendance-toolbar-format min-w-0 min-[1100px]:min-w-[108px] min-[1100px]:max-w-[200px] min-[1100px]:flex-[1_1_140px]"><Select compact visuallyHiddenLabel label="Export format" value={format} onChange={(value) => setFormat(value as 'csv' | 'xlsx' | '')} options={[{ value: 'csv', label: 'CSV' }, { value: 'xlsx', label: 'XLSX' }]} placeholder="Select format" placeholderDisabled /></div>
+            <Button className="inline-flex w-full items-center justify-center gap-2 min-[1100px]:w-auto min-[1100px]:shrink-0 min-[1100px]:px-2.5 min-[1100px]:py-2 min-[1100px]:text-xs" disabled={!format || exporting || loading || (mode === 'weekly' && weeklyRows.length === 0)} onClick={() => void exportReport()}>
               <Icon name="download" className="size-4" />{exporting ? 'Exporting…' : 'Export'}
             </Button>
           </>
