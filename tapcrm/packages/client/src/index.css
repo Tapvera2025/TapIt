@@ -2025,7 +2025,10 @@ nav button[aria-current='page']::before {
   .notification-overlay {
     position: fixed;
     inset: 0;
-    z-index: 80;
+    /* The desktop hero utility intentionally sits above page content. The
+       notification drawer is a global overlay and must sit above that shell
+       layer as well, including the hero capsule and its controls. */
+    z-index: 2000;
     pointer-events: auto;
   }
 
@@ -2913,6 +2916,16 @@ summary:active {
 }
 
 @media (min-width: 1280px) {
+  /* Recruitment's horizontally scrollable tabs sit directly below the shared
+     hero. Reduce the stacked hero/tab spacing without changing its content. */
+  .company-page-hero-desktop:has(+ .w-full .recruitment-tab-list) {
+    margin-bottom: 0.75rem;
+  }
+
+  .company-page-hero-desktop + .w-full:has(.recruitment-tab-list) > div:first-child {
+    padding-top: 0.75rem !important;
+  }
+
   .company-layout-shell {
     --company-sidebar-top-gap: 1.5rem;
     --workspace-space-sm: 0.5rem;
@@ -3342,6 +3355,42 @@ summary:active {
     cursor: grabbing;
   }
 
+  /* Access Explorer keeps the glass layout but uses an explicit selected
+     surface. Without the snapshot lens, the default light indicator is too
+     close to the page surface and the active tab reads as unselected. */
+  .access-explorer-liquid-tabs {
+    min-height: 4.25rem;
+    align-items: stretch;
+    gap: 0.25rem;
+    padding: 0.25rem;
+  }
+
+  .access-explorer-liquid-tabs .messages-tab-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3.55rem;
+    border: 1px solid transparent;
+    border-radius: 0.8rem;
+  }
+
+  .access-explorer-liquid-tabs .messages-tab-button[aria-pressed='true'] {
+    background: color-mix(in srgb, var(--app-accent) 9%, var(--app-surface));
+    border-color: color-mix(in srgb, var(--app-accent) 30%, var(--app-border));
+    color: var(--app-accent);
+    box-shadow: 0 6px 16px -12px color-mix(in srgb, var(--app-accent) 55%, transparent);
+  }
+
+  .access-explorer-liquid-tabs .messages-tab-glass-indicator {
+    display: none;
+  }
+
+  .dark .access-explorer-liquid-tabs .messages-tab-button[aria-pressed='true'] {
+    background: color-mix(in srgb, var(--app-surface-raised) 82%, var(--app-accent) 18%);
+    border-color: color-mix(in srgb, var(--app-accent) 42%, var(--app-border));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 16px -12px rgba(0, 0, 0, 0.8);
+  }
+
   .messages-tab-button:focus-visible {
     outline: 2px solid var(--app-accent);
     outline-offset: 2px;
@@ -3515,6 +3564,13 @@ summary:active {
   scrollbar-color: color-mix(in srgb, var(--theme-primary) 38%, rgba(255, 255, 255, 0.4)) transparent;
 }
 
+/* Keep the client-portal status grid separators optically consistent with
+   the card border across every responsive layout. */
+.client-dashboard-status-grid,
+.client-dashboard-status-item {
+  border-color: color-mix(in srgb, var(--app-border) 72%, var(--app-surface)) !important;
+}
+
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
@@ -3673,6 +3729,18 @@ summary:active {
   margin-top: 0.25rem;
 }
 
+@media (min-width: 1280px) {
+  /* Keep every authorized module visible in the compact desktop rail while
+     retaining a clear visual separation between each section. */
+  .workspace-sidebar[data-sidebar-collapsed='false']
+    .company-sidebar-nav.sidebar-sections-collapsed {
+    justify-content: flex-start;
+    gap: 0.4rem !important;
+    overflow-y: auto;
+    padding-bottom: 0.75rem;
+  }
+}
+
 /* Keep the desktop sidebar clean until it is actually being used. The nav
    remains scrollable; its scrollbar is revealed only while the sidebar is
    hovered so it does not permanently consume visual space. */
@@ -3697,6 +3765,19 @@ summary:active {
     display: initial;
     width: 7px;
     height: 7px;
+  }
+
+  /* The collapsed rail stays scrollable, but never shows a scrollbar while
+     the pointer is over it to expand the sidebar. */
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav {
+    scrollbar-width: none;
+  }
+
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav::-webkit-scrollbar,
+  .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav:hover::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
 }
 
@@ -4044,7 +4125,8 @@ summary:active {
     justify-content: flex-start;
     gap: 0 !important;
     overflow-y: auto !important;
-    padding-bottom: 2rem !important;
+    margin-top: 0.25rem !important;
+    padding-bottom: 0 !important;
   }
 
   .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed > div.relative {
@@ -4054,7 +4136,7 @@ summary:active {
 
   .workspace-sidebar[data-sidebar-collapsed='true'] .company-sidebar-nav.sidebar-sections-collapsed > div.relative > button {
     min-height: 0 !important;
-    height: 2rem !important;
+    height: 1.5rem !important;
     padding: 0 !important;
   }
 

@@ -40,6 +40,16 @@ const SIDEBAR_SECTION_ROUTES: readonly [string, string][] = [
 function sectionForPath(pathname: string, variant: 'company' | 'client' | 'platform') {
   if (variant === 'client') return pathname.startsWith('/client/profile') ? 'Account' : 'Overview';
   if (variant === 'platform') return 'Platform';
+  if (
+    pathname === '/company/dashboard' ||
+    pathname === '/company/tasks' ||
+    pathname === '/company/todo' ||
+    pathname === '/company/my-todo' ||
+    pathname === '/company/my-notepad' ||
+    pathname === '/company/notepad'
+  ) {
+    return 'Overview';
+  }
   return SIDEBAR_SECTION_ROUTES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? 'Overview';
 }
 
@@ -49,13 +59,14 @@ const GROUP_ICONS: Record<string, string> = {
   Communication: 'message',
   Organization: 'building',
   'Employee Activities': 'users',
+  Recruitment: 'user-plus',
   Delivery: 'briefcase',
   Sales: 'dollar-sign',
   Attendance: 'clock',
   'Shifts & Leave': 'calendar',
   'Advances & Penalties': 'alert-circle',
   Payroll: 'wallet',
-  Finance: 'wallet',
+  Finance: 'calculator',
   'Identity & Access': 'shield',
   Preferences: 'settings',
   Account: 'users',
@@ -278,6 +289,17 @@ export function CompanySidebar({
     // real scroll position before the restoration below runs.
     if (pendingSidebarScrollTopRef.current !== null) return;
     sidebarScrollTopRef.current = event.currentTarget.scrollTop;
+  };
+
+  const resetSidebarScroll = () => {
+    const navigation = navigationRef.current;
+    if (!navigation) return;
+    // A closed/collapsed sidebar should always reopen in its canonical state.
+    // Otherwise the independent nav scroller keeps the last lower-group
+    // position and makes the top of the workspace navigation disappear.
+    navigation.scrollTop = 0;
+    sidebarScrollTopRef.current = 0;
+    pendingSidebarScrollTopRef.current = null;
   };
   const restoreActiveSidebarPill = () => {
     const navigation = navigationRef.current;
@@ -530,6 +552,13 @@ export function CompanySidebar({
       if (frame !== undefined) window.cancelAnimationFrame(frame);
     };
   }, [pathname]);
+
+  useEffect(() => {
+    // On desktop, `open` stays false and `collapsed` tracks the hover/pin
+    // state. On mobile, `open` is the drawer state. In both cases, closing the
+    // sidebar is the boundary at which its scroll position should be reset.
+    if (collapsed || !open) resetSidebarScroll();
+  }, [collapsed, open]);
 
   useLayoutEffect(() => {
     const navigation = navigationRef.current;
@@ -1255,7 +1284,10 @@ export function CompanySidebar({
           },
           {
             label: 'Account',
-            items: [{ label: 'Profile', path: '/client/profile', icon: 'users' }],
+            items: [
+              { label: 'Profile', path: '/client/profile', icon: 'users' },
+              { label: 'Settings', path: '/client/settings', icon: 'settings' },
+            ],
           },
         ]
       : variant === 'platform'
@@ -1277,10 +1309,7 @@ export function CompanySidebar({
             (group) =>
               (group.items.length > 0 ||
                 group.label === 'Payroll' ||
-                group.label === 'Finance') &&
-              group.label !== 'Recruitment' &&
-              group.label !== 'Shifts & Leave' &&
-              group.label !== 'Identity & Access',
+                group.label === 'Finance'),
           );
   const sectionIsOpen = (group: CompanyNavGroup): boolean =>
     openSection === group.label;
@@ -1301,12 +1330,29 @@ export function CompanySidebar({
   // after expansion, but it must never force the collapsed layout to reserve
   // space for submenu content.
   const useCompactNavigation = collapsed || allSectionsCollapsed;
+  const workspaceLabel = variant === 'client'
+    ? organizationName || 'Client Portal'
+    : variant === 'platform'
+      ? 'Master Admin'
+      : organizationName || 'Company';
+  const workspaceName = variant === 'client'
+    ? 'Client Workspace'
+    : variant === 'platform'
+      ? 'Platform Console'
+      : 'Company Workspace';
+
+  useEffect(() => {
+    // Closing the last expanded module changes the nav back to its compact
+    // layout. Reset its independent scroller so it reopens at Overview rather
+    // than preserving a lower position such as Finance.
+    if (allSectionsCollapsed) resetSidebarScroll();
+  }, [allSectionsCollapsed]);
 
   return (
     <aside
       onPointerEnter={onSidebarPointerEnter}
       onPointerLeave={onSidebarPointerLeave}
-      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden xl:overflow-x-visible border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-4 xl:ml-5 xl:h-[calc(100%-2rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${showAiPet && activePet ? 'sidebar-has-pet' : ''} ${isResizing ? 'select-none' : ''}`}
+      className={`workspace-sidebar relative fixed bottom-0 left-0 top-16 z-[60] flex min-h-0 w-72 flex-none flex-col overflow-x-hidden xl:overflow-x-visible border-r border-sidebar-border bg-sidebar-bg px-4 py-5 transition-[transform,width,padding] duration-[360ms] ease-[cubic-bezier(0.25,1,0.5,1)] will-change-[transform,width] xl:static xl:my-4 xl:h-[calc(100%-2rem)] xl:self-start xl:translate-x-0 xl:rounded-2xl xl:shadow-[0_8px_24px_-24px_rgba(15,23,42,0.6)] ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[76px] xl:px-2' : 'sidebar-resizable'} ${showAiPet && activePet ? 'sidebar-has-pet' : ''} ${isResizing ? 'select-none' : ''}`}
       style={
         collapsed
           ? undefined
@@ -1314,27 +1360,28 @@ export function CompanySidebar({
       }
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
       data-sidebar-open={open ? 'true' : 'false'}
+      data-sidebar-pinned={isPinned ? 'true' : 'false'}
     >
       <div className="sidebar-workspace-header">
         <div className="sidebar-workspace-card">
           <span className="sidebar-workspace-copy">
             <span className="sidebar-workspace-company">
-              {organizationName || 'Company'}
+              {workspaceLabel}
             </span>
-            <span className="sidebar-workspace-name">Company Workspace</span>
+            <span className="sidebar-workspace-name">{workspaceName}</span>
           </span>
           {onToggleCollapsed && (
             <button
               type="button"
               onClick={onToggleCollapsed}
-              className="sidebar-collapse-toggle hidden size-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-xl border border-app-border bg-app-surface text-app-accent shadow-[0_2px_8px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent xl:flex"
-              aria-label={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+              className={`sidebar-collapse-toggle hidden size-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-xl border shadow-[0_2px_8px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:bg-app-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent xl:flex ${isPinned ? 'border-app-accent/60 bg-app-accent/10 text-app-accent' : 'border-app-border bg-app-surface text-app-muted'}`}
+              aria-label={isPinned ? 'Unpin sidebar' : collapsed ? 'Expand sidebar' : 'Pin sidebar'}
               aria-pressed={isPinned}
               aria-expanded={!collapsed}
-              title={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+              title={isPinned ? 'Unpin sidebar' : collapsed ? 'Expand sidebar' : 'Pin sidebar'}
             >
               <Icon
-                name="chevron-right"
+                name={isPinned ? 'pushpin' : collapsed ? 'chevron-right' : 'chevron-left'}
                 className="pointer-events-none size-4"
               />
             </button>
@@ -1384,7 +1431,7 @@ export function CompanySidebar({
         onPointerUp={finishSidebarPillDrag}
         onPointerCancel={(event) => finishSidebarPillDrag(event, false)}
         data-lenis-prevent
-        className={`company-sidebar-nav relative min-h-0 flex-1 overflow-x-hidden overscroll-y-contain ${useCompactNavigation ? 'sidebar-sections-collapsed space-y-0' : 'overflow-y-auto space-y-7'} ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
+        className={`company-sidebar-nav relative min-h-0 flex-1 overflow-x-hidden overscroll-y-contain ${useCompactNavigation ? 'sidebar-sections-collapsed space-y-0' : 'overflow-y-auto space-y-4'} ${collapsed ? 'mt-6 xl:space-y-4' : 'mt-4'}`}
         aria-label={
           variant === 'client'
             ? 'Client navigation'
@@ -1435,10 +1482,10 @@ export function CompanySidebar({
               >
                 <Icon
                   name={GROUP_ICONS[group.label] ?? 'grid'}
-                  className="size-5 shrink-0"
+                  className={`size-5 shrink-0 ${group.label === 'Organization' ? 'opacity-60' : ''}`}
                 />
                 <span
-                  className={`min-w-0 flex-1 truncate whitespace-nowrap text-left ${collapsed ? 'xl:hidden' : ''}`}
+                  className={`min-w-0 flex-1 truncate whitespace-nowrap text-left ${group.label === 'Organization' ? 'font-medium' : ''} ${collapsed ? 'xl:hidden' : ''}`}
                 >
                   {group.label}
                 </span>
@@ -1450,7 +1497,7 @@ export function CompanySidebar({
                 </span>
               </button>
               {isOpen && (
-                <div className="sidebar-module-items mt-2 space-y-1">
+                <div className="sidebar-module-items mt-2 space-y-0">
                   {group.items.map((item) => {
                     const isRootRoute =
                       variant === 'client'
@@ -1496,6 +1543,7 @@ export function CompanySidebar({
                                   ...prev,
                                   [item.label]: true,
                                 }));
+                                setOpenSection(group.label);
                                 preserveSidebarScrollForNavigation(item.path);
                                 onNavigate(item.path);
                                 onClose();
@@ -1503,6 +1551,10 @@ export function CompanySidebar({
                                 toggleNavItem(item.label);
                               }
                             } else {
+                              // Select the destination's section immediately;
+                              // waiting for the route effect can leave the
+                              // previously open lower section visible briefly.
+                              setOpenSection(group.label);
                               preserveSidebarScrollForNavigation(item.path);
                               onNavigate(item.path);
                               onClose();
@@ -1560,6 +1612,7 @@ export function CompanySidebar({
                                   aria-current={active ? 'page' : undefined}
                                   onClick={() => {
                                     onSidebarInteraction?.();
+                                    setOpenSection(group.label);
                                     preserveSidebarScrollForNavigation(sub.path);
                                     onNavigate(sub.path);
                                     onClose();
