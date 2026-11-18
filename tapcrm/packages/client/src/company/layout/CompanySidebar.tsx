@@ -1482,10 +1482,10 @@ export function CompanySidebar({
               >
                 <Icon
                   name={GROUP_ICONS[group.label] ?? 'grid'}
-                  className="size-5 shrink-0"
+                  className={`size-5 shrink-0 ${group.label === 'Organization' ? 'opacity-60' : ''}`}
                 />
                 <span
-                  className={`min-w-0 flex-1 truncate whitespace-nowrap text-left ${collapsed ? 'xl:hidden' : ''}`}
+                  className={`min-w-0 flex-1 truncate whitespace-nowrap text-left ${group.label === 'Organization' ? 'font-medium' : ''} ${collapsed ? 'xl:hidden' : ''}`}
                 >
                   {group.label}
                 </span>
