@@ -684,32 +684,38 @@ export function Select({
   value,
   onChange,
   options,
+  compact = false,
+  visuallyHiddenLabel = false,
   required = false,
   disabled = false,
   error,
   placeholder,
+  placeholderDisabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
+  compact?: boolean;
+  visuallyHiddenLabel?: boolean;
   required?: boolean;
   disabled?: boolean;
   error?: string | undefined;
   /** The empty option's text, e.g. "All teams" for a filter. Defaults to "Select <label>". */
   placeholder?: string;
+  placeholderDisabled?: boolean;
 }): React.JSX.Element {
   return (
-    <label className="text-xs font-semibold text-app-muted">
-      <span className="mb-2 block">{label}</span>
+    <label className={`min-w-0 text-xs font-semibold text-app-muted ${compact ? 'min-[1100px]:flex min-[1100px]:items-center min-[1100px]:gap-1' : ''}`}>
+      <span className={visuallyHiddenLabel ? 'sr-only' : `block ${compact ? 'mb-1.5 min-[1100px]:mb-0 min-[1100px]:shrink-0' : 'mb-2'}`}>{label}</span>
       <select
         required={required}
         disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="ui-form-control w-full px-3 py-2.5 text-sm outline-none disabled:opacity-50"
+        className={`ui-form-control w-full px-3 py-2.5 text-sm outline-none disabled:opacity-50 ${compact ? 'min-[1100px]:w-auto min-[1100px]:min-w-0 min-[1100px]:flex-1 min-[1100px]:px-1.5 min-[1100px]:py-1.5 min-[1100px]:text-[12px]' : ''}`}
       >
-        <option value="">{placeholder ?? `Select ${label.toLowerCase()}`}</option>
+        <option value="" disabled={placeholderDisabled}>{placeholder ?? `Select ${label.toLowerCase()}`}</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

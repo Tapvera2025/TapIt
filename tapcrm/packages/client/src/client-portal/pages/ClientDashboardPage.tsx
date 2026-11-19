@@ -53,11 +53,11 @@ export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path
             </p>
           </header>
 
-          <div aria-label="Project counts" className="relative mt-5 grid min-w-0 grid-cols-1 border-t border-app-border min-[420px]:grid-cols-2 xl:grid-cols-4">
+          <div aria-label="Project counts" className="client-dashboard-status-grid relative mt-5 grid min-w-0 grid-cols-1 border-t border-app-border min-[420px]:grid-cols-2 xl:grid-cols-4">
             {STATUS_ORDER.map((status, index) => {
               const presentation = STATUS_PRESENTATION[status];
               return (
-                <div key={status} className={`flex min-w-0 items-center gap-3 py-4 ${index < STATUS_ORDER.length - 1 ? 'border-b border-app-border' : ''} min-[420px]:border-b-0 ${index < 2 ? 'min-[420px]:border-b min-[420px]:border-app-border' : ''} min-[420px]:even:border-l min-[420px]:even:pl-4 xl:border-b-0 xl:border-l xl:pl-5 xl:first:border-l-0 xl:first:pl-0`}>
+                <div key={status} className={`client-dashboard-status-item flex min-w-0 items-center gap-3 py-4 ${index < STATUS_ORDER.length - 1 ? 'border-b border-app-border' : ''} min-[420px]:border-b-0 ${index < 2 ? 'min-[420px]:border-b min-[420px]:border-app-border' : ''} min-[420px]:even:border-l min-[420px]:even:pl-4 xl:border-b-0 xl:border-l xl:pl-5 xl:first:border-l-0 xl:first:pl-0`}>
                   <span className={`grid size-10 shrink-0 place-items-center rounded-full ring-1 ${presentation.surface}`}>
                     <Icon name={presentation.icon} className={`size-5 ${presentation.color}`} />
                   </span>

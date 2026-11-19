@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, InputHTMLAttributes } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './Icon.js';
 
 type DateInputType = 'date' | 'month';
@@ -27,25 +28,37 @@ function useAnchoredPopoverPosition(
 
       const edge = 12;
       const gap = 8;
-      const width = Math.min(preferredWidth, window.innerWidth - edge * 2);
-      const left = Math.max(edge, Math.min(anchor.left, window.innerWidth - width - edge));
-      const belowSpace = Math.max(0, window.innerHeight - anchor.bottom - gap - edge);
-      const aboveSpace = Math.max(0, anchor.top - gap - edge);
+      const boundary = anchorRef.current?.closest<HTMLElement>('dialog[open], [role="dialog"]');
+      const boundaryRect = boundary?.getBoundingClientRect();
+      const minLeft = Math.max(edge, (boundaryRect?.left ?? 0) + edge);
+      const maxRight = Math.min(window.innerWidth - edge, (boundaryRect?.right ?? window.innerWidth) - edge);
+      const minTop = Math.max(edge, (boundaryRect?.top ?? 0) + edge);
+      const maxBottom = Math.min(window.innerHeight - edge, (boundaryRect?.bottom ?? window.innerHeight) - edge);
+      const availableWidth = Math.max(80, maxRight - minLeft);
+      const width = Math.min(preferredWidth, availableWidth);
+      const left = Math.max(minLeft, Math.min(anchor.left, maxRight - width));
+      const belowSpace = Math.max(0, maxBottom - anchor.bottom - gap);
+      const aboveSpace = Math.max(0, anchor.top - minTop - gap);
       const naturalHeight = panel.scrollHeight;
       const placeAbove = belowSpace < naturalHeight && aboveSpace > belowSpace;
-      const viewportHeight = Math.max(80, window.innerHeight - edge * 2);
-      const maxHeight = Math.min(naturalHeight, viewportHeight);
+      const availableHeight = Math.max(80, maxBottom - minTop);
+      const maxHeight = Math.min(naturalHeight, availableHeight);
       const rawTop = placeAbove ? anchor.top - gap - maxHeight : anchor.bottom + gap;
-      const top = Math.max(edge, Math.min(rawTop, window.innerHeight - maxHeight - edge));
+      const top = Math.max(minTop, Math.min(rawTop, maxBottom - maxHeight));
       setPosition((current) => current && current.left === left && current.top === top && current.width === width && current.maxHeight === maxHeight
         ? current
         : { left, top, width, maxHeight });
     };
 
     place();
+    // Portalled panels can attach their ref one paint after the anchor's
+    // layout effect. Retry once after the portal has committed so the picker
+    // never remains stuck in its hidden measurement state.
+    const frame = window.requestAnimationFrame(place);
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
     return () => {
+      window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
@@ -131,7 +144,10 @@ export function CalendarPicker({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) {
+        setOpen(false);
+      }
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -168,10 +184,10 @@ export function CalendarPicker({
       ? new Date(Number(month[1]), Number(month[2]) - 1, 1)
       : new Date());
     setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
-    setOpen((previous) => !previous);
+    setOpen(true);
   }
 
-  const panelClass = 'calendar-popover-scroll fixed z-[70] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-app-border bg-app-surface p-3.5 shadow-xl sm:p-4';
+  const panelClass = 'calendar-popover-scroll fixed z-[200] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-app-border bg-app-surface p-3.5 shadow-xl sm:p-4';
 
   return (
     <div ref={rootRef} className="relative w-full">
@@ -193,7 +209,13 @@ export function CalendarPicker({
           aria-invalid={ariaInvalid}
           aria-haspopup="dialog"
           aria-expanded={open}
-          onClick={openPicker}
+          readOnly
+          onPointerDown={(event) => {
+            // A real pointer handler is more reliable than relying on the
+            // text input's synthetic click inside nested modal forms.
+            event.preventDefault();
+            openPicker();
+          }}
           onBeforeInput={(event) => event.preventDefault()}
           onChange={() => undefined}
           onKeyDown={(event) => {
@@ -205,11 +227,21 @@ export function CalendarPicker({
           }}
           className={`ui-form-control w-full cursor-pointer px-3 py-2.5 pr-10 text-sm text-app-foreground outline-none disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
         />
-        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 grid w-10 place-items-center text-app-muted">
+        <button
+          type="button"
+          aria-label={accessibleLabel}
+          disabled={disabled}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            openPicker();
+          }}
+          onClick={openPicker}
+          className="absolute inset-y-0 right-0 grid w-10 place-items-center text-app-muted transition hover:text-app-accent disabled:cursor-not-allowed disabled:opacity-60"
+        >
           <Icon name="calendar" className="size-4" />
-        </span>
+        </button>
       </div>
-      {open && (
+      {open && createPortal((
         <section
           ref={panelRef}
           role="dialog"
@@ -299,7 +331,7 @@ export function CalendarPicker({
             </div>
           )}
         </section>
-      )}
+      ), document.body)}
     </div>
   );
 }

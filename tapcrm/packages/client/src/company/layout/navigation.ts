@@ -33,9 +33,12 @@ export interface CompanySearchDestination {
 }
 
 const SEARCH_ALIASES_BY_PATH: Readonly<Record<string, readonly string[]>> = {
+  '/company/todo': ['todo', 'to do', 'to-do', 'checklist', 'task list', 'my tasks', 'personal tasks'],
+  '/company/my-notepad': ['note', 'notes', 'notepad', 'write', 'personal notes', 'my notes', 'memo', 'scratchpad'],
+  '/company/employee-notes': ['employee notes', 'staff notes', 'hr notes', 'personnel notes', 'team notes'],
   '/company/holidays': ['holiday calendar', 'public holidays', 'festivals', 'weekend', 'weekends', 'week off', 'week-off', 'days off'],
   '/company/attendance/my': ['attendance calendar', 'work calendar', 'work day', 'work days', 'punch history'],
-  '/company/attendance/live': ['workforce', 'workforce board', 'live workforce', 'employee live board', 'presence', 'live attendance'],
+  '/company/attendance/live': ['workforce', 'workforce board', 'live workforce', 'employee live board', 'presence', 'live attendance', 'live board'],
   '/company/audit': ['audit', 'audit trail', 'activity log', 'activity records', 'security log', 'history', 'records'],
   '/company/sessions': ['login', 'logins', 'logged in devices', 'active devices', 'security sessions'],
   '/company/sales/deals': ['sales pipeline', 'opportunities', 'business deals'],
@@ -43,7 +46,9 @@ const SEARCH_ALIASES_BY_PATH: Readonly<Record<string, readonly string[]>> = {
   '/company/sales/reports': ['sales forecast', 'forecast', 'sales analytics'],
   '/company/weekday-schedules': ['weekday', 'working days', 'weekends', 'schedule', 'work schedule'],
   '/company/payroll/cycle': ['payroll period', 'pay run', 'salary cycle'],
-  '/company/finance/accounting': ['accounts', 'ledger', 'finance', 'financial records'],
+  '/company/finance/accounting': ['accounting', 'accounts', 'ledger', 'finance', 'financial records', 'balance sheet', 'p&l', 'profit and loss'],
+  '/company/social': ['social media', 'posts', 'instagram', 'facebook', 'linkedin', 'twitter', 'content calendar', 'social planner', 'social scheduling', 'manage social'],
+  '/company/seo-intelligence': ['seo', 'search engine', 'google ranking', 'website audit', 'keyword tracking', 'backlinks', 'site health', 'search visibility', 'organic traffic', 'serp'],
 };
 
 /**
@@ -112,6 +117,12 @@ export const companyNavigation: CompanyNavGroup[] = [
         icon: 'calendar',
         requiredAnyAction: ['meetings:host', 'meetings:view'],
       },
+      {
+        label: 'Manage Social Media',
+        path: '/company/social',
+        icon: 'share',
+        requiredAction: 'social:view',
+      },
     ],
   },
   {
@@ -176,12 +187,6 @@ export const companyNavigation: CompanyNavGroup[] = [
         path: '/company/sales/territories',
         icon: 'map',
         requiredAction: 'territories:view',
-      },
-      {
-        label: 'Lead Management',
-        path: '/company/sales/leads',
-        icon: 'users',
-        requiredAction: 'leads:view',
       },
       {
         label: 'Callbacks',
@@ -499,6 +504,32 @@ export const companyNavigation: CompanyNavGroup[] = [
       },
     ],
   },
+  {
+    label: 'SEO Intelligence',
+    items: [
+      {
+        label: 'SEO Dashboard',
+        path: '/company/seo-intelligence',
+        icon: 'trending-up',
+        requiredAction: 'seo:list-sites',
+      },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      {
+        label: 'Accounting',
+        path: '/company/finance/accounting',
+        icon: 'wallet',
+        requiredAnyAction: [
+          'accounting:view-ledger',
+          'accounting:view-statements',
+          'accounting:tax-export',
+        ],
+      },
+    ],
+  },
 ];
 
 /**
@@ -573,6 +604,9 @@ const MODULE_BY_PATH: Readonly<Record<string, string>> = {
   '/company/attendance/my': 'attendance',
   '/company/leave/my': 'leave',
   '/company/holidays': 'holidays',
+  '/company/social': 'social',
+  '/company/seo-intelligence': 'seo-intelligence',
+  '/company/finance/accounting': 'accounting',
 };
 
 export function companySearchDestinations({
@@ -694,7 +728,18 @@ export function companySearchDestinations({
   addIfAllowed({ label: 'Reports', path: '/company/sales/reports', icon: 'chart', category: 'Sales', keywords: ['sales forecast', 'forecast'] }, ['deals:forecast']);
   addIfAllowed({ label: 'Weekday Schedules', path: '/company/weekday-schedules', icon: 'calendar', category: 'Shifts & Leave', keywords: ['weekday', 'working days', 'weekends'] }, ['shifts:manage']);
   addIfAllowed({ label: 'Payroll Cycle', path: '/company/payroll/cycle', icon: 'calendar', category: 'Payroll', keywords: ['payroll period', 'pay run'] }, ['payroll:manage']);
-  addIfAllowed({ label: 'Accounting', path: '/company/finance/accounting', icon: 'wallet', category: 'Finance', keywords: ['accounts', 'ledger', 'finance'] }, ['accounting:view-ledger', 'accounting:view-statements', 'accounting:tax-export']);
+  addIfAllowed({ label: 'Accounting', path: '/company/finance/accounting', icon: 'wallet', category: 'Finance', keywords: ['accounts', 'ledger', 'finance', 'balance sheet', 'p&l', 'profit and loss'] }, ['accounting:view-ledger', 'accounting:view-statements', 'accounting:tax-export']);
+  addIfAllowed({ label: 'Manage Social Media', path: '/company/social', icon: 'share', category: 'Delivery', keywords: ['social media', 'social posts', 'manage social', 'social accounts'] }, ['social:view']);
+  addIfAllowed({ label: 'Social Planner', path: '/company/social/planner', icon: 'layers', category: 'Delivery', keywords: ['social planner', 'post planner', 'social queue'] }, ['social:view']);
+  addIfAllowed({ label: 'Social Content Calendar', path: '/company/social/calendar', icon: 'calendar', category: 'Delivery', keywords: ['content calendar', 'social calendar', 'publishing schedule'] }, ['social:view']);
+  addIfAllowed({ label: 'Create Social Post', path: '/company/social/create', icon: 'plus', category: 'Delivery', keywords: ['create post', 'new post', 'publish post', 'write post', 'compose post'] }, ['social:view', 'social:publish']);
+  addIfAllowed({ label: 'Social Analytics', path: '/company/social/analytics', icon: 'chart', category: 'Delivery', keywords: ['social analytics', 'engagement', 'reach', 'post metrics'] }, ['social:view']);
+  addIfAllowed({ label: 'Connected Social Accounts', path: '/company/social/accounts', icon: 'share', category: 'Delivery', keywords: ['connected accounts', 'social accounts', 'facebook page', 'instagram', 'linkedin'] }, ['social:view']);
+  addIfAllowed({ label: 'SEO Dashboard', path: '/company/seo-intelligence', icon: 'trending-up', category: 'SEO Intelligence', keywords: ['seo', 'seo dashboard', 'search engine optimization'] }, ['seo:list-sites']);
+  addIfAllowed({ label: 'SEO Keyword Search', path: '/company/seo-intelligence/keyword-search', icon: 'search', category: 'SEO Intelligence', keywords: ['keywords', 'keyword research', 'search terms', 'keyword search'] }, ['seo:list-sites']);
+  addIfAllowed({ label: 'SEO Website Health', path: '/company/seo-intelligence/website', icon: 'shield', category: 'SEO Intelligence', keywords: ['website audit', 'site health', 'seo audit', 'issues', 'fixes'] }, ['seo:list-sites']);
+  addIfAllowed({ label: 'Search Visibility', path: '/company/seo-intelligence/visibility', icon: 'chart', category: 'SEO Intelligence', keywords: ['google traffic', 'search console', 'rank tracking', 'google positions', 'backlinks', 'ai visibility'] }, ['seo:list-sites']);
+  addIfAllowed({ label: 'SEO Content & Briefs', path: '/company/seo-intelligence/content', icon: 'file-text', category: 'SEO Intelligence', keywords: ['articles', 'briefs', 'content board', 'blog', 'drafts', 'seo content'] }, ['seo:list-sites', 'seo:read-content', 'seo:create-content']);
   if (accountType === 'employee' && !isSuperAdmin) {
     addIfAllowed({ label: 'Request Role Change', path: '/company/role-change-request', icon: 'briefcase', category: 'Identity & Access', keywords: ['change role', 'designation'] }, ['access:request-role-change']);
   }

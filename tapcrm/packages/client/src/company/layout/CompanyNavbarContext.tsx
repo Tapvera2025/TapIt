@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 export interface CompanyPageMetadata {
   readonly eyebrow: string;
@@ -29,12 +29,21 @@ export function CompanyNavbarProvider({
   const [page, setPage] = useState(initialPage);
   const [utilityTarget, setUtilityTarget] = useState<HTMLElement | null>(null);
   const [pageActionTarget, setPageActionTarget] = useState<HTMLElement | null>(null);
+  const previousInitialPageRef = useRef(initialPage);
 
   // Keep the shared shell mounted while routes change. Re-mounting this
   // provider used to recreate the sidebar as well, which reset its own
   // independently managed scroll position back to the top on every click.
-  useEffect(() => {
-    setPage(initialPage);
+  useLayoutEffect(() => {
+    const previousInitialPage = previousInitialPageRef.current;
+    if (previousInitialPage === initialPage) return;
+
+    // A page such as Dashboard can register hero actions during its layout
+    // effect. Only replace the shell default when no page-specific metadata
+    // has claimed the hero; otherwise the delayed default reset hides actions
+    // like Customize until a later render.
+    setPage((current) => current === previousInitialPage ? initialPage : current);
+    previousInitialPageRef.current = initialPage;
   }, [initialPage]);
 
   const resetPage = useCallback(() => setPage(initialPage), [initialPage]);
@@ -58,7 +67,7 @@ export function useCompanyPageMetadata(page: CompanyPageMetadata): void {
   const setPage = context?.setPage;
   const resetPage = context?.resetPage;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!setPage || !resetPage) return;
     setPage(page);
     return () => resetPage();

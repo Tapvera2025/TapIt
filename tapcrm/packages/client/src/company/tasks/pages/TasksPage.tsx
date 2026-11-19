@@ -173,44 +173,50 @@ export function TasksPage({
     void fetchTasks();
   }, [fetchTasks, query]);
 
-  useEffect(() => {
-    let cancelled = false;
+  // Stable summary-counts refresher — called by socket events directly so the
+  // header KPI bar updates immediately without waiting for data?.items to change.
+  const refreshSummaryCounts = useCallback(async () => {
+    const q = queryRef.current;
     const baseQuery: TaskListQuery = {
-      search: query.search,
-      projectId: query.projectId,
-      assigneeId: query.assigneeId,
-      creatorId: query.creatorId,
-      participantId: query.participantId,
+      search: q.search,
+      projectId: q.projectId,
+      assigneeId: q.assigneeId,
+      creatorId: q.creatorId,
+      participantId: q.participantId,
       status: 'all',
       priority: 'all',
       page: 1,
       pageSize: 1,
     };
+    try {
+      const [allTasks, pendingTasks, inProgressTasks, completedTasks, urgentTasks, overdueTasks] =
+        await Promise.all([
+          listTasks(baseQuery),
+          listTasks({ ...baseQuery, status: 'pending' }),
+          listTasks({ ...baseQuery, status: 'in_progress' }),
+          listTasks({ ...baseQuery, status: 'completed' }),
+          listTasks({ ...baseQuery, priority: 'urgent' }),
+          listTasks({ ...baseQuery, datePreset: 'overdue' }),
+        ]);
+      setSummaryCounts({
+        all: allTasks.total,
+        pending: pendingTasks.total,
+        in_progress: inProgressTasks.total,
+        completed: completedTasks.total,
+        urgent: urgentTasks.total,
+        overdue: overdueTasks.total,
+      });
+    } catch {
+      // silent — counts are non-critical
+    }
+  }, []);
 
-    void Promise.all([
-      listTasks(baseQuery),
-      listTasks({ ...baseQuery, status: 'pending' }),
-      listTasks({ ...baseQuery, status: 'in_progress' }),
-      listTasks({ ...baseQuery, status: 'completed' }),
-      listTasks({ ...baseQuery, priority: 'urgent' }),
-      listTasks({ ...baseQuery, datePreset: 'overdue' }),
-    ])
-      .then(([allTasks, pendingTasks, inProgressTasks, completedTasks, urgentTasks, overdueTasks]) => {
-        if (cancelled) return;
-        setSummaryCounts({
-          all: allTasks.total,
-          pending: pendingTasks.total,
-          in_progress: inProgressTasks.total,
-          completed: completedTasks.total,
-          urgent: urgentTasks.total,
-          overdue: overdueTasks.total,
-        });
-      })
-      .catch(() => {});
+  const refreshSummaryCountsRef = useRef(refreshSummaryCounts);
+  refreshSummaryCountsRef.current = refreshSummaryCounts;
 
-    return () => {
-      cancelled = true;
-    };
+  // Keep summary counts in sync when query filters or task list changes.
+  useEffect(() => {
+    void refreshSummaryCountsRef.current();
   }, [
     query.search,
     query.projectId,
@@ -248,7 +254,9 @@ export function TasksPage({
           };
         });
       }
+      // Refresh both the task list AND the summary-count bar immediately.
       void fetchTasksRef.current(undefined, { silent: true });
+      void refreshSummaryCountsRef.current();
     });
 
     socket.on('task:created', (payload: { id?: string; task?: Task }) => {
@@ -265,14 +273,17 @@ export function TasksPage({
         });
       }
       void fetchTasksRef.current(undefined, { silent: true });
+      void refreshSummaryCountsRef.current();
     });
 
     socket.on('task:deleted', () => {
       void fetchTasksRef.current(undefined, { silent: true });
+      void refreshSummaryCountsRef.current();
     });
 
     socket.on('connect', () => {
       void fetchTasksRef.current(undefined, { silent: true });
+      void refreshSummaryCountsRef.current();
     });
 
     return () => {

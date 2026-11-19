@@ -116,6 +116,8 @@ export function TaskKanbanBoard({
 }: TaskKanbanBoardProps): React.JSX.Element {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+  // True when user is hovering the cancelled column but isn't allowed to drop there.
+  const [isDragBlockedByCancelRestriction, setIsDragBlockedByCancelRestriction] = useState(false);
   const [transitioningTaskId, setTransitioningTaskId] = useState<string | null>(null);
   const [transitioningTaskStatus, setTransitioningTaskStatus] = useState<{
     taskId: string;
@@ -244,9 +246,11 @@ export function TaskKanbanBoard({
       const task = tasks.find((t) => t.id === draggedTaskId);
       if (task && !canCancel(task)) {
         e.dataTransfer.dropEffect = 'none';
+        setIsDragBlockedByCancelRestriction(true);
         return;
       }
     }
+    setIsDragBlockedByCancelRestriction(false);
     e.dataTransfer.dropEffect = 'move';
     if (dragOverColumn !== colStatus) {
       setDragOverColumn(colStatus);
@@ -258,12 +262,14 @@ export function TaskKanbanBoard({
     // Only reset if we left the current column
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setDragOverColumn(null);
+      setIsDragBlockedByCancelRestriction(false);
     }
   }
 
   function handleDragEnd() {
     setDraggedTaskId(null);
     setDragOverColumn(null);
+    setIsDragBlockedByCancelRestriction(false);
   }
 
   if (loading) {
@@ -324,16 +330,18 @@ export function TaskKanbanBoard({
             }}
             className={`${mobileOrderClass} relative flex flex-col rounded-2xl border bg-app-surface/60 transition-all duration-200 ${
               isCollapsedCancelledColumn
-                ? 'min-h-12 w-full p-1.5 sm:p-2 lg:min-h-[380px] lg:w-20 lg:self-stretch lg:justify-start lg:border-slate-200 lg:bg-[#F8FAFC]'
+                ? 'min-h-12 w-full p-1.5 sm:p-2 lg:min-h-[380px] lg:w-20 lg:self-stretch lg:justify-start lg:border-app-border lg:bg-app-surface'
                 : 'min-h-[380px] p-3 sm:p-3.5'
             } ${
-              isColumnActive
-                ? `${column.borderGlow} ${column.dropTargetBg} shadow-md`
-                : 'border-app-border/80 hover:border-app-border'
+              isCancelledColumn && isDragBlockedByCancelRestriction
+                ? 'border-rose-400/70 ring-2 ring-rose-400/20 bg-rose-50/30 dark:bg-rose-950/10'
+                : isColumnActive
+                  ? `${column.borderGlow} ${column.dropTargetBg} shadow-md`
+                  : 'border-app-border/80 hover:border-app-border'
             }`}
           >
             {/* Column Header */}
-            <header className={`flex items-center ${isCollapsedCancelledColumn ? 'flex-row justify-between border-b border-app-border/60 pb-2 lg:flex-col lg:gap-3 lg:border-slate-200 lg:pb-2' : 'justify-between border-b border-app-border/60 pb-3'}`}>
+            <header className={`flex items-center ${isCollapsedCancelledColumn ? 'flex-row justify-between border-b border-app-border/60 pb-2 lg:flex-col lg:gap-3 lg:border-app-border lg:pb-2' : 'justify-between border-b border-app-border/60 pb-3'}`}>
               <div className={`flex items-center ${isCollapsedCancelledColumn ? 'gap-2 lg:absolute lg:inset-x-0 lg:bottom-2 lg:top-14 lg:z-10 lg:flex-col lg:items-stretch lg:gap-1' : 'gap-2'}`}>
                 <span className={`size-2.5 rounded-full ${column.dotColor} ${isCollapsedCancelledColumn ? 'lg:hidden' : ''}`} aria-hidden="true" />
                 {isCollapsedCancelledColumn ? (
@@ -345,7 +353,7 @@ export function TaskKanbanBoard({
                     aria-expanded={false}
                   >
                     <span className="lg:hidden">{column.title}</span>
-                    <span className="hidden lg:flex lg:h-full lg:flex-1 lg:flex-col lg:items-center lg:justify-between lg:py-2" aria-hidden="true">
+                    <span className="hidden lg:flex lg:h-full lg:flex-1 lg:flex-col lg:items-center lg:justify-between lg:py-2 lg:text-app-foreground" aria-hidden="true">
                       {column.title.toUpperCase().split('').map((letter, index) => (
                         <span key={`${letter}-${index}`} className="text-lg font-semibold leading-none tracking-[0.12em]">{letter}</span>
                       ))}
@@ -353,6 +361,16 @@ export function TaskKanbanBoard({
                   </button>
                 ) : (
                   <h3 className="text-xs font-bold uppercase tracking-wider text-app-foreground">{column.title}</h3>
+                )}
+                {/* Lock badge: shown on cancelled column header when user can't cancel */}
+                {isCancelledColumn && !isCollapsedCancelledColumn && !isSuperAdmin && (
+                  <span
+                    className="ml-1 inline-flex items-center gap-1 rounded-full border border-neutral-300/60 bg-neutral-100/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-700/60 dark:bg-neutral-800/60 dark:text-neutral-400"
+                    title="Only the task creator or a super admin can cancel tasks"
+                  >
+                    <Icon name="lock" className="size-2.5" />
+                    Creator only
+                  </span>
                 )}
               </div>
               <div className={`flex items-center ${isCollapsedCancelledColumn ? 'gap-1.5 lg:order-1' : 'gap-2'}`}>
@@ -371,7 +389,7 @@ export function TaskKanbanBoard({
                   <button
                     type="button"
                     onClick={() => setShowCancelledTasks((shown) => !shown)}
-                    className="grid size-7 shrink-0 place-items-center rounded-md border border-app-border/80 bg-app-surface/80 text-sm font-semibold text-app-foreground transition-colors hover:bg-app-surface-raised focus-visible:outline-2 focus-visible:outline-app-accent lg:border-slate-200 lg:bg-white lg:text-slate-600 lg:hover:bg-slate-100"
+                    className="grid size-7 shrink-0 place-items-center rounded-md border border-app-border/80 bg-app-surface/80 text-sm font-semibold text-app-foreground transition-colors hover:bg-app-surface-raised focus-visible:outline-2 focus-visible:outline-app-accent lg:border-app-border lg:bg-app-surface-raised lg:text-app-muted lg:hover:bg-app-surface"
                     aria-label={isCollapsedCancelledColumn ? 'Expand cancelled tasks' : 'Collapse cancelled tasks'}
                     aria-expanded={!isCollapsedCancelledColumn}
                   >
@@ -636,22 +654,42 @@ export function TaskKanbanBoard({
               {columnTasks.length === 0 && !isCollapsedCancelledColumn && (
                 <div
                   className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
-                    isColumnActive
-                      ? 'border-app-accent/60 bg-app-accent/10 text-app-accent'
-                      : 'border-app-border/60 text-app-muted/70'
+                    isCancelledColumn && isDragBlockedByCancelRestriction
+                      ? 'border-rose-400/50 bg-rose-50/40 text-rose-500 dark:bg-rose-950/10'
+                      : isColumnActive
+                        ? 'border-app-accent/60 bg-app-accent/10 text-app-accent'
+                        : 'border-app-border/60 text-app-muted/70'
                   }`}
                 >
                   <Icon
-                    name={isColumnActive ? 'plus' : 'grip'}
-                    className={`size-5 mb-1.5 ${isColumnActive ? 'text-app-accent animate-bounce' : 'opacity-40'}`}
+                    name={
+                      isCancelledColumn && isDragBlockedByCancelRestriction
+                        ? 'lock'
+                        : isColumnActive
+                          ? 'plus'
+                          : 'grip'
+                    }
+                    className={`size-5 mb-1.5 ${
+                      isCancelledColumn && isDragBlockedByCancelRestriction
+                        ? 'text-rose-400'
+                        : isColumnActive
+                          ? 'text-app-accent animate-bounce'
+                          : 'opacity-40'
+                    }`}
                   />
                   <p className="text-xs font-semibold">
-                    {isColumnActive ? 'Drop task here' : 'No tasks'}
+                    {isCancelledColumn && isDragBlockedByCancelRestriction
+                      ? 'Not allowed'
+                      : isColumnActive
+                        ? 'Drop task here'
+                        : 'No tasks'}
                   </p>
                   <p className="mt-0.5 text-[10px] opacity-70">
-                    {isColumnActive
-                      ? `Release to mark as ${column.title}`
-                      : 'Drag cards here to update status'}
+                    {isCancelledColumn && isDragBlockedByCancelRestriction
+                      ? 'Only the creator or super admin can cancel'
+                      : isColumnActive
+                        ? `Release to mark as ${column.title}`
+                        : 'Drag cards here to update status'}
                   </p>
                 </div>
               )}

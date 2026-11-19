@@ -50,7 +50,9 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     title: 'Today',
     description: 'Your punch state and hours worked today.',
     available: (id) => !isSuperAdmin(id) && moduleOn(id, 'live-status') && has('attendance:view-live')(id),
-    defaultLayout: { w: 6, h: 4, minW: 5, minH: 6, maxW: 12, maxH: 8 },
+    // Four desktop grid rows match the compact reference card. The legacy
+    // six-row minimum left a large empty lower region in the default state.
+    defaultLayout: { w: 6, h: 4, minW: 5, minH: 4, maxW: 12, maxH: 8 },
     component: PunchStateWidget,
   },
   {

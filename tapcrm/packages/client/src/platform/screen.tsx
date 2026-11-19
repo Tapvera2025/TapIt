@@ -19,7 +19,8 @@ import { Navbar } from '../company/layout/Navbar.js';
 import { CompanyNavbarProvider } from '../company/layout/CompanyNavbarContext.js';
 import { CompanyPageHero } from '../company/layout/CompanyPageHero.js';
 import { CompanyPageActionPortal } from '../company/layout/CompanyPageActionPortal.js';
-import { CompanySidebar } from '../company/layout/CompanySidebar.js';
+import { PortalSidebar } from '../layout/PortalSidebar.js';
+import { usePortalSidebarState } from '../company/layout/usePortalSidebarState.js';
 import { WorkspacePageContainer } from '../ui/index.js';
 import {
   validateField,
@@ -1038,14 +1039,19 @@ function PlatformAppearancePopover({
 }
 
 export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
-    () => window.localStorage.getItem('tapcrm:platform-sidebar-collapsed') === 'true',
-  );
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = Number(window.localStorage.getItem('tapcrm:platform-sidebar-width'));
-    return Number.isFinite(saved) && saved >= 220 && saved <= 420 ? saved : 256;
-  });
+  const {
+    sidebarOpen: mobileNavOpen,
+    setSidebarOpen: setMobileNavOpen,
+    sidebarCollapsed,
+    sidebarPinned,
+    sidebarWidth,
+    setSidebarWidth,
+    toggleSidebar,
+    closeSidebar,
+    onSidebarPointerEnter,
+    onSidebarPointerLeave,
+    onSidebarInteraction,
+  } = usePortalSidebarState();
   const [activeSection, setActiveSection] = useState('platform-overview');
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -1066,20 +1072,9 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   } | null>(null);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      'tapcrm:platform-sidebar-collapsed',
-      String(sidebarCollapsed),
-    );
-  }, [sidebarCollapsed]);
-
-  useEffect(() => {
-    window.localStorage.setItem('tapcrm:platform-sidebar-width', String(sidebarWidth));
-  }, [sidebarWidth]);
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setMobileNavOpen(false);
+        closeSidebar();
         return;
       }
       if (
@@ -1090,12 +1085,12 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
         )
       ) {
         event.preventDefault();
-        setSidebarCollapsed((c) => !c);
+        toggleSidebar();
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [closeSidebar, toggleSidebar]);
   const [selected, setSelected] = useState<string[]>([]);
   const [formStep, setFormStep] = useState(0);
   const [form, setForm] = useState({ ...INITIAL_FORM });
@@ -1593,12 +1588,6 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     onLogout();
   };
 
-  const platformNavigation = [
-    { id: 'platform-overview', label: 'Platform Dashboard', icon: 'grid' },
-    { id: 'platform-companies', label: 'Companies', icon: 'building' },
-    { id: 'platform-invitations', label: 'Admin Invitations', icon: 'users' },
-  ] as const;
-
   const platformPath = activeSection === 'platform-companies'
     ? '/platform/companies'
     : activeSection === 'platform-invitations'
@@ -1616,61 +1605,6 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     document.getElementById(nextSection)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const renderPlatformNavigation = () => (
-    <nav aria-label="Master Admin navigation" className="flex flex-col gap-1.5">
-      {platformNavigation.map((item) => (
-        <a
-          key={item.id}
-          href={`#${item.id}`}
-          aria-current={activeSection === item.id ? 'location' : undefined}
-          onClick={() => {
-            setActiveSection(item.id);
-            setMobileNavOpen(false);
-          }}
-          title={item.label}
-          aria-label={item.label}
-          className={`group relative flex min-h-[46px] min-w-0 items-center overflow-hidden rounded-xl border text-xs font-semibold sm:text-[13px] transition duration-200 focus-visible:outline-2 focus-visible:outline-app-accent focus-visible:outline-offset-2 ${
-            sidebarCollapsed
-              ? 'gap-3 px-3 py-2 min-[851px]:justify-center min-[851px]:gap-0 min-[851px]:p-2'
-              : 'gap-3 px-3 py-2'
-          } ${
-            activeSection === item.id
-              ? 'border-app-accent/50 bg-[linear-gradient(110deg,color-mix(in_srgb,var(--app-accent)_24%,var(--app-surface)),color-mix(in_srgb,var(--app-accent)_8%,var(--app-background)))] text-app-foreground shadow-[0_8px_20px_color-mix(in_srgb,var(--app-accent)_14%,transparent)]'
-              : 'border-transparent bg-transparent text-app-muted hover:border-app-border/40 hover:bg-app-surface hover:text-app-foreground'
-          }`}
-        >
-          <span
-            className={`grid size-8 shrink-0 place-items-center rounded-lg border transition ${
-              activeSection === item.id
-                ? 'border-app-accent/40 bg-app-accent text-app-on-accent shadow-[0_4px_12px_color-mix(in_srgb,var(--app-accent)_30%,transparent)]'
-                : 'border-app-border bg-app-surface text-app-muted group-hover:border-app-accent/30 group-hover:text-app-accent'
-            }`}
-          >
-            <Icon name={item.icon} className="size-4" />
-          </span>
-          <span
-            className={`min-w-0 flex-1 truncate ${
-              sidebarCollapsed ? 'min-[851px]:hidden' : ''
-            }`}
-          >
-            {item.label}
-          </span>
-          <span
-            className={`grid size-5 shrink-0 place-items-center rounded-full transition ${
-              sidebarCollapsed ? 'min-[851px]:hidden' : ''
-            } ${
-              activeSection === item.id
-                ? 'bg-app-accent/15 text-app-accent'
-                : 'text-app-muted/50 group-hover:text-app-accent'
-            }`}
-          >
-            <Icon name="chevron-right" className="size-2.5" />
-          </span>
-        </a>
-      ))}
-    </nav>
-  );
-
   return (
     <div className="company-layout-shell platform-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
       <CompanyNavbarProvider initialPage={{ eyebrow: 'Master Admin', title: 'Platform Dashboard', description: 'Manage organizations, invitations and platform access from one workspace.' }}>
@@ -1680,7 +1614,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           organizationCode={null}
           sidebarCollapsed={sidebarCollapsed}
           sidebarOpen={mobileNavOpen}
-          onToggleSidebar={() => setMobileNavOpen((open) => !open)}
+          onToggleSidebar={toggleSidebar}
           onNavigate={navigatePlatform}
           onLogout={logout}
           searchDestinations={[]}
@@ -1718,7 +1652,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setMobileNavOpen(false)}
-          className={`fixed inset-x-0 bottom-0 top-16 z-40 bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out min-[851px]:hidden ${
+          className={`fixed inset-x-0 bottom-0 top-16 z-40 bg-black/50 backdrop-blur-[3px] transition-opacity duration-300 ease-out xl:hidden ${
             mobileNavOpen
               ? 'pointer-events-auto opacity-100'
               : 'pointer-events-none opacity-0'
@@ -1728,7 +1662,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
           tabIndex={mobileNavOpen ? 0 : -1}
         />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <CompanySidebar
+          <PortalSidebar
             variant="platform"
             pathname={platformPath}
             identity={{ fullName: 'Master Admin', email: 'Platform administrator', accountType: 'super-admin' }}
@@ -1737,104 +1671,17 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             onNavigate={navigatePlatform}
             onLogout={logout}
             open={mobileNavOpen}
-            onClose={() => setMobileNavOpen(false)}
+            onClose={closeSidebar}
             collapsed={sidebarCollapsed}
-            onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            onToggleCollapsed={toggleSidebar}
+            isPinned={sidebarPinned}
+            onSidebarPointerEnter={onSidebarPointerEnter}
+            onSidebarPointerLeave={onSidebarPointerLeave}
+            onSidebarInteraction={onSidebarInteraction}
             width={sidebarWidth}
             onResize={setSidebarWidth}
             showAiPet={false}
           />
-          <aside
-            id="platform-mobile-navigation"
-            data-sidebar-collapsed={sidebarCollapsed ? 'true' : 'false'}
-            className={`hidden platform-sidebar flex shrink-0 flex-col justify-between overflow-y-auto overflow-x-hidden border-app-border bg-app-surface shadow-sm transition-[transform,width,padding] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] max-[850px]:fixed max-[850px]:bottom-0 max-[850px]:left-0 max-[850px]:top-16 max-[850px]:z-50 max-[850px]:w-72 max-[850px]:rounded-r-2xl max-[850px]:border-y max-[850px]:border-r max-[850px]:p-4 max-[850px]:shadow-2xl ${
-              mobileNavOpen
-                ? 'max-[850px]:translate-x-0'
-                : 'max-[850px]:-translate-x-full max-[850px]:pointer-events-none'
-            } min-[851px]:static min-[851px]:my-3 sm:min-[851px]:my-4 min-[851px]:h-[calc(100%-1.5rem)] sm:min-[851px]:h-[calc(100%-2rem)] min-[851px]:translate-x-0 min-[851px]:rounded-2xl min-[851px]:border ${
-              sidebarCollapsed
-                ? 'min-[851px]:w-[74px] min-[851px]:p-2.5'
-                : 'min-[851px]:w-[250px] xl:w-[270px] min-[851px]:p-3.5'
-            }`}
-          >
-            <div>
-              <div
-                className={`mb-3 flex shrink-0 items-center pt-1 ${
-                  sidebarCollapsed
-                    ? 'justify-between px-2.5 min-[851px]:justify-center min-[851px]:px-0'
-                    : 'justify-between px-2.5'
-                }`}
-              >
-                <p
-                  className={`truncate text-[11px] font-bold uppercase tracking-[0.14em] text-app-muted ${
-                    sidebarCollapsed ? 'min-[851px]:hidden' : ''
-                  }`}
-                >
-                  Platform
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setSidebarCollapsed((c) => !c)}
-                  className="hidden size-7 place-items-center rounded-lg text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent min-[851px]:grid"
-                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                  title={
-                    sidebarCollapsed
-                      ? 'Expand sidebar (Ctrl+B)'
-                      : 'Collapse sidebar (Ctrl+B)'
-                  }
-                >
-                  <Icon
-                    name={sidebarCollapsed ? 'sidebar-open' : 'sidebar-close'}
-                    className="size-4"
-                  />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileNavOpen(false)}
-                  className="grid size-7 place-items-center rounded-lg text-app-muted transition hover:bg-app-accent/10 hover:text-app-accent focus-visible:outline-2 focus-visible:outline-app-accent min-[851px]:hidden"
-                  aria-label="Close navigation"
-                >
-                  <Icon name="close" className="size-4" />
-                </button>
-              </div>
-              {renderPlatformNavigation()}
-            </div>
-
-            <div className="mt-auto border-t border-app-border/40 pt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileNavOpen(false);
-                  logout();
-                }}
-                title="Log out"
-                aria-label="Log out"
-                className={`group flex w-full items-center rounded-xl border border-rose-300/30 bg-rose-500/[0.06] text-left text-xs font-semibold sm:text-[13px] text-rose-600 transition duration-200 hover:border-rose-400/50 hover:bg-rose-500/[0.12] hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 ${
-                  sidebarCollapsed
-                    ? 'gap-3 px-3 py-2.5 min-[851px]:justify-center min-[851px]:gap-0 min-[851px]:p-2'
-                    : 'gap-3 px-3 py-2.5'
-                }`}
-              >
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-rose-300/30 bg-rose-500/10 text-rose-600 transition duration-200 group-hover:scale-105 group-hover:border-rose-400/50 group-hover:bg-rose-500/20 dark:text-rose-400">
-                  <Icon name="logout" className="size-4" />
-                </span>
-                <span
-                  className={`min-w-0 flex-1 truncate ${
-                    sidebarCollapsed ? 'min-[851px]:hidden' : ''
-                  }`}
-                >
-                  Log out
-                </span>
-                <span
-                  className={`grid size-5 shrink-0 place-items-center rounded-full text-rose-400/60 transition group-hover:translate-x-0.5 group-hover:text-rose-600 dark:group-hover:text-rose-400 ${
-                    sidebarCollapsed ? 'min-[851px]:hidden' : ''
-                  }`}
-                >
-                  <Icon name="chevron-right" className="size-2.5" />
-                </span>
-              </button>
-            </div>
-          </aside>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <main
             id="main-content"
@@ -2844,7 +2691,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                             {canResetPassword && (
                               <button
                                 type="button"
-                                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-app-accent/35 bg-app-accent/10 px-3 py-2.5 text-center text-xs font-semibold leading-tight text-app-accent transition hover:border-app-accent hover:bg-app-accent/15 disabled:cursor-wait disabled:opacity-55"
+                                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-app-accent/35 bg-app-accent/10 px-3 py-2.5 text-center text-xs font-semibold leading-none text-app-accent transition hover:border-app-accent hover:bg-app-accent/15 disabled:cursor-wait disabled:opacity-55"
                                 onClick={() => void sendAdminPasswordReset(invitation)}
                                 disabled={invitationActionId === invitation.id}
                               >

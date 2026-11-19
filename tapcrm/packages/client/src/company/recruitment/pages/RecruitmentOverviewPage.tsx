@@ -356,14 +356,6 @@ function PipelineStageStep({
         <p className="mt-2 text-xs font-bold text-app-foreground">{title}</p>
         <p className="mt-0.5 text-[11px] text-app-muted">{desc}</p>
       </div>
-      {!isLast && (
-        <span
-          className="recruitment-pipeline-connector hidden lg:grid absolute -right-3.5 top-1/2 z-10 size-7 -translate-y-1/2 place-items-center rounded-full text-app-accent"
-          aria-hidden="true"
-        >
-          <Icon name="arrow" className="relative z-10 size-3.5" />
-        </span>
-      )}
     </button>
   );
 }
