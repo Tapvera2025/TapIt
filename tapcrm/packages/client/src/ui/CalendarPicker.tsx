@@ -36,7 +36,7 @@ function useAnchoredPopoverPosition(
       const maxBottom = Math.min(window.innerHeight - edge, (boundaryRect?.bottom ?? window.innerHeight) - edge);
       const availableWidth = Math.max(80, maxRight - minLeft);
       const width = Math.min(preferredWidth, availableWidth);
-      const left = Math.max(minLeft, Math.min(anchor.left, maxRight - width));
+      const viewportLeft = Math.max(minLeft, Math.min(anchor.left, maxRight - width));
       const belowSpace = Math.max(0, maxBottom - anchor.bottom - gap);
       const aboveSpace = Math.max(0, anchor.top - minTop - gap);
       const naturalHeight = panel.scrollHeight;
@@ -44,7 +44,17 @@ function useAnchoredPopoverPosition(
       const availableHeight = Math.max(80, maxBottom - minTop);
       const maxHeight = Math.min(naturalHeight, availableHeight);
       const rawTop = placeAbove ? anchor.top - gap - maxHeight : anchor.bottom + gap;
-      const top = Math.max(minTop, Math.min(rawTop, maxBottom - maxHeight));
+      const viewportTop = Math.max(minTop, Math.min(rawTop, maxBottom - maxHeight));
+      // Everything above is in viewport coordinates. A fixed panel is placed
+      // against its containing block, which is the viewport on a plain page but
+      // the window itself inside a modal (the modal is centred with a
+      // transform). Measure where the panel's left/top origin really is.
+      const panelRect = panel.getBoundingClientRect();
+      const panelStyle = window.getComputedStyle(panel);
+      const originX = panelRect.left - (Number.parseFloat(panelStyle.left) || 0);
+      const originY = panelRect.top - (Number.parseFloat(panelStyle.top) || 0);
+      const left = viewportLeft - originX;
+      const top = viewportTop - originY;
       setPosition((current) => current && current.left === left && current.top === top && current.width === width && current.maxHeight === maxHeight
         ? current
         : { left, top, width, maxHeight });
@@ -132,6 +142,11 @@ export function CalendarPicker({
   ...inputAttributes
 }: CalendarPickerProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
+  // Where the calendar panel is attached. A modal <dialog> sits in the browser's
+  // top layer and makes the rest of the page unclickable, so a panel attached to
+  // <body> would open behind it. Inside a modal it goes into the modal instead:
+  // into its scrolling body when there is one, so the wheel still scrolls it.
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const selectedDate = type === 'date' ? parseDateKey(value) : null;
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const current = selectedDate ?? new Date();
@@ -184,6 +199,8 @@ export function CalendarPicker({
       ? new Date(Number(month[1]), Number(month[2]) - 1, 1)
       : new Date());
     setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
+    const dialog = rootRef.current?.closest<HTMLElement>('dialog[open]') ?? null;
+    setPortalHost(dialog ? (rootRef.current?.closest<HTMLElement>('.ui-dialog-body') ?? dialog) : document.body);
     setOpen(true);
   }
 
@@ -255,7 +272,7 @@ export function CalendarPicker({
             top: popoverPosition.top,
             width: popoverPosition.width,
             maxHeight: popoverPosition.maxHeight,
-          } : { width: 320, visibility: 'hidden' }}
+          } : { left: 0, top: 0, width: 320, visibility: 'hidden' }}
         >
           <header className="flex items-center justify-between gap-2">
             <button
@@ -334,7 +351,7 @@ export function CalendarPicker({
             </div>
           )}
         </section>
-      ), document.body)}
+      ), portalHost ?? document.body)}
     </div>
   );
 }
