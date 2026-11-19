@@ -3,6 +3,7 @@ import Lenis from 'lenis';
 import { PortalSidebar } from '../../layout/PortalSidebar.js';
 import { Navbar } from './Navbar.js';
 import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
+import { NotificationsProvider } from '../../notifications/NotificationsContext.js';
 import { SalesGuideFrame, SalesGuideToggle } from '../sales/guide/SalesGuide.js';
 import { salesGuideKey } from '../sales/guide/page-guidance.js';
 import type { CompanySearchDestination } from './navigation.js';
@@ -271,6 +272,7 @@ export function CompanyLayout({
 
   return (
     <ChatUnreadProvider enabled={canViewChat}>
+      <NotificationsProvider>
       <CompanyNavbarProvider initialPage={initialPage}>
         <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
         <a
@@ -404,6 +406,7 @@ export function CompanyLayout({
         </div>
         </div>
       </CompanyNavbarProvider>
+      </NotificationsProvider>
     </ChatUnreadProvider>
   );
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../ui/index.js';
 import type { AppNotification } from './api/notificationsApi.js';
-import { useNotifications } from './useNotifications.js';
+import { useNotificationsFeed } from './NotificationsContext.js';
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -22,7 +22,7 @@ function timeAgo(iso: string): string {
  */
 export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (path: string) => void; className?: string }): React.JSX.Element {
   const { items, unreadCount, hasMore, loading, error, incoming, dismissIncoming, loadMore, markRead, markAllRead } =
-    useNotifications();
+    useNotificationsFeed();
   const [open, setOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const [panelMounted, setPanelMounted] = useState(false);
