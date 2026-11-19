@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button, Card, Field, Select, SkeletonTable } from '../ui/index.js';
 import {
@@ -17,6 +17,8 @@ import {
   socialDate,
 } from './presentation.js';
 import {
+  displayStatus,
+  nextRefreshDelay,
   SECTION_STATUSES,
   sectionStatusPlaceholder,
   sectionStatusQuery,
@@ -31,6 +33,25 @@ import {
 import { ErrorToast } from '../ui/ErrorToast.js';
 
 const DRAG_TYPE = 'social-post';
+
+/** One page of posts, or every page merged for the calendar. Null once cancelled. */
+async function fetchPosts(
+  clientId: string,
+  query: Record<string, string>,
+  allPages: boolean,
+  cancelled: () => boolean,
+): Promise<SocialPostPage | null> {
+  const first = await listSocialPosts(clientId, query);
+  if (cancelled()) return null;
+  if (!allPages) return first;
+  const items = [...first.items];
+  for (let next = 2; next <= first.totalPages; next += 1) {
+    const part = await listSocialPosts(clientId, { ...query, page: String(next) });
+    if (cancelled()) return null;
+    items.push(...part.items);
+  }
+  return { ...first, items };
+}
 
 /** A scheduled post is draggable only if the publishing worker hasn't claimed any destination yet. */
 function isReschedulable(post: SocialPost): boolean {
@@ -73,6 +94,12 @@ export function Planner({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
+  /** What the shown list was loaded with, so it can be loaded again quietly. */
+  const loaded = useRef<{ query: Record<string, string>; allPages: boolean } | null>(
+    null,
+  );
+  /** When a post on the list was first seen publishing. */
+  const waitingSince = useRef<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const today = dateInZone(new Date().toISOString(), timezone);
@@ -115,24 +142,12 @@ export function Planner({
       from: calendar ? days[0]! : from,
       to: calendar ? days.at(-1)! : to,
     };
+    loaded.current = { query, allPages: calendar };
+    waitingSince.current = null;
     async function load(): Promise<void> {
       try {
-        const first = await listSocialPosts(clientId, query);
-        if (cancelled) return;
-        let result = first;
-        if (calendar) {
-          const items = [...first.items];
-          for (let next = 2; next <= first.totalPages; next += 1) {
-            const part = await listSocialPosts(clientId, {
-              ...query,
-              page: String(next),
-            });
-            if (cancelled) return;
-            items.push(...part.items);
-          }
-          result = { ...first, items };
-        }
-        setData(result);
+        const result = await fetchPosts(clientId, query, calendar, () => cancelled);
+        if (result) setData(result);
       } catch (cause) {
         if (!cancelled)
           setError(cause instanceof Error ? cause.message : 'Unable to load posts.');
@@ -162,6 +177,33 @@ export function Planner({
     revision,
     reload,
   ]);
+
+  // "Publish now" queues the post and the worker sends it within seconds. While a
+  // post on the list is publishing, or a scheduled one is due within the hour,
+  // load the list again quietly so its status changes without a page reload.
+  useEffect(() => {
+    const request = loaded.current;
+    if (!data || !request) return;
+    const now = Date.now();
+    if (data.items.some((post) => displayStatus(post, now) === 'publishing'))
+      waitingSince.current ??= now;
+    else waitingSince.current = null;
+    const delay = nextRefreshDelay(data.items, now, waitingSince.current);
+    if (delay === null) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      fetchPosts(clientId, request.query, request.allPages, () => cancelled)
+        .then((result) => {
+          if (result) setData(result);
+        })
+        // A failed quiet check keeps the list as it is; the next full load reports errors.
+        .catch(() => undefined);
+    }, delay);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [clientId, data]);
 
   async function rescheduleToDate(
     payload: CalendarDragPayload,
@@ -324,7 +366,10 @@ export function Planner({
         </form>
       </Card>
       {error && (
-        <ErrorToast message={error} action={{ label: 'Try again', onClick: () => setReload((value) => value + 1) }} />
+        <ErrorToast
+          message={error}
+          action={{ label: 'Try again', onClick: () => setReload((value) => value + 1) }}
+        />
       )}
       {loading ? (
         <SkeletonTable columns={6} rows={5} />
@@ -392,7 +437,7 @@ export function Planner({
                       <span className="min-w-32 flex-1 truncate text-sm">
                         {post.caption || post.title || 'Media post'}
                       </span>
-                      <PostStatus status={post.status} />
+                      <PostStatus status={displayStatus(post, Date.now())} />
                       <span className="text-xs text-app-muted">
                         {socialDate(
                           post.scheduledAt ?? post.publishedAt ?? post.createdAt,
@@ -516,7 +561,7 @@ export function Planner({
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <PostStatus status={post.status} />
+                        <PostStatus status={displayStatus(post, Date.now())} />
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-xs text-app-muted">
                         {socialDate(
