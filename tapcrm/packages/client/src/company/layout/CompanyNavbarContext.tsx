@@ -1,3 +1,4 @@
+import type { CompanyNavGroup } from './navigation.js';
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 export interface CompanyPageMetadata {
@@ -15,6 +16,9 @@ interface CompanyNavbarContextValue {
   readonly setUtilityTarget: (target: HTMLElement | null) => void;
   readonly pageActionTarget: HTMLElement | null;
   readonly setPageActionTarget: (target: HTMLElement | null) => void;
+  /** The menu the sidebar is showing, published so the breadcrumb can mirror it. */
+  readonly navigation: readonly CompanyNavGroup[];
+  readonly setNavigation: (groups: readonly CompanyNavGroup[]) => void;
 }
 
 const CompanyNavbarContext = createContext<CompanyNavbarContextValue | null>(null);
@@ -29,6 +33,7 @@ export function CompanyNavbarProvider({
   const [page, setPage] = useState(initialPage);
   const [utilityTarget, setUtilityTarget] = useState<HTMLElement | null>(null);
   const [pageActionTarget, setPageActionTarget] = useState<HTMLElement | null>(null);
+  const [navigation, setNavigation] = useState<readonly CompanyNavGroup[]>([]);
   const previousInitialPageRef = useRef(initialPage);
 
   // Keep the shared shell mounted while routes change. Re-mounting this
@@ -56,7 +61,9 @@ export function CompanyNavbarProvider({
     setUtilityTarget,
     pageActionTarget,
     setPageActionTarget,
-  }), [resetPage, page, utilityTarget, pageActionTarget]);
+    navigation,
+    setNavigation,
+  }), [resetPage, page, utilityTarget, pageActionTarget, navigation]);
 
   return <CompanyNavbarContext.Provider value={value}>{children}</CompanyNavbarContext.Provider>;
 }
@@ -87,4 +94,17 @@ export function useCompanyHeroUtility() {
 export function useCompanyHeroPageActions() {
   const context = useContext(CompanyNavbarContext);
   return { target: context?.pageActionTarget ?? null, setTarget: context?.setPageActionTarget };
+}
+
+/** The sidebar publishes the menu it renders; a no-op outside a provider (e.g. the client portal). */
+export function useRegisterNavigation(groups: readonly CompanyNavGroup[]): void {
+  const setNavigation = useContext(CompanyNavbarContext)?.setNavigation;
+  useLayoutEffect(() => {
+    setNavigation?.(groups);
+  }, [setNavigation, groups]);
+}
+
+/** The menu the sidebar is showing right now (empty until it has rendered once). */
+export function useRegisteredNavigation(): readonly CompanyNavGroup[] {
+  return useContext(CompanyNavbarContext)?.navigation ?? [];
 }

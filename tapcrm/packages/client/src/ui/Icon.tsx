@@ -1,4 +1,5 @@
 const paths: Record<string, string> = {
+  home: 'M3 11l9-8 9 8 M5 9.5V20h5v-6h4v6h5V9.5',
   hierarchy: 'M9 3h6v5H9z M2 16h6v5H2z M16 16h6v5h-6z M12 8v4 M5 16v-4h14v4',
   search: 'M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
   'chevron-up': 'M6 15l6-6 6 6',

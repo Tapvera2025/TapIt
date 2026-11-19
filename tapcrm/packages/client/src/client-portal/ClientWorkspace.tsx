@@ -15,6 +15,7 @@ import { ClientMeetingsPage } from './pages/ClientMeetingsPage.js';
 import { ClientSocialAccountsPage } from './pages/ClientSocialAccountsPage.js';
 import { identityApiBasePath, getIdentityAccessToken } from '../identity/api/authApi.js';
 import type { CompanySearchDestination } from '../company/layout/navigation.js';
+import { NotificationsProvider } from '../notifications/NotificationsContext.js';
 import { usePortalSidebarState } from '../company/layout/usePortalSidebarState.js';
 
 const clientSearchDestinations: readonly CompanySearchDestination[] = [
@@ -175,6 +176,7 @@ export function ClientWorkspace({
   else page = <ClientDashboardPage onNavigate={onNavigate} onError={handleError} />;
 
   return (
+    <NotificationsProvider>
     <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
       <a
         href="#main-content"
@@ -235,5 +237,6 @@ export function ClientWorkspace({
         </main>
       </div>
     </div>
+    </NotificationsProvider>
   );
 }
