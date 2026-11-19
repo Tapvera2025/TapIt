@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { BrandLogo } from '../../../ui/index.js';
-import { Button, Notice } from '../../../ui/index.js';
+import { Button } from '../../../ui/index.js';
 import { Icon } from '../../../ui/index.js';
 import {
   getPublicApplicationLinkDetails,
   submitPublicApplication,
 } from '../api/recruitmentApi.js';
 import type { PublicJobRequisitionDetails } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function PublicApplicationPage({
   token,
@@ -282,7 +283,7 @@ export function PublicApplicationPage({
           </p>
 
           <form onSubmit={(e) => void handleSubmit(e)} className="mt-6 space-y-5">
-            {error && <Notice error>{error}</Notice>}
+            {error && <ErrorToast message={error} />}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-xs font-semibold text-app-muted">

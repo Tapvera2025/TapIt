@@ -6,6 +6,7 @@ import { exactCompletedBreakSeconds } from '../attendance/breakTime.js';
 import { liveMinutes } from '../live/liveTime.js';
 import { Button, GlassSurface, Modal, SkeletonTodayPage, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 // ── Formatters ───────────────────────────────────────────────────────────────
 
@@ -760,7 +761,9 @@ export function TodayPage({
 
   if (error) {
     return (
-      <WorkspacePageContainer className="text-sm text-app-danger">{error}</WorkspacePageContainer>
+      <WorkspacePageContainer>
+        <ErrorToast message={error} />
+      </WorkspacePageContainer>
     );
   }
 

@@ -24,6 +24,7 @@ import {
   type RunSummary,
 } from '../api/payrollApi.js';
 import { Button, Card, Modal, Notice, Page, SkeletonDetail, SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 const STATUS_CLASSES: Record<RunStatus, string> = {
   draft: 'bg-app-background text-app-muted',
@@ -176,7 +177,7 @@ function RevisePayslip({
             className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
           />
         </label>
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <div className="flex justify-end gap-2">
           <Button kind="secondary" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={busy || reason.trim().length === 0}>{busy ? 'Revising…' : 'Publish revision'}</Button>
@@ -322,7 +323,7 @@ function RunDetailPanel({
   }
 
   if (!run) {
-    return error ? <Card><Notice error>{error}</Notice></Card> : <SkeletonDetail sections={2} />;
+    return error ? <ErrorToast message={error} /> : <SkeletonDetail sections={2} />;
   }
 
   const month = formatMonth(run.periodStart);
@@ -381,7 +382,7 @@ function RunDetailPanel({
         </Notice>
       )}
       {notice && <Notice>{notice}</Notice>}
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {blockers && blockers.length > 0 && (
         <BlockerList blockers={blockers} title="This run can't be published yet. Resolve these items, then try again." />
       )}
@@ -621,22 +622,20 @@ export function RunsPage({ onNavigate }: { onNavigate?: (path: string) => void }
             A month can be published once every attendance day in it is closed and no corrections or break reviews are pending.
           </p>
           {createError && (
-            <div className="mt-3">
-              <Notice error>
-                {createError.message}
-                {createError.needsSettings && onNavigate && (
-                  <button type="button" className="ml-2 underline" onClick={() => onNavigate('/company/payroll/settings')}>
-                    Open payroll settings
-                  </button>
-                )}
-              </Notice>
-            </div>
+            <ErrorToast
+              message={createError.message}
+              action={
+                createError.needsSettings && onNavigate
+                  ? { label: 'Open payroll settings', onClick: () => onNavigate('/company/payroll/settings') }
+                  : undefined
+              }
+            />
           )}
         </Card>
       )}
 
       {created && <CreatedSummary result={created} onDismiss={() => setCreated(null)} />}
-      {error && <div className="mt-6"><Notice error>{error}</Notice></div>}
+      {error && <ErrorToast message={error} />}
       {loading && <div className="mt-6"><SkeletonTable columns={6} rows={5} /></div>}
       {!loading && runs.length === 0 && !showCreate && (
         <Card className="mt-6 text-center">

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Field, Modal, Select } from '../../../ui/index.js';
 import {
   getCompanyDepartments,
   type CompanyDepartment,
 } from '../../api/companyApi.js';
 import { createRequisition } from '../api/recruitmentApi.js';
 import type { EmploymentType, JobRequisition, RequisitionStatus } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function RequisitionFormModal({
   onClose,
@@ -98,7 +99,7 @@ export function RequisitionFormModal({
   return (
     <Modal title="Create Job Requisition" onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <Field
           label="Job Title"

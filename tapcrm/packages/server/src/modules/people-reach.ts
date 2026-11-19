@@ -1,4 +1,6 @@
 import {
+  isMatchNothing,
+  MATCH_NOTHING,
   or,
   scopeMemberFilter,
   scopeReachesAny,
@@ -42,8 +44,15 @@ export function withPeopleReach(
     },
     async filter(ctx, action, scope) {
       const structural = await policy.filter(ctx, action, scope);
-      if (!reaches(scope)) return structural;
-      return or(structural, await scopeMemberFilter(ctx, scope, options.columns));
+      // The same rule as check(): an action kept to the wrapped policy gets no
+      // people route here either, so a list never offers a record the object
+      // check would refuse (e.g. a claim listed for approval that the approver
+      // may not approve).
+      if (!reaches(scope) || options.keepCheckFor?.(action)) return structural;
+      const people = await scopeMemberFilter(ctx, scope, options.columns);
+      // Both routes closed is an explicit FALSE, never an empty WHERE (AZ-I2).
+      if (isMatchNothing(structural) && isMatchNothing(people)) return MATCH_NOTHING;
+      return or(structural, people);
     },
   };
 }

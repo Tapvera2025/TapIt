@@ -17,6 +17,7 @@ import {
   timeAgo,
   type RangePreset,
 } from './calls-format.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 /* ==================================================================== *
  * Navigation
@@ -582,7 +583,7 @@ function RecordingPlayer({ callId, voicemail }: { callId: string; voicemail: boo
           </Button>
         </div>
       )}
-      {error && <p className="mt-2 text-xs text-app-danger" role="alert">{error}</p>}
+      {error && <ErrorToast message={error} />}
     </div>
   );
 }
@@ -637,7 +638,7 @@ export function CallDetailModal({
 
   return (
     <Modal title={call ? (call.contactName ?? formatPhone(call.contactNumber)) : 'Call'} onClose={onClose} size="lg">
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {!call && !error && <SkeletonDetail sections={2} />}
       {call && (
         <div className="space-y-5">

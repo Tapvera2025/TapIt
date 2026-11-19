@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Notice, SkeletonCard, WorkspacePageContainer } from '../../../ui/index.js';
+import { SkeletonCard, WorkspacePageContainer } from '../../../ui/index.js';
 import { Icon } from '../../../ui/index.js';
 import {
   completeTodo,
@@ -24,6 +24,7 @@ import type {
   TodoSectionTab,
   UpdateTodoPayload,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 function getTodayString(): string {
   const now = new Date();
@@ -237,20 +238,7 @@ export function MyTodoPage(): React.JSX.Element {
     <WorkspacePageContainer className="min-w-0">
       <div className="space-y-3.5 sm:space-y-4 w-full min-w-0">
         {/* Error notification banner */}
-        {error && (
-          <Notice error>
-            <div className="flex items-center justify-between gap-2">
-              <span>{error}</span>
-              <button
-                type="button"
-                onClick={() => setError(null)}
-                className="text-xs font-semibold underline hover:no-underline"
-              >
-                Dismiss
-              </button>
-            </div>
-          </Notice>
-        )}
+        {error && <ErrorToast message={error} />}
 
         {/* Compact statistics row: Total | Completed | Today | Upcoming | Progress */}
         <TodoStats

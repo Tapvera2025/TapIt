@@ -10,6 +10,7 @@ import {
   type TriageRow,
 } from '../leads/api.js';
 import { formatAge, labelForReason } from './triage-helpers.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 type Dialog =
   | { kind: 'none' }
@@ -62,11 +63,7 @@ export function TriagePage({ onNavigate }: { onNavigate: (path: string) => void 
         </Button>
       }
     >
-      {error && (
-        <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {loading && rows.length === 0 ? (
         <Card>
@@ -296,11 +293,7 @@ function ActionDialog({
           </button>
         </header>
         {children}
-        {error && (
-          <p className="mt-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <ErrorToast message={error} />}
         <footer className="mt-5 flex justify-end gap-3">
           <Button kind="secondary" onClick={onClose}>
             Cancel

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PageIntro } from '../layout/PageIntro.js';
 import {
   listBreaches,
   confirmBreach,
@@ -7,6 +8,7 @@ import {
   type BreachListItem,
 } from '../api/breaksApi.js';
 import { SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -173,11 +175,7 @@ export function BreachQueuePage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">HR · Break management</p>
-        <h1 className="font-display text-2xl font-bold">Break queue</h1>
-        <p className="text-sm text-app-muted">Review break breaches, explanations, and policy consequences.</p>
-      </header>
+      <PageIntro eyebrow="HR · Break management" title="Break queue" description="Review break breaches, explanations, and policy consequences." />
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg border border-app-border p-0.5">
           {(['pending', 'advisory', 'all'] as StatusFilter[]).map((f) => (
@@ -203,7 +201,7 @@ export function BreachQueuePage(): React.JSX.Element {
         )}
       </div>
 
-      {error && <p className="text-sm text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {loading && <SkeletonTable columns={5} rows={5} />}
 
       {!loading && breaches.length === 0 && (

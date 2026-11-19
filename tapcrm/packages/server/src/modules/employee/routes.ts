@@ -11,6 +11,8 @@ import {
   updateEmployee,
 } from './service.js';
 import { getEmployeeWorkStatus } from './work-status.js';
+import { listProfileCompletion } from './profile.js';
+import { registerEmployeeProfileRoutes } from './profile-routes.js';
 import {
   createEmployeeSchema,
   employeeStatusSchema,
@@ -33,6 +35,8 @@ export function registerEmployeeRoutes(): void {
         return { nextEmployeeId: await getNextEmployeeId(ctx, current) };
       }
       if (query['status'] === 'inactive') return listDeactivatedEmployees(ctx);
+      // How complete each visible employee's self-service profile is (HR overview).
+      if (query['profileCompletion'] === 'true') return listProfileCompletion(ctx);
       if (query['departmentId'] !== undefined && query['positionId'] !== undefined) {
         return listReportingManagerOptions(
           ctx,
@@ -130,4 +134,5 @@ export function registerEmployeeRoutes(): void {
     loadResource: userResource,
     handler: async ({ ctx, params }) => getEmployeeWorkStatus(ctx, params['id']!),
   });
+  registerEmployeeProfileRoutes();
 }

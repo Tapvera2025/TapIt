@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Icon, Notice, Page, SearchableSelect, TimerRing } from '../../../ui/index.js';
+import { Button, Card, Icon, Page, SearchableSelect, TimerRing } from '../../../ui/index.js';
 import { getCallOverview, getCallPeople, getCalls, type CallListItem, type CallOverview, type CallPeople } from './api.js';
 import { formatDuration, formatTalkTime, percent, timeAgo } from './calls-format.js';
 import {
@@ -21,6 +21,7 @@ import {
   type CallsAccess,
   type RangeValue,
 } from './CallsShared.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const PAGE_SIZE = 25;
 
@@ -157,7 +158,7 @@ export function EmployeeCallsPage({
         <DirectionSelect value={direction} onChange={setDirection} />
       </Card>
 
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
 
       {noConnections ? (
         <NoIntegration canManage={access.canManage} onNavigate={onNavigate} />

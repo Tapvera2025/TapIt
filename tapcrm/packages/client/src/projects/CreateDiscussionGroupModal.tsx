@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getClient } from '../clients/api/clientsApi.js';
 import { getChatColleagues } from '../chat/index.js';
-import { Button, Loading, Modal, Notice } from '../ui/index.js';
+import { Button, Loading, Modal } from '../ui/index.js';
 import { createDiscussionGroup, getProject, type Project } from './api/projectsApi.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 /**
  * The wizard's SECOND step (product decision — separate from project
@@ -67,7 +68,7 @@ export function CreateDiscussionGroupModal({
         <Loading />
       ) : (
         <div className="space-y-4">
-          {error && <Notice error>{error}</Notice>}
+          {error && <ErrorToast message={error} />}
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Group name</span>
             <input

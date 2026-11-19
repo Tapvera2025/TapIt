@@ -135,12 +135,20 @@ const schema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   CLIENT_ORIGIN: z.string().url().default('http://localhost:5173'),
   //
-  EMAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
-  SMTP_HOST: z.string().optional(),
+  /**
+   * `smtp` sends mail; `console` prints it to the API log instead. Unset: smtp
+   * when SMTP_HOST is set, otherwise console, which production refuses (see
+   * emailTransport and productionProblems).
+   */
+  EMAIL_TRANSPORT: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.enum(['console', 'smtp']).optional(),
+  ),
+  SMTP_HOST: optionalEnvString(z.string().trim().min(1).optional()),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
   SMTP_SECURE: envBoolean(false),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
+  SMTP_USER: optionalEnvString(z.string().optional()),
+  SMTP_PASSWORD: optionalEnvString(z.string().optional()),
   SMTP_FROM: z.union([z.string().email(), z.literal('')]).optional(),
 
   // Meta Lead Ads adapter (R1 step 1.7). Signature verification uses the
@@ -149,7 +157,15 @@ const schema = z.object({
   // silently alter the field-data shape.
   META_APP_SECRET: optionalEnvString(z.string().trim().min(16).optional()),
   META_WEBHOOK_VERIFY_TOKEN: optionalEnvString(z.string().trim().min(8).optional()),
-  META_GRAPH_VERSION: z.string().trim().default('v18.0'),
+  /**
+   * Graph API version for Meta Lead Ads retrieval. Meta retires each version
+   * about two years after release (v18.0 stopped working on 26 January 2026),
+   * so keep this in step with SOCIAL_META_API_VERSION and Meta's changelog.
+   */
+  META_GRAPH_VERSION: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().regex(/^v\d+\.\d+$/, 'must look like v24.0').default('v24.0'),
+  ),
 
   // Google Search Console — the rank provider behind the on-page SEO module's
   // automatic keyword fetching. `off` leaves the jobs registered but inert, so
@@ -250,6 +266,19 @@ function configurationProblems(config: Config): string[] {
       problems.push(`MEETINGS_GOOGLE_AUTH=service-account requires ${absent.join(' and ')}`);
     }
   }
+  if (emailTransport(config) === 'smtp') {
+    const absent: string[] = [];
+    if (!config.SMTP_HOST) absent.push('SMTP_HOST');
+    if (config.SMTP_PORT === undefined) absent.push('SMTP_PORT');
+    // A made-up fallback sender would send real mail from an address nobody owns.
+    if (!config.SMTP_FROM?.trim()) absent.push('SMTP_FROM');
+    if (absent.length > 0) {
+      problems.push(`Sending email over SMTP requires ${absent.join(', ')}`);
+    }
+    if (Boolean(config.SMTP_USER) !== Boolean(config.SMTP_PASSWORD)) {
+      problems.push('SMTP_USER and SMTP_PASSWORD must be set together (or both left empty for a relay without login)');
+    }
+  }
   if (config.GOOGLE_SEARCH_CONSOLE_AUTH === 'oauth') {
     const absent = missing([
       'GOOGLE_OAUTH_CLIENT_ID',
@@ -284,6 +313,13 @@ function productionProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
   if (config.DEV_INSTANT_PASSWORD_RESET) {
     problems.push(
       'DEV_INSTANT_PASSWORD_RESET shows new admin passwords on the login page; it is for local development only',
+    );
+  }
+  if (config.EMAIL_TRANSPORT === undefined && emailTransport(config) === 'console') {
+    problems.push(
+      'Email is not configured, so invitations, password resets and setup links would only be printed to the log. ' +
+        'Set SMTP_HOST, SMTP_PORT and SMTP_FROM (plus SMTP_USER and SMTP_PASSWORD if the server needs a login), ' +
+        'or set EMAIL_TRANSPORT=console to run deliberately without sending email',
     );
   }
   if (config.SECURITY_COUNTER_STORE === 'memory') {
@@ -367,6 +403,15 @@ export function resumeOcrEnabled(env: NodeJS.ProcessEnv = process.env): boolean 
 /** Test-only. */
 export function __resetConfig(): void {
   cached = null;
+}
+
+/**
+ * How email leaves this server: EMAIL_TRANSPORT when set, otherwise `smtp` when
+ * SMTP_HOST is set and `console` (printed to the log) when it is not.
+ */
+export function emailTransport(config: Config = loadConfig()): 'smtp' | 'console' {
+  if (config.EMAIL_TRANSPORT !== undefined) return config.EMAIL_TRANSPORT;
+  return config.SMTP_HOST ? 'smtp' : 'console';
 }
 
 /** Where chat files are stored: explicit setting, else `s3` in production and `local` elsewhere. */

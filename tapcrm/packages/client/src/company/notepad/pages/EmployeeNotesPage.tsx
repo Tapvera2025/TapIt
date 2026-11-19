@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BannerDescription } from '../../layout/PageIntro.js';
 import { Icon } from '../../../ui/index.js';
 import { WorkspacePageContainer } from '../../../ui/index.js';
 import { getCompanyDepartments, type CompanyDepartment } from '../../api/companyApi.js';
@@ -12,6 +13,7 @@ import { EmployeeNoteViewer } from '../components/admin/EmployeeNoteViewer.js';
 import { EmployeeNotesFilters } from '../components/admin/EmployeeNotesFilters.js';
 import { EmployeeNotesList } from '../components/admin/EmployeeNotesList.js';
 import type { EmployeeNoteListItem, MyNotepad, MyNotepadHistoryItem } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function EmployeeNotesPage(): React.JSX.Element {
   const [departments, setDepartments] = useState<CompanyDepartment[]>([]);
@@ -153,7 +155,8 @@ export function EmployeeNotesPage(): React.JSX.Element {
     <WorkspacePageContainer className="space-y-5">
         <section className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
           <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
-            <div className="flex min-w-0 items-center gap-3">
+            <BannerDescription text="Read-only access to employee notepads and revision history." />
+            <div className="flex min-w-0 items-center gap-3 xl:hidden">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-app-accent/10 text-app-accent">
                 <Icon name="notepad" className="size-5" />
               </span>
@@ -163,7 +166,7 @@ export function EmployeeNotesPage(): React.JSX.Element {
                 <p className="mt-0.5 text-xs text-app-muted">Read-only access to employee notepads and revision history.</p>
               </div>
             </div>
-            <span className="text-sm font-semibold text-app-muted">{loading ? 'Loading…' : `${total} employee${total === 1 ? '' : 's'}`}</span>
+            <span className="text-sm font-semibold text-app-muted xl:ml-auto">{loading ? 'Loading…' : `${total} employee${total === 1 ? '' : 's'}`}</span>
           </div>
           <div className="border-t border-t-[color:var(--app-border)] px-5 py-3 sm:px-6">
             <EmployeeNotesFilters
@@ -179,11 +182,7 @@ export function EmployeeNotesPage(): React.JSX.Element {
         </section>
 
         {/* Global Error Banner */}
-        {error && (
-          <div className="rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-4 text-sm text-app-danger">
-            {error}
-          </div>
-        )}
+        {error && <ErrorToast message={error} />}
 
         {/* Loading Skeleton */}
         {loading && employees.length === 0 ? (

@@ -690,6 +690,7 @@ export function DashboardPage({
 
   const pageMetadata = useMemo(() => ({
     eyebrow: 'Company operations',
+    lockTitle: true,
     title: isAdminDashboard ? 'Admin dashboard' : 'Today at a glance',
     description: isAdminDashboard ? 'Workforce, sales and requests in one live view.' : `${identity.user.fullName}'s operational workboard.`,
     extension: dashboardActions,

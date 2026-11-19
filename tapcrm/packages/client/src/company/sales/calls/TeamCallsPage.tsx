@@ -21,6 +21,7 @@ import {
   type CallsAccess,
   type RangeValue,
 } from './CallsShared.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 type SortKey = 'totalCalls' | 'talkSeconds' | 'answerRate' | 'missedInbound' | 'avgTalkSeconds';
 
@@ -129,7 +130,7 @@ export function TeamCallsPage({
         </div>
       </Card>
 
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
 
       {noConnections ? (
         <NoIntegration canManage={access.canManage} onNavigate={onNavigate} />

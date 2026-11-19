@@ -6,7 +6,6 @@ import {
   Card,
   Empty,
   Loading,
-  Notice,
   Page,
   Select,
 } from '../../ui/index.js';
@@ -18,6 +17,7 @@ import { PenaltyDetailDrawer } from './components/PenaltyDetailDrawer.js';
 import { PenaltyCancelModal } from './components/PenaltyCancelModal.js';
 import { PenaltyTable } from './components/PenaltyTable.js';
 import { PENALTY_LABELS, PENALTY_TYPES, type Penalty } from './types/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 const PENALTY_PAGE_SIZE = 25;
 
@@ -115,7 +115,7 @@ export function PenaltiesPage(): React.JSX.Element {
       description="Manage employee penalties. Each active penalty is deducted in the payroll month you choose and marked recovered once that payslip is published."
       action={<Button onClick={() => setShowForm(true)}>+ Add Penalty</Button>}
     >
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <Card>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <label className="text-xs font-semibold text-app-muted xl:col-span-2">

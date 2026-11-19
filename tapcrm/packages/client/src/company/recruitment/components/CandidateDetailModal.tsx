@@ -26,6 +26,7 @@ import type {
   JobOffer,
 } from '../types/index.js';
 import { formatMinutes } from '../../../ui/format-duration.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function CandidateDetailModal({
   candidate: initialCandidate,
@@ -132,7 +133,7 @@ export function CandidateDetailModal({
   return (
     <Modal title="Candidate Profile & Workflow" onClose={onClose}>
       <div className="space-y-6">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         {successMsg && <Notice>{successMsg}</Notice>}
 
         {/* Top Header Card */}

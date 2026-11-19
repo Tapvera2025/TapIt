@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Card, Page } from '../../../ui/index.js';
 import { BidCard } from './BidCard.js';
 import { useBidPool } from './useBidPool.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 /**
  * Bid-pool page (R1 plan step 1.13). Lists open bid-pool cards for
@@ -36,11 +37,7 @@ export function BidPoolPage({ onNavigate }: { onNavigate: (path: string) => void
         </Button>
       }
     >
-      {error && (
-        <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       <div className="pointer-events-none fixed inset-x-0 top-4 z-40 flex flex-col items-center gap-2">
         {toasts.map((toast) => (

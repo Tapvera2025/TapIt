@@ -1,6 +1,6 @@
 import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
-import { Button, Modal, Notice } from '../../../ui/index.js';
+import { Button, Modal } from '../../../ui/index.js';
 import {
   createApplicationLink,
   listApplicationLinks,
@@ -8,6 +8,7 @@ import {
 } from '../api/recruitmentApi.js';
 import { ApplicationLinkStatusBadge } from './StatusBadge.js';
 import type { JobRequisition, RecruitmentApplicationLink } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function ApplicationLinkModal({
   requisition,
@@ -94,7 +95,7 @@ export function ApplicationLinkModal({
       onClose={onClose}
     >
       <div className="space-y-5">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         {loading ? (
           <div className="py-8 text-center text-sm text-app-muted">

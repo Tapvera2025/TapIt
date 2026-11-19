@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '../../../ui/index.js';
 import { getPoolHealth, type PoolHealthSnapshot } from './dashboard-api.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -39,11 +40,7 @@ export function PoolHealth(): React.JSX.Element {
         How quickly agents claim new enquiries.
         {snapshot && snapshot.timeoutRate > 0 && ` ${snapshot.timeoutRate.toFixed(1)}% were not claimed in time.`}
       </p>
-      {error && (
-        <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       {snapshot === null ? (
         <p className="mt-3 text-sm text-app-muted">Loading…</p>
       ) : (

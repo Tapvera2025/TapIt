@@ -19,6 +19,11 @@ import {
   notifyOnboardingWelcome,
 } from './notifications.js';
 import { parseResume } from './parser.js';
+import { publicResumeParseGate } from './parse-gate.js';
+import { joiningEmailProblems, renderJoiningEmail, type JoiningEmailValues } from './joining-email.js';
+import { loadConfig } from '../../config.js';
+import { consumeRateLimit } from '../../platform/security/rate-limit.js';
+import { ApplicationError } from '../../errors.js';
 import * as atsService from './ats/service.js';
 import * as repo from './repository.js';
 import * as pipelineRoundsRepo from './pipeline-rounds/repository.js';
@@ -806,6 +811,9 @@ export async function resolvePublicApplicationLink(token: string): Promise<{
 // 7. Resume Intake & Submissions
 // ---------------------------------------------------------------------
 
+/** Applications one public job link accepts per hour (see submitPublicApplication). */
+const PUBLIC_APPLICATIONS_PER_LINK_PER_HOUR = 200;
+
 export async function submitPublicApplication(
   token: string,
   input: PublicApplyInput,
@@ -822,6 +830,18 @@ export async function submitPublicApplication(
   const { link, requisition } = resolved;
   assertPublicApplicationLinkValid(link, requisition);
 
+  // A public form: cap how many applications one job link takes per hour, so a
+  // flood cannot fill the inbox or the storage. Generous for a real hiring burst.
+  const perLink = await consumeRateLimit(`recruitment:apply:link:${link.id}`, PUBLIC_APPLICATIONS_PER_LINK_PER_HOUR, 3600);
+  if (!perLink.allowed) {
+    throw new ApplicationError(
+      'This job is receiving many applications right now. Please try again in a little while.',
+      429,
+      'APPLICATIONS_RATE_LIMITED',
+      { retryAfterSeconds: perLink.retryAfterSeconds },
+    );
+  }
+
   // Decode base64 resume buffer
   const cleanBase64 = input.resumeBase64.replace(/^data:[^;]+;base64,/, '');
   const buffer = Buffer.from(cleanBase64, 'base64');
@@ -833,6 +853,23 @@ export async function submitPublicApplication(
     throw error;
   }
 
+  // One application per person per job: a repeat neither re-parses nor
+  // stores another copy of the resume.
+  const email = input.email.trim().toLowerCase();
+  if (await repo.findSubmissionByEmailPreAuth(link.organizationId, requisition.id, email)) {
+    throw new ApplicationError(
+      'You have already applied for this role with this email address.',
+      409,
+      'APPLICATION_ALREADY_SUBMITTED',
+    );
+  }
+
+  // Parse before storing anything, a few at a time (parse-gate.ts): a refused
+  // or failed parse leaves no file behind.
+  const parsedData = await publicResumeParseGate.run(() =>
+    parseResume(buffer, input.resumeFilename, input.resumeMimeType),
+  );
+
   const submissionId = crypto.randomUUID();
   const objectKey = generateResumeObjectKey(link.organizationId, submissionId, input.resumeFilename);
 
@@ -840,15 +877,13 @@ export async function submitPublicApplication(
   const storage = getStorageService();
   await storage.putObject(objectKey, buffer, input.resumeMimeType);
 
-  const parsedData = await parseResume(buffer, input.resumeFilename, input.resumeMimeType);
-
   const submission = await repo.createResumeSubmissionPreAuth({
     organizationId: link.organizationId,
     requisitionId: requisition.id,
     applicationLinkId: link.id,
     firstName: input.firstName.trim(),
     lastName: input.lastName.trim(),
-    email: input.email.trim().toLowerCase(),
+    email,
     phone: input.phone?.trim() ?? null,
     resumeObjectKey: objectKey,
     resumeFilename: input.resumeFilename.trim(),
@@ -1587,10 +1622,6 @@ export async function loadEmailTemplateResource(
 // 14. Joining Email (new — revamp)
 // ---------------------------------------------------------------------
 
-function renderEmailTemplate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
-}
-
 export async function sendJoiningEmail(
   ctx: RequestContext,
   joiningId: string,
@@ -1604,38 +1635,49 @@ export async function sendJoiningEmail(
 
   const offer = await repo.findOfferById(ctx, joining.offerId);
   const requisition = offer ? await repo.findRequisitionById(ctx, offer.requisitionId) : null;
+  const facts = await repo.findJoiningEmailFacts(ctx, offer?.positionId ?? null);
 
-  const vars: Record<string, string> = {
-    candidate_name: `${candidate.firstName} ${candidate.lastName}`.trim(),
-    role: offer?.positionName ?? requisition?.title ?? '',
+  const values: JoiningEmailValues = {
+    candidateName: `${candidate.firstName} ${candidate.lastName}`.trim(),
+    positionTitle: offer?.positionName ?? requisition?.title ?? '',
     department: requisition?.departmentName ?? '',
-    joining_date: joining.expectedJoiningDate
-      ? new Date(joining.expectedJoiningDate).toLocaleDateString('en-IN', { dateStyle: 'long' })
+    joiningDate: joining.expectedJoiningDate
+      ? new Date(joining.expectedJoiningDate).toLocaleDateString('en-IN', { dateStyle: 'long', timeZone: 'UTC' })
       : '',
-    reporting_manager: '',
-    company_name: ctx.organizationId,
+    companyName: facts.organizationName,
+    managerName: facts.managerName ?? '',
   };
 
-  const token = crypto.randomBytes(32).toString('hex');
-  const acknowledgeUrl = `${process.env['PUBLIC_BASE_URL'] ?? ''}/api/public/recruitment/acknowledge/${token}`;
+  const problems = joiningEmailProblems(input.subject, input.body, values);
+  if (problems.length > 0) {
+    throw new ApplicationError(
+      `The email was not sent. ${problems.map((p) => `${p.variable} ${p.problem}`).join('; ')}. Edit the text and send again.`,
+      422,
+      'JOINING_EMAIL_TEMPLATE_INCOMPLETE',
+      { problems },
+    );
+  }
 
-  const acknowledgeButton = `\n\n---\nTo confirm your joining, please click: ${acknowledgeUrl}`;
+  // The token is stored before the email goes out, so the link in the email
+  // always works. A resend reuses it: an earlier email's link keeps working.
+  const token = await repo.ensureJoiningAcknowledgeToken(ctx, joiningId, crypto.randomBytes(32).toString('hex'));
+  if (!token) throw new NotFoundError('Joining record not found');
+  const config = loadConfig();
+  const acknowledgeUrl = `${config.CLIENT_ORIGIN}${config.API_BASE_PATH}/public/recruitment/acknowledge/${token}`;
 
-  const subject = renderEmailTemplate(input.subject, vars);
-  const bodyText = renderEmailTemplate(input.body, vars) + acknowledgeButton;
-
-  await sendEmail({
-    to: candidate.email,
-    subject,
-    text: bodyText,
-  });
+  const email = renderJoiningEmail({ subject: input.subject, body: input.body }, values, acknowledgeUrl);
+  try {
+    await sendEmail({ to: candidate.email, subject: email.subject, text: email.text, html: email.html });
+  } catch (error) {
+    console.error('[recruitment] joining email could not be sent', { joiningId, error });
+    throw new ApplicationError('The joining email could not be sent. Try again in a few minutes.', 502, 'JOINING_EMAIL_NOT_SENT');
+  }
 
   await db.transaction(ctx, async (tx) => {
     await tx.query(sql`
       UPDATE candidate_joining
       SET joining_email_sent_at = now(),
-          joining_email_template_id = ${input.templateId ?? null},
-          acknowledge_token = ${token}
+          joining_email_template_id = ${input.templateId ?? null}
       WHERE organization_id = ${ctx.organizationId} AND id = ${joiningId}
     `);
     await tx.query(sql`
@@ -1658,10 +1700,24 @@ export async function sendJoiningEmail(
 // Public: Acknowledge joining (called from public-routes.ts — no user ctx)
 // ---------------------------------------------------------------------
 
+/** What a confirmation link points at, without changing anything (safe for GET). */
+export async function joiningAcknowledgementState(token: string): Promise<'pending' | 'acknowledged' | 'invalid'> {
+  if (!/^[0-9a-f]{64}$/.test(token)) return 'invalid';
+  const joining = await repo.findJoiningByAcknowledgeToken(token);
+  if (!joining) return 'invalid';
+  return joining.acknowledgedAt ? 'acknowledged' : 'pending';
+}
+
+/**
+ * The candidate pressed "Confirm" (POST). Only this changes anything: link
+ * scanners in mail systems open (GET) every link in an email, which used to
+ * confirm the joining before the candidate ever saw it.
+ */
 export async function acknowledgeJoining(
   token: string,
   ip: string,
 ): Promise<{ acknowledged: boolean }> {
+  if (!/^[0-9a-f]{64}$/.test(token)) throw new NotFoundError('Invalid or expired token');
   const joining = await repo.findJoiningByAcknowledgeToken(token);
   if (!joining) throw new NotFoundError('Invalid or expired token');
 
@@ -1669,19 +1725,25 @@ export async function acknowledgeJoining(
     return { acknowledged: true };
   }
 
-  // Build minimal context from the joining record so db.transaction can set tenant context
+  // Minimal context from the joining record so db.transaction can set the
+  // tenant. There is no signed-in actor: the candidate did this, so the
+  // notification carries no actor (a non-UUID actor made it fail validation,
+  // and the error was swallowed, so HR was never told).
   const systemCtx = {
     organizationId: joining.organizationId,
-    principal: { id: 'system', email: '' },
+    principal: { id: null },
   } as unknown as RequestContext;
 
   await db.transaction(systemCtx, async (tx) => {
-    await tx.query(sql`
+    // Two quick presses (or two tabs) confirm once.
+    const updated = await tx.query(sql`
       UPDATE candidate_joining
       SET acknowledged_at = now(),
           acknowledge_ip = ${ip}
-      WHERE id = ${joining.id}
+      WHERE id = ${joining.id} AND acknowledged_at IS NULL
+      RETURNING id
     `);
+    if (updated.length === 0) return;
     await tx.query(sql`
       INSERT INTO recruitment_candidate_event
         (organization_id, candidate_id, event_type, actor_id, metadata)

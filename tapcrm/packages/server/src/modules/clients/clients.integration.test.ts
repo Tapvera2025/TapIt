@@ -105,12 +105,14 @@ describe.skipIf(!enabled)('clients engine (PostgreSQL)', () => {
     expect(client.timezone).toBe('Asia/Kolkata');
     expect(client.hasActiveLogin).toBe(true);
 
-    const [row] = await asOwner<{ accountType: string; clientId: string }>(
+    const [row] = await asOwner<{ accountType: string; clientId: string; mustChangePassword: boolean }>(
       'read',
-      sql`SELECT account_type AS "accountType", client_id AS "clientId" FROM app_user WHERE organization_id = ${orgA} AND email = ${client.email}`,
+      sql`SELECT account_type AS "accountType", client_id AS "clientId", must_change_password AS "mustChangePassword" FROM app_user WHERE organization_id = ${orgA} AND email = ${client.email}`,
     );
     expect(row?.accountType).toBe('client');
     expect(row?.clientId).toBe(client.id);
+    // The password staff typed is temporary: the client chooses their own at first sign-in.
+    expect(row?.mustChangePassword).toBe(true);
   });
 
   it('rejects a duplicate email (the identity directory is global, not per-client)', async () => {
@@ -142,9 +144,11 @@ describe.skipIf(!enabled)('clients engine (PostgreSQL)', () => {
     const client = await createClient(asAdmin(), newClientInput('creds'));
     const [before] = await asOwner<{ sessionVersion: number }>('read', sql`SELECT session_version AS "sessionVersion" FROM app_user WHERE organization_id = ${orgA} AND client_id = ${client.id}`);
 
+    await asOwner('client chose their own password', sql`UPDATE app_user SET must_change_password = false WHERE organization_id = ${orgA} AND client_id = ${client.id}`);
     await setClientCredentials(asAdmin(), client.id, { password: 'another-strong-password-77' });
-    const [afterReset] = await asOwner<{ sessionVersion: number }>('read', sql`SELECT session_version AS "sessionVersion" FROM app_user WHERE organization_id = ${orgA} AND client_id = ${client.id}`);
+    const [afterReset] = await asOwner<{ sessionVersion: number; mustChangePassword: boolean }>('read', sql`SELECT session_version AS "sessionVersion", must_change_password AS "mustChangePassword" FROM app_user WHERE organization_id = ${orgA} AND client_id = ${client.id}`);
     expect(afterReset!.sessionVersion).toBeGreaterThan(before!.sessionVersion);
+    expect(afterReset!.mustChangePassword).toBe(true); // a staff reset is temporary again
 
     const revoked = await revokeClientCredentials(asAdmin(), client.id);
     expect(revoked.hasActiveLogin).toBe(false);

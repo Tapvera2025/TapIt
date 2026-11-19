@@ -27,4 +27,7 @@ COPY . .
 RUN npm run clean && npm run build
 
 EXPOSE 4000
+# The container starts as root only so the API can hand the host-mounted
+# upload folder to the unprivileged `node` user; the API then switches to that
+# user before it serves anything (src/platform/privileges.ts, TAPCRM_RUN_AS).
 CMD ["npm", "run", "start", "--workspace", "@tapcrm/server"]

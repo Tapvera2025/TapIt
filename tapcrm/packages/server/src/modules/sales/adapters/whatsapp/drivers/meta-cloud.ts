@@ -8,7 +8,7 @@ import type {
 } from '../driver.js';
 
 /**
- * WhatsApp Business API via Meta Cloud (graph.facebook.com/v18.0/...).
+ * WhatsApp Business API via Meta Cloud (graph.facebook.com/<version>/...).
  * Signature header: `X-Hub-Signature-256: sha256=<hex>`. The driver's
  * `secret` is the Meta app secret (same shape as the Lead Ads adapter).
  */

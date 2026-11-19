@@ -25,6 +25,7 @@ import * as api from './api.js';
 import { SeoProjectPicker } from './SeoProjectPicker.js';
 import { SeoBadge, SeoEmptyState, SeoHorizontalBar, SeoSectionHeader } from './SeoUi.js';
 import type { SeoSite } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 type Mode = 'choose' | 'scan' | 'project';
 type Where = 'google:seo' | 'google:gmb' | 'bing:seo';
@@ -354,7 +355,7 @@ function ScanWebsiteView({
               The map pack is matched by the website’s address, or by the linked client’s business name when a listing has no website.
             </p>
           )}
-          {error && <Notice error>{error}</Notice>}
+          {error && <ErrorToast message={error} />}
           <div className="flex flex-wrap items-center justify-end gap-3">
             {!canScan && <span className="text-xs text-app-muted">Your role can view scans but not run them.</span>}
             <Button type="submit" disabled={running || !canScan || !ready}>
@@ -529,7 +530,7 @@ function AddKeywordModal({
       }
     >
       <div className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <div className="grid gap-4 md:grid-cols-2">
           <FieldLabel label="Keyword *">
             <input className="seo-field w-full" value={form.keyword} maxLength={200} onChange={(e) => set('keyword', e.target.value)} />
@@ -704,7 +705,7 @@ function ProjectRankingsView({
         </p>
       )}
       {notice && <Notice>{notice}</Notice>}
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {last && <OutcomeCard keyword={last.keyword} outcome={last.outcome} />}
       {keywords === null ? (
         <SkeletonTable columns={5} rows={4} />

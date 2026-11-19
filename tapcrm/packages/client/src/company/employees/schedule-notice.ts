@@ -1,6 +1,6 @@
 /**
- * Step 3 of Add Employee needs a shift and a weekday schedule. Say so up
- * front, before someone fills in two steps they cannot finish.
+ * Step 2 of Add Employee needs a shift and a weekday schedule. Say so up
+ * front, before someone fills in details they cannot save yet.
  */
 export function missingScheduleNotice(
   shiftCount: number,
@@ -13,5 +13,5 @@ export function missingScheduleNotice(
       : []),
   ];
   if (missing.length === 0) return null;
-  return `Set up ${missing.join(' and ')} first. You can fill in the details now, but step 3 needs ${missing.length === 1 ? 'it' : 'both'} before you can finish.`;
+  return `Set up ${missing.join(' and ')} first. You can fill in the details now, but step 2 needs ${missing.length === 1 ? 'it' : 'both'} before you can finish.`;
 }

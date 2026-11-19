@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getChatColleagues } from '../chat/index.js';
-import { Button, Modal, Notice } from '../ui/components.js';
+import { Button, Modal } from '../ui/components.js';
 import { bulkAssignProjects, getProjects, type Project } from './api/projectsApi.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 type Person = { id: string; fullName: string };
 
@@ -71,7 +72,7 @@ export function BulkProjectAssignmentModal({ onClose, onCompleted }: { onClose: 
     <Modal title="Bulk Project Assignment" onClose={saving ? () => undefined : onClose} size="lg">
       <div className="space-y-4">
         <p className="text-sm text-app-muted">Select employees and projects to assign multiple projects in one operation.</p>
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         {loading ? <p className="text-sm text-app-muted">Loading employees and projects…</p> : (
           <>
             <Picker title="Select Employees" search={employeeSearch} onSearch={setEmployeeSearch} selected={selectedEmployeeNames.map((person) => ({ id: person.id, label: person.fullName }))} onRemove={(id) => toggle(id, employeeIds, setEmployeeIds)}>

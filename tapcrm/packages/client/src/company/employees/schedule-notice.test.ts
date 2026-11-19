@@ -6,9 +6,9 @@ describe('Add Employee schedule notice', () => {
     expect(missingScheduleNotice(2, 1)).toBeNull();
   });
 
-  it('names what is missing before step 3', () => {
+  it('names what is missing before step 2', () => {
     expect(missingScheduleNotice(1, 0)).toBe(
-      'Set up a weekday schedule (Weekday Schedules page) first. You can fill in the details now, but step 3 needs it before you can finish.',
+      'Set up a weekday schedule (Weekday Schedules page) first. You can fill in the details now, but step 2 needs it before you can finish.',
     );
     expect(missingScheduleNotice(0, 0)).toContain(
       'a shift (Shifts page) and a weekday schedule (Weekday Schedules page)',

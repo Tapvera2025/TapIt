@@ -150,6 +150,9 @@ export interface ProviderConfig {
   clientId: string;
   clientSecret: string;
   apiVersion?: string;
+  /** Meta only: a Facebook Login for Business configuration ID. When set, the login
+   * dialog is opened with this configuration instead of a list of permissions. */
+  loginConfigurationId?: string;
   organizationEnabled?: boolean;
   insightsEnabled?: boolean;
 }

@@ -24,6 +24,7 @@ import {
   type SocialCompanyPlatform,
   type SocialProvider,
 } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 /**
  * Company logins: the company signs in ONCE with each login its team uses — a
@@ -312,7 +313,7 @@ export function CompanyConnections({
 
   return (
     <div className="space-y-5">
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <Card>
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
@@ -901,7 +902,7 @@ export function AssignLocationModal({
           manage that no client uses yet. Assigning one lets {clientName} publish to it,
           or see its Search Console data.
         </p>
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         {items === null ? (
           <SkeletonTable columns={2} rows={3} />
         ) : candidates.length === 0 ? (

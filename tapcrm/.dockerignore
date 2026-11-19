@@ -8,3 +8,13 @@ dist
 .DS_Store
 coverage
 *.log
+
+# Runtime data and local state never belong in an image: uploaded files would
+# otherwise be copied into every build (COPY . .).
+storage
+storage.*
+packages/server/storage
+tmp
+dump.rdb
+.env.*
+!.env.example

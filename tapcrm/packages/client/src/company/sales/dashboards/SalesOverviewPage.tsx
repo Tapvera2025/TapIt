@@ -5,6 +5,7 @@ import { MyWorkPage } from '../MyWork/MyWorkPage.js';
 import { ClaimsDistribution } from './ClaimsDistribution.js';
 import { PoolHealth } from './PoolHealth.js';
 import { getRoutingConfiguration, getTerritoryCoverage, type RoutingConfiguration, type TerritoryCoverage } from '../api.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 interface SalesOverviewPageProps {
   isManager: boolean;
@@ -82,7 +83,7 @@ function CoverageAndRoutingCard({ onNavigate }: { onNavigate: (path: string) => 
         </div>
         <Button kind="secondary" onClick={() => onNavigate('/company/sales/territories')}>Manage coverage</Button>
       </div>
-      {error && <p className="mt-3 text-sm text-app-danger" role="alert">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {coverage === null ? (
         <p className="mt-4 text-sm text-app-muted">Loading coverage…</p>
       ) : (
@@ -141,7 +142,7 @@ function OverdueCallbacksCard({ onNavigate }: { onNavigate: (path: string) => vo
         </div>
         <Button kind="secondary" onClick={() => onNavigate('/company/sales/callbacks')}>Review callbacks</Button>
       </div>
-      {error && <p className="mt-3 text-sm text-app-danger" role="alert">{error}</p>}
+      {error && <ErrorToast message={error} />}
       <p className={`mt-4 font-display text-3xl font-bold ${overdue.length ? 'text-amber-700' : ''}`}>
         {callbacks === null ? '—' : overdue.length.toLocaleString()}
       </p>

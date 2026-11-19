@@ -64,7 +64,7 @@ export function registerClientPortalRoutes(): void {
       const project = await getProject(ctx, params['id']!);
       const pdf = await createProjectReportPdf(ctx, project.id);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="tapvera-project-report-${project.id}.pdf"`);
+      res.setHeader('Content-Disposition', `attachment; filename="project-report-${project.id}.pdf"`);
       res.send(pdf);
       return null;
     },

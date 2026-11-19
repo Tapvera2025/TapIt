@@ -82,6 +82,7 @@ import { SettingsPage } from './settings/SettingsPage.js';
 import { WorkspaceSkeleton } from '../ui/index.js';
 import { AdvanceRequestsPage, MyAdvancesPage } from './advance/AdvancePages.js';
 import { PenaltiesPage } from './penalties/PenaltiesPage.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 import { MyPenaltiesPage } from './penalties/MyPenaltiesPage.js';
 import { ExpenseApprovalsPage, MyExpensesPage } from './expenses/ExpensesPages.js';
 import { MyTaPage, TaManagementPage } from './ta/TaPages.js';
@@ -90,6 +91,8 @@ import { companySearchDestinations } from './layout/navigation.js';
 import { CompanyModuleTabStrip } from './layout/CompanyModuleTabStrip.js';
 import type { LiquidGlassTabItem } from './recruitment/components/RecruitmentTabs.js';
 import { MeetingsPage } from '../meetings/MeetingsPage.js';
+import { MyProfilePage } from './profile/MyProfilePage.js';
+import { CompleteProfilePrompt } from './profile/CompleteProfilePrompt.js';
 
 export function CompanyWorkspace({
   pathname: rawPathname,
@@ -113,7 +116,8 @@ export function CompanyWorkspace({
     return (
       <div className="grid min-h-screen place-items-center bg-app-background p-6 text-center text-app-foreground">
         <div>
-          <p className="text-app-danger">{error}</p>
+          <ErrorToast message={error} />
+          <p className="text-sm text-app-muted">Your workspace could not be opened.</p>
           <button
             type="button"
             onClick={onLogout}
@@ -422,6 +426,7 @@ export function CompanyWorkspace({
     '/company/projects': 'Projects',
     '/company/my-notepad': 'My Notepad',
     '/company/notepad': 'My Notepad',
+    '/company/my-profile': 'My Profile',
     '/company/employee-notes': 'Employee Notes',
     '/company/sales/territories': 'Territories & routing',
     '/company/sales': 'Overview',
@@ -531,6 +536,7 @@ export function CompanyWorkspace({
       return <ExpenseApprovalsPage />;
     if (pathname === '/company/todo' || pathname === '/company/my-todo')
       return <MyTodoPage />;
+    if (pathname === '/company/my-profile') return <MyProfilePage onNavigate={onNavigate} />;
     if (pathname === '/company/my-notepad' || pathname === '/company/notepad')
       return <MyNotepadPage />;
     if (pathname === '/company/employee-notes')
@@ -546,7 +552,7 @@ export function CompanyWorkspace({
     if (hasRecruitment && pathname === '/company/my-interviews')
       return <MyInterviewsPage />;
     if (isRecruitment)
-      return <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} />;
+      return <RecruitmentWorkspace pathname={pathname} onNavigate={onNavigate} organizationName={identity?.organization?.name ?? null} />;
     // Links in older "interview assigned" notifications, for people outside HR.
     if (hasRecruitment && pathname === '/company/recruitment/my-interviews')
       return <MyInterviewsPage />;
@@ -1112,6 +1118,11 @@ export function CompanyWorkspace({
       searchDestinations={searchDestinations}
     >
       {renderContent()}
+      <CompleteProfilePrompt
+        accountType={identity.user.accountType}
+        pathname={pathname}
+        onNavigate={onNavigate}
+      />
     </CompanyLayout>
   );
   // The sales guide follows people across Sales pages; others never see it.

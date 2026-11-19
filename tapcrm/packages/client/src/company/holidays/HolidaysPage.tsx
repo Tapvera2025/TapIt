@@ -1,10 +1,12 @@
 import { CalendarPicker } from '../../ui/CalendarPicker.js';
+import { BannerDescription } from '../layout/PageIntro.js';
 import { useEffect, useMemo, useState } from 'react';
 import { getCompanyDepartments, type CompanyDepartment } from '../api/companyApi.js';
 import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
 import { createHoliday, createHolidayBatch, listHolidays, withdrawHoliday, type Holiday } from '../api/holidaysApi.js';
 import { SkeletonTable } from '../../ui/index.js';
 import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type HolidayType = 'national' | 'regional' | 'optional' | 'week-off';
 type BulkHolidayRow = { name: string; holidayDate: string; type: 'national' | 'optional' };
@@ -82,7 +84,8 @@ export function HolidaysPage({ canManage = false }: { canManage?: boolean }): Re
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <header className="flex flex-col gap-5 rounded-3xl border border-app-border bg-app-surface/70 p-5 sm:p-7 lg:flex-row lg:items-end lg:justify-between">
+      <BannerDescription text="Plan organization days off and keep everyone’s attendance calendar in sync." />
+      <header className="flex flex-col gap-5 rounded-3xl border border-app-border bg-app-surface/70 p-5 sm:p-7 lg:flex-row lg:items-end lg:justify-between xl:hidden">
         <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[0.18em] text-app-accent">HR · Calendar</p><h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">Holidays</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-app-muted sm:text-base">Plan organization days off and keep everyone’s attendance calendar in sync.</p></div>
         {canManage && <CompanyPageActionPortal><div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row"><button type="button" onClick={() => togglePanel('single')} className="rounded-xl bg-app-accent px-4 py-2.5 text-sm font-semibold text-app-on-accent shadow-sm transition hover:-translate-y-px hover:brightness-110">{showForm ? 'Close form' : 'Add holiday'}</button><button type="button" onClick={() => togglePanel('bulk')} className="rounded-xl border border-app-accent/40 bg-app-accent/10 px-4 py-2.5 text-sm font-semibold text-app-accent transition hover:border-app-accent hover:bg-app-accent/15">{showBulkForm ? 'Close bulk entry' : 'Add multiple'}</button></div></CompanyPageActionPortal>}
       </header>
@@ -93,7 +96,7 @@ export function HolidaysPage({ canManage = false }: { canManage?: boolean }): Re
         <div className="hidden items-center justify-end text-right text-sm text-app-muted lg:flex">Changes update attendance automatically</div>
       </section>
 
-      {error && <div role="alert" className="flex items-start justify-between gap-3 rounded-2xl border border-app-danger/30 bg-app-danger/10 px-4 py-3 text-sm text-app-danger"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
+      {error && <ErrorToast message={error} />}
 
       {canManage && showBulkForm && <form onSubmit={(event) => void submitBulk(event)} className="space-y-5 rounded-3xl border border-app-accent/20 bg-app-surface p-5 sm:p-6"><div><h2 className="text-lg font-bold">Add multiple holidays</h2><p className="mt-1 text-sm text-app-muted">Add several dated holidays together. Every row keeps its own name and type.</p></div><div className="space-y-3">{bulkRows.map((row, index) => <div key={index} className="grid gap-2 rounded-2xl border border-app-border bg-app-background/40 p-3 sm:grid-cols-[minmax(0,1fr)_12rem_9rem_auto] sm:items-center"><input value={row.name} onChange={(event) => updateBulkRow(index, { name: event.target.value })} className="min-w-0 rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-sm outline-none focus:border-app-accent" placeholder="Holiday name" /><CalendarPicker type="date" value={row.holidayDate} onChange={(event) => updateBulkRow(index, { holidayDate: event.target.value })} className="rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-sm outline-none focus:border-app-accent" /><select value={row.type} onChange={(event) => updateBulkRow(index, { type: event.target.value as BulkHolidayRow['type'] })} className="rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-sm outline-none focus:border-app-accent"><option value="national">National</option><option value="optional">Optional</option></select><button type="button" disabled={bulkRows.length === 1} onClick={() => setBulkRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))} className="rounded-xl border border-app-border px-3 py-2.5 text-sm text-app-danger transition hover:border-app-danger disabled:opacity-40" aria-label={`Remove holiday row ${index + 1}`}>Remove</button></div>)}</div><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><button type="button" onClick={() => setBulkRows((rows) => [...rows, blankBulkRow()])} className="text-left text-sm font-semibold text-app-accent hover:underline">+ Add another holiday</button><button type="submit" disabled={submitting} className="rounded-xl bg-app-accent px-5 py-2.5 text-sm font-semibold text-app-on-accent disabled:opacity-60">{submitting ? 'Saving…' : 'Save all holidays'}</button></div></form>}
 

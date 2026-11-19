@@ -14,6 +14,11 @@
 #   CLIENT_ORIGIN=https://app.example.com   CORS_ORIGIN=https://app.example.com
 #   S3_PUBLIC_ENDPOINT=https://files.example.com
 #   MINIO_DATA_DIR=/opt/tapcrm/data/minio   # optional, this is the default
+#   UPLOAD_DATA_DIR=/opt/tapcrm/data/uploads # optional, this is the default
+#
+# Optional, for attendance terminals on the office network (see
+# biometric-gateway below):
+#   COMPOSE_PROFILES=biometric   BIOMETRIC_BIND=192.168.1.10   BIOMETRIC_PORT=8081
 #
 # Cloudflare tunnel "Public hostnames" (set in the dashboard):
 #   app.example.com   -> http://client:5173
@@ -68,6 +73,12 @@ services:
   server:
     restart: unless-stopped
     ports: !reset []
+    volumes:
+      # Uploaded files (expense receipts, project screenshots, tax exports, and
+      # chat files if CHAT_STORAGE_DRIVER=local) on the server's own disk,
+      # OUTSIDE the deploy checkout: a checkout clean can never remove them.
+      # Same container path as the base file's ./storage mount, so it replaces it.
+      - ${UPLOAD_DATA_DIR:-/opt/tapcrm/data/uploads}:/app/storage
     environment:
       # Signed download links must point at an address browsers can reach.
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:?Set S3_PUBLIC_ENDPOINT in .env (https://files.<your-domain>)}
@@ -81,6 +92,26 @@ services:
       dockerfile: packages/client/Dockerfile.prod
     restart: unless-stopped
     ports: !reset []
+
+  # Attendance terminals (ZKTeco / eSSL "ADMS push") on the office network.
+  # Off unless enabled. To enable, add to /opt/tapcrm/.env:
+  #   COMPOSE_PROFILES=biometric
+  #   BIOMETRIC_BIND=<this server's LAN address, e.g. 192.168.1.10>
+  # then set each terminal's ADMS / "Cloud server" address to that IP and
+  # BIOMETRIC_PORT (default 8081). Only /iclock is forwarded to the API.
+  biometric-gateway:
+    image: nginx:1.27-alpine
+    profiles: ['biometric']
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    volumes:
+      - ./docker/biometric-gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      # Loopback unless BIOMETRIC_BIND is set, so turning the profile on never
+      # opens a port to the outside by accident.
+      - '${BIOMETRIC_BIND:-127.0.0.1}:${BIOMETRIC_PORT:-8081}:8081'
 
   cloudflared:
     image: cloudflare/cloudflared:latest

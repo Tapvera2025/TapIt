@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, Field, Loading, Notice, Page, Select } from '../../ui/index.js';
+import { Button, Card, Empty, Field, Loading, Page, Select } from '../../ui/index.js';
 import { calendarDateLabel } from '../../ui/index.js';
 import {
   getEmployeeWiseReport,
@@ -11,6 +11,7 @@ import {
 } from './attendanceApi.js';
 import { AttendanceCalendar, AttendanceKpis, AttendanceLegend } from './AttendanceVisuals.js';
 import { formatMinutes } from '../../ui/format-duration.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function currentMonth(): string { return new Date().toISOString().slice(0, 7); }
 const fmt = formatMinutes;
@@ -105,7 +106,7 @@ export function EmployeeWisePage(): React.JSX.Element {
 
       {!selected && <Empty>Select an employee to view their attendance.</Empty>}
       {loading && <Loading />}
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {selected && !loading && !error && report && (
         <div className="space-y-6">
           <Card>

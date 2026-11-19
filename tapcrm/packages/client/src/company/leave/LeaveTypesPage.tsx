@@ -8,6 +8,7 @@ import {
 import { suggestNextCode } from '../../ui/index.js';
 import { SkeletonTable } from '../../ui/index.js';
 import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type FormMode = null | 'create' | LeaveTypeDto;
 
@@ -265,7 +266,7 @@ export function LeaveTypesPage(): React.JSX.Element {
           <p className="text-xs text-app-muted">
             With the limit on, a request beyond the employee&apos;s remaining balance (after requests awaiting approval) is refused. HR can adjust a balance under Leave Balances. Existing requests remain in history when a type is made inactive.
           </p>
-          {formError && <p role="alert" className="text-sm text-app-danger">{formError}</p>}
+          {formError && <ErrorToast message={formError} />}
           <div className="flex gap-2">
             <button
               type="submit"
@@ -287,14 +288,7 @@ export function LeaveTypesPage(): React.JSX.Element {
       )}
 
       {savedMessage && <p role="status" className="text-sm text-app-success">{savedMessage}</p>}
-      {error && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-app-danger">
-          <span>{error}</span>
-          <button type="button" onClick={() => void load()} className="rounded-lg border border-app-border px-3 py-1.5 text-app-foreground">
-            Try again
-          </button>
-        </div>
-      )}
+      {error && <ErrorToast message={error} action={{ label: 'Try again', onClick: () => void load() }} />}
       {loading && <SkeletonTable columns={4} rows={5} />}
 
       {!loading && !error && types.length === 0 && (

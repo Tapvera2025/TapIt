@@ -19,6 +19,7 @@ import {
   type TaAssignment,
   type TaReportRow,
 } from './taApi.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 const monthStart = () =>
   `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
@@ -177,7 +178,7 @@ function AssignmentModal({
         <p className="text-xs text-app-muted">
           Effective dates must stay within the selected TA month.
         </p>
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <div className="flex justify-end gap-2">
           <Button kind="secondary" onClick={onClose}>
             Cancel
@@ -286,7 +287,7 @@ export function TaManagementPage(): React.JSX.Element {
       action={<Button onClick={() => setShowForm(true)}>Add Daily TA</Button>}
     >
       <div className="space-y-5">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         {notice && <Notice>{notice}</Notice>}
         <div className="grid gap-3 rounded-xl border border-app-border bg-app-surface p-4 md:grid-cols-4">
           <label className="text-xs font-semibold text-app-muted">
@@ -586,7 +587,7 @@ export function MyTaPage(): React.JSX.Element {
       description="View TA statements sent to your employee dashboard."
     >
       <div className="space-y-5">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         {data.statements.length > 0 ? (
           <>
             <div className="flex items-center gap-3">

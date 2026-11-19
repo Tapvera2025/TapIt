@@ -176,13 +176,16 @@ export async function lockDeal(tx: Tx, organizationId: string, id: string): Prom
   readonly lifecycleStatus: DealLifecycleStatus;
   readonly responsibleCloserId: string;
   readonly originatingAgentId: string;
+  /** Who confirmed the advance (deals:confirm-payment); null until confirmed. */
+  readonly paymentInitiatedBy: string | null;
 } | null> {
   return tx.maybeOne(sql`
     SELECT id,
            deal_stage           AS "dealStage",
            lifecycle_status     AS "lifecycleStatus",
            responsible_closer_id AS "responsibleCloserId",
-           originating_agent_id  AS "originatingAgentId"
+           originating_agent_id  AS "originatingAgentId",
+           payment_initiated_by  AS "paymentInitiatedBy"
       FROM deal
      WHERE organization_id = ${organizationId}
        AND id              = ${id}
@@ -436,5 +439,99 @@ export async function insertDealAudit(
       requestId: ctx.requestId,
       sourceIp: ctx.sourceIp,
     })}::jsonb)
+  `);
+}
+
+/* --------------------------------------------------------------------- *
+ * Payment receipts (migration 0160)
+ * --------------------------------------------------------------------- */
+
+/** A live (not reverted) receipt already carrying this bank reference, on any deal. */
+export async function findLiveReceiptByReference(
+  tx: Tx,
+  organizationId: string,
+  reference: string,
+): Promise<{ id: string; dealId: string } | null> {
+  return tx.maybeOne<{ id: string; dealId: string }>(sql`
+    SELECT id, deal_id AS "dealId" FROM deal_payment_receipt
+     WHERE organization_id = ${organizationId}
+       AND lower(btrim(reference)) = lower(btrim(${reference}))
+       AND reverted_at IS NULL
+  `);
+}
+
+export async function insertPaymentReceipt(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    dealId: string;
+    amountMinor: bigint;
+    currency: string;
+    reference: string;
+    note: string | null;
+    confirmedBy: string;
+  },
+): Promise<string> {
+  const row = await tx.one<{ id: string }>(sql`
+    INSERT INTO deal_payment_receipt
+      (organization_id, deal_id, amount_minor, currency, reference, note, confirmed_by)
+    VALUES (${input.organizationId}, ${input.dealId}, ${input.amountMinor.toString()}::bigint,
+            ${input.currency}, ${input.reference.trim()}, ${input.note}, ${input.confirmedBy})
+    RETURNING id
+  `);
+  return row.id;
+}
+
+export async function setReceiptPosting(
+  tx: Tx,
+  organizationId: string,
+  receiptId: string,
+  posting: { journalId: string | null; note: string | null },
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE deal_payment_receipt
+       SET journal_id = ${posting.journalId}, posting_note = ${posting.note}
+     WHERE organization_id = ${organizationId} AND id = ${receiptId}
+  `);
+}
+
+/** Marks the deal's live receipt reverted; returns it, or null when there was none. */
+export async function revertLiveReceipt(
+  tx: Tx,
+  organizationId: string,
+  dealId: string,
+  revertedBy: string,
+  reason: string,
+): Promise<{ id: string; amountMinor: string; journalId: string | null } | null> {
+  return tx.maybeOne<{ id: string; amountMinor: string; journalId: string | null }>(sql`
+    UPDATE deal_payment_receipt
+       SET reverted_at = now(), reverted_by = ${revertedBy}, revert_reason = ${reason}
+     WHERE organization_id = ${organizationId} AND deal_id = ${dealId} AND reverted_at IS NULL
+     RETURNING id, amount_minor::text AS "amountMinor", journal_id AS "journalId"
+  `);
+}
+
+export async function setReceiptReversal(
+  tx: Tx,
+  organizationId: string,
+  receiptId: string,
+  journalId: string | null,
+): Promise<void> {
+  await tx.query(sql`
+    UPDATE deal_payment_receipt SET reversal_journal_id = ${journalId}
+     WHERE organization_id = ${organizationId} AND id = ${receiptId}
+  `);
+}
+
+/** The deal's live (not reverted) payment receipt, if any. */
+export async function findLiveReceiptForDealTx(
+  tx: Tx,
+  organizationId: string,
+  dealId: string,
+): Promise<{ id: string; amountMinor: string; currency: string; reference: string } | null> {
+  return tx.maybeOne<{ id: string; amountMinor: string; currency: string; reference: string }>(sql`
+    SELECT id, amount_minor::text AS "amountMinor", currency, reference
+      FROM deal_payment_receipt
+     WHERE organization_id = ${organizationId} AND deal_id = ${dealId} AND reverted_at IS NULL
   `);
 }

@@ -117,9 +117,7 @@ export function DepartmentsPage(): React.JSX.Element {
         </div>
       )}
       {Boolean(error) && (
-        <div className="mb-5">
-          <ErrorMessage cause={error} />
-        </div>
+        <ErrorMessage cause={error} />
       )}
       <Card className="overflow-hidden p-0">
         <div className="organization-local-header flex flex-wrap items-center justify-between gap-4 border-b border-b-[color:var(--app-border)] px-5 py-5 sm:px-6 xl:hidden">

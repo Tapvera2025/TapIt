@@ -11,7 +11,7 @@ import {
   type ChartOptions,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { Button, Card, Notice } from '../ui/index.js';
+import { Button, Card } from '../ui/index.js';
 import { getSeoSearchConsoleReport, inspectSeoPage, type SeoSearchConsoleReport } from './api.js';
 import type { SeoSite } from './types.js';
 import type {
@@ -19,6 +19,7 @@ import type {
   SocialSearchConsoleDimensionRow,
   SocialSearchConsoleMetricSet,
 } from '../social/types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
 
@@ -225,7 +226,7 @@ export function SeoSearchConsoleReport({
           {canManageIntegrations && <Button kind="secondary" className="mt-4" onClick={onManageConnections}>Open company connections</Button>}
         </Card>
       )}
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
 
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl bg-app-border/40" />)}</div>
@@ -348,7 +349,7 @@ function UrlInspectionCard({
           <Button type="submit" disabled={loading || !propertyUrl}>{loading ? 'Inspecting…' : 'Inspect URL'}</Button>
         </form>
       </div>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {inspection && (
         <div className="mt-5 space-y-4">
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-app-border/70 bg-app-surface-raised/50 p-4">

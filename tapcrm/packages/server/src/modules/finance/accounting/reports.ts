@@ -522,7 +522,7 @@ export async function exportAccountingReport(
     .map((row) => row.map(csvCell).join(','))
     .join('\n');
   return {
-    filename: `tapvera-${kind}-${Date.now()}.csv`,
+    filename: `${kind}-${new Date().toISOString().slice(0, 10)}.csv`,
     body: Buffer.from(`${csv}\n`, 'utf8'),
   };
 }

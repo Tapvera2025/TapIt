@@ -13,6 +13,7 @@ import {
 } from '../api/leaveApi.js';
 import { Button, GlassSurface, Page } from '../../ui/index.js';
 import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
@@ -196,14 +197,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
         )}
       </div>
 
-      {supplementalError && (
-        <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-app-danger">
-          <span>{supplementalError}</span>
-          <button type="button" onClick={() => void load()} className="underline underline-offset-2">
-            Try again
-          </button>
-        </div>
-      )}
+      {supplementalError && <ErrorToast message={supplementalError} action={{ label: 'Try again', onClick: () => void load() }} />}
 
       {showForm && (
         <form onSubmit={(e) => void handleSubmit(e)} className="ui-glass-surface space-y-4 rounded-2xl p-5">
@@ -284,7 +278,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
               />
             </div>
           </div>
-          {formError && <p className="text-xs text-app-danger">{formError}</p>}
+          {formError && <ErrorToast message={formError} />}
           <div className="flex gap-2">
             <Button
               type="submit"
@@ -358,7 +352,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
               />
             </div>
           </div>
-          {formError && <p className="text-xs text-app-danger">{formError}</p>}
+          {formError && <ErrorToast message={formError} />}
           <div className="flex gap-2">
             <Button
               type="submit"
@@ -379,14 +373,7 @@ export function LeavePage({ userId, organizationTimeZone }: { userId: string; or
         </form>
       )}
 
-      {error && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-app-danger">
-          <span>{error}</span>
-          <Button kind="secondary" onClick={() => void load()} className="px-3 py-1.5 text-xs">
-            Try again
-          </Button>
-        </div>
-      )}
+      {error && <ErrorToast message={error} action={{ label: 'Try again', onClick: () => void load() }} />}
       {loading && <p role="status" className="text-sm text-app-muted">Loading…</p>}
 
       {!loading && !error && leaves.length === 0 && (

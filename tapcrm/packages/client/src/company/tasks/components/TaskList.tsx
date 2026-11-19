@@ -4,6 +4,7 @@ import { Icon } from '../../../ui/Icon.js';
 import { SkeletonTable } from '../../../ui/components.js';
 import type { Task, TaskListProps, TaskStatus } from '../types/index.js';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskStatusBadge.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   pending: ['in_progress', 'completed', 'cancelled'],
@@ -478,11 +479,7 @@ export function TaskList({
               </div>
             </div>
 
-            {transitionError?.taskId === task.id && (
-              <div className="mt-2 text-xs text-app-danger" role="alert">
-                {transitionError.message}
-              </div>
-            )}
+            {transitionError?.taskId === task.id && <ErrorToast message={transitionError.message} />}
 
             <section className="mt-3 flex flex-col gap-2.5 border-t border-app-border/80 pt-3 text-xs text-app-muted">
               <div className="flex min-w-0 flex-col gap-2.5">

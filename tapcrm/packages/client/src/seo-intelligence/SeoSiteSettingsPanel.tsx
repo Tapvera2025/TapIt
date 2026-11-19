@@ -7,6 +7,7 @@ import type {
   SeoSiteSettings,
   SeoSiteSettingsPatch,
 } from './api.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const SPEEDS = [
   { value: 1000, label: 'Gentle — one page a second' },
@@ -115,11 +116,7 @@ export function SeoSiteSettingsPanel({
           {notice}
         </p>
       )}
-      {error && (
-        <p role="alert" className="text-sm text-app-danger">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       <section className="seo-surface space-y-5 p-5" aria-labelledby="seo-crawl-heading">
         <div>

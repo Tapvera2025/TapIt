@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { atsScanSummary, type AtsCriteriaSettings, type AtsScanSummary } from '@tapcrm/contracts';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
+import { Card, Empty, Page, SkeletonTable } from '../../../ui/index.js';
 import {
   getAtsCriteria,
   listRequisitions,
@@ -19,6 +19,7 @@ import {
   type JobRequisition,
   type ResumeSubmissionStatus,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 type SortOrder = 'newest' | 'ats';
 
@@ -182,11 +183,7 @@ export function ResumeInboxPage({
         </button>
       }
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {/* Filters Bar */}
       <Card className="mt-6 p-4">

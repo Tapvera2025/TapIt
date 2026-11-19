@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
+import { Card, Empty, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listRequisitions, softDeleteCandidate } from '../api/recruitmentApi.js';
 import { CandidateDetailModal } from '../components/CandidateDetailModal.js';
 import { CandidateFormModal } from '../components/CandidateFormModal.js';
@@ -12,11 +12,16 @@ import type {
   CandidateStatus,
   JobRequisition,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function CandidatesPage({
+  initialRequisitionId = 'all',
+  initialStatus = 'all',
   onScheduleInterview,
   onCreateOffer,
 }: {
+  readonly initialRequisitionId?: string | undefined;
+  readonly initialStatus?: CandidateStatus | 'all' | undefined;
   readonly onScheduleInterview?: (candidate: Candidate) => void;
   readonly onCreateOffer?: (candidate: Candidate) => void;
 }): React.JSX.Element {
@@ -27,9 +32,9 @@ export function CandidatesPage({
 
   // Filters
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CandidateStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [sourceFilter, setSourceFilter] = useState<CandidateSource | 'all'>('all');
-  const [reqFilter, setReqFilter] = useState<string>('all');
+  const [reqFilter, setReqFilter] = useState(initialRequisitionId);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -114,11 +119,7 @@ export function CandidatesPage({
         </button>
       }
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {/* Filters Bar */}
       <Card className="mt-6 p-4">
@@ -153,6 +154,9 @@ export function CandidatesPage({
             aria-label="Filter by applied requisition"
           >
             <option value="all">All Requisitions</option>
+            {reqFilter !== 'all' && !requisitions.some(({ id }) => id === reqFilter) && (
+              <option value={reqFilter}>Selected requisition</option>
+            )}
             {requisitions.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.requisitionNumber} - {r.title}

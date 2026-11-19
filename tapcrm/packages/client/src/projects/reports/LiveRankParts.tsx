@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Modal, Notice } from '../../ui/index.js';
 import { updateProjectLiveSettings, type LiveCheckOutcome, type LiveTopResult, type ProjectLiveSettings } from './api/projectReportsApi.js';
 import type { SeoKeyword } from './types.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 /**
  * Pieces shared by everything that runs a live position check on a project
@@ -140,7 +141,7 @@ export function LiveSettingsModal({
           website is. Every page of 10 results is one paid search, so the allowance caps what this project can spend each
           month. 0 turns live checks off.
         </p>
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <label className="block text-xs font-semibold text-app-muted">
           Project website
           <input className={`mt-2 ${field}`} value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://example.com" />

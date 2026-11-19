@@ -17,6 +17,7 @@ import {
   type CandidateResumeSubmission,
   type CandidateSource,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function ResumeReviewModal({
   submission: initialSubmission,
@@ -153,7 +154,7 @@ export function ResumeReviewModal({
       dirty={rejecting || converting}
     >
       <div className="space-y-6">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         {successMsg && <Notice>{successMsg}</Notice>}
 
         {/* Top Header Card */}

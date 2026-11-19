@@ -1,13 +1,13 @@
 import crypto from 'node:crypto';
 import { loadConfig } from '../../config.js';
 import type { RequestContext } from '../../platform/dal/context.js';
-import { db } from '../../platform/dal/db.js';
+import { db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
 import { getStorageService } from '../../platform/storage/index.js';
 import { VerificationNotFoundError, VerificationValidationError } from './errors.js';
 import * as repo from './repository.js';
 import {
-  REQUIRED_VERIFICATION_DOCUMENTS,
+  requiredVerificationDocuments,
   type EmployeeVerificationDocumentRecord,
   type VerificationDetailsResponse,
   type VerificationDocumentSummary,
@@ -40,7 +40,21 @@ function toDocumentSummary(doc: EmployeeVerificationDocumentRecord): Verificatio
   };
 }
 
-function calculateProgress(docs: EmployeeVerificationDocumentRecord[]) {
+/** The documents this employee needs: fewer when they have no prior experience. */
+async function requiredDocumentsFor(
+  tx: Tx,
+  organizationId: string,
+  employeeId: string,
+): Promise<readonly VerificationDocumentType[]> {
+  return requiredVerificationDocuments(
+    await repo.findNoPriorExperience(tx, organizationId, employeeId),
+  );
+}
+
+function calculateProgress(
+  docs: EmployeeVerificationDocumentRecord[],
+  required: readonly VerificationDocumentType[],
+) {
   const currentDocs = docs.filter((d) => d.isCurrent);
   const currentByType = new Map<VerificationDocumentType, EmployeeVerificationDocumentRecord[]>();
   for (const doc of currentDocs) {
@@ -53,7 +67,7 @@ function calculateProgress(docs: EmployeeVerificationDocumentRecord[]) {
   let pendingCount = 0;
   let rejectedCount = 0;
 
-  for (const reqType of REQUIRED_VERIFICATION_DOCUMENTS) {
+  for (const reqType of required) {
     const typeDocs = currentByType.get(reqType);
     if (!typeDocs || typeDocs.length === 0) continue;
     if (typeDocs.some((d) => d.status === 'REJECTED')) {
@@ -65,15 +79,15 @@ function calculateProgress(docs: EmployeeVerificationDocumentRecord[]) {
     }
   }
 
-  const missingCount = REQUIRED_VERIFICATION_DOCUMENTS.length - currentByType.size;
+  const missingCount = required.filter((type) => !currentByType.has(type)).length;
 
   return {
-    requiredCount: REQUIRED_VERIFICATION_DOCUMENTS.length,
+    requiredCount: required.length,
     approvedCount,
     pendingCount,
     rejectedCount,
     missingCount: Math.max(0, missingCount),
-    allApproved: approvedCount === REQUIRED_VERIFICATION_DOCUMENTS.length,
+    allApproved: approvedCount === required.length,
   };
 }
 
@@ -93,12 +107,13 @@ export async function getEmployeeVerification(
 ): Promise<VerificationDetailsResponse> {
   await assertEmployeeExists(ctx, employeeId);
 
-  const verification = await db.transaction(ctx, async (tx) => {
-    return repo.getVerificationByEmployee(tx, ctx.organizationId, employeeId);
-  });
+  const { verification, required } = await db.transaction(ctx, async (tx) => ({
+    verification: await repo.getVerificationByEmployee(tx, ctx.organizationId, employeeId),
+    required: await requiredDocumentsFor(tx, ctx.organizationId, employeeId),
+  }));
 
   if (!verification) {
-    return { verification: null };
+    return { requiredDocumentTypes: [...required], verification: null };
   }
 
   const docs = await db.transaction(ctx, async (tx) => {
@@ -107,9 +122,10 @@ export async function getEmployeeVerification(
 
   const currentDocs = docs.filter((d) => d.isCurrent).map(toDocumentSummary);
   const historyDocs = docs.filter((d) => !d.isCurrent).map(toDocumentSummary);
-  const progress = calculateProgress(docs);
+  const progress = calculateProgress(docs, required);
 
   return {
+    requiredDocumentTypes: [...required],
     verification: {
       id: verification.id,
       employeeId: verification.employeeId,
@@ -330,6 +346,48 @@ export async function getVerificationDocumentDownloadUrl(
   return { downloadUrl, expiresInSeconds };
 }
 
+/**
+ * The employee takes back a document HR has not reviewed yet — the wrong file,
+ * say. Reviewed documents stay; HR changes those.
+ */
+export async function withdrawPendingVerificationDocument(
+  ctx: RequestContext,
+  employeeId: string,
+  documentId: string,
+): Promise<void> {
+  await db.transaction(ctx, async (tx) => {
+    const document = await repo.findDocumentById(tx, ctx.organizationId, documentId);
+    if (!document || document.employeeId !== employeeId || !document.isCurrent) {
+      throw new VerificationNotFoundError('Verification document not found.');
+    }
+    if (document.status !== 'PENDING') {
+      throw new VerificationValidationError(
+        'Only a document that is still waiting for review can be removed.',
+      );
+    }
+    if (!(await repo.withdrawPendingDocument(tx, ctx.organizationId, documentId))) {
+      throw new VerificationValidationError(
+        'Only a document that is still waiting for review can be removed.',
+      );
+    }
+    await repo.recordVerificationAudit(tx, ctx.organizationId, {
+      action: 'employee.verification.document_withdrawn',
+      actorId: ctx.principal.id,
+      actorType: ctx.principal.accountType,
+      targetType: 'employee_verification_document',
+      targetId: document.id,
+      metadata: {
+        employeeId,
+        documentType: document.documentType,
+        verificationId: document.verificationId,
+        fileName: document.fileName,
+      },
+      requestId: ctx.requestId,
+      sourceIp: ctx.sourceIp,
+    });
+  });
+}
+
 export async function approveVerificationDocument(
   ctx: RequestContext,
   employeeId: string,
@@ -366,8 +424,9 @@ export async function approveVerificationDocument(
         ctx.organizationId,
         verification.id,
       );
-      const progress = calculateProgress(allDocs);
-      if (progress.approvedCount > 0 && progress.approvedCount < REQUIRED_VERIFICATION_DOCUMENTS.length) {
+      const required = await requiredDocumentsFor(tx, ctx.organizationId, employeeId);
+      const progress = calculateProgress(allDocs, required);
+      if (progress.approvedCount > 0 && progress.approvedCount < required.length) {
         nextVerificationStatus = 'PARTIALLY_VERIFIED';
         await repo.updateVerificationStatus(
           tx,
@@ -466,7 +525,8 @@ export async function completeEmployeeVerification(
       currentByType.set(d.documentType, list);
     }
 
-    for (const reqType of REQUIRED_VERIFICATION_DOCUMENTS) {
+    const required = await requiredDocumentsFor(tx, ctx.organizationId, employeeId);
+    for (const reqType of required) {
       const typeDocs = currentByType.get(reqType);
       if (!typeDocs || typeDocs.length === 0) {
         throw new VerificationValidationError(
@@ -517,9 +577,10 @@ export async function completeEmployeeVerification(
     );
     const curSummary = refreshedDocs.filter((d) => d.isCurrent).map(toDocumentSummary);
     const histSummary = refreshedDocs.filter((d) => !d.isCurrent).map(toDocumentSummary);
-    const progress = calculateProgress(refreshedDocs);
+    const progress = calculateProgress(refreshedDocs, required);
 
     return {
+      requiredDocumentTypes: [...required],
       verification: {
         id: updated.id,
         employeeId: updated.employeeId,
@@ -575,9 +636,11 @@ export async function rejectEmployeeVerification(
     );
     const curSummary = refreshedDocs.filter((d) => d.isCurrent).map(toDocumentSummary);
     const histSummary = refreshedDocs.filter((d) => !d.isCurrent).map(toDocumentSummary);
-    const progress = calculateProgress(refreshedDocs);
+    const required = await requiredDocumentsFor(tx, ctx.organizationId, employeeId);
+    const progress = calculateProgress(refreshedDocs, required);
 
     return {
+      requiredDocumentTypes: [...required],
       verification: {
         id: updated.id,
         employeeId: updated.employeeId,

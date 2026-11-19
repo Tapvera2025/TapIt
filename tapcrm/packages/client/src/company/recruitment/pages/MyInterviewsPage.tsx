@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Loading, Notice, Page } from '../../../ui/index.js';
+import { Card, Empty, Loading, Page } from '../../../ui/index.js';
 import {
   getInterviewResume,
   listMyInterviews,
@@ -18,6 +18,7 @@ import type {
 } from '../types/index.js';
 import { formatMinutes } from '../../../ui/format-duration.js';
 import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
@@ -173,11 +174,7 @@ export function MyInterviewsPage(): React.JSX.Element {
       title="My Interviews"
       description="Interviews you are on the panel for, and interview rounds assigned to you. Review the brief and the resume, conduct the interview, then give your feedback."
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {loading ? (
         <div className="mt-6">
@@ -250,7 +247,7 @@ function ResumeButton({ kind, id }: { readonly kind: 'round' | 'interview'; read
       >
         {opening ? 'Opening…' : 'View Resume'}
       </button>
-      {error && <span className="mt-1 text-xs text-app-danger" role="alert">{error}</span>}
+      {error && <ErrorToast message={error} />}
     </span>
   );
 }
@@ -291,11 +288,7 @@ function FormButtons({ submitting, onCancel }: { readonly submitting: boolean; r
 
 function FormError({ error }: { readonly error: string | null }): React.JSX.Element | null {
   if (!error) return null;
-  return (
-    <p className="rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2 text-xs text-app-danger" role="alert">
-      {error}
-    </p>
-  );
+  return <ErrorToast message={error} />;
 }
 
 /* ------------------------------------------------------------------ *

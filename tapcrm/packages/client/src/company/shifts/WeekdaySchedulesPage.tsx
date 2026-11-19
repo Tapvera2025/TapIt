@@ -12,6 +12,7 @@ import {
 } from '../api/shiftsApi.js';
 import { getCompanyDepartments, type CompanyDepartment } from '../api/companyApi.js';
 import { Button, Card, Page, SkeletonTableRows } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 const WEEKDAYS = [
   { value: 1, short: 'Mon', name: 'Monday' },
@@ -285,7 +286,7 @@ export function WeekdaySchedulesPage(): React.JSX.Element {
               </div>
               {scheduleFieldErrors.weekdays && <p id="weekday-schedule-weekdays-error" role="alert" className="mt-1.5 text-xs text-app-danger">{scheduleFieldErrors.weekdays}</p>}
             </fieldset>
-            {formError && <p role="alert" className="rounded-lg border border-app-danger/30 bg-app-danger/10 px-3 py-2 text-sm text-app-danger">{formError}</p>}
+            {formError && <ErrorToast message={formError} />}
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Create schedule'}</Button>
               <Button kind="secondary" onClick={resetForm}>Cancel</Button>
@@ -294,7 +295,7 @@ export function WeekdaySchedulesPage(): React.JSX.Element {
         </Card>
       )}
 
-      {error && <p role="alert" className="rounded-xl border border-app-danger/30 bg-app-danger/10 px-4 py-3 text-sm text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       <Card className="overflow-hidden p-0">
         <div className="border-b border-app-border px-5 py-4">
           <h2 className="font-display text-lg font-bold">Available schedules</h2>
@@ -310,7 +311,7 @@ export function WeekdaySchedulesPage(): React.JSX.Element {
                   {scheduleStatusTarget.status === 'active' ? 'Deactivate' : 'Reactivate'} “{scheduleStatusTarget.name}”?
                 </p>
                 <p className="mt-1 text-sm text-app-muted">Attendance from today onward will use the updated schedule status.</p>
-                {scheduleStatusError && <p role="alert" className="mt-3 rounded-lg border border-app-danger/30 bg-app-danger/10 px-3 py-2 text-sm text-app-danger">{scheduleStatusError}</p>}
+                {scheduleStatusError && <ErrorToast message={scheduleStatusError} />}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button type="submit" disabled={scheduleStatusSaving}>{scheduleStatusSaving ? 'Updating…' : 'Confirm'}</Button>
                   <Button kind="secondary" type="button" onClick={() => setScheduleStatusTarget(null)}>Cancel</Button>
@@ -382,7 +383,7 @@ export function WeekdaySchedulesPage(): React.JSX.Element {
                 {exceptionFieldErrors.scope && <p id="working-day-exception-scope-error" role="alert" className="sm:col-span-2 lg:col-span-3 text-xs text-app-danger">{exceptionFieldErrors.scope}</p>}
               </div>
             )}
-            {exceptionFormError && <p role="alert" className="rounded-lg border border-app-danger/30 bg-app-danger/10 px-3 py-2 text-sm text-app-danger">{exceptionFormError}</p>}
+            {exceptionFormError && <ErrorToast message={exceptionFormError} />}
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={exceptionSaving}>{exceptionSaving ? 'Saving…' : 'Create exception'}</Button>
               <Button kind="secondary" type="button" onClick={resetExceptionForm}>Cancel</Button>
@@ -400,7 +401,7 @@ export function WeekdaySchedulesPage(): React.JSX.Element {
                   {exceptionStatusTarget.status === 'active' ? 'Deactivate' : 'Reactivate'} the exception for {exceptionStatusTarget.exceptionDate}?
                 </p>
                 <p className="mt-1 text-sm text-app-muted">{exceptionStatusTarget.reason}</p>
-                {exceptionStatusError && <p role="alert" className="mt-3 rounded-lg border border-app-danger/30 bg-app-danger/10 px-3 py-2 text-sm text-app-danger">{exceptionStatusError}</p>}
+                {exceptionStatusError && <ErrorToast message={exceptionStatusError} />}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button type="submit" disabled={exceptionStatusSaving}>{exceptionStatusSaving ? 'Updating…' : 'Confirm'}</Button>
                   <Button kind="secondary" type="button" onClick={() => setExceptionStatusTarget(null)}>Cancel</Button>

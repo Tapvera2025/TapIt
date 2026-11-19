@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Field, Modal, Select } from '../../../ui/index.js';
 import {
   getCompanyEmployees,
   type CompanyEmployee,
@@ -12,6 +12,7 @@ import type {
   InterviewType,
   JobRequisition,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function InterviewScheduleModal({
   candidates,
@@ -139,7 +140,7 @@ export function InterviewScheduleModal({
   return (
     <Modal title="Schedule Interview Round" onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Select

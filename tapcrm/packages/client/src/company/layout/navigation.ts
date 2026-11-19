@@ -609,6 +609,63 @@ const MODULE_BY_PATH: Readonly<Record<string, string>> = {
   '/company/finance/accounting': 'accounting',
 };
 
+/** What a registry path requires; sub-entries inherit their parent's requirement. */
+interface RegistryRequirement {
+  path: string;
+  requiredAction?: Action | undefined;
+  requiredAnyAction?: readonly Action[] | undefined;
+}
+
+let registryByPathLength: readonly RegistryRequirement[] | undefined;
+/** Registry paths, longest first, so a deep route finds the entry that owns it. */
+function registryEntriesLongestFirst(): readonly RegistryRequirement[] {
+  if (!registryByPathLength) {
+    const entries: RegistryRequirement[] = [];
+    for (const group of companyNavigation) {
+      for (const item of group.items) {
+        const { requiredAction, requiredAnyAction } = item;
+        entries.push({ path: item.path, requiredAction, requiredAnyAction });
+        for (const child of item.children ?? []) {
+          entries.push({ path: child.path, requiredAction, requiredAnyAction });
+        }
+      }
+    }
+    registryByPathLength = entries.sort((a, b) => b.path.length - a.path.length);
+  }
+  return registryByPathLength;
+}
+
+const owns = (entryPath: string, path: string): boolean =>
+  path === entryPath || path.startsWith(`${entryPath}/`);
+
+/**
+ * Whether the module behind a destination is switched on for the company. The
+ * server rejects every call into a switched-off module (super-admins included),
+ * so such a destination must not be offered. A path is judged by the registry
+ * entry that owns it (its required actions name the module); paths the registry
+ * does not know are left alone, and an omitted `enabledModules` means all are on.
+ */
+export function isDestinationModuleEnabled(
+  path: string,
+  enabledModules: readonly string[] | undefined,
+): boolean {
+  if (!enabledModules) return true;
+  const owner = Object.entries(MODULE_BY_PATH)
+    .filter(([entryPath]) => owns(entryPath, path))
+    .sort((a, b) => b[0].length - a[0].length)[0];
+  if (owner && !enabledModules.includes(owner[1])) return false;
+  const entry = registryEntriesLongestFirst().find((candidate) => owns(candidate.path, path));
+  if (!entry) return true;
+  if (entry.requiredAction && !isActionModuleEnabled(enabledModules, entry.requiredAction)) return false;
+  if (
+    entry.requiredAnyAction?.length &&
+    !entry.requiredAnyAction.some((action) => isActionModuleEnabled(enabledModules, action))
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function companySearchDestinations({
   actions,
   enabledModules,
@@ -742,6 +799,16 @@ export function companySearchDestinations({
   addIfAllowed({ label: 'SEO Content & Briefs', path: '/company/seo-intelligence/content', icon: 'file-text', category: 'SEO Intelligence', keywords: ['articles', 'briefs', 'content board', 'blog', 'drafts', 'seo content'] }, ['seo:list-sites', 'seo:read-content', 'seo:create-content']);
   if (accountType === 'employee' && !isSuperAdmin) {
     addIfAllowed({ label: 'Request Role Change', path: '/company/role-change-request', icon: 'briefcase', category: 'Identity & Access', keywords: ['change role', 'designation'] }, ['access:request-role-change']);
+  }
+
+  if (accountType === 'employee' && !seen.has('/company/my-profile')) {
+    destinations.push({
+      label: 'My Profile',
+      path: '/company/my-profile',
+      icon: 'clipboard',
+      category: 'Preferences',
+      keywords: ['profile', 'complete profile', 'documents', 'education', 'experience', 'address', 'emergency contact'],
+    });
   }
 
   if (!seen.has('/company/settings')) {

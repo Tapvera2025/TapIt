@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PageIntro } from '../layout/PageIntro.js';
 import {
   approveCorrection,
   listCorrections,
@@ -6,6 +7,7 @@ import {
   type CorrectionListItem,
 } from './attendanceApi.js';
 import { Button, Notice, SkeletonTable, WorkspacePageContainer } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type Filter = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -79,11 +81,7 @@ export function CorrectionsPage(): React.JSX.Element {
 
   return (
     <WorkspacePageContainer className="space-y-4">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">HR · Attendance</p>
-        <h1 className="font-display text-2xl font-bold">Attendance corrections</h1>
-        <p className="text-sm text-app-muted">Review employee requests to add, change, or remove attendance events.</p>
-      </header>
+      <PageIntro eyebrow="HR · Attendance" title="Attendance corrections" description="Review employee requests to add, change, or remove attendance events." />
       <div className="flex flex-wrap gap-2">
         {(['pending', 'approved', 'rejected', 'all'] as const).map((key) => (
           <button
@@ -96,7 +94,7 @@ export function CorrectionsPage(): React.JSX.Element {
           </button>
         ))}
       </div>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {notice && <Notice>{notice}</Notice>}
       {loading ? (
         <SkeletonTable columns={5} rows={5} />

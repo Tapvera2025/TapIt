@@ -9,6 +9,7 @@ import {
   type LeaveCalendarEvent,
 } from '../api/leaveApi.js';
 import { Button, GlassSurface, Page } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
@@ -90,7 +91,7 @@ function LeaveCoverageStrip({ onDateClick }: { onDateClick: (date: string) => vo
         </div>
       </div>
       {error ? (
-        <p role="alert" className="text-xs text-app-danger">{error}</p>
+        <ErrorToast message={error} />
       ) : loading ? (
         <p className="text-xs text-app-muted">Loading…</p>
       ) : (
@@ -268,15 +269,8 @@ export function LeaveQueuePage({
       </div>
 
       {warning && <p role="status" className="text-sm text-app-danger">{warning}</p>}
-      {actionError && <p role="alert" className="text-sm text-app-danger">{actionError}</p>}
-      {error && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-app-danger">
-          <span>{error}</span>
-          <Button kind="secondary" onClick={load} className="px-3 py-1.5 text-xs">
-            Try again
-          </Button>
-        </div>
-      )}
+      {actionError && <ErrorToast message={actionError} />}
+      {error && <ErrorToast message={error} action={{ label: 'Try again', onClick: () => void load() }} />}
       {loading && <p role="status" className="text-sm text-app-muted">Loading…</p>}
 
       {!loading && !error && displayed.length === 0 && (
@@ -391,7 +385,7 @@ export function LeaveQueuePage({
                         Cancel
                       </Button>
                     </div>
-                    {actionError && <p className="text-xs text-app-danger">{actionError}</p>}
+                    {actionError && <ErrorToast message={actionError} />}
                   </GlassSurface>
                 )}
               </GlassSurface>

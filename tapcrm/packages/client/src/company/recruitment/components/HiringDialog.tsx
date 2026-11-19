@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Field, Modal, Select } from '../../../ui/index.js';
 import { Icon } from '../../../ui/index.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../../api/companyApi.js';
 import { hireCandidate } from '../api/recruitmentApi.js';
 import type { Candidate, CandidateJoining, JobOffer } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function HiringDialog({
   candidate,
@@ -104,7 +105,7 @@ export function HiringDialog({
         </div>
       ) : (
         <form onSubmit={(e) => void handleConfirmHire(e)} className="space-y-4">
-          {error && <Notice error>{error}</Notice>}
+          {error && <ErrorToast message={error} />}
 
           <div className="rounded-xl border border-app-border bg-app-surface p-4 text-xs space-y-2">
             <div className="flex justify-between">

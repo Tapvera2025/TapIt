@@ -1,3 +1,4 @@
+import { guardedFetch } from './guarded-fetch.js';
 import { guardUrl, SsrfBlockedError } from './ssrf-guard.js';
 
 export interface FetchHop {
@@ -109,7 +110,9 @@ export async function safeFetch(url: string, opts: FetchOptions = {}): Promise<F
 
     let response: Response;
     try {
-      response = await fetch(current, {
+      // guardedFetch connects only to the public address it checked; the
+      // global fetch would look the name up again (DNS rebinding).
+      response = await guardedFetch(current, {
         method,
         headers,
         // Only GET requests follow redirects (safe); non-GET requests are sent

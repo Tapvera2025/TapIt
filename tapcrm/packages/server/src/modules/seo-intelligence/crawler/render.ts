@@ -9,8 +9,9 @@
  * Safety: the page's own HTML comes from the crawler's guarded fetch (the
  * navigation is answered from that body), and every other request the page
  * makes — scripts, XHR, iframes — passes the same SSRF guard first. Chromium
- * keeps its sandbox unless the server runs as root, where Chromium cannot
- * start sandboxed. One shared browser per process; a fresh context per page.
+ * always keeps its sandbox: as root it cannot start sandboxed, so rendering is
+ * refused rather than run unsandboxed next to the API's secrets. One shared
+ * browser per process; a fresh context per page.
  */
 import { createHash } from 'node:crypto';
 import { guardUrl } from './ssrf-guard.js';
@@ -76,14 +77,23 @@ async function getBrowser(): Promise<BrowserLike | null> {
         const chromium = mod.chromium;
         if (!chromium) return null;
         const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+        if (runningAsRoot) {
+          console.error(JSON.stringify({
+            level: 'error',
+            msg: 'SEO rendering refused: as root, Chromium could only run without its sandbox. Run the API as an unprivileged user (TAPCRM_RUN_AS).',
+          }));
+          return null;
+        }
         const executablePath = process.env['SEO_RENDER_CHROMIUM_PATH'];
         return await chromium.launch({
           headless: true,
           ...(executablePath ? { executablePath } : {}),
-          args: ['--disable-dev-shm-usage', ...(runningAsRoot ? ['--no-sandbox'] : [])],
+          args: ['--disable-dev-shm-usage'],
         });
-      } catch {
-        // playwright not installed or chromium not downloaded
+      } catch (error) {
+        // Playwright not installed, Chromium not downloaded, or its sandbox
+        // cannot start here. Rendering stays off; say why once.
+        console.warn(JSON.stringify({ level: 'warn', msg: 'SEO rendering unavailable', reason: String(error).slice(0, 300) }));
         return null;
       }
     })();

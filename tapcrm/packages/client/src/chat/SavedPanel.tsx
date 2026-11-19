@@ -5,6 +5,7 @@ import { FileBadge } from './attachments.js';
 import { Avatar } from './Avatar.js';
 import { whereSent } from './conversationLabel.js';
 import { toPlainText } from './markdown.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 /**
  * "Save for later" — the viewer's personal review tray: client requirements,
@@ -60,7 +61,7 @@ export function SavedPanel({
         </button>
       </div>
       <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-        {error && <p className="px-3 py-2 text-sm text-app-danger">{error}</p>}
+        {error && <ErrorToast message={error} />}
         {items === null ? (
           <p className="py-8 text-center text-sm text-app-muted">Loading…</p>
         ) : items.length === 0 ? (

@@ -3,9 +3,12 @@ import { buildCalendarOAuthRouter } from './modules/meetings/index.js';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import {
+  assertResourcePoliciesForActions,
   assertResourcePolicyCompleteness,
+  missingResourcePolicies,
   registerProtectedConstraints,
 } from '@tapcrm/authz';
+import type { Action } from '@tapcrm/contracts';
 import { loadConfig } from './config.js';
 import { auditFlushMiddleware, installAuthz } from './platform/authz-adapter.js';
 import { requestContext, requestId } from './platform/http/context.js';
@@ -82,24 +85,31 @@ export function buildApp(options: BuildOptions = {}): Express {
   registerAll();
   installAuthz();
 
-  // AZ-I6b — every registry resource must have a registered ResourcePolicy.
-  //
-  // ⚠ SCAFFOLD: only the `organization` resources are implemented, so this
-  // check currently fails for the other ~40 resource types. It is reported
-  // rather than thrown until the modules land; `npm run ci` lists the gap and
-  // the release-blocking CI set turns it fatal.
-  try {
+  // AZ-I6b — every action a registered route binds must have its resource's
+  // ResourcePolicy. Fatal in every environment: a missing policy found on a
+  // request is a defect found by a user.
+  assertResourcePoliciesForActions(
+    registeredBindings().flatMap((binding): Action[] =>
+      'action' in binding && binding.action !== undefined ? [binding.action] : [],
+    ),
+  );
+
+  // Resources of modules that have not shipped yet (no route binds them) do
+  // not block a start; they are reported here and by CI-10. A release build
+  // (strictManifest) requires the whole registry, as before.
+  if (options.strictManifest === true) {
     assertResourcePolicyCompleteness();
-  } catch (error) {
-    if (process.env['NODE_ENV'] === 'production') throw error;
-    const missing = (error as Error).message.split('\n').length - 1;
-    console.warn(
-      JSON.stringify({
-        level: 'warn',
-        msg: 'AZ-I6b: resource policies incomplete (expected during phased delivery)',
-        missingCount: missing,
-      }),
-    );
+  } else {
+    const unshipped = missingResourcePolicies();
+    if (unshipped.length > 0) {
+      console.warn(
+        JSON.stringify({
+          level: 'warn',
+          msg: 'AZ-I6b: registry resources without a policy and without routes (modules not shipped yet)',
+          missingCount: unshipped.length,
+        }),
+      );
+    }
   }
 
   // RM-1 / RM-2 — a registered route with no manifest entry, or a duplicate

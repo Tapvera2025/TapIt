@@ -13,6 +13,7 @@ import {
 } from '../api/payrollApi.js';
 import { Button, Modal, Notice, Page, SkeletonTable } from '../../ui/index.js';
 import { STATUTORY_LABELS, guessStatutory, statutoryOptions, worksOutItself, type Statutory } from './statutory.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -279,7 +280,7 @@ function SalaryForm({
             />
           </label>
         )}
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <div className="flex justify-end gap-2">
           <Button kind="secondary" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={busy || filled.length === 0 || (correcting !== null && reason.trim() === '')}>
@@ -326,7 +327,7 @@ function SalaryHistory({
 
   return (
     <Modal title={`${employee.fullName} — salary`} onClose={onClose}>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {!history && !error && <p className="text-sm text-app-muted">Loading…</p>}
       {history && (
         <div className="space-y-3">
@@ -431,7 +432,7 @@ export function SalariesPage(): React.JSX.Element {
         </div>
       )}
       {notice && <div className="mt-4"><Notice>{notice}</Notice></div>}
-      {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
+      {error && <ErrorToast message={error} />}
       {loading ? (
         <div className="mt-6"><SkeletonTable columns={5} rows={5} /></div>
       ) : (

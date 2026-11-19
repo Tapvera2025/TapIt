@@ -2,6 +2,7 @@ import { BrandLogo } from '../../ui/index.js';
 import { useId, useState } from 'react';
 import { IdentityLayout } from '../components/IdentityLayout.js';
 import { changeTemporaryPassword } from '../api/authApi.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 export function PasswordChangePage({ onComplete }: { onComplete: () => void }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -62,7 +63,7 @@ export function PasswordChangePage({ onComplete }: { onComplete: () => void }) {
         <button className="mt-6 block w-full rounded-[10px] bg-app-accent px-4 py-3 font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={busy}>
           {busy ? 'Updating password...' : 'Set password and continue'}
         </button>
-        {error && <p className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-app-danger" role="alert">{error}</p>}
+        {error && <ErrorToast message={error} />}
       </form>
     </IdentityLayout>
   );
