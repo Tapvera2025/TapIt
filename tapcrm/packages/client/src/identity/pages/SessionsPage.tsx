@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { BannerDescription, HeadingText } from '../../company/layout/PageIntro.js';
+import { CompanyPageActionPortal } from '../../company/layout/CompanyPageActionPortal.js';
 import { IdentityApiError } from '../api/authApi.js';
 import { getMySessions, revokeAllMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../api/sessionsApi.js';
 import { Icon } from '../../ui/index.js';
@@ -82,15 +84,17 @@ export function SessionsPage({ onBack, onSignedOut }: { onBack: () => void; onSi
   return (
     <div className="min-h-full w-full text-app-foreground">
       <WorkspacePageContainer className="space-y-6">
-        <button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-sm font-semibold text-app-muted transition-colors hover:text-app-accent">
+        <BannerDescription text="Review where your account is signed in, and sign out other devices. These are your sessions only." />
+        {/* The breadcrumb is the way back on desktop. */}
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-sm font-semibold text-app-muted transition-colors hover:text-app-accent xl:hidden">
           <span aria-hidden="true" className="text-lg leading-none">←</span> Back to CRM
         </button>
 
-        <header className="ui-page-header">
+        <header className="ui-page-header p-4 xl:hidden">
           <div className="min-w-0 max-w-full">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-app-accent">Account security</p>
             <h1 className="mt-1 break-words font-display text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
-              Active sessions
+              <HeadingText fallback="Active sessions" />
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-app-muted sm:mt-3">
               Review where your TapCRM account is currently signed in. These are your sessions only.
@@ -98,9 +102,11 @@ export function SessionsPage({ onBack, onSignedOut }: { onBack: () => void; onSi
           </div>
           {!loading && sessions.length > 0 && (
             <div className="ui-page-header-action">
-              <button type="button" onClick={() => setConfirm({ kind: 'all' })} className="w-full rounded-xl border border-app-danger/35 bg-app-danger/5 px-4 py-2.5 text-sm font-bold text-app-danger transition-colors hover:bg-app-danger/10 sm:w-auto">
-                Sign out everywhere
-              </button>
+              <CompanyPageActionPortal>
+                <button type="button" onClick={() => setConfirm({ kind: 'all' })} className="w-full rounded-xl border border-app-danger/35 bg-app-danger/5 px-4 py-2.5 text-sm font-bold text-app-danger transition-colors hover:bg-app-danger/10 sm:w-auto">
+                  Sign out everywhere
+                </button>
+              </CompanyPageActionPortal>
             </div>
           )}
         </header>

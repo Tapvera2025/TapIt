@@ -507,36 +507,4 @@
   outline-offset: 2px;
 }
 
-/*
- * Same layer as the global drawer rules (`@layer components`): between two !important
- * declarations a layered rule beats an unlayered one, so the override must live in the
- * layer and win on specificity instead.
- */
-@layer components {
-  @media (max-width: 1279.98px) {
-    .workspace-sidebar.ps-root {
-      /* Opaque: the page must not show through the drawer. */
-      background: var(--sidebar-background) !important;
-      -webkit-backdrop-filter: none !important;
-      backdrop-filter: none !important;
-      /* Leaves a strip of the page visible on small phones, so it reads as a drawer. */
-      width: min(20rem, 86vw) !important;
-      /* Clear of the home indicator on phones that have one. */
-      padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
-      overscroll-behavior: contain;
-    }
-
-    /* Finger-sized rows (44px and up). */
-    .ps-root {
-      --ps-row-h: 2.75rem;
-    }
-
-    .ps-subitem {
-      min-height: 2.5rem;
-    }
-
-    .ps-logout {
-      min-height: 2.75rem;
-    }
-  }
-}
+/* The phone-drawer overrides live in index.css, inside its `components` layer (see there). */

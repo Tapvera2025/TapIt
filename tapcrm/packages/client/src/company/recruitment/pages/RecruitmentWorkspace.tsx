@@ -19,6 +19,18 @@ import { OfferFormModal } from '../components/OfferFormModal.js';
 import { listRequisitions } from '../api/recruitmentApi.js';
 import type { Candidate, JobRequisition, RecruitmentTab } from '../types/index.js';
 
+const TAB_DESCRIPTIONS: Readonly<Record<RecruitmentTab, string>> = {
+  overview: 'Hiring pipeline, upcoming interviews and onboarding at a glance.',
+  requisitions: 'Track hiring requests by status and open new requisitions.',
+  resumes: 'Review incoming resumes and turn them into candidates.',
+  candidates: 'Follow every candidate from application to selection.',
+  interviews: 'Schedule interviews and review the feedback.',
+  offers: 'Prepare, send and track offers.',
+  joining: 'Manage onboarding for the candidates who accepted.',
+  'my-interviews': 'The interviews assigned to you.',
+  'email-templates': 'Manage the emails sent to candidates.',
+};
+
 export function RecruitmentWorkspace({
   pathname,
   onNavigate,
@@ -132,7 +144,7 @@ export function RecruitmentWorkspace({
   const pageMetadata = useMemo(() => ({
     eyebrow: 'Human resources',
     title: 'Recruitment',
-    description: 'Manage recruitment, candidates and employee onboarding.',
+    description: TAB_DESCRIPTIONS[activeTab],
     // Only Overview owns the two global shortcuts. Every other recruitment
     // screen publishes its own action(s) to the utility capsule.
     extension: activeTab === 'overview' ? recruitmentActions : tabHeroActions,
