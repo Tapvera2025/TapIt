@@ -1,8 +1,13 @@
+// Must stay the first import. Its `@import 'tailwindcss'` declares the cascade-layer
+// order (theme, base, components, utilities). A stylesheet that loads earlier and
+// uses `@layer components` (layout/sidebar/sidebar.css does) would register that
+// layer first, making it the weakest: Tailwind's reset in `base` would then wipe the
+// padding, margins and borders of every component rule, modals included.
+import './index.css';
 import { StrictMode, useEffect, useRef, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster, useToasterStore } from 'react-hot-toast';
 import { App } from './App.js';
-import './index.css';
 import { ThemeProvider } from './theme/ThemeContext.js';
 import { ACCENT_COLORS, useTheme } from './theme/ThemeContext.js';
 

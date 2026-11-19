@@ -7,6 +7,8 @@ import { listShifts, type ShiftTemplate } from '../api/shiftsApi.js';
 import { attendanceErrorMessage, getDailyAttendanceReport, getMonthlyAttendanceReport, requestAttendanceRangeExport, requestDailyAttendanceExport, requestMonthlyAttendanceExport, type DailyAttendanceRow, type MonthlyAttendanceRow } from './attendanceApi.js';
 import { AttendanceKpis, AttendanceLegend } from './AttendanceVisuals.js';
 import { AttendanceDetailsDrawer, type AttendanceDrawerDay, type AttendanceDetailsDrawerProps } from './AttendanceDetailsDrawer.js';
+import { loadLiveBoard, type LiveRow } from '../live/liveApi.js';
+import { liveMinutes } from '../live/liveTime.js';
 
 type Mode = 'daily' | 'weekly' | 'monthly';
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -24,6 +26,42 @@ const time = (value: string | null): string => value ? new Date(value).toLocaleT
 const timelineTime = (value: string | null): string => value ? new Date(value).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : time(null);
 const duration = (value: number): string => `${Math.floor(value / 60)}h ${value % 60}m`;
 const dailyStatus = (row: DailyAttendanceRow, isWorking = false): string => row.dayType === 'week-off' ? 'No attendance record' : isWorking ? 'Working' : row.status ?? (row.arrivalAt ? 'In progress' : 'No punch');
+function mobileDailyStatus(row: DailyAttendanceRow, isWorking: boolean, liveRow?: LiveRow): string {
+  if (liveRow) {
+    if (liveRow.dayGroup === 'leave' || liveRow.displayGroup === 'onLeave') return 'On leave';
+    if (liveRow.dayGroup === 'holiday' || liveRow.displayGroup === 'onHoliday') return 'Holiday';
+    if (liveRow.state === 'ON_BREAK') return 'On break';
+    if (liveRow.state === 'WORKING') return liveRow.lateMinutes && liveRow.lateMinutes > 0 ? 'Working · Late' : 'Working';
+    if (liveRow.state === 'FINISHED') return 'Finished';
+    return 'Not checked in';
+  }
+  if (row.dayType === 'week-off') return 'Week off';
+  if (row.dayType === 'holiday' || row.status === 'holiday') return 'Holiday';
+  if (row.status === 'leave' || row.status === 'half-day-leave') return 'On leave';
+  if (row.status === 'absent') return 'Absent';
+  if (row.status === 'half-day') return 'Half day';
+  if (isWorking) return 'Working';
+  if (row.status === 'present' || row.status === 'full-day') return 'Present';
+  return row.arrivalAt ? 'In progress' : 'Not checked in';
+}
+function mobileStatusTone(status: string): string {
+  if (status === 'Working') return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300';
+  if (status === 'Working · Late' || status === 'On break' || status === 'Half day') return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300';
+  if (status === 'Finished' || status === 'Present') return 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300';
+  if (status === 'On leave' || status === 'Holiday') return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300';
+  if (status === 'Absent') return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300';
+  return 'border-app-border bg-app-surface-raised text-app-muted';
+}
+function compactDuration(value: number): string {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  if (hours && minutes) return `${hours}h ${minutes}m`;
+  if (hours) return `${hours}h`;
+  return `${minutes}m`;
+}
+function employeeInitials(name: string): string {
+  return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join('') || '?';
+}
 function currentWorkedMinutes(row: DailyAttendanceRow, isWorking: boolean, nowMs: number): number {
   if (!isWorking || !row.arrivalAt) return row.workedMinutes;
   const punchInAt = new Date(row.arrivalAt).getTime();
@@ -84,9 +122,9 @@ function summarizeWeeklyRows(rows: WeeklyAttendanceRow[], weekStart: string): We
   }).sort((left, right) => left.fullName.localeCompare(right.fullName));
 }
 
-export function AttendanceReportPage({ canExport = false }: { canExport?: boolean }): React.JSX.Element {
+export function AttendanceReportPage({ canExport = false, canViewLive = false }: { canExport?: boolean; canViewLive?: boolean }): React.JSX.Element {
   const now = today(); const [mode, setMode] = useState<Mode>('daily'); const [date, setDate] = useState(now); const [month, setMonth] = useState(now.slice(5, 7)); const [year, setYear] = useState(now.slice(0, 4)); const [shiftId, setShiftId] = useState(''); const [format, setFormat] = useState<'csv' | 'xlsx' | ''>(''); const [shifts, setShifts] = useState<ShiftTemplate[]>([]); const [clockNow, setClockNow] = useState(() => Date.now());
-  const [dailyRows, setDailyRows] = useState<DailyAttendanceRow[]>([]); const [weeklyRows, setWeeklyRows] = useState<WeeklyAttendanceRow[]>([]); const [weeklyDataKey, setWeeklyDataKey] = useState(''); const [monthlyRows, setMonthlyRows] = useState<MonthlyAttendanceRow[]>([]); const [selectedDrawer, setSelectedDrawer] = useState<DrawerSelection | null>(null); const [page, setPage] = useState(1); const [total, setTotal] = useState(0); const [totalPages, setTotalPages] = useState(1); const [loading, setLoading] = useState(true); const [exporting, setExporting] = useState(false); const [error, setError] = useState<string | null>(null);
+  const [dailyRows, setDailyRows] = useState<DailyAttendanceRow[]>([]); const [liveRows, setLiveRows] = useState<Map<string, LiveRow> | null>(null); const [weeklyRows, setWeeklyRows] = useState<WeeklyAttendanceRow[]>([]); const [weeklyDataKey, setWeeklyDataKey] = useState(''); const [monthlyRows, setMonthlyRows] = useState<MonthlyAttendanceRow[]>([]); const [selectedDrawer, setSelectedDrawer] = useState<DrawerSelection | null>(null); const [page, setPage] = useState(1); const [total, setTotal] = useState(0); const [totalPages, setTotalPages] = useState(1); const [loading, setLoading] = useState(true); const [exporting, setExporting] = useState(false); const [error, setError] = useState<string | null>(null);
   const closeAttendanceDrawer = useCallback(() => setSelectedDrawer(null), []);
   const months = useMemo(() => Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: new Date(Date.UTC(2026, index, 1)).toLocaleString('en-IN', { month: 'long', timeZone: 'UTC' }) })), []);
   const weekStart = mondayOf(date); const weekEnd = addDays(weekStart, 6); const weekKey = `${weekStart}:${shiftId}`; const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
@@ -117,6 +155,21 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
       window.clearInterval(timer);
     };
   }, [mode, date, page, shiftId]);
+  useEffect(() => {
+    if (!canViewLive || mode !== 'daily' || date !== today()) {
+      setLiveRows(null);
+      return;
+    }
+    const controller = new AbortController();
+    const refreshLiveRows = (): void => {
+      void loadLiveBoard(controller.signal)
+        .then((board) => { if (!controller.signal.aborted) setLiveRows(new Map(board.rows.map((row) => [row.userId, row]))); })
+        .catch(() => { if (!controller.signal.aborted) setLiveRows(null); });
+    };
+    refreshLiveRows();
+    const timer = window.setInterval(refreshLiveRows, 15_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [canViewLive, mode, date]);
   useEffect(() => { void listShifts().then(setShifts).catch((cause) => setError(attendanceErrorMessage(cause, 'Unable to load shifts.'))); }, []);
   useEffect(() => {
     if (mode === 'weekly' && weeklyDataKey === weekKey) return;
@@ -392,8 +445,16 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
     {error && <Notice error>{error}</Notice>}{loading && <Loading />}{!loading && !error && ((mode === 'daily' && dailyRows.length === 0) || (mode === 'weekly' && weeklyRows.length === 0) || (mode === 'monthly' && monthlyRows.length === 0)) && <Empty>{mode === 'monthly' ? 'No attendance data are available for this month and shift selection.' : mode === 'weekly' ? 'No attendance data are available for this week and shift selection.' : 'No employees or attendance data are available for this date and visibility scope.'}</Empty>}
     {!loading && !error && mode === 'daily' && dailyRows.length > 0 && (
       <Card className="overflow-hidden p-0">
-        <HorizontalScrollArea ariaLabel="Daily attendance table" showArrows={false}>
-          <table className="w-full min-w-[1060px] table-fixed text-sm">
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 md:hidden">
+          <div>
+            <h2 className="text-sm font-bold text-app-foreground">Employee attendance</h2>
+            <p className="mt-0.5 text-xs text-app-muted">{periodLabel} · {total} {total === 1 ? 'employee' : 'employees'}</p>
+          </div>
+          {liveRows && <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />Live</span>}
+        </div>
+        <div className="hidden md:block">
+          <HorizontalScrollArea ariaLabel="Daily attendance table" showArrows={false}>
+            <table className="w-full min-w-[1060px] table-fixed text-sm">
             <colgroup>
               <col className="w-[18%]" />
               <col className="w-[13%]" />
@@ -464,8 +525,68 @@ export function AttendanceReportPage({ canExport = false }: { canExport?: boolea
                 );
               })}
             </tbody>
-          </table>
-        </HorizontalScrollArea>
+            </table>
+          </HorizontalScrollArea>
+        </div>
+        <div className="space-y-3 p-3 md:hidden">
+          {dailyRows.map((row) => {
+            const isWorking = date === now && Boolean(row.arrivalAt) && !row.departureAt;
+            const liveRow = liveRows?.get(row.id);
+            const status = mobileDailyStatus(row, isWorking, liveRow);
+            const liveTime = liveRow ? liveMinutes(liveRow, clockNow) : null;
+            const hasPunch = Boolean(row.arrivalAt || row.departureAt);
+            const workTime = liveTime
+              ? compactDuration(liveTime.worked)
+              : hasPunch ? compactDuration(currentWorkedMinutes(row, isWorking, clockNow)) : '—';
+            const breakTime = liveTime
+              ? compactDuration(liveTime.onBreak)
+              : hasPunch ? compactDuration(row.breakMinutes) : '—';
+            return (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => openDailyDrawer(row)}
+                aria-label={`View ${row.fullName}: ${status}, punched in ${time(row.arrivalAt)}, punched out ${time(row.departureAt)}, break ${breakTime}`}
+                className="group w-full rounded-2xl border border-app-border bg-app-surface p-3.5 text-left shadow-2xs transition hover:border-app-accent/50 hover:bg-app-surface-raised/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent active:scale-[0.995]"
+              >
+                <div className="flex min-w-0 items-start justify-between gap-2.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full border border-app-accent/20 bg-app-accent/10 text-xs font-bold text-app-accent">{employeeInitials(row.fullName)}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-app-foreground">{row.fullName}</span>
+                      <span className="mt-0.5 block truncate text-xs text-app-muted">{row.employeeId ?? 'No employee ID'}{row.departmentName ? ` · ${row.departmentName}` : ''}</span>
+                    </span>
+                  </div>
+                  <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${mobileStatusTone(status)}`}>
+                    <span className={`size-1.5 rounded-full ${status === 'Working' ? 'bg-emerald-500' : status === 'On break' || status === 'Working · Late' ? 'bg-amber-500' : status === 'Absent' ? 'bg-rose-500' : 'bg-current opacity-50'}`} />
+                    {status}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-app-surface-raised/70 px-3 py-2.5">
+                    <span className="block text-[10px] font-semibold uppercase tracking-wide text-app-muted">Punch in</span>
+                    <span className="mt-1 block text-sm font-bold tabular-nums text-app-foreground">{time(row.arrivalAt)}</span>
+                  </div>
+                  <div className="rounded-xl bg-app-surface-raised/70 px-3 py-2.5">
+                    <span className="block text-[10px] font-semibold uppercase tracking-wide text-app-muted">Punch out</span>
+                    <span className="mt-1 block text-sm font-bold tabular-nums text-app-foreground">{time(row.departureAt)}</span>
+                  </div>
+                  <div className="px-1 pt-1">
+                    <span className="block text-[10px] font-semibold uppercase tracking-wide text-app-muted">Work time</span>
+                    <span className="mt-1 block text-sm font-semibold tabular-nums text-app-foreground">{workTime}</span>
+                  </div>
+                  <div className={`px-1 pt-1 ${status === 'On break' ? 'text-amber-800 dark:text-amber-300' : ''}`}>
+                    <span className="block text-[10px] font-semibold uppercase tracking-wide text-app-muted">{status === 'On break' ? 'Break · ongoing' : 'Break time'}</span>
+                    <span className="mt-1 block text-sm font-semibold tabular-nums">{breakTime}</span>
+                  </div>
+                </div>
+                <span className="mt-3 flex items-center justify-end gap-1 border-t border-app-border/70 pt-2.5 text-[11px] font-semibold text-app-accent opacity-90">
+                  View attendance details <Icon name="arrow" className="size-3.5" />
+                </span>
+              </button>
+            );
+          })}
+        </div>
         <Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} />
       </Card>
     )}

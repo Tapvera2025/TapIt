@@ -751,7 +751,7 @@ export function CompanyWorkspace({
     )
       return (
         <AttendancePageBoundary>
-          <AttendanceReportPage canExport={isSuperAdmin} />
+          <AttendanceReportPage canExport={isSuperAdmin} canViewLive={canViewLiveBoard} />
         </AttendancePageBoundary>
       );
     if (
