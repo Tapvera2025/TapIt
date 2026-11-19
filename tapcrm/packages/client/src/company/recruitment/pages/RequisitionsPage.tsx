@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { HeadingText } from '../../layout/PageIntro.js';
 import {
   Button,
   Card,
@@ -200,7 +201,7 @@ export function RequisitionsPage({
             <span className="requisition-icon-tile">
               <Icon name="briefcase" className="size-5" />
             </span>
-            <h1>Job Requisitions</h1>
+            <h1><HeadingText fallback="Job Requisitions" /></h1>
           </div>
           {!loading && !loadError && (
             <div

@@ -116,7 +116,7 @@ export function resolvePageHeading({
   lockTitle?: boolean;
   homePath: string;
   showGroup?: boolean;
-}): { title: string; crumbs: Crumb[]; inMenu: boolean } {
+}): { title: string; crumbs: Crumb[]; inMenu: boolean; groupLabel: string | null } {
   const match = bestMatch(groups, pathname);
   const inMenu = match !== null && match.path === pathname;
   const menuLabel = match ? (match.child ?? match.item).label : undefined;
@@ -129,5 +129,5 @@ export function resolvePageHeading({
   if (inMenu && last && last.label !== title) {
     crumbs[lastIndex] = { ...last, label: title };
   }
-  return { title, crumbs, inMenu };
+  return { title, crumbs, inMenu, groupLabel: match?.group.label ?? null };
 }

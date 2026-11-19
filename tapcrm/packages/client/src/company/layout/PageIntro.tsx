@@ -29,6 +29,11 @@ export function PageIntro({
   );
 }
 
+/** The page heading as the banner resolved it (the menu label), or `fallback` outside a company page. */
+export function HeadingText({ fallback }: { readonly fallback: string }): React.JSX.Element {
+  return <>{useCompanyHeadingTitle() ?? fallback}</>;
+}
+
 /** For pages whose own header is too custom to replace: just give the banner the page's description. */
 export function BannerDescription({ text }: { readonly text: string }): null {
   useCompanyPageDescription(text);
