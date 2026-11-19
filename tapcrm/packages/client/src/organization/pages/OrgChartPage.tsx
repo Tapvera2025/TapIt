@@ -601,11 +601,7 @@ export function OrgChartPage(): React.JSX.Element {
               </span>
             </div>
           </div>
-          {Boolean(dragError) && (
-            <div className="org-chart-drag-error">
-              <ErrorMessage cause={dragError} />
-            </div>
-          )}
+          {Boolean(dragError) && <ErrorMessage cause={dragError} />}
         </section>
       )}
       {selected && (
@@ -718,9 +714,7 @@ export function OrgChartPage(): React.JSX.Element {
             <p className="mt-2 text-xs text-app-muted">Loading valid managers…</p>
           )}
           {Boolean(moveError) && (
-            <div className="mt-4">
-              <ErrorMessage cause={moveError} />
-            </div>
+            <ErrorMessage cause={moveError} />
           )}
           {movePreview && (
             <div className="org-chart-move-preview" role="status">

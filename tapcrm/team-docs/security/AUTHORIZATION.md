@@ -377,6 +377,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/users/:id/verification | `users:view` | id |
 | GET | /api/users/:id/work-status | `users:view` | id |
 | GET | /api/users/:id/work | `users:view` | id |
+| GET | /api/users/:id/profile-details | `users:manage` | id |
 | POST | /api/users/:id/verification | `users:manage` | id |
 | POST | /api/users/:id/verification/documents | `users:manage` | id |
 | GET | /api/users/:id/verification/documents/:docId/download | `users:view` | id |

@@ -4,7 +4,8 @@ import { ManageGroupModal } from './InternalGroupsPage.js';
 import { useState } from 'react';
 import { ConversationWorkspace } from './ConversationWorkspace.js';
 import { useChat } from './useChat.js';
-import { Button, Notice } from '../ui/index.js';
+import { Button } from '../ui/index.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const label = (conversation: Conversation): string => conversation.name ?? 'Project Group';
 
@@ -69,7 +70,7 @@ export function ProjectGroupsPage({
           }}
         />
       )}
-      {(error || chat.error) && <div className="fixed bottom-4 left-1/2 z-50 w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2"><Notice error>{error || chat.error}</Notice></div>}
+      {(error || chat.error) && <ErrorToast message={error || chat.error} />}
     </>
   );
 }

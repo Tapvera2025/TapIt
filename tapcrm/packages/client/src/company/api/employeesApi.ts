@@ -5,8 +5,12 @@ export interface CreateEmployeeInput {
   employeeId?: string;
   email: string;
   fullName: string;
-  password: string;
-  confirmPassword: string;
+  /**
+   * Not sent by the Add Employee form: the employee sets their own password
+   * from the emailed setup link. Kept for API callers that still pass one.
+   */
+  password?: string;
+  confirmPassword?: string;
   departmentId: string;
   positionId: string;
   teamId?: string;

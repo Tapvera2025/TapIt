@@ -4,6 +4,7 @@ import type {
   TaskAssignableUser,
   TaskAssigneePickerProps,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function TaskAssigneePicker({
   selectedAssigneeIds,
@@ -223,11 +224,7 @@ export function TaskAssigneePicker({
         )}
       </div>
 
-      {loadError && (
-        <p className="mt-1 text-xs text-app-danger" role="alert">
-          {loadError}
-        </p>
-      )}
+      {loadError && <ErrorToast message={loadError} />}
 
     </div>
   );

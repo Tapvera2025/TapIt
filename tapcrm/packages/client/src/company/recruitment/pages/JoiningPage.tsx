@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Empty, Notice, Page, SkeletonTable } from '../../../ui/index.js';
-import { listJoinings } from '../api/recruitmentApi.js';
+import { Card, Empty, Page, SkeletonTable } from '../../../ui/index.js';
+import { listCandidates, listJoinings } from '../api/recruitmentApi.js';
 import { JoiningStatusModal } from '../components/JoiningStatusModal.js';
+import { RequisitionFilterSelect } from '../components/RequisitionFilterSelect.js';
 import { SendJoiningEmailModal } from '../components/SendJoiningEmailModal.js';
 import { JoiningStatusBadge } from '../components/StatusBadge.js';
 import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
-import type { CandidateJoining, JoiningFilter, JoiningStatus } from '../types/index.js';
+import type { CandidateJoining, JobRequisition, JoiningStatus } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function JoiningPage({
+  initialRequisitionId,
+  requisitions = [],
   onNavigateToEmployees,
 }: {
+  readonly initialRequisitionId?: string | undefined;
+  readonly requisitions?: readonly JobRequisition[];
   readonly onNavigateToEmployees: () => void;
 }): React.JSX.Element {
   const [joinings, setJoinings] = useState<CandidateJoining[]>([]);
@@ -18,6 +24,7 @@ export function JoiningPage({
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<JoiningStatus | 'all'>('all');
+  const [requisitionFilter, setRequisitionFilter] = useState(initialRequisitionId ?? '');
 
   // Modals
   const [selectedJoining, setSelectedJoining] = useState<CandidateJoining | null>(null);
@@ -32,25 +39,30 @@ export function JoiningPage({
   ), [onNavigateToEmployees]);
   useRecruitmentHeroActions(heroActions);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const filter: JoiningFilter = {
-        status: statusFilter,
-      };
-      const data = await listJoinings(filter);
-      setJoinings(data);
-      setError(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load joining records');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    void load();
-  }, [statusFilter]);
+    let cancelled = false;
+    setLoading(true);
+    void Promise.all([
+      listJoinings({ status: statusFilter }),
+      requisitionFilter ? listCandidates({ requisitionId: requisitionFilter }) : null,
+    ])
+      .then(([records, candidates]) => {
+        if (cancelled) return;
+        const candidateIds = candidates ? new Set(candidates.map(({ id }) => id)) : null;
+        setJoinings(candidateIds ? records.filter(({ candidateId }) => candidateIds.has(candidateId)) : records);
+        setError(null);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) {
+          setJoinings([]);
+          setError(cause instanceof Error ? cause.message : 'Unable to load joining records');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [statusFilter, requisitionFilter]);
 
   return (
     <Page variant="recruitment"
@@ -67,11 +79,7 @@ export function JoiningPage({
         </button>
       }
     >
-      {error && (
-        <div className="mt-6">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {/* Workflow Explanatory Notice */}
       <div className="mt-6 rounded-xl border border-app-accent/30 bg-app-accent/10 p-4 text-xs text-app-foreground">
@@ -87,7 +95,7 @@ export function JoiningPage({
 
       {/* Filter Bar */}
       <Card className="mt-6 p-4">
-        <div className="max-w-xs">
+        <div className={initialRequisitionId ? 'grid gap-3 sm:grid-cols-2' : 'max-w-xs'}>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as JoiningStatus | 'all')}
@@ -100,6 +108,9 @@ export function JoiningPage({
             <option value="joined">Joined (Active)</option>
             <option value="cancelled">Cancelled</option>
           </select>
+          {initialRequisitionId && (
+            <RequisitionFilterSelect value={requisitionFilter} onChange={setRequisitionFilter} requisitions={requisitions} />
+          )}
         </div>
       </Card>
 

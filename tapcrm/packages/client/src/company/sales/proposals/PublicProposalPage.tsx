@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { currencySymbol, paiseToRupees } from './proposals-helpers.js';
 import { Button, GlassSurface } from '../../../ui/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 interface PublicProposal {
   readonly commercialsId: string;
@@ -212,7 +213,7 @@ function PublicProposalActions({ token, onAccepted }: { token: string; onAccepte
           placeholder="Share any notes, questions, or requested changes."
         />
       </label>
-      {error && <p className="mt-3 text-sm text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {sent && <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">{sent}</p>}
       <div className="mt-4 flex flex-wrap gap-3">
         <Button

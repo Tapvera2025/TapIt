@@ -21,6 +21,7 @@ import {
   stageTone,
   type BadgeTone,
 } from './deals-helpers.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 type ViewMode = 'list' | 'kanban';
 
@@ -100,11 +101,7 @@ export function DealsPage({ isSalesHod, onNavigate }: DealsPageProps): React.JSX
         </div>
       }
     >
-      {error && (
-        <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       <Card className="mb-6">
         <div className="grid gap-4 md:grid-cols-4">

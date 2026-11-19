@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '../../../ui/index.js';
 import { getClaimsDistribution, type ClaimsDistributionRow } from './dashboard-api.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -38,11 +39,7 @@ export function ClaimsDistribution(): React.JSX.Element {
         <span className="text-xs text-app-muted">Today</span>
       </header>
       <p className="mt-1 text-sm text-app-muted">Bid Pool claims today and open leads, per person on the sales teams.</p>
-      {error && (
-        <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       <ul className="mt-4 space-y-2">
         {rows.length === 0 ? (
           <li className="text-sm text-app-muted">Nobody on the sales teams yet. Add people to a sales team or pool in Organization.</li>

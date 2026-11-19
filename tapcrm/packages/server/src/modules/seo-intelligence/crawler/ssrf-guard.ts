@@ -1,4 +1,9 @@
 import { lookup } from 'dns/promises';
+import { isPublicAddress } from '../../../platform/security/public-address.js';
+import { guardedFetch } from './guarded-fetch.js';
+import { HostNotFoundError, SsrfBlockedError } from './ssrf-errors.js';
+
+export { HostNotFoundError, SsrfBlockedError };
 
 /**
  * SSRF guard: validates a URL is safe to fetch before any outbound request.
@@ -8,45 +13,11 @@ import { lookup } from 'dns/promises';
  * See OWASP SSRF prevention: https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
  */
 
-const BLOCKED_RANGES: Array<(ip: string) => boolean> = [
-  // Loopback
-  (ip) => ip === '127.0.0.1' || ip === '::1' || ip.startsWith('127.'),
-  // Private Class A
-  (ip) => ip.startsWith('10.'),
-  // Private Class B
-  (ip) => /^172\.(1[6-9]|2\d|3[01])\./.test(ip),
-  // Private Class C
-  (ip) => ip.startsWith('192.168.'),
-  // Link-local
-  (ip) => ip.startsWith('169.254.') || ip.startsWith('fe80:'),
-  // Multicast
-  (ip) => ip.startsWith('224.') || ip.startsWith('225.') || ip.startsWith('239.'),
-  // AWS/GCP/Azure metadata services
-  (ip) => ip === '169.254.169.254' || ip === 'fd00:ec2::254',
-  // Cloud Run metadata
-  (ip) => ip === 'metadata.google.internal',
-];
 
 const ALLOWED_SCHEMES = new Set(['http:', 'https:']);
 const ALLOWED_PORTS = new Set([80, 443, 8080, 8443]);
 
-export class SsrfBlockedError extends Error {
-  constructor(reason: string) {
-    super(`SSRF guard blocked request: ${reason}`);
-  }
-}
 
-/**
- * The host does not resolve. Still a guard refusal (nothing was sent), but the
- * crawler reports it as "address not found" rather than as a safety block.
- */
-export class HostNotFoundError extends SsrfBlockedError {
-  readonly hostname: string;
-  constructor(hostname: string) {
-    super(`DNS resolution failed for "${hostname}"`);
-    this.hostname = hostname;
-  }
-}
 
 export function validateScheme(url: URL): void {
   if (!ALLOWED_SCHEMES.has(url.protocol)) {
@@ -66,10 +37,8 @@ export function validatePort(url: URL): void {
 }
 
 export function validateIp(ip: string): void {
-  for (const blocked of BLOCKED_RANGES) {
-    if (blocked(ip)) {
-      throw new SsrfBlockedError(`IP ${ip} is in a blocked network range`);
-    }
+  if (!isPublicAddress(ip)) {
+    throw new SsrfBlockedError(`IP ${ip} is not a public address`);
   }
 }
 
@@ -125,7 +94,13 @@ export async function safeFetch(url: string, init?: RequestInit): Promise<Respon
   await guardUrl(url);
   // After redirect, the SSRF guard must re-validate the new URL.
   // We use manual redirect mode and validate each hop.
-  const response = await fetch(url, { ...init, redirect: 'manual' });
+  const response = await guardedFetch(url, {
+    ...(init?.method !== undefined ? { method: init.method } : {}),
+    ...(init?.headers !== undefined ? { headers: new Headers(init.headers) } : {}),
+    ...(typeof init?.body === 'string' ? { body: init.body } : {}),
+    ...(init?.signal ? { signal: init.signal } : {}),
+    redirect: 'manual',
+  });
   if (response.status >= 300 && response.status < 400) {
     const location = response.headers.get('location');
     if (!location) throw new SsrfBlockedError('redirect without Location header');

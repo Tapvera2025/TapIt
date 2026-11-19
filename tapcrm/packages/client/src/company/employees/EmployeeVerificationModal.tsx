@@ -16,6 +16,7 @@ import {
   rejectVerificationDocument,
   uploadVerificationDocument,
 } from '../api/verificationApi.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 interface EmployeeVerificationModalProps {
   isOpen: boolean;
@@ -99,6 +100,12 @@ export function EmployeeVerificationModal({
   // Persistent exclusion tracking so discarded documents NEVER re-appear on server refetches
   const [discardedDocIds, setDiscardedDocIds] = useState<Set<string>>(() => new Set());
   const [discardedDocTypes, setDiscardedDocTypes] = useState<Set<VerificationDocumentType>>(() => new Set());
+
+  // The documents this employee needs. Someone with no prior experience is not
+  // asked for payslips or an experience letter; the server says which apply.
+  const [requiredTypes, setRequiredTypes] = useState<readonly VerificationDocumentType[]>(
+    VERIFICATION_DOCUMENT_TYPES,
+  );
 
   function handleRemoveStagedMarksheet(
     fileKeyOrIndex: string | number,
@@ -226,6 +233,7 @@ export function EmployeeVerificationModal({
     if (!employeeId) return;
     try {
       const res = await getEmployeeVerification(employeeId);
+      if (res.requiredDocumentTypes) setRequiredTypes(res.requiredDocumentTypes);
       if (res.verification) {
         const filteredDocs = res.verification.documents.filter((d) => {
           if (discardedDocIds.has(d.id)) return false;
@@ -239,6 +247,7 @@ export function EmployeeVerificationModal({
       } else if (canManage) {
         // Auto-initialize if canManage and not yet initialized
         const initRes = await initializeEmployeeVerification(employeeId);
+        if (initRes.requiredDocumentTypes) setRequiredTypes(initRes.requiredDocumentTypes);
         if (initRes.verification) {
           const filteredDocs = initRes.verification.documents.filter((d) => {
             if (discardedDocIds.has(d.id)) return false;
@@ -446,7 +455,7 @@ export function EmployeeVerificationModal({
     let pendingCount = 0;
     let rejectedCount = 0;
 
-    for (const reqType of VERIFICATION_DOCUMENT_TYPES) {
+    for (const reqType of requiredTypes) {
       const typeDocs = currentDocsByType.get(reqType);
       if (!typeDocs || typeDocs.length === 0) continue;
       if (typeDocs.some((d) => d.status === 'REJECTED')) {
@@ -458,24 +467,24 @@ export function EmployeeVerificationModal({
       }
     }
 
-    const missingCount = VERIFICATION_DOCUMENT_TYPES.length - currentDocsByType.size;
+    const missingCount = requiredTypes.filter((type) => !currentDocsByType.has(type)).length;
 
     return {
-      requiredCount: VERIFICATION_DOCUMENT_TYPES.length,
+      requiredCount: requiredTypes.length,
       approvedCount,
       pendingCount,
       rejectedCount,
-      missingCount: Math.max(0, missingCount),
-      allApproved: approvedCount === VERIFICATION_DOCUMENT_TYPES.length,
+      missingCount,
+      allApproved: approvedCount === requiredTypes.length,
     };
   })();
 
   const progress = data ? calculatedProgress : {
-    requiredCount: 10,
+    requiredCount: requiredTypes.length,
     approvedCount: 0,
     pendingCount: 0,
     rejectedCount: 0,
-    missingCount: 10,
+    missingCount: requiredTypes.length,
     allApproved: false,
   };
 
@@ -520,11 +529,7 @@ export function EmployeeVerificationModal({
 
         {/* Content area */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4 pt-4 pb-4">
-          {error && (
-            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-500 font-medium">
-              {error}
-            </div>
-          )}
+          {error && <ErrorToast message={error} />}
 
           {data?.status === 'REJECTED' && data.rejectionReason && (
             <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs">
@@ -616,7 +621,7 @@ export function EmployeeVerificationModal({
               {/* Document List */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-app-muted">
-                  Required Documents ({VERIFICATION_DOCUMENT_TYPES.length})
+                  Required Documents ({requiredTypes.length})
                 </h3>
 
                 <div className="grid gap-3">
@@ -764,18 +769,7 @@ export function EmployeeVerificationModal({
                                 ))}
                               </div>
 
-                              {marksheetError && (
-                                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-500 flex items-start justify-between gap-2">
-                                  <span>{marksheetError}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setMarksheetError('')}
-                                    className="text-[11px] hover:underline shrink-0"
-                                  >
-                                    Dismiss
-                                  </button>
-                                </div>
-                              )}
+                              {marksheetError && <ErrorToast message={marksheetError} />}
 
                               <div className="flex flex-wrap items-center gap-2 pt-1">
                                 <button
@@ -1047,6 +1041,11 @@ export function EmployeeVerificationModal({
                                 >
                                   {docBadge.text}
                                 </span>
+                                {!requiredTypes.includes(docType) && (
+                                  <span className="rounded-md border border-app-border px-2 py-0.5 text-[10px] font-semibold text-app-muted">
+                                    Not required · no prior experience
+                                  </span>
+                                )}
                                 {currentDoc && currentDoc.version > 1 && (
                                   <span className="rounded bg-app-border/40 px-1.5 py-0.5 text-[10px] text-app-muted font-mono">
                                     v{currentDoc.version}

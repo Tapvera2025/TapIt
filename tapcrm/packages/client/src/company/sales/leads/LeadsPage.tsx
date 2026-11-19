@@ -9,6 +9,7 @@ import { AddLeadDrawer, useAddLeadShortcut } from './AddLeadDrawer.js';
 import { ImportLeadsWizard } from './imports/ImportLeadsWizard.js';
 import { LeadsViewTabs } from './imports/LeadsViewTabs.js';
 import { IMPORTED_LEADS_PATH } from './imports/import-format.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, canViewImports = false, canImport = false }: { onNavigate: (path: string) => void; currentUserId?: string; isManager?: boolean; canViewImports?: boolean; canImport?: boolean }): React.JSX.Element {
   const [importOpen, setImportOpen] = useState(false);
@@ -54,7 +55,7 @@ export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, c
       <SalesCoach guidance={guidance} onNavigate={onNavigate} onCommand={(command) => { if (command.type === 'add-lead') setOpen(true); }} />
       {canViewImports && <LeadsViewTabs active="all" onNavigate={onNavigate} />}
       {importOpen && <ImportLeadsWizard sources={sources} campaigns={campaigns} onClose={() => setImportOpen(false)} onDone={(importId) => { setImportOpen(false); onNavigate(`${IMPORTED_LEADS_PATH}?import=${importId}`); }} />}
-      {error && <p className="rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {notice && <p role="status" className="rounded-lg bg-app-accent/10 p-3 text-sm">{notice}</p>}
       {duplicates.length > 0 && <Card className="border border-amber-500/40 bg-amber-500/10"><p className="font-semibold">Possible duplicate lead created</p><p className="mt-1 text-sm text-app-muted">Check these existing leads before you reach out: {duplicates.map((duplicate) => `#${duplicate.leadNumber}${duplicate.ownerName ? ` (${duplicate.ownerName})` : ''}`).join(', ')}.</p></Card>}
       {open && <AddLeadDrawer sources={sources} campaigns={campaigns} onClose={() => setOpen(false)} onCreated={(lead, dupes) => {

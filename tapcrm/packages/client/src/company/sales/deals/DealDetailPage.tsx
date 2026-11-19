@@ -39,6 +39,7 @@ import { getBriefForDeal, type DeliveryBrief } from '../delivery/api.js';
 import { DEAL_ANCHORS, dealGuidance, dealSteps } from '../guide/deal-guidance.js';
 import { cannotOpen, type GuideCommand } from '../guide/guidance.js';
 import { SalesCoach, StepTracker, useSalesGuide } from '../guide/SalesGuide.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
   neutral: 'bg-app-background text-app-muted',
@@ -262,11 +263,7 @@ export function DealDetailPage({
       }
     >
       <SalesCoach guidance={guidance} onCommand={handleCommand} onNavigate={onNavigate} />
-      {actionError && (
-        <p className="rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {actionError}
-        </p>
-      )}
+      {actionError && <ErrorToast message={actionError} />}
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -638,11 +635,7 @@ function MarkLostDialog({
   const [note, setNote] = useState('');
   return (
     <Modal title="Mark deal lost" onClose={onClose}>
-      {error && (
-        <p className="mb-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       <Select
         label="Loss reason"
         value={reason}
@@ -682,11 +675,7 @@ function CancelAfterWinDialog({
   const [reason, setReason] = useState('');
   return (
     <Modal title="Cancel after win" onClose={onClose}>
-      {error && (
-        <p className="mb-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       <Field
         label="Reason (required)"
         value={reason}
@@ -773,11 +762,7 @@ function ConfirmPaymentDialog({
         Record the advance Finance has already received. This flips the deal's payment status to
         "advance confirmed" and unblocks the Won readiness check. All amounts are in {currency}.
       </p>
-      {error && (
-        <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       <div className="mt-4 grid gap-4">
         <Field
           label={`Amount received (${currency})`}
@@ -839,11 +824,7 @@ function RevertPaymentDialog({
         is confirmed again. Only open deals can be reverted — a confirmed advance on a Won deal
         requires cancel-after-win instead.
       </p>
-      {error && (
-        <p className="mt-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       <div className="mt-4">
         <Field label="Reason (required)" value={reason} onChange={setReason} placeholder="Why?" />
       </div>

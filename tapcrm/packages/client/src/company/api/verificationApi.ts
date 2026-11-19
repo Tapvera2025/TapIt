@@ -78,6 +78,8 @@ export interface VerificationDocumentSummary {
 }
 
 export interface VerificationDetailsResponse {
+  /** The documents this employee needs; fewer for someone with no prior experience. */
+  requiredDocumentTypes?: VerificationDocumentType[];
   verification: {
     id: string;
     employeeId: string;

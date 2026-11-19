@@ -97,9 +97,7 @@ export function ReportingPage(): React.JSX.Element {
         </div>
       )}
       {Boolean(error) && (
-        <div className="mt-5">
-          <ErrorMessage cause={error} />
-        </div>
+        <ErrorMessage cause={error} />
       )}
       {loading ? (
         <SkeletonTable columns={4} rows={5} />

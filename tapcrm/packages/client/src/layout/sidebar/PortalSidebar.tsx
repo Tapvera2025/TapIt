@@ -200,6 +200,16 @@ export function PortalSidebar({
     }
   }, [collapsed, open]);
 
+  // Escape closes the drawer on phones and tablets (it is a modal there).
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && window.matchMedia('(max-width: 1279.98px)').matches) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
   const resizeStart = useRef<{ x: number; width: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const clampWidth = (next: number) => Math.min(420, Math.max(220, next));
@@ -438,11 +448,9 @@ export function PortalSidebar({
             <Icon name={isPinned ? 'pushpin' : collapsed ? 'chevron-right' : 'chevron-left'} className="pointer-events-none size-4" />
           </button>
         )}
-      </div>
-      <div className="sidebar-mobile-workspace-title">
-        <p>{workspaceName}</p>
-        <button type="button" onClick={onClose} aria-label="Close navigation">
-          ×
+        {/* Phones: the drawer's own close control, in the same place as the desktop toggle. */}
+        <button type="button" onClick={onClose} className="ps-close grid xl:hidden" aria-label="Close navigation">
+          <Icon name="close" className="size-4" />
         </button>
       </div>
       {!collapsed && (

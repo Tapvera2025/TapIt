@@ -9,6 +9,7 @@ import {
   lossReasonLabel,
   statusMoveOptions,
 } from './lead-status.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 /** Shows a lead's status and lets an editor move it on or mark it lost. */
 export function LeadStatusPanel({
@@ -65,11 +66,7 @@ export function LeadStatusPanel({
       {leadStatusMeaning(lead.status) && (
         <p className="mt-1 text-xs text-app-muted">{leadStatusMeaning(lead.status)}</p>
       )}
-      {error && (
-        <p className="mt-2 text-xs text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       {closed && (
         <p className="mt-3 text-xs text-app-muted">
           This lead is closed, so its status can't change.

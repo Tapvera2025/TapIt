@@ -23,6 +23,7 @@ if (existsSync(envFile)) {
 
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
+import { dropRootPrivileges } from './platform/privileges.js';
 import { closePools } from './platform/dal/pool.js';
 import { purgeAllExpiredGeofenceCoordinates } from './modules/identity/geofence/privacy.js';
 import { registerAllJobs } from './modules/index.js';
@@ -47,6 +48,10 @@ import {
  * remain the source of truth if the socket service is temporarily unavailable.
  */
 const config = loadConfig();
+// Before the app is built or a port opens: stop running as root
+// (platform/privileges.ts). The server image starts as root only so the
+// upload folder can be handed to the unprivileged user.
+dropRootPrivileges(config.TAPCRM_UPLOAD_DIR);
 const app = buildApp();
 const server = app.listen(config.API_PORT, () => {
   console.log(

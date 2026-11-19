@@ -6,6 +6,7 @@ import { Avatar } from './Avatar.js';
 import { ConversationWorkspace } from './ConversationWorkspace.js';
 import { PRESENCE_LABEL, usePresenceMap } from './presence.js';
 import { useChat } from './useChat.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 function otherMember(conversation: Conversation, myId: string): { userId: string; fullName: string } | null {
   const other = conversation.members.find((m) => m.userId !== myId);
@@ -102,11 +103,7 @@ export function DirectMessagesPage({
         )
       )}
 
-      {error && (
-        <p role="alert" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-[#d86b6b]/30 bg-app-surface px-4 py-2 text-sm text-app-danger shadow-lg">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
     </>
   );
 }

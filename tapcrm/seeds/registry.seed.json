@@ -4053,6 +4053,12 @@
       "resourceParam": "id"
     },
     {
+      "method": "GET",
+      "path": "/api/users/:id/profile-details",
+      "action": "users:manage",
+      "resourceParam": "id"
+    },
+    {
       "method": "POST",
       "path": "/api/users/:id/verification",
       "action": "users:manage",

@@ -83,7 +83,6 @@
 
 /* Own class on purpose: the legacy `sidebar-collapse-toggle` is positioned and sized by global rules. */
 .ps-toggle {
-  display: flex;
   flex: none;
   width: 2rem;
   height: 2rem;
@@ -480,5 +479,64 @@
 @media (prefers-reduced-motion: reduce) {
   .ps-root * {
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Phones and tablets: the sidebar is a drawer ───────────────────────── */
+.ps-close {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 1px solid var(--ps-line);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--ps-muted);
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.ps-close:hover,
+.ps-close:active {
+  background: var(--ps-hover);
+  color: var(--ps-fg);
+}
+
+.ps-close:focus-visible {
+  outline: 2px solid var(--ps-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Same layer as the global drawer rules (`@layer components`): between two !important
+ * declarations a layered rule beats an unlayered one, so the override must live in the
+ * layer and win on specificity instead.
+ */
+@layer components {
+  @media (max-width: 1279.98px) {
+    .workspace-sidebar.ps-root {
+      /* Opaque: the page must not show through the drawer. */
+      background: var(--sidebar-background) !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+      /* Leaves a strip of the page visible on small phones, so it reads as a drawer. */
+      width: min(20rem, 86vw) !important;
+      /* Clear of the home indicator on phones that have one. */
+      padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+      overscroll-behavior: contain;
+    }
+
+    /* Finger-sized rows (44px and up). */
+    .ps-root {
+      --ps-row-h: 2.75rem;
+    }
+
+    .ps-subitem {
+      min-height: 2.5rem;
+    }
+
+    .ps-logout {
+      min-height: 2.75rem;
+    }
   }
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Button, Modal, Notice } from '../../../ui/index.js';
+import { Button, Modal } from '../../../ui/index.js';
 import { cancelPenalty } from '../api/penaltiesApi.js';
 import { PENALTY_LABELS, type Penalty } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const money = (paise: string): string =>
   `₹${(Number(paise) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -40,7 +41,7 @@ export function PenaltyCancelModal({
 
   return (
     <Modal title="Cancel Penalty" onClose={saving ? () => undefined : onClose} dirty={reason.trim().length > 0}>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <dl className="grid gap-4 rounded-lg border border-app-border bg-app-surface-raised p-4 sm:grid-cols-3">
         <div><dt className="text-xs text-app-muted">Employee</dt><dd className="mt-1 font-semibold">{penalty.employeeName}</dd></div>
         <div><dt className="text-xs text-app-muted">Amount</dt><dd className="mt-1 font-semibold">{money(penalty.amountPaise)}</dd></div>

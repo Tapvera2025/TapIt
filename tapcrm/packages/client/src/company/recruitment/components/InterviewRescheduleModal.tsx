@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Button, Field, Modal, Notice } from '../../../ui/index.js';
+import { Button, Field, Modal } from '../../../ui/index.js';
 import { rescheduleInterview } from '../api/recruitmentApi.js';
 import type { Interview } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function InterviewRescheduleModal({
   interview,
@@ -59,7 +60,7 @@ export function InterviewRescheduleModal({
       onClose={onClose}
     >
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <p className="text-xs text-app-muted">
           Selecting a new interview date/time will update the schedule and automatically dispatch

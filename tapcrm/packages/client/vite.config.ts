@@ -16,6 +16,12 @@ export default defineConfig({
     // and browsers that try 127.0.0.1 then cannot reach the dev server.
     host: process.env['VITE_HOST'] ?? '127.0.0.1',
     proxy: {
+      // The SEO content editor's collaboration socket (Hocuspocus, its own port).
+      // Exact path only, and listed first: the first matching entry wins.
+      [`^${apiBasePath}/collab(?:\\?|$)`]: {
+        target: process.env['VITE_CONTENT_COLLAB_PROXY_TARGET'] ?? 'http://localhost:4001',
+        ws: true,
+      },
       [apiBasePath]: {
         target: process.env['VITE_API_PROXY_TARGET'] ?? 'http://localhost:4000',
         changeOrigin: true,

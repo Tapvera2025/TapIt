@@ -22,6 +22,7 @@ import type {
   SeoFindingsTrendPoint,
   SeoSeverity,
 } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export function SeoOverviewPanel({
   site,
@@ -356,11 +357,7 @@ export function SeoOverviewPanel({
           <Icon name="file-text" className="size-4" />
         </button>
       </div>
-      {downloadState && (
-        <p role="alert" className="text-sm text-app-danger">
-          {downloadState}
-        </p>
-      )}
+      {downloadState && <ErrorToast message={downloadState} />}
     </div>
   );
 }

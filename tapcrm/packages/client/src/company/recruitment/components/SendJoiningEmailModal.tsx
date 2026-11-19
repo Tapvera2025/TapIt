@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Button, Modal, Notice } from '../../../ui/index.js';
+import { Button, Modal } from '../../../ui/index.js';
 import { listEmailTemplates, sendJoiningEmail } from '../api/recruitmentApi.js';
 import type { CandidateJoining, RecruitmentEmailTemplate, SendJoiningEmailInput } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const VARIABLE_HINTS = [
   '{{candidate_name}}',
   '{{position_title}}',
+  '{{department}}',
   '{{joining_date}}',
   '{{company_name}}',
   '{{manager_name}}',
@@ -100,7 +102,7 @@ export function SendJoiningEmailModal({
       onClose={onClose}
     >
       <form onSubmit={(e) => void handleSend(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <div className="rounded-xl border border-app-border bg-app-surface px-4 py-3 text-xs space-y-1.5">
           <div className="flex justify-between">
@@ -183,7 +185,9 @@ export function SendJoiningEmailModal({
             className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 font-mono text-xs text-app-foreground outline-none focus:border-app-accent"
           />
           <p className="mt-1 text-xs text-app-muted">
-            Include <span className="font-mono text-app-accent">{'{{acknowledge_link}}'}</span> to embed a trackable joining confirmation button.
+            Put <span className="font-mono text-app-accent">{'{{acknowledge_link}}'}</span> where the confirmation link should go;
+            without it, a &ldquo;Confirm your joining&rdquo; button is added at the end. A variable with no value for this
+            candidate (for example a role with no reporting manager) stops the send so you can edit the text.
           </p>
         </div>
 

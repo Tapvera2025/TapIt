@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Field, Modal, Select } from '../../../ui/index.js';
 import type { Decimal } from '@tapcrm/contracts';
 import { createPenalty } from '../api/penaltiesApi.js';
 import { PENALTY_LABELS, PENALTY_TYPES, type PenaltyType } from '../types/index.js';
 import type { CompanyEmployee } from '../../api/companyApi.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const today = (): string => new Date().toISOString().slice(0, 10);
 const currentMonth = (): string => new Date().toISOString().slice(0, 7);
@@ -80,7 +81,7 @@ export function PenaltyForm({
         </div>
       }
     >
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <div className="grid gap-4 sm:grid-cols-2">
         <Select
           label="Employee"

@@ -1,5 +1,6 @@
-import { Button, Modal, Notice } from '../../../ui/index.js';
+import { Button, Modal } from '../../../ui/index.js';
 import type { MyNotepadHistoryItem } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export interface NoteHistoryModalProps {
   readonly isOpen: boolean;
@@ -37,19 +38,10 @@ export function NoteHistoryModal({
     <Modal title="Note History" onClose={onClose} closeButtonClassName="hidden xl:grid">
       <div className="space-y-4">
         {error && (
-          <div className="space-y-2">
-            <Notice error>{error}</Notice>
-            {onRetry && (
-              <Button
-                type="button"
-                kind="secondary"
-                onClick={onRetry}
-                className="w-full text-xs"
-              >
-                Retry loading history
-              </Button>
-            )}
-          </div>
+          <ErrorToast
+            message={error}
+            action={onRetry ? { label: 'Retry loading history', onClick: onRetry } : undefined}
+          />
         )}
 
         {loading && (

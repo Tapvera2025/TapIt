@@ -278,3 +278,9 @@ export async function findProjectClientId(ctx: RequestContext, id: string): Prom
   const row = await db.maybeOne<{ clientId: string }>(ctx, sql`SELECT client_id AS "clientId" FROM project WHERE organization_id = ${ctx.organizationId} AND id = ${id}`);
   return row?.clientId ?? null;
 }
+
+/** The company's own name, for documents it sends to its clients. */
+export async function findOrganizationName(ctx: RequestContext): Promise<string> {
+  const row = await db.maybeOne<{ name: string }>(ctx, sql`SELECT name FROM organization WHERE id = ${ctx.organizationId}`);
+  return row?.name ?? '';
+}

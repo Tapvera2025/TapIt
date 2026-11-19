@@ -27,6 +27,7 @@ import {
   parseOAuthFragment,
   revokeWarning,
 } from '../social-connections-model.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 const UNAVAILABLE_TEXT =
   'Social accounts aren’t available for your account yet. Please contact your agency.';
@@ -213,26 +214,8 @@ export function ClientSocialAccountsPage({
         </Card>
       ) : (
         <>
-          {problem && (
-            <div role="alert">
-              <Notice error>{problem}</Notice>
-              <div className="mt-2">
-                <Button kind="secondary" onClick={() => setProblem('')}>
-                  Try again
-                </Button>
-              </div>
-            </div>
-          )}
-          {loadError && (
-            <div role="alert">
-              <Notice error>{loadError}</Notice>
-              <div className="mt-2">
-                <Button kind="secondary" onClick={() => void load()}>
-                  Try again
-                </Button>
-              </div>
-            </div>
-          )}
+          {problem && <ErrorToast message={problem} />}
+          {loadError && <ErrorToast message={loadError} action={{ label: 'Try again', onClick: () => void load() }} />}
           {completing && (
             <div role="status" aria-live="polite">
               <Notice>Finishing your connection… this takes a few seconds.</Notice>
@@ -605,11 +588,7 @@ function DisconnectDialog({
           </label>
           <p className="mt-2 text-xs text-app-muted">{revokeWarning(account.platform)}</p>
         </div>
-        {error && (
-          <div role="alert">
-            <Notice error>{error}</Notice>
-          </div>
-        )}
+        {error && <ErrorToast message={error} />}
       </div>
     </Modal>
   );

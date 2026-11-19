@@ -3,6 +3,7 @@ import { IdentityApiError } from '../api/authApi.js';
 import { getMySessions, revokeAllMySessions, revokeMySession, signOutLocally, type IdentitySession } from '../api/sessionsApi.js';
 import { Icon } from '../../ui/index.js';
 import { WorkspacePageContainer } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
@@ -105,7 +106,7 @@ export function SessionsPage({ onBack, onSignedOut }: { onBack: () => void; onSi
         </header>
 
         {notice && <p className="rounded-xl border border-app-accent/30 bg-app-accent/10 px-4 py-3 text-sm text-app-accent">{notice}</p>}
-        {error && <div className="rounded-xl border border-app-danger/30 bg-app-danger/5 p-4 text-sm text-app-danger"><p>{error}</p><button type="button" onClick={() => { void load(); }} className="mt-2 font-bold underline">Retry</button></div>}
+        {error && <ErrorToast message={error} action={{ label: 'Retry', onClick: () => void load() }} />}
         {loading && <div className="grid gap-4 md:grid-cols-2" aria-label="Loading sessions" aria-busy="true">{[1, 2].map((item) => <div key={item} className="h-48 animate-pulse rounded-2xl border border-app-border bg-app-surface" />)}</div>}
         {!loading && !error && sessions.length === 0 && (
           <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center shadow-sm">

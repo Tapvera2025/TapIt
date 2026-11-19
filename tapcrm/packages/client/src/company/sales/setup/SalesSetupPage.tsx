@@ -4,6 +4,7 @@ import { getCompanyTeams, type CompanyTeam } from '../../api/companyApi.js';
 import { getConnections, type ConnectionsPayload } from '../calls/api.js';
 import { getLeadSources, type LeadSource } from '../leads/api.js';
 import { getRoutingConfiguration, getTerritories, type RoutingConfiguration, type Territory, type TerritoryDimension } from '../api.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 type StepTone = 'ready' | 'action' | 'optional' | 'restricted' | 'review';
 type PreviewInput = Record<TerritoryDimension, string>;
@@ -204,7 +205,7 @@ function SetupStep({
             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${badge}`}>{status}</span>
           </div>
           <p className="mt-2 text-sm text-app-muted">{detail}</p>
-          {error && <p className="mt-2 text-xs text-app-danger" role="alert">{error}</p>}
+          {error && <ErrorToast message={error} />}
           {children}
           {action && <Button className="mt-4" kind="secondary" onClick={() => onNavigate(action.path)}>{action.label}</Button>}
         </div>

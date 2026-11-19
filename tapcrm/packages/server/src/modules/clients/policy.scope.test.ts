@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { __resetResourcePolicies, MATCH_NOTHING, policyFor, type PolicyEvaluationContext } from '@tapcrm/authz';
 import { registerClientPolicies } from './policy.js';
-import { registerProjectPolicies } from '../projects/policy.js';
+import { registerProjectPolicies } from '../projects/facade.js';
 
 const ORG = 'org-1';
 const ME = 'user-me';

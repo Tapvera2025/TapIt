@@ -361,6 +361,38 @@ describe('LinkedIn company login', () => {
   });
 });
 
+describe('Facebook Login for Business', () => {
+  it('opens the login dialog with the saved configuration instead of permissions', () => {
+    const meta = new MetaProvider('instagram', {
+      ...config,
+      loginConfigurationId: '1147349601233569',
+    });
+    const params = new URL(meta.getAuthorizationUrl({ state: 's', redirectUri }))
+      .searchParams;
+    expect(params.get('config_id')).toBe('1147349601233569');
+    expect(params.has('scope')).toBe(false);
+    expect(params.get('response_type')).toBe('code');
+  });
+
+  it('reads the configuration from SOCIAL_META_CONFIG_ID', () => {
+    vi.stubEnv('SOCIAL_META_CLIENT_ID', 'meta-id');
+    vi.stubEnv('SOCIAL_META_CLIENT_SECRET', 'meta-secret');
+    vi.stubEnv('SOCIAL_META_APPROVED', 'true');
+    vi.stubEnv('SOCIAL_META_CONFIG_ID', ' 1147349601233569 ');
+    const params = new URL(
+      getCompanyProvider('facebook').getAuthorizationUrl({ state: 's', redirectUri }),
+    ).searchParams;
+    expect(params.get('config_id')).toBe('1147349601233569');
+    expect(params.has('scope')).toBe(false);
+  });
+
+  it('refuses a configuration ID that is not a number', () => {
+    expect(
+      () => new MetaProvider('facebook', { ...config, loginConfigurationId: 'abc' }),
+    ).toThrow(/configuration ID/);
+  });
+});
+
 describe('Company providers', () => {
   it('are built only for configured, approved platforms', () => {
     vi.stubEnv('SOCIAL_META_CLIENT_ID', 'meta-id');

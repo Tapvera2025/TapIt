@@ -1,6 +1,6 @@
 import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useState } from 'react';
-import { Button, Modal, Notice } from '../../../ui/index.js';
+import { Button, Modal } from '../../../ui/index.js';
 import { getProjects, type Project } from '../../../projects/api/projectsApi.js';
 import type {
   CreateTaskInput,
@@ -10,6 +10,7 @@ import type {
   UpdateTaskInput,
 } from '../types/index.js';
 import { TaskAssigneePicker } from './TaskAssigneePicker.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function TaskForm({
   isOpen,
@@ -132,7 +133,7 @@ export function TaskForm({
       onClose={onClose}
     >
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {errorMessage && <Notice error>{errorMessage}</Notice>}
+        {errorMessage && <ErrorToast message={errorMessage} />}
 
         {mode === 'edit' && initialTask && (
           <div className="flex flex-wrap items-center gap-1.5 border-b border-app-border/40 pb-3 text-xs text-app-muted">
@@ -315,7 +316,7 @@ export function TaskAssignModal({
   return (
     <Modal title={`Manage Assignees — ${task.title}`} onClose={onClose}>
       <form onSubmit={(e) => void handleAssign(e)} className="space-y-4">
-        {errorMessage && <Notice error>{errorMessage}</Notice>}
+        {errorMessage && <ErrorToast message={errorMessage} />}
 
         <div className="flex flex-wrap items-center gap-1.5 border-b border-app-border/40 pb-3 text-xs text-app-muted">
           <span>Created by:</span>

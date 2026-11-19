@@ -5,7 +5,6 @@ import {
   Card,
   Empty,
   Loading,
-  Notice,
   Page,
   Select,
 } from '../../../ui/index.js';
@@ -41,6 +40,7 @@ import {
   type JournalLine,
   type LedgerAccount,
 } from './accountingApi.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 type Tab =
   | 'dashboard'
@@ -155,7 +155,7 @@ export function AccountingPage({
         onNavigate={onNavigate}
         ariaLabel="Accounting sections"
       />
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {loading ? (
         <Loading />
       ) : (

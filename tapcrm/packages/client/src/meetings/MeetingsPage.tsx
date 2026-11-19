@@ -668,7 +668,7 @@ function BookMeetingDialog({ currentUserId, timeZone, calendar, onClose, onBooke
           <Button disabled={!ready || busy} onClick={() => void book()}>{busy ? 'Booking…' : 'Book meeting'}</Button>
         </div>
       )}>
-      {error !== null && <div className="mb-3"><ErrorMessage cause={error} /></div>}
+      {error !== null && <ErrorMessage cause={error} />}
       {clients === null ? <Loading /> : (
         <div className="grid min-w-0 gap-4 [&>*]:min-w-0">
           {clients.length === 0 && <Notice>You are not on any client's project yet, so there is nobody to book with.</Notice>}

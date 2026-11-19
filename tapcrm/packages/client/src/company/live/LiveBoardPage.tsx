@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BannerDescription } from '../layout/PageIntro.js';
 import { loadLiveBoard, type LiveBoard, type LiveGroup, type LiveRow } from './liveApi.js';
 import { liveMinutes } from './liveTime.js';
 import {
@@ -9,6 +10,7 @@ import {
 } from './realtimeClient.js';
 import { Icon } from '../../ui/index.js';
 import { WorkspacePageContainer } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -516,21 +518,16 @@ export function LiveBoardPage(): React.JSX.Element {
   if (error) {
     return (
       <WorkspacePageContainer>
-        <div className="rounded-2xl border border-app-danger/30 bg-app-danger/5 p-8 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-app-danger/10 text-app-danger">
-            <Icon name="clock" className="size-6" />
-          </div>
-          <h2 className="mt-4 text-base font-semibold text-app-foreground">Unable to load live employee status</h2>
-          <p className="mt-1 text-xs text-app-muted max-w-md mx-auto">{error}</p>
-          <button
-            type="button"
-            onClick={() => { setError(null); load(); }}
-            className="mt-5 inline-flex items-center gap-2 rounded-lg border border-app-border bg-app-surface px-4 py-2 text-xs font-semibold text-app-foreground hover:border-app-accent hover:text-app-accent transition-colors"
-          >
-            <Icon name="refresh" className="size-3.5" />
-            Retry
-          </button>
-        </div>
+        <ErrorToast
+          message={`Unable to load live employee status. ${error}`}
+          action={{
+            label: 'Retry',
+            onClick: () => {
+              setError(null);
+              load();
+            },
+          }}
+        />
       </WorkspacePageContainer>
     );
   }
@@ -545,8 +542,9 @@ export function LiveBoardPage(): React.JSX.Element {
       </nav>
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <BannerDescription text="Live employee status and workforce presence" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between xl:justify-end">
+        <div className="xl:hidden">
           <h1 className="font-display text-xl font-bold tracking-tight text-app-foreground sm:text-2xl">
             Employee Workforce
           </h1>

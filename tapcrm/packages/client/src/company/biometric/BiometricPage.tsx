@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PageIntro } from '../layout/PageIntro.js';
 import type { BiometricDeviceDto, BiometricPunchDto } from '@tapcrm/contracts';
 import {
   changeBiometricDevice,
@@ -10,6 +11,7 @@ import {
 } from '../api/biometricApi.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../api/companyApi.js';
 import { Button, Card, Field, Notice, SearchableSelect, Select, SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type Tab = 'devices' | 'mapping' | 'punches';
 
@@ -59,11 +61,7 @@ export function BiometricPage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">HR · Attendance</p>
-        <h1 className="font-display text-2xl font-bold">Biometric attendance</h1>
-        <p className="text-sm text-app-muted">Manage biometric devices, employee PIN mappings, and imported punch records.</p>
-      </header>
+      <PageIntro eyebrow="HR · Attendance" title="Biometric attendance" description="Manage biometric devices, employee PIN mappings, and imported punch records." />
       <div className="flex flex-wrap gap-2">
         {(['devices', 'mapping', 'punches'] as const).map((key) => (
           <button
@@ -76,7 +74,7 @@ export function BiometricPage(): React.JSX.Element {
           </button>
         ))}
       </div>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {notice && <Notice>{notice}</Notice>}
       {tab === 'devices' && (
         <DevicesTab devices={devices} loading={loading} onChanged={load} onNotice={setNotice} onError={setError} />

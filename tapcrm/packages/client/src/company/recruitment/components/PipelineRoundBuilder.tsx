@@ -9,6 +9,7 @@ import {
   updatePipelineRound,
 } from '../api/recruitmentApi.js';
 import type { PipelineRound, PipelineRoundMode } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const MODE_LABELS: Record<PipelineRoundMode, string> = {
   online: 'Online',
@@ -328,14 +329,7 @@ export function PipelineRoundBuilder({
 
   return (
     <div className="space-y-3">
-      {error && (
-        <div className="flex items-start justify-between gap-2 rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-3 text-sm text-app-danger">
-          <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} className="shrink-0 text-app-muted hover:text-app-foreground">
-            <Icon name="close" className="size-3.5" />
-          </button>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {rounds.length === 0 && !editing && (
         <p className="text-xs text-app-muted">

@@ -1,5 +1,5 @@
 import nodemailer, { type Transporter } from 'nodemailer';
-import { loadConfig } from '../../config.js';
+import { emailTransport, loadConfig } from '../../config.js';
 
 export interface EmailMessage {
   readonly to: string;
@@ -25,12 +25,11 @@ export function escapeHtml(value: string): string {
 
 let transporter: Transporter | null = null;
 
-function hasSmtpConfig(): boolean {
-  const config = loadConfig();
-  return Boolean(config.SMTP_HOST && config.SMTP_PORT && config.SMTP_USER && config.SMTP_PASSWORD);
-}
-
-/** SMTP transport. Host, port, TLS and credentials all come from SMTP_* config. */
+/**
+ * SMTP transport. Host, port, TLS and credentials all come from SMTP_* config,
+ * which loadConfig has already checked is complete (configurationProblems).
+ * A relay that needs no login is used without one.
+ */
 function getTransporter(): Transporter {
   if (transporter) return transporter;
   const config = loadConfig();
@@ -40,9 +39,52 @@ function getTransporter(): Transporter {
     host: config.SMTP_HOST,
     port: config.SMTP_PORT,
     secure: config.SMTP_SECURE,
-    auth: { user: config.SMTP_USER, pass: config.SMTP_PASSWORD },
+    ...(config.SMTP_USER ? { auth: { user: config.SMTP_USER, pass: config.SMTP_PASSWORD } } : {}),
   });
   return transporter;
+}
+
+/** Only an error's code: SMTP messages can echo addresses or server responses. */
+function errorCode(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' ? code : error.name;
+  }
+  return 'unknown';
+}
+
+/**
+ * One startup line saying where email goes, and whether the SMTP server
+ * accepts the connection and login, so a misconfigured server shows in the
+ * log on boot instead of when someone's invitation never arrives. Never throws:
+ * a mail server that is briefly down must not stop the API.
+ */
+export async function reportEmailTransport(): Promise<void> {
+  const config = loadConfig();
+  if (config.NODE_ENV === 'test') return;
+  if (emailTransport(config) === 'console') {
+    console.warn(JSON.stringify({
+      level: config.NODE_ENV === 'production' ? 'warn' : 'info',
+      msg: 'email is printed to this log, not sent (EMAIL_TRANSPORT=console)',
+    }));
+    return;
+  }
+  try {
+    await getTransporter().verify();
+    console.log(JSON.stringify({ level: 'info', msg: 'email: SMTP server reachable and login accepted', host: config.SMTP_HOST }));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      msg: 'email: SMTP check failed; messages will be retried but may not be delivered',
+      host: config.SMTP_HOST,
+      reason: errorCode(error),
+    }));
+  }
+}
+
+/** Test-only. */
+export function __resetTransporter(): void {
+  transporter = null;
 }
 
 function printToConsole(message: EmailMessage): void {
@@ -58,7 +100,7 @@ export async function deliverEmail(message: EmailMessage): Promise<void> {
   const config = loadConfig();
   if (config.NODE_ENV === 'test') return;
 
-  if (!hasSmtpConfig()) {
+  if (emailTransport(config) === 'console') {
     printToConsole(message);
     return;
   }

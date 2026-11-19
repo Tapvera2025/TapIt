@@ -23,7 +23,14 @@ function bestMatch(groups: readonly CompanyNavGroup[], pathname: string): Match 
   let best: Match | null = null;
   const consider = (candidate: Match): void => {
     if (!owns(candidate.path, pathname)) return;
-    if (!best || candidate.path.length > best.path.length) best = candidate;
+    // Longest path wins. On a tie a sub-entry beats its parent ("All Leads" is
+    // what the page is, "Lead Management" only the section holding it); between
+    // equals the first one in menu order stays.
+    const better =
+      !best ||
+      candidate.path.length > best.path.length ||
+      (candidate.path.length === best.path.length && best.child === null && candidate.child !== null);
+    if (better) best = candidate;
   };
   for (const group of groups) {
     for (const item of group.items) {
@@ -82,4 +89,45 @@ export function breadcrumbTrail({
   return crumbs.map((crumb, index) =>
     index === lastIndex ? { label: crumb.label, current: true, ...(crumb.icon ? { icon: crumb.icon } : {}) } : crumb,
   );
+}
+
+/**
+ * The one place that decides what a page is called. The heading and the last
+ * breadcrumb are always the same text, and for any page in the menu that text is
+ * the menu label, so the sidebar, the breadcrumb and the page heading cannot
+ * drift apart.
+ *
+ * - A page in the menu is named by its menu label.
+ * - A page deeper than the menu (a record) or outside it keeps `fallbackTitle`.
+ * - `lockTitle` is for a page that deliberately owns its heading (the Dashboard
+ *   greeting); the breadcrumb then follows that heading.
+ */
+export function resolvePageHeading({
+  groups,
+  pathname,
+  fallbackTitle,
+  lockTitle = false,
+  homePath,
+  showGroup = true,
+}: {
+  groups: readonly CompanyNavGroup[];
+  pathname: string;
+  fallbackTitle: string;
+  lockTitle?: boolean;
+  homePath: string;
+  showGroup?: boolean;
+}): { title: string; crumbs: Crumb[]; inMenu: boolean } {
+  const match = bestMatch(groups, pathname);
+  const inMenu = match !== null && match.path === pathname;
+  const menuLabel = match ? (match.child ?? match.item).label : undefined;
+  const title = !lockTitle && inMenu && menuLabel ? menuLabel : fallbackTitle;
+
+  const crumbs = breadcrumbTrail({ groups, pathname, pageTitle: title, homePath, showGroup });
+  const lastIndex = crumbs.length - 1;
+  const last = crumbs[lastIndex];
+  // On a menu page the last crumb IS the heading, even when the heading is locked.
+  if (inMenu && last && last.label !== title) {
+    crumbs[lastIndex] = { ...last, label: title };
+  }
+  return { title, crumbs, inMenu };
 }

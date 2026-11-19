@@ -100,6 +100,21 @@ export async function findPenalty(
   );
 }
 
+/** The employee a new penalty would be recorded against, with what scope checks need. */
+export async function findPenaltySubject(
+  ctx: RequestContext,
+  employeeId: string,
+): Promise<{ id: string; departmentId: string | null; teamId: string | null } | null> {
+  return db.maybeOne<{ id: string; departmentId: string | null; teamId: string | null }>(
+    ctx,
+    sql`
+      SELECT id, department_id, team_id FROM app_user
+      WHERE organization_id = ${ctx.organizationId} AND id = ${employeeId}::uuid
+        AND account_type = 'employee' AND status = 'active'
+    `,
+  );
+}
+
 export async function employeeExists(
   tx: Tx,
   organizationId: string,

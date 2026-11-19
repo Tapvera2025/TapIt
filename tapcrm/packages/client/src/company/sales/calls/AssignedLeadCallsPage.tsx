@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Field, Icon, Modal, Notice, Page, Progress, Select, Skeleton, TimerRing } from '../../../ui/index.js';
+import { Button, Card, Field, Icon, Modal, Page, Progress, Select, Skeleton, TimerRing } from '../../../ui/index.js';
 import type { CallOutcome } from './api.js';
 import { formatCallTime, formatDuration, formatPhone, formatTalkTime, percent, timeAgo } from './calls-format.js';
 import {
@@ -29,6 +29,7 @@ import {
   type LeadImportSummary,
 } from '../leads/imports/api.js';
 import { CALL_STATUS_LABELS, callStatusIcon, callStatusTone, IMPORTED_LEADS_PATH, plural } from '../leads/imports/import-format.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const PAGE_SIZE = 25;
 
@@ -178,7 +179,7 @@ export function AssignedLeadCallsPage({
         </div>
       </Card>
 
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {telephony && !telephony.connected && (
         <Card className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -442,7 +443,7 @@ function LeadCallsModal({
         </div>
       }
     >
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {!history && !error ? (
         <div className="space-y-2" role="status" aria-label="Loading calls">{Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-12" />)}</div>
       ) : history ? (

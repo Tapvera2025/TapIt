@@ -14,6 +14,7 @@ import { FileBadge } from './attachments.js';
 import { Avatar } from './Avatar.js';
 import { whereSent } from './conversationLabel.js';
 import { toPlainText } from './markdown.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const TYPES: readonly { value: SearchType | ''; label: string }[] = [
   { value: '', label: 'All' },
@@ -233,7 +234,7 @@ export function SearchPanel({
             <p className="mt-1 text-xs">Tip: “quoted phrase”, -exclude, or pick a type above to browse files.</p>
           </div>
         ) : error ? (
-          <p className="px-4 py-6 text-center text-sm text-app-danger">{error}</p>
+          <ErrorToast message={error} />
         ) : results.length === 0 && !loading ? (
           <p className="px-4 py-10 text-center text-sm text-app-muted">No messages match.</p>
         ) : (

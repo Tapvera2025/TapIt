@@ -36,9 +36,7 @@ export function OrganizationOverview({
   return (
     <WorkspacePageContainer>
       {Boolean(error) && (
-        <div className="mt-6">
-          <ErrorMessage cause={error} />
-        </div>
+        <ErrorMessage cause={error} />
       )}
       {!error && !data && <SkeletonPage cards={4} rows={4} />}
       {data && (

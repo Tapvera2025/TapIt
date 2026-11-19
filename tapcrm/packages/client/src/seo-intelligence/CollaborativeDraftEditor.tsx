@@ -15,7 +15,8 @@ import * as Y from 'yjs';
 import { plainTextToContentJson } from '@tapcrm/contracts';
 import type { ContentCommentThread } from '@tapcrm/contracts';
 import type { CreateContentCommentInput } from './content-api.js';
-import { getIdentityAccessToken } from '../identity/api/authApi.js';
+import { getIdentityAccessToken, identityApiBasePath } from '../identity/api/authApi.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 interface SharedSession {
   document: Y.Doc;
@@ -27,11 +28,18 @@ interface Collaborator {
   color: string;
 }
 
+/**
+ * The collaboration socket. By default it is the app's own address at
+ * `<api>/collab`: nginx in production and the Vite dev server forward that path
+ * to the collaboration server, so no extra port has to be reachable from the
+ * browser (a separate :4001 is not, behind the Cloudflare tunnel).
+ * VITE_CONTENT_COLLAB_URL overrides it.
+ */
 function endpoint() {
   const configured = import.meta.env['VITE_CONTENT_COLLAB_URL'];
   if (configured) return configured;
   const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${scheme}//${window.location.hostname}:4001`;
+  return `${scheme}//${window.location.host}${identityApiBasePath()}/collab`;
 }
 
 function colorFor(id: string) {
@@ -550,7 +558,7 @@ export function CollaborativeDraftEditor({
               autoFocus={commentDraft.kind === 'comment'}
             />
           </label>
-          {commentError && <p role="alert">{commentError}</p>}
+          {commentError && <ErrorToast message={commentError} />}
           <div className="content-actions">
             <button type="submit" disabled={commentBusy || !commentBody.trim()}>
               {commentBusy ? 'Saving…' : 'Post review note'}
@@ -568,8 +576,8 @@ export function CollaborativeDraftEditor({
         <h4>
           Review notes <span>{threads.length}</span>
         </h4>
-        {threadError && <p role="alert">{threadError}</p>}
-        {commentError && !commentDraft && <p role="alert">{commentError}</p>}
+        {threadError && <ErrorToast message={threadError} />}
+        {commentError && !commentDraft && <ErrorToast message={commentError} />}
         {threads.length === 0 && !threadError ? (
           <p className="seo-small-copy">
             Select text to leave a comment or suggest an edit.

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { ConversationWorkspace } from '../../chat/ConversationWorkspace.js';
 import type { ChatTransport } from '../../chat/transport.js';
-import { Loading, Notice } from '../../ui/index.js';
+import { Loading } from '../../ui/index.js';
 import {
   deleteProjectDiscussionAttachment,
   editProjectDiscussionMessage,
@@ -13,6 +13,7 @@ import {
   uploadProjectDiscussionAttachment,
 } from '../api/projectDiscussionApi.js';
 import { useClientMessages } from '../useClientMessages.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 export function ClientMessagesPage(): React.JSX.Element {
   const chat = useClientMessages();
@@ -59,7 +60,7 @@ export function ClientMessagesPage(): React.JSX.Element {
           {!chat.loaded ? (
             <div className="p-4"><Loading /></div>
           ) : chat.error && chat.conversations.length === 0 ? (
-            <div className="p-4"><Notice error>Unable to load your client group conversations.</Notice></div>
+            <ErrorToast message="Unable to load your client group conversations." />
           ) : (
             <ConversationWorkspace
               chat={chat}

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Button, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Modal, Select } from '../../../ui/index.js';
 import { submitInterviewFeedback } from '../api/recruitmentApi.js';
 import type {
   Interview,
   InterviewFeedback,
   InterviewRecommendation,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function InterviewFeedbackModal({
   interview,
@@ -58,7 +59,7 @@ export function InterviewFeedbackModal({
   return (
     <Modal title={`Submit Interview Feedback: ${interview.candidateName ?? 'Candidate'}`} onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <div className="rounded-lg border border-app-border bg-app-surface p-3 text-xs text-app-muted">
           <p>

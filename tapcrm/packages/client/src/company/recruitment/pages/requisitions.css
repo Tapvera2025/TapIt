@@ -1,0 +1,410 @@
+.requisition-workspace {
+  --requisition-accent-soft: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+  --requisition-accent-ink: color-mix(in srgb, var(--app-accent) 55%, var(--app-foreground));
+  container: requisitions / inline-size;
+  display: grid;
+  gap: 1rem;
+  padding-block-end: 1.25rem;
+}
+
+.requisition-page-heading,
+.requisition-page-title,
+.requisition-results {
+  display: flex;
+  align-items: center;
+}
+
+.requisition-page-heading {
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 0.875rem 1.5rem;
+}
+
+.requisition-page-title { gap: 0.625rem; }
+
+.requisition-page-title h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.375rem, 3.2cqi, 1.875rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.requisition-icon-tile,
+.requisition-draft-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: var(--requisition-accent-soft);
+  color: var(--requisition-accent-ink);
+}
+
+.requisition-icon-tile { inline-size: 2.25rem; block-size: 2.25rem; }
+.requisition-create { min-block-size: 2.5rem; white-space: nowrap; }
+
+.requisition-status-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-block-start: 0.625rem;
+}
+
+.requisition-status-summary button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 1.875rem;
+  padding-inline: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.requisition-status-summary button strong { color: var(--app-foreground); font-variant-numeric: tabular-nums; }
+
+.requisition-status-summary button:hover,
+.requisition-status-summary button[aria-pressed='true'] {
+  border-color: var(--app-border);
+  background: var(--requisition-accent-soft);
+  color: var(--app-foreground);
+}
+
+.requisition-status-dot {
+  inline-size: 0.375rem;
+  block-size: 0.375rem;
+  border-radius: 50%;
+  background: var(--requisition-state, var(--app-muted));
+}
+
+.requisition-workspace [data-status='open'] { --requisition-state: var(--app-accent); }
+.requisition-workspace [data-status='on_hold'] { --requisition-state: var(--color-amber-500); }
+.requisition-workspace [data-status='filled'] { --requisition-state: var(--color-sky-500); }
+.requisition-workspace [data-status='closed'] { --requisition-state: var(--app-muted); }
+.requisition-workspace [data-status='draft'] { --requisition-state: color-mix(in srgb, var(--app-muted) 65%, var(--app-surface)); }
+.requisition-workspace [data-status='cancelled'] { --requisition-state: var(--app-danger); }
+
+.requisition-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem;
+}
+
+.requisition-filters {
+  display: grid;
+  flex: 1 1 42rem;
+  min-inline-size: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.requisition-search,
+.requisition-filter {
+  position: relative;
+  display: grid;
+  min-inline-size: 0;
+  align-items: center;
+}
+
+.requisition-search { grid-column: 1 / -1; }
+
+.requisition-filters .ui-form-control {
+  min-inline-size: 0;
+  inline-size: 100%;
+  block-size: 2.375rem;
+  padding: 0.375rem 0.5rem 0.375rem 2rem;
+  border-radius: 0.625rem;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+}
+
+.requisition-filters select.ui-form-control {
+  appearance: none;
+  padding-inline-end: 1.5rem;
+}
+
+.requisition-filters svg {
+  position: absolute;
+  inset-inline-start: 0.625rem;
+  color: var(--app-muted);
+  pointer-events: none;
+}
+
+.requisition-filter svg:last-child {
+  inset-inline: auto 0.45rem;
+}
+
+.requisition-view-switch {
+  display: inline-flex;
+  flex: none;
+  gap: 0.1875rem;
+  margin-inline-start: auto;
+  padding: 0.1875rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.6875rem;
+  background: var(--app-surface-raised);
+}
+
+.requisition-view-switch button,
+.requisition-icon-button {
+  display: grid;
+  flex: none;
+  inline-size: 2rem;
+  block-size: 2rem;
+  place-items: center;
+  border-radius: 0.5rem;
+  color: var(--app-muted);
+}
+
+.requisition-view-switch button:hover,
+.requisition-icon-button:hover,
+.requisition-view-switch button[aria-pressed='true'] {
+  background: var(--requisition-accent-soft);
+  color: var(--requisition-accent-ink);
+}
+
+.requisition-workspace :is(.requisition-view-switch button, .requisition-status-summary button, .requisition-icon-button, .requisition-details-action, .requisition-results button):focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.requisition-results {
+  min-inline-size: 0;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--app-muted);
+  font-size: 0.75rem;
+}
+
+.requisition-results button { color: var(--requisition-accent-ink); font-weight: 650; }
+.requisition-results button:hover { text-decoration: underline; }
+
+.requisition-collection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.875rem;
+}
+
+.requisition-card {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  padding: clamp(0.875rem, 1.6cqi, 1.25rem);
+  border-block-end: 2px solid color-mix(in srgb, var(--requisition-state, var(--app-border)) 65%, var(--app-border));
+}
+
+.requisition-card-header {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 0.625rem;
+  margin-block-end: 0.625rem;
+}
+
+.requisition-card-status { flex: none; white-space: nowrap; }
+
+.requisition-card-department {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 0.3125rem;
+  margin-inline-end: auto;
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.requisition-card-department svg,
+.requisition-card-meta svg { flex: none; color: var(--requisition-accent-ink); }
+
+.requisition-icon-button {
+  background: var(--app-surface-raised);
+  color: var(--requisition-accent-ink);
+}
+
+.requisition-card h2 {
+  color: var(--app-foreground);
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2cqi, 1.1875rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+.requisition-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3125rem 0.75rem;
+  margin-block-start: 0.5rem;
+  color: var(--app-muted);
+  font-size: 0.75rem;
+}
+
+.requisition-card-meta li {
+  display: inline-flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 0.3125rem;
+  overflow-wrap: anywhere;
+}
+
+.requisition-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-block-start: 1rem;
+  padding-block: 0.625rem;
+  border: 1px solid color-mix(in srgb, var(--app-border) 78%, transparent);
+  border-radius: 0.75rem;
+  background: var(--app-surface-raised);
+}
+
+.requisition-card-metrics > div {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 0.125rem;
+  padding-inline: 0.625rem;
+}
+
+.requisition-card-metrics > div + div { border-inline-start: 1px solid var(--app-border); }
+.requisition-card-metrics dt { color: var(--app-muted); font-size: 0.6875rem; line-height: 1.35; overflow-wrap: anywhere; }
+.requisition-card-metrics dd { font-size: 1.1875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.requisition-draft {
+  display: grid;
+  flex: 1;
+  min-block-size: 7rem;
+  align-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  margin-block: 1rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--app-border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--app-surface-raised) 40%, transparent);
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.requisition-draft-icon { inline-size: 2.625rem; block-size: 2.625rem; }
+
+.requisition-timeline {
+  display: grid;
+  align-content: end;
+  gap: 0.5rem;
+  margin-block: auto 0.875rem;
+  padding-block-start: 1rem;
+  color: var(--app-muted);
+  font-size: 0.6875rem;
+}
+
+.requisition-timeline-dates,
+.requisition-timeline-dates p,
+.requisition-timeline-progress {
+  display: flex;
+  align-items: center;
+}
+
+.requisition-timeline-dates { flex-wrap: wrap; justify-content: space-between; gap: 0.3125rem 0.625rem; }
+.requisition-timeline-dates p { gap: 0.25rem; }
+.requisition-timeline-dates time { color: var(--app-foreground); font-weight: 600; white-space: nowrap; }
+
+.requisition-timeline-progress {
+  justify-content: flex-end;
+  gap: 0.5rem;
+  color: var(--app-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.requisition-timeline-track {
+  flex: 1;
+  block-size: 0.3125rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--app-border);
+}
+
+.requisition-timeline-track span {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--requisition-state, var(--app-accent));
+}
+
+.requisition-card-footer {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-block-start: 0.625rem;
+  border-block-start: 1px solid var(--app-border);
+  color: var(--app-muted);
+  font-size: 0.6875rem;
+}
+
+.requisition-card-footer > span { overflow-wrap: anywhere; }
+
+.requisition-details-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  padding-block: 0.25rem;
+  color: var(--requisition-accent-ink);
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.requisition-details-action:hover { text-decoration: underline; }
+
+.requisition-collection[data-view='list'] .requisition-card {
+  padding-block: 0.75rem;
+  border-block-end-width: 1px;
+  border-inline-start: 3px solid color-mix(in srgb, var(--requisition-state, var(--app-border)) 65%, var(--app-border));
+}
+
+.requisition-collection[data-view='list'] .requisition-draft { min-block-size: 0; }
+.requisition-collection[data-view='list'] .requisition-draft-icon { display: none; }
+
+@container requisitions (width < 53rem) {
+  .requisition-collection[data-view='list'] .requisition-card-metrics { margin-block-start: 0.625rem; padding-block: 0.375rem; }
+  .requisition-collection[data-view='list'] .requisition-timeline { margin-block-end: 0.5rem; padding-block-start: 0.625rem; }
+  .requisition-collection[data-view='list'] .requisition-draft { margin-block: 0.625rem; padding: 0.5rem; }
+}
+
+@container requisitions (width >= 37rem) {
+  .requisition-collection[data-view='grid'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .requisition-collection[data-view='grid'] .requisition-card { min-block-size: 18rem; }
+}
+
+@container requisitions (width >= 53rem) {
+  .requisition-filters { grid-template-columns: minmax(9rem, 1.35fr) repeat(4, minmax(0, 1fr)); }
+  .requisition-search { grid-column: auto; }
+
+  .requisition-collection[data-view='list'] .requisition-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr) minmax(0, 1.1fr) max-content;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .requisition-collection[data-view='list'] :is(.requisition-card-metrics, .requisition-timeline) { margin: 0; }
+  .requisition-collection[data-view='list'] .requisition-timeline { padding-block-start: 0; }
+  .requisition-collection[data-view='list'] .requisition-draft { grid-column: 2 / 4; margin: 0; }
+  .requisition-collection[data-view='list'] .requisition-card-footer { align-items: flex-end; flex-direction: column; border: 0; padding: 0; }
+}
+
+@container requisitions (width >= 61rem) {
+  .requisition-collection[data-view='grid'] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

@@ -523,7 +523,7 @@ export function registerSeoRoutes(): void {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="tapvera-seo-report-${siteId}.pdf"`,
+        `attachment; filename="seo-report-${siteId}.pdf"`,
       );
       res.send(pdf);
       return null;

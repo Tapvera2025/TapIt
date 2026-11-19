@@ -25,7 +25,7 @@ import { PlatformForbiddenError } from '../../../platform/errors.js';
 import { effectivePolicy, visibilityFilter } from '@tapcrm/authz';
 import { globalAccess } from '@tapcrm/contracts';
 import { sql } from '../../../platform/dal/sql.js';
-import { DealNotFoundError } from './service.js';
+import { assertNotOwnDealMoney, DealNotFoundError } from './service.js';
 import { findDeal, insertDealAudit, lockDeal, markWonRow } from './repository.js';
 import type { Deal } from './types.js';
 import { evaluateReadiness, readinessForClose, type ReadinessReport } from './won-readiness.js';
@@ -75,6 +75,16 @@ export async function recordWin(ctx: RequestContext, dealId: string): Promise<De
         `Deal lifecycle is ${locked.lifecycleStatus}; cannot be won.`,
         409,
         'DEAL_ALREADY_TERMINAL',
+      );
+    }
+    // Four eyes on a win: not the people who gain from it, and not the person
+    // who confirmed the money arrived (one person must not do both).
+    assertNotOwnDealMoney(ctx, locked);
+    if (locked.paymentInitiatedBy !== null && locked.paymentInitiatedBy === ctx.principal.id) {
+      throw new ApplicationError(
+        'You confirmed this deal\'s payment, so someone else must record the win.',
+        403,
+        'DEAL_WIN_SAME_AS_PAYMENT_CONFIRMER',
       );
     }
 

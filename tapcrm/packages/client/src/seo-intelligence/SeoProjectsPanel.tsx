@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Modal, Notice } from '../ui/index.js';
+import { Button, Card, Modal } from '../ui/index.js';
 import { Icon } from '../ui/index.js';
 import type { Project } from '../projects/api/projectsApi.js';
 import { downloadProjectReport } from '../projects/reports/api/projectReportsApi.js';
@@ -8,6 +8,7 @@ import { ProjectBlogUpdates, ProjectKeywordTracker } from '../projects/reports/P
 import type { ReportPeriod } from '../projects/reports/types.js';
 import { SeoProjectPicker } from './SeoProjectPicker.js';
 import { SeoEmptyState, SeoSectionHeader } from './SeoUi.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export type SeoProjectSection = 'project-keywords' | 'project-blogs' | 'project-backlinks';
 
@@ -121,7 +122,7 @@ export function SeoProjectsPanel({
               </Button>
             </div>
           </div>
-          {error && <Notice error>{error}</Notice>}
+          {error && <ErrorToast message={error} />}
           {section === 'project-keywords' && <ProjectKeywordTracker key={project.id} project={project} period={period} canManage={canManage} />}
           {section === 'project-blogs' && <ProjectBlogUpdates key={project.id} project={project} period={period} canManage={canManage} />}
           {section === 'project-backlinks' && <OffPageSeoPage key={project.id} project={project} period={period} />}

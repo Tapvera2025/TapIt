@@ -1,10 +1,12 @@
 import { WorkspacePageContainer } from '../../ui/index.js';
 import {
+  useCompanyPageDescriptionOverride,
   useCompanyPageMetadataValue,
+  usePublishHeadingTitle,
   useRegisteredNavigation,
   type CompanyPageMetadata,
 } from './CompanyNavbarContext.js';
-import { breadcrumbTrail } from './breadcrumbs.js';
+import { resolvePageHeading } from './breadcrumbs.js';
 import { CompanyBreadcrumbs } from './CompanyBreadcrumbs.js';
 import { useMemo } from 'react';
 import { CompanyHeroUtilityCapsule } from './CompanyHeroUtilityCapsule.js';
@@ -22,6 +24,7 @@ const DESCRIPTION_BY_TITLE: Readonly<Record<string, string>> = {
   'My Leave': 'Apply for leave, review requests and check available balances.',
   'My Todo': 'Plan your day, organize upcoming work and stay on track.',
   'My Notepad': 'Keep personal notes and useful workspace information close by.',
+  'My Profile': 'Your personal details, education, experience and documents.',
   Recruitment: 'Manage recruitment, candidates and employee onboarding.',
   'Sales Overview': 'Monitor sales activity, pipeline progress and team performance.',
   Overview: 'Monitor sales activity, pipeline progress and team performance.',
@@ -78,6 +81,11 @@ export function defaultCompanyPageMetadata({
   };
 }
 
+/** The generic description for a page that supplies none of its own. */
+export function descriptionForTitle(title: string): string {
+  return DESCRIPTION_BY_TITLE[title] ?? `Work with ${title.toLowerCase()} across your company workspace.`;
+}
+
 export function CompanyPageHero({
   pathname,
   onNavigate,
@@ -93,28 +101,56 @@ export function CompanyPageHero({
 }): React.JSX.Element {
   const metadata = useCompanyPageMetadataValue();
   const groups = useRegisteredNavigation();
-  const title = metadata?.title;
-  const crumbs = useMemo(
-    () => breadcrumbTrail({ groups, pathname, pageTitle: title, homePath, showGroup }),
-    [groups, pathname, title, homePath, showGroup],
+  const descriptionOverride = useCompanyPageDescriptionOverride();
+  const heading = useMemo(
+    () =>
+      resolvePageHeading({
+        groups,
+        pathname,
+        fallbackTitle: metadata?.title ?? '',
+        lockTitle: metadata?.lockTitle ?? false,
+        homePath,
+        showGroup,
+      }),
+    [groups, pathname, metadata?.title, metadata?.lockTitle, homePath, showGroup],
   );
+  usePublishHeadingTitle(heading.title);
   if (!metadata) return <></>;
 
+  // One description, in order of authority: what the page itself says, then what
+  // it registered with its metadata, then a generic line for the (menu) title.
+  const description =
+    descriptionOverride ??
+    (metadata.custom || !heading.inMenu ? metadata.description : descriptionForTitle(heading.title));
+
   return (
+    <>
+      {/* Phones and tablets: the page has no banner, but the trail still shows where you are. */}
+      <div className="company-mobile-crumbs xl:hidden">
+        <WorkspacePageContainer>
+          <div className="pt-3">
+            <CompanyBreadcrumbs crumbs={heading.crumbs} onNavigate={onNavigate} />
+          </div>
+          {metadata.extensionOnMobile && metadata.extension && (
+            <div className="company-mobile-actions flex flex-wrap items-center gap-2 pt-2">{metadata.extension}</div>
+          )}
+        </WorkspacePageContainer>
+      </div>
     <div className="company-page-hero-desktop hidden xl:block">
       <WorkspacePageContainer>
         {/* One row: where you are on the left, the page's dynamic controls on the right. */}
         <div className="company-topbar">
-          <CompanyBreadcrumbs crumbs={crumbs} onNavigate={onNavigate} />
+          <CompanyBreadcrumbs crumbs={heading.crumbs} onNavigate={onNavigate} />
           <div className="company-page-hero-utility">
             <CompanyHeroUtilityCapsule />
           </div>
         </div>
         <section className="company-page-hero" aria-labelledby="company-page-hero-title">
-          <h1 id="company-page-hero-title">{metadata.title}</h1>
-          <p className="company-page-hero-description">{metadata.description}</p>
+          <h1 id="company-page-hero-title">{heading.title}</h1>
+          <p className="company-page-hero-description">{description}</p>
         </section>
       </WorkspacePageContainer>
     </div>
+    </>
   );
 }

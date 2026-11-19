@@ -155,14 +155,20 @@ export async function insertClientLogin(
 ): Promise<{ id: string }> {
   return tx.one<{ id: string }>(sql`
     INSERT INTO app_user (organization_id, account_type, client_id, email, password_hash, full_name, status, email_verified_at, must_change_password)
-    VALUES (${organizationId}, 'client', ${clientId}, ${input.email}, ${input.passwordHash}, ${input.fullName}, 'active', now(), false)
+    VALUES (${organizationId}, 'client', ${clientId}, ${input.email}, ${input.passwordHash}, ${input.fullName}, 'active', now(), true)
     RETURNING id
   `);
 }
 
+/**
+ * A password staff type for a client is temporary: the client must choose their
+ * own at the next sign-in (must_change_password), so nobody at the agency keeps
+ * a working password for the client's portal and what the client approves or
+ * says there is attributable to the client. The same holds for a new login.
+ */
 export async function resetClientLoginPassword(tx: Tx, organizationId: string, userId: string, passwordHash: string): Promise<void> {
   await tx.query(sql`
-    UPDATE app_user SET password_hash = ${passwordHash}, session_version = session_version + 1
+    UPDATE app_user SET password_hash = ${passwordHash}, must_change_password = true, session_version = session_version + 1
     WHERE organization_id = ${organizationId} AND id = ${userId}
   `);
 }

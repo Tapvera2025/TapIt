@@ -135,6 +135,10 @@ describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
       sql`INSERT INTO position (id, organization_id, department_id, code, name, organizational_level) VALUES (${POSITION}, ${ORG}, ${DEPARTMENT}, 'SALES_AGENT', 'Sales Agent', 1)`,
     );
     await asOwner(
+      'let the agent work their own leads (converting one needs leads:edit)',
+      sql`INSERT INTO position_policy (organization_id, position_id, action, allowed, scope) VALUES (${ORG}, ${POSITION}, 'leads:edit', true, 'own')`,
+    );
+    await asOwner(
       'create sales pool team',
       sql`INSERT INTO team (id, organization_id, department_id, kind, name) VALUES (${POOL_TEAM}, ${ORG}, ${DEPARTMENT}, 'sales-pool', 'Pool A')`,
     );
@@ -180,6 +184,7 @@ describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
     await asOwner('cleanup sources',       sql`DELETE FROM lead_source  WHERE organization_id = ${ORG}`);
     await asOwner('cleanup users',         sql`DELETE FROM app_user     WHERE organization_id = ${ORG}`);
     await asOwner('cleanup pool',          sql`DELETE FROM team         WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup position policies', sql`DELETE FROM position_policy WHERE organization_id = ${ORG}`);
     await asOwner('cleanup position',      sql`DELETE FROM position     WHERE organization_id = ${ORG}`);
     await asOwner('cleanup department',    sql`DELETE FROM department   WHERE organization_id = ${ORG}`);
     await asOwner('cleanup org',           sql`DELETE FROM organization WHERE id              = ${ORG}`);
@@ -256,6 +261,8 @@ describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
       status: 'new',
     });
     expect(lead.companyId).not.toBeNull();
+    // Only a lead someone has spoken to becomes a deal (DEAL_LEAD_NOT_CONVERTIBLE).
+    await asOwner('mark the lead contacted', sql`UPDATE lead SET status = 'contacted' WHERE id = ${lead.id}`);
 
     const deal = await createDeal(admin, {
       originatingLeadId: lead.id,

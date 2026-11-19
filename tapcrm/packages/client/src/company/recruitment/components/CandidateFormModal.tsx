@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ParsedCandidateData } from '@tapcrm/contracts';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Field, Modal, Select } from '../../../ui/index.js';
 import { Icon } from '../../../ui/index.js';
 import {
   createCandidate,
@@ -24,6 +24,7 @@ import type {
   JobRequisition,
 } from '../types/index.js';
 import { autofillHint, ResumeAutofillNotice, type ResumeReadStatus } from './ResumeAutofillNotice.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -251,7 +252,7 @@ export function CandidateFormModal({
   return (
     <Modal title="Add Candidate" onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         {/* Applied Requisition Selection */}
         <Select

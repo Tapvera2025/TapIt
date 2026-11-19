@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button, Card } from '../../../../ui/index.js';
+import { ErrorToast } from '../../../../ui/ErrorToast.js';
 
 /**
  * One section of the My Work dashboard: header with count + urgency,
@@ -52,11 +53,7 @@ export function MyWorkSection({
           </Button>
         )}
       </header>
-      {error && (
-        <p className="mb-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       {count === 0 && !error ? (
         <Card>
           <p className="text-sm text-app-muted">{empty ?? 'Nothing here.'}</p>

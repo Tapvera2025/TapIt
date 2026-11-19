@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Card, Field, Notice, Select, SkeletonTable } from '../ui/index.js';
+import { Button, Card, Field, Select, SkeletonTable } from '../ui/index.js';
 import {
   PeopleCalendar,
   setCalendarDragPayload,
@@ -28,6 +28,7 @@ import {
   type SocialPost,
   type SocialPostPage,
 } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const DRAG_TYPE = 'social-post';
 
@@ -323,14 +324,7 @@ export function Planner({
         </form>
       </Card>
       {error && (
-        <Notice error>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>{error}</span>
-            <Button kind="secondary" onClick={() => setReload((value) => value + 1)}>
-              Try again
-            </Button>
-          </div>
-        </Notice>
+        <ErrorToast message={error} action={{ label: 'Try again', onClick: () => setReload((value) => value + 1) }} />
       )}
       {loading ? (
         <SkeletonTable columns={6} rows={5} />
