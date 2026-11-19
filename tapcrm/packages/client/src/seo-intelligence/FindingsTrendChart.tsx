@@ -12,7 +12,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { useTheme } from '../theme/ThemeContext.js';
-import { Button, Card } from '../ui/index.js';
+import { Card } from '../ui/index.js';
 import { getSeoFindingsTrend } from './api.js';
 import {
   findingsTrendRows,
@@ -21,6 +21,7 @@ import {
 } from './findings-trend-model.js';
 import type { SeoFindingsTrendPoint, SeoSeverity } from './types.js';
 import { SEVERITY_LABELS } from './SeoUi.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
 
@@ -176,15 +177,10 @@ export function FindingsTrendChart({
         )}
       </div>
       {error && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <p role="alert" className="text-sm text-app-danger">
-            {error}
-            {rows.length > 0 ? ' Showing the last loaded trend.' : ''}
-          </p>
-          <Button kind="secondary" onClick={() => setRetry((value) => value + 1)}>
-            Retry trend
-          </Button>
-        </div>
+        <ErrorToast
+          message={`${error}${rows.length > 0 ? ' Showing the last loaded trend.' : ''}`}
+          action={{ label: 'Retry trend', onClick: () => setRetry((value) => value + 1) }}
+        />
       )}
       {rows.length > 0 ? (
         <>

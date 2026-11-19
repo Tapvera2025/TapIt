@@ -392,3 +392,80 @@ export async function recordVerificationAudit(
     VALUES (${orgId}, 'activity', ${JSON.stringify(eventData)}::jsonb)
   `);
 }
+
+/**
+ * The employee's own answer to "is this your first job?" (employee_profile,
+ * written by the employee module). No profile row yet means they have not
+ * said, which keeps the full document list.
+ */
+export async function findNoPriorExperience(
+  tx: Tx,
+  orgId: string,
+  employeeId: string,
+): Promise<boolean> {
+  const row = await tx.maybeOne<{ hasNoPriorExperience: boolean }>(sql`
+    SELECT has_no_prior_experience AS "hasNoPriorExperience"
+    FROM employee_profile
+    WHERE organization_id = ${orgId} AND user_id = ${employeeId}
+  `);
+  return row?.hasNoPriorExperience ?? false;
+}
+
+/** Current (not archived) documents of several employees, for profile completion. */
+export async function listCurrentDocumentsForEmployees(
+  tx: Tx,
+  orgId: string,
+  employeeIds: readonly string[],
+): Promise<EmployeeVerificationDocumentRecord[]> {
+  if (employeeIds.length === 0) return [];
+  const rows = await tx.query<RawDocumentRow>(sql`
+    SELECT
+      id,
+      verification_id AS "verificationId",
+      organization_id AS "organizationId",
+      employee_id AS "employeeId",
+      document_type AS "documentType",
+      object_key AS "objectKey",
+      file_name AS "fileName",
+      file_size AS "fileSize",
+      mime_type AS "mimeType",
+      status,
+      rejection_reason AS "rejectionReason",
+      uploaded_at AS "uploadedAt",
+      uploaded_by AS "uploadedBy",
+      reviewed_at AS "reviewedAt",
+      reviewed_by AS "reviewedBy",
+      is_current AS "isCurrent",
+      version,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM employee_verification_document
+    WHERE organization_id = ${orgId}
+      AND employee_id = ANY(${[...employeeIds]}::uuid[])
+      AND is_current = true
+    ORDER BY uploaded_at ASC
+  `);
+  return rows.map(mapDocumentRow);
+}
+
+/**
+ * Takes a document out of the current set while it still waits for review,
+ * e.g. the employee uploaded the wrong file. The row stays (no hard delete)
+ * as history. False when it was already reviewed or replaced.
+ */
+export async function withdrawPendingDocument(
+  tx: Tx,
+  orgId: string,
+  documentId: string,
+): Promise<boolean> {
+  const rows = await tx.query<{ id: string }>(sql`
+    UPDATE employee_verification_document
+    SET is_current = false, updated_at = now()
+    WHERE organization_id = ${orgId}
+      AND id = ${documentId}
+      AND is_current = true
+      AND status = 'PENDING'
+    RETURNING id
+  `);
+  return rows.length > 0;
+}

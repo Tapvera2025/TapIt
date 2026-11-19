@@ -26,6 +26,7 @@ import {
   type WeekdaySchedule,
 } from '../api/shiftsApi.js';
 import { Button, Modal, Notice, SkeletonProfile } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type Tab = 'profile' | 'placement' | 'shift' | 'account';
 
@@ -414,7 +415,7 @@ export function EditEmployeeModal({
                 onChange={setLeavingDate}
                 hint="Their last working day. Attendance and pay stop after it."
               />
-              {error && <div className="md:col-span-2"><Notice error>{error}</Notice></div>}
+              {error && <ErrorToast message={error} />}
               {notice && <div className="md:col-span-2"><Notice>{notice}</Notice></div>}
               <div className="flex justify-end gap-2 md:col-span-2">
                 <Button kind="secondary" onClick={onClose}>Close</Button>
@@ -464,7 +465,7 @@ export function EditEmployeeModal({
                 <p className="text-xs text-app-muted md:col-span-2">
                   Changing the position changes their permissions. Reporting lines the move breaks — theirs or their team&apos;s — are reset to the position tree.
                 </p>
-                {error && <div className="md:col-span-2"><Notice error>{error}</Notice></div>}
+                {error && <ErrorToast message={error} />}
                 <div className="flex justify-end gap-2 md:col-span-2">
                   <Button kind="secondary" onClick={onClose}>Close</Button>
                   <Button type="submit" disabled={busy || !departmentId || !positionId}>{busy ? 'Saving…' : 'Change position'}</Button>
@@ -514,7 +515,7 @@ export function EditEmployeeModal({
               <p className="text-xs text-app-muted md:col-span-2">
                 Assigning a shift from this date replaces any existing template assignment. Choose a future date to schedule the change without affecting past attendance.
               </p>
-              {error && <div className="md:col-span-2"><Notice error>{error}</Notice></div>}
+              {error && <ErrorToast message={error} />}
               <div className="flex justify-end gap-2 md:col-span-2">
                 <Button kind="secondary" onClick={onClose}>Close</Button>
                 <Button type="submit" disabled={busy || !selectedShiftId}>{busy ? 'Saving…' : 'Assign shift'}</Button>
@@ -546,7 +547,7 @@ export function EditEmployeeModal({
                   required
                 />
               </div>
-              {weekdayError && <div className="md:col-span-2"><Notice error>{weekdayError}</Notice></div>}
+              {weekdayError && <ErrorToast message={weekdayError} />}
               <div className="flex justify-end gap-2 md:col-span-2">
                 <Button kind="secondary" onClick={onClose}>Close</Button>
                 <Button type="submit" disabled={busy || !weekdayScheduleId}>{busy ? 'Saving…' : 'Save weekday schedule'}</Button>
@@ -562,7 +563,7 @@ export function EditEmployeeModal({
               {profile.status !== 'offboarded' && (
                 <>
                   <TextInput label="Reason" value={statusReason} onChange={setStatusReason} />
-                  {error && <Notice error>{error}</Notice>}
+                  {error && <ErrorToast message={error} />}
                   {profile.status === 'inactive' ? (
                     <Button disabled={busy || statusReason.trim() === ''} onClick={() => void changeStatus('active')}>Reactivate sign-in</Button>
                   ) : (
@@ -577,7 +578,7 @@ export function EditEmployeeModal({
           )}
         </div>
       )}
-      {!profile && error && <Notice error>{error}</Notice>}
+      {!profile && error && <ErrorToast message={error} />}
     </Modal>
   );
 }

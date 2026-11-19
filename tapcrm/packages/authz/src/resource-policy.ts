@@ -78,26 +78,52 @@ export function __resetResourcePolicies(): void {
   policies.clear();
 }
 
-/**
- * AZ-I6b / CI-10 — boot-time completeness check.
- *
- * "Every `resource` named in the registry must have a registered policy.
- *  Missing policy is a STARTUP FAILURE." A missing policy discovered on a
- * request is a missing policy discovered by a user.
- */
-export function assertResourcePolicyCompleteness(): void {
+/** `resource (required by action)` for each action whose resource has no policy. */
+function missingPolicies(actions: Iterable<Action>): string[] {
   const missing = new Set<string>();
-  for (const definition of Object.values(REGISTRY)) {
-    if (definition.resource !== null && !policies.has(definition.resource)) {
-      missing.add(`${definition.resource} (required by ${definition.action})`);
+  for (const action of actions) {
+    const resource = REGISTRY[action].resource;
+    if (resource !== null && !policies.has(resource)) {
+      missing.add(`${resource} (required by ${action})`);
     }
   }
-  if (missing.size > 0) {
+  return [...missing].sort();
+}
+
+function throwMissing(missing: readonly string[]): void {
+  if (missing.length > 0) {
     throw new AuthorizationConfigError(
-      `AZ-I6b: ${missing.size} registry resource(s) have no ResourcePolicy:\n  ` +
-        [...missing].sort().join('\n  '),
+      `AZ-I6b: ${missing.length} registry resource(s) have no ResourcePolicy:\n  ` +
+        missing.join('\n  '),
     );
   }
+}
+
+/**
+ * AZ-I6b / CI-10 — the full completeness check, over the whole registry.
+ *
+ * "Every `resource` named in the registry must have a registered policy.
+ *  Missing policy is a STARTUP FAILURE." While modules ship in phases this
+ * includes resources no route can reach yet, so the server runs it only for a
+ * release build (`strictManifest`); CI-10 reports the same gap.
+ */
+export function assertResourcePolicyCompleteness(): void {
+  throwMissing(missingPolicies(Object.keys(REGISTRY) as Action[]));
+}
+
+/**
+ * AZ-I6b for what this process can actually reach: every action a registered
+ * route binds must name a resource whose policy is registered. The server runs
+ * this at every start, in every environment. A missing policy discovered on a
+ * request is a missing policy discovered by a user.
+ */
+export function assertResourcePoliciesForActions(actions: Iterable<Action>): void {
+  throwMissing(missingPolicies(actions));
+}
+
+/** Registry resources still without a policy, for the startup report. */
+export function missingResourcePolicies(): readonly string[] {
+  return missingPolicies(Object.keys(REGISTRY) as Action[]);
 }
 
 export function resolveDomain<T extends Resource>(

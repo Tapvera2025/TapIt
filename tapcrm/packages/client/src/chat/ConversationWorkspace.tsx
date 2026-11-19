@@ -25,6 +25,7 @@ import { usePresenceMap } from './presence.js';
 import { ScheduledPanel } from './ScheduledPanel.js';
 import { companyChatTransport, type ChatTransport } from './transport.js';
 import type { ChatController } from './useChat.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 /** Mirrors the server's edit window (modules/chat/service.ts EDIT_WINDOW_MINUTES). */
 export const EDIT_WINDOW_MS = 15 * 60_000;
@@ -1155,11 +1156,7 @@ export function ConversationWorkspace({
         )
       )}
 
-      {(actionError || chat.error) && (
-        <p role="alert" className="fixed bottom-4 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border border-[#d86b6b]/30 bg-app-surface px-4 py-2 text-sm text-app-danger shadow-lg">
-          {actionError || chat.error}
-        </p>
-      )}
+      {(actionError || chat.error) && <ErrorToast message={actionError || chat.error} />}
     </div>
   );
 }

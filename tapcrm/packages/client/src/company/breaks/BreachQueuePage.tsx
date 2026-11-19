@@ -8,6 +8,7 @@ import {
   type BreachListItem,
 } from '../api/breaksApi.js';
 import { SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function fmtDate(value: string): string {
   return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -200,7 +201,7 @@ export function BreachQueuePage(): React.JSX.Element {
         )}
       </div>
 
-      {error && <p className="text-sm text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       {loading && <SkeletonTable columns={5} rows={5} />}
 
       {!loading && breaches.length === 0 && (

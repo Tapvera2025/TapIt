@@ -4,6 +4,7 @@ import { listPendingApprovals, type ApprovalRequest } from './api.js';
 import { getDeal, type Deal } from '../deals/api.js';
 import { ApprovalCard } from './ApprovalCard.js';
 import { describeSla } from './approvals-helpers.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -67,11 +68,7 @@ export function ApprovalsQueuePage({
         </Button>
       }
     >
-      {error && (
-        <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {loading && approvals.length === 0 ? (
         <Card>

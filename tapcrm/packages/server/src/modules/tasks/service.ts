@@ -343,7 +343,7 @@ export async function transitionTask(
 
   // Authorization check: task can only be cancelled by super admin and the particular employee who created the task
   if (input.status === 'cancelled') {
-    const isSuperAdmin = globalAccess(ctx.principal) || ctx.principal.accountType === 'super-admin';
+    const isSuperAdmin = globalAccess(ctx.principal);
     const isCreator = existing.createdBy === ctx.principal.id;
     if (!isSuperAdmin && !isCreator) {
       throw new AuthorizationError(
@@ -354,7 +354,7 @@ export async function transitionTask(
     }
   }
 
-  const isSuperAdmin = globalAccess(ctx.principal) || ctx.principal.accountType === 'super-admin';
+  const isSuperAdmin = globalAccess(ctx.principal);
   const isAssignee = existing.assignees.some((a) => a.id === ctx.principal.id);
   const targetUserId =
     input.userId ?? (!isSuperAdmin && isAssignee ? ctx.principal.id : undefined);

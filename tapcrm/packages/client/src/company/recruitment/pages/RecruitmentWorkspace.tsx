@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { APP_NAVIGATE_EVENT } from '../../../navigationEvent.js';
 import { useCompanyPageMetadata } from '../../layout/CompanyNavbarContext.js';
 import { RecruitmentTabs } from '../components/RecruitmentTabs.js';
 import { RecruitmentHeroActionsProvider } from '../components/RecruitmentHeroActionsContext.js';
@@ -21,9 +22,12 @@ import type { Candidate, JobRequisition, RecruitmentTab } from '../types/index.j
 export function RecruitmentWorkspace({
   pathname,
   onNavigate,
+  organizationName = null,
 }: {
   readonly pathname: string;
   readonly onNavigate: (path: string) => void;
+  /** Shown in email template previews in place of {{company_name}}. */
+  readonly organizationName?: string | null;
 }): React.JSX.Element {
   // Global modal shortcuts
   const [globalCreateReqOpen, setGlobalCreateReqOpen] = useState(false);
@@ -33,6 +37,21 @@ export function RecruitmentWorkspace({
   const [scheduleInterviewCandidate, setScheduleInterviewCandidate] = useState<Candidate | null>(null);
   const [createOfferCandidate, setCreateOfferCandidate] = useState<Candidate | null>(null);
   const [tabHeroActions, setTabHeroActions] = useState<ReactNode | null>(null);
+  const [search, setSearch] = useState(() => window.location.search);
+
+  useEffect(() => {
+    const syncSearch = () => setSearch(window.location.search);
+    window.addEventListener(APP_NAVIGATE_EVENT, syncSearch);
+    window.addEventListener('popstate', syncSearch);
+    return () => {
+      window.removeEventListener(APP_NAVIGATE_EVENT, syncSearch);
+      window.removeEventListener('popstate', syncSearch);
+    };
+  }, []);
+
+  const query = new URLSearchParams(search);
+  const requisitionId = query.get('requisitionId') || undefined;
+  const candidateStatus = (['applied', 'screening', 'selected'] as const).find((status) => status === query.get('status'));
 
   // Active tab derivation
   const activeTab: RecruitmentTab = pathname.startsWith('/company/recruitment/requisitions')
@@ -145,7 +164,7 @@ export function RecruitmentWorkspace({
       </div>
 
       {/* Active Tab Screen */}
-      <div key={activeTab} className="recruitment-route-transition mt-4 md:mt-6">
+      <div key={`${activeTab}${search}`} className="recruitment-route-transition mt-4 md:mt-6">
       {activeTab === 'requisitions' ? (
         <RequisitionsPage
           onAddCandidateForRequisition={(req) => {
@@ -159,26 +178,32 @@ export function RecruitmentWorkspace({
         />
       ) : activeTab === 'candidates' ? (
         <CandidatesPage
+          initialRequisitionId={requisitionId}
+          initialStatus={candidateStatus}
           onScheduleInterview={handleScheduleInterview}
           onCreateOffer={handleCreateOffer}
         />
       ) : activeTab === 'interviews' ? (
         <InterviewsPage
+          initialRequisitionId={requisitionId}
           preselectedCandidate={scheduleInterviewCandidate ?? undefined}
         />
       ) : activeTab === 'offers' ? (
         <OffersPage
+          initialRequisitionId={requisitionId}
           preselectedCandidate={createOfferCandidate ?? undefined}
           onNavigateToJoining={navigateToJoining}
         />
       ) : activeTab === 'joining' ? (
         <JoiningPage
+          initialRequisitionId={requisitionId}
+          requisitions={requisitions}
           onNavigateToEmployees={navigateToEmployees}
         />
       ) : activeTab === 'my-interviews' ? (
         <MyInterviewsPage />
       ) : activeTab === 'email-templates' ? (
-        <EmailTemplatesPage />
+        <EmailTemplatesPage organizationName={organizationName} />
       ) : (
         <RecruitmentOverviewPage
           onNavigate={handleNavigate}

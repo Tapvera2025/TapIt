@@ -11,6 +11,7 @@ import {
 } from '../api/biometricApi.js';
 import { getCompanyEmployees, type CompanyEmployee } from '../api/companyApi.js';
 import { Button, Card, Field, Notice, SearchableSelect, Select, SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type Tab = 'devices' | 'mapping' | 'punches';
 
@@ -73,7 +74,7 @@ export function BiometricPage(): React.JSX.Element {
           </button>
         ))}
       </div>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {notice && <Notice>{notice}</Notice>}
       {tab === 'devices' && (
         <DevicesTab devices={devices} loading={loading} onChanged={load} onNotice={setNotice} onError={setError} />

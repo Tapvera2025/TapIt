@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Principal } from '@tapcrm/contracts';
+import { globalAccess, type Principal } from '@tapcrm/contracts';
 import {
   __resetConstraints,
   __resetResourcePolicies,
@@ -267,7 +267,7 @@ describe('Task Bug Fixes Regression Suite — Bug #1 and Bug #2', () => {
       const nonCreatorId = 'emp-other';
 
       const canCancel = (accountType: 'employee' | 'super-admin', userId: string, taskCreatedBy: string) => {
-        const isSuperAdmin = accountType === 'super-admin';
+        const isSuperAdmin = globalAccess({ accountType });
         const isCreator = taskCreatedBy === userId;
         return isSuperAdmin || isCreator;
       };
@@ -284,10 +284,11 @@ describe('Task Bug Fixes Regression Suite — Bug #1 and Bug #2', () => {
   });
 });
 
-// Database-backed integration tests when PostgreSQL is available
-const dbIntegrationEnabled =
-  process.env['TAPCRM_INTEGRATION_DB'] === '1' ||
-  (process.env['DATABASE_URL'] !== undefined && process.env['DATABASE_URL'].length > 0);
+// Database-backed tests run only when asked for, like every other integration
+// test: a DATABASE_URL in the environment (set in most dev shells and CI jobs)
+// is not a request to write to that database.
+//   TAPCRM_INTEGRATION_DB=1 MIGRATION_DATABASE_URL=… DATABASE_URL=… npx vitest run <file>
+const dbIntegrationEnabled = process.env['TAPCRM_INTEGRATION_DB'] === '1';
 
 describe.skipIf(!dbIntegrationEnabled)('Task Bug Fixes Integration Tests (PostgreSQL)', () => {
   const orgId = randomUUID();

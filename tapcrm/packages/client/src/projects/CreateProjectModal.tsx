@@ -13,6 +13,7 @@ import {
 } from './api/projectsApi.js';
 import { ProjectAmountFields } from './ProjectAmountFields.js';
 import { projectAmountProblem } from './project-amounts.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const PRIORITIES: ProjectPriority[] = ['low', 'medium', 'high'];
 const WORK_STATUSES: ProjectWorkStatus[] = ['new', 'ongoing', 'ended', 'expired'];
@@ -144,7 +145,7 @@ export function CreateProjectModal({ onClose, onCreated, initialClientId }: { on
         <Notice error>Add a client before creating a project.</Notice>
       ) : (
         <form id={formId} onSubmit={(event) => void submit(event)} className="space-y-5">
-          {error && <Notice error>{error}</Notice>}
+          {error && <ErrorToast message={error} />}
 
           <Select label="Client" value={clientId} onChange={setClientId} required options={clients.map((c) => ({ value: c.id, label: `${c.clientName} — ${c.businessName}` }))} />
           {selectedClient && (

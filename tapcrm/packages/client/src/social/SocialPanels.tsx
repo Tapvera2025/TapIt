@@ -36,6 +36,7 @@ import type {
   SocialPlatform,
   SocialSettings,
 } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export function ConnectedAccounts({
   clientId,
@@ -115,7 +116,7 @@ export function ConnectedAccounts({
   }
   return (
     <div className="space-y-5">
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       <Card>
         <div className="flex items-center gap-3">
           <span className="grid size-11 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
@@ -497,7 +498,7 @@ export function SocialOverview({
               </Card>
             ))}
       </div>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {accounts.some((account) => account.status === 'reconnect_required') && (
         <Notice>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -705,7 +706,7 @@ export function SocialPlatformAnalyticsPanel({
         <p className="mt-3 text-[11px] leading-5 text-app-muted">Metrics come from each platform’s official API. Missing or unsupported metrics stay unavailable; totals are never combined across platforms.</p>
       </Card>
 
-      {error && <Notice error><div className="flex flex-wrap items-center justify-between gap-3"><span>{error}</span><Button kind="secondary" onClick={() => setReloadKey((key) => key + 1)}>Try again</Button></div></Notice>}
+      {error && <ErrorToast message={error} action={{ label: 'Try again', onClick: () => setReloadKey((key) => key + 1) }} />}
       {loading && !data ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <SkeletonMetric key={index} />)}</div>
       ) : data ? (
@@ -843,7 +844,7 @@ export function SocialSettingsPanel({
             Set how content is reviewed and when it appears on the calendar.
           </p>
         </div>
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <Field
           label="Publishing timezone"
           value={timezone}

@@ -26,6 +26,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Do not delete untracked or ignored files in the workspace. Uploaded
+          # files used to live in ./storage here; the next step moves them out.
+          clean: false
 
       # Secrets stay ON the server, never in git or GitHub: /opt/tapcrm/.env
       # is created once by hand (see .env.example for every variable).
@@ -33,6 +37,22 @@ jobs:
         run: |
           test -f /opt/tapcrm/.env || { echo "Missing /opt/tapcrm/.env on the server"; exit 1; }
           cp /opt/tapcrm/.env .env
+
+      # Uploaded files used to live in ./storage inside this checkout. They now
+      # live in UPLOAD_DATA_DIR on the server (docker-compose.prod.yml). On the
+      # first deploy after that change, copy them there once (never overwriting a
+      # file already there), then set the old folder aside so it is not copied
+      # again. Runs as root in the server image because the files are root-owned.
+      # Later deploys find no ./storage and skip this.
+      - name: Move uploaded files out of the checkout (one time)
+        run: |
+          if [ -d storage ] && [ -n "$(ls -A storage 2>/dev/null)" ]; then
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps \
+              -v "$PWD/storage:/from:ro" --entrypoint sh server -c \
+              'tar -C /from -cf - . | tar -C /app/storage --skip-old-files -xpf - && echo "uploaded files copied to UPLOAD_DATA_DIR"'
+            mv storage "storage.migrated-$(date +%Y%m%d-%H%M%S)"
+            echo "Old folder kept as $(ls -d storage.migrated-* | tail -1); delete it once the app shows the files."
+          fi
 
       - name: Build and start
         # `up` builds the images, runs the one-shot `migrate` service

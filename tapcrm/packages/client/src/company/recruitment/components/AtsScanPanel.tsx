@@ -11,11 +11,12 @@ import {
   type AtsScanReport,
   type AtsSubmissionScanState,
 } from '@tapcrm/contracts';
-import { Button, Notice } from '../../../ui/index.js';
+import { Button } from '../../../ui/index.js';
 import { getSubmissionAts, runAtsScan } from '../api/recruitmentApi.js';
 import type { CandidateResumeSubmission } from '../types/index.js';
 import { AtsCriteriaModal } from './AtsCriteriaModal.js';
 import { ATS_TONE_CLASSES, ATS_TONE_STROKE, atsLabel, atsTone, type AtsTone } from './AtsScoreBadge.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const FORMAT_LABELS: Readonly<Record<string, string>> = {
   pdf: 'PDF',
@@ -256,11 +257,7 @@ export function AtsScanPanel({
         )}
       </div>
 
-      {error && (
-        <div className="mt-3">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {loading ? (
         <div className="mt-4 h-24 animate-pulse rounded-lg bg-app-surface-raised" />

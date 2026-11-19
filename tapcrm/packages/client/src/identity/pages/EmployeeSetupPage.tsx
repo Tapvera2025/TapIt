@@ -6,6 +6,7 @@ import {
   verifyEmployeeSetupToken,
   type EmployeeSetupVerification,
 } from '../api/authApi.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 interface EmployeeSetupPageProps {
   token: string;
@@ -261,15 +262,7 @@ export function EmployeeSetupPage({
           {busy ? 'Activating account…' : 'Set permanent password'}
         </button>
 
-        {submitError && (
-          <p
-            id="setup-error-msg"
-            className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-app-danger"
-            role="alert"
-          >
-            {submitError}
-          </p>
-        )}
+        {submitError && <ErrorToast message={submitError} />}
 
         <button
           type="button"

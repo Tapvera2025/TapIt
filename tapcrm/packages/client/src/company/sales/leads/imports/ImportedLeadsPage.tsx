@@ -37,6 +37,7 @@ import {
   splitCounts,
 } from './import-format.js';
 import { LeadsViewTabs } from './LeadsViewTabs.js';
+import { ErrorToast } from '../../../../ui/ErrorToast.js';
 
 const PAGE_SIZE = 50;
 
@@ -222,7 +223,7 @@ export function ImportedLeadsPage({
       }
     >
       <LeadsViewTabs active="imported" onNavigate={onNavigate} />
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {message && <Notice>{message}</Notice>}
 
       <section aria-label="Imports">
@@ -615,7 +616,7 @@ function AssignLeadsModal({
       }
     >
       <div className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <SearchableSelect
           label="Add a salesperson"
           value=""
@@ -741,7 +742,7 @@ function ImportReportModal({
   return (
     <Modal title={`Report · ${summary.name}`} onClose={onClose} size="lg">
       <div className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         {summary.status === 'failed' && (
           <Notice error>
             {summary.lastError ?? 'The import stopped part-way.'}{' '}

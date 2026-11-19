@@ -1,7 +1,6 @@
 import type { RequestContext } from '../../platform/dal/context.js';
 import type { Tx } from '../../platform/dal/db.js';
-import { NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
-import { clip } from '../notifications/format.js';
+import { clip, NOTIFICATION_TYPES, notify } from '../notifications/facade.js';
 
 /**
  * Project notifications. Follows the pattern in

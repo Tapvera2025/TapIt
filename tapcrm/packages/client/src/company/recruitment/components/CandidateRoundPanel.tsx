@@ -20,6 +20,7 @@ import type {
   RoundRecommendation,
   SubmitRoundFeedbackInput,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const STATUS_BADGE: Record<
   CandidateRoundStatus,
@@ -85,9 +86,7 @@ function AssignInterviewerForm({
 
   return (
     <form onSubmit={(e) => void handleSave(e)} className="mt-3 space-y-3 rounded-lg border border-app-accent/30 bg-app-background p-3">
-      {error && (
-        <p className="text-xs text-app-danger">{error}</p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       <div className="grid gap-2 sm:grid-cols-2">
         <div>
@@ -206,7 +205,7 @@ function FeedbackFormInline({
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="mt-3 space-y-3 rounded-lg border border-app-border bg-app-background p-3">
       <p className="text-xs font-bold uppercase tracking-wider text-app-muted">Interviewer Feedback</p>
-      {error && <p className="text-xs text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
 
       <div className="grid gap-2 sm:grid-cols-2">
         <div>
@@ -293,7 +292,7 @@ function HrDecisionForm({
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="mt-3 space-y-3 rounded-lg border border-app-border bg-app-background p-3">
       <p className="text-xs font-bold uppercase tracking-wider text-app-muted">HR Decision</p>
-      {error && <p className="text-xs text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
 
       <div className="flex gap-2">
         {(['pass', 'fail', 'skip'] as const).map((d) => (
@@ -413,11 +412,7 @@ export function CandidateRoundPanel({
 
   return (
     <div className="space-y-4">
-      {error && (
-        <p className="rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2 text-xs text-app-danger">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {candidateRounds.length === 0 && !adding && (
         <p className="text-xs text-app-muted">

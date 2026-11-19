@@ -4,6 +4,7 @@ import { Button, Card, Page } from '../../../ui/index.js';
 import { STAGE_LABELS, LIFECYCLE_LABELS, LOSS_REASON_LABELS, formatCurrencyLabel } from '../deals/deals-helpers.js';
 import { paiseToRupees } from '../proposals/proposals-helpers.js';
 import { getForecast, type ForecastReport } from './api.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 function currentMonth(): string {
   const now = new Date();
@@ -53,11 +54,7 @@ export function ReportsPage(): React.JSX.Element {
         </div>
       }
     >
-      {error && (
-        <p className="mb-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {loading && !report ? (
         <Card>

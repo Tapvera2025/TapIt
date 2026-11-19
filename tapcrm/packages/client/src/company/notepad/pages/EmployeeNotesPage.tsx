@@ -13,6 +13,7 @@ import { EmployeeNoteViewer } from '../components/admin/EmployeeNoteViewer.js';
 import { EmployeeNotesFilters } from '../components/admin/EmployeeNotesFilters.js';
 import { EmployeeNotesList } from '../components/admin/EmployeeNotesList.js';
 import type { EmployeeNoteListItem, MyNotepad, MyNotepadHistoryItem } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function EmployeeNotesPage(): React.JSX.Element {
   const [departments, setDepartments] = useState<CompanyDepartment[]>([]);
@@ -181,11 +182,7 @@ export function EmployeeNotesPage(): React.JSX.Element {
         </section>
 
         {/* Global Error Banner */}
-        {error && (
-          <div className="rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 p-4 text-sm text-app-danger">
-            {error}
-          </div>
-        )}
+        {error && <ErrorToast message={error} />}
 
         {/* Loading Skeleton */}
         {loading && employees.length === 0 ? (

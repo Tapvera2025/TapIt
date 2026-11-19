@@ -24,6 +24,7 @@ const DESCRIPTION_BY_TITLE: Readonly<Record<string, string>> = {
   'My Leave': 'Apply for leave, review requests and check available balances.',
   'My Todo': 'Plan your day, organize upcoming work and stay on track.',
   'My Notepad': 'Keep personal notes and useful workspace information close by.',
+  'My Profile': 'Your personal details, education, experience and documents.',
   Recruitment: 'Manage recruitment, candidates and employee onboarding.',
   'Sales Overview': 'Monitor sales activity, pipeline progress and team performance.',
   Overview: 'Monitor sales activity, pipeline progress and team performance.',

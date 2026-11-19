@@ -3,6 +3,7 @@ import { Icon } from './Icon.js';
 import { CalendarPicker } from './CalendarPicker.js';
 import { CompanyPageActionPortal } from '../company/layout/CompanyPageActionPortal.js';
 import { useCompanyHeroPageActions } from '../company/layout/CompanyNavbarContext.js';
+import { ErrorToast } from './ErrorToast.js';
 
 let activeModalCount = 0;
 let restorePageScroll: (() => void) | null = null;
@@ -721,11 +722,7 @@ export function Select({
           </option>
         ))}
       </select>
-      {error && (
-        <span className="mt-1 block font-normal text-app-danger" role="alert">
-          {error}
-        </span>
-      )}
+      {error && <ErrorToast message={error} />}
     </label>
   );
 }
@@ -815,6 +812,8 @@ export function Notice({
   error?: boolean;
   children: ReactNode;
 }): React.JSX.Element {
+  // A standing warning or instruction (e.g. "connect a Google login first").
+  // Errors from a failed action or load are shown with <ErrorToast> instead.
   return (
     <div
       role={error ? 'alert' : 'status'}
@@ -995,11 +994,7 @@ export function Modal({
   );
 }
 export function ErrorMessage({ cause }: { cause: unknown }): React.JSX.Element {
-  return (
-    <Notice error>
-      {cause instanceof Error ? cause.message : 'Unable to load Organization data.'}
-    </Notice>
-  );
+  return <ErrorToast message={cause instanceof Error ? cause.message : 'Unable to load Organization data.'} />;
 }
 
 export {

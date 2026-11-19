@@ -18,6 +18,7 @@ import {
   sortCallbacks,
   type CallbackOrder,
 } from './callback-ui.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 type CallbackView = 'list' | 'calendar' | 'board' | 'schedule';
 const statuses = ['pending', 'completed', 'rescheduled', 'not_reachable', 'missed', 'cancelled'];
@@ -113,7 +114,7 @@ export function CallbacksPage({ view, organizationTimezone, onNavigate }: { view
           <span className="rounded-full bg-app-background px-3 py-1">{dueToday} still due today</span>
         </div>
       </div>
-      {error && <p className="rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">{error}</p>}
+      {error && <ErrorToast message={error} />}
       <Card className="p-4">
         <div className={`grid gap-3 sm:grid-cols-2 ${view === 'calendar' ? 'lg:grid-cols-5' : 'lg:grid-cols-6'}`}>
           <Select label="Status" value={status} onChange={setStatus} options={[{ value: '', label: 'All statuses' }, ...statuses.map((value) => ({ value, label: callbackStatusLabel(value) }))]} />
@@ -307,5 +308,5 @@ function ScheduleCallbackPage({ organizationTimezone, onBack, onCreated }: { org
   const [leads, setLeads] = useState<Lead[]>([]); const [leadId, setLeadId] = useState(''); const [scheduledAt, setScheduledAt] = useState(''); const [reason, setReason] = useState(''); const [error, setError] = useState('');
   useEffect(() => { void getLeads().then((page) => setLeads(page.items)).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load Leads.')); }, []);
   const save = async () => { try { const callback = await createCallback({ leadId, scheduledAt: organizationLocalToIso(scheduledAt, organizationTimezone), reason: reason.trim() || undefined }); onCreated(callback.id); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to schedule callback.'); } };
-  return <Page eyebrow="Sales" title="Schedule callback" description={`Times are interpreted in ${organizationTimezone}.`} action={<Button kind="secondary" onClick={onBack}>Back to callbacks</Button>}>{error && <p className="mb-4 text-sm text-app-danger">{error}</p>}<Card className="max-w-2xl"><div className="grid gap-4 md:grid-cols-2"><Select label="Lead" value={leadId} onChange={setLeadId} options={leads.map((lead) => ({ value: lead.id, label: `${lead.contactName} · #${lead.leadNumber}` }))} /><Field label="Date and time" value={scheduledAt} onChange={setScheduledAt} type="datetime-local" min={organizationNowLocal(organizationTimezone)} /><Field label="Reason" value={reason} onChange={setReason} /></div><div className="mt-5 flex justify-end"><Button disabled={!leadId || !scheduledAt} onClick={() => void save()}>Schedule</Button></div></Card></Page>;
+  return <Page eyebrow="Sales" title="Schedule callback" description={`Times are interpreted in ${organizationTimezone}.`} action={<Button kind="secondary" onClick={onBack}>Back to callbacks</Button>}>{error && <ErrorToast message={error} />}<Card className="max-w-2xl"><div className="grid gap-4 md:grid-cols-2"><Select label="Lead" value={leadId} onChange={setLeadId} options={leads.map((lead) => ({ value: lead.id, label: `${lead.contactName} · #${lead.leadNumber}` }))} /><Field label="Date and time" value={scheduledAt} onChange={setScheduledAt} type="datetime-local" min={organizationNowLocal(organizationTimezone)} /><Field label="Reason" value={reason} onChange={setReason} /></div><div className="mt-5 flex justify-end"><Button disabled={!leadId || !scheduledAt} onClick={() => void save()}>Schedule</Button></div></Card></Page>;
 }

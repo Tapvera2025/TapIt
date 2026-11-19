@@ -75,6 +75,12 @@ import {
   notifyOnboardingWelcome,
 } from './notifications.js';
 
+// Public applications check a per-link hourly cap; these unit tests keep it
+// open and out of Redis (a plain function survives vi.restoreAllMocks).
+vi.mock('../../platform/security/rate-limit.js', () => ({
+  consumeRateLimit: async () => ({ allowed: true, count: 1, retryAfterSeconds: 60 }),
+}));
+
 describe('Recruitment Storage & Upload Validation', () => {
   it('MemoryStorageService stores, retrieves, generates signed URLs, and deletes files', async () => {
     const storage = new MemoryStorageService();
@@ -2710,6 +2716,8 @@ describe('Recruitment — Public Application Link Lifecycle', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    // No earlier application from these emails (one per person per job).
+    vi.spyOn(repo, 'findSubmissionByEmailPreAuth').mockResolvedValue(null);
   });
 
   // 1. active + valid requisition → ALLOW

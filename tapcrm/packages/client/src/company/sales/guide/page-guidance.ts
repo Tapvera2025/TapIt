@@ -34,6 +34,11 @@ export interface SalesPageViewer {
   readonly canAddLeads: boolean;
   readonly canRecordWin: boolean;
   readonly canDecideApprovals: boolean;
+  /**
+   * Whether the viewer may open a page. Left out, every guide link is offered;
+   * when given, links to pages they cannot open are left out of the guide.
+   */
+  readonly canVisit?: (path: string) => boolean;
 }
 
 type FunnelStage = 'in' | 'owner' | 'qualify' | 'proposal' | 'close' | 'won';

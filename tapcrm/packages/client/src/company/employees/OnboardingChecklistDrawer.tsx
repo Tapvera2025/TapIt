@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { OnboardingStepDto, OnboardingWorkflowDto } from '@tapcrm/contracts';
 import { completeOnboardingStep, listOnboardingWorkflows } from '../api/onboardingApi.js';
 import { SkeletonListItem } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 interface OnboardingChecklistDrawerProps {
   isOpen: boolean;
@@ -138,11 +139,7 @@ export function OnboardingChecklistDrawer({
             </div>
           )}
 
-          {error && (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-500">
-              {error}
-            </div>
-          )}
+          {error && <ErrorToast message={error} />}
 
           {loading ? (
             <div className="overflow-hidden rounded-xl border border-app-border bg-app-surface" role="status" aria-label="Loading onboarding checklist">

@@ -8,6 +8,7 @@ import {
   type WinsToRecordRow,
 } from '../deals/api.js';
 import { ReadinessPanel } from './ReadinessPanel.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -132,11 +133,7 @@ export function WinsToRecordPage({
         </Button>
       }
     >
-      {error && (
-        <p className="rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
 
       {loading && rows.length === 0 ? (
         <Card>

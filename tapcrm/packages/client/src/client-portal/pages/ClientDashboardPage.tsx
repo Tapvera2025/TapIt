@@ -27,7 +27,7 @@ export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path
     return () => { live = false; };
   }, [onError]);
 
-  if (error) return <WorkspacePageContainer><div className="pt-5"><ErrorMessage cause={error} /></div></WorkspacePageContainer>;
+  if (error) return <ErrorMessage cause={error} />;
   if (!data) return <WorkspacePageContainer><div className="pt-5"><Loading /></div></WorkspacePageContainer>;
 
   const recentMessages = [...clientMessages.conversations]

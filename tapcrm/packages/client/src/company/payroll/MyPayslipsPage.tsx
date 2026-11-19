@@ -8,7 +8,8 @@ import {
   type SlipDetail,
   type SlipSummary,
 } from '../api/payrollApi.js';
-import { Button, Card, Notice, Page, SkeletonTable } from '../../ui/index.js';
+import { Button, Card, Page, SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
@@ -78,7 +79,7 @@ function SlipView({ slip, onClose }: { slip: SlipSummary; onClose: () => void })
           <Button kind="secondary" onClick={onClose}>Close</Button>
         </div>
       </div>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {!detail && !error && <p className="text-sm text-app-muted">Loading…</p>}
       {detail && (
         <>
@@ -131,7 +132,7 @@ export function MyPayslipsPage(): React.JSX.Element {
 
   return (
     <Page eyebrow="Payroll" title="My payslips" description="Your published payslips. A corrected month shows its latest revision.">
-      {error && <div className="mt-6"><Notice error>{error}</Notice></div>}
+      {error && <ErrorToast message={error} />}
       {loading && <div className="mt-6"><SkeletonTable columns={4} rows={5} /></div>}
       {!loading && slips.length === 0 && !error && (
         <Card className="mt-6 text-center"><p className="text-sm text-app-muted">No published payslips yet.</p></Card>

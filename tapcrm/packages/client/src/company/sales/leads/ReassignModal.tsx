@@ -12,6 +12,7 @@ import {
   validateReassignForm,
   type ReassignFormInput,
 } from './reassign-helpers.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 /**
  * Reassign a lead to a new owner (R1 plan step 1.15). The list is everyone in
@@ -133,11 +134,7 @@ export function ReassignModal({
           </button>
         </header>
 
-        {targetsError && (
-          <p className="mb-3 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-            {targetsError}
-          </p>
-        )}
+        {targetsError && <ErrorToast message={targetsError} />}
 
         <label className="text-xs font-semibold text-app-muted">
           <span className="mb-2 block">New owner</span>
@@ -219,11 +216,7 @@ export function ReassignModal({
           )}
         </fieldset>
 
-        {submitError && (
-          <p className="mt-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger" role="alert">
-            {submitError}
-          </p>
-        )}
+        {submitError && <ErrorToast message={submitError} />}
 
         <footer className="mt-6 flex justify-end gap-3">
           <Button kind="secondary" onClick={onClose}>

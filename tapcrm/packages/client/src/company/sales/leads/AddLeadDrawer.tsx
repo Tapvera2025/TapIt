@@ -16,6 +16,7 @@ import {
   normalizePhoneForLookup,
   offerDuplicateChoices,
 } from './addLead-helpers.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 /**
  * Add-Lead drawer (R1 plan step 1.12). Right-slide panel with:
@@ -233,9 +234,7 @@ export function AddLeadDrawer({
           setNotes={setNotes}
         />
 
-        {error && (
-          <p className="mt-4 rounded-lg bg-[#d86b6b]/10 p-3 text-sm text-app-danger">{error}</p>
-        )}
+        {error && <ErrorToast message={error} />}
 
         <footer className="mt-6 flex justify-end gap-3">
           <Button kind="secondary" onClick={onClose}>

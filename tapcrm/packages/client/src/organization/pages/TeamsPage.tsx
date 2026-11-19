@@ -193,9 +193,7 @@ export function TeamsPage(): React.JSX.Element {
         </div>
       )}
       {Boolean(error) && (
-        <div className="mb-5">
-          <ErrorMessage cause={error} />
-        </div>
+        <ErrorMessage cause={error} />
       )}
       <div className="space-y-5">
         <Card className="overflow-hidden p-0">

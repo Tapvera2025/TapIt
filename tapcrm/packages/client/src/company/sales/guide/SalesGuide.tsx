@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Button, Icon } from '../../../ui/index.js';
 import type { GuideAction, GuideCommand, GuideStep, GuideTone, Guidance } from './guidance.js';
 import { guideForPath, salesGuideKey, type SalesPageViewer } from './page-guidance.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 /**
  * The sales guide ("coach"): a panel beside every Sales page that says what
@@ -307,7 +308,7 @@ function CoachCard({ guidance, busy, error, variant, onAction, onMinimize, onClo
           {guidance.detail && <p className="mt-1.5 text-sm leading-6 text-app-muted">{guidance.detail}</p>}
         </div>
 
-        {error && <p className="rounded-lg bg-[#d86b6b]/10 p-2.5 text-xs text-app-danger" role="alert">{error}</p>}
+        {error && <ErrorToast message={error} />}
 
         {(primaryActions.length > 0 || others.length > 0 || dangers.length > 0) && (
           <div className="space-y-2">

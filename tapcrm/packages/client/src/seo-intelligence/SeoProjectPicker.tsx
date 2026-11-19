@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Icon, Notice, SkeletonTable } from '../ui/index.js';
+import { Icon, SkeletonTable } from '../ui/index.js';
 import { getProjects, type Project } from '../projects/api/projectsApi.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 /**
  * A searchable list of the projects the person can see. Projects are the unit
@@ -54,7 +55,7 @@ export function SeoProjectPicker({
           onChange={(event) => setSearch(event.target.value)}
         />
       </label>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {projects === null ? (
         <SkeletonTable columns={1} rows={3} />
       ) : projects.length === 0 ? (

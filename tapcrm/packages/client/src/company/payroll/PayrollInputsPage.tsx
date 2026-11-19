@@ -16,6 +16,7 @@ import {
   type StructureSummary,
 } from '../api/payrollApi.js';
 import { Button, Card, Modal, Notice, Page, SearchableSelect, SkeletonTable } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -127,7 +128,7 @@ function AddEntry({
             className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm text-app-foreground outline-none focus:border-app-accent"
           />
         </label>
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
         <div className="flex justify-end gap-2">
           <Button kind="secondary" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={busy || !valid}>{busy ? 'Adding…' : 'Add entry'}</Button>
@@ -206,7 +207,7 @@ export function PayrollInputsPage(): React.JSX.Element {
         </p>
       </div>
       {notice && <div className="mt-4"><Notice>{notice}</Notice></div>}
-      {error && <div className="mt-4"><Notice error>{error}</Notice></div>}
+      {error && <ErrorToast message={error} />}
       {active.some((i) => i.state === 'unpaid') && (
         <div className="mt-4">
           <Notice error>

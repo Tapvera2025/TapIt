@@ -22,6 +22,7 @@ import { attendanceStatus, MonthlyAttendanceKpis } from './AttendanceVisuals.js'
 import { Card, WorkspacePageContainer } from '../../ui/index.js';
 import { organizationToday } from '../organizationDate.js';
 import { formatMinutes } from '../../ui/format-duration.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 function currentMonth(timezone: string): string {
   return organizationToday(timezone).slice(0, 7);
@@ -354,7 +355,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
           </div>
         </Card>
 
-        {monthlyError && <p role="alert" className="rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2 text-sm text-app-danger">{monthlyError}</p>}
+        {monthlyError && <ErrorToast message={monthlyError} />}
         <div className="min-w-0">
           <PeopleCalendar
             month={month}
@@ -367,14 +368,14 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
             idPrefix="attendance"
           />
           {daysLoading && <p role="status" className="mt-2 text-sm text-app-muted">Loading attendance calendar…</p>}
-          {daysError && <p role="alert" className="mt-2 rounded-xl border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2 text-sm text-app-danger">{daysError}</p>}
+          {daysError && <ErrorToast message={daysError} />}
         </div>
 
         <div className="grid min-h-0 items-stretch gap-4 xl:h-[25rem] xl:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.9fr)]">
           {monthlySummary ? <MonthlyAttendanceKpis month={fmtMonth(month)} presentDays={Number(daysValue(monthlySummary.presentUnits))} lateDays={monthlySummary.lateDays} absentDays={Number(daysValue(monthlySummary.absentUnits))} halfDays={monthlySummary.halfDays} paidLeaveDayCount={Number(daysValue(monthlySummary.paidLeaveUnits))} unpaidLeave={Number(daysValue(monthlySummary.unpaidLeaveUnits))} wfhDays={monthlySummary.wfhDays} /> : <Card><p role="status" className="text-sm text-app-muted">{monthlyLoading ? 'Loading monthly attendance summary…' : 'Monthly attendance summary unavailable.'}</p></Card>}
           <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">Recent days</h2><p className="mt-1 text-sm text-app-muted">Your latest seven attendance records.</p></div></div>
-            {recentError && <p role="alert" className="mt-3 text-sm text-app-danger">{recentError}</p>}
+            {recentError && <ErrorToast message={recentError} />}
             {recentLoading ? <p role="status" className="mt-3 text-sm text-app-muted">Loading recent attendance…</p> : recentRecords.length === 0 ? <p className="mt-3 text-sm text-app-muted">No attendance records for the recent seven days.</p> : <div className="mt-4 h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-app-border rounded-xl border border-app-border pr-1">{recentRecords.map((day) => <button key={day.workDate} type="button" onClick={() => setSelectedDate(day.workDate)} className="flex w-full flex-col gap-2 px-4 py-3 text-left hover:bg-app-background"><span className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3"><span className="font-semibold whitespace-nowrap">{fmtDate(day.workDate)}</span><span className={`shrink-0 self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${recentStatusClass(day)}`}>{dayLabel(day)}</span></span><span className="min-w-0 whitespace-normal break-words text-xs leading-5 text-app-muted">{fmtTime(day.arrivalAt, organizationTimezone)} – {fmtTime(day.departureAt, organizationTimezone)} · Work {fmt(day.minutes.worked)} · Break {fmt(day.minutes.break)}</span></button>)}</div>}
           </Card>
         </div>
@@ -552,7 +553,7 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
               />
             </div>
 
-              {correctionError && <p className="text-xs text-app-danger">{correctionError}</p>}
+              {correctionError && <ErrorToast message={correctionError} />}
 
               <div className="flex flex-col gap-2 sm:flex-row">
               <button

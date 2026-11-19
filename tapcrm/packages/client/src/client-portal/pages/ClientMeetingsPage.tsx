@@ -245,7 +245,7 @@ function RequestMeetingDialog({ projects, initialProjectId, timeZone, onClose, o
           <Button disabled={busy || !picked[0] || agenda.trim().length < 3} onClick={() => void send()}>{busy ? 'Sending…' : 'Send request'}</Button>
         </div>
       )}>
-      {error !== null && <div className="mb-3"><ErrorMessage cause={error} /></div>}
+      {error !== null && <ErrorMessage cause={error} />}
       <div className="grid min-w-0 gap-4 [&>*]:min-w-0">
         {projects.length > 1 && (
           <Select label="Project" value={projectId} onChange={setProjectId} options={projects.map((project) => ({ value: project.id, label: project.name }))} />
@@ -291,7 +291,7 @@ function CancelDialog({ meeting, timeZone, onClose, onCancelled }: { meeting: Po
           }}>{meeting.status === 'requested' ? 'Withdraw' : 'Cancel the meeting'}</Button>
         </div>
       )}>
-      {error !== null && <div className="mb-3"><ErrorMessage cause={error} /></div>}
+      {error !== null && <ErrorMessage cause={error} />}
       <p className="text-sm">With {meeting.host.name}, {formatMeetingTime(meeting.startsAt, timeZone)}.</p>
       <label className="mt-3 block text-xs font-semibold text-app-muted">
         <span className="mb-2 block">Reason (optional)</span>

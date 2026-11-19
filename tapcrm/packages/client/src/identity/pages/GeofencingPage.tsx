@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createGeofenceLocation, decideGeofenceAppeal, getGeofenceAdminData, setGeofenceAssignment, updateGeofenceLocation, type GeofenceAdminData } from '../api/geofenceApi.js';
 import { Icon } from '../../ui/index.js';
 import { Page } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 const initialForm = { name: '', latitude: '', longitude: '', radiusMetres: '150', accuracyThresholdMetres: '100' };
 
@@ -32,7 +33,7 @@ export function GeofencingPage({ onBack }: { onBack: () => void }): React.JSX.El
 
   return <Page eyebrow="Identity & access" title="Geofencing" action={<button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-sm font-bold text-app-muted transition-colors hover:text-app-accent"><span className="text-lg leading-none">←</span> Back to CRM</button>}>
       {message && <p className="rounded-lg border border-app-accent/30 bg-app-accent/10 px-4 py-3 text-sm text-app-accent">{message}</p>}
-      {error && <p className="rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-4 py-3 text-sm text-app-danger">{error}</p>}
+      {error && <ErrorToast message={error} />}
       <form onSubmit={(event) => { void create(event); }} className="overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-sm">
         <div className="flex flex-col gap-4 px-5 pb-3 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pt-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent"><Icon name="pin" className="size-5" /></span><div><h2 className="font-display text-lg font-bold">Shared locations</h2><p className="mt-1 text-sm text-app-muted">Create and manage approved sign-in boundaries for your team.</p></div></div><p className="flex items-center gap-2 text-xs text-app-muted"><span className="size-2 rounded-full bg-app-accent" /> 90-day coordinate retention</p></div>
         <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-12 sm:p-6">

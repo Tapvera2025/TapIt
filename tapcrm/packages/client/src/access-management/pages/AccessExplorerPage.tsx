@@ -43,6 +43,7 @@ import {
   Select,
 } from '../../ui/index.js';
 import { LiquidMessagesTabBar } from '../../chat/LiquidMessagesTabBar.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type ExplorerTab = 'person' | 'capability' | 'overrides' | 'role-changes';
 
@@ -461,7 +462,7 @@ function RoleChangeReviewPanel({
   return (
     <Card className="mt-6">
       <h2 className="font-display text-xl font-bold">Pending position-change requests</h2>
-      {message ? <Notice error={messageError}>{message}</Notice> : null}
+      {message ? messageError ? <ErrorToast message={message} /> : <Notice>{message}</Notice> : null}
       {loading ? (
         <SkeletonTable columns={5} rows={4} />
       ) : error ? (
@@ -726,7 +727,7 @@ function OverrideOverviewResult({
   return (
     <Card className="mt-6">
       <h2 className="font-display text-xl font-bold">Powers given directly</h2>
-      {message ? <Notice error={messageError}>{message}</Notice> : null}
+      {message ? messageError ? <ErrorToast message={message} /> : <Notice>{message}</Notice> : null}
       <div className="mt-4 space-y-3">
         {overrides.length === 0 ? (
           <p className="text-sm text-app-muted">No powers have been given to people directly.</p>

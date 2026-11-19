@@ -43,12 +43,36 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
       )
     );
 
-    // Dropdown button should have aria-expanded="true"
-    expect(html).toContain('aria-expanded="true"');
-    // Dropdown child items should be visible
-    expect(html).toContain('Resume Inbox');
-    expect(html).toContain('Candidates');
-    expect(html).toContain('Requisitions');
+    // The Recruitment group is open on a recruitment route and offers one way
+    // in; its pages (Requisitions, Resume Inbox, ...) are tabs on the page.
+    expect(html).toMatch(/aria-expanded="true"[^>]*>[\s\S]*?Recruitment/);
+    expect(html).toMatch(/aria-current="page"[\s\S]*?Overview/);
+    expect(html).not.toContain('Resume Inbox');
+    expect(html).not.toContain('Requisitions');
+  });
+
+  it('keeps one sidebar entry for each module whose pages are tabs', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(CompanySidebar, {
+          pathname: '/company/dashboard',
+          identity: { ...baseIdentity, accountType: 'super-admin' },
+          organizationName: 'Test Corp',
+          accountType: 'super-admin',
+          isHr: true,
+          hasRecruitment: true,
+          onNavigate: () => {},
+          onLogout: () => {},
+          open: true,
+          onClose: () => {},
+        }),
+      ),
+    );
+    for (const group of ['Recruitment', 'Identity &amp; Access']) expect(html).toContain(group);
+    expect(html).toContain('Sessions &amp; Devices');
+    expect(html).not.toContain('Access Explorer');
   });
 
   it('renders Recruitment dropdown collapsed when current route is outside recruitment', () => {
@@ -84,7 +108,9 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
         ThemeProvider,
         null,
         React.createElement(CompanySidebar, {
-          pathname: '/company/dashboard',
+          // Employee sections stay folded except Overview and the one holding
+          // the current page, so Settings shows when the person is on it.
+          pathname: '/company/settings',
           identity: baseIdentity,
           organizationName: 'Test Corp',
           accountType: 'employee',
@@ -96,6 +122,8 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
       )
     );
 
+    // A group with a single entry is shown as that entry (a plain link), so the
+    // old "Preferences" group label is no longer rendered; Settings itself is.
     expect(html).toContain('Settings');
     expect(html).not.toContain('aria-label="Color appearance themes"');
   });

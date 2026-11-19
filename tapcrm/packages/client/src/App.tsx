@@ -187,9 +187,12 @@ export function App(): React.JSX.Element {
     }
     return <ClientWorkspace pathname={pathname} onNavigate={navigate} onLogout={clientLogout} />;
   }
-  // A client session must never render the employee workspace.
+  // A client session must never render the employee workspace. The temporary
+  // password page is shared by staff and clients, so it is let through: a
+  // client sent there after a password reset must be able to set a new one.
   if (
     isClientSession &&
+    pathname !== '/company/password-change' &&
     (pathname === '/login' || pathname.startsWith('/company/') || pathname === '/organization' || pathname.startsWith('/organization/'))
   ) {
     window.history.replaceState({}, '', '/client');
@@ -251,10 +254,11 @@ export function App(): React.JSX.Element {
     return (
       <PasswordChangePage
         onComplete={() => {
+          const wasClient = getIdentityAccountType() === 'client';
           clearIdentityTokens();
           setCompanyAuthenticated(false);
           setPasswordChangeRequired(false);
-          navigate('/login');
+          navigate(wasClient ? '/client/login' : '/login');
           toast.success('Password changed. Sign in again with your new password.');
         }}
       />

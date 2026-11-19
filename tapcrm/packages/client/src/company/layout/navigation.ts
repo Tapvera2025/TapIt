@@ -801,6 +801,16 @@ export function companySearchDestinations({
     addIfAllowed({ label: 'Request Role Change', path: '/company/role-change-request', icon: 'briefcase', category: 'Identity & Access', keywords: ['change role', 'designation'] }, ['access:request-role-change']);
   }
 
+  if (accountType === 'employee' && !seen.has('/company/my-profile')) {
+    destinations.push({
+      label: 'My Profile',
+      path: '/company/my-profile',
+      icon: 'clipboard',
+      category: 'Preferences',
+      keywords: ['profile', 'complete profile', 'documents', 'education', 'experience', 'address', 'emergency contact'],
+    });
+  }
+
   if (!seen.has('/company/settings')) {
     destinations.push({
       label: 'Settings',

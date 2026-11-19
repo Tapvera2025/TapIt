@@ -4,6 +4,7 @@ import { getClients, type Client } from '../clients/api/clientsApi.js';
 import { createSeoSite } from './api.js';
 import type { SeoSite } from './types.js';
 import { Icon } from '../ui/index.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export function AddSiteModal({
   onClose,
@@ -143,11 +144,7 @@ export function AddSiteModal({
           CRM’s existing client list.
         </p>
         {clientNotice && <p className="text-xs text-app-muted">{clientNotice}</p>}
-        {error && (
-          <p role="alert" className="text-sm text-app-danger">
-            {error}
-          </p>
-        )}
+        {error && <ErrorToast message={error} />}
         <div className="flex justify-end gap-2">
           <Button kind="secondary" disabled={saving} onClick={onClose}>
             Cancel

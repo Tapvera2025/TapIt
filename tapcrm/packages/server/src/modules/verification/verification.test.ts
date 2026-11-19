@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
 import { getStorageService } from '../../platform/storage/index.js';
@@ -19,6 +19,7 @@ import {
   uploadVerificationDocument,
 } from './service.js';
 import {
+  PREVIOUS_EMPLOYMENT_DOCUMENTS,
   REQUIRED_VERIFICATION_DOCUMENTS,
   type EmployeeVerificationDocumentRecord,
   type EmployeeVerificationRecord,
@@ -55,6 +56,12 @@ describe('Employee Verification Backend Workflow', () => {
   const hrUserId = randomUUID();
   const employeeId = randomUUID();
   const ctx = createMockContext(orgId, hrUserId);
+
+  beforeEach(() => {
+    // Everyone below has prior experience unless a test says otherwise, so the
+    // full list of ten documents applies, as it always did.
+    vi.spyOn(repo, 'findNoPriorExperience').mockResolvedValue(false);
+  });
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -598,6 +605,68 @@ describe('Employee Verification Backend Workflow', () => {
       orgId,
       expect.objectContaining({ action: 'employee.verification.completed' }),
     );
+  });
+
+  // 15b. Someone with no prior experience has no previous employer's papers
+  it('allows a fresher to be verified without payslips or an experience letter', async () => {
+    vi.spyOn(db, 'maybeOne').mockResolvedValueOnce({ id: employeeId });
+    vi.spyOn(db, 'transaction').mockImplementation(async (_ctx, fn) => fn({} as unknown as Tx));
+    vi.spyOn(repo, 'findNoPriorExperience').mockResolvedValue(true);
+
+    const verifId = randomUUID();
+    const existingVerif: EmployeeVerificationRecord = {
+      id: verifId,
+      organizationId: orgId,
+      employeeId,
+      status: 'PARTIALLY_VERIFIED',
+      verifiedAt: null,
+      verifiedBy: null,
+      rejectionReason: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const fresherDocs: EmployeeVerificationDocumentRecord[] = REQUIRED_VERIFICATION_DOCUMENTS
+      .filter((dt) => !PREVIOUS_EMPLOYMENT_DOCUMENTS.includes(dt))
+      .map((dt) => ({
+        id: randomUUID(),
+        verificationId: verifId,
+        organizationId: orgId,
+        employeeId,
+        documentType: dt,
+        objectKey: `test-${dt}.pdf`,
+        fileName: `${dt}.pdf`,
+        fileSize: 100,
+        mimeType: 'application/pdf',
+        status: 'APPROVED',
+        rejectionReason: null,
+        uploadedAt: new Date(),
+        uploadedBy: employeeId,
+        reviewedAt: new Date(),
+        reviewedBy: hrUserId,
+        isCurrent: true,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+
+    vi.spyOn(repo, 'getVerificationByEmployee').mockResolvedValueOnce(existingVerif);
+    vi.spyOn(repo, 'listDocumentsByVerification')
+      .mockResolvedValueOnce(fresherDocs)
+      .mockResolvedValueOnce(fresherDocs);
+    vi.spyOn(repo, 'updateVerificationStatus').mockResolvedValueOnce({
+      ...existingVerif,
+      status: 'VERIFIED',
+      verifiedAt: new Date(),
+      verifiedBy: hrUserId,
+    });
+    vi.spyOn(repo, 'recordVerificationAudit').mockResolvedValueOnce(undefined);
+
+    const res = await completeEmployeeVerification(ctx, employeeId);
+
+    expect(res.verification?.status).toBe('VERIFIED');
+    expect(res.verification?.progress.requiredCount).toBe(6);
+    expect(res.verification?.progress.allApproved).toBe(true);
+    expect(res.requiredDocumentTypes).not.toContain('PAYSLIP_1');
   });
 
   // 16. Verification remains independent of onboarding

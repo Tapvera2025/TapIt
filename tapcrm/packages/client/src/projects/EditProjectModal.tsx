@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../ui/index.js';
+import { Button, Field, Modal, Select } from '../ui/index.js';
 import {
   PROJECT_SERVICES,
   PROJECT_SERVICE_LABELS,
@@ -11,6 +11,7 @@ import {
 } from './api/projectsApi.js';
 import { ProjectAmountFields } from './ProjectAmountFields.js';
 import { projectAmountProblem } from './project-amounts.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 const PRIORITIES: ProjectPriority[] = ['low', 'medium', 'high'];
 const WORK_STATUSES: ProjectWorkStatus[] = ['new', 'ongoing', 'ended', 'expired'];
@@ -88,7 +89,7 @@ export function EditProjectModal({ project, onClose, onSaved }: { project: Proje
       }
     >
       <form id={formId} onSubmit={(event) => void submit(event)} className="space-y-5">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <Field label="Project name" value={name} onChange={setName} required />
 

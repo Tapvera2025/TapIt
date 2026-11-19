@@ -4,6 +4,7 @@ import {
   type PlatformModuleCatalogEntry,
   type PlatformModuleChangeRequest,
 } from '@tapcrm/contracts';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 export interface ManageModulesEntitlement {
   key: string;
@@ -341,14 +342,7 @@ export function ManageModulesDialog({
         </div>
 
         <footer className="border-t border-app-border px-5 py-4 sm:px-6">
-          {error && (
-            <p
-              role="alert"
-              className="mb-3 rounded-xl border border-[#ff8d8d]/40 bg-[#ff8d8d]/10 px-3.5 py-2.5 text-xs leading-5 text-app-danger"
-            >
-              {error}
-            </p>
-          )}
+          {error && <ErrorToast message={error} />}
           <p className="mb-3 text-xs leading-5 text-app-muted" aria-live="polite">
             {summary.length > 0 ? summary.join(' · ') : 'No changes yet.'}
           </p>

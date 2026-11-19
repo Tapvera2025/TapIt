@@ -33,6 +33,7 @@ import {
   CURRENCIES,
   COUNTRY_CODES,
 } from './validation.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 interface Organization {
   id: string;
@@ -655,11 +656,7 @@ function TextField({
         inputMode={inputMode}
         aria-invalid={Boolean(error)}
       />
-      {error && (
-        <span className="mt-1 block text-xs text-app-danger" role="alert">
-          {error}
-        </span>
-      )}
+      {error && <ErrorToast message={error} />}
     </label>
   );
 }
@@ -698,11 +695,7 @@ function SelectField({
           </option>
         ))}
       </select>
-      {error && (
-        <span className="mt-1 block text-xs text-app-danger" role="alert">
-          {error}
-        </span>
-      )}
+      {error && <ErrorToast message={error} />}
     </label>
   );
 }
@@ -758,11 +751,7 @@ function PhoneField({
           aria-invalid={Boolean(error)}
         />
       </div>
-      {error && (
-        <span className="mt-1 block text-xs text-app-danger" role="alert">
-          {error}
-        </span>
-      )}
+      {error && <ErrorToast message={error} />}
     </label>
   );
 }
@@ -875,14 +864,7 @@ export function PlatformLogin({ onLogin }: { onLogin: () => void }) {
             </button>
           </span>
         </label>
-        {error && (
-          <p
-            className="mt-4 rounded-lg border border-[#d86b6b]/30 bg-[#d86b6b]/10 px-3 py-2.5 text-sm text-app-danger"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
+        {error && <ErrorToast message={error} />}
         <button
           className="mt-6 w-full rounded-[10px] bg-app-accent px-4 py-3 font-bold text-app-on-accent transition hover:-translate-y-px hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
           disabled={busy}

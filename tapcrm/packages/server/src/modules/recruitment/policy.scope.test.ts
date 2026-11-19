@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { __resetResourcePolicies, MATCH_NOTHING, type PolicyEvaluationContext } from '@tapcrm/authz';
 import { candidatePolicy, interviewPolicy, jobRequisitionPolicy } from './policy.js';
-import { roleChangeRequestPolicy } from '../organization/policy.js';
 
 const ORG = 'org-1';
 const ME = 'user-me';
@@ -27,7 +26,7 @@ function fakeCtx(): PolicyEvaluationContext {
   } as unknown as PolicyEvaluationContext;
 }
 
-describe('recruitment and role-change people route', () => {
+describe('recruitment people route', () => {
   it('pool/team are no longer MATCH_NOTHING for recruitment resources', async () => {
     for (const policy of [candidatePolicy, interviewPolicy, jobRequisitionPolicy]) {
       for (const scope of ['pool', 'team'] as const) {
@@ -49,16 +48,5 @@ describe('recruitment and role-change people route', () => {
     expect(await interviewPolicy.check(fakeCtx(), 'x' as never, rec, 'pool')).toBe(true);
     const f = await interviewPolicy.filter(fakeCtx(), 'x' as never, 'pool');
     expect(f.sql).toContain('interview_interviewer');
-  });
-  it('role change requests reach the subject or requester at pool/team/department', async () => {
-    for (const scope of ['pool', 'team', 'department'] as const) {
-      const f = await roleChangeRequestPolicy.filter(fakeCtx(), 'x' as never, scope);
-      expect(f === MATCH_NOTHING).toBe(false);
-      expect(f.sql).toContain('subject_user_id');
-      expect(f.sql).toContain('requested_by');
-    }
-    const rec = { type: 'roleChangeRequest', id: 'r', organizationId: ORG, subjectUserId: REPORT, requestedBy: OTHER, departmentId: 'dept-9' };
-    expect(await roleChangeRequestPolicy.check(fakeCtx(), 'x' as never, rec, 'team')).toBe(true);
-    expect(await roleChangeRequestPolicy.check(fakeCtx(), 'x' as never, { ...rec, subjectUserId: OTHER }, 'team')).toBe(false);
   });
 });

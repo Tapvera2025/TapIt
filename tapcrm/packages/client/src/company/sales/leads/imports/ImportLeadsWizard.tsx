@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
-import { Button, Field, Icon, Modal, Notice, SearchableSelect, Select, Skeleton } from '../../../../ui/index.js';
+import { Button, Field, Icon, Modal, SearchableSelect, Select, Skeleton } from '../../../../ui/index.js';
 import { formatPhone } from '../../calls/calls-format.js';
 import { createLeadSource, type Campaign, type LeadSource } from '../api.js';
 import {
@@ -31,6 +31,7 @@ import {
   TEMPLATE_CSV,
   UPLOAD_ACCEPT,
 } from './import-format.js';
+import { ErrorToast } from '../../../../ui/ErrorToast.js';
 
 type Step = 'source' | 'columns' | 'review' | 'progress';
 type SourceMode = 'file' | 'sheet' | 'paste';
@@ -232,11 +233,7 @@ export function ImportLeadsWizard({
   return (
     <Modal title="Import leads" onClose={onClose} footer={footer} size="lg" dirty={Boolean(draft) && step !== 'progress'}>
       <Stepper current={step} finished={summary?.status === 'completed'} />
-      {error && (
-        <div className="mt-4">
-          <Notice error>{error}</Notice>
-        </div>
-      )}
+      {error && <ErrorToast message={error} />}
       <div className="mt-5">
         {step === 'source' && (
           <SourceStep
@@ -564,7 +561,7 @@ function ColumnsStep({
                 <Button kind="secondary" onClick={() => setNewSource(null)}>Cancel</Button>
                 <Button onClick={() => void createSource()} disabled={!newSource.trim()}>Create source</Button>
               </div>
-              {sourceError && <p className="mt-1 text-xs text-app-danger">{sourceError}</p>}
+              {sourceError && <ErrorToast message={sourceError} />}
             </div>
           )}
         </div>

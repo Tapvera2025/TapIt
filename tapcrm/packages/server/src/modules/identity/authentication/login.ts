@@ -1,6 +1,6 @@
 import { db } from '../../../platform/dal/db.js';
 import { IdentityAuthenticationError } from '../errors.js';
-import { verifyIdentityPassword } from '../password/service.js';
+import { verifyAgainstDecoy, verifyIdentityPassword } from '../password/service.js';
 import { findUserByEmail } from '../repository.js';
 import { createIdentitySession } from '../sessions/service.js';
 import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from '../security/brute-force.js';
@@ -13,10 +13,13 @@ import { sql } from '../../../platform/dal/sql.js';
 export async function login(input: { email: string; password: string; deviceLabel?: string; ip: string | null; userAgent: string | null; countryCode?: string | null; latitude?: number; longitude?: number; accuracyMetres?: number | null }) {
   await assertLoginAllowed(input.email, input.ip);
   const user = await findUserByEmail(input.email);
-  if (user?.lockedUntil && user.lockedUntil > new Date()) {
-    throw new IdentityAuthenticationError('IDENTITY_ACCOUNT_LOCKED', undefined, 429);
-  }
-  if (!user || user.status !== 'active' || !user.passwordHash || !(await verifyIdentityPassword(user.passwordHash, input.password))) {
+  // The same argon2 work whether or not the account exists, so timing does not
+  // reveal which email addresses have accounts.
+  const passwordMatches =
+    user && user.status === 'active' && user.passwordHash
+      ? await verifyIdentityPassword(user.passwordHash, input.password)
+      : await verifyAgainstDecoy(input.password);
+  if (!user || user.status !== 'active' || !user.passwordHash || !passwordMatches) {
     const result = await recordLoginFailure(input.email, input.ip);
     if (result.accountLocked && user) {
       await db.transaction(createIdentityContext(user, `identity:lock:${user.id}`), (tx) => tx.query(sql`
@@ -26,6 +29,11 @@ export async function login(input: { email: string; password: string; deviceLabe
       `).then(() => undefined));
     }
     throw new IdentityAuthenticationError(result.locked ? 'IDENTITY_ACCOUNT_LOCKED' : 'IDENTITY_INVALID_CREDENTIALS', undefined, result.locked ? 429 : 401);
+  }
+  // Only someone who typed the right password learns the account is locked;
+  // checking first told anyone that the address had an account.
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    throw new IdentityAuthenticationError('IDENTITY_ACCOUNT_LOCKED', undefined, 429);
   }
   if (user.organizationStatus !== 'active') {
     throw new IdentityAuthenticationError('IDENTITY_ORGANIZATION_SUSPENDED');

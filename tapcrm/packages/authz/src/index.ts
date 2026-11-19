@@ -27,6 +27,8 @@ export {
   policyFor,
   registeredResourceTypes,
   assertResourcePolicyCompleteness,
+  assertResourcePoliciesForActions,
+  missingResourcePolicies,
   resolveDomain,
   __resetResourcePolicies,
   type ResourcePolicy,

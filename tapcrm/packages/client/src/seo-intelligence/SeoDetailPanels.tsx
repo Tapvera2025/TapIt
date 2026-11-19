@@ -35,6 +35,7 @@ import type {
   SeoFixProposal,
   SeoAlert,
 } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 function SavedRows({ count, shown }: { count: number; shown: number }) {
   return (
@@ -63,11 +64,7 @@ function WebsiteLink({ url }: { url: string | null }) {
 function Notice({ error, notice }: { error?: string; notice?: string }) {
   return (
     <>
-      {error && (
-        <p role="alert" className="text-sm text-app-danger">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast message={error} />}
       {notice && (
         <p role="status" className="seo-small-copy">
           {notice}
@@ -370,11 +367,7 @@ export function SeoKeywordsPanel({
               </tbody>
             </table>
           </div>
-          {toggleError && (
-            <p role="alert" className="text-sm text-app-danger">
-              {toggleError}
-            </p>
-          )}
+          {toggleError && <ErrorToast message={toggleError} />}
           <SavedRows count={filtered.length} shown={100} />
           <SeoHint title="Tracking uses the monthly search allowance">
             Terms found in your Google traffic are saved as suggestions. Each tracked term is

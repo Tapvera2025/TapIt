@@ -3,7 +3,7 @@
  * Source modules import this file instead of reaching into accounting's
  * implementation details.
  */
-export { postSourceJournalTx } from './accounting/facade.js';
+export { openPostingPeriodCoversTx, postSourceJournalTx } from './accounting/facade.js';
 export type {
   AccountingPostingInput,
   AccountingPostingLine,

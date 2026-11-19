@@ -16,6 +16,7 @@ import {
   type SocialPrivacyStatus,
   type SocialSettings,
 } from './types.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 /** Where a Facebook or Instagram destination places the post. */
 const PLACEMENTS: Partial<
@@ -501,7 +502,7 @@ export function Composer({
           )}
         </Card>
         <Card className="space-y-4">
-          {error && <Notice error>{error}</Notice>}
+          {error && <ErrorToast message={error} />}
           {accountIds.length > 0 && validation.length > 0 && (
             <div className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
               <p className="font-semibold">Before publishing</p>

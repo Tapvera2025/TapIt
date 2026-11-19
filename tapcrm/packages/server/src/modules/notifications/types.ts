@@ -70,6 +70,7 @@ export const NOTIFICATION_TYPES = {
   // sales
   LEAD_REASSIGNED: 'lead.reassigned',
   LEAD_ASSIGNED: 'lead.assigned',
+  DEAL_CANCELLED_AFTER_WIN: 'deal.cancelled_after_win',
 
   // social (modules/social/service.ts)
   SOCIAL_CONNECTION_RECONNECT_REQUIRED: 'social.connection_reconnect_required',

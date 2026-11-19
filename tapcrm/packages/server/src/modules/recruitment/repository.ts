@@ -1745,6 +1745,25 @@ export interface CreateSubmissionData {
   readonly parsedData: ParsedResumeData;
 }
 
+/** An earlier application to the same requisition from the same email (pre-auth, public form). */
+export async function findSubmissionByEmailPreAuth(
+  organizationId: string,
+  requisitionId: string,
+  email: string,
+): Promise<{ id: string } | null> {
+  const rows = await bootstrapDb.readAs<{ id: string }>(
+    organizationId,
+    sql`
+      SELECT id FROM candidate_resume_submission
+      WHERE organization_id = ${organizationId}
+        AND requisition_id = ${requisitionId}
+        AND email = ${email}::citext
+      LIMIT 1
+    `,
+  );
+  return rows[0] ?? null;
+}
+
 export async function createResumeSubmissionPreAuth(
   input: CreateSubmissionData,
 ): Promise<CandidateResumeSubmission> {
@@ -2394,4 +2413,52 @@ export async function findJoiningByAcknowledgeToken(
     sql`SELECT * FROM resolve_joining_acknowledge_token(${token})`,
   );
   return rows[0] ?? null;
+}
+
+/**
+ * Facts a joining email needs beyond the candidate: the company's name and the
+ * reporting manager, i.e. an active holder of the position the offered
+ * position reports to (first by name when several hold it).
+ */
+export async function findJoiningEmailFacts(
+  ctx: RequestContext,
+  positionId: string | null,
+): Promise<{ organizationName: string; managerName: string | null }> {
+  const row = await db.maybeOne<{ organizationName: string; managerName: string | null }>(
+    ctx,
+    sql`
+      SELECT o.name AS "organizationName",
+             (SELECT u.full_name
+                FROM position p
+                JOIN app_user u
+                  ON u.organization_id = p.organization_id
+                 AND u.position_id     = p.parent_position_id
+               WHERE p.organization_id = o.id
+                 AND p.id              = ${positionId}
+                 AND u.status          = 'active'
+               ORDER BY u.full_name
+               LIMIT 1) AS "managerName"
+        FROM organization o
+       WHERE o.id = ${ctx.organizationId}
+    `,
+  );
+  return { organizationName: row?.organizationName ?? '', managerName: row?.managerName ?? null };
+}
+
+/** Keeps an existing confirmation token (so an earlier email's link still works) or stores `candidate`. */
+export async function ensureJoiningAcknowledgeToken(
+  ctx: RequestContext,
+  joiningId: string,
+  candidate: string,
+): Promise<string | null> {
+  const row = await db.maybeOne<{ token: string }>(
+    ctx,
+    sql`
+      UPDATE candidate_joining
+         SET acknowledge_token = COALESCE(acknowledge_token, ${candidate})
+       WHERE organization_id = ${ctx.organizationId} AND id = ${joiningId}
+      RETURNING acknowledge_token AS token
+    `,
+  );
+  return row?.token ?? null;
 }

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Icon } from '../ui/index.js';
 import type { AppNotification } from './api/notificationsApi.js';
 import { useNotificationsFeed } from './NotificationsContext.js';
+import { ErrorToast } from '../ui/ErrorToast.js';
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -167,7 +168,7 @@ export function NotificationBell({ onNavigate, className = '' }: { onNavigate: (
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {error && <p role="alert" className="p-4 text-sm text-app-danger">{error}</p>}
+        {error && <ErrorToast message={error} />}
         {!error && items.length === 0 && (
           <p className="p-6 text-center text-sm text-app-muted">You&apos;re all caught up.</p>
         )}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Field, Modal, Notice, Select } from '../../../ui/index.js';
+import { Button, Field, Modal, Select } from '../../../ui/index.js';
 import {
   getCompanyDesignations,
   type CompanyDesignation,
@@ -11,6 +11,7 @@ import type {
   JobRequisition,
   OfferStatus,
 } from '../types/index.js';
+import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function OfferFormModal({
   candidates,
@@ -141,7 +142,7 @@ export function OfferFormModal({
   return (
     <Modal title="Create Job Offer" onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        {error && <Notice error>{error}</Notice>}
+        {error && <ErrorToast message={error} />}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Select

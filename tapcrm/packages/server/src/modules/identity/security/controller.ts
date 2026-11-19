@@ -6,8 +6,16 @@ import { isLocalRequest, runningInContainer } from '../password/local-request.js
 
 export async function requestPasswordResetController(req: Request, res: Response): Promise<void> {
   const body = z.object({ email: z.string().trim().email().max(320) }).parse(req.body ?? {});
-  await requestPasswordReset(body.email);
+  // Answer at once, the same way for every address, and do the work after:
+  // waiting for it made a known account measurably slower than an unknown one.
   res.status(202).json({ success: true, data: { accepted: true } });
+  void requestPasswordReset(body.email).catch((error: unknown) => {
+    console.error(JSON.stringify({
+      level: 'error',
+      msg: 'password reset request failed',
+      reason: error instanceof Error ? error.name : 'unknown',
+    }));
+  });
 }
 
 export async function resetPasswordController(req: Request, res: Response): Promise<void> {

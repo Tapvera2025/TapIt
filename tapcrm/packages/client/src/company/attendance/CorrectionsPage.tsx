@@ -7,6 +7,7 @@ import {
   type CorrectionListItem,
 } from './attendanceApi.js';
 import { Button, Notice, SkeletonTable, WorkspacePageContainer } from '../../ui/index.js';
+import { ErrorToast } from '../../ui/ErrorToast.js';
 
 type Filter = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -93,7 +94,7 @@ export function CorrectionsPage(): React.JSX.Element {
           </button>
         ))}
       </div>
-      {error && <Notice error>{error}</Notice>}
+      {error && <ErrorToast message={error} />}
       {notice && <Notice>{notice}</Notice>}
       {loading ? (
         <SkeletonTable columns={5} rows={5} />
