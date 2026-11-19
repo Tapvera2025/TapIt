@@ -397,7 +397,7 @@ export function CompanyLayout({
                 }
               >
                 <SalesGuideFrame pathname={pathname} onNavigate={onNavigate}>
-                  <CompanyPageHero />
+                  <CompanyPageHero pathname={pathname} onNavigate={onNavigate} />
                   {children}
                 </SalesGuideFrame>
               </div>

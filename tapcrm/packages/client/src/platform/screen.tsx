@@ -1706,7 +1706,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             data-app-scroll-container
             className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-16 [scrollbar-gutter:stable]"
           >
-          <CompanyPageHero />
+          <CompanyPageHero pathname={platformPath} onNavigate={navigatePlatform} homePath="/platform" showGroup={false} />
           <CompanyPageActionPortal mobileClassName="hidden">
             <button
               type="button"

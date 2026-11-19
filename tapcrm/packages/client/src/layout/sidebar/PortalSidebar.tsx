@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../ui/index.js';
 import { SidebarPet, useAiPet } from '../../company/layout/AiPet.js';
 import { useChatUnread } from '../../chat/ChatUnreadContext.js';
+import { useRegisterNavigation } from '../../company/layout/CompanyNavbarContext.js';
 import { useOptionalNotificationsFeed } from '../../notifications/NotificationsContext.js';
 import type { CompanyNavGroup, CompanyNavItem } from '../../company/layout/navigation.js';
 import {
@@ -146,6 +147,8 @@ export function PortalSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [variant, accountType, enabledModules, ...Object.values(navigationFlags)],
   );
+
+  useRegisterNavigation(groups);
 
   const badges = useMemo(
     () =>
