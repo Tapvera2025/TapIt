@@ -209,7 +209,10 @@ export function CalendarPicker({
           aria-invalid={ariaInvalid}
           aria-haspopup="dialog"
           aria-expanded={open}
-          readOnly
+          // Not readOnly: browsers skip validation on read-only inputs, so a
+          // `required` date would let an empty form through. Typing, pasting and
+          // deleting are blocked by onBeforeInput below, and inputMode="none"
+          // keeps the phone keyboard closed.
           onPointerDown={(event) => {
             // A real pointer handler is more reliable than relying on the
             // text input's synthetic click inside nested modal forms.
