@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 const DESKTOP_BREAKPOINT = 1280;
 const HOVER_OPEN_DELAY = 180;
-const HOVER_CLOSE_DELAY = 150;
+const HOVER_CLOSE_DELAY = 280;
 
 /** Shared responsive controller used by every portal's PortalSidebar. */
 export function usePortalSidebarState() {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BannerDescription } from '../layout/PageIntro.js';
 import { createPortal } from 'react-dom';
 import { PeopleCalendar, type PeopleCalendarDay } from '../../ui/index.js';
 import {
@@ -331,8 +332,9 @@ export function AttendancePage({ userId, organizationTimezone }: { userId: strin
   return (
     <WorkspacePageContainer className="space-y-4">
       <div className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+        <BannerDescription text="Current status, monthly attendance, and recent punch history." />
+        <div className="flex flex-wrap items-start justify-between gap-3 xl:justify-end">
+          <div className="xl:hidden">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">My Attendance</p>
             <h1 className="mt-1 font-display text-2xl font-bold">Attendance overview</h1>
             <p className="mt-1 text-sm text-app-muted">Current status, monthly attendance, and recent punch history.</p>

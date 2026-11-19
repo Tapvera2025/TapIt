@@ -1,8 +1,7 @@
 /**
- * Canonical sidebar entry point for every authenticated portal.
- *
- * The implementation lives with the existing workspace navigation logic; this
- * portal-level name makes it explicit that the same component is shared by
- * company employees, clients, and master administrators.
+ * Canonical sidebar entry point for every authenticated portal: company
+ * employees and admins, clients, and master administrators all render this one
+ * component, differing only in the menu their capabilities produce.
  */
-export { CompanySidebar as PortalSidebar } from '../company/layout/CompanySidebar.js';
+export { PortalSidebar } from './sidebar/PortalSidebar.js';
+export type { PortalSidebarProps } from './sidebar/PortalSidebar.js';

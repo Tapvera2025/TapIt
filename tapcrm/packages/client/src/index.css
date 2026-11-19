@@ -2949,8 +2949,7 @@ summary:active {
   .company-page-hero-desktop {
     position: relative;
     z-index: 1000;
-    /* Keep the next page surface below the hero's curved lower edge. */
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
   }
 
   .workspace-sidebar .sidebar-brand-expanded {
@@ -2979,50 +2978,28 @@ summary:active {
     padding-top: 0;
   }
 
-  .company-page-hero {
-    /* Keep the shared hero surface neutral. Appearance color is reserved for
-       the eyebrow, actions, icons, and active controls—not the card surface. */
-    --hero-start: var(--app-surface);
-    --hero-end: var(--app-surface);
-    --hero-border: var(--app-border);
-    position: relative;
+  /* Top row of the main section: breadcrumb left, dynamic controls right. */
+  .company-topbar {
     display: flex;
-    min-height: 11rem;
-    min-width: 0;
-    align-items: flex-end;
-    padding: 4rem clamp(1.75rem, 2.25vw, 2.25rem) 2.5rem;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
-  .dark .company-page-hero {
-    /* Keep the hero neutral in night mode: the surface follows the same
-       graphite glass used by the sidebar instead of inheriting the accent
-       appearance tint. */
-    --hero-start: rgba(27, 30, 36, 0.94);
-    --hero-end: rgba(27, 30, 36, 0.88);
-    --hero-border: rgba(214, 220, 231, 0.22);
-    background: rgba(27, 30, 36, 0.78);
-    backdrop-filter: blur(22px) saturate(110%);
-    -webkit-backdrop-filter: blur(22px) saturate(110%);
-  }
-
-  .company-page-hero-surface {
-    position: absolute;
-    inset: 0;
-    overflow: visible;
-    pointer-events: none;
-  }
-  .company-page-hero-copy {
+  /* The page banner is plain text on the page: no box, surface or border. */
+  .company-page-hero {
     position: relative;
-    z-index: 1;
-    /* Optically centre the three-line copy block beneath the utility pocket. */
-    transform: translateY(-0.875rem);
+    min-width: 0;
+    padding: 0.75rem 0 0;
   }
-  .company-page-hero[data-utility-overlap='true'] .company-page-hero-copy {
-    /* The normal copy position is stable. This is only a small nudge for a
-       genuinely overlapping, expanded capsule. */
-    transform: translateY(-0.5rem);
+
+  .company-page-hero-utility {
+    position: relative;
+    z-index: 1000;
+    flex: none;
+    margin-left: auto;
   }
-  .company-page-hero-utility { position: absolute; z-index: 1000; right: 0; top: 0; }
   .company-hero-capsule {
     display: flex;
     box-sizing: border-box;
@@ -3146,17 +3123,17 @@ summary:active {
   }
 
   .company-page-hero h1 {
-    margin: 0.5rem 0 0;
+    margin: 0;
     color: var(--app-foreground);
     font-family: var(--font-display, inherit);
-    font-size: clamp(1.875rem, 2.4vw, 2.5rem);
+    font-size: clamp(1.5rem, 1.9vw, 1.875rem);
     font-weight: 700;
-    letter-spacing: -0.04em;
-    line-height: 1.1;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
   }
 
   .company-page-hero-description {
-    margin: 0.625rem 0 0;
+    margin: 0.375rem 0 0;
     max-width: 52rem;
     color: var(--app-muted);
     font-size: 0.9375rem;

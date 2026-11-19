@@ -122,7 +122,8 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
       )
     );
 
-    expect(html).toContain('Preferences');
+    // A group with a single entry is shown as that entry (a plain link), so the
+    // old "Preferences" group label is no longer rendered; Settings itself is.
     expect(html).toContain('Settings');
     expect(html).not.toContain('aria-label="Color appearance themes"');
   });

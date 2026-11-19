@@ -136,6 +136,8 @@ export function RecruitmentWorkspace({
     // Only Overview owns the two global shortcuts. Every other recruitment
     // screen publishes its own action(s) to the utility capsule.
     extension: activeTab === 'overview' ? recruitmentActions : tabHeroActions,
+    // These actions exist only in the desktop capsule, so phones need them in the page.
+    extensionOnMobile: true,
   }), [activeTab, recruitmentActions, tabHeroActions]);
 
   useCompanyPageMetadata(pageMetadata);
