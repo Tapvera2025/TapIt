@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, Empty, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listOffers, listRequisitions, updateOfferStatus } from '../api/recruitmentApi.js';
 import { OfferFormModal } from '../components/OfferFormModal.js';
+import { RequisitionFilterSelect } from '../components/RequisitionFilterSelect.js';
 import { OfferStatusBadge } from '../components/StatusBadge.js';
 import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type {
@@ -14,9 +15,11 @@ import type {
 import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function OffersPage({
+  initialRequisitionId,
   preselectedCandidate,
   onNavigateToJoining,
 }: {
+  readonly initialRequisitionId?: string | undefined;
   readonly preselectedCandidate?: Candidate | undefined;
   readonly onNavigateToJoining?: () => void;
 }): React.JSX.Element {
@@ -28,6 +31,7 @@ export function OffersPage({
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<OfferStatus | 'all'>('all');
+  const [requisitionFilter, setRequisitionFilter] = useState(initialRequisitionId ?? '');
 
   // Modals & Action
   const [showCreateModal, setShowCreateModal] = useState(Boolean(preselectedCandidate));
@@ -80,6 +84,8 @@ export function OffersPage({
     }
   }
 
+  const visibleOffers = requisitionFilter ? offers.filter(({ requisitionId }) => requisitionId === requisitionFilter) : offers;
+
   return (
     <Page variant="recruitment"
       eyebrow="People / HR"
@@ -99,7 +105,7 @@ export function OffersPage({
 
       {/* Filter Bar */}
       <Card className="mt-6 p-4">
-        <div className="max-w-xs">
+        <div className={initialRequisitionId ? 'grid gap-3 sm:grid-cols-2' : 'max-w-xs'}>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as OfferStatus | 'all')}
@@ -114,6 +120,9 @@ export function OffersPage({
             <option value="expired">Expired</option>
             <option value="withdrawn">Withdrawn</option>
           </select>
+          {initialRequisitionId && (
+            <RequisitionFilterSelect value={requisitionFilter} onChange={setRequisitionFilter} requisitions={requisitions} />
+          )}
         </div>
       </Card>
 
@@ -122,7 +131,7 @@ export function OffersPage({
         <div className="mt-6">
           <SkeletonTable columns={5} rows={6} />
         </div>
-      ) : offers.length === 0 ? (
+      ) : visibleOffers.length === 0 ? (
         <Empty>
           No job offers found matching the current criteria. Issue an offer for a selected candidate.
         </Empty>
@@ -138,7 +147,7 @@ export function OffersPage({
           </div>
 
           <div className="divide-y divide-app-border">
-            {offers.map((off) => (
+            {visibleOffers.map((off) => (
               <div
                 key={off.id}
                 className="grid gap-2 px-5 py-4 text-sm md:grid-cols-[1.5fr_1.3fr_1.1fr_1fr_1fr_1.4fr] md:items-center"

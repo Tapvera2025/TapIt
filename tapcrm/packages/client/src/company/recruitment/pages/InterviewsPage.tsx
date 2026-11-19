@@ -3,6 +3,7 @@ import { Card, Empty, Page, SkeletonTable } from '../../../ui/index.js';
 import { listCandidates, listInterviews, listRequisitions, updateInterviewStatus } from '../api/recruitmentApi.js';
 import { InterviewFeedbackModal } from '../components/InterviewFeedbackModal.js';
 import { InterviewScheduleModal } from '../components/InterviewScheduleModal.js';
+import { RequisitionFilterSelect } from '../components/RequisitionFilterSelect.js';
 import { InterviewStageBadge, InterviewStatusBadge } from '../components/StatusBadge.js';
 import { useRecruitmentHeroActions } from '../components/RecruitmentHeroActionsContext.js';
 import type {
@@ -17,8 +18,10 @@ import { formatMinutes } from '../../../ui/format-duration.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
 
 export function InterviewsPage({
+  initialRequisitionId,
   preselectedCandidate,
 }: {
+  readonly initialRequisitionId?: string | undefined;
   readonly preselectedCandidate?: Candidate | undefined;
 }): React.JSX.Element {
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -30,6 +33,7 @@ export function InterviewsPage({
   // Filters
   const [statusFilter, setStatusFilter] = useState<InterviewStatus | 'all'>('all');
   const [stageFilter, setStageFilter] = useState<InterviewStage | 'all'>('all');
+  const [requisitionFilter, setRequisitionFilter] = useState(initialRequisitionId ?? '');
 
   // Modals
   const [showScheduleModal, setShowScheduleModal] = useState(Boolean(preselectedCandidate));
@@ -84,6 +88,8 @@ export function InterviewsPage({
     }
   }
 
+  const visibleInterviews = requisitionFilter ? interviews.filter(({ requisitionId }) => requisitionId === requisitionFilter) : interviews;
+
   return (
     <Page variant="recruitment"
       eyebrow="People / HR"
@@ -103,7 +109,7 @@ export function InterviewsPage({
 
       {/* Filters */}
       <Card className="mt-6 p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={`grid gap-3 ${initialRequisitionId ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as InterviewStatus | 'all')}
@@ -131,6 +137,9 @@ export function InterviewsPage({
             <option value="hr">HR Round</option>
             <option value="final">Final Round</option>
           </select>
+          {initialRequisitionId && (
+            <RequisitionFilterSelect value={requisitionFilter} onChange={setRequisitionFilter} requisitions={requisitions} />
+          )}
         </div>
       </Card>
 
@@ -139,7 +148,7 @@ export function InterviewsPage({
         <div className="mt-6">
           <SkeletonTable columns={5} rows={6} />
         </div>
-      ) : interviews.length === 0 ? (
+      ) : visibleInterviews.length === 0 ? (
         <Empty>
           No interviews scheduled matching the current filters. Schedule a new round with an active candidate.
         </Empty>
@@ -155,7 +164,7 @@ export function InterviewsPage({
           </div>
 
           <div className="divide-y divide-app-border">
-            {interviews.map((int) => (
+            {visibleInterviews.map((int) => (
               <div
                 key={int.id}
                 className="grid gap-2 px-5 py-4 text-sm md:grid-cols-[1.5fr_1.3fr_1fr_1.1fr_1fr_1.3fr] md:items-center"
