@@ -3,6 +3,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button, Field, Modal, Notice } from '../ui/index.js';
 import { actOnSocialPost } from './api.js';
+import { displayDestinationStatus, displayStatus } from './planner-model.js';
 import { PlatformMark, PostStatus, socialDate } from './presentation.js';
 import { scheduleInZone, scheduleToUtc } from './time.js';
 import type { SocialPost, SocialPostAction } from './types.js';
@@ -70,7 +71,7 @@ export function PostDetails({
       <div className="space-y-5">
         {error && <ErrorToast message={error} />}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <PostStatus status={post.status} />
+          <PostStatus status={displayStatus(post, Date.now())} />
           <p className="text-xs text-app-muted">
             Created by {post.createdByName} · {socialDate(post.createdAt, timezone)}
           </p>
@@ -109,7 +110,7 @@ export function PostDetails({
                 <div className="flex flex-wrap items-center gap-2">
                   <PlatformMark platform={item.platform} small />
                   <span className="flex-1 text-sm font-semibold">{item.accountName}</span>
-                  <PostStatus status={item.status} />
+                  <PostStatus status={displayDestinationStatus(item, Date.now())} />
                 </div>
                 {item.caption !== post.caption && (
                   <p className="mt-2 whitespace-pre-wrap text-sm text-app-muted">
