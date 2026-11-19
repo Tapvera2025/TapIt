@@ -133,6 +133,45 @@ export function jsonBody(value: unknown): {
 }
 
 /** Never emit raw response bodies: provider errors may repeat a token or a confidential URL. */
+/** A platform error code as text, or '' when absent. */
+function codeText(value: unknown): string {
+  return typeof value === 'number' ? String(value) : string(value);
+}
+
+/** Anything token-shaped: a long unbroken run of token characters. */
+const TOKEN_LIKE = /[A-Za-z0-9_\-.~+/=]{40,}/g;
+
+/**
+ * The platform's own reason for refusing a request, for the people fixing it:
+ * Meta and Google send `error.message` (Meta adds a code, subcode and a message
+ * meant for users), OAuth endpoints send `error_description`, LinkedIn sends
+ * `message`. Token-like strings are redacted and the text is kept short, so a
+ * reason never carries a credential into a stored error or a notification.
+ */
+export function platformReason(data: Json): string {
+  const error = object(data['error']);
+  const texts = [
+    string(error['message']),
+    string(error['error_user_title']),
+    string(error['error_user_msg']),
+    string(data['error_description']),
+    string(data['message']),
+  ];
+  const code = codeText(error['code'] ?? data['serviceErrorCode']);
+  const subcode = codeText(error['error_subcode']);
+  const codes = [code && `code ${code}`, subcode && `subcode ${subcode}`].filter(Boolean);
+  const reason = [...new Set(texts.map((text) => text.trim()).filter(Boolean))].join(
+    ' — ',
+  );
+  const text = [reason, codes.length ? `(${codes.join(', ')})` : '']
+    .filter(Boolean)
+    .join(' ')
+    .replace(TOKEN_LIKE, '[redacted]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > 300 ? `${text.slice(0, 299)}…` : text;
+}
+
 export async function request(
   url: string | URL,
   options: RequestInit = {},
@@ -191,6 +230,11 @@ export async function request(
         )
       : 60;
     const ambiguous = createsPost && response.status >= 500;
+    // The platform's reason says what to fix. Revoked or expired authorization
+    // always means "reconnect", and its reply concerns the token itself, so it
+    // is left out.
+    const reason = revoked ? '' : platformReason(data);
+    const said = reason ? ` Platform reply: ${reason}` : '';
     throw new ProviderError(
       revoked
         ? 'CONNECTION_REVOKED'
@@ -199,7 +243,7 @@ export async function request(
           : response.status === 403
             ? 'PLATFORM_PERMISSION_DENIED'
             : 'PLATFORM_REQUEST_FAILED',
-      revoked
+      (revoked
         ? 'Authorization expired or was revoked. Reconnect this account.'
         : rateLimited
           ? 'The platform rate limit was reached. Publishing will resume after the retry delay.'
@@ -207,7 +251,8 @@ export async function request(
             ? 'The platform denied access. Check app approval, account role, and granted permissions.'
             : ambiguous
               ? 'The platform returned an error after accepting the request. Check for an existing post before retrying.'
-              : 'The platform rejected the request. Check the content and account permissions.',
+              : 'The platform rejected the request. Check the content and account permissions.') +
+        said,
       {
         status: response.status,
         reconnectRequired: revoked,

@@ -8,6 +8,7 @@ import {
   mediaBytes,
   number,
   object,
+  platformReason,
   request,
   requiredId,
   string,
@@ -640,7 +641,7 @@ export class MetaProvider implements SocialProvider {
     let finished = false;
     for (let attempt = 0; attempt < 15; attempt += 1) {
       const url = this.url(encodeURIComponent(containerId));
-      url.searchParams.set('fields', 'status_code');
+      url.searchParams.set('fields', 'status_code,status');
       const state = await request(url, { headers });
       if (state.data['status_code'] === 'FINISHED') {
         finished = true;
@@ -649,11 +650,14 @@ export class MetaProvider implements SocialProvider {
       if (
         state.data['status_code'] === 'ERROR' ||
         state.data['status_code'] === 'EXPIRED'
-      )
+      ) {
+        // `status` carries Instagram's reason, e.g. "Error: ... error code 2207026".
+        const reason = platformReason({ message: string(state.data['status']) });
         throw new ProviderError(
           'MEDIA_PROCESSING_FAILED',
-          'Instagram could not process the media. Check its format, duration, and dimensions.',
+          `Instagram could not process the media. Check its format, duration, and dimensions.${reason ? ` Platform reply: ${reason}` : ''}`,
         );
+      }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     if (!finished)
