@@ -821,7 +821,7 @@
     box-shadow: inset 0 1px 0 color-mix(in srgb, white 56%, transparent);
     backdrop-filter: blur(18px) saturate(125%);
     -webkit-backdrop-filter: blur(18px) saturate(125%);
-    animation: candy-glass-settle 420ms cubic-bezier(0.22, 1.22, 0.36, 1) both;
+    animation: candy-glass-settle 420ms cubic-bezier(0.22, 1.22, 0.36, 1) backwards;
   }
 
   .page-heading::after {
@@ -927,7 +927,7 @@
   }
 
   .recruitment-route-transition {
-    animation: recruitment-route-enter 240ms cubic-bezier(0.22, 0.8, 0.24, 1) both;
+    animation: recruitment-route-enter 240ms cubic-bezier(0.22, 0.8, 0.24, 1) backwards;
   }
 
   @keyframes recruitment-route-enter {
@@ -2323,7 +2323,7 @@ nav button[aria-current='page']::before {
 }
 
 .dashboard-content>div {
-  animation: card-enter 350ms ease both;
+  animation: card-enter 350ms ease backwards;
 }
 
 .dashboard-content>div:nth-child(2) {
@@ -4225,3 +4225,41 @@ summary:active {
   }
 }
 
+/*
+ * Phone drawer overrides for the sidebar (layout/sidebar/sidebar.css).
+ *
+ * They must live here, inside `components`: the global drawer rule above is an
+ * !important declaration in that layer, and between two !important declarations the
+ * layered one beats an unlayered one, so the override has to be in the layer and win on
+ * specificity. They must NOT live in sidebar.css as `@layer components`: that file can be
+ * bundled before Tailwind's layer declaration, which then makes `components` the LOWEST
+ * layer (below `base`) and lets the `* { padding: 0 }` reset beat every .ui-* class.
+ */
+@layer components {
+  @media (max-width: 1279.98px) {
+    .workspace-sidebar.ps-root {
+      /* Opaque: the page must not show through the drawer. */
+      background: var(--sidebar-background) !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+      /* Leaves a strip of the page visible on small phones, so it reads as a drawer. */
+      width: min(20rem, 86vw) !important;
+      /* Clear of the home indicator on phones that have one. */
+      padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+      overscroll-behavior: contain;
+    }
+
+    /* Finger-sized rows (44px and up). */
+    .ps-root {
+      --ps-row-h: 2.75rem;
+    }
+
+    .ps-subitem {
+      min-height: 2.5rem;
+    }
+
+    .ps-logout {
+      min-height: 2.75rem;
+    }
+  }
+}

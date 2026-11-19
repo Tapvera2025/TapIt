@@ -74,6 +74,7 @@ const DESCRIPTION_BY_TITLE: Readonly<Record<string, string>> = {
   'Access Explorer': 'See what each person can access, and why.',
   'Audit Log': 'Review a record of who did what across the workspace.',
   Geofencing: 'Define the locations employees can punch in from.',
+  'SEO Dashboard': 'Track your websites\' search performance, rankings and site health.',
   Settings: 'Choose your appearance and display mode, and manage workspace settings.',
 };
 
