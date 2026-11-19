@@ -1,4 +1,5 @@
 import { Button } from '../../../ui/index.js';
+import { BannerDescription } from '../../layout/PageIntro.js';
 import { Icon } from '../../../ui/index.js';
 
 export interface TodoHeaderProps {
@@ -8,7 +9,8 @@ export interface TodoHeaderProps {
 export function TodoHeader({ onAddTodo }: TodoHeaderProps): React.JSX.Element {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0 flex-1">
+      <BannerDescription text="Plan your day, organize upcoming work, and stay on track." />
+      <div className="min-w-0 flex-1 xl:hidden">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">
           PERSONAL PLANNING
         </p>
@@ -21,7 +23,7 @@ export function TodoHeader({ onAddTodo }: TodoHeaderProps): React.JSX.Element {
         <span className="sr-only">Your personal Todo workspace</span>
       </div>
 
-      <div className="flex items-center gap-2.5 sm:self-center">
+      <div className="flex items-center gap-2.5 sm:self-center xl:ml-auto">
         <Button
           type="button"
           kind="primary"

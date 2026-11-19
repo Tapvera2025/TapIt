@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breadcrumbTrail } from './breadcrumbs.js';
+import { breadcrumbTrail, resolvePageHeading } from './breadcrumbs.js';
 import type { CompanyNavGroup } from './navigation.js';
 
 const groups: CompanyNavGroup[] = [
@@ -63,14 +63,15 @@ describe('breadcrumbTrail', () => {
       'Home',
       'Sales',
       'Lead Management',
+      'All Leads',
       'Acme Corp lead',
     ]);
     // ...but never when it would only repeat the entry itself.
     expect(labels('/company/tasks/9', 'Tasks')).toEqual(['Home', 'Overview', 'Tasks']);
   });
 
-  it('prefers the longest matching entry, not a shorter ancestor', () => {
-    expect(labels('/company/sales/leads')).toEqual(['Home', 'Sales', 'Lead Management']);
+  it('prefers the longest matching entry, and a sub-entry over the parent that shares its page', () => {
+    expect(labels('/company/sales/leads')).toEqual(['Home', 'Sales', 'Lead Management', 'All Leads']);
   });
 
   it('falls back to the page title for a route outside the menu', () => {
@@ -80,5 +81,49 @@ describe('breadcrumbTrail', () => {
 
   it('can hide groups for the small fixed menus', () => {
     expect(trail('/company/tasks', undefined, false).map((c) => c.label)).toEqual(['Home', 'Tasks']);
+  });
+});
+
+describe('resolvePageHeading', () => {
+  const heading = (pathname: string, fallbackTitle: string, lockTitle = false) =>
+    resolvePageHeading({ groups, pathname, fallbackTitle, lockTitle, homePath: '/company/dashboard' });
+
+  it('names a menu page by its menu label, ignoring a stale fallback title', () => {
+    const h = heading('/company/tasks', 'Dashboard');
+    expect(h.title).toBe('Tasks');
+    expect(h.crumbs[h.crumbs.length - 1]!.label).toBe('Tasks');
+    expect(h.inMenu).toBe(true);
+  });
+
+  it('uses the sub-entry, not its parent, when they share a page', () => {
+    const h = heading('/company/sales/leads', 'All Leads');
+    expect(h.title).toBe('All Leads');
+    expect(h.crumbs.map((c) => c.label)).toEqual(['Home', 'Sales', 'Lead Management', 'All Leads']);
+  });
+
+  it('keeps the fallback title for a record page and ends the trail with it', () => {
+    const h = heading('/company/sales/leads/42', 'Acme Corp Renewal');
+    expect(h.title).toBe('Acme Corp Renewal');
+    expect(h.crumbs[h.crumbs.length - 1]).toMatchObject({ label: 'Acme Corp Renewal', current: true });
+    expect(h.inMenu).toBe(false);
+  });
+
+  it('lets a page lock its own heading and makes the breadcrumb match it', () => {
+    const h = heading('/company/dashboard', 'Admin dashboard', true);
+    expect(h.title).toBe('Admin dashboard');
+    expect(h.crumbs.map((c) => c.label)).toEqual(['Overview', 'Admin dashboard']);
+  });
+
+  it('heading and last crumb are always the same text', () => {
+    for (const [path, fallback, lock] of [
+      ['/company/tasks', 'x', false],
+      ['/company/sales/bid-pool', 'y', false],
+      ['/company/dashboard', 'Today at a glance', true],
+      ['/company/sales/leads/9', 'Some lead', false],
+      ['/company/finance/accounting', 'z', false],
+    ] as const) {
+      const h = heading(path, fallback, lock);
+      expect(h.crumbs[h.crumbs.length - 1]!.label).toBe(h.title);
+    }
   });
 });

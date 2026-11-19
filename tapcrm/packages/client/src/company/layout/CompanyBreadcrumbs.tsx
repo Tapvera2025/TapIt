@@ -1,5 +1,7 @@
+import { useLayoutEffect, useRef } from 'react';
 import { Icon } from '../../ui/index.js';
 import type { Crumb } from './breadcrumbs.js';
+import './breadcrumbs.css';
 
 /**
  * Where the user is, as a trail they can walk back along. Pure view: the trail
@@ -12,10 +14,16 @@ export function CompanyBreadcrumbs({
   readonly crumbs: readonly Crumb[];
   readonly onNavigate: (path: string) => void;
 }): React.JSX.Element | null {
+  const listRef = useRef<HTMLOListElement>(null);
+  // On a phone a long trail scrolls sideways; start at the end, where the current page is.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (list) list.scrollLeft = list.scrollWidth;
+  }, [crumbs]);
   if (crumbs.length === 0) return null;
   return (
     <nav aria-label="Breadcrumb" className="company-breadcrumbs">
-      <ol>
+      <ol ref={listRef}>
         {crumbs.map((crumb, index) => (
           <li key={`${index}-${crumb.label}`}>
             {index > 0 && <Icon name="chevron-right" className="company-crumb-sep" />}

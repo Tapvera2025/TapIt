@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BannerDescription } from '../layout/PageIntro.js';
 import { loadLiveBoard, type LiveBoard, type LiveGroup, type LiveRow } from './liveApi.js';
 import { liveMinutes } from './liveTime.js';
 import {
@@ -545,8 +546,9 @@ export function LiveBoardPage(): React.JSX.Element {
       </nav>
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <BannerDescription text="Live employee status and workforce presence" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between xl:justify-end">
+        <div className="xl:hidden">
           <h1 className="font-display text-xl font-bold tracking-tight text-app-foreground sm:text-2xl">
             Employee Workforce
           </h1>

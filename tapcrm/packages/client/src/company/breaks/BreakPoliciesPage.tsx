@@ -1,4 +1,6 @@
 import { CalendarPicker } from '../../ui/CalendarPicker.js';
+import { CompanyPageActionPortal } from '../layout/CompanyPageActionPortal.js';
+import { PageIntro } from '../layout/PageIntro.js';
 import { useEffect, useState } from 'react';
 import {
   listBreakPolicies,
@@ -210,21 +212,19 @@ export function BreakPoliciesPage(): React.JSX.Element {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">HR · Break management</p>
-        <h1 className="font-display text-2xl font-bold">Break policies</h1>
-        <p className="text-sm text-app-muted">Define break limits and assign policies to employees.</p>
-      </header>
-      <div className="flex items-center justify-between gap-3">
+      <PageIntro eyebrow="HR · Break management" title="Break policies" description="Define break limits and assign policies to employees." />
+      <div className="flex items-center justify-between gap-3 xl:hidden">
         <h2 className="text-sm font-semibold">Break Policies</h2>
         {!showForm && (
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-app-on-accent"
-          >
-            New policy
-          </button>
+          <CompanyPageActionPortal>
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-app-on-accent"
+            >
+              New policy
+            </button>
+          </CompanyPageActionPortal>
         )}
       </div>
 
