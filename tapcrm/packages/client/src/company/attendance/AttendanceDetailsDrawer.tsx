@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { calendarMonth } from '../../ui/index.js';
+import { CalendarPicker, calendarMonth } from '../../ui/index.js';
 import { Icon } from '../../ui/Icon.js';
 import { getAttendanceDayDetail, type AttendanceDayDetail, type AttendanceEventView } from './attendanceApi.js';
 
@@ -366,11 +366,16 @@ function DailyTimeline({ day, shift, events, eventsState, isLive, now }: { day: 
 
 export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, month, periodDates, summary, onPeriodChange, onClose }: AttendanceDetailsDrawerProps): React.JSX.Element {
   const sortedDays = [...days].sort((a, b) => a.date.localeCompare(b.date));
-  const monthValue = month ?? periodLabel.slice(0, 7);
-  const calendarDates = period === 'monthly' && monthValue.length === 7
+  const fallbackDate = sortedDays.find((day) => day.arrivalAt || day.status)?.date ?? sortedDays[0]?.date ?? periodDates?.[0] ?? '';
+  const monthValue: string = month && /^\d{4}-\d{2}$/.test(month)
+    ? month
+    : fallbackDate && /^\d{4}-\d{2}/.test(fallbackDate)
+      ? fallbackDate.slice(0, 7)
+      : new Date().toISOString().slice(0, 7);
+  const calendarDates: readonly string[] = period === 'monthly' && monthValue.length === 7
     ? calendarMonth(monthValue)
     : periodDates ?? sortedDays.map((day) => day.date);
-  const [selectedDate, setSelectedDate] = useState(() => sortedDays.find((day) => day.arrivalAt || day.status)?.date ?? sortedDays[0]?.date ?? calendarDates[0] ?? '');
+  const [selectedDate, setSelectedDate] = useState<string>(() => fallbackDate || calendarDates[0] || '');
   const [switchingPeriod, setSwitchingPeriod] = useState(false);
   const [periodSwitchError, setPeriodSwitchError] = useState('');
   const [dailyEvents, setDailyEvents] = useState<AttendanceEventView[]>([]);
@@ -439,6 +444,22 @@ export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, m
       await onPeriodChange(nextPeriod, anchorDate);
     } catch (cause) {
       setPeriodSwitchError(cause instanceof Error ? cause.message : 'Unable to load this attendance period.');
+    } finally {
+      setSwitchingPeriod(false);
+    }
+  }
+
+  async function selectDate(nextDate: string): Promise<void> {
+    if (!nextDate || switchingPeriod) return;
+    const previousDate = selectedDate;
+    setSelectedDate(nextDate);
+    setSwitchingPeriod(true);
+    setPeriodSwitchError('');
+    try {
+      await onPeriodChange(period, nextDate);
+    } catch (cause) {
+      setSelectedDate(previousDate);
+      setPeriodSwitchError(cause instanceof Error ? cause.message : 'Unable to load this attendance date.');
     } finally {
       setSwitchingPeriod(false);
     }
@@ -532,7 +553,9 @@ export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, m
     const previousOverflow = document.body.style.overflow;
     const previousFocus = document.activeElement as HTMLElement | null;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') requestCloseRef.current();
+      if (event.key !== 'Escape') return;
+      if (event.target instanceof Element && event.target.closest('[data-calendar-picker-popover], [data-date-range-calendar]')) return;
+      requestCloseRef.current();
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', closeOnEscape);
@@ -556,6 +579,19 @@ export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, m
           </div>
         </div>
         <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
+          <CalendarPicker
+            variant="icon"
+            type={period === 'monthly' ? 'month' : 'date'}
+            value={period === 'monthly' ? monthValue : selectedDate}
+            disabled={switchingPeriod}
+            aria-label={`Change date in ${period} attendance`}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (!nextValue) return;
+              void selectDate(nextValue);
+            }}
+            className="grid size-10 shrink-0 place-items-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent disabled:cursor-not-allowed disabled:opacity-60"
+          />
           <div role="group" aria-label="Attendance period" aria-busy={switchingPeriod} className="inline-flex min-w-0 rounded-xl border border-app-border bg-app-surface-raised/70 p-1">
             {([
               { id: 'daily' as const, label: 'Daily' },
