@@ -53,10 +53,10 @@ function useAnchoredPopoverPosition(
       // against its containing block, which is the viewport on a plain page but
       // the window itself inside a modal (the modal is centred with a
       // transform). Measure where the panel's left/top origin really is.
-      const panelRect = panel.getBoundingClientRect();
-      const panelStyle = window.getComputedStyle(panel);
-      const originX = panelRect.left - (Number.parseFloat(panelStyle.left) || 0);
-      const originY = panelRect.top - (Number.parseFloat(panelStyle.top) || 0);
+      const panelRect = panel?.getBoundingClientRect();
+      const panelStyle = panel ? window.getComputedStyle(panel) : null;
+      const originX = panelRect && panelStyle ? panelRect.left - (Number.parseFloat(panelStyle.left) || 0) : 0;
+      const originY = panelRect && panelStyle ? panelRect.top - (Number.parseFloat(panelStyle.top) || 0) : 0;
       const left = viewportLeft - originX;
       const top = viewportTop - originY;
       setPosition((current) => current && current.left === left && current.top === top && current.width === width && current.maxHeight === maxHeight
