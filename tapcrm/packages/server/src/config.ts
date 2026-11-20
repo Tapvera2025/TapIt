@@ -56,6 +56,14 @@ const schema = z.object({
   // replicas and survive a deploy. `memory` is a single-process fallback for
   // local work only, and is refused in production at boot.
   SECURITY_COUNTER_STORE: z.enum(['redis', 'memory']).default('redis'),
+  // How many reverse proxies sit between the internet and this API. Express reads
+  // the client address from X-Forwarded-For counting this many hops in from the
+  // right; too LOW and every user shows up as the address of the proxy in front
+  // (so the per-address sign-in lockout is shared by everyone), too HIGH and a
+  // client can choose its own address. 1 = one proxy (the Vite dev proxy, or a
+  // plain nginx). The Cloudflare Tunnel deployment has two: cloudflared, then the
+  // client nginx, so docker-compose.prod.yml sets 2.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
   // New passwords are checked against Have I Been Pwned (k-anonymity range API).
   //   best-effort  refuse a breached password; if the service can't be reached,
   //                accept the password and log a warning (default)

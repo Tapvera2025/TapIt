@@ -126,7 +126,7 @@ export function buildApp(options: BuildOptions = {}): Express {
 
   const app = express();
 
-  app.set('trust proxy', 1);
+  app.set('trust proxy', config.TRUST_PROXY_HOPS);
   app.disable('x-powered-by');
   app.use(helmet());
   // G2 — ZKTeco-firmware devices push to /iclock in their own text protocol.
