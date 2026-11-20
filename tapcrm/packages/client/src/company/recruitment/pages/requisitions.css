@@ -408,3 +408,10 @@
 @container requisitions (width >= 61rem) {
   .requisition-collection[data-view='grid'] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* On desktop the top banner already names this page; the title row is for narrower screens. */
+@media (min-width: 1280px) {
+  .requisition-page-title {
+    display: none;
+  }
+}

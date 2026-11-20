@@ -2,6 +2,7 @@ import { BrandLogo } from '../ui/index.js';
 import { useEffect, useState } from 'react';
 import { api, ApiError, clearTokens, saveTokens, updateOrganization } from './api.js';
 import { ModuleToggleModal } from './ModuleToggleModal.js';
+import { MailCenter } from './MailCenter.js';
 import { ManageModulesDialog, transitiveDependencies } from './ManageModulesDialog.js';
 import {
   PLATFORM_MODULE_GROUPS,
@@ -1190,6 +1191,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
       'platform-overview',
       'platform-companies',
       'platform-invitations',
+      'platform-mail',
     ] as const;
     const updateActiveSection = () => {
       const current = sectionIds.reduce<string>((active, sectionId) => {
@@ -1592,14 +1594,18 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
     ? '/platform/companies'
     : activeSection === 'platform-invitations'
       ? '/platform/invitations'
-      : '/platform';
+      : activeSection === 'platform-mail'
+        ? '/platform/mail'
+        : '/platform';
 
   const navigatePlatform = (path: string): void => {
     const nextSection = path === '/platform/companies'
       ? 'platform-companies'
       : path === '/platform/invitations'
         ? 'platform-invitations'
-        : 'platform-overview';
+        : path === '/platform/mail'
+          ? 'platform-mail'
+          : 'platform-overview';
     setActiveSection(nextSection);
     setMobileNavOpen(false);
     document.getElementById(nextSection)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2791,6 +2797,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
             )}
           </section>
+          <MailCenter />
           </WorkspacePageContainer>
         </main>
           </div>

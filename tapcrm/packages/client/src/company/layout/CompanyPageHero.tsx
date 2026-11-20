@@ -42,6 +42,47 @@ const DESCRIPTION_BY_TITLE: Readonly<Record<string, string>> = {
   'Assigned lead calls': 'Review calls assigned to your lead portfolio.',
   'Call integrations': 'Manage connected calling platforms and integrations.',
   'Territories & routing': 'Configure territories and routing for incoming leads.',
+  Departments: 'Manage departments and who leads each one.',
+  Teams: 'Create teams and manage their members.',
+  Positions: 'Review the position hierarchy and what each position can do.',
+  Designations: 'Manage job titles and specializations. These do not grant authorization.',
+  Reporting: 'See and change who reports to whom.',
+  'Org Chart': 'Explore the company reporting structure.',
+  'Client meetings': 'Schedule client meetings and see what needs a response.',
+  'Manage Social Media': 'Plan, publish and review social media posts for your clients.',
+  'My Work': 'Your leads, callbacks and live calls in one place.',
+  Approvals: 'Review and decide the requests waiting on you.',
+  Reports: 'Sales totals and forecasts for the period.',
+  Callbacks: 'Schedule and follow up on promised callbacks.',
+  Calls: 'Review calls across the team.',
+  Today: 'Punch in and out, and follow today\'s breaks and activity.',
+  'Employee Wise': 'Review attendance employee by employee.',
+  'Attendance Report': 'Attendance status and trends across the company.',
+  'Daily Late Report': 'See who arrived late today, and by how much.',
+  'Leave Queue': 'Review and decide leave requests.',
+  'Leave Balances': 'Check and adjust each employee\'s leave balances.',
+  'Leave Types': 'Configure the leave types and rules your company offers.',
+  'My Advances': 'Request a salary advance and track its repayment.',
+  'Advance Requests': 'Review advance requests and create manual advances.',
+  'My Expenses': 'Submit expense claims and track their approval.',
+  'Expense Approvals': 'Review and approve expense claims.',
+  'My Payslips': 'View and download your payslips.',
+  'Payroll Runs': 'Prepare, review and publish monthly payroll.',
+  'Salary Structures': 'Set the salary components for each employee.',
+  'Payroll Settings': 'Configure payroll rules, components and cycles.',
+  'Sessions & Devices': 'Review where your account is signed in, and sign out other devices.',
+  'Access Explorer': 'See what each person can access, and why.',
+  'Audit Log': 'Review a record of who did what across the workspace.',
+  Geofencing: 'Define the locations employees can punch in from.',
+  'SEO Dashboard': 'Track your websites\' search performance, rankings and site health.',
+  Settings: 'Choose your appearance and display mode, and manage workspace settings.',
+};
+
+/** For titles that exist in several groups (every module has an "Overview"), keyed "Group/Title". */
+const DESCRIPTION_BY_GROUP_AND_TITLE: Readonly<Record<string, string>> = {
+  'Sales/Overview': 'Monitor sales activity, pipeline progress and team performance.',
+  'Organization/Overview': 'The organization at a glance: departments, teams, positions and people.',
+  'Recruitment/Overview': 'Hiring pipeline, upcoming interviews and onboarding at a glance.',
 };
 
 function categoryForPath(pathname: string): string {
@@ -82,8 +123,12 @@ export function defaultCompanyPageMetadata({
 }
 
 /** The generic description for a page that supplies none of its own. */
-export function descriptionForTitle(title: string): string {
-  return DESCRIPTION_BY_TITLE[title] ?? `Work with ${title.toLowerCase()} across your company workspace.`;
+export function descriptionForTitle(title: string, groupLabel?: string | null): string {
+  return (
+    (groupLabel ? DESCRIPTION_BY_GROUP_AND_TITLE[`${groupLabel}/${title}`] : undefined) ??
+    DESCRIPTION_BY_TITLE[title] ??
+    `Work with ${title.toLowerCase()} across your company workspace.`
+  );
 }
 
 export function CompanyPageHero({
@@ -121,7 +166,7 @@ export function CompanyPageHero({
   // it registered with its metadata, then a generic line for the (menu) title.
   const description =
     descriptionOverride ??
-    (metadata.custom || !heading.inMenu ? metadata.description : descriptionForTitle(heading.title));
+    (metadata.custom || !heading.inMenu ? metadata.description : descriptionForTitle(heading.title, heading.groupLabel));
 
   return (
     <>

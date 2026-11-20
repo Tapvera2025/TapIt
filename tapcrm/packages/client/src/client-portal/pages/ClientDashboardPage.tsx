@@ -41,9 +41,8 @@ export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path
   return (
     <WorkspacePageContainer className="pb-6 pt-4 sm:pt-5">
       <div className="space-y-4 sm:space-y-5">
-        <section aria-label="Client overview" className="relative isolate overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm sm:p-7">
-          <div aria-hidden="true" className="pointer-events-none absolute -right-14 -top-20 size-64 rounded-full bg-app-accent/10 blur-3xl" />
-          <header className="relative max-w-3xl">
+        <section aria-label="Client overview" className="relative grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-4">
+          <header className="col-span-full rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm sm:p-7 xl:hidden">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-app-accent">{data.profile.businessName}</p>
             <h1 className="mt-2 font-display text-2xl font-bold tracking-[-0.04em] text-app-foreground sm:text-3xl lg:text-4xl">
               Welcome, {data.profile.clientName}
@@ -53,11 +52,11 @@ export function ClientDashboardPage({ onNavigate, onError }: { onNavigate: (path
             </p>
           </header>
 
-          <div aria-label="Project counts" className="client-dashboard-status-grid relative mt-5 grid min-w-0 grid-cols-1 border-t border-app-border min-[420px]:grid-cols-2 xl:grid-cols-4">
-            {STATUS_ORDER.map((status, index) => {
+          <div aria-label="Project counts" className="contents">
+            {STATUS_ORDER.map((status) => {
               const presentation = STATUS_PRESENTATION[status];
               return (
-                <div key={status} className={`client-dashboard-status-item flex min-w-0 items-center gap-3 py-4 ${index < STATUS_ORDER.length - 1 ? 'border-b border-app-border' : ''} min-[420px]:border-b-0 ${index < 2 ? 'min-[420px]:border-b min-[420px]:border-app-border' : ''} min-[420px]:even:border-l min-[420px]:even:pl-4 xl:border-b-0 xl:border-l xl:pl-5 xl:first:border-l-0 xl:first:pl-0`}>
+                <div key={status} className="client-dashboard-status-item flex min-w-0 items-center gap-2 rounded-2xl border border-app-border bg-app-surface p-3 shadow-sm transition-shadow hover:shadow-md sm:gap-3 sm:p-5">
                   <span className={`grid size-10 shrink-0 place-items-center rounded-full ring-1 ${presentation.surface}`}>
                     <Icon name={presentation.icon} className={`size-5 ${presentation.color}`} />
                   </span>

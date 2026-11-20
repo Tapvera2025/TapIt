@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { PortalSidebar } from '../layout/PortalSidebar.js';
 import { Navbar } from '../company/layout/Navbar.js';
 import { SettingsPage } from '../company/settings/SettingsPage.js';
-import { isNotAClientError } from './api/portalApi.js';
+import { getPortalProfile, isNotAClientError } from './api/portalApi.js';
 import { listClientProjectDiscussions } from './api/projectDiscussionApi.js';
 import { CLIENT_CHAT_UNREAD_CHANGED_EVENT } from './useClientMessages.js';
 import { ClientDashboardPage } from './pages/ClientDashboardPage.js';
@@ -17,6 +17,33 @@ import { identityApiBasePath, getIdentityAccessToken } from '../identity/api/aut
 import type { CompanySearchDestination } from '../company/layout/navigation.js';
 import { NotificationsProvider } from '../notifications/NotificationsContext.js';
 import { usePortalSidebarState } from '../company/layout/usePortalSidebarState.js';
+import { CompanyNavbarProvider } from '../company/layout/CompanyNavbarContext.js';
+import { CompanyPageHero } from '../company/layout/CompanyPageHero.js';
+
+function clientPageMetadata(pathname: string) {
+  const page = pathname === '/client'
+    ? {
+        title: 'Client dashboard',
+        description: 'Your projects, updates and shared workspace activity in one view.',
+      }
+    : pathname === '/client/projects'
+      ? { title: 'Projects', description: 'Review your shared projects and their latest progress.' }
+      : pathname === '/client/messages'
+        ? { title: 'Messages', description: 'Stay connected with your project teams and updates.' }
+        : pathname === '/client/meetings'
+          ? { title: 'Meetings', description: 'Review and manage your project meetings.' }
+          : pathname === '/client/social'
+            ? { title: 'Social accounts', description: 'Manage the social accounts connected to your projects.' }
+            : pathname === '/client/profile'
+              ? { title: 'Profile', description: 'Review and manage your client profile.' }
+              : { title: 'Settings', description: 'Manage your client portal preferences.' };
+
+  return {
+    eyebrow: 'Client portal',
+    title: page.title,
+    description: page.description,
+  };
+}
 
 const clientSearchDestinations: readonly CompanySearchDestination[] = [
   {
@@ -93,6 +120,7 @@ export function ClientWorkspace({
     onSidebarInteraction,
   } = usePortalSidebarState();
   const [clientMessagesUnread, setClientMessagesUnread] = useState(0);
+  const [clientIdentity, setClientIdentity] = useState({ fullName: 'Client', email: '' });
   const mainScrollRef = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
@@ -106,6 +134,18 @@ export function ClientWorkspace({
     },
     [onNavigate],
   );
+
+  useEffect(() => {
+    let live = true;
+    getPortalProfile()
+      .then((profile) => {
+        if (live) setClientIdentity({ fullName: profile.clientName, email: profile.email });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -175,8 +215,11 @@ export function ClientWorkspace({
   else if (pathname === '/client/settings') page = <SettingsPage />;
   else page = <ClientDashboardPage onNavigate={onNavigate} onError={handleError} />;
 
+  const initialPage = useMemo(() => clientPageMetadata(pathname), [pathname]);
+
   return (
     <NotificationsProvider>
+    <CompanyNavbarProvider initialPage={initialPage}>
     <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
       <a
         href="#main-content"
@@ -193,7 +236,7 @@ export function ClientWorkspace({
         tabIndex={sidebarOpen ? 0 : -1}
       />
       <Navbar
-        identity={{ fullName: 'Client workspace', email: '', accountType: 'client' }}
+        identity={{ ...clientIdentity, accountType: 'client' }}
         organizationName={null}
         organizationCode={null}
         sidebarCollapsed={sidebarCollapsed}
@@ -203,6 +246,7 @@ export function ClientWorkspace({
         onLogout={onLogout}
         searchDestinations={clientSearchDestinations}
         settingsPath="/client/settings"
+        showAiCompanion={false}
       />
 
       <div className="flex min-h-0 flex-1">
@@ -210,7 +254,7 @@ export function ClientWorkspace({
           variant="client"
           clientMessagesUnread={clientMessagesUnread}
           pathname={pathname}
-          identity={{ fullName: 'Client', email: '', accountType: 'client' }}
+          identity={{ ...clientIdentity, accountType: 'client' }}
           organizationName={null}
           accountType="client"
           onNavigate={onNavigate}
@@ -225,6 +269,7 @@ export function ClientWorkspace({
           onSidebarInteraction={onSidebarInteraction}
           width={sidebarWidth}
           onResize={setSidebarWidth}
+          showAiPet={false}
         />
 
         <main
@@ -233,10 +278,12 @@ export function ClientWorkspace({
           data-app-scroll-container
           className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
         >
+          <CompanyPageHero pathname={pathname} onNavigate={onNavigate} homePath="/client" />
           {page}
         </main>
       </div>
     </div>
+    </CompanyNavbarProvider>
     </NotificationsProvider>
   );
 }

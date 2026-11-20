@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { calendarMonth } from '../../ui/index.js';
+import { CalendarPicker, calendarMonth } from '../../ui/index.js';
 import { Icon } from '../../ui/Icon.js';
 import { getAttendanceDayDetail, type AttendanceDayDetail, type AttendanceEventView } from './attendanceApi.js';
 
@@ -364,13 +364,83 @@ function DailyTimeline({ day, shift, events, eventsState, isLive, now }: { day: 
   </div>;
 }
 
+type AttendanceBreakdownItem = {
+  label: string;
+  code: string;
+  value: number;
+  color: string;
+  tone: string;
+};
+
+function AttendanceBreakdown({ days, summary }: { days: AttendanceDrawerDay[]; summary: AttendanceDrawerSummary }): React.JSX.Element {
+  const breakdown: AttendanceBreakdownItem[] = [
+    { label: 'Present', code: 'P', value: days.filter((day) => (day.status === 'present' || day.status === 'full-day') && !day.isWfh).length, color: '#0f766e', tone: 'text-teal-700 dark:text-teal-300' },
+    { label: 'WFH', code: 'W', value: days.filter((day) => day.isWfh && (day.status === 'present' || day.status === 'full-day')).length, color: '#0284c7', tone: 'text-sky-700 dark:text-sky-300' },
+    { label: 'Half day', code: 'HD', value: days.filter((day) => day.status === 'half-day' || day.status === 'half-day-leave').length, color: '#d99a00', tone: 'text-amber-700 dark:text-amber-300' },
+    { label: 'Leave', code: 'L', value: days.filter((day) => day.status === 'leave').length, color: '#7c3aed', tone: 'text-violet-700 dark:text-violet-300' },
+    { label: 'Absent', code: 'A', value: days.filter((day) => day.status === 'absent').length, color: '#ef4444', tone: 'text-rose-700 dark:text-rose-300' },
+    { label: 'Holiday', code: 'H', value: days.filter((day) => day.status === 'holiday' || day.dayType === 'holiday').length, color: '#64748b', tone: 'text-slate-700 dark:text-slate-300' },
+  ];
+  const fallback = breakdown.every((item) => item.value === 0) && days.length === 0;
+  if (fallback) {
+    breakdown[0]!.value = Math.max(0, Math.round(summary.presentUnits));
+    breakdown[1]!.value = summary.wfhDays;
+    breakdown[3]!.value = Math.max(0, Math.round(summary.leaveUnits));
+    breakdown[4]!.value = summary.absentUnits;
+    breakdown[5]!.value = summary.holidayUnits;
+  }
+  const total = breakdown.reduce((sum, item) => sum + item.value, 0);
+  const radius = 52;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(210px,0.8fr)_minmax(0,1.2fr)]">
+      <div className="flex min-h-[190px] flex-col items-center justify-center">
+        <div className="relative size-44 shrink-0">
+          <svg viewBox="0 0 128 128" className="size-full -rotate-90" role="img" aria-label={`Attendance breakdown: ${total} logged days`}>
+            <circle cx="64" cy="64" r={radius} fill="none" stroke="currentColor" strokeWidth="17" className="text-app-border" />
+            {breakdown.map((item) => {
+              if (item.value <= 0 || total <= 0) return null;
+              const length = (item.value / total) * circumference;
+              const circle = <circle key={item.code} cx="64" cy="64" r={radius} fill="none" stroke={item.color} strokeWidth="17" strokeDasharray={`${length} ${circumference - length}`} strokeDashoffset={-offset} strokeLinecap="butt" />;
+              offset += length;
+              return circle;
+            })}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span className="font-display text-3xl font-bold tabular-nums text-app-foreground">{total}</span>
+            <span className="text-xs text-app-muted">logged days</span>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {breakdown.map((item) => (
+          <div key={item.code} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-app-foreground">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="truncate text-xs font-semibold">{item.label}</span>
+            </span>
+            <span className="shrink-0 text-xs font-bold tabular-nums">{item.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, month, periodDates, summary, onPeriodChange, onClose }: AttendanceDetailsDrawerProps): React.JSX.Element {
   const sortedDays = [...days].sort((a, b) => a.date.localeCompare(b.date));
-  const monthValue = month ?? periodLabel.slice(0, 7);
-  const calendarDates = period === 'monthly' && monthValue.length === 7
+  const fallbackDate = sortedDays.find((day) => day.arrivalAt || day.status)?.date ?? sortedDays[0]?.date ?? periodDates?.[0] ?? '';
+  const monthValue: string = month && /^\d{4}-\d{2}$/.test(month)
+    ? month
+    : fallbackDate && /^\d{4}-\d{2}/.test(fallbackDate)
+      ? fallbackDate.slice(0, 7)
+      : new Date().toISOString().slice(0, 7);
+  const calendarDates: readonly string[] = period === 'monthly' && monthValue.length === 7
     ? calendarMonth(monthValue)
     : periodDates ?? sortedDays.map((day) => day.date);
-  const [selectedDate, setSelectedDate] = useState(() => sortedDays.find((day) => day.arrivalAt || day.status)?.date ?? sortedDays[0]?.date ?? calendarDates[0] ?? '');
+  const [selectedDate, setSelectedDate] = useState<string>(() => fallbackDate || calendarDates[0] || '');
   const [switchingPeriod, setSwitchingPeriod] = useState(false);
   const [periodSwitchError, setPeriodSwitchError] = useState('');
   const [dailyEvents, setDailyEvents] = useState<AttendanceEventView[]>([]);
@@ -444,6 +514,22 @@ export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, m
     }
   }
 
+  async function selectDate(nextDate: string): Promise<void> {
+    if (!nextDate || switchingPeriod) return;
+    const previousDate = selectedDate;
+    setSelectedDate(nextDate);
+    setSwitchingPeriod(true);
+    setPeriodSwitchError('');
+    try {
+      await onPeriodChange(period, nextDate);
+    } catch (cause) {
+      setSelectedDate(previousDate);
+      setPeriodSwitchError(cause instanceof Error ? cause.message : 'Unable to load this attendance date.');
+    } finally {
+      setSwitchingPeriod(false);
+    }
+  }
+
   useEffect(() => {
     let revealFrame = 0;
     const frame = window.requestAnimationFrame(() => {
@@ -455,16 +541,11 @@ export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, m
       if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     };
   }, []);
-  const totalCards = [
-    { label: 'Present units', value: `${totals.presentUnits}`, tone: 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/25' },
-    { label: 'Leave', value: `${totals.leaveUnits}`, tone: 'border-violet-200 bg-violet-50/70 dark:border-violet-900 dark:bg-violet-950/25' },
-    { label: 'Absent', value: `${totals.absentUnits}`, tone: 'border-rose-200 bg-rose-50/70 dark:border-rose-900 dark:bg-rose-950/25' },
-    { label: 'Holiday', value: `${totals.holidayUnits}`, tone: 'border-indigo-200 bg-indigo-50/70 dark:border-indigo-900 dark:bg-indigo-950/25' },
-    { label: 'WFH days', value: `${totals.wfhDays}`, tone: 'border-sky-200 bg-sky-50/70 dark:border-sky-900 dark:bg-sky-950/25' },
-    { label: 'Late', value: `${totals.lateDays} days · ${totals.lateMinutes}m`, tone: 'border-amber-200 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/25' },
-    { label: 'Worked', value: duration(totals.workedMinutes), tone: 'border-app-border bg-app-surface-raised/70' },
-    { label: 'Break', value: duration(totals.breakMinutes), tone: 'border-app-border bg-app-surface-raised/70' },
-    { label: 'Overtime', value: `${totals.overtimeMinutes}m`, tone: 'border-app-border bg-app-surface-raised/70' },
+  const secondaryCards = [
+    { label: 'Late', value: `${totals.lateDays} days · ${totals.lateMinutes}m` },
+    { label: 'Worked', value: duration(totals.workedMinutes) },
+    { label: 'Break', value: duration(totals.breakMinutes) },
+    { label: 'Overtime', value: `${totals.overtimeMinutes}m` },
   ];
   const profile = [
     { label: 'Employee ID', value: employee.employeeId ?? '—' },
@@ -532,7 +613,9 @@ export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, m
     const previousOverflow = document.body.style.overflow;
     const previousFocus = document.activeElement as HTMLElement | null;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') requestCloseRef.current();
+      if (event.key !== 'Escape') return;
+      if (event.target instanceof Element && event.target.closest('[data-calendar-picker-popover], [data-date-range-calendar]')) return;
+      requestCloseRef.current();
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', closeOnEscape);
@@ -556,6 +639,19 @@ export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, m
           </div>
         </div>
         <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
+          <CalendarPicker
+            variant="icon"
+            type={period === 'monthly' ? 'month' : 'date'}
+            value={period === 'monthly' ? monthValue : selectedDate}
+            disabled={switchingPeriod}
+            aria-label={`Change date in ${period} attendance`}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (!nextValue) return;
+              void selectDate(nextValue);
+            }}
+            className="grid size-10 shrink-0 place-items-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent disabled:cursor-not-allowed disabled:opacity-60"
+          />
           <div role="group" aria-label="Attendance period" aria-busy={switchingPeriod} className="inline-flex min-w-0 rounded-xl border border-app-border bg-app-surface-raised/70 p-1">
             {([
               { id: 'daily' as const, label: 'Daily' },
@@ -571,11 +667,12 @@ export function AttendanceDetailsDrawer({ employee, period, periodLabel, days, m
         {periodSwitchError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">{periodSwitchError}</p>}
         <section className="rounded-2xl border border-app-border bg-app-surface-raised/45 p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-bold text-app-foreground">{period === 'daily' ? 'Daily overview' : period === 'weekly' ? 'Weekly overview' : 'Monthly overview'}</h3><p className="mt-0.5 text-xs text-app-muted">Attendance totals for {monthLabel}</p></div>{profileShift && <span className="rounded-full border border-app-border bg-app-surface px-2.5 py-1 text-[10px] font-semibold text-app-muted">{profileShift.kind ?? 'Shift'}{profileShift.source ? ` · ${profileShift.source}` : ''}</span>}</div>
-          <div className="mt-3 grid grid-cols-2 gap-2 min-[440px]:grid-cols-3 lg:grid-cols-5">{totalCards.map((item) => <div key={item.label} className={`min-w-0 rounded-xl border px-2.5 py-2 ${item.tone}`}><p className="truncate text-[9px] font-bold uppercase tracking-[0.07em] text-app-muted">{item.label}</p><p className="mt-1 truncate text-sm font-bold tabular-nums text-app-foreground">{item.value}</p></div>)}</div>
+          <AttendanceBreakdown days={sortedDays} summary={totals} />
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{secondaryCards.map((item) => <div key={item.label} className="min-w-0 rounded-xl border border-app-border bg-app-surface-raised/60 px-2.5 py-2"><p className="truncate text-[9px] font-bold uppercase tracking-[0.07em] text-app-muted">{item.label}</p><p className="mt-1 truncate text-sm font-bold tabular-nums text-app-foreground">{item.value}</p></div>)}</div>
         </section>
 
         <section className="rounded-2xl border border-app-border bg-app-surface p-3 sm:p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-bold text-app-foreground">{period === 'monthly' ? `${monthLabel} calendar` : period === 'weekly' ? 'Week calendar' : 'Day details'}</h3><p className="mt-0.5 text-xs text-app-muted">{period === 'daily' ? 'Attendance for the selected date.' : 'Select a date to inspect its punch and work details.'}</p></div><div className="flex flex-wrap gap-1.5 text-[9px] font-semibold text-app-muted"><span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">P Present</span><span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-sky-700">W WFH</span><span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700">HD Half day</span><span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">A Absent</span><span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-violet-700">L Leave</span><span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-indigo-700">H Holiday</span></div></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-bold text-app-foreground">{period === 'monthly' ? `${monthLabel} calendar` : period === 'weekly' ? 'Week calendar' : 'Day details'}</h3><p className="mt-0.5 text-xs text-app-muted">{period === 'daily' ? 'Attendance for the selected date.' : 'Select a date to inspect its punch and work details.'}</p></div><div className="flex flex-wrap gap-1.5 text-[9px] font-semibold"><span className="rounded-full border border-app-border bg-app-surface px-2 py-1 text-emerald-700 dark:text-emerald-300">P Present</span><span className="rounded-full border border-app-border bg-app-surface px-2 py-1 text-sky-700 dark:text-sky-300">W WFH</span><span className="rounded-full border border-app-border bg-app-surface px-2 py-1 text-amber-700 dark:text-amber-300">HD Half day</span><span className="rounded-full border border-app-border bg-app-surface px-2 py-1 text-rose-700 dark:text-rose-300">A Absent</span><span className="rounded-full border border-app-border bg-app-surface px-2 py-1 text-violet-700 dark:text-violet-300">L Leave</span><span className="rounded-full border border-app-border bg-app-surface px-2 py-1 text-indigo-700 dark:text-indigo-300">H Holiday</span></div></div>
           {period === 'daily' ? <div className="mt-4 flex">{selectedDate && <DayTile date={selectedDate} day={records.get(selectedDate)} active onSelect={setSelectedDate} className="w-14 shrink-0" />}</div> : <div className="mt-4 grid grid-cols-7 gap-1 sm:gap-1.5">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((weekday) => <span key={weekday} className="pb-1 text-center text-[9px] font-bold uppercase tracking-wide text-app-muted sm:text-[10px]">{weekday}</span>)}
             {calendarDates.map((day) => {

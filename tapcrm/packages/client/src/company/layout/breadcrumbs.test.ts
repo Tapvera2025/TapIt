@@ -127,3 +127,14 @@ describe('resolvePageHeading', () => {
     }
   });
 });
+
+describe('resolvePageHeading groupLabel', () => {
+  it('reports the group of the matched entry, so a bare "Overview" can be told apart', () => {
+    const h = resolvePageHeading({ groups, pathname: '/company/sales', fallbackTitle: 'x', homePath: '/company/dashboard' });
+    expect(h.title).toBe('Overview');
+    expect(h.groupLabel).toBe('Sales');
+  });
+  it('is null for a page outside the menu', () => {
+    expect(resolvePageHeading({ groups, pathname: '/company/nowhere', fallbackTitle: 'Nowhere', homePath: '/company/dashboard' }).groupLabel).toBeNull();
+  });
+});
