@@ -3,6 +3,7 @@ import {
   identityDownload,
   identityRequest,
   IdentitySessionChangedError,
+  invalidateIdentityPermissions,
   subscribeIdentitySessionChange,
   type IdentitySessionSnapshot,
 } from '../../identity/api/authApi.js';
@@ -127,6 +128,17 @@ export function clearPeopleQueries(): void {
   for (const request of inFlight.values()) request.controller.abort();
   inFlight.clear();
   cache.clear();
+}
+
+/**
+ * The server says this person's powers changed (a position policy edit, an
+ * override, a new placement). Cached reads were made under the old powers, so
+ * drop them, then reload the identity: the sidebar, search and page guard
+ * follow the new capabilities straight away.
+ */
+export function applyPermissionsChanged(): void {
+  clearPeopleQueries();
+  invalidateIdentityPermissions();
 }
 
 export function peopleCacheEntryCount(): number {

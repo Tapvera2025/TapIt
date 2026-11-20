@@ -76,7 +76,11 @@ export const PERMISSION_MATRIX: Readonly<Record<ModuleName, readonly Cell[]>> = 
   // action carve-out below.
   penalties: [G, all, all, own, own, own, own, own, own, own, _],
   performance: [G, all, all, team, own, team, team, team, pool, own, _],
-  recruitment: [G, dept, dept, _, _, _, _, _, _, par, _],
+  // Recruitment is HR's workspace. Everyone else, ordinary employees included,
+  // reaches only the interview rounds they are put on, through
+  // PARTICIPANT_EVERYWHERE_ACTIONS ("My Interviews"); a Super Admin can grant
+  // more to a position on purpose.
+  recruitment: [G, dept, dept, _, _, _, _, _, _, _, _],
   territories: [G, _, _, dept, _, _, team, _, _, _, _],
   leads: [G, _, _, dept, _, _, team, _, pool, own, _],
   callbacks: [G, _, _, dept, _, _, team, _, pool, own, _],

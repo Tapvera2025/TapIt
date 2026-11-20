@@ -1,0 +1,265 @@
+.callback-nav-button {
+  display: grid;
+  width: 2.65rem;
+  height: 2.65rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 0.8rem;
+  color: var(--app-muted);
+  background: var(--app-surface);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.callback-nav-button:hover {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 6%, var(--app-surface));
+}
+
+.callback-schedule-card.ui-card {
+  padding: 0;
+}
+
+.callback-day-grid {
+  display: grid;
+  min-width: max-content;
+  width: 100%;
+}
+
+.callback-agent-heading,
+.callback-timezone-heading {
+  display: flex;
+  min-height: 5.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border-right: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-surface-raised) 52%, var(--app-surface));
+}
+
+.callback-agent-heading small,
+.callback-timezone-heading span:last-child {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--app-muted);
+  font-size: 0.72rem;
+}
+
+.callback-agent-avatar {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.callback-timezone-heading {
+  display: block;
+  padding-top: 1.1rem;
+  color: var(--app-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.callback-time-cell {
+  min-height: 5.75rem;
+  padding: 1.2rem 0.65rem 0;
+  border-right: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.callback-slot {
+  display: flex;
+  min-height: 5.75rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border-right: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.callback-empty-slot {
+  display: grid;
+  width: 100%;
+  min-height: 100%;
+  flex: 1;
+  place-items: center;
+  border: 1px dashed transparent;
+  border-radius: 0.8rem;
+  color: var(--app-muted);
+  opacity: 0;
+  transition: opacity 120ms ease, border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.callback-slot:hover .callback-empty-slot,
+.callback-empty-slot:focus-visible {
+  border-color: var(--app-border);
+  background: color-mix(in srgb, var(--app-surface-raised) 45%, transparent);
+  opacity: 1;
+}
+
+.callback-empty-slot:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-border));
+  color: var(--app-accent);
+}
+
+.callback-event {
+  display: block;
+  min-width: 0;
+  min-height: 4.7rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--callback-event-color) 23%, var(--app-border));
+  background: color-mix(in srgb, var(--callback-event-color) 12%, var(--app-surface));
+  border-radius: 0.85rem;
+  color: var(--app-foreground);
+  text-align: left;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.callback-event:hover {
+  filter: saturate(1.15);
+  transform: translateY(-1px);
+}
+
+.callback-event-pending {
+  --callback-event-color: var(--app-accent);
+}
+
+.callback-event-complete {
+  --callback-event-color: var(--app-success);
+}
+
+.callback-event-warning {
+  --callback-event-color: var(--color-amber-500);
+}
+
+.callback-event-danger {
+  --callback-event-color: var(--app-danger);
+}
+
+.callback-event-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.callback-event-status {
+  flex: none;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  background: color-mix(in srgb, var(--app-surface) 78%, transparent);
+  color: var(--app-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.callback-event-time,
+.callback-event-reason {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--app-muted);
+  font-size: 0.75rem;
+}
+
+.callback-event-reason {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 0.4rem;
+  padding: 0.15rem 0.45rem;
+  background: color-mix(in srgb, var(--app-surface) 78%, transparent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.callback-week-grid {
+  display: grid;
+  grid-auto-columns: minmax(13rem, 1fr);
+  grid-auto-flow: column;
+  gap: 0.8rem;
+  overflow-x: auto;
+  padding: 0.1rem 0.1rem 0.65rem;
+}
+
+.callback-week-day.ui-card {
+  min-height: 17rem;
+  padding: 1rem;
+}
+
+@media (max-width: 640px) {
+  .callback-agent-heading {
+    padding-inline: 0.7rem;
+  }
+}
+
+.callback-hour-row {
+  position: relative;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.callback-now {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  left: 5.25rem;
+  height: 2px;
+  background: var(--app-danger);
+  pointer-events: none;
+}
+
+.callback-now time {
+  position: absolute;
+  left: 0;
+  transform: translate(-75%, -50%);
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.35rem;
+  background: var(--app-foreground);
+  color: var(--app-surface);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.callback-event-icon {
+  display: grid;
+  flex: none;
+  width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--callback-event-color) 26%, var(--app-surface));
+  color: color-mix(in srgb, var(--callback-event-color) 64%, var(--app-foreground));
+}
+
+.callback-event-status::before {
+  display: inline-block;
+  width: 0.38rem;
+  height: 0.38rem;
+  margin-right: 0.3rem;
+  border-radius: 50%;
+  background: var(--callback-event-color);
+  vertical-align: 0.08em;
+  content: '';
+}
+
+@media (hover: none) {
+  .callback-empty-slot {
+    opacity: 1;
+  }
+}

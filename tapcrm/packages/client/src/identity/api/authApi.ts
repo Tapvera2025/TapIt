@@ -113,6 +113,19 @@ function sameAccount(expected: string | null, current: string | null): boolean {
   return expected === null || expected === current;
 }
 
+/**
+ * A refused request (403) means the identity the workspace drew its menu from
+ * may be out of date: a power or a module was switched off since it loaded, so
+ * the workspace should refetch its capabilities (the listener coalesces these).
+ * The authorization engine's own refusals ("No policy grants …", "… is outside
+ * this principal's … scope") never contain the word "permission", so matching
+ * on wording missed nearly every one; any 403 counts, except a suspended
+ * company, which signs the person out instead.
+ */
+export function shouldRefreshIdentityAfter(status: number, message: string | undefined): boolean {
+  return status === 403 && message !== 'Company access is suspended';
+}
+
 export function invalidateIdentityPermissions(): void {
   emitSessionChange('permissions-changed');
 }
@@ -300,11 +313,7 @@ export async function identityRequest<T>(path: string, init: RequestInit = {}): 
   if (response.status === 403 && body.message === 'Company access is suspended') {
     redirectToIdentityLogin();
   }
-  // A module or power switched off since the identity was loaded: ask the
-  // workspace to refetch its capabilities (coalesced by the listener).
-  if (response.status === 403 && /not enabled for this organization|not authori[sz]ed|permission/i.test(body.message ?? '')) {
-    notifyIdentityBootstrapUpdated();
-  }
+  if (shouldRefreshIdentityAfter(response.status, body.message)) notifyIdentityBootstrapUpdated();
   if (!response.ok || !body.success || body.data === undefined) {
     throw new IdentityApiError(
       body.message ?? 'Identity request failed',

@@ -58,12 +58,13 @@ function getInitials(name: string): string {
 
 export function EmployeesPage({
   canManage = true,
-  isSuperAdmin = false,
+  canChangePlacement = false,
   canRequestRoleChange = false,
   onNavigate,
 }: {
   canManage?: boolean;
-  isSuperAdmin?: boolean;
+  /** Holds users:change-placement (the Super Admin, or a position the Super Admin gave it to). */
+  canChangePlacement?: boolean;
   canRequestRoleChange?: boolean;
   onNavigate?: (path: string) => void;
 } = {}): React.JSX.Element {
@@ -495,7 +496,7 @@ export function EmployeesPage({
           teams={teams}
           designations={designations}
           weekdaySchedules={weekdaySchedules}
-          isSuperAdmin={isSuperAdmin}
+          canChangePlacement={canChangePlacement}
           canRequestRoleChange={canRequestRoleChange}
           onClose={() => setEditingId(null)}
           onSaved={(text) => {

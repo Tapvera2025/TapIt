@@ -141,6 +141,7 @@ describe.skipIf(!enabled)('sales contracts service (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    await asOwner('cleanup notification outbox', sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup audit outbox', sql`DELETE FROM audit_outbox      WHERE organization_id = ${ORG}`);
     await asOwner('cleanup contracts',    sql`DELETE FROM contract          WHERE organization_id = ${ORG}`);
     await asOwner('cleanup items',        sql`DELETE FROM commercials_item  WHERE organization_id = ${ORG}`);

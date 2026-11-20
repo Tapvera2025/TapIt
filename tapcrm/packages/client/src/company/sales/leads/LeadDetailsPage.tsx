@@ -1,6 +1,6 @@
 import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Button, Card, Field, Page } from '../../../ui/index.js';
+import { Button, Card, Field, Icon, Page, WorkspacePageContainer } from '../../../ui/index.js';
 import { acceptHandover, callbackOutcome, createCallback, createHandover, declineHandover, getCallbacks, getHandoverTargets, getHandovers, getLead, recordHandoverDisposition, updateCallback, updateLeadStatus, type Handover, type HandoverTarget, type Lead, type LeadCallback } from './api.js';
 import { anHourLater, callbackStatusLabel, formatCallbackDate, organizationLocalToIso, organizationNowLocal, sentenceLabel, sortCallbacks } from './callback-ui.js';
 import { ReassignModal } from './ReassignModal.js';
@@ -12,7 +12,7 @@ import { getCalls, type CallListItem } from '../calls/api.js';
 import { directionLabel, formatCallTime, OUTCOME_LABELS, PROVIDER_NAMES } from '../calls/calls-format.js';
 import { isStillStalled, LEAD_ANCHORS, leadGuidance, leadSteps } from '../guide/lead-guidance.js';
 import { cannotOpen, mailHref, telHref, type GuideCommand } from '../guide/guidance.js';
-import { SalesCoach, StepTracker, focusGuideTarget, useSalesGuide } from '../guide/SalesGuide.js';
+import { SalesCoach, focusGuideTarget, useSalesGuide } from '../guide/SalesGuide.js';
 import { IdentityApiError } from '../../../identity/api/authApi.js';
 import { subscribeRealtimeEvent } from '../../live/realtimeClient.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
@@ -28,7 +28,10 @@ function leadLoadFailureDetail(cause: unknown): string | null {
   return cause instanceof Error ? cause.message : 'Unable to load lead.';
 }
 
-export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canReassign = false, canTransferSourcingCredit = false, canCreateDeal = false, canEditLead = false, canViewCalls = false, canManageCallbacks = false, onBack, onNavigate }: { id: string; currentUserId: string; organizationTimezone: string; canReassign?: boolean; canTransferSourcingCredit?: boolean; canCreateDeal?: boolean; canEditLead?: boolean; canViewCalls?: boolean; canManageCallbacks?: boolean; onBack: () => void; onNavigate?: (path: string) => void }): React.JSX.Element {
+type LeadDetailTab = 'qualification' | 'calls' | 'callbacks' | 'activity';
+
+export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canReassign = false, canTransferSourcingCredit = false, canCreateDeal = false, canEditLead = false, canViewCalls = false, canManageCallbacks = false, initialFocus, onBack, onNavigate }: { id: string; currentUserId: string; organizationTimezone: string; canReassign?: boolean; canTransferSourcingCredit?: boolean; canCreateDeal?: boolean; canEditLead?: boolean; canViewCalls?: boolean; canManageCallbacks?: boolean; initialFocus?: 'handover' | 'status' | undefined; onBack: () => void; onNavigate?: (path: string) => void }): React.JSX.Element {
+  const [activeSection, setActiveSection] = useState<LeadDetailTab>('qualification');
   const [lead, setLead] = useState<Lead | null>(null);
   const [handovers, setHandovers] = useState<Handover[]>([]);
   const [callbacks, setCallbacks] = useState<LeadCallback[]>([]);
@@ -58,6 +61,7 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
   });
 
   useEffect(() => {
+    setActiveSection('qualification');
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -84,6 +88,10 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
   // Only the person on the call (the lead's current holder) can hand it over,
   // so only they need the list of people who can take it.
   const viewerHoldsLead = lead !== null && lead.currentHolderId === currentUserId;
+  const matchingLeadLoaded = lead?.id === id;
+  useEffect(() => {
+    if (initialFocus && matchingLeadLoaded) focusGuideTarget(LEAD_ANCHORS[initialFocus]);
+  }, [id, initialFocus, matchingLeadLoaded]);
   useEffect(() => {
     if (!viewerHoldsLead) {
       setTargets([]);
@@ -172,109 +180,238 @@ export function LeadDetailsPage({ id, currentUserId, organizationTimezone, canRe
     }
   }
 
-  const action = (
-    <div className="flex flex-wrap gap-2">
-      {canConvert && <Button kind="secondary" onClick={() => setConvertOpen(true)}>Qualify into a deal</Button>}
-      {canReassign && !closed && <Button kind="secondary" onClick={() => setReassignOpen(true)}>{lead.ownerId ? 'Reassign' : 'Assign an owner'}</Button>}
-      {dealId && onNavigate && <Button kind="secondary" onClick={() => onNavigate(`/company/sales/deals/${dealId}`)}>Open the deal</Button>}
-      <Button kind="secondary" onClick={onBack}>Back to leads</Button>
-    </div>
-  );
-  const timeline = [
-    ...lead.activities.map((activity) => ({ kind: 'activity' as const, at: activity.createdAt, activity })),
-    ...calls.map((call) => ({ kind: 'call' as const, at: call.startedAt, call })),
-  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  const pendingCallback = callbacks.find((callback) => callback.status === 'pending');
+  function handleGuideFocus(target: string): void {
+    if (target === LEAD_ANCHORS.callbacks) {
+      setActiveSection('callbacks');
+      window.setTimeout(() => focusGuideTarget(target), 0);
+      return;
+    }
+    focusGuideTarget(target);
+  }
+
+  const activityEntries = [...lead.activities].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+  const callEntries = [...calls].sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime());
+  const pendingCallback = sortCallbacks(callbacks).find((callback) => callback.status === 'pending');
+  const nextCallback = callbacks.filter((callback) => callback.status === 'pending').sort((left, right) => new Date(left.scheduledAt).getTime() - new Date(right.scheduledAt).getTime())[0];
   const holderLabel = lead.currentHolderId === currentUserId ? 'You' : lead.currentHolderName;
   const ownerLabel = lead.ownerId === currentUserId ? 'You' : lead.ownerName;
   const showHandover = handovers.length > 0 || (!closed && isHolder);
   const showCallbacks = callbacks.length > 0 || ((isHolder || (lead.ownerId === currentUserId && !handedAway)) && !closed);
+  const tabs: Array<{ id: LeadDetailTab; label: string; count?: number }> = [
+    { id: 'qualification', label: 'Touchpoints & Qualification', count: leadSteps(lead).length },
+    { id: 'calls', label: 'Call History', ...(canViewCalls ? { count: calls.length } : {}) },
+    { id: 'callbacks', label: 'Callbacks', count: callbacks.length },
+    { id: 'activity', label: 'Activity Log', count: lead.activities.length },
+  ];
 
+  const phoneLink = telHref(lead.phone);
+  const stalled = !closed && isStillStalled(lead);
   return (
-    <Page eyebrow="Sales" title={lead.contactName} description={`Lead #${lead.leadNumber}${lead.companyName ? ` · ${lead.companyName}` : ''}`} action={action}>
-      <SalesCoach guidance={guidance} onCommand={handleCommand} onNavigate={navigate} />
-      {reassignOpen && <ReassignModal lead={lead} canTransferSourcingCredit={canTransferSourcingCredit} onClose={() => setReassignOpen(false)} onReassigned={(updated) => { setLead(updated); void reload(); }} />}
-      {convertOpen && <ConvertToDealModal lead={lead} onClose={() => setConvertOpen(false)} onCreated={(newDealId) => { setConvertOpen(false); if (onNavigate) onNavigate(`/company/sales/deals/${newDealId}`); }} />}
-
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <StepTracker steps={leadSteps(lead)} label="Lead progress" />
-          <span className="rounded-full bg-app-background px-3 py-1 text-xs font-bold">{leadStatusLabel(lead.status)}</span>
+    <WorkspacePageContainer>
+      <div className="space-y-5">
+        <div className="flex items-center justify-between gap-4">
+          <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-app-muted transition hover:text-app-foreground sm:text-base">
+            <Icon name="chevron-left" className="size-5" />
+            Back to Lead Management
+          </button>
+          <span className="shrink-0 text-sm text-app-muted sm:text-base">Record #{lead.leadNumber}</span>
         </div>
-        {guideMode === 'closed' && (
-          <p className="mt-3 border-t border-app-border pt-3 text-sm">
-            <span className="font-semibold">Next step:</span> {guidance.title}
-          </p>
-        )}
-      </Card>
 
-      <div className="@container">
-        <div className="grid gap-5 @3xl:grid-cols-[minmax(0,1fr)_19rem]">
-          <Card className="min-w-0">
-            <DetailGroup title="Contact" items={[
-              { label: 'Phone', value: lead.phone ? <ContactLink href={telHref(lead.phone)}>{lead.phone}</ContactLink> : null },
-              { label: 'Email', value: lead.email ? <ContactLink href={mailHref(lead.email)}>{lead.email}</ContactLink> : null },
-              { label: 'Company', value: lead.companyName },
-              { label: 'Location', value: lead.location },
-              { label: 'Language', value: lead.languagePreference },
-            ]} />
-            <DetailGroup title="Enquiry" items={[
-              { label: 'What they need', value: lead.requirement, wide: true },
-              { label: 'Source', value: `${lead.sourceName}${lead.sourceDirection ? ` (${lead.sourceDirection === 'inbound' ? 'they contacted us' : 'we found them'})` : ''}` },
-              { label: 'Campaign', value: lead.campaignName },
-              { label: 'Notes', value: lead.intakeNotes ? <span className="whitespace-pre-wrap font-normal">{lead.intakeNotes}</span> : null, wide: true },
-            ]} />
-            <DetailGroup title="Who has it" items={[
-              { label: 'Owner', value: ownerLabel ?? (lead.bidState === 'pool_open' ? 'Nobody yet (in the Bid Pool)' : 'Nobody yet') },
-              { label: 'Working it now', value: lead.currentHolderId && lead.currentHolderId !== lead.ownerId ? holderLabel : null },
-              { label: 'Sales team', value: lead.salesTeamName },
-              { label: 'Territory', value: lead.territoryName },
-            ]} />
-            <DetailGroup title="Good to know" items={[
-              { label: 'Lost because', value: lead.lossReason ? `${lossReasonLabel(lead.lossReason)}${lead.lostAt ? ` · ${new Date(lead.lostAt).toLocaleDateString()}` : ''}` : null },
-              { label: 'Stalled', value: isStillStalled(lead) ? (lead.stalledReason === 'missed_callback' ? 'A callback was missed' : 'No activity for a while') : null },
-              { label: 'Earlier lead', value: lead.previousLeadId && onNavigate ? <button type="button" className="font-semibold text-app-accent underline" onClick={() => onNavigate(`/company/sales/leads/${lead.previousLeadId}`)}>Open the earlier lead</button> : null },
-            ]} />
-          </Card>
-
-          <div className="space-y-5">
-            <div id={LEAD_ANCHORS.status} className="rounded-2xl"><LeadStatusPanel lead={lead} canEdit={canEditThisLead} lockedNote={handedAway ? `${lead.currentHolderName ?? 'A colleague'} took this lead from you in a handover and works it now. You can see it, but you can’t change its status until a manager gives it back to you.` : undefined} onChanged={reload} /></div>
-            {showCallbacks && <CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} canManage={canManageCallbacks && !handedAway} handedAway={handedAway} onReload={reload} />}
-            {showHandover && <HandoverPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} handovers={handovers} targets={targets} onReload={reload} />}
+        <Card className="sales-record-card p-5 sm:p-7 lg:p-9">
+          <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-xl bg-app-accent/10 px-3.5 py-2.5 text-sm font-semibold text-app-accent sm:px-4 sm:text-base">
+            <Icon name="sparkles" className="size-5 shrink-0" />
+            <span>{closed ? 'Closed pipeline record' : 'Active pipeline record'} · Current stage: {leadStatusLabel(lead.status)}</span>
           </div>
 
-          <Card className="min-w-0 @3xl:col-span-2">
+          <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <h1 className="font-display text-3xl font-bold tracking-tight text-app-foreground sm:text-4xl">
+                  Lead #{lead.leadNumber} <em className="font-semibold text-app-foreground/80">“{lead.contactName}”</em>
+                </h1>
+                <span className="rounded-xl bg-app-accent/10 px-3.5 py-2 text-sm font-bold text-app-accent">{leadStatusLabel(lead.status)}</span>
+              </div>
+              {lead.companyName && <p className="mt-2 text-sm text-app-muted sm:text-base">{lead.companyName}</p>}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <span className="text-sm text-app-muted sm:text-base">Sales Owner</span>
+                {canReassign && !closed ? (
+                  <Button kind="secondary" onClick={() => setReassignOpen(true)}>{lead.ownerName ?? 'Assign an owner'} <Icon name="chevron-down" className="ml-2 inline size-4" /></Button>
+                ) : <span className="rounded-xl border border-app-border px-4 py-2 text-sm font-semibold text-app-foreground">{lead.ownerName ?? (lead.bidState === 'pool_open' ? 'Bid Pool' : 'Unassigned')}</span>}
+                {canConvert && <Button onClick={() => setConvertOpen(true)}>Qualify into a deal</Button>}
+                {dealId && onNavigate && <Button kind="secondary" onClick={() => onNavigate(`/company/sales/deals/${dealId}`)}>Open the deal</Button>}
+              </div>
+            </div>
+            {guideMode === 'closed' && <p className="max-w-md rounded-xl bg-app-background px-4 py-3 text-sm text-app-muted"><span className="font-semibold text-app-foreground">Next step:</span> {guidance.title}</p>}
+          </div>
+
+          <div className="mt-6 border-t border-app-border pt-5 sm:mt-7 sm:pt-6">
+            <dl className="grid gap-x-7 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+              <LeadFact icon="clipboard" label="Lead ID" value={`#${lead.leadNumber}`} />
+              <LeadFact icon="inbox" label="Source" value={lead.sourceName} />
+              <LeadFact icon="calendar" label="Created Date" value={formatLeadDate(lead.createdAt, organizationTimezone)} />
+              <LeadFact icon="clock" label="Next Callback" value={nextCallback ? formatCallbackDate(nextCallback.scheduledAt, organizationTimezone) : 'No callback scheduled'} />
+              <LeadFact icon="pin" label="Territory" value={lead.territoryName ?? 'Not assigned'} accent={Boolean(lead.territoryName)} />
+              <LeadFact icon="users" label="Working it now" value={holderLabel ?? ownerLabel ?? 'Unassigned'} />
+            </dl>
+          </div>
+        </Card>
+
+        <SalesCoach guidance={guidance} onCommand={handleCommand} onNavigate={navigate} onFocus={handleGuideFocus} />
+        {reassignOpen && <ReassignModal lead={lead} canTransferSourcingCredit={canTransferSourcingCredit} onClose={() => setReassignOpen(false)} onReassigned={(updated) => { setLead(updated); void reload(); }} />}
+        {convertOpen && <ConvertToDealModal lead={lead} onClose={() => setConvertOpen(false)} onCreated={(newDealId) => { setConvertOpen(false); if (onNavigate) onNavigate(`/company/sales/deals/${newDealId}`); }} />}
+
+        <div className="overflow-x-auto border-b border-app-border">
+          <div className="flex min-w-max items-center gap-3 sm:gap-6" role="tablist" aria-label="Lead record sections">
+            {tabs.map((tab) => {
+              const selected = activeSection === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={`lead-panel-${tab.id}`}
+                  onClick={() => setActiveSection(tab.id)}
+                  className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-sm font-semibold transition sm:text-base ${selected ? 'border-app-accent text-app-accent' : 'border-transparent text-app-muted hover:text-app-foreground'}`}
+                >
+                  {tab.label}
+                  {tab.count !== undefined && <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${selected ? 'bg-app-accent text-white' : 'bg-app-background text-app-muted'}`}>{tab.count}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {activeSection === 'qualification' && (
+          <div id="lead-panel-qualification" role="tabpanel" className="space-y-5">
+            <LeadProgressTable lead={lead} />
+            <Card className="sales-record-card">
+              <h2 className="font-display text-lg font-bold">Lead details</h2>
+              <div className="mt-4 grid gap-x-8 gap-y-4 lg:grid-cols-2">
+                <DetailGroup title="Contact" items={[
+                  { label: 'Phone', value: lead.phone ? <ContactLink href={telHref(lead.phone)}>{lead.phone}</ContactLink> : null },
+                  { label: 'Email', value: lead.email ? <ContactLink href={mailHref(lead.email)}>{lead.email}</ContactLink> : null },
+                  { label: 'Company', value: lead.companyName },
+                  { label: 'Location', value: lead.location },
+                  { label: 'Language', value: lead.languagePreference },
+                ]} />
+                <DetailGroup title="Enquiry" items={[
+                  { label: 'What they need', value: lead.requirement, wide: true },
+                  { label: 'Source', value: `${lead.sourceName}${lead.sourceDirection ? ` (${lead.sourceDirection === 'inbound' ? 'they contacted us' : 'we found them'})` : ''}` },
+                  { label: 'Campaign', value: lead.campaignName },
+                ]} />
+                <DetailGroup title="Ownership" items={[
+                  { label: 'Sales owner', value: ownerLabel ?? (lead.bidState === 'pool_open' ? 'Nobody yet (in the Bid Pool)' : 'Nobody yet') },
+                  { label: 'Working it now', value: holderLabel },
+                  { label: 'Sales team', value: lead.salesTeamName },
+                  { label: 'Territory', value: lead.territoryName },
+                ]} />
+                <DetailGroup title="Additional context" items={[
+                  { label: 'Lost because', value: lead.lossReason ? `${lossReasonLabel(lead.lossReason)}${lead.lostAt ? ` · ${new Date(lead.lostAt).toLocaleDateString()}` : ''}` : null },
+                  { label: 'Stalled', value: isStillStalled(lead) ? (lead.stalledReason === 'missed_callback' ? 'A callback was missed' : 'No activity for a while') : null },
+                  { label: 'Earlier lead', value: lead.previousLeadId && onNavigate ? <button type="button" className="font-semibold text-app-accent underline" onClick={() => onNavigate(`/company/sales/leads/${lead.previousLeadId}`)}>Open the earlier lead</button> : null },
+                ]} />
+              </div>
+            </Card>
+
+          </div>
+        )}
+
+        {activeSection === 'calls' && (
+          <div id="lead-panel-calls" role="tabpanel" aria-label="Call history">
+          <Card>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="font-display text-lg font-bold">Timeline</h2>
-                <p className="mt-1 text-xs text-app-muted">Everything that happened to this lead, newest first{canViewCalls ? ', with synced calls to and from its phone number' : ''}.</p>
+                <h2 className="font-display text-lg font-bold">Recorded Calls for {lead.contactName}</h2>
+                <p className="mt-1 text-sm text-app-muted">Synced calls associated with this lead’s phone number.</p>
               </div>
-              {canViewCalls && onNavigate && <Button kind="secondary" onClick={() => onNavigate('/company/sales/calls/log')}>Open call log</Button>}
+              <div className="flex flex-wrap gap-2">
+                {phoneLink && !closed && !handedAway && <a className="sales-record-call" href={phoneLink}><Icon name="phone" className="size-4" /> Call lead</a>}
+                {canViewCalls && onNavigate && <Button kind="secondary" onClick={() => onNavigate('/company/sales/calls/log')}>Open call log</Button>}
+              </div>
             </div>
-            {callsError && <ErrorToast message={callsError} />}
-            {callsLoading && <p className="mt-4 text-sm text-app-muted">Checking synced calls for this phone number…</p>}
-            {timeline.length > 0 ? (
-              <ol className="mt-5 space-y-4">
-                {timeline.map((entry) => entry.kind === 'activity' ? (
-                  <li key={`activity-${entry.activity.id}`} className="border-l-2 border-app-accent pl-4">
-                    <p className="text-sm font-semibold">{leadActivityLabel(entry.activity)}</p>
-                    <p className="mt-1 text-xs text-app-muted">{new Date(entry.activity.createdAt).toLocaleString()}</p>
-                    {convertedDealId(entry.activity) && onNavigate && <button type="button" className="mt-1 text-xs font-semibold text-app-accent underline" onClick={() => onNavigate(`/company/sales/deals/${convertedDealId(entry.activity)}`)}>Open deal</button>}
-                  </li>
-                ) : (
-                  <li key={`call-${entry.call.id}`} className="border-l-2 border-app-border pl-4">
-                    <p className="text-sm font-semibold">{directionLabel(entry.call.direction)} call · {OUTCOME_LABELS[entry.call.outcome]}</p>
-                    <p className="mt-1 text-xs text-app-muted">{PROVIDER_NAMES[entry.call.provider]} · {formatCallTime(entry.call.startedAt, organizationTimezone)} · {entry.call.employeeName ?? entry.call.agentName ?? 'Unmatched caller'}</p>
-                    {entry.call.disposition && <p className="mt-1 text-xs">Disposition: {entry.call.disposition}</p>}
-                    {(entry.call.outcome === 'missed' || entry.call.outcome === 'voicemail' || entry.call.outcome === 'abandoned') && !pendingCallback && isHolder && !closed && <button type="button" className="mt-2 text-xs font-semibold text-app-accent underline" onClick={() => focusGuideTarget(LEAD_ANCHORS.callbacks)}>Book a callback</button>}
+            {callsError && <div className="mt-4"><ErrorToast message={callsError} /></div>}
+            {!canViewCalls ? <p className="mt-5 rounded-xl bg-app-background p-4 text-sm text-app-muted">Call history is not available to your role.</p> : callsLoading ? <p className="mt-5 text-sm text-app-muted">Checking synced calls for this phone number…</p> : callEntries.length === 0 ? <p className="mt-5 rounded-xl bg-app-background p-4 text-sm text-app-muted">No synced calls were found for this lead.</p> : (
+              <ol className="mt-5 divide-y divide-app-border">
+                {callEntries.map((call) => (
+                  <li key={call.id} className="flex flex-wrap items-start justify-between gap-3 py-4 first:pt-0 last:pb-0">
+                    <div>
+                      <p className="font-semibold">{directionLabel(call.direction)} call · {OUTCOME_LABELS[call.outcome]}</p>
+                      <p className="mt-1 text-sm text-app-muted">{PROVIDER_NAMES[call.provider]} · {formatCallTime(call.startedAt, organizationTimezone)} · {call.employeeName ?? call.agentName ?? 'Unmatched caller'}</p>
+                      {call.disposition && <p className="mt-1 text-sm text-app-muted">Disposition: {call.disposition}</p>}
+                      {(call.outcome === 'missed' || call.outcome === 'voicemail' || call.outcome === 'abandoned') && !pendingCallback && isHolder && !closed && <button type="button" className="mt-2 text-sm font-semibold text-app-accent underline" onClick={() => { setActiveSection('callbacks'); window.setTimeout(() => focusGuideTarget(LEAD_ANCHORS.callbacks), 0); }}>Book a callback</button>}
+                    </div>
+                    <span className="rounded-full bg-app-background px-3 py-1 text-xs font-semibold text-app-muted">{call.durationSeconds > 0 ? `${Math.floor(call.durationSeconds / 60)}m ${call.durationSeconds % 60}s` : 'No duration'}</span>
                   </li>
                 ))}
               </ol>
-            ) : !callsLoading && <p className="mt-4 text-sm text-app-muted">Nothing has happened on this lead yet.</p>}
+            )}
           </Card>
-        </div>
+          </div>
+        )}
+
+        {activeSection === 'callbacks' && (
+          <div id="lead-panel-callbacks" role="tabpanel">
+            {showCallbacks ? <CallbackPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} callbacks={callbacks} canManage={canManageCallbacks && !handedAway} handedAway={handedAway} onReload={reload} /> : <Card><h2 className="font-display text-lg font-bold">Callbacks</h2><p className="mt-2 text-sm text-app-muted">No callback history is available for this lead.</p></Card>}
+          </div>
+        )}
+
+        {activeSection === 'activity' && (
+          <div id="lead-panel-activity" role="tabpanel" aria-label="Activity log">
+          <Card>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-lg font-bold">Audit &amp; Activity Timeline</h2>
+                <p className="mt-1 text-sm text-app-muted">Changes and touchpoints recorded on this lead, newest first.</p>
+              </div>
+              {dealId && onNavigate && <Button kind="secondary" onClick={() => onNavigate(`/company/sales/deals/${dealId}`)}>Open the deal</Button>}
+            </div>
+            {activityEntries.length > 0 ? (
+              <ol className="mt-5 divide-y divide-app-border">
+                {activityEntries.map((activity) => (
+                  <li key={activity.id} className="py-4 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="font-semibold">{leadActivityLabel(activity)}</p>
+                      <time dateTime={activity.createdAt} className="text-sm text-app-muted">{formatLeadDate(activity.createdAt, organizationTimezone)}</time>
+                    </div>
+                    {convertedDealId(activity) && onNavigate && <button type="button" className="mt-1 text-sm font-semibold text-app-accent underline" onClick={() => onNavigate(`/company/sales/deals/${convertedDealId(activity)}`)}>Open deal</button>}
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="mt-5 rounded-xl bg-app-background p-4 text-sm text-app-muted">Nothing has been recorded on this lead yet.</p>}
+          </Card>
+          </div>
+        )}
+        <Card className="sales-record-card">
+          <h2 className="font-display text-lg font-bold">Lead Actions</h2>
+          <div className="mt-3 divide-y divide-app-border">
+            {phoneLink && !closed && !handedAway && <a className="sales-record-action" href={phoneLink}><Icon name="phone" className="size-5" /> Call lead now</a>}
+            {showCallbacks && <button type="button" className="sales-record-action" onClick={() => handleGuideFocus(LEAD_ANCHORS.callbacks)}><Icon name="calendar-plus" className="size-5" /> {pendingCallback || closed ? 'View callbacks' : 'Schedule callback'}</button>}
+            {showHandover && <button type="button" className="sales-record-action" onClick={() => handleGuideFocus(LEAD_ANCHORS.handover)}><Icon name="arrow-left-right" className="size-5" /> {isHolder && !closed ? 'Transfer handover' : 'View handovers'}</button>}
+            <button type="button" className="sales-record-action" onClick={() => handleGuideFocus(LEAD_ANCHORS.status)}><Icon name="refresh" className="size-5" /> {canEditThisLead && !closed ? 'Update lead status' : 'View lead status'}</button>
+          </div>
+        </Card>
+
+        {stalled && (
+          <aside className="sales-record-alert">
+            <h2 className="font-display font-bold">Follow-up attention required</h2>
+            <p className="mt-1 text-sm">{lead.stalledReason === 'missed_callback' ? 'A scheduled callback was missed.' : 'This lead was flagged after a period without activity.'}</p>
+          </aside>
+        )}
+
+            <div className="grid items-start gap-5 lg:grid-cols-2">
+              <div id={LEAD_ANCHORS.status} className="rounded-2xl"><LeadStatusPanel lead={lead} canEdit={canEditThisLead} lockedNote={handedAway ? `${lead.currentHolderName ?? 'A colleague'} took this lead from you in a handover and works it now. You can see it, but you can’t change its status until a manager gives it back to you.` : undefined} onChanged={reload} /></div>
+              {showHandover && <HandoverPanel lead={lead} currentUserId={currentUserId} organizationTimezone={organizationTimezone} handovers={handovers} targets={targets} onReload={reload} />}
+            </div>
+
+        {lead.intakeNotes && (
+          <Card className="sales-record-card">
+            <h2 className="font-display text-lg font-bold">Intake Notes</h2>
+            <p className="mt-3 whitespace-pre-wrap break-words rounded-xl bg-app-surface-raised p-4 text-sm">{lead.intakeNotes}</p>
+          </Card>
+        )}
       </div>
-    </Page>
+    </WorkspacePageContainer>
   );
 }
 
@@ -309,6 +446,78 @@ function DetailGroup({ title, items }: { title: string; items: readonly DetailIt
 
 function ContactLink({ href, children }: { href: string | null; children: ReactNode }): React.JSX.Element {
   return href ? <a href={href} className="text-app-accent underline-offset-2 hover:underline">{children}</a> : <>{children}</>;
+}
+
+function LeadFact({ icon, label, value, accent = false }: { icon: string; label: string; value: string; accent?: boolean }): React.JSX.Element {
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <Icon name={icon} className="mt-0.5 size-5 shrink-0 text-app-muted" />
+      <div className="min-w-0">
+        <dt className="text-sm text-app-muted">{label}</dt>
+        <dd className={`mt-0.5 break-words text-sm font-semibold sm:text-base ${accent ? 'text-app-accent' : 'text-app-foreground'}`}>{value}</dd>
+      </div>
+    </div>
+  );
+}
+
+function LeadProgressTable({ lead }: { lead: Lead }): React.JSX.Element {
+  const steps = leadSteps(lead);
+  const completed = steps.filter((step) => step.state === 'done').length;
+  return (
+    <Card className="sales-record-milestones overflow-hidden p-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">
+        <h2 className="font-display text-lg font-bold">Touchpoints &amp; Qualification</h2>
+        <span className="text-sm text-app-muted">{completed} of {steps.length} milestones complete</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[28rem] border-t border-app-border text-left">
+          <thead className="bg-app-background text-xs font-bold uppercase tracking-wide text-app-muted">
+            <tr>
+              <th scope="col" className="px-4 py-3 sm:px-6">Checkpoint</th>
+              <th scope="col" className="px-4 py-3 sm:px-6">Milestone</th>
+              <th scope="col" className="px-4 py-3 sm:px-6">Stage status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-app-border">
+            {steps.map((step, index) => {
+              const stateLabel = step.state === 'done' ? 'Complete' : step.state === 'current' ? 'In progress' : step.state === 'lost' ? 'Closed as lost' : step.state === 'skipped' ? 'Not reached' : 'Upcoming';
+              const stateClass = step.state === 'done'
+                ? 'bg-app-success/10 text-app-success'
+                : step.state === 'current'
+                  ? 'bg-app-accent/10 text-app-accent'
+                  : step.state === 'lost'
+                    ? 'bg-app-danger/10 text-app-danger'
+                    : 'bg-app-background text-app-muted';
+              return (
+                <tr key={step.key}>
+                  <td className="px-4 py-3 font-mono text-sm text-app-muted sm:px-6">{index + 1}</td>
+                  <th scope="row" className="px-4 py-3 text-sm font-semibold text-app-foreground sm:px-6">{step.label}</th>
+                  <td className="px-4 py-3 sm:px-6">
+                    <span className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold ${stateClass}`}>
+                      <Icon name={step.state === 'done' ? 'check' : 'clock'} className="size-4" />
+                      {stateLabel}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function formatLeadDate(value: string, timezone: string): string {
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: timezone,
+  }).format(new Date(value));
 }
 
 function CallbackPanel({ lead, currentUserId, organizationTimezone, callbacks, canManage, handedAway, onReload }: { lead: Lead; currentUserId: string; organizationTimezone: string; callbacks: LeadCallback[]; canManage: boolean; handedAway: boolean; onReload: () => Promise<void> }): React.JSX.Element {

@@ -12,7 +12,7 @@ import {
 import { getCompanyEmployees, getCompanyIdentity } from '../../company/api/companyApi.js';
 import {
   navigationScreensByAction,
-  navigationScreensForActions,
+  screensForSubject,
 } from '../../company/layout/navigation.js';
 import {
   getCapabilityHolders,
@@ -54,6 +54,8 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedAction, setSelectedAction] = useState<Action>('payroll:view');
   const [personResult, setPersonResult] = useState<EffectiveAccessResponse | null>(null);
+  // The company's modules decide which screens exist at all, for anyone.
+  const [enabledModules, setEnabledModules] = useState<readonly string[] | undefined>(undefined);
   const [holders, setHolders] = useState<CapabilityHolder[]>([]);
   const [overrides, setOverrides] = useState<OverrideOverviewItem[]>([]);
   const [delegationOptions, setDelegationOptions] = useState<DelegationOption[]>([]);
@@ -85,6 +87,7 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
   useEffect(() => {
     void getCompanyIdentity()
       .then((identity) => {
+        setEnabledModules(identity.enabledModules);
         const current: AccessPerson = {
           id: identity.user.id,
           fullName: identity.user.fullName,
@@ -230,8 +233,15 @@ export function AccessExplorerPage({ initialTab = 'person' }: { initialTab?: Exp
 
   const reachableScreens = useMemo(() => {
     if (!personResult) return [];
-    return navigationScreensForActions(new Set(personResult.reachableActions));
-  }, [personResult]);
+    // The same rules the person's own sidebar uses, applied to their powers.
+    return screensForSubject({
+      accountType: personResult.subject.accountType,
+      enabledModules,
+      capabilities: personResult.policies
+        .filter((policy) => policy.allowed)
+        .map((policy) => ({ action: policy.action, scope: policy.scope ?? 'global' })),
+    });
+  }, [personResult, enabledModules]);
   const screensByAction = useMemo(() => navigationScreensByAction(), []);
   const explorerTabs = [
     ...(canViewAccess ? [{ value: 'person', label: 'By person' }] : []),

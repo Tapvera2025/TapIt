@@ -10,8 +10,15 @@ export const NotificationsContext = createContext<NotificationsState | null>(nul
  * everything in a portal: the header bell AND the sidebar badges. Mount it once
  * per portal shell; without it each consumer would open its own socket.
  */
-export function NotificationsProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const value = useNotifications();
+export function NotificationsProvider({
+  children,
+  onPermissionsChanged,
+}: {
+  children: ReactNode;
+  /** The portal's reaction when the server says the person's powers changed. */
+  onPermissionsChanged?: () => void;
+}): React.JSX.Element {
+  const value = useNotifications(onPermissionsChanged ? { onPermissionsChanged } : {});
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }
 

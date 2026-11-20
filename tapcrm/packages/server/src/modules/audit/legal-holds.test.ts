@@ -1,5 +1,33 @@
 import { describe, expect, it } from 'vitest';
+import { configureAuthz } from '@tapcrm/authz';
+import type { Action, PermissionSet } from '@tapcrm/contracts';
 import { activeLegalHoldPredicate, createLegalHold, isAuditEntryHeld, legalHoldAccountType, releaseLegalHold, type LegalHold } from './legal-holds.js';
+
+/** Authz ports whose only policy is `held` (a power the Super Admin gave to this person's position). */
+function grantOnly(held: readonly Action[]): void {
+  configureAuthz({
+    scope: {
+      subordinateIds: async () => new Set(),
+      teamIds: async () => new Set(),
+      poolIds: async () => new Set(),
+      poolMemberIds: async () => new Set(),
+      teamMemberIds: async () => new Set(),
+      departmentMemberIds: async () => new Set(),
+      departmentId: async () => null,
+    },
+    policies: {
+      resolveSet: async (): Promise<PermissionSet> => ({
+        policies: Object.fromEntries(
+          held.map((action) => [action, { action, allowed: true, scope: 'all-people', source: 'position' as const }]),
+        ),
+        cacheDeadline: new Date(Date.now() + 60_000),
+        resolvedAt: new Date(),
+      }),
+    },
+    audit: { sensitiveUse: () => undefined, superAdminBypass: () => undefined, segregationBlocked: () => undefined, defect: () => undefined },
+    now: () => new Date(),
+  });
+}
 
 const base = { organizationId: 'org', actorId: 'user-1', targetId: 'user-2', occurredAt: new Date('2026-09-24T12:00:00Z') };
 const hold = (overrides: Partial<LegalHold>): Pick<LegalHold, 'status' | 'holdType' | 'targetId' | 'startsAt' | 'endsAt'> => ({
@@ -7,7 +35,7 @@ const hold = (overrides: Partial<LegalHold>): Pick<LegalHold, 'status' | 'holdTy
 });
 
 describe('legal hold matching', () => {
-  const employeeContext = { principal: { accountType: 'employee' } } as Parameters<typeof createLegalHold>[0];
+  const employeeContext = { principal: { accountType: 'employee' }, memo: new Map() } as unknown as Parameters<typeof createLegalHold>[0];
 
   it('maps the user hold type to the employee account model', () => {
     expect(legalHoldAccountType('user')).toBe('employee');
@@ -15,11 +43,12 @@ describe('legal hold matching', () => {
     expect(legalHoldAccountType('date-range')).toBeNull();
   });
 
-  it('rejects non-Super Admin hold creation and release before database access', async () => {
+  it('rejects hold creation and release without the legal hold power, before database access', async () => {
+    grantOnly(['audit:view']);
     await expect(createLegalHold(employeeContext, {
       holdType: 'user', targetId: 'user-1', startsAt: null, endsAt: null, reason: 'case',
-    })).rejects.toThrow('Only Super Admin');
-    await expect(releaseLegalHold(employeeContext, 'hold-1', null)).rejects.toThrow('Only Super Admin');
+    })).rejects.toThrow('only the Super Admin can grant');
+    await expect(releaseLegalHold(employeeContext, 'hold-1', null)).rejects.toThrow('only the Super Admin can grant');
   });
 
   it('matches user and client holds against actor or target', () => {

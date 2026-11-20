@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   user: null as Record<string, unknown> | null,
   passwordOk: false,
   calls: [] as string[],
+  createSession: false,
+  notify: vi.fn(),
 }));
 
 vi.mock('../repository.js', () => ({ findUserByEmail: vi.fn(async () => state.user) }));
@@ -30,8 +32,24 @@ vi.mock('../security/brute-force.js', () => ({
   clearLoginFailures: vi.fn(async () => undefined),
 }));
 vi.mock('../geofence/service.js', () => ({ enforceGeofencedLogin: vi.fn(async () => undefined) }));
+vi.mock('../sessions/service.js', () => ({
+  createIdentitySession: vi.fn(async () => ({ sessionId: 'fixture-session', accessToken: 'access', refreshToken: 'refresh' })),
+}));
+vi.mock('../security/detection.js', () => ({
+  detectSuspiciousLogin: vi.fn(async () => [
+    { event: 'SUSPICIOUS_LOGIN_NEW_DEVICE', metadata: {} },
+    { event: 'SUSPICIOUS_LOGIN_NEW_COUNTRY', metadata: {} },
+  ]),
+}));
+vi.mock('../../notifications/facade.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../notifications/facade.js')>()),
+  notify: state.notify,
+}));
 vi.mock('../../../platform/dal/db.js', () => ({
-  db: { transaction: vi.fn(async () => { throw REACHED; }) },
+  db: { transaction: vi.fn(async (_ctx: unknown, run: (tx: { query: () => Promise<[]> }) => Promise<unknown>) => {
+    if (!state.createSession) throw REACHED;
+    return run({ query: async () => [] });
+  }) },
 }));
 
 const { login } = await import('./login.js');
@@ -50,6 +68,8 @@ describe('sign-in', () => {
     state.user = null;
     state.passwordOk = false;
     state.calls = [];
+    state.createSession = false;
+    state.notify.mockClear();
   });
 
   it('spends the same password work on an unknown email, then refuses as invalid credentials', async () => {
@@ -79,5 +99,19 @@ describe('sign-in', () => {
     state.passwordOk = true;
     await expect(login(attempt)).rejects.toBe(REACHED);
     expect(state.calls).toEqual(['verify']);
+  });
+
+  it('groups unusual sign-in signals into one alert for the account and one for other Super Admins', async () => {
+    state.user = activeUser();
+    state.passwordOk = true;
+    state.createSession = true;
+
+    await expect(login(attempt)).resolves.toMatchObject({ accessToken: 'access' });
+
+    const alerts = state.notify.mock.calls.map((call) => call[2]);
+    expect(alerts).toEqual([
+      expect.objectContaining({ type: 'identity.suspicious_sign_in', audience: { users: [state.user['id']], includeActor: true } }),
+      expect.objectContaining({ type: 'identity.suspicious_sign_in', audience: { superAdmins: true } }),
+    ]);
   });
 });

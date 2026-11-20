@@ -21,6 +21,7 @@ import type { Resource } from '@tapcrm/authz';
 import { effectivePolicy } from '@tapcrm/authz';
 import { globalAccess } from '@tapcrm/contracts';
 import { ApplicationError } from '../../../errors.js';
+import { NOTIFICATION_TYPES, clip, notify } from '../../notifications/facade.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { PlatformForbiddenError } from '../../../platform/errors.js';
@@ -247,6 +248,15 @@ export async function submit(ctx: RequestContext, briefId: string): Promise<Deli
       { state: locked.state },
       { state: 'submitted' },
     );
+    await notify(tx, ctx, {
+      type: NOTIFICATION_TYPES.DELIVERY_BRIEF_SUBMITTED,
+      priority: 'operational',
+      audience: { superAdmins: true },
+      title: 'Delivery brief needs review',
+      body: 'A delivery brief was submitted for review.',
+      link: `/company/sales/deals/${locked.dealId}/delivery`,
+      metadata: { dealId: locked.dealId, briefId },
+    });
   });
 
   const updated = await findBrief(ctx, briefId);
@@ -306,6 +316,14 @@ export async function reviewDecision(
         { state: locked.state },
         { state: 'accepted', projectId: input.projectId },
       );
+      await notify(tx, ctx, {
+        type: NOTIFICATION_TYPES.DELIVERY_BRIEF_REVIEWED,
+        audience: { users: [locked.createdBy] },
+        title: 'Delivery brief accepted',
+        body: 'The reviewer accepted the brief and linked it to a project.',
+        link: `/company/sales/deals/${locked.dealId}/delivery`,
+        metadata: { dealId: locked.dealId, briefId, decision: input.decision },
+      });
       return;
     }
 
@@ -325,6 +343,15 @@ export async function reviewDecision(
         { state: 'submitted' },
         { state: 'changes_requested', changeNotes: input.changeNotes },
       );
+      await notify(tx, ctx, {
+        type: NOTIFICATION_TYPES.DELIVERY_BRIEF_REVIEWED,
+        priority: 'operational',
+        audience: { users: [locked.createdBy] },
+        title: 'Delivery brief needs changes',
+        body: clip(input.changeNotes, 2000),
+        link: `/company/sales/deals/${locked.dealId}/delivery`,
+        metadata: { dealId: locked.dealId, briefId, decision: input.decision },
+      });
       return;
     }
 
@@ -345,6 +372,15 @@ export async function reviewDecision(
       { state: locked.state },
       { state: 'cancelled', reason: input.reason, dealLifecycle: deal?.lifecycleStatus ?? null },
     );
+    await notify(tx, ctx, {
+      type: NOTIFICATION_TYPES.DELIVERY_BRIEF_REVIEWED,
+      priority: 'operational',
+      audience: { users: [locked.createdBy] },
+      title: 'Delivery brief cancelled',
+      body: clip(input.reason, 2000),
+      link: `/company/sales/deals/${locked.dealId}/delivery`,
+      metadata: { dealId: locked.dealId, briefId, decision: input.decision },
+    });
   });
 
   const updated = await findBrief(ctx, briefId);

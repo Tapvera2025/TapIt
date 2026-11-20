@@ -1,5 +1,5 @@
 import type { Action, Scope } from '@tapcrm/contracts';
-import type { Resource } from '@tapcrm/authz';
+import type { Resource, SqlFragment } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { db, type Tx } from '../../platform/dal/db.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -265,6 +265,8 @@ export async function loadRoleChangeResource(
 export async function listRoleChangeRequests(
   ctx: RequestContext,
   status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending',
+  /** Which requests the reader may see; everything for the Super Admin. */
+  visible: SqlFragment = { sql: 'TRUE', parameters: [] },
 ): Promise<RoleChangeRequestRecord[]> {
   return db.query<RoleChangeRequestRecord>(ctx, sql`
     SELECT r.id,
@@ -303,6 +305,10 @@ export async function listRoleChangeRequests(
      AND requested_team.id = r.requested_team_id
     WHERE r.organization_id = ${ctx.organizationId}
       AND (${status} = 'all' OR r.status = ${status})
+      AND r.id IN (
+        SELECT role_change_request.id FROM role_change_request
+        WHERE role_change_request.organization_id = ${ctx.organizationId} AND ${visible}
+      )
     ORDER BY r.requested_at DESC, r.id DESC
   `);
 }
@@ -386,9 +392,9 @@ export async function findPositionForRoleChange(
   tx: Tx,
   organizationId: string,
   positionId: string,
-): Promise<{ id: string; departmentId: string; status: string } | null> {
+): Promise<{ id: string; departmentId: string; status: string; organizationalLevel: number } | null> {
   return tx.maybeOne(sql`
-    SELECT id, department_id, status
+    SELECT id, department_id, status, organizational_level
     FROM position
     WHERE organization_id = ${organizationId} AND id = ${positionId}
   `);

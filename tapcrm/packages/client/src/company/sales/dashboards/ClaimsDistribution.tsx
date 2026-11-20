@@ -1,34 +1,48 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { Avatar } from '../../../chat/Avatar.js';
 import { Card } from '../../../ui/index.js';
-import { getClaimsDistribution, type ClaimsDistributionRow } from './dashboard-api.js';
+import { getClaimsDistribution } from './dashboard-api.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
+import { OverviewHeading } from './SalesOverviewMetrics.js';
+import { useOverviewData } from './useOverviewData.js';
 
-const POLL_INTERVAL_MS = 30_000;
+export function ClaimsDistribution({ overview = false }: { overview?: boolean }): React.JSX.Element {
+  const { data, error } = useOverviewData(getClaimsDistribution, 'Unable to load claims distribution.');
+  const rows = data?.rows ?? [];
+  const [expanded, setExpanded] = useState(false);
+  const claimers = rows.filter((row) => row.claimsToday > 0);
 
-export function ClaimsDistribution(): React.JSX.Element {
-  const [rows, setRows] = useState<ClaimsDistributionRow[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    const load = (): void => {
-      getClaimsDistribution()
-        .then((result) => {
-          if (!cancelled) {
-            setRows(result.rows);
-            setError(null);
-          }
-        })
-        .catch((cause: unknown) => {
-          if (!cancelled) setError(cause instanceof Error ? cause.message : 'Unable to load claims distribution.');
-        });
-    };
-    load();
-    const timer = setInterval(load, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, []);
+  if (overview) {
+    return (
+      <Card className="sales-overview-card sales-overview-metric">
+        <OverviewHeading
+          title="Top Claiming Agents"
+          info="Ranked by successful Bid Pool claims today."
+          action={claimers.length > 3 && (
+            <button className="sales-overview-link" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+              {expanded ? 'Show top 3' : 'View all'}
+            </button>
+          )}
+        />
+        {error && <ErrorToast message={error} />}
+        {!data && !error && <p role="status" className="text-sm text-app-muted">Loading agents…</p>}
+        {data && claimers.length === 0 && <p className="text-sm text-app-muted">No agents have claimed leads today.</p>}
+        <ol className="sales-overview-ranking">
+          {(expanded ? claimers : claimers.slice(0, 3)).map((row, index) => (
+            <li key={row.userId}>
+              <span className="text-sm font-bold tabular-nums text-app-muted">#{index + 1}</span>
+              <Avatar name={row.fullName} seed={row.userId} size="md" />
+              <div className="min-w-0">
+                <p className="break-words font-semibold">{row.fullName}</p>
+                <p className="text-xs text-app-muted">{row.activeLeads} open {row.activeLeads === 1 ? 'lead' : 'leads'}</p>
+              </div>
+              <span className={`sales-overview-claim-count ${index === 0 ? 'is-first' : ''}`}>{row.claimsToday} claimed</span>
+            </li>
+          ))}
+        </ol>
+      </Card>
+    );
+  }
 
   const peak = rows.reduce((max, row) => Math.max(max, row.claimsToday), 0);
 
@@ -41,7 +55,9 @@ export function ClaimsDistribution(): React.JSX.Element {
       <p className="mt-1 text-sm text-app-muted">Bid Pool claims today and open leads, per person on the sales teams.</p>
       {error && <ErrorToast message={error} />}
       <ul className="mt-4 space-y-2">
-        {rows.length === 0 ? (
+        {!data && !error ? (
+          <li className="text-sm text-app-muted">Loading agents…</li>
+        ) : data && rows.length === 0 ? (
           <li className="text-sm text-app-muted">Nobody on the sales teams yet. Add people to a sales team or pool in Organization.</li>
         ) : (
           rows.map((row) => (

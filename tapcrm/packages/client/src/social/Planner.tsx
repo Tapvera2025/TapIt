@@ -295,7 +295,7 @@ export function Planner({
             setAppliedSearch(search);
             setReload((value) => value + 1);
           }}
-          className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4"
+          className="social-filter-grid"
         >
           <Field
             label="Search posts"
@@ -326,7 +326,7 @@ export function Planner({
               )
               .map(([value, label]) => ({ value, label }))}
           />
-          <div className="flex gap-2">
+          <div className="social-actions">
             <Button type="submit" kind="secondary" className="flex-1">
               Search
             </Button>
@@ -540,7 +540,7 @@ export function Planner({
                             </span>
                           )}
                           <span className="min-w-0">
-                            <span className="line-clamp-2 font-semibold hover:text-app-accent">
+                            <span className="line-clamp-2 font-semibold [overflow-wrap:anywhere] hover:text-app-accent">
                               {post.caption || post.title || 'Media post'}
                             </span>
                             <span className="mt-1 block text-xs text-app-muted">
@@ -550,7 +550,7 @@ export function Planner({
                         </button>
                       </td>
                       <td className="px-4 py-4">
-                        <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1">
                           {post.destinations.map((destination) => (
                             <PlatformMark
                               key={destination.id}
@@ -599,11 +599,11 @@ export function Planner({
               action={canManage && <Button onClick={onCreate}>Create post</Button>}
             />
           )}
-          <div className="flex items-center justify-between gap-3 border-t border-app-border p-4">
+          <div className="social-toolbar border-t border-app-border p-4">
             <span className="text-xs text-app-muted">
               Page {data?.page ?? 1} of {Math.max(1, data?.totalPages ?? 1)}
             </span>
-            <div className="flex gap-2">
+            <div className="social-actions">
               <Button
                 kind="secondary"
                 disabled={page <= 1 || loading}

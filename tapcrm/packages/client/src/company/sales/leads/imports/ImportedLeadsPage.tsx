@@ -38,8 +38,16 @@ import {
 } from './import-format.js';
 import { LeadsViewTabs } from './LeadsViewTabs.js';
 import { ErrorToast } from '../../../../ui/ErrorToast.js';
+import { useCompanyPageMetadata } from '../../../layout/CompanyNavbarContext.js';
+import './imported-leads.css';
 
 const PAGE_SIZE = 50;
+const pageMetadata = {
+  eyebrow: 'Sales · Leads',
+  title: 'Imported Leads',
+  description: 'Find leads brought in from files and spreadsheets, review their assignments, and hand them to your sales team.',
+  lockTitle: true,
+};
 
 function errorText(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message ? cause.message : fallback;
@@ -51,17 +59,26 @@ function errorText(cause: unknown, fallback: string): string {
  * person or split them evenly across several.
  */
 export function ImportedLeadsPage({
+  canViewLeads = true,
+  canViewCallbacks = false,
+  canReviewTriage = false,
   canManage,
   canTrackCalls,
   initialImportId,
   onNavigate,
 }: {
+  canViewLeads?: boolean;
+  canViewCallbacks?: boolean;
+  canReviewTriage?: boolean;
   canManage: boolean;
   /** Call Analytics is on: show whether assignees called. */
   canTrackCalls: boolean;
   initialImportId: string | null;
   onNavigate: (path: string) => void;
 }): React.JSX.Element {
+  useCompanyPageMetadata(pageMetadata);
+  const queueTop = useRef<HTMLDivElement>(null);
+  const queueRequest = useRef(0);
   const [imports, setImports] = useState<LeadImportSummary[] | null>(null);
   const [importId, setImportId] = useState(initialImportId ?? '');
   const [assignment, setAssignment] = useState<'all' | 'unassigned' | 'assigned'>('all');
@@ -77,7 +94,11 @@ export function ImportedLeadsPage({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [allMatching, setAllMatching] = useState(false);
-  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignmentSelection, setAssignmentSelection] = useState<{
+    count: number;
+    hasOwners: boolean;
+    target: { filter: ImportedLeadsFilter } | { leadIds: string[] };
+  } | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [reportFor, setReportFor] = useState<LeadImportSummary | null>(null);
   const [people, setPeople] = useState<AssigneeOption[]>([]);
@@ -112,19 +133,25 @@ export function ImportedLeadsPage({
   }, []);
 
   const load = useCallback(async () => {
+    const request = ++queueRequest.current;
     setLoading(true);
+    setLoadingMore(false);
+    setSelected(new Set());
+    setAllMatching(false);
     try {
       const next = await listImportedLeads({ ...filter, page: 1, pageSize: PAGE_SIZE });
+      if (request !== queueRequest.current) return;
       setData(next);
       setItems(next.items);
       setPage(1);
-      setSelected(new Set());
-      setAllMatching(false);
       setError(null);
     } catch (cause) {
+      if (request !== queueRequest.current) return;
+      setData(null);
+      setItems([]);
       setError(errorText(cause, 'Unable to load imported leads.'));
     } finally {
-      setLoading(false);
+      if (request === queueRequest.current) setLoading(false);
     }
   }, [filter]);
 
@@ -163,15 +190,17 @@ export function ImportedLeadsPage({
   }, [running, load]);
 
   async function loadMore(): Promise<void> {
+    const request = queueRequest.current;
     setLoadingMore(true);
     try {
       const next = await listImportedLeads({ ...filter, page: page + 1, pageSize: PAGE_SIZE });
+      if (request !== queueRequest.current) return;
       setItems((current) => [...current, ...next.items]);
       setPage(next.page);
     } catch (cause) {
-      setError(errorText(cause, 'Unable to load more leads.'));
+      if (request === queueRequest.current) setError(errorText(cause, 'Unable to load more leads.'));
     } finally {
-      setLoadingMore(false);
+      if (request === queueRequest.current) setLoadingMore(false);
     }
   }
 
@@ -185,13 +214,24 @@ export function ImportedLeadsPage({
     });
   }
 
-  const allShownSelected = items.length > 0 && items.every((item) => selected.has(item.leadId));
+  const allShownSelected = items.length > 0 && (allMatching || items.every((item) => selected.has(item.leadId)));
   function toggleAllShown(): void {
     setAllMatching(false);
     setSelected(allShownSelected ? new Set() : new Set(items.map((item) => item.leadId)));
   }
 
   const total = data?.total ?? 0;
+  const filtersPending = loading || searchInput.trim() !== search;
+  const filtering = Boolean(importId || searchInput.trim() || ownerId || callStatus || assignment !== 'all');
+
+  function clearFilters(): void {
+    setImportId('');
+    setSearchInput('');
+    setSearch('');
+    setOwnerId('');
+    setCallStatus('');
+    setAssignment('all');
+  }
   const selectionCount = allMatching ? total : selected.size;
   const selectedItems = items.filter((item) => selected.has(item.leadId));
   const selectionHasOwners = allMatching ? assignment !== 'unassigned' && (data?.counts.assigned ?? 0) > 0 : selectedItems.some((item) => item.ownerId);
@@ -201,9 +241,10 @@ export function ImportedLeadsPage({
 
   return (
     <Page
-      eyebrow="Sales · Leads"
-      title="Imported leads"
-      description="Lead lists brought in from files, Google Sheets and pasted rows. Hand them to your sales team, then see who is calling."
+      eyebrow={pageMetadata.eyebrow}
+      title={pageMetadata.title}
+      description={pageMetadata.description}
+      hideMobileAction
       action={
         <div className="flex flex-wrap gap-2">
           {callTracking && (
@@ -222,76 +263,53 @@ export function ImportedLeadsPage({
         </div>
       }
     >
-      <LeadsViewTabs active="imported" onNavigate={onNavigate} />
+      <LeadsViewTabs active="imported" count={filtering || loading ? undefined : data?.counts.all} canViewImports canViewLeads={canViewLeads} canViewCallbacks={canViewCallbacks} canReviewTriage={canReviewTriage} onNavigate={onNavigate} />
       {error && <ErrorToast message={error} />}
       {message && <Notice>{message}</Notice>}
 
-      <section aria-label="Imports">
-        {imports === null ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-36 rounded-2xl" />)}
-          </div>
-        ) : imports.length === 0 ? (
-          <Card className="grid place-items-center gap-3 py-10 text-center">
-            <span className="grid size-12 place-items-center rounded-2xl bg-app-accent/10 text-app-accent"><Icon name="upload" className="size-6" /></span>
-            <div>
-              <h2 className="font-display text-lg font-bold">No lead lists imported yet</h2>
-              <p className="mt-1 text-sm text-app-muted">Upload a CSV or Excel file, paste a Google Sheets link or paste rows from a spreadsheet.</p>
+      <div ref={queueTop} tabIndex={-1} className="scroll-mt-6" aria-label="Imported lead filters">
+        <Card className="bid-pool-filter-card">
+          <div className="imported-leads-filters">
+            <div className="imported-leads-search">
+              <Field label="Search imported leads" value={searchInput} onChange={setSearchInput} placeholder="Search by name, business, phone, or owner…" />
             </div>
-            {canManage && <Button onClick={() => setWizardOpen(true)}><Icon name="upload" className="size-4" /> Import your first list</Button>}
-          </Card>
-        ) : (
-          <>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {visibleImports.map((item) => (
-                <ImportCard
-                  key={item.id}
-                  item={item}
-                  active={item.id === importId}
-                  onSelect={() => setImportId(item.id === importId ? '' : item.id)}
-                  onReport={() => setReportFor(item)}
-                />
-              ))}
-            </div>
-            {imports.length > 6 && (
-              <button type="button" className="mt-2 text-xs font-bold text-app-accent hover:underline" onClick={() => setShowAllImports((value) => !value)}>
-                {showAllImports ? 'Show fewer imports' : `Show all ${imports.length} imports`}
-              </button>
+            <Select
+              label="Import"
+              value={importId}
+              placeholder="All imports"
+              onChange={setImportId}
+              options={(imports ?? []).map((item) => ({ value: item.id, label: item.name }))}
+            />
+            <SearchableSelect
+              label="Sales owner"
+              value={ownerId}
+              placeholder="All owners"
+              onChange={setOwnerId}
+              options={[{ value: '', label: 'All owners' }, ...people.map((person) => ({ value: person.id, label: person.fullName }))]}
+            />
+            {callTracking && (
+              <Select
+                label="Calls"
+                value={callStatus}
+                placeholder="Any call status"
+                onChange={setCallStatus}
+                options={(Object.keys(CALL_STATUS_LABELS) as LeadCallStatus[]).map((status) => ({ value: status, label: CALL_STATUS_LABELS[status] }))}
+              />
             )}
-          </>
-        )}
-      </section>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-app-border pt-3">
+            <button type="button" className="inline-flex items-center gap-2 text-sm font-semibold text-app-accent hover:underline" onClick={() => document.getElementById('import-history-title')?.focus()}>
+              <Icon name="clock" className="size-4" /> View import history
+            </button>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              {filtering && <button type="button" className="font-semibold text-app-accent hover:underline" onClick={clearFilters}>Clear filters</button>}
+              <p aria-live="polite" className="text-app-muted">{filtersPending ? 'Updating records…' : data ? plural(total, 'record') : 'Records unavailable'}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
 
-      <Card className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[1.2fr_1fr_1fr_1fr] xl:items-end">
-        <Field label="Search" value={searchInput} onChange={setSearchInput} placeholder="Name, business, phone or owner" />
-        <Select
-          label="Import"
-          value={importId}
-          placeholder="All imports"
-          onChange={setImportId}
-          options={(imports ?? []).map((item) => ({ value: item.id, label: item.name }))}
-        />
-        <SearchableSelect
-          label="Owner"
-          value={ownerId}
-          placeholder="Anyone"
-          onChange={setOwnerId}
-          options={[{ value: '', label: 'Anyone' }, ...people.map((person) => ({ value: person.id, label: person.fullName }))]}
-        />
-        {callTracking ? (
-          <Select
-            label="Calls"
-            value={callStatus}
-            placeholder="Any call status"
-            onChange={setCallStatus}
-            options={(Object.keys(CALL_STATUS_LABELS) as LeadCallStatus[]).map((status) => ({ value: status, label: CALL_STATUS_LABELS[status] }))}
-          />
-        ) : (
-          <div className="hidden xl:block" />
-        )}
-      </Card>
-
-      <Card className="overflow-hidden p-0">
+      <Card className="bid-pool-table-card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-border p-4">
           <div role="group" aria-label="Assignment" className="flex flex-wrap gap-1.5 rounded-xl border border-app-border bg-app-surface p-1">
             {(
@@ -321,7 +339,7 @@ export function ImportedLeadsPage({
           )}
         </div>
 
-        {canManage && selectionCount > 0 && (
+        {canManage && !filtersPending && selectionCount > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-border bg-app-accent/10 px-4 py-3" role="region" aria-label="Selected leads">
             <p className="text-sm">
               <strong>{plural(selectionCount, 'lead')}</strong> selected
@@ -345,13 +363,17 @@ export function ImportedLeadsPage({
                 Clear
               </button>
             </p>
-            <Button onClick={() => setAssignOpen(true)}>
+            <Button onClick={() => setAssignmentSelection({
+              count: selectionCount,
+              hasOwners: selectionHasOwners,
+              target: allMatching ? { filter } : { leadIds: [...selected] },
+            })}>
               <Icon name="user-plus" className="size-4" /> Assign…
             </Button>
           </div>
         )}
 
-        {loading && items.length === 0 ? (
+        {loading ? (
           <div className="divide-y divide-app-border" role="status" aria-label="Loading imported leads">
             {Array.from({ length: 6 }, (_, index) => (
               <div key={index} className="flex items-center gap-4 px-4 py-3.5">
@@ -365,52 +387,64 @@ export function ImportedLeadsPage({
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="grid place-items-center gap-2 px-6 py-12 text-center">
-            <span className="grid size-12 place-items-center rounded-2xl bg-app-accent/10 text-app-accent"><Icon name="users" className="size-5" /></span>
-            <p className="text-sm text-app-muted">{imports?.length ? 'No imported leads match these filters.' : 'Imported leads will appear here.'}</p>
+          <div className="flex items-start gap-4 p-6">
+            <span className="sales-work-icon"><Icon name="users" className="size-5" /></span>
+            <div>
+              <h2 className="font-display text-lg font-bold">{data ? (filtering ? 'No leads match these filters' : 'No imported leads yet') : 'Imported leads unavailable'}</h2>
+              {data && <p className="mt-1 text-sm text-app-muted">{filtering ? 'Change the search or clear the filters to see more leads.' : 'Newly imported leads will appear here.'}</p>}
+            </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-sm">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Imported leads table">
+            <table className="sales-queue-table imported-leads-table">
               <thead>
-                <tr className="border-b border-app-border text-left text-[11px] font-bold uppercase tracking-wider text-app-muted">
+                <tr>
                   {canManage && (
-                    <th className="w-10 px-4 py-3">
-                      <input type="checkbox" aria-label="Select every lead shown" className="size-4 accent-[var(--theme-primary)]" checked={allShownSelected} onChange={toggleAllShown} />
+                    <th scope="col" className="imported-leads-checkbox">
+                      <input type="checkbox" aria-label="Select every lead shown" className="size-4 accent-[var(--theme-primary)]" checked={allShownSelected} onChange={toggleAllShown} disabled={filtersPending} />
                     </th>
                   )}
-                  <th className="px-4 py-3">Lead</th>
-                  <th className="px-4 py-3">Business</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
-                  {callTracking && <th className="px-4 py-3">Calls</th>}
-                  <th className="px-4 py-3">Import</th>
+                  <th scope="col">Lead &amp; company</th>
+                  <th scope="col">Sales owner</th>
+                  <th scope="col">Stage &amp; status</th>
+                  {callTracking && <th scope="col">Calls</th>}
+                  <th scope="col">Import</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-app-border">
                 {items.map((item) => (
                   <tr
                     key={item.leadId}
-                    className={`cursor-pointer transition hover:bg-app-background/70 ${selected.has(item.leadId) || allMatching ? 'bg-app-accent/5' : ''}`}
+                    className="cursor-pointer"
+                    data-selected={selected.has(item.leadId) || allMatching}
                     onClick={() => onNavigate(`/company/sales/leads/${item.leadId}`)}
                   >
                     {canManage && (
-                      <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                      <td className="imported-leads-checkbox" onClick={(event) => event.stopPropagation()}>
                         <input
                           type="checkbox"
                           aria-label={`Select ${item.contactName}`}
                           className="size-4 accent-[var(--theme-primary)]"
                           checked={allMatching || selected.has(item.leadId)}
                           onChange={() => toggle(item.leadId)}
+                          disabled={filtersPending}
                         />
                       </td>
                     )}
-                    <td className="px-4 py-3">
-                      <p className="font-semibold">{item.contactName}</p>
-                      <p className="whitespace-nowrap text-xs text-app-muted">#{item.leadNumber} · {item.phone ? formatPhone(item.phone) : (item.email ?? 'No phone')}</p>
-                    </td>
-                    <td className="px-4 py-3">{item.companyName ?? <span className="text-app-muted">—</span>}</td>
-                    <td className="px-4 py-3">
+                    <th scope="row" className="imported-leads-name">
+                      <div className="flex items-center gap-3">
+                        <span className="sales-queue-id">#{item.leadNumber}</span>
+                        <div className="min-w-0">
+                          <button type="button" className="break-words text-left font-semibold hover:text-app-accent hover:underline" onClick={(event) => {
+                            event.stopPropagation();
+                            onNavigate(`/company/sales/leads/${item.leadId}`);
+                          }}>{item.contactName}</button>
+                          {item.companyName && <p className="mt-0.5 break-words text-sm font-normal text-app-muted">{item.companyName}</p>}
+                          {(item.phone || item.email) && <p className="mt-0.5 break-all text-xs font-normal text-app-muted">{item.phone ? formatPhone(item.phone) : item.email}</p>}
+                        </div>
+                      </div>
+                    </th>
+                    <td>
                       {item.ownerName ? (
                         <>
                           <p className="font-semibold">{item.ownerName}</p>
@@ -423,11 +457,11 @@ export function ImportedLeadsPage({
                         <span className="inline-flex rounded-full border border-app-border bg-app-surface-raised px-2.5 py-0.5 text-[11px] font-bold text-app-muted">Unassigned</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex rounded-full bg-app-background px-2.5 py-0.5 text-[11px] font-bold">{leadStatusLabel(item.leadStatus)}</span>
+                    <td>
+                      <span className="sales-queue-state">{leadStatusLabel(item.leadStatus)}</span>
                     </td>
                     {callTracking && (
-                      <td className="px-4 py-3">
+                      <td>
                         {item.callStatus ? (
                           <>
                             <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${callStatusTone(item.callStatus)}`}>
@@ -441,8 +475,8 @@ export function ImportedLeadsPage({
                         )}
                       </td>
                     )}
-                    <td className="px-4 py-3">
-                      <p className="max-w-[14rem] truncate text-xs font-semibold">{item.importName}</p>
+                    <td>
+                      <p className="max-w-[14rem] break-words text-sm font-semibold">{item.importName}</p>
                       <p className="text-xs text-app-muted">Row {item.rowNumber}</p>
                     </td>
                   </tr>
@@ -451,26 +485,68 @@ export function ImportedLeadsPage({
             </table>
           </div>
         )}
-        {items.length < total && (
+        {!loading && items.length < total && (
           <div className="border-t border-app-border p-4 text-center">
-            <Button kind="secondary" onClick={() => void loadMore()} disabled={loadingMore}>
+            <Button kind="secondary" onClick={() => void loadMore()} disabled={loadingMore || filtersPending}>
               {loadingMore ? 'Loading…' : `Show more (${(total - items.length).toLocaleString()} left)`}
             </Button>
           </div>
         )}
       </Card>
 
-      {assignOpen && (
+      <section aria-labelledby="import-history-title">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="import-history-title" tabIndex={-1} className="scroll-mt-6 font-display text-xl font-bold tracking-tight">Import history</h2>
+          {imports && <span className="text-sm text-app-muted">{plural(imports.length, 'import')}</span>}
+        </div>
+        {imports === null ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-36 rounded-2xl" />)}
+          </div>
+        ) : imports.length === 0 ? (
+          <Card className="bid-pool-empty flex-wrap">
+            <span className="sales-work-icon"><Icon name="upload" className="size-5" /></span>
+            <div>
+              <h2 className="font-display text-lg font-bold">No lead lists imported yet</h2>
+              <p className="mt-1 text-sm text-app-muted">Upload a CSV or Excel file, paste a Google Sheets link or paste rows from a spreadsheet.</p>
+            </div>
+            {canManage && <Button onClick={() => setWizardOpen(true)}><Icon name="upload" className="size-4" /> Import your first list</Button>}
+          </Card>
+        ) : (
+          <>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {visibleImports.map((item) => (
+                <ImportCard
+                  key={item.id}
+                  item={item}
+                  active={item.id === importId}
+                  onSelect={() => {
+                    setImportId(item.id === importId ? '' : item.id);
+                    queueTop.current?.scrollIntoView({ block: 'start' });
+                    queueTop.current?.focus({ preventScroll: true });
+                  }}
+                  onReport={() => setReportFor(item)}
+                />
+              ))}
+            </div>
+            {imports.length > 6 && (
+              <button type="button" className="mt-2 text-xs font-bold text-app-accent hover:underline" onClick={() => setShowAllImports((value) => !value)}>
+                {showAllImports ? 'Show fewer imports' : `Show all ${imports.length} imports`}
+              </button>
+            )}
+          </>
+        )}
+      </section>
+
+      {assignmentSelection && (
         <AssignLeadsModal
-          count={selectionCount}
+          count={assignmentSelection.count}
           people={people}
-          includeAssignedChoice={selectionHasOwners}
-          onClose={() => setAssignOpen(false)}
+          includeAssignedChoice={assignmentSelection.hasOwners}
+          onClose={() => setAssignmentSelection(null)}
           onAssign={async (employeeIds, includeAssigned) => {
-            const result = await assignLeads(
-              allMatching ? { filter, employeeIds, includeAssigned } : { leadIds: [...selected], employeeIds, includeAssigned },
-            );
-            setAssignOpen(false);
+            const result = await assignLeads({ ...assignmentSelection.target, employeeIds, includeAssigned });
+            setAssignmentSelection(null);
             setMessage(assignMessage(result));
             await Promise.all([load(), loadImports()]);
             listAssignees()
@@ -514,7 +590,7 @@ function ImportCard({ item, active, onSelect, onReport }: { item: LeadImportSumm
   const running = item.status === 'queued' || item.status === 'importing';
   const progress = importProgress(item.processedRows, item.totalRows);
   return (
-    <div className={`ui-card flex flex-col gap-3 p-4 transition ${active ? 'ring-2 ring-app-accent' : ''}`}>
+    <div className="ui-card imported-leads-history-card flex flex-col gap-3 p-4" data-active={active}>
       <button type="button" onClick={onSelect} className="flex items-start gap-3 text-left" aria-pressed={active}>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-app-accent/10 text-app-accent">
           <Icon name={sourceKindIcon(item.sourceKind)} className="size-5" />

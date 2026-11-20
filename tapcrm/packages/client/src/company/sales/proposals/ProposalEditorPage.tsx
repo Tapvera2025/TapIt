@@ -1,12 +1,13 @@
 import { CalendarPicker } from '../../../ui/CalendarPicker.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, Page, Select } from '../../../ui/index.js';
+import { Button, Card, Modal, Page, Select } from '../../../ui/index.js';
 import {
   createDraftCommercials,
   createShareLink,
   getCommercials,
   listCommercials,
   publishCommercials,
+  getCommercialsSender,
   requestCommercialsApproval,
   revokeShareLink,
   updateDraftCommercials,
@@ -19,6 +20,7 @@ import {
 import { getDeal, type Deal } from '../deals/api.js';
 import { CommercialsTable } from './CommercialsTable.js';
 import { ProposalPreview } from './ProposalPreview.js';
+import { ProposalDocument, type ProposalSender } from './ProposalDocument.js';
 import {
   COMMERCIALS_STATE_LABELS,
   commercialsStateTone,
@@ -31,6 +33,7 @@ import {
   type BadgeTone,
 } from './proposals-helpers.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
+import { APP_NAVIGATE_EVENT } from '../../../navigationEvent.js';
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
   neutral: 'bg-app-background text-app-muted',
@@ -44,6 +47,7 @@ const AUTOSAVE_DEBOUNCE_MS = 800;
 
 interface ProposalEditorPageProps {
   readonly dealId: string;
+  readonly organizationName: string;
   /**
    * A Super Admin publishes directly. Everyone else sends each version for
    * approval and publishes it once approved (owner decision, 13 Nov 2026).
@@ -78,15 +82,32 @@ const NOTE_CLASSES: Record<'info' | 'wait' | 'warn' | 'ok', string> = {
   ok: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
 };
 
-export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: ProposalEditorPageProps): React.JSX.Element {
+export function ProposalEditorPage({ dealId, organizationName, isSuperAdmin = false, onBack }: ProposalEditorPageProps): React.JSX.Element {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [versions, setVersions] = useState<readonly Commercials[]>([]);
   const [selected, setSelected] = useState<Commercials | null>(null);
+  const [linkedVersion, setLinkedVersion] = useState<string | null>(null);
   const [draftBody, setDraftBody] = useState<CommercialsBodyInput | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'stale'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [documentOpen, setDocumentOpen] = useState(false);
+  const [senderPreview, setSenderPreview] = useState<{ id: string; sender: ProposalSender } | null>(null);
+  const previewVersion = documentOpen || publishOpen ? selected?.id : undefined;
+  const previewPublishedAt = selected?.publishedAt;
+
+  useEffect(() => {
+    if (!previewVersion) return;
+    let active = true;
+    setSenderPreview(null);
+    getCommercialsSender(previewVersion).then((sender) => {
+      if (active) setSenderPreview({ id: previewVersion, sender });
+    }).catch(() => {
+      if (active) setSenderPreview({ id: previewVersion, sender: { name: organizationName, logoDataUrl: null } });
+    });
+    return () => { active = false; };
+  }, [previewVersion, previewPublishedAt, organizationName]);
   const [shareLink, setShareLink] = useState<ShareLinkResponse | null>(null);
 
   // Autosave debouncer. We hold the most recent body and expectedUpdatedAt
@@ -102,7 +123,8 @@ export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: Pro
       setDeal(d);
       setVersions(vs);
       if (vs.length > 0 && !selected) {
-        const first = vs[0]!;
+        const version = new URLSearchParams(window.location.search).get('version');
+        const first = vs.find((proposal) => proposal.id === version) ?? vs[0]!;
         setSelected(first);
         if (isDraftEditable(first.state)) openDraft(first);
       }
@@ -118,6 +140,27 @@ export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: Pro
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
+
+  useEffect(() => {
+    const followLink = () => {
+      if (window.location.pathname !== `/company/sales/deals/${dealId}/proposals`) return;
+      setLinkedVersion(new URLSearchParams(window.location.search).get('version'));
+    };
+    window.addEventListener(APP_NAVIGATE_EVENT, followLink);
+    window.addEventListener('popstate', followLink);
+    return () => {
+      window.removeEventListener(APP_NAVIGATE_EVENT, followLink);
+      window.removeEventListener('popstate', followLink);
+    };
+  }, [dealId]);
+
+  useEffect(() => {
+    if (!linkedVersion || saveStatus === 'saving' || !versions.some((version) => version.id === linkedVersion)) return;
+    setLinkedVersion(null);
+    void openVersion(linkedVersion);
+    // The linked version is consumed once, after an in-flight draft save settles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedVersion, saveStatus, versions]);
 
   function openDraft(c: Commercials): void {
     setSelected(c);
@@ -207,6 +250,7 @@ export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: Pro
   async function openVersion(id: string): Promise<void> {
     try {
       const next = await getCommercials(id);
+      if (next.id !== selected?.id) setShareLink(null);
       if (isDraftEditable(next.state)) {
         openDraft(next);
       } else {
@@ -511,7 +555,12 @@ export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: Pro
         </div>
 
         <div className="space-y-4">
-          {selected && <ProposalPreview commercials={selected} />}
+          {selected && (
+            <>
+              <ProposalPreview commercials={selected} />
+              <Button kind="secondary" onClick={() => setDocumentOpen(true)}>Preview recipient document</Button>
+            </>
+          )}
           {shareLink && selected && (
             <ShareLinkCard
               link={shareLink}
@@ -521,21 +570,27 @@ export function ProposalEditorPage({ dealId, isSuperAdmin = false, onBack }: Pro
         </div>
       </div>
 
-      {publishOpen && selected && (
-        <Modal title={`Publish version ${selected.version}`} onClose={() => setPublishOpen(false)}>
-          <p className="text-sm text-app-muted">
-            Publishing freezes this version — items, totals, and terms become read-only.
-            A share link will be generated so the recipient can accept.
-          </p>
-          <div className="mt-4">
-            <ProposalPreview commercials={selected} />
-          </div>
-          <div className="mt-5 flex justify-end gap-3">
-            <Button kind="secondary" onClick={() => setPublishOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void performPublish()}>Publish</Button>
-          </div>
+      {(documentOpen || publishOpen) && selected && deal && (
+        <Modal
+          title={publishOpen ? `Publish version ${selected.version}` : 'Recipient preview'}
+          size="lg"
+          onClose={() => { setPublishOpen(false); setDocumentOpen(false); }}
+          footer={publishOpen && (
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button kind="secondary" onClick={() => setPublishOpen(false)}>Cancel</Button>
+              <Button onClick={() => void performPublish()}>Publish</Button>
+            </div>
+          )}
+        >
+          {publishOpen && <p className="mb-4 text-sm text-app-muted">Publishing freezes this version and creates a link for the recipient.</p>}
+          {senderPreview?.id === selected.id ? (
+            <ProposalDocument proposal={{
+              ...selected,
+              dealTitle: deal.title,
+              recipientName: deal.companyName || deal.contactName,
+              sender: senderPreview.sender,
+            }} />
+          ) : <p role="status" className="text-sm text-app-muted">Loading recipient preview…</p>}
         </Modal>
       )}
     </Page>
@@ -709,38 +764,6 @@ function ShareLinkCard({
         Regenerating revokes the previous token.
       </p>
     </Card>
-  );
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="w-full max-w-xl rounded-xl bg-app-background p-6 shadow-xl">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-bold">{title}</h2>
-          <button
-            type="button"
-            className="text-sm text-app-muted hover:text-app-foreground"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
-        <div className="mt-4">{children}</div>
-      </div>
-    </div>
   );
 }
 

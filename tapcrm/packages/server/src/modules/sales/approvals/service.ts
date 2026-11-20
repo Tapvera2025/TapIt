@@ -11,6 +11,7 @@ import { PlatformForbiddenError } from '../../../platform/errors.js';
 import { sql } from '../../../platform/dal/sql.js';
 import { findCommercials } from '../proposals/repository.js';
 import { advanceBpsOf, discountBpsOf, evaluateDimensionsForRow, grossSubtotalMinor } from './dimensions.js';
+import { notifyProposalDecision, notifyProposalReview } from './notifications.js';
 import {
   findPendingForDeal,
   findRequest,
@@ -161,6 +162,7 @@ export async function requestApproval(ctx: RequestContext, commercialsId: string
       approverId: approver?.userId ?? null,
       blockedReason: approver ? null : 'no_eligible_approver',
     });
+    await notifyProposalReview(tx, ctx, { id, dealId: commercials.dealId, commercialsId }, approver?.userId ?? null, 'requested');
     return id;
   });
 
@@ -220,6 +222,7 @@ export async function decide(ctx: RequestContext, requestId: string, input: Deci
       { state: locked.state },
       { state: nextState, verdict: input.verdict, decidedBy: ctx.principal.id, at: now.toISOString() },
     );
+    await notifyProposalDecision(tx, ctx, locked, input.verdict, input.comment);
   });
 
   const updated = await findRequest(ctx, requestId);
@@ -278,6 +281,7 @@ export async function escalateIfBreached(ctx: RequestContext, requestId: string,
       { approverId: locked.currentApproverId, state: locked.state },
       { approverId: current.reportsTo, state: 'escalated', escalationCount: locked.escalationCount + 1, at: now.toISOString() },
     );
+    await notifyProposalReview(tx, ctx, locked, current.reportsTo, 'escalated');
   });
   const refreshed = await findRequest(ctx, requestId);
   if (!refreshed) throw new ApprovalNotFoundError();

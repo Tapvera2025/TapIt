@@ -117,12 +117,12 @@ export function SalesGuideToggle(): React.JSX.Element | null {
  * A page's own guide (a lead, a deal, My Work…). `onCommand` runs the work
  * the guide's buttons ask for; the page owns those API calls and dialogs.
  */
-export function SalesCoach({ guidance, onCommand, onNavigate }: { guidance: Guidance | null; onCommand?: (command: GuideCommand) => Promise<void> | void; onNavigate: (path: string) => void }): React.JSX.Element | null {
+export function SalesCoach({ guidance, onCommand, onNavigate, onFocus }: { guidance: Guidance | null; onCommand?: (command: GuideCommand) => Promise<void> | void; onNavigate: (path: string) => void; onFocus?: (target: string) => void }): React.JSX.Element | null {
   const guide = useSalesGuide();
   const register = guide?.registerPageCoach;
   useEffect(() => register?.(), [register]);
   if (!guide) return null;
-  return <CoachView guidance={guidance ?? WORKING_IT_OUT} onCommand={onCommand} onNavigate={onNavigate} />;
+  return <CoachView guidance={guidance ?? WORKING_IT_OUT} onCommand={onCommand} onNavigate={onNavigate} onFocus={onFocus} />;
 }
 
 const WORKING_IT_OUT: Guidance = { context: 'Sales', tone: 'info', title: 'Working out the next step…', detail: 'One moment.', actions: [] };
@@ -137,7 +137,7 @@ const TONES: Record<GuideTone, { label: string; dot: string; chip: string; edge:
 
 const PILL_PREFIX: Record<GuideTone, string> = { act: 'Next', wait: 'Waiting', done: 'Done', blocked: 'Blocked', info: 'Guide' };
 
-function CoachView({ guidance, onCommand, onNavigate }: { guidance: Guidance; onCommand?: ((command: GuideCommand) => Promise<void> | void) | undefined; onNavigate: (path: string) => void }): React.JSX.Element | null {
+function CoachView({ guidance, onCommand, onNavigate, onFocus }: { guidance: Guidance; onCommand?: ((command: GuideCommand) => Promise<void> | void) | undefined; onNavigate: (path: string) => void; onFocus?: ((target: string) => void) | undefined }): React.JSX.Element | null {
   const guide = useSalesGuide();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -166,7 +166,8 @@ function CoachView({ guidance, onCommand, onNavigate }: { guidance: Guidance; on
       case 'focus':
         setSheetOpen(false);
         setMode('minimized');
-        focusGuideTarget(action.do.target);
+        if (onFocus) onFocus(action.do.target);
+        else focusGuideTarget(action.do.target);
         return;
       case 'link':
         return;

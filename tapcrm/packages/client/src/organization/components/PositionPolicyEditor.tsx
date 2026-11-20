@@ -10,6 +10,7 @@ import {
   scopeLabel,
   type Action,
   type ActionDefinition,
+  type PositionPolicyGrantor,
 } from '@tapcrm/contracts';
 import { Button } from '../../ui/index.js';
 import type { PolicyImpactPreview, PositionPolicy } from '../types/index.js';
@@ -24,6 +25,8 @@ import type { PolicyImpactPreview, PositionPolicy } from '../types/index.js';
  *     searchable, with the powers that are on counted per group;
  *   - Save lives in the window's footer, so it never needs scrolling to.
  */
+
+const NOT_SUPER_ADMIN: PositionPolicyGrantor = { superAdmin: false };
 
 interface Row {
   readonly policy: PositionPolicy;
@@ -97,6 +100,7 @@ export function PositionPolicyEditor({
   policies,
   baseline,
   enabledModules,
+  grantor = NOT_SUPER_ADMIN,
   onChange,
   impact,
 }: {
@@ -105,6 +109,8 @@ export function PositionPolicyEditor({
   baseline: readonly PositionPolicy[];
   /** The modules this company uses; null while unknown (everything is shown). */
   enabledModules: ReadonlySet<string> | null;
+  /** Who is editing: the Super Admin may also hand out "Super Admin only" powers. */
+  grantor?: PositionPolicyGrantor;
   onChange: (index: number, patch: Partial<PositionPolicy>) => void;
   impact: PolicyImpactPreview | null;
 }): React.JSX.Element {
@@ -133,7 +139,7 @@ export function PositionPolicyEditor({
         definition,
         title,
         description,
-        locked: protectedCapabilityReason(definition),
+        locked: protectedCapabilityReason(definition, grantor),
         changed: isChanged(policy, before.get(policy.action)),
       });
       byModule.set(definition.module, rows);
@@ -148,7 +154,7 @@ export function PositionPolicyEditor({
         grantable: rows.filter((row) => row.locked === null).length,
       }))
       .sort((a, b) => a.title.localeCompare(b.title));
-  }, [policies, enabledModules, search, onlyAllowed, before]);
+  }, [policies, enabledModules, search, onlyAllowed, before, grantor]);
 
   const totalAllowed = policies.filter((policy) => {
     const definition = REGISTRY[policy.action as Action];

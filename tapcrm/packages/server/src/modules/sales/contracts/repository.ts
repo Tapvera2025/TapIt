@@ -283,6 +283,8 @@ export interface DealContextSnapshot {
   readonly id: string;
   readonly lifecycleStatus: string;
   readonly contractStatus: string;
+  readonly originatingAgentId: string;
+  readonly responsibleCloserId: string;
 }
 
 export async function loadDealContext(
@@ -293,7 +295,9 @@ export async function loadDealContext(
   return tx.maybeOne<DealContextSnapshot>(sql`
     SELECT id,
            lifecycle_status AS "lifecycleStatus",
-           contract_status  AS "contractStatus"
+           contract_status  AS "contractStatus",
+           originating_agent_id  AS "originatingAgentId",
+           responsible_closer_id AS "responsibleCloserId"
       FROM deal
      WHERE organization_id = ${organizationId}
        AND id              = ${dealId}

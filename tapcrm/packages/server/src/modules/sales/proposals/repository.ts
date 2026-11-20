@@ -6,6 +6,7 @@
  * `db.transaction`.
  */
 
+import { proposalSenderSnapshot } from '../../organization/proposal-branding.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db, type Tx } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
@@ -389,6 +390,7 @@ export async function markPublished(
            pdf_checksum  = ${pdfChecksum},
            published_at  = ${now},
            published_by  = ${publishedBy},
+           sender_branding = (${proposalSenderSnapshot(organizationId)}),
            updated_at    = ${now}
      WHERE organization_id = ${organizationId}
        AND id              = ${id}

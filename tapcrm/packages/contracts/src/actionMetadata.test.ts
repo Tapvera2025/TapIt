@@ -11,6 +11,7 @@ import {
   scopeLabel,
   isPositionPolicyGrantable,
   protectedCapabilityReason,
+  SUPER_ADMIN_EXCLUSIVE_ACTIONS,
 } from './index.js';
 
 describe('canonical action presentation metadata', () => {
@@ -49,9 +50,39 @@ describe('canonical action presentation metadata', () => {
       const definition = REGISTRY[action];
       const locked =
         !definition.grantPolicy.positionGrantable ||
-        definition.grantPolicy.superAdminOnly;
+        definition.grantPolicy.superAdminOnly ||
+        SUPER_ADMIN_EXCLUSIVE_ACTIONS.has(action);
       expect(isPositionPolicyGrantable(definition)).toBe(!locked);
       expect(protectedCapabilityReason(definition) !== null).toBe(locked);
+    }
+  });
+
+  it('lets the Super Admin put "Super Admin only" powers on a position', () => {
+    const superAdmin = { superAdmin: true };
+    for (const action of [
+      'audit:export',
+      'telephony:manage',
+      'users:change-placement',
+      'access:decide-role-change',
+      'org:manage-positions',
+    ] as const) {
+      expect(isPositionPolicyGrantable(REGISTRY[action], superAdmin)).toBe(true);
+      expect(protectedCapabilityReason(REGISTRY[action], superAdmin)).toBeNull();
+      // Anyone else still sees it locked.
+      expect(isPositionPolicyGrantable(REGISTRY[action], { superAdmin: false })).toBe(false);
+    }
+  });
+
+  it('never puts a non-position power on a position, not even for the Super Admin', () => {
+    const superAdmin = { superAdmin: true };
+    for (const action of ACTIONS) {
+      const definition = REGISTRY[action];
+      const never =
+        !definition.grantPolicy.positionGrantable || SUPER_ADMIN_EXCLUSIVE_ACTIONS.has(action);
+      expect(isPositionPolicyGrantable(definition, superAdmin)).toBe(!never);
+    }
+    for (const action of ['notepad:view-all', 'billing:set-terms', 'accounting:reopen-period'] as const) {
+      expect(protectedCapabilityReason(REGISTRY[action], superAdmin)).toContain('cannot be given to a position');
     }
   });
 

@@ -1,0 +1,317 @@
+.proposal-public-page {
+  width: min(100%, 67rem);
+  margin-inline: auto;
+  padding: clamp(0.75rem, 3vw, 2.5rem);
+}
+
+.proposal-print-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.85rem;
+}
+
+.proposal-document {
+  --proposal-ink: #152638;
+  --proposal-muted: #495d70;
+  --proposal-navy: #102e4d;
+  --proposal-accent: #176e85;
+  --proposal-rule: #d3dee8;
+  --proposal-wash: #f3f7fa;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: clamp(1.1rem, 5vw, 3.25rem);
+  border: 1px solid var(--proposal-rule);
+  border-radius: 0.6rem;
+  background: white;
+  color: var(--proposal-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  color-scheme: light;
+}
+
+.proposal-document-heading,
+.proposal-document-parties {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.proposal-document-heading {
+  align-items: start;
+  gap: 1rem;
+  border-bottom: 2px solid var(--proposal-navy);
+  padding-bottom: 1.25rem;
+}
+
+.proposal-document-brand img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 4rem;
+  object-fit: contain;
+  object-position: left;
+}
+
+.proposal-document-wordmark,
+.proposal-document-kicker {
+  margin: 0;
+  color: var(--proposal-navy);
+  font-size: clamp(1.25rem, 4vw, 2.1rem);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.proposal-document-meta {
+  text-align: right;
+}
+
+.proposal-document-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.proposal-document-meta dl {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.proposal-document-meta dl div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 0.45rem;
+}
+
+.proposal-document-meta dt {
+  color: var(--proposal-navy);
+  font-weight: 700;
+}
+
+.proposal-document-meta dd {
+  color: var(--proposal-muted);
+}
+
+.proposal-document-parties {
+  margin-block: 1.1rem 1.7rem;
+  border: 1px solid var(--proposal-rule);
+  background: var(--proposal-wash);
+}
+
+.proposal-document-parties > div {
+  padding: 0.75rem 1rem;
+}
+
+.proposal-document-parties > div:only-child {
+  grid-column: 1 / -1;
+}
+
+.proposal-document-parties > div + div {
+  border-left: 1px solid var(--proposal-rule);
+}
+
+.proposal-document-parties p {
+  margin-bottom: 0.15rem;
+  color: var(--proposal-accent);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.proposal-document-title {
+  color: var(--proposal-navy);
+  font-size: clamp(1.55rem, 4vw, 2.4rem);
+  font-weight: 750;
+  line-height: 1.16;
+  letter-spacing: -0.025em;
+}
+
+.proposal-document-section {
+  margin-top: 1.6rem;
+}
+
+.proposal-document-section h2 {
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--proposal-rule);
+  color: var(--proposal-navy);
+  font-size: 1.05rem;
+  font-weight: 750;
+}
+
+.proposal-document-section h3 {
+  margin-top: 0.75rem;
+  color: var(--proposal-accent);
+  font-weight: 700;
+}
+
+.proposal-document-copy {
+  white-space: pre-wrap;
+}
+
+.proposal-document-table-wrap {
+  overflow-x: auto;
+}
+
+.proposal-document-table {
+  width: 100%;
+  min-width: 23rem;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.proposal-document-table :is(th, td) {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--proposal-rule);
+  vertical-align: top;
+}
+
+.proposal-document-table thead {
+  background: var(--proposal-navy);
+  color: white;
+}
+
+.proposal-document-table tbody th {
+  font-weight: 500;
+}
+
+.proposal-document-table tbody p {
+  margin-top: 0.2rem;
+  color: var(--proposal-muted);
+  font-size: 0.79rem;
+  white-space: pre-wrap;
+}
+
+.proposal-document-table tr > :is(th, td):not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.proposal-document-table tbody tr:nth-child(even),
+.proposal-document-total {
+  background: var(--proposal-wash);
+}
+
+.proposal-document-table .proposal-document-total > * {
+  border-top: 2px solid var(--proposal-navy);
+  color: var(--proposal-navy);
+  font-weight: 750;
+}
+
+.proposal-document-advance {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-left: 3px solid var(--proposal-accent);
+  background: var(--proposal-wash);
+  font-weight: 650;
+}
+
+.proposal-document-response :is(textarea, .ui-button) {
+  border-color: var(--proposal-rule);
+  background: white;
+  color: var(--proposal-navy);
+}
+
+.proposal-document-response .ui-primary {
+  border-color: var(--proposal-navy);
+  background: var(--proposal-navy);
+  color: white;
+}
+
+.proposal-document-response .ui-button:focus-visible,
+.proposal-document-response textarea:focus-visible {
+  outline-color: var(--proposal-accent);
+}
+
+.proposal-document-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  margin-top: 2rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--proposal-rule);
+  color: var(--proposal-muted);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 32rem) {
+  .proposal-document-heading,
+  .proposal-document-parties {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .proposal-document-parties > div + div {
+    border-top: 1px solid var(--proposal-rule);
+    border-left: 0;
+  }
+
+  .proposal-document-meta {
+    text-align: left;
+  }
+
+  .proposal-document-meta dl div {
+    justify-content: flex-start;
+  }
+}
+
+@page proposal-sheet {
+  size: A4;
+  margin: 15mm;
+}
+
+@media print {
+  html:has(.proposal-public-page),
+  body:has(.proposal-public-page) {
+    background: white;
+  }
+
+  .proposal-public-page {
+    page: proposal-sheet;
+    width: 100%;
+    padding: 0;
+  }
+
+  .proposal-print-toolbar,
+  .proposal-document-interactive {
+    display: none;
+  }
+
+  .proposal-public-page .proposal-document {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .proposal-document-table-wrap {
+    overflow: visible;
+  }
+
+  .proposal-document-table {
+    min-width: 0;
+  }
+
+  .proposal-document-table thead {
+    display: table-header-group;
+  }
+
+  .proposal-document-section h2,
+  .proposal-document-section h3 {
+    break-after: avoid;
+  }
+
+  .proposal-document-table tr,
+  .proposal-document-heading,
+  .proposal-document-parties,
+  .proposal-document-advance,
+  .proposal-document-footer {
+    break-inside: avoid;
+  }
+}

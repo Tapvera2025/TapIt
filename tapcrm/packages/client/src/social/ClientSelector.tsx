@@ -84,12 +84,12 @@ export function ClientSelector({
             {selected ? selected.businessName || selected.clientName : placeholder}
           </span>
         </span>
-        <Icon name="chevron-down" className="size-4 text-app-muted" />
+        <Icon name="chevron-down" className="size-4 shrink-0 text-app-muted" />
       </button>
       {open && (
         <div
           id={pickerId}
-          className="absolute left-0 right-0 z-30 mt-2 min-w-64 rounded-xl border border-app-border bg-app-surface p-3 shadow-xl"
+          className="absolute left-0 right-0 z-30 mt-2 min-w-0 rounded-xl border border-app-border bg-app-surface p-3 shadow-xl"
         >
           <Field
             label="Search CRM clients"
@@ -129,7 +129,7 @@ export function ClientSelector({
             )}
           </div>
           {(data?.totalPages ?? 0) > 1 && (
-            <div className="mt-2 flex items-center justify-between border-t border-app-border pt-2">
+            <div className="social-toolbar social-client-pagination mt-2 border-t border-app-border pt-2">
               <Button
                 kind="secondary"
                 disabled={page <= 1 || loading}

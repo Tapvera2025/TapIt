@@ -1,4 +1,9 @@
 import { identityRequest } from '../../../identity/api/authApi.js';
+import type { ProposalSender } from './ProposalDocument.js';
+
+export function getCommercialsSender(id: string): Promise<ProposalSender> {
+  return identityRequest(`/api/commercials/${encodeURIComponent(id)}/branding`);
+}
 
 export type CommercialsState =
   | 'draft'

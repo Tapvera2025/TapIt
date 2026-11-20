@@ -49,9 +49,24 @@ import {
   managerReassignmentSchema,
 } from './validators.js';
 import { getCurrencySettings, updateCurrencySettings } from './currency.js';
+import { getProposalBranding, proposalBrandingSchema, updateProposalBranding } from './proposal-branding.js';
 
 /** Organization route bindings. Authorization is performed by the shared router. */
 export function registerOrganizationRoutes(): void {
+  route({
+    method: 'GET',
+    path: '/api/org/proposal-branding',
+    action: 'system:manage-settings',
+    module: 'organization',
+    handler: async ({ ctx }) => getProposalBranding(ctx),
+  });
+  route({
+    method: 'PUT',
+    path: '/api/org/proposal-branding',
+    action: 'system:manage-settings',
+    module: 'organization',
+    handler: async ({ ctx, body }) => updateProposalBranding(ctx, proposalBrandingSchema.parse(body)),
+  });
   route({ method: 'GET', path: '/api/org/currency-settings', action: 'advance:view-own', module: 'organization', handler: async ({ ctx }) => getCurrencySettings(ctx) });
   route({ method: 'PUT', path: '/api/org/currency-settings', action: 'system:manage-settings', module: 'organization', handler: async ({ ctx, body }) => {
     const input = body as { supportedCurrencies?: unknown; defaultCurrency?: unknown };

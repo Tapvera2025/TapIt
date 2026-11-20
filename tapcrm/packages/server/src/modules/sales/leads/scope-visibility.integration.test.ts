@@ -150,6 +150,7 @@ describe.skipIf(!enabled)('lead visibility by scope — PRD §3.5.1 (PostgreSQL)
   });
 
   afterAll(async () => {
+    await asOwner('cleanup notification outbox', sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup audit', sql`DELETE FROM audit_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup leads', sql`DELETE FROM lead WHERE organization_id = ${ORG}`);
     await asOwner('cleanup source', sql`DELETE FROM lead_source WHERE organization_id = ${ORG}`);

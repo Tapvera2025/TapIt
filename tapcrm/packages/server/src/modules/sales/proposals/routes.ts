@@ -21,6 +21,7 @@ import {
   supersede,
   updateDraft,
 } from './service.js';
+import { getCommercialsSender } from './branding.js';
 import { createDraftSchema, updateDraftSchema } from './validators.js';
 
 const uuid = (value: string) => z.string().uuid().parse(value);
@@ -56,6 +57,16 @@ export function registerProposalRoutes(): void {
     resourceParam: 'id',
     loadResource: loadDealForCommercials,
     handler: async ({ ctx, params }) => getCommercials(ctx, uuid(params['id']!)),
+  });
+
+  route({
+    method: 'GET',
+    path: '/api/commercials/:id/branding',
+    action: 'deals:view-commercials',
+    module: 'deals',
+    resourceParam: 'id',
+    loadResource: loadDealForCommercials,
+    handler: async ({ ctx, params }) => getCommercialsSender(ctx, uuid(params['id']!)),
   });
 
   route({

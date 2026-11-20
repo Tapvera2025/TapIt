@@ -490,10 +490,12 @@ describe.skipIf(!enabled)('chat engine (PostgreSQL)', () => {
       const mention = bobNotifications.find((n) => n.title.includes('mentioned you in Mentions Room'));
       expect(mention).toBeDefined();
       expect(mention!.link).toBe(`/company/messages?conversationId=${group.id}&messageId=${message.id}`);
+      expect(bobNotifications.filter((n) => n.link === mention!.link)).toHaveLength(1);
 
       // Never mentioned, and not a member of this org's group at all.
       expect(await notificationTitlesFor(outsider)).toEqual([]);
       expect((await notificationTitlesForInConversation(carol, group.id)).some((t) => t.includes('mentioned you'))).toBe(false);
+      expect(await notificationTitlesForInConversation(carol, group.id)).toContain('New message in Mentions Room');
     });
   });
 });

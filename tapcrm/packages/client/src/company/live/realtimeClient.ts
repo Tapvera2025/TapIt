@@ -2,10 +2,9 @@ import { io, type Socket } from 'socket.io-client';
 import {
   getIdentityAccessToken,
   identityApiBasePath,
-  invalidateIdentityPermissions,
   subscribeIdentitySessionChange,
 } from '../../identity/api/authApi.js';
-import { clearPeopleQueries } from '../api/client.js';
+import { applyPermissionsChanged } from '../api/client.js';
 
 export type StatusChangedPayload = { userId: string };
 export type PermissionsChangedPayload = { eventId: string; positionId: string | null };
@@ -160,8 +159,7 @@ export function connectRealtime(): void {
   });
 
   socket.on('permissions:changed', (_payload: PermissionsChangedPayload) => {
-    clearPeopleQueries();
-    invalidateIdentityPermissions();
+    applyPermissionsChanged();
   });
 
   socket.onAny((event: string, payload: unknown) => {

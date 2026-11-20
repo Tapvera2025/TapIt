@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Card } from '../../../../ui/index.js';
 import { getAllCallbacks, type LeadCallback } from '../../leads/api.js';
 import { partitionCallbacks, relativeTime } from '../myWork-helpers.js';
-import { MyWorkSection } from './Shell.js';
+import { MyWorkRow, MyWorkSection } from './Shell.js';
 import { MY_WORK_ANCHORS } from '../../guide/page-guidance.js';
 
 const POLL_INTERVAL_MS = 30_000;
@@ -56,56 +55,39 @@ export function DueActivitiesSection({
         error={error}
         empty="No overdue callbacks."
       >
-        <Card className="p-0">
-          <ul className="divide-y divide-app-border">
+        <ul className="mt-3 divide-y divide-app-border border-t border-app-border">
             {overdue.map((callback) => (
-              <li key={callback.id} className="flex items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="font-semibold">{callback.leadContactName}</p>
-                  <p className="mt-1 text-xs text-app-muted">
-                    #{callback.leadNumber} · {relativeTime(callback.scheduledAt)}{callback.reason ? ` · ${callback.reason}` : ''}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-lg border border-app-border px-3 py-1.5 text-xs font-bold hover:border-app-accent"
-                  onClick={() => onNavigate(`/company/sales/callbacks/${callback.id}`)}
-                >
-                  Record outcome
-                </button>
-              </li>
+            <MyWorkRow
+              key={callback.id}
+              icon="phone"
+              title={callback.leadContactName}
+              detail={[`#${callback.leadNumber}`, relativeTime(callback.scheduledAt), callback.reason].filter(Boolean).join(' · ')}
+              action="Record outcome" urgent
+              onAction={() => onNavigate(`/company/sales/callbacks/${callback.id}`)}
+            />
             ))}
           </ul>
-        </Card>
       </MyWorkSection>
 
       <MyWorkSection
+        id="my-work-upcoming"
         className="order-last"
         title="Callbacks in the next 24 hours"
         count={upcomingToday.length}
         empty="No callbacks in the next 24 hours."
       >
-        <Card className="p-0">
-          <ul className="divide-y divide-app-border">
+        <ul className="mt-3 divide-y divide-app-border border-t border-app-border">
             {upcomingToday.map((callback) => (
-              <li key={callback.id} className="flex items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="font-semibold">{callback.leadContactName}</p>
-                  <p className="mt-1 text-xs text-app-muted">
-                    #{callback.leadNumber} · {relativeTime(callback.scheduledAt)}{callback.reason ? ` · ${callback.reason}` : ''}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-lg border border-app-border px-3 py-1.5 text-xs font-bold hover:border-app-accent"
-                  onClick={() => onNavigate(`/company/sales/callbacks/${callback.id}`)}
-                >
-                  Open
-                </button>
-              </li>
+            <MyWorkRow
+              key={callback.id}
+              icon="phone"
+              title={callback.leadContactName}
+              detail={[`#${callback.leadNumber}`, relativeTime(callback.scheduledAt), callback.reason].filter(Boolean).join(' · ')}
+              action="Open callback"
+              onAction={() => onNavigate(`/company/sales/callbacks/${callback.id}`)}
+            />
             ))}
           </ul>
-        </Card>
       </MyWorkSection>
     </>
   );

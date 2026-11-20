@@ -1,5 +1,6 @@
 import type { RequestContext } from '../../platform/dal/context.js';
 import type { Tx } from '../../platform/dal/db.js';
+import { sql } from '../../platform/dal/sql.js';
 import {
   NOTIFICATION_TYPES,
   clip,
@@ -18,8 +19,7 @@ import type { LeaveRequestRow } from './repository.js';
  *
  *   event                         who                                   type             priority
  *   ────────────────────────────  ────────────────────────────────────  ───────────────  ─────────────
- *   leave or WFH requested        everyone who can decide it            leave.requested  operational
- *                                 (holders of leave:decide: HR, Super Admin)
+ *   leave or WFH requested        decision-makers and qualifying manager  leave.requested  operational
  *   approved                      the employee                          leave.decided    informational
  *   declined                      the employee                          leave.decided    operational
  *   approved leave revoked        the employee                          leave.decided    operational
@@ -55,10 +55,21 @@ export async function notifyLeaveRequested(
   const names = await fullNames(tx, ctx.organizationId, [request.userId]);
   const who = names.get(request.userId) ?? 'An employee';
   const what = request.kind === 'absence' ? leaveTypeName : `${leaveTypeName} (work from home)`;
+  const subject = await tx.maybeOne<{ reportsTo: string | null }>(sql`
+    SELECT reports_to
+      FROM app_user
+     WHERE organization_id = ${ctx.organizationId} AND id = ${request.userId}
+  `);
+  const decisionMakers = { action: 'leave:decide' };
   await notify(tx, ctx, {
     type: NOTIFICATION_TYPES.LEAVE_REQUESTED,
     priority: 'operational',
-    audience: { holders: { action: 'leave:decide' }, excludeUserIds: [request.userId] },
+    audience: {
+      holders: subject?.reportsTo
+        ? [decisionMakers, { action: 'leave:acknowledge', userIds: [subject.reportsTo] }]
+        : decisionMakers,
+      excludeUserIds: [request.userId],
+    },
     title: clip(`${who} requested ${what}`, 200),
     body: clip(period(request), 500),
     link: QUEUE_LINK,

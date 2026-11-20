@@ -1,0 +1,38 @@
+.imported-leads-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  align-items: end;
+  gap: 1rem;
+}
+
+.imported-leads-search {
+  min-width: 0;
+}
+
+@media (min-width: 48rem) {
+  .imported-leads-search {
+    grid-column: span 2;
+  }
+}
+
+.imported-leads-table {
+  min-width: 44rem;
+}
+
+.imported-leads-table .imported-leads-checkbox {
+  width: 1%;
+  padding-inline: 1rem 0;
+}
+
+.imported-leads-name {
+  width: 32%;
+}
+
+.imported-leads-table tbody tr[data-selected='true'] {
+  background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
+}
+
+.imported-leads-history-card.ui-card[data-active='true'] {
+  border-color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 5%, var(--app-surface));
+}

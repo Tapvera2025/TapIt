@@ -1,0 +1,11 @@
+.sales-review-table {
+  min-width: 48rem;
+}
+
+.sales-review-table thead th:last-child {
+  text-align: right;
+}
+
+.sales-review-table tbody th {
+  width: 28%;
+}

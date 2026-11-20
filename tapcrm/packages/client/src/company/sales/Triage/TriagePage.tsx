@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Page } from '../../../ui/index.js';
+import { Button, Card, Field, Icon, Modal, Page, Select } from '../../../ui/index.js';
 import {
   closeTriageLead,
   getHandoverTargets,
@@ -11,6 +11,9 @@ import {
 } from '../leads/api.js';
 import { formatAge, labelForReason } from './triage-helpers.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
+import { useCompanyPageMetadata } from '../../layout/CompanyNavbarContext.js';
+import { LeadsViewTabs } from '../leads/imports/LeadsViewTabs.js';
+import './triage.css';
 
 type Dialog =
   | { kind: 'none' }
@@ -18,10 +21,23 @@ type Dialog =
   | { kind: 'close'; row: TriageRow };
 
 const POLL_INTERVAL_MS = 20_000;
+const pageMetadata = {
+  eyebrow: 'Sales',
+  title: 'Needs Review',
+  description: 'Review unassigned enquiries, assign an owner, or return them to the live pool.',
+  lockTitle: true,
+};
 
-export function TriagePage({ onNavigate }: { onNavigate: (path: string) => void }): React.JSX.Element {
-  const [rows, setRows] = useState<TriageRow[]>([]);
-  const [loading, setLoading] = useState(true);
+export function TriagePage({ canViewLeads, canViewImports, canViewCallbacks, onNavigate }: {
+  canViewLeads: boolean;
+  canViewImports: boolean;
+  canViewCallbacks: boolean;
+  onNavigate: (path: string) => void;
+}): React.JSX.Element {
+  useCompanyPageMetadata(pageMetadata);
+  const [rows, setRows] = useState<TriageRow[] | null>(null);
+  const [search, setSearch] = useState('');
+  const [reviewReason, setReviewReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>({ kind: 'none' });
 
@@ -32,8 +48,6 @@ export function TriagePage({ onNavigate }: { onNavigate: (path: string) => void 
       setError(null);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : 'Unable to load the triage queue.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -52,77 +66,95 @@ export function TriagePage({ onNavigate }: { onNavigate: (path: string) => void 
     }
   }
 
+  const query = search.trim().toLowerCase();
+  const reasons = [...new Set((rows ?? []).map((row) => labelForReason(row.reason)))].sort();
+  const reasonOptions = [...new Set([...reasons, ...(reviewReason ? [reviewReason] : [])])];
+  const shown = (rows ?? []).filter((row) => (
+    (!reviewReason || labelForReason(row.reason) === reviewReason) &&
+    [row.contactName, `#${row.leadNumber}`, row.sourceName, row.service, row.location].some((value) => value?.toLowerCase().includes(query))
+  ));
+  const filtering = Boolean(query || reviewReason);
+
   return (
     <Page
-      eyebrow="Sales"
-      title="Triage queue"
-      description="Leads that fell out of the bid pool without an owner. Rescue them to an agent, return to the pool, or close with a reason."
+      eyebrow={pageMetadata.eyebrow}
+      title={pageMetadata.title}
+      description={pageMetadata.description}
+      hideMobileAction
       action={
         <Button kind="secondary" onClick={() => void reload()}>
-          Refresh
+          <Icon name="refresh" className="size-4" /> Refresh
         </Button>
       }
     >
+      <LeadsViewTabs active="review" count={rows?.length} canViewLeads={canViewLeads} canViewImports={canViewImports} canViewCallbacks={canViewCallbacks} onNavigate={onNavigate} />
       {error && <ErrorToast message={error} />}
 
-      {loading && rows.length === 0 ? (
-        <Card>
-          <p className="text-sm text-app-muted">Loading triage queue…</p>
+      <Card className="bid-pool-filter-card">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="min-w-48 flex-1">
+            <Field label="Search leads needing review" value={search} onChange={setSearch} placeholder="Search by name, lead ID, source, or location…" />
+          </div>
+          <div className="w-full sm:w-64">
+            <Select label="Review reason" value={reviewReason} onChange={setReviewReason} placeholder="All reasons" options={reasonOptions.map((reason) => ({ value: reason, label: reason }))} />
+          </div>
+          {rows && <p className="ml-auto pb-2 text-sm text-app-muted" aria-live="polite">{shown.length} {shown.length === 1 ? 'record' : 'records'}</p>}
+        </div>
+      </Card>
+
+      {!rows && !error && <Card><p role="status" className="text-sm text-app-muted">Loading leads for review…</p></Card>}
+      {rows && shown.length === 0 && (
+        <Card className="bid-pool-empty">
+          <span className="sales-work-icon"><Icon name="inbox" className="size-5" /></span>
+          <div>
+            <h2 className="font-display text-xl font-bold">{filtering ? 'No leads match these filters' : 'No leads need review'}</h2>
+            <p className="mt-1 text-sm text-app-muted">{filtering ? 'Try a different search or review reason.' : 'Unassigned enquiries that need a decision will appear here.'}</p>
+            {filtering && <Button className="mt-3" kind="secondary" onClick={() => { setSearch(''); setReviewReason(''); }}>Clear filters</Button>}
+          </div>
         </Card>
-      ) : rows.length === 0 ? (
-        <Card>
-          <h2 className="font-display text-xl font-bold">No leads waiting in triage</h2>
-          <p className="mt-2 text-sm text-app-muted">
-            Everything the bid pool released found an owner or was rescued.
-          </p>
-        </Card>
-      ) : (
-        <Card className="overflow-x-auto p-0">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-app-border text-left text-xs uppercase tracking-wide text-app-muted">
-                <th className="p-3 font-semibold">Age</th>
-                <th className="p-3 font-semibold">Lead</th>
-                <th className="p-3 font-semibold">Reason</th>
-                <th className="p-3 font-semibold">Source</th>
-                <th className="p-3 font-semibold">Service</th>
-                <th className="p-3 font-semibold">Location</th>
-                <th className="p-3 font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.leadId} className="border-b border-app-border last:border-b-0">
-                  <td className="p-3 font-semibold">{formatAge(row.ageSeconds)}</td>
-                  <td className="p-3">
-                    <button
-                      type="button"
-                      className="font-semibold underline underline-offset-2 hover:text-app-accent"
-                      onClick={() => onNavigate(`/company/sales/leads/${row.leadId}`)}
-                    >
-                      {row.contactName}
-                    </button>
-                    <p className="text-xs text-app-muted">#{row.leadNumber}</p>
-                  </td>
-                  <td className="p-3 text-xs text-app-muted">{labelForReason(row.reason)}</td>
-                  <td className="p-3 text-xs">{row.sourceName}</td>
-                  <td className="p-3 text-xs">{row.service ?? '—'}</td>
-                  <td className="p-3 text-xs">{row.location ?? '—'}</td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap gap-2">
-                      <Button onClick={() => setDialog({ kind: 'rescue', row })}>Rescue</Button>
-                      <Button kind="secondary" onClick={() => void onReturn(row.leadId)}>
-                        Return to pool
-                      </Button>
-                      <Button kind="danger" onClick={() => setDialog({ kind: 'close', row })}>
-                        Close
-                      </Button>
-                    </div>
-                  </td>
+      )}
+      {shown.length > 0 && (
+        <Card className="bid-pool-table-card overflow-hidden">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Leads needing review">
+            <table className="sales-queue-table sales-review-table">
+              <thead>
+                <tr>
+                  <th scope="col">Lead &amp; enquiry</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Review reason</th>
+                  <th scope="col">Age</th>
+                  <th scope="col">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {shown.map((row) => (
+                  <tr key={row.leadId}>
+                    <th scope="row">
+                      <div className="flex items-center gap-3">
+                        <span className="sales-queue-id">#{row.leadNumber}</span>
+                        <div className="min-w-0">
+                          <button type="button" className="text-left font-semibold hover:text-app-accent hover:underline" onClick={() => onNavigate(`/company/sales/leads/${row.leadId}`)}>
+                            {row.contactName}
+                          </button>
+                          {(row.service || row.location) && <p className="mt-1 text-sm font-normal text-app-muted">{[row.service, row.location].filter(Boolean).join(' · ')}</p>}
+                        </div>
+                      </div>
+                    </th>
+                    <td><span className="sales-queue-chip">{row.sourceName}</span></td>
+                    <td><span className="sales-queue-state">{labelForReason(row.reason)}</span></td>
+                    <td className="font-mono font-semibold tabular-nums">{formatAge(row.ageSeconds)}</td>
+                    <td>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button onClick={() => setDialog({ kind: 'rescue', row })}>Assign</Button>
+                        <Button kind="secondary" onClick={() => void onReturn(row.leadId)}>Return to pool</Button>
+                        <Button kind="danger" onClick={() => setDialog({ kind: 'close', row })}>Close</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
 
@@ -182,13 +214,13 @@ function RescueDialog({
     }
   }
   return (
-    <ActionDialog title={`Rescue #${row.leadNumber}`} onClose={onClose} submitting={submitting} canSubmit={canSubmit} submitLabel="Rescue" onSubmit={() => void submit()} error={error}>
+    <ActionDialog title={`Assign lead #${row.leadNumber}`} onClose={onClose} submitting={submitting} canSubmit={canSubmit} submitLabel="Assign lead" onSubmit={() => void submit()} error={error}>
       <label className="text-xs font-semibold text-app-muted">
         <span className="mb-2 block">New owner</span>
         <select
           value={newOwnerId}
           onChange={(event) => setNewOwnerId(event.target.value)}
-          className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
+          className="ui-form-control w-full px-3 py-2.5 text-sm"
         >
           <option value="">Pick an eligible agent</option>
           {targets.map((target) => (
@@ -239,7 +271,7 @@ function CloseDialog({
         <select
           value={lossReason}
           onChange={(event) => setLossReason(event.target.value as typeof lossReason)}
-          className="w-full rounded-lg border border-app-border bg-app-background px-3 py-2.5 text-sm"
+          className="ui-form-control w-full px-3 py-2.5 text-sm"
         >
           <option value="unqualified">Unqualified</option>
           <option value="not_interested">Not interested</option>
@@ -275,34 +307,18 @@ function ActionDialog({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') onClose();
-      }}
+    <Modal
+      title={title}
+      onClose={() => { if (!submitting) onClose(); }}
+      footer={
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button kind="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
+          <Button disabled={!canSubmit} onClick={onSubmit}>{submitting ? 'Working…' : submitLabel}</Button>
+        </div>
+      }
     >
-      <button type="button" aria-label="Close dialog" className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <section className="relative w-full max-w-md rounded-xl border border-app-border bg-app-background p-6 shadow-2xl">
-        <header className="mb-4 flex items-start justify-between gap-3">
-          <h2 className="font-display text-xl font-bold">{title}</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="rounded p-1 text-app-muted hover:text-app-foreground">
-            ×
-          </button>
-        </header>
-        {children}
-        {error && <ErrorToast message={error} />}
-        <footer className="mt-5 flex justify-end gap-3">
-          <Button kind="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!canSubmit} onClick={onSubmit}>
-            {submitting ? 'Working…' : submitLabel}
-          </Button>
-        </footer>
-      </section>
-    </div>
+      {children}
+      {error && <ErrorToast message={error} />}
+    </Modal>
   );
 }

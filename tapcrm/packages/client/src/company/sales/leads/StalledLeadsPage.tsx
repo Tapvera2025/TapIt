@@ -1,10 +1,51 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Page } from '../../../ui/index.js';
-import { getStalledLeads, type Lead } from './api.js';
+import { Button, Card, Icon, Page } from '../../../ui/index.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
+import { getStalledLeads, type Lead } from './api.js';
+import { LeadsViewTabs } from './imports/LeadsViewTabs.js';
 
-export function StalledLeadsPage({ onBack, onNavigate }: { onBack: () => void; onNavigate: (path: string) => void }): React.JSX.Element {
-  const [items, setItems] = useState<Lead[]>([]); const [error, setError] = useState('');
-  useEffect(() => { void getStalledLeads().then((page) => setItems(page.items)).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load stalled leads.')); }, []);
-  return <Page eyebrow="Sales" title="Stalled Leads" description="Leads requiring review under the current Sales visibility scope." action={<Button kind="secondary" onClick={onBack}>Back to leads</Button>}>{error && <ErrorToast message={error} />}<Card className="overflow-hidden p-0">{items.length === 0 ? <p className="p-6 text-sm text-app-muted">No stalled leads require review.</p> : <div className="divide-y divide-app-border">{items.map((lead) => <button key={lead.id} onClick={() => onNavigate(`/company/sales/leads/${lead.id}`)} className="flex w-full flex-wrap items-center justify-between gap-4 p-5 text-left hover:bg-app-background"><div><p className="font-display text-lg font-bold">{lead.contactName}</p><p className="mt-1 text-sm text-app-muted">Owner: {lead.ownerName ?? 'Unrouted'} · {lead.salesTeamName ?? 'No team'}</p></div><div className="text-right text-xs"><span className="rounded-full bg-[#d86b6b]/10 px-3 py-1 font-bold text-app-danger">{lead.stalledReason ?? 'stalled'}</span><p className="mt-2 text-app-muted">{lead.stalledAt ? new Date(lead.stalledAt).toLocaleDateString() : '—'}</p></div></button>)}</div>}</Card></Page>;
+export function StalledLeadsPage({ canViewImports, canViewCallbacks, canReviewTriage, onBack, onNavigate }: {
+  canViewImports: boolean;
+  canViewCallbacks: boolean;
+  canReviewTriage: boolean;
+  onBack: () => void;
+  onNavigate: (path: string) => void;
+}): React.JSX.Element {
+  const [items, setItems] = useState<Lead[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    getStalledLeads()
+      .then((page) => { if (active) setItems(page.items); })
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : 'Unable to load stalled leads.'); });
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <Page eyebrow="Sales" title="Inactive Leads" description="Review leads that need a follow-up after a missed callback or a period without activity." action={<Button kind="secondary" onClick={onBack}>Back to leads</Button>}>
+      <LeadsViewTabs active="stalled" count={items?.length} canViewImports={canViewImports} canViewCallbacks={canViewCallbacks} canReviewTriage={canReviewTriage} onNavigate={onNavigate} />
+      {error && <ErrorToast message={error} />}
+      {!items && !error && <Card><p role="status" className="text-sm text-app-muted">Loading inactive leads…</p></Card>}
+      {items && (
+        <Card className="sales-work-panel">
+          <h2 className="font-display text-lg font-bold">Leads that need attention</h2>
+          {items.length === 0 ? <p className="mt-3 text-sm text-app-muted">No inactive leads require review.</p> : (
+            <ul className="mt-3 divide-y divide-app-border border-t border-app-border">
+              {items.map((lead) => (
+                <li className="sales-work-row" key={lead.id}>
+                  <span className="sales-work-icon" data-urgent="true"><Icon name="refresh" className="size-5" /></span>
+                  <div className="min-w-0">
+                    <p className="break-words font-semibold">{lead.contactName}</p>
+                    <p className="mt-1 text-sm text-app-muted">{[`#${lead.leadNumber}`, lead.companyName, lead.ownerName ?? 'Unassigned'].filter(Boolean).join(' · ')}</p>
+                    <p className="mt-1 text-xs font-semibold text-app-danger">{lead.stalledReason === 'missed_callback' ? 'Missed callback' : 'Inactive'}</p>
+                  </div>
+                  <Button kind="secondary" onClick={() => onNavigate(`/company/sales/leads/${lead.id}?focus=status`)}>Review lead</Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+    </Page>
+  );
 }

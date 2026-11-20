@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Card } from '../../../../ui/index.js';
 import { getLeads, type Lead } from '../../leads/api.js';
 import { assignedTime, partitionLeads, relativeTime } from '../myWork-helpers.js';
-import { MyWorkSection } from './Shell.js';
+import { MyWorkRow, MyWorkSection } from './Shell.js';
 import { MY_WORK_ANCHORS } from '../../guide/page-guidance.js';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -54,29 +53,18 @@ export function NewlyAssignedSection({
       error={error}
       empty="No new leads waiting for a first call."
     >
-      <Card className="p-0">
-        <ul className="divide-y divide-app-border">
+      <ul className="mt-3 divide-y divide-app-border border-t border-app-border">
           {newlyAssigned.map((lead) => (
-            <li key={lead.id} className="flex items-center justify-between gap-3 p-4">
-              <div>
-                <p className="font-semibold">{lead.contactName}</p>
-                <p className="mt-1 text-xs text-app-muted">
-                  #{lead.leadNumber} · {lead.sourceName}
-                  {lead.companyName ? ` · ${lead.companyName}` : ''} · assigned{' '}
-                  {relativeTime(new Date(assignedTime(lead)).toISOString())}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="rounded-lg border border-app-border px-3 py-1.5 text-xs font-bold hover:border-app-accent"
-                onClick={() => onNavigate(`/company/sales/leads/${lead.id}`)}
-              >
-                Open
-              </button>
-            </li>
+            <MyWorkRow
+              key={lead.id}
+              icon="user-plus"
+              title={lead.contactName}
+              detail={[`#${lead.leadNumber}`, lead.companyName, lead.sourceName, `Assigned ${relativeTime(new Date(assignedTime(lead)).toISOString())}`].filter(Boolean).join(' · ')}
+              action="Open lead"
+              onAction={() => onNavigate(`/company/sales/leads/${lead.id}`)}
+            />
           ))}
         </ul>
-      </Card>
     </MyWorkSection>
   );
 }

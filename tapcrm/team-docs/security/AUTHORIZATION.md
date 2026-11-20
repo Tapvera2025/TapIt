@@ -317,6 +317,8 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/org/departments | `org:view-structure` | — |
 | GET | /api/org/currency-settings | `advance:view-own` | — |
 | PUT | /api/org/currency-settings | `system:manage-settings` | — |
+| GET | /api/org/proposal-branding | `system:manage-settings` | — |
+| PUT | /api/org/proposal-branding | `system:manage-settings` | — |
 | GET | /api/org/teams | `org:view-structure` | — |
 | GET | /api/org/ladder/:departmentCode | `org:view-structure` | — |
 | GET | /api/org/chart | `org:view-structure` | — |
@@ -639,6 +641,7 @@ remain bound to their approval-bearing action and re-authorize the specific row.
 | GET | /api/deals/wins-to-record | `deals:record-win` | — |
 | GET | /api/deals/forecast | `deals:forecast` | — |
 | GET | /api/commercials/:id | `deals:view-commercials` | id |
+| GET | /api/commercials/:id/branding | `deals:view-commercials` | id |
 | PATCH | /api/commercials/:id | `deals:edit` | id |
 | POST | /api/commercials/:id/publish | `deals:edit` | id |
 | POST | /api/commercials/:id/supersede | `deals:edit` | id |

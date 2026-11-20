@@ -19,6 +19,7 @@ import { HANDED_OVER_MESSAGE, isHandedOverAway } from '../handover/policy.js';
 import { insertActivity, insertAudit, loadLeadResource } from '../leads/repository.js';
 import { openPostingPeriodCoversTx, postSourceJournalTx } from '../../finance/facade.js';
 import { NOTIFICATION_TYPES, notify } from '../../notifications/facade.js';
+import { notifyDealMilestone } from './notifications.js';
 import {
   findBriefForDealTx,
   findProjectPeopleTx,
@@ -749,6 +750,7 @@ async function doConfirmPayment(
         at: now.toISOString(),
       },
     );
+    await notifyDealMilestone(tx, ctx, locked, 'advanceConfirmed');
   });
 
   const updated = await findDeal(ctx, id);
@@ -816,6 +818,7 @@ async function revertPaymentConfirmation(
       { paymentStatus: 'advance_confirmed' },
       { paymentStatus: 'unpaid', reason, at: now.toISOString() },
     );
+    await notifyDealMilestone(tx, ctx, locked, 'advanceReverted');
   });
 
   const updated = await findDeal(ctx, id);

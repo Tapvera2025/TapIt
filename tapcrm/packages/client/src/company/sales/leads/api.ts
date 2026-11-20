@@ -13,7 +13,14 @@ export interface Lead { id: string; leadNumber: string; contactId: string | null
 export interface ReengagementSegment { sourceName: string; campaignName: string | null; lossReason: string; lostDate: string; count: number; }
 export interface ReengagementSegments { total: number; segments: ReengagementSegment[]; }
 export interface LeadPage { items: Lead[]; total: number; page: number; pageSize: number; totalPages: number; }
-export function getLeads(filters: { ownerId?: string; pageSize?: number } = {}): Promise<LeadPage> { const query = new URLSearchParams(); if (filters.ownerId) query.set('ownerId', filters.ownerId); if (filters.pageSize) query.set('pageSize', String(filters.pageSize)); return identityRequest(`/api/leads${query.toString() ? `?${query.toString()}` : ''}`); }
+export function getLeads(filters: { ownerId?: string; currentHolderId?: string; page?: number; pageSize?: number } = {}): Promise<LeadPage> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) query.set(key, String(value));
+  }
+  const params = query.toString();
+  return identityRequest(`/api/leads${params ? `?${params}` : ''}`);
+}
 export function getStalledLeads(): Promise<LeadPage> { return identityRequest('/api/leads/stalled'); }
 export function getLead(id: string): Promise<Lead> { return identityRequest(`/api/leads/${id}`); }
 export function getLeadSources(): Promise<LeadSource[]> { return identityRequest('/api/lead-sources'); }

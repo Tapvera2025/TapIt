@@ -9,7 +9,7 @@ export const EMAIL_ATTEMPTS = 3;
 export const EMAIL_BACKOFF_MS = 5_000;
 
 /** The rendered body of an email. */
-export type EmailTemplateData = Pick<EmailMessage, 'text' | 'html' | 'sensitive'>;
+export type EmailTemplateData = Pick<EmailMessage, 'text' | 'html' | 'sensitive' | 'brandLogo'>;
 
 let connection: Redis | null = null;
 /** A message in the queue, with the id of its Mail Center record. */

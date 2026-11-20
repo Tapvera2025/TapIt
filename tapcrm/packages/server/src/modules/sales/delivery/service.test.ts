@@ -9,6 +9,10 @@ import { reviewDecision } from './service.js';
 import type { DeliveryBrief } from './types.js';
 
 vi.mock('@tapcrm/authz', () => ({ effectivePolicy: vi.fn() }));
+vi.mock('../../notifications/facade.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../notifications/facade.js')>()),
+  notify: vi.fn(),
+}));
 vi.mock('./repository.js');
 vi.mock('../../../platform/dal/db.js', () => ({
   db: {
@@ -88,6 +92,7 @@ describe('delivery brief cancellation authorization', () => {
       id: BRIEF_ID,
       dealId: DEAL_ID,
       commercialsId: COMMERCIALS_ID,
+      createdBy: USER_ID,
       state: 'submitted',
       projectId: null,
       acceptedAt: null,

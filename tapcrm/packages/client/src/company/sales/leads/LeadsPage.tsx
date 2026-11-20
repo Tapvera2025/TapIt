@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Page } from '../../../ui/index.js';
+import { Button, Card, Field, Icon, Page } from '../../../ui/index.js';
 import { createLeadSource, getCampaigns, getLeadSources, getLeads, type Campaign, type Lead, type LeadSource } from './api.js';
 import { isClosedLeadStatus, leadStatusLabel } from './lead-status.js';
 import { leadRowHint } from '../guide/lead-guidance.js';
@@ -11,9 +11,11 @@ import { LeadsViewTabs } from './imports/LeadsViewTabs.js';
 import { IMPORTED_LEADS_PATH } from './imports/import-format.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
 
-export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, canViewImports = false, canImport = false }: { onNavigate: (path: string) => void; currentUserId?: string; isManager?: boolean; canViewImports?: boolean; canImport?: boolean }): React.JSX.Element {
+export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, canViewImports = false, canImport = false, canReviewTriage = false, canViewCallbacks = false, canAddLead = true }: { onNavigate: (path: string) => void; currentUserId?: string; isManager?: boolean; canViewImports?: boolean; canImport?: boolean; canReviewTriage?: boolean; canViewCallbacks?: boolean; canAddLead?: boolean }): React.JSX.Element {
   const [importOpen, setImportOpen] = useState(false);
   const [items, setItems] = useState<Lead[]>([]);
+  const [search, setSearch] = useState('');
+  const [owner, setOwner] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -28,14 +30,20 @@ export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, c
     .finally(() => setLoaded(true));
   useEffect(() => { void reload(); }, []);
   const [duplicates, setDuplicates] = useState<Array<{ leadId: string; leadNumber: string; ownerName: string | null }>>([]);
-  useAddLeadShortcut(() => setOpen(true));
+  useAddLeadShortcut(() => { if (canAddLead) setOpen(true); });
 
+  const query = search.trim().toLowerCase();
+  const visible = items.filter((lead) => (
+    (!owner || (owner === 'unassigned' ? !lead.ownerId : lead.ownerId === owner)) &&
+    [lead.contactName, lead.companyName, lead.sourceName, `#${lead.leadNumber}`].some((value) => value?.toLowerCase().includes(query))
+  ));
+  const ownerOptions = new Map(items.flatMap((lead) => lead.ownerId && lead.ownerName ? [[lead.ownerId, lead.ownerName] as const] : []));
   const activeSources = sources.filter((source) => source.status === 'active');
   const counts = {
     firstCall: items.filter((lead) => lead.currentHolderId === currentUserId && (lead.status === 'new' || lead.status === 'assigned')).length,
     unowned: items.filter((lead) => !lead.ownerId && !isClosedLeadStatus(lead.status)).length,
   };
-  const guidance = loaded ? leadsListGuidance(counts, { isManager, canAddLeads: true, canRecordWin: false, canDecideApprovals: false }) : null;
+  const guidance = loaded ? leadsListGuidance(counts, { isManager, canAddLeads: canAddLead, canRecordWin: false, canDecideApprovals: false }) : null;
   const showSources = isManager || (loaded && activeSources.length === 0);
 
   return (
@@ -45,15 +53,27 @@ export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, c
       description="Every enquiry and potential customer. Open one to see what to do next."
       action={
         <div className="flex flex-wrap gap-2">
-          <Button kind="secondary" onClick={() => onNavigate('/company/sales/leads/stalled')} title="Leads with no activity for a while">Stalled leads</Button>
           <Button kind="secondary" onClick={() => onNavigate('/company/sales/leads/re-engagement')} title="Lost leads worth another try">Re-engagement</Button>
-          {canImport && <Button kind="secondary" onClick={() => setImportOpen(true)}>Import leads</Button>}
-          <Button onClick={() => setOpen(true)}>Add lead</Button>
+          {canImport && <Button kind="secondary" onClick={() => setImportOpen(true)}><Icon name="upload" className="size-4" /> Import CSV</Button>}
+          {canAddLead && <Button onClick={() => setOpen(true)}><Icon name="plus" className="size-4" /> New Lead</Button>}
         </div>
       }
     >
-      <SalesCoach guidance={guidance} onNavigate={onNavigate} onCommand={(command) => { if (command.type === 'add-lead') setOpen(true); }} />
-      {canViewImports && <LeadsViewTabs active="all" onNavigate={onNavigate} />}
+      <SalesCoach guidance={guidance} onNavigate={onNavigate} onCommand={(command) => { if (canAddLead && command.type === 'add-lead') setOpen(true); }} />
+      <LeadsViewTabs active="all" canViewImports={canViewImports} canReviewTriage={canReviewTriage} canViewCallbacks={canViewCallbacks} onNavigate={onNavigate} />
+
+      <Card className="flex flex-wrap items-end gap-4">
+        <div className="min-w-52 flex-1"><Field label="Search leads on this page" value={search} onChange={setSearch} placeholder="Search by name, lead ID, or company…" /></div>
+        <label className="grid gap-2 text-sm font-semibold text-app-muted">
+          Sales owner
+          <select className="ui-form-control min-w-44 px-3 py-2 text-app-foreground" value={owner} onChange={(event) => setOwner(event.target.value)}>
+            <option value="">All owners</option>
+            <option value="unassigned">Unassigned</option>
+            {[...ownerOptions].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </label>
+        {loaded && <p className="pb-2 text-sm text-app-muted">{visible.length} {visible.length === 1 ? 'record' : 'records'}</p>}
+      </Card>
       {importOpen && <ImportLeadsWizard sources={sources} campaigns={campaigns} onClose={() => setImportOpen(false)} onDone={(importId) => { setImportOpen(false); onNavigate(`${IMPORTED_LEADS_PATH}?import=${importId}`); }} />}
       {error && <ErrorToast message={error} />}
       {notice && <p role="status" className="rounded-lg bg-app-accent/10 p-3 text-sm">{notice}</p>}
@@ -107,11 +127,13 @@ export function LeadsPage({ onNavigate, currentUserId = '', isManager = false, c
           <div className="p-6">
             <h2 className="font-display text-xl font-bold">No leads yet</h2>
             <p className="mt-2 text-sm text-app-muted">Leads arrive from your website and ad forms, from imports, or when someone adds one here.</p>
-            {activeSources.length > 0 && <Button className="mt-4" onClick={() => setOpen(true)}>Add your first lead</Button>}
+            {canAddLead && activeSources.length > 0 && <Button className="mt-4" onClick={() => setOpen(true)}>Add your first lead</Button>}
           </div>
+        ) : visible.length === 0 ? (
+          <p className="p-6 text-sm text-app-muted">No leads on this page match the current filters.</p>
         ) : (
           <div className="divide-y divide-app-border">
-            {items.map((lead) => {
+            {visible.map((lead) => {
               const hint = leadRowHint(lead, currentUserId);
               return (
                 <button key={lead.id} className="flex w-full flex-wrap items-center justify-between gap-4 p-5 text-left hover:bg-app-background" onClick={() => onNavigate(`/company/sales/leads/${lead.id}`)}>

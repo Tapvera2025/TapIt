@@ -1,0 +1,226 @@
+.bid-pool-tabs {
+  display: flex;
+  gap: 0.55rem;
+  overflow-x: auto;
+  padding: 0.05rem 0 0.45rem;
+  scrollbar-color: var(--app-border) transparent;
+}
+
+.bid-pool-tabs > button {
+  display: inline-flex;
+  min-height: 3.15rem;
+  flex: none;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  padding: 0 1rem;
+  background: var(--app-surface);
+  color: var(--app-muted);
+  font-size: 0.88rem;
+  font-weight: 650;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.bid-pool-tabs > button:hover:not(.is-active) {
+  border-color: color-mix(in srgb, var(--app-accent) 45%, var(--app-border));
+  color: var(--app-foreground);
+}
+
+.bid-pool-tabs > button.is-active {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: var(--app-on-accent);
+}
+
+.bid-pool-tab-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.bid-pool-tab-count {
+  min-width: 1.4rem;
+  border-radius: 0.45rem;
+  padding: 0.1rem 0.3rem;
+  background: color-mix(in srgb, var(--app-surface) 20%, transparent);
+  color: inherit;
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.bid-pool-filter-card.ui-card {
+  padding: 1rem;
+}
+
+.bid-pool-table-card.ui-card {
+  border-radius: 1.25rem;
+  padding: 0;
+}
+
+.bid-pool-table-min-width {
+  min-width: 1040px;
+}
+
+.bid-pool-table-head {
+  display: grid;
+  grid-template-columns: minmax(17rem, 2fr) minmax(7rem, 0.9fr) minmax(15rem, 1.5fr) minmax(8rem, 0.9fr) minmax(8rem, 0.8fr) minmax(9rem, auto);
+  min-height: 5.2rem;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0.8rem 1.4rem;
+  background: color-mix(in srgb, var(--app-surface-raised) 54%, var(--app-surface));
+  color: var(--app-muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bid-pool-row {
+  display: grid;
+  grid-template-columns: minmax(17rem, 2fr) minmax(7rem, 0.9fr) minmax(15rem, 1.5fr) minmax(8rem, 0.9fr) minmax(8rem, 0.8fr) minmax(9rem, auto);
+  min-height: 6.25rem;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.4rem;
+  background: var(--app-surface);
+  transition: background 120ms ease;
+}
+
+.bid-pool-row:hover {
+  background: color-mix(in srgb, var(--app-accent) 3%, var(--app-surface));
+}
+
+.bid-pool-row-lead {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.bid-pool-row-icon {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+  color: var(--app-accent);
+}
+
+.bid-pool-row-cell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--app-foreground);
+  font-size: 0.9rem;
+}
+
+.bid-pool-mobile-label {
+  display: none;
+}
+
+.bid-pool-row-status {
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.bid-pool-new-pill,
+.bid-pool-live-pill {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bid-pool-new-pill {
+  background: color-mix(in srgb, var(--theme-primary) 9%, var(--app-surface));
+  color: var(--theme-primary);
+}
+
+.bid-pool-live-pill {
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+  color: var(--app-accent);
+}
+
+.bid-pool-live-pill.is-urgent {
+  background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface));
+  color: var(--app-danger);
+}
+
+.bid-pool-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.bid-pool-row-pass {
+  grid-column: 1 / -1;
+}
+
+.bid-pool-empty.ui-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+@media (max-width: 760px) {
+  .bid-pool-tabs > button {
+    min-height: 2.8rem;
+    padding-inline: 0.8rem;
+    font-size: 0.82rem;
+  }
+
+  .bid-pool-table-min-width {
+    min-width: 0;
+  }
+
+  .bid-pool-table-head {
+    display: none;
+  }
+
+  .bid-pool-row {
+    grid-template-columns: minmax(0, 1fr) minmax(6rem, auto);
+    gap: 0.7rem;
+    padding: 1rem;
+  }
+
+  .bid-pool-row-lead,
+  .bid-pool-row-status,
+  .bid-pool-row-actions,
+  .bid-pool-row-pass {
+    grid-column: 1 / -1;
+  }
+
+  .bid-pool-mobile-label {
+    display: block;
+    color: var(--app-muted);
+    font-size: 0.67rem;
+    font-weight: 750;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .bid-pool-row-cell {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.8rem;
+  }
+
+  .bid-pool-row-actions > .ui-button {
+    flex: 1;
+  }
+}

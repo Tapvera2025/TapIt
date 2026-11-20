@@ -5,6 +5,7 @@ import { getDeal, type Deal } from '../deals/api.js';
 import { ApprovalCard } from './ApprovalCard.js';
 import { describeSla } from './approvals-helpers.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
+import { APP_NAVIGATE_EVENT } from '../../../navigationEvent.js';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -17,6 +18,7 @@ export function ApprovalsQueuePage({
   const [deals, setDeals] = useState<Record<string, Deal>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [linkedRequest, setLinkedRequest] = useState(() => new URLSearchParams(window.location.search).get('request'));
 
   async function reload(): Promise<void> {
     try {
@@ -45,9 +47,28 @@ export function ApprovalsQueuePage({
   useEffect(() => {
     void reload();
     const timer = window.setInterval(() => void reload(), POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
+    const followLink = () => {
+      if (window.location.pathname !== '/company/sales/approvals') return;
+      setLinkedRequest(new URLSearchParams(window.location.search).get('request'));
+      void reload();
+    };
+    window.addEventListener(APP_NAVIGATE_EVENT, followLink);
+    window.addEventListener('popstate', followLink);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener(APP_NAVIGATE_EVENT, followLink);
+      window.removeEventListener('popstate', followLink);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const linkedRequestVisible = linkedRequest !== null && approvals.some((approval) => approval.id === linkedRequest);
+  useEffect(() => {
+    if (!linkedRequestVisible) return;
+    const card = document.getElementById(`approval-request-${linkedRequest}`);
+    card?.scrollIntoView({ block: 'center' });
+    card?.querySelector('button')?.focus({ preventScroll: true });
+  }, [linkedRequest, linkedRequestVisible]);
 
   const sorted = useMemo(() => {
     return [...approvals].sort((a, b) => {
@@ -84,12 +105,17 @@ export function ApprovalsQueuePage({
       ) : (
         <div className="grid gap-4">
           {sorted.map((approval) => (
-            <ApprovalCard
+            <div
               key={approval.id}
-              approval={approval}
-              deal={deals[approval.dealId] ?? null}
-              onOpen={() => onNavigate(`/company/sales/deals/${approval.dealId}`)}
-            />
+              id={`approval-request-${approval.id}`}
+              className={approval.id === linkedRequest ? 'rounded-xl ring-2 ring-app-accent' : undefined}
+            >
+              <ApprovalCard
+                approval={approval}
+                deal={deals[approval.dealId] ?? null}
+                onOpen={() => onNavigate(`/company/sales/deals/${approval.dealId}`)}
+              />
+            </div>
           ))}
         </div>
       )}

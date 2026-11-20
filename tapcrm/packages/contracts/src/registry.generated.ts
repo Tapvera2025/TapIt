@@ -10,7 +10,7 @@
  * Editing it by hand makes the build red, which is the point — the document is
  * the source of truth, not the code.
  *
- * Actions: 242   Bindings: 761
+ * Actions: 242   Bindings: 764
  */
 
 import type { ActionDefinition, ActionBinding } from './registry.types.js';
@@ -4152,6 +4152,8 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/org/departments', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/currency-settings', action: 'advance:view-own', resourceParam: null },
   { method: 'PUT', path: '/api/org/currency-settings', action: 'system:manage-settings', resourceParam: null },
+  { method: 'GET', path: '/api/org/proposal-branding', action: 'system:manage-settings', resourceParam: null },
+  { method: 'PUT', path: '/api/org/proposal-branding', action: 'system:manage-settings', resourceParam: null },
   { method: 'GET', path: '/api/org/teams', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/ladder/:departmentCode', action: 'org:view-structure', resourceParam: null },
   { method: 'GET', path: '/api/org/chart', action: 'org:view-structure', resourceParam: null },
@@ -4474,6 +4476,7 @@ export const BINDINGS: readonly ActionBinding<Action>[] = [
   { method: 'GET', path: '/api/deals/wins-to-record', action: 'deals:record-win', resourceParam: null },
   { method: 'GET', path: '/api/deals/forecast', action: 'deals:forecast', resourceParam: null },
   { method: 'GET', path: '/api/commercials/:id', action: 'deals:view-commercials', resourceParam: 'id' },
+  { method: 'GET', path: '/api/commercials/:id/branding', action: 'deals:view-commercials', resourceParam: 'id' },
   { method: 'PATCH', path: '/api/commercials/:id', action: 'deals:edit', resourceParam: 'id' },
   { method: 'POST', path: '/api/commercials/:id/publish', action: 'deals:edit', resourceParam: 'id' },
   { method: 'POST', path: '/api/commercials/:id/supersede', action: 'deals:edit', resourceParam: 'id' },

@@ -684,7 +684,8 @@ describe('My Todo - Frontend Suite', () => {
       expect(myTodoNavItem.icon).toBe('pencil');
       expect(myTodoNavItem.icon).not.toBe('check');
       expect(myTodoNavItem.icon).not.toBe('notepad');
-      expect(myTodoNavItem.requiredAction).toBeUndefined();
+      // Open to everyone: its rule names no power.
+      expect(myTodoNavItem.access).toEqual({});
 
       const overview = companyNavigation.find((g) => g.label === 'Overview');
       expect(overview).toBeDefined();
@@ -696,7 +697,7 @@ describe('My Todo - Frontend Suite', () => {
       expect(notepadItem?.icon).toBe('notepad');
 
       const itemLabels = overview?.items.map((i) => i.label);
-      expect(itemLabels).toEqual(['Dashboard', 'Tasks', 'My Todo', 'My Notepad']);
+      expect(itemLabels).toEqual(['Dashboard', 'Tasks', 'My Interviews', 'Messages', 'My Todo', 'My Notepad']);
     });
 
     it('renders My Todo in CompanySidebar for Super Admin, HR, and regular employees', async () => {
@@ -735,12 +736,6 @@ describe('My Todo - Frontend Suite', () => {
               },
               organizationName: 'Acme Corp',
               accountType: role.accountType,
-              canRequestRoleChange: false,
-              canViewAudit: false,
-              canViewEmployees: false,
-              canViewTerritories: false,
-              canViewLeads: false,
-              canViewHandovers: false,
               onNavigate: () => {},
               onLogout: () => {},
               open: true,

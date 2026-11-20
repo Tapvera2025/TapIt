@@ -74,7 +74,8 @@ export function Navbar({
 }): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1280px)').matches);
-  const { target } = useCompanyHeroUtility();
+  const { target, setTarget } = useCompanyHeroUtility();
+  const inlineControls = !desktop || !setTarget;
   const accountRef = useRef<HTMLDivElement>(null);
   const profileHoverTimer = useRef<number | null>(null);
   const designation = identity.accountType === 'super-admin'
@@ -201,7 +202,7 @@ export function Navbar({
   return (
     <>
     {desktop && target && createPortal(controls, target)}
-    <header className="global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl xl:hidden">
+    <header className={`global-navbar sticky top-0 z-[70] h-16 shrink-0 border-b border-app-border bg-app-surface/95 backdrop-blur-xl ${setTarget ? 'xl:hidden' : ''}`}>
       <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:gap-3 sm:px-5">
         <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2 lg:gap-1">
           <button
@@ -228,7 +229,7 @@ export function Navbar({
           </span>
         </div>
 
-        {!desktop && controls}
+        {inlineControls && controls}
         {/* The same controls move into the desktop hero without a second state owner. */}
       </div>
     </header>
