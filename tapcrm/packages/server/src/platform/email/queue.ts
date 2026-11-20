@@ -2,6 +2,7 @@ import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { loadConfig } from '../../config.js';
 import type { EmailMessage } from './mailer.js';
+import { recordQueued } from './log.js';
 
 export const EMAIL_QUEUE = 'email-queue';
 export const EMAIL_ATTEMPTS = 3;
@@ -11,12 +12,15 @@ export const EMAIL_BACKOFF_MS = 5_000;
 export type EmailTemplateData = Pick<EmailMessage, 'text' | 'html' | 'sensitive'>;
 
 let connection: Redis | null = null;
-let queue: Queue<EmailMessage> | null = null;
+/** A message in the queue, with the id of its Mail Center record. */
+export type QueuedEmail = EmailMessage & { readonly logId?: string };
 
-function getQueue(): Queue<EmailMessage> {
+let queue: Queue<QueuedEmail> | null = null;
+
+function getQueue(): Queue<QueuedEmail> {
   if (queue) return queue;
   connection = new Redis(loadConfig().REDIS_URL, { maxRetriesPerRequest: null });
-  queue = new Queue<EmailMessage>(EMAIL_QUEUE, {
+  queue = new Queue<QueuedEmail>(EMAIL_QUEUE, {
     connection,
     defaultJobOptions: {
       attempts: EMAIL_ATTEMPTS,
@@ -34,7 +38,15 @@ function getQueue(): Queue<EmailMessage> {
 export async function addEmailToQueue(to: string, subject: string, templateData: EmailTemplateData): Promise<void> {
   // Tests have no Redis, and nothing is delivered in them anyway.
   if (loadConfig().NODE_ENV === 'test') return;
-  await getQueue().add('send', { to, subject, ...templateData });
+  const message: EmailMessage = { to, subject, ...templateData };
+  // Recorded first so a message that never reaches the queue still shows up (as QUEUED).
+  const logId = await recordQueued(message);
+  await getQueue().add('send', { ...message, ...(logId ? { logId } : {}) });
+}
+
+/** Sends a message again from the Mail Center. Its log row already exists. */
+export async function requeueEmail(logId: string, message: EmailMessage): Promise<void> {
+  await getQueue().add('send', { ...message, logId });
 }
 
 /** Same as `addEmailToQueue`, for callers that already hold a whole message. */

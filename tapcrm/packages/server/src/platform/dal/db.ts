@@ -357,6 +357,7 @@ export type PlatformOperation =
   | 'audit-archiving'
   | 'organization-provisioning'
   | 'health-check'
+  | 'email-log'
   | 'job-scheduling'
   | 'outbox-drain'
   | 'callback-automation'

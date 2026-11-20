@@ -790,6 +790,7 @@ function buildUnfilteredNavigation(input: SidebarNavigationInput): CompanyNavGro
                   path: '/platform/invitations',
                   icon: 'users',
                 },
+                { label: 'Mail Center', path: '/platform/mail', icon: 'inbox' },
               ],
             },
           ]

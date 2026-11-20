@@ -1,4 +1,4 @@
-export { addEmailToQueue, sendEmail, EMAIL_QUEUE } from './queue.js';
+export { addEmailToQueue, sendEmail, requeueEmail, EMAIL_QUEUE } from './queue.js';
 export type { EmailTemplateData } from './queue.js';
 export { escapeHtml } from './mailer.js';
 export type { EmailMessage } from './mailer.js';
