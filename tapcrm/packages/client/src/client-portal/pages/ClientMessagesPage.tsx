@@ -50,7 +50,7 @@ export function ClientMessagesPage(): React.JSX.Element {
   return (
     <div className="workspace-page-container flex h-full min-h-0 w-full flex-col">
       <div className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col">
-        <header className="flex shrink-0 items-center justify-between border-b border-app-border pb-3">
+        <header className="flex shrink-0 items-center justify-between border-b border-app-border pb-3 xl:hidden">
           <div className="min-w-0">
             <h1 className="font-display text-xl font-bold tracking-[-0.03em] text-app-foreground sm:text-2xl">Messages</h1>
             <p className="mt-0.5 truncate text-xs text-app-muted sm:text-sm">Your project team conversation</p>

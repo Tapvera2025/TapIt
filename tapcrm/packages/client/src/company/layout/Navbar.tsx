@@ -79,6 +79,8 @@ export function Navbar({
   const profileHoverTimer = useRef<number | null>(null);
   const designation = identity.accountType === 'super-admin'
     ? 'Super Admin'
+    : identity.accountType === 'client'
+      ? 'Client'
     : identity.positionName || identity.positionCode || 'Employee';
   const sidebarExpanded = window.innerWidth < 1280 ? sidebarOpen : !sidebarCollapsed;
   // Employees complete their own profile after HR creates the account; the
